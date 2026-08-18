@@ -17,6 +17,10 @@ const (
 	FindToolsName          = "find_tools"
 	findToolsMaxMatches    = 20
 	findToolsCatalogTokens = 4000
+	// findToolsSpentBudgetFloor replaces a spent or over-reserved budget
+	// for searches so zero-cost reserved names remain activatable while
+	// any real schema weight still exceeds it.
+	findToolsSpentBudgetFloor = 0.000001
 )
 
 var findToolsTokenSeparator = regexp.MustCompile(`[^\p{L}\p{N}]+`)
@@ -76,12 +80,19 @@ type FindToolsResult struct {
 	TotalDeferred int              `json:"total_deferred"`
 }
 
-// serialCallsTool opts find_tools into in-order execution when one step
+// findToolsTool opts find_tools into in-order execution when one step
 // contains several calls, so the shared schema budget is claimed in
-// tool-call order rather than scheduler order.
-type serialCallsTool struct{ fantasy.AgentTool }
+// tool-call order rather than scheduler order. It also observes the
+// step's sibling tool-call names so direct calls to deferred tools are
+// charged against the budget before any search admits activations.
+type findToolsTool struct {
+	fantasy.AgentTool
+	reserveStepCalls func(names []string)
+}
 
-func (serialCallsTool) SerialToolCalls() bool { return true }
+func (findToolsTool) SerialToolCalls() bool { return true }
+
+func (t findToolsTool) ObserveStepToolCalls(names []string) { t.reserveStepCalls(names) }
 
 // FindTools returns the built-in used to discover deferred MCP tool schemas.
 func FindTools(options FindToolsOptions) fantasy.AgentTool {
@@ -92,7 +103,30 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 	}
 	var budgetMu sync.Mutex
 	remainingBudget := options.SchemaTokenBudget
-	return serialCallsTool{AgentTool: fantasy.NewAgentTool(
+	// Direct calls to deferred tools in the same step are admitted by
+	// derivation before any search activations, so their schema weight
+	// is reserved out of the budget before searches run. Reserved names
+	// stay free to activate because derivation already retains them.
+	reserved := make(map[string]struct{})
+	reserve := func(names []string) {
+		if options.SchemaTokenBudget <= 0 {
+			return
+		}
+		budgetMu.Lock()
+		defer budgetMu.Unlock()
+		for _, name := range names {
+			weight, ok := schemaTokensByName[name]
+			if !ok {
+				continue
+			}
+			if _, dup := reserved[name]; dup {
+				continue
+			}
+			reserved[name] = struct{}{}
+			remainingBudget -= weight
+		}
+	}
+	return findToolsTool{reserveStepCalls: reserve, AgentTool: fantasy.NewAgentTool(
 		FindToolsName,
 		buildFindToolsDescription(entries, options.CatalogTokenBudget),
 		func(ctx context.Context, args FindToolsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -100,22 +134,38 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse("at least one query or name is required"), nil
 			}
 			budgetMu.Lock()
-			if options.SchemaTokenBudget > 0 && remainingBudget <= 0 {
-				budgetMu.Unlock()
-				return fantasy.NewTextErrorResponse(findToolsBudgetExhausted), nil
+			searchEntries := entries
+			if len(reserved) > 0 {
+				searchEntries = slices.Clone(entries)
+				for i := range searchEntries {
+					if _, ok := reserved[searchEntries[i].Name]; ok {
+						searchEntries[i].SchemaTokens = 0
+					}
+				}
 			}
-			result := SearchTools(entries, args, remainingBudget)
+			searchBudget := remainingBudget
+			if options.SchemaTokenBudget > 0 && searchBudget <= 0 {
+				// A spent budget still admits zero-cost reserved names,
+				// so search with a floor instead of failing outright.
+				searchBudget = findToolsSpentBudgetFloor
+			}
+			result := SearchTools(searchEntries, args, searchBudget)
 			if options.SchemaTokenBudget > 0 {
 				admitted := 0.0
 				for _, name := range result.Activated {
+					if _, ok := reserved[name]; ok {
+						continue
+					}
 					admitted += schemaTokensByName[name]
 				}
 				// Derivation retains a single over-budget claim via its
 				// newest-keep rule, but only when it is the turn's sole
 				// claim, which is exactly when the budget is untouched.
 				// Any other over-claim would be silently shed on the
-				// next request, so fail it loudly instead.
-				if admitted > remainingBudget && remainingBudget < options.SchemaTokenBudget {
+				// next request, so fail it loudly instead. A zero new
+				// claim always succeeds: reserved names are already
+				// retained by derivation, whatever the budget holds.
+				if admitted > 0 && admitted > remainingBudget && remainingBudget < options.SchemaTokenBudget {
 					budgetMu.Unlock()
 					return fantasy.NewTextErrorResponse(findToolsBudgetExhausted), nil
 				}

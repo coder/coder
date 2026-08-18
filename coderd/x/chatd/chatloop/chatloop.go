@@ -1112,6 +1112,8 @@ func executeTools(
 		}
 	}
 
+	notifyStepToolCallObservers(toolMap, toolNameAliases, localToolCalls)
+
 	results := make([]fantasy.ToolResultContent, len(localToolCalls))
 	completedAt := make([]time.Time, len(localToolCalls))
 	runCall := func(i int, tc fantasy.ToolCallContent) {
@@ -1484,6 +1486,38 @@ func isToolActive(name string, activeTools []string) bool {
 // serialToolCaller is implemented by tools whose calls within one step
 // must execute in tool-call order because they claim from shared state.
 type serialToolCaller interface{ SerialToolCalls() bool }
+
+// stepToolCallObserver is implemented by tools that need to see every
+// tool-call name in the step before any call executes, for example so
+// find_tools can charge same-step direct calls against its budget.
+type stepToolCallObserver interface{ ObserveStepToolCalls(names []string) }
+
+// notifyStepToolCallObservers passes the step's resolved tool-call
+// names to each distinct called tool that observes them.
+func notifyStepToolCallObservers(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, calls []fantasy.ToolCallContent) {
+	names := make([]string, 0, len(calls))
+	for _, tc := range calls {
+		name := tc.ToolName
+		if alias, ok := toolNameAliases[name]; ok {
+			name = alias
+		}
+		names = append(names, name)
+	}
+	notified := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		if _, dup := notified[name]; dup {
+			continue
+		}
+		notified[name] = struct{}{}
+		tool, ok := toolMap[name]
+		if !ok {
+			continue
+		}
+		if observer, ok := tool.(stepToolCallObserver); ok {
+			observer.ObserveStepToolCalls(names)
+		}
+	}
+}
 
 func isSerialToolCall(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, name string) bool {
 	if alias, ok := toolNameAliases[name]; ok {

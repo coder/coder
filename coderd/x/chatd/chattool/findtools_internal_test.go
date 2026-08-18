@@ -165,6 +165,55 @@ func TestFindToolsSerialToolCalls(t *testing.T) {
 	require.True(t, serial.SerialToolCalls())
 }
 
+func TestFindToolsDirectCallReservation(t *testing.T) {
+	t.Parallel()
+	newTool := func(budget float64) (fantasy.AgentTool, interface{ ObserveStepToolCalls([]string) }) {
+		tool := FindTools(FindToolsOptions{
+			Entries: []FindToolCatalogEntry{
+				{Name: "server__a", SchemaTokens: 60},
+				{Name: "server__b", SchemaTokens: 50},
+				{Name: "server__c", SchemaTokens: 30},
+			},
+			SchemaTokenBudget: budget,
+		})
+		observer, ok := tool.(interface{ ObserveStepToolCalls([]string) })
+		require.True(t, ok, "find_tools must observe step tool calls to reserve direct-call schema weight")
+		return tool, observer
+	}
+
+	t.Run("direct calls charge the budget before searches", func(t *testing.T) {
+		t.Parallel()
+		tool, observer := newTool(100)
+		observer.ObserveStepToolCalls([]string{"server__a", "server__a", "unknown", FindToolsName})
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__b"]}`})
+		require.NoError(t, err)
+		require.True(t, resp.IsError, "a search claim exceeding the budget left by direct calls must fail loudly")
+
+		resp, err = tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__c"]}`})
+		require.NoError(t, err)
+		require.False(t, resp.IsError, "duplicate direct-call names are charged once")
+		var result FindToolsResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, []string{"server__c"}, result.Activated)
+	})
+
+	t.Run("reserved names stay activatable after the budget is spent", func(t *testing.T) {
+		t.Parallel()
+		tool, observer := newTool(50)
+		observer.ObserveStepToolCalls([]string{"server__a"})
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__a"]}`})
+		require.NoError(t, err)
+		require.False(t, resp.IsError, "derivation retains direct calls, so reporting them activated is free")
+		var result FindToolsResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, []string{"server__a"}, result.Activated)
+
+		resp, err = tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__c"]}`})
+		require.NoError(t, err)
+		require.True(t, resp.IsError, "an over-reserved budget admits no new schema weight")
+	})
+}
+
 func TestFindToolsSharedSchemaBudget(t *testing.T) {
 	t.Parallel()
 	tool := FindTools(FindToolsOptions{

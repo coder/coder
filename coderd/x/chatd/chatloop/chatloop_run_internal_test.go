@@ -877,6 +877,81 @@ type serialMarkerTool struct{ fantasy.AgentTool }
 
 func (serialMarkerTool) SerialToolCalls() bool { return true }
 
+type observerMarkerTool struct {
+	fantasy.AgentTool
+	observed func(names []string)
+}
+
+func (t observerMarkerTool) ObserveStepToolCalls(names []string) { t.observed(names) }
+
+func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var observedNames []string
+	observedBeforeRun := false
+	observer := observerMarkerTool{
+		AgentTool: fantasy.NewAgentTool(
+			"observer_tool",
+			"records sibling calls",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				mu.Lock()
+				observedBeforeRun = observedNames != nil
+				mu.Unlock()
+				return fantasy.NewTextResponse("ok"), nil
+			},
+		),
+		observed: func(names []string) {
+			mu.Lock()
+			defer mu.Unlock()
+			observedNames = append([]string{}, names...)
+		},
+	}
+	var uncalledObserved atomic.Bool
+	uncalledObserver := observerMarkerTool{
+		AgentTool: fantasy.NewAgentTool(
+			"uncalled_observer",
+			"never called this step",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.NewTextResponse("ok"), nil
+			},
+		),
+		observed: func([]string) { uncalledObserved.Store(true) },
+	}
+	other := fantasy.NewAgentTool(
+		"other_tool",
+		"plain tool",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextResponse("ok"), nil
+		},
+	)
+
+	executeTools(
+		context.Background(),
+		quartz.NewReal(),
+		[]fantasy.AgentTool{observer, uncalledObserver, other},
+		nil,
+		nil,
+		nil,
+		[]fantasy.ToolCallContent{
+			{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
+			{ToolCallID: "2", ToolName: "other_tool", Input: "{}"},
+		},
+		NewMetrics(prometheus.NewRegistry()),
+		slog.Make(),
+		"fake", "fake-model",
+		map[string]bool{},
+		defaultToolResultBytes,
+		map[string]string{"observer_alias": "observer_tool"},
+		nil,
+	)
+
+	require.Equal(t, []string{"observer_tool", "other_tool"}, observedNames,
+		"a called observer sees every resolved tool-call name in the step")
+	require.True(t, observedBeforeRun, "observers are notified before any tool call executes")
+	require.False(t, uncalledObserved.Load(), "tools not called this step are not notified")
+}
+
 func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 	t.Parallel()
 
