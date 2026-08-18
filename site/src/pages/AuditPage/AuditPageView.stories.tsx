@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
-import { expect, within } from "storybook/test";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
@@ -18,6 +18,7 @@ import {
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import { pixelWithTablet } from "#/testHelpers/pixel";
+import { useResourceTypeFilterMenu } from "./AuditFilter";
 import { AuditPageView } from "./AuditPageView";
 
 type FilterProps = ComponentProps<typeof AuditPageView>["filterProps"];
@@ -116,6 +117,53 @@ export const NotVisibleWithoutLicenseAccess: Story = {
 		await expect(
 			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+const onResourceTypeChange = fn();
+
+// Uses the real resource-type menu so the generated resource type and its
+// friendly label are verified together.
+export const FilterByChatInstructionSettings: Story = {
+	args: {
+		auditsQuery: mockSuccessResult,
+	},
+	render: function AuditPageViewWithResourceTypeMenu(args) {
+		const resourceTypeMenu = useResourceTypeFilterMenu({
+			value: undefined,
+			onChange: onResourceTypeChange,
+		});
+		return (
+			<AuditPageView
+				{...args}
+				filterProps={{
+					...defaultFilterProps,
+					menus: {
+						...defaultFilterProps.menus,
+						resourceType: resourceTypeMenu,
+					},
+				}}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		onResourceTypeChange.mockClear();
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Select a resource type" }),
+		);
+		const option = await screen.findByRole("option", {
+			name: "Chat Instruction Settings",
+		});
+		await userEvent.click(option);
+
+		await expect(onResourceTypeChange).toHaveBeenCalledWith(
+			expect.objectContaining({
+				value: "chat_instruction_settings",
+				label: "Chat Instruction Settings",
+			}),
+		);
 	},
 };
 

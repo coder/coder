@@ -2944,26 +2944,6 @@ const compactCommandMessages: TypesGen.ChatMessagesResponse = {
 	has_more: false,
 };
 
-const compactQueuedEditChat: TypesGen.Chat = {
-	id: CHAT_ID,
-	...baseChatFields,
-	title: "Compact queued edit",
-	status: "running",
-};
-
-const compactQueuedEditMessages: TypesGen.ChatMessagesResponse = {
-	messages: compactCommandMessages.messages,
-	queued_messages: [
-		{
-			...MockChatQueuedMessage,
-			id: 3,
-			chat_id: CHAT_ID,
-			content: [{ type: "text", text: "Queued follow-up" }],
-		},
-	],
-	has_more: false,
-};
-
 /** Submitting "/compact" alone requests a manual compaction instead of
  *  sending a chat message. */
 export const SlashCompactCommandSubmits: Story = {
@@ -3010,61 +2990,6 @@ export const SlashCompactCommandSubmits: Story = {
 		});
 		expect(compactSpy).toHaveBeenCalledWith(CHAT_ID);
 		expect(sendSpy).not.toHaveBeenCalled();
-	},
-};
-
-export const SlashCompactQueuedEditSaves: Story = {
-	parameters: {
-		queries: buildQueries(compactQueuedEditChat, compactQueuedEditMessages, {
-			diffUrl: undefined,
-		}),
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const compactSpy = spyOn(API.experimental, "compactChat");
-		const sendSpy = spyOn(
-			API.experimental,
-			"createChatMessage",
-		).mockResolvedValue({
-			queued: true,
-			queued_message: {
-				...MockChatQueuedMessage,
-				id: 4,
-				chat_id: CHAT_ID,
-				content: [{ type: "text", text: "/compact" }],
-			},
-		});
-		const deleteSpy = spyOn(
-			API.experimental,
-			"deleteChatQueuedMessage",
-		).mockResolvedValue();
-		spyOn(API.experimental, "getChat").mockResolvedValue(compactQueuedEditChat);
-		spyOn(API.experimental, "getChatMessages").mockResolvedValue({
-			...compactQueuedEditMessages,
-			queued_messages: [],
-		});
-
-		await userEvent.click(await canvas.findByRole("button", { name: "Edit" }));
-		const editor = await canvas.findByTestId("chat-message-input");
-		await userEvent.clear(editor);
-		await userEvent.type(editor, "/compact");
-		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
-
-		await waitFor(() => {
-			expect(sendSpy).toHaveBeenCalledTimes(1);
-			expect(deleteSpy).toHaveBeenCalledTimes(1);
-		});
-		expect(sendSpy).toHaveBeenCalledWith(
-			CHAT_ID,
-			expect.objectContaining({
-				content: [{ type: "text", text: "/compact" }],
-			}),
-		);
-		expect(deleteSpy).toHaveBeenCalledWith(CHAT_ID, 3);
-		expect(compactSpy).not.toHaveBeenCalled();
 	},
 };
 

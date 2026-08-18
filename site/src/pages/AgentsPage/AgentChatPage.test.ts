@@ -585,7 +585,6 @@ describe("useConversationEditingState", () => {
 
 	const renderEditing = (...args: [] | [string | undefined]) => {
 		const onSend = vi.fn().mockResolvedValue(undefined);
-		const onDeleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
 		const chatInputRef = createRef<ChatMessageInputRef>();
 		const inputValueRef = { current: "" };
 		// createRef returns { current: null }, but we need it initialized
@@ -598,7 +597,6 @@ describe("useConversationEditingState", () => {
 			useConversationEditingState({
 				chatID: resolvedChatID,
 				onSend,
-				onDeleteQueuedMessage,
 				chatInputRef,
 				inputValueRef,
 			}),
@@ -688,40 +686,6 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
-	it("loads queue edit text into the composer and restores the prior draft on cancel without refocusing", () => {
-		const { result, unmount } = renderEditing();
-
-		// Simulate the user typing a draft via handleContentChange.
-		act(() => {
-			result.current.handleContentChange(
-				"work in progress",
-				"work in progress",
-				false,
-			);
-		});
-
-		const remountKeyBefore = result.current.remountKey;
-
-		act(() => {
-			result.current.handleStartQueueEdit(9, "queued message", []);
-		});
-
-		expect(result.current.editingQueuedMessageID).toBe(9);
-		expect(result.current.editorInitialValue).toBe("queued message");
-		expect(result.current.remountKey).toBe(remountKeyBefore + 1);
-
-		const remountKeyAfterEdit = result.current.remountKey;
-
-		act(() => {
-			result.current.handleCancelQueueEdit();
-		});
-
-		expect(result.current.editingQueuedMessageID).toBeNull();
-		expect(result.current.editorInitialValue).toBe("work in progress");
-		expect(result.current.remountKey).toBe(remountKeyAfterEdit + 1);
-		unmount();
-	});
-
 	it("does not force focus when replacing input values on mobile", () => {
 		setMobileViewport(true);
 		const { result, unmount } = renderEditing();
@@ -741,16 +705,6 @@ describe("useConversationEditingState", () => {
 			result.current.handleCancelHistoryEdit();
 		});
 		expect(mockInput.focus).not.toHaveBeenCalled();
-
-		act(() => {
-			result.current.handleStartQueueEdit(9, "queued message", []);
-		});
-		expect(mockInput.focus).not.toHaveBeenCalled();
-
-		act(() => {
-			result.current.handleCancelQueueEdit();
-		});
-		expect(mockInput.focus).not.toHaveBeenCalled();
 		unmount();
 	});
 
@@ -768,22 +722,6 @@ describe("useConversationEditingState", () => {
 
 		// The hook reads the persisted draft from localStorage when
 		// inputValueRef hasn't been updated by handleContentChange yet.
-		expect(result.current.editorInitialValue).toBe("persisted draft");
-		unmount();
-	});
-
-	it("falls back to the persisted draft when queue edit starts before hydration", () => {
-		localStorage.setItem(expectedKey, "persisted draft");
-		const { result, unmount } = renderEditing();
-
-		act(() => {
-			result.current.handleStartQueueEdit(9, "queued message", []);
-		});
-
-		act(() => {
-			result.current.handleCancelQueueEdit();
-		});
-
 		expect(result.current.editorInitialValue).toBe("persisted draft");
 		unmount();
 	});
@@ -1178,43 +1116,6 @@ describe("useConversationEditingState", () => {
 		expect(result.current.editingMessageId).toBeNull();
 		expect(result.current.initialEditorState).toBe(editorState);
 		expect(result.current.editorInitialValue).toBe("my draft");
-		unmount();
-	});
-
-	it("preserves serialized editor state across queue edit then cancel", () => {
-		const editorState = JSON.stringify({
-			root: {
-				children: [
-					{
-						children: [{ text: "queued draft", type: "text" }],
-						type: "paragraph",
-					},
-				],
-				type: "root",
-			},
-		});
-		localStorage.setItem(expectedKey, editorState);
-
-		const { result, unmount } = renderEditing();
-
-		act(() => {
-			result.current.handleContentChange("queued draft", editorState, false);
-		});
-
-		act(() => {
-			result.current.handleStartQueueEdit(99, "queued msg", []);
-		});
-
-		expect(result.current.editingQueuedMessageID).toBe(99);
-		expect(result.current.initialEditorState).toBeUndefined();
-
-		act(() => {
-			result.current.handleCancelQueueEdit();
-		});
-
-		expect(result.current.editingQueuedMessageID).toBeNull();
-		expect(result.current.initialEditorState).toBe(editorState);
-		expect(result.current.editorInitialValue).toBe("queued draft");
 		unmount();
 	});
 
