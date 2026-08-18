@@ -37,6 +37,11 @@ export const Default: Story = {
 		const canvas = within(canvasElement);
 		const addButton = canvas.getByRole("button", { name: "Add server" });
 
+		await expect(
+			canvas.getByRole("button", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
+		).toBeVisible();
 		await expect(addButton).toBeDisabled();
 		await userEvent.type(canvas.getByLabelText(/display name/i), "GitHub");
 		await expect(canvas.getByLabelText(/^slug/i)).toHaveValue("github");

@@ -131,7 +131,7 @@ const UpdateMCPServerPage: FC = () => {
 								<ErrorAlert error={serverQuery.error} />
 							</div>
 						</>
-					) : notFound || !server ? (
+					) : notFound || !server || !organization ? (
 						<Navigate to={listPath} replace />
 					) : (
 						<>
@@ -142,6 +142,8 @@ const UpdateMCPServerPage: FC = () => {
 							)}
 							<UpdateMCPServerPageView
 								server={server}
+								organizations={manageableOrganizations}
+								organization={organization}
 								listPath={listPath}
 								isSaving={updateMutation.isPending}
 								isDeleting={deleteMutation.isPending}

@@ -2,9 +2,12 @@ import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { pageTitle } from "#/utils/page";
 import { MCPServerForm } from "../components/MCPServerForm";
+import { OrganizationPicker } from "../components/OrganizationPicker";
 
 interface UpdateMCPServerPageViewProps {
 	server: TypesGen.MCPServerConfig;
+	organizations: readonly TypesGen.Organization[];
+	organization: TypesGen.Organization;
 	listPath: string;
 	isSaving: boolean;
 	isDeleting: boolean;
@@ -20,6 +23,8 @@ interface UpdateMCPServerPageViewProps {
 
 const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 	server,
+	organizations,
+	organization,
 	listPath,
 	isSaving,
 	isDeleting,
@@ -32,6 +37,13 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 	return (
 		<>
 			<title>{pageTitle(server.display_name, "AI Settings")}</title>
+			<OrganizationPicker
+				id="mcp-update-organization"
+				className="mb-6"
+				organizations={organizations}
+				organization={organization}
+				showSingleOrganization
+			/>
 			<MCPServerForm
 				key={server.id}
 				server={server}

@@ -41,6 +41,7 @@ const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 				organization={organization}
 				onChange={onSelectOrganization}
 				disabled={isSaving}
+				showSingleOrganization
 			/>
 			{canCreate ? (
 				<MCPServerForm

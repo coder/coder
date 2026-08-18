@@ -138,11 +138,6 @@ const ListRedirectProbe: FC = () => {
 	return <div>list-org:{searchParams.get(orgSearchParam) ?? "none"}</div>;
 };
 
-const AddRedirectProbe: FC = () => {
-	const [searchParams] = useSearchParams();
-	return <h1>add-org:{searchParams.get(orgSearchParam) ?? "none"}</h1>;
-};
-
 const DetailRedirectProbe: FC = () => {
 	const [searchParams] = useSearchParams();
 	return <h1>detail-org:{searchParams.get(orgSearchParam) ?? "none"}</h1>;
@@ -371,7 +366,7 @@ export const ListCanAddToCreateOnlyOrganization: Story = {
 				{ path: "/ai/settings/mcp-servers", useStoryElement: true },
 				{
 					path: "/ai/settings/mcp-servers/add",
-					element: <AddRedirectProbe />,
+					element: <AddMCPServerPage />,
 				},
 			],
 		}),
@@ -393,12 +388,54 @@ export const ListCanAddToCreateOnlyOrganization: Story = {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		).not.toBeInTheDocument();
-		await userEvent.click(canvas.getByRole("button", { name: "Add server" }));
+		const addButton = canvas.getByRole("button", {
+			name: `Add server to ${MockOrganization2.display_name}`,
+		});
+		await expect(addButton).toHaveAttribute(
+			"title",
+			`Add server to ${MockOrganization2.display_name}`,
+		);
+		await userEvent.click(addButton);
 		await expect(
-			await canvas.findByRole("heading", {
-				name: `add-org:${MockOrganization2.name}`,
+			await canvas.findByRole("button", {
+				name: `Organization ${MockOrganization2.display_name}`,
 			}),
 		).toBeVisible();
+	},
+};
+
+export const AddDeepLinkShowsSingleCreatableOrganization: Story = {
+	render: () => <AddMCPServerPage />,
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: false,
+			createAnyMCPServerConfig: true,
+			updateAnyMCPServerConfig: false,
+			deleteAnyMCPServerConfig: false,
+		},
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/ai/settings/mcp-servers/add",
+				searchParams: { [orgSearchParam]: MockOrganization2.name },
+			},
+			routing: { path: "/ai/settings/mcp-servers/add" },
+		}),
+	},
+	beforeEach: () => {
+		mockOrganizationPermissions({
+			[MockOrganization2.id]: { create: true },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const organization = await canvas.findByRole("button", {
+			name: `Organization ${MockOrganization2.display_name}`,
+		});
+		await expect(organization).toBeVisible();
+		await expect(organization).toBeDisabled();
+		await expect(canvas.getByLabelText(/display name/i)).toBeVisible();
 	},
 };
 

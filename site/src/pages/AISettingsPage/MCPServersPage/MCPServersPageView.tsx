@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { getOrganizationLabel } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -44,6 +45,10 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 	onSelectOrganization,
 }) => {
 	const navigate = useNavigate();
+	const addButtonLabel =
+		addOrganization && addOrganization.id !== organization.id
+			? `Add server to ${getOrganizationLabel(addOrganization, organizations)}`
+			: undefined;
 	const goToAddServer = () => {
 		if (addOrganization) {
 			void navigate(addMCPServerPath(addOrganization));
@@ -55,7 +60,12 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 			<SettingsHeader
 				actions={
 					addOrganization && (
-						<Button variant="outline" onClick={goToAddServer}>
+						<Button
+							variant="outline"
+							onClick={goToAddServer}
+							aria-label={addButtonLabel}
+							title={addButtonLabel}
+						>
 							<PlusIcon />
 							<span>Add server</span>
 						</Button>
@@ -101,7 +111,12 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 							description="Add a server to give agents access to external tools."
 							cta={
 								addOrganization ? (
-									<Button variant="outline" onClick={goToAddServer}>
+									<Button
+										variant="outline"
+										onClick={goToAddServer}
+										aria-label={addButtonLabel}
+										title={addButtonLabel}
+									>
 										<PlusIcon />
 										<span>Add server</span>
 									</Button>

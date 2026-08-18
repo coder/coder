@@ -11,9 +11,10 @@ interface OrganizationPickerProps {
 	id: string;
 	organizations: readonly Organization[];
 	organization: Organization;
-	onChange: (organization: Organization) => void;
+	onChange?: (organization: Organization) => void;
 	className?: string;
 	disabled?: boolean;
+	showSingleOrganization?: boolean;
 }
 
 export const OrganizationPicker: FC<OrganizationPickerProps> = ({
@@ -23,11 +24,12 @@ export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 	onChange,
 	className,
 	disabled,
+	showSingleOrganization = false,
 }) => {
-	if (
+	const hasSingleSelectedOrganization =
 		organizations.length <= 1 &&
-		organizations.some((option) => option.id === organization.id)
-	) {
+		organizations.some((option) => option.id === organization.id);
+	if (hasSingleSelectedOrganization && !showSingleOrganization) {
 		return null;
 	}
 
@@ -40,12 +42,12 @@ export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 				value={organization}
 				onChange={(org) => {
 					if (org) {
-						onChange(org);
+						onChange?.(org);
 					}
 				}}
 				options={organizations}
 				required
-				disabled={disabled}
+				disabled={disabled || !onChange || hasSingleSelectedOrganization}
 			/>
 		</div>
 	);
