@@ -196,6 +196,7 @@ func (m *MCPProxyFactory) newStreamableHTTPServerProxy(cfg *proto.MCPServerConfi
 		denylist,
 		m.logger.Named(fmt.Sprintf("mcp-server-proxy-%s", cfg.GetId())),
 		m.tracer,
+		nil,
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("create streamable HTTP MCP server proxy: %w", err)

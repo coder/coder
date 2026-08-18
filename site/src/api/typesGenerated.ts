@@ -352,6 +352,41 @@ export interface AIGatewayKey {
  */
 export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
 
+// From codersdk/aimodelprices.go
+/**
+ * AIModelPrice is a per-model token price used by AI Gateway to compute the
+ * cost of an interception.
+ *
+ * Prices are integer micro-units per million tokens, so 1000000 is $1.00 per
+ * million tokens. A nil price means the price is not known, which the cost
+ * calculation treats the same as zero. Distinguish that from an explicit 0,
+ * which declares the model free of charge.
+ */
+export interface AIModelPrice {
+	readonly provider: string;
+	readonly model: string;
+	readonly input_price: number | null;
+	readonly output_price: number | null;
+	readonly cache_read_price: number | null;
+	readonly cache_write_price: number | null;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/aimodelprices.go
+/**
+ * AIModelPriceUpsert is one model's prices in an upsert request. It carries
+ * only the writable fields of AIModelPrice.
+ */
+export interface AIModelPriceUpsert {
+	readonly provider: string;
+	readonly model: string;
+	readonly input_price: number | null;
+	readonly output_price: number | null;
+	readonly cache_read_price: number | null;
+	readonly cache_write_price: number | null;
+}
+
 // From codersdk/aiproviders.go
 /**
  * AIProvider represents an AI provider configuration row as returned
@@ -5035,6 +5070,12 @@ export interface ExternalAuthConfig {
 	readonly auth_url: string;
 	readonly token_url: string;
 	readonly validate_url: string;
+	/**
+	 * RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
+	 * situations where the OAuth callback domain is different from the ACCESS_URL
+	 * domain. The path component is ignored.
+	 */
+	readonly redirect_url: string;
 	readonly revoke_url: string;
 	readonly app_install_url: string;
 	readonly app_installations_url: string;
@@ -5729,6 +5770,10 @@ export const LicenseAIGovernanceOverLimitWarningText =
 	"Your organization is using %d of %d AI Governance add-on seats (%d over the limit).";
 
 // From codersdk/licenses.go
+export const LicenseAgentRuntimeHoursClaimsIgnoredWarningText =
+	"A license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of that license is unaffected. Check the coderd logs for the affected license and claims, and contact support to have the license re-issued.";
+
+// From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
 
 // From codersdk/licenses.go
@@ -5943,6 +5988,12 @@ export interface MatchedProvisioners {
 	 */
 	readonly most_recently_seen?: string;
 }
+
+// From codersdk/aimodelprices.go
+/**
+ * MaxAIModelPricesBytes bounds an upsert request body.
+ */
+export const MaxAIModelPricesBytes = 1048576; // 1 MiB
 
 // From codersdk/aibridge.go
 /**
@@ -6773,7 +6824,7 @@ export interface OIDCConfig {
 	/**
 	 * RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
 	 * situations where the OIDC callback domain is different from the ACCESS_URL
-	 * domain.
+	 * domain. The path component is ignored.
 	 */
 	readonly redirect_url: string;
 	readonly auto_repair_links: boolean;
@@ -10081,6 +10132,15 @@ export interface UploadChatFileResponse {
  */
 export interface UploadResponse {
 	readonly hash: string;
+}
+
+// From codersdk/aimodelprices.go
+/**
+ * UpsertAIModelPricesRequest sets prices for the listed models. Models absent
+ * from the request are left untouched.
+ */
+export interface UpsertAIModelPricesRequest {
+	readonly prices: readonly AIModelPriceUpsert[];
 }
 
 // From codersdk/aibridge.go

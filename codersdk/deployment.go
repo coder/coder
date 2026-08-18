@@ -425,7 +425,7 @@ type UsagePeriod struct {
 // 2. The usage period has a greater end date (note: only certain features use usage periods)
 // 3. Graceful & capable > Entitled & not capable (only if both have "Actual" values)
 // 4. The entitlement is greater
-// 5. The limit is greater
+// 5. The limit is greater (except a nil limit on a usage period feature means unlimited, outranking any set limit)
 // 6. Enabled is greater than disabled
 // 7. The actual is greater
 //
@@ -469,11 +469,19 @@ func (f Feature) Compare(b Feature) int {
 		return entitlementDifference
 	}
 
-	// If the entitlement is the same, then we can compare the limits.
+	// If the entitlement is the same, then we can compare the limits. A nil
+	// limit on a usage period feature means unlimited, so it outranks any set
+	// limit; on other features a nil limit loses to a set one.
 	if f.Limit == nil && b.Limit != nil {
+		if bothHaveUsagePeriod {
+			return 1
+		}
 		return -1
 	}
 	if f.Limit != nil && b.Limit == nil {
+		if bothHaveUsagePeriod {
+			return -1
+		}
 		return 1
 	}
 	if f.Limit != nil && b.Limit != nil {
@@ -1036,7 +1044,7 @@ type OIDCConfig struct {
 
 	// RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
 	// situations where the OIDC callback domain is different from the ACCESS_URL
-	// domain.
+	// domain. The path component is ignored.
 	RedirectURL serpent.URL `json:"redirect_url" typescript:",notnull"`
 
 	AutoRepairLinks serpent.Bool `json:"auto_repair_links" typescript:",notnull"`
@@ -1190,10 +1198,14 @@ type ExternalAuthConfig struct {
 	ClientSecret string `json:"-" yaml:"client_secret"`
 	// ID is a unique identifier for the auth config.
 	// It defaults to `type` when not provided.
-	ID                  string   `json:"id" yaml:"id"`
-	AuthURL             string   `json:"auth_url" yaml:"auth_url"`
-	TokenURL            string   `json:"token_url" yaml:"token_url"`
-	ValidateURL         string   `json:"validate_url" yaml:"validate_url"`
+	ID          string `json:"id" yaml:"id"`
+	AuthURL     string `json:"auth_url" yaml:"auth_url"`
+	TokenURL    string `json:"token_url" yaml:"token_url"`
+	ValidateURL string `json:"validate_url" yaml:"validate_url"`
+	// RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
+	// situations where the OAuth callback domain is different from the ACCESS_URL
+	// domain. The path component is ignored.
+	RedirectURL         string   `json:"redirect_url" yaml:"redirect_url"`
 	RevokeURL           string   `json:"revoke_url" yaml:"revoke_url"`
 	AppInstallURL       string   `json:"app_install_url" yaml:"app_install_url"`
 	AppInstallationsURL string   `json:"app_installations_url" yaml:"app_installations_url"`

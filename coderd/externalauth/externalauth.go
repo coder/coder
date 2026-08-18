@@ -912,7 +912,7 @@ func (c *DeviceAuth) formatDeviceCodeURL() (string, error) {
 
 // ConvertConfig converts the SDK configuration entry format
 // to the parsed and ready-to-consume in coderd provider type.
-func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
+func ConvertConfig(ctx context.Context, logger slog.Logger, instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
@@ -920,6 +920,8 @@ func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []
 		// This allows users to very simply state that they type is "GitHub",
 		// apply their client secret and ID, and have the UI appear nicely.
 		applyDefaultsToConfig(&entry)
+
+		logger := logger.Named("externalauth").With(slog.F("provider_id", entry.ID), slog.F("provider_type", entry.Type))
 
 		valid := codersdk.NameValid(entry.ID)
 		if valid != nil {
@@ -938,9 +940,18 @@ func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []
 		}
 		ids[entry.ID] = struct{}{}
 
-		authRedirect, err := accessURL.Parse(fmt.Sprintf("/external-auth/%s/callback", entry.ID))
+		baseRedirectURL := accessURL
+		if entry.RedirectURL != "" {
+			var err error
+			baseRedirectURL, err = url.Parse(entry.RedirectURL)
+			if err != nil {
+				return nil, xerrors.Errorf("parse redirect url override for external auth provider %q: %w", entry.ID, err)
+			}
+			logger.Warn(ctx, "custom redirect URL used instead of 'access_url', ensure this matches the value configured in your provider")
+		}
+		authRedirect, err := baseRedirectURL.Parse(fmt.Sprintf("/external-auth/%s/callback", entry.ID))
 		if err != nil {
-			return nil, xerrors.Errorf("parse external auth callback url: %w", err)
+			return nil, xerrors.Errorf("parse callback url for external auth provider %q: %w", entry.ID, err)
 		}
 
 		var regex *regexp.Regexp
@@ -996,7 +1007,7 @@ func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []
 
 		cfg := &Config{
 			InstrumentedOAuth2Config:      instrumented,
-			Logger:                        logger.Named("externalauth").With(slog.F("provider_id", entry.ID), slog.F("provider_type", entry.Type)),
+			Logger:                        logger,
 			ID:                            entry.ID,
 			ClientID:                      entry.ClientID,
 			ClientSecret:                  entry.ClientSecret,
@@ -1091,6 +1102,9 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	}
 	if config.ValidateURL == "" {
 		config.ValidateURL = defaults.ValidateURL
+	}
+	if config.RedirectURL == "" {
+		config.RedirectURL = defaults.RedirectURL
 	}
 	if config.RevokeURL == "" {
 		config.RevokeURL = defaults.RevokeURL
@@ -1588,7 +1602,7 @@ func isFailedRefresh(existingToken *oauth2.Token, err error) bool {
 			// previous 403 case caused token destruction on
 			// rate-limited refresh attempts.
 			return true
-		case http.StatusInternalServerError, http.StatusTooManyRequests:
+		case http.StatusInternalServerError, http.StatusTooManyRequests, http.StatusServiceUnavailable:
 			// These do not indicate a failed refresh, but could be a temporary issue.
 			return false
 		}

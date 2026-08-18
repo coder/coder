@@ -195,11 +195,6 @@ const AgentEmbedPage: FC = () => {
 		};
 	}, [searchParams]);
 
-	// Shared ref for the chat scroll container. Passed through the
-	// outlet context so AgentChatPage attaches it to the DOM element
-	// instead of creating its own.
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-
 	// Listen for parent frame commands (e.g. theme changes).
 	useEffect(() => {
 		const parentWindow = window.parent;
@@ -236,7 +231,6 @@ const AgentEmbedPage: FC = () => {
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},
 		onChatReady,
-		scrollContainerRef,
 	};
 
 	// When signed out and not already bootstrapping, listen for the

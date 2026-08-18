@@ -10,7 +10,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { PaywallSmall } from "#/components/Paywall/PaywallSmall";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Table,
@@ -26,7 +26,6 @@ import {
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import type { Permissions } from "#/modules/permissions";
-import { docs } from "#/utils/docs";
 import { DefaultRolesDialog } from "./DefaultRolesDialog";
 import { PermissionPillsList } from "./PermissionPillsList";
 
@@ -66,10 +65,9 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	return (
 		<div className="flex flex-col gap-8">
 			{!isCustomRolesEnabled && (
-				<PaywallPremium
+				<PaywallSmall
 					message="Custom Roles"
 					description="Create custom roles to grant users a tailored set of granular permissions."
-					documentationLink={docs("/admin/users/groups-roles")}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}

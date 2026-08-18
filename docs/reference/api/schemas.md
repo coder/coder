@@ -1138,6 +1138,58 @@ title: Schemas
 | `last_heartbeat_at` | string | false    |              |             |
 | `name`              | string | false    |              |             |
 
+## codersdk.AIModelPrice
+
+```json
+{
+  "cache_read_price": 0,
+  "cache_write_price": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "input_price": 0,
+  "model": "string",
+  "output_price": 0,
+  "provider": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `cache_read_price`  | integer | false    |              |             |
+| `cache_write_price` | integer | false    |              |             |
+| `created_at`        | string  | false    |              |             |
+| `input_price`       | integer | false    |              |             |
+| `model`             | string  | false    |              |             |
+| `output_price`      | integer | false    |              |             |
+| `provider`          | string  | false    |              |             |
+| `updated_at`        | string  | false    |              |             |
+
+## codersdk.AIModelPriceUpsert
+
+```json
+{
+  "cache_read_price": 0,
+  "cache_write_price": 0,
+  "input_price": 0,
+  "model": "string",
+  "output_price": 0,
+  "provider": "string"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `cache_read_price`  | integer | false    |              |             |
+| `cache_write_price` | integer | false    |              |             |
+| `input_price`       | integer | false    |              |             |
+| `model`             | string  | false    |              |             |
+| `output_price`      | integer | false    |              |             |
+| `provider`          | string  | false    |              |             |
+
 ## codersdk.AIProvider
 
 ```json
@@ -6044,6 +6096,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "mcp_tool_deny_regex": "string",
           "mcp_url": "string",
           "no_refresh": true,
+          "redirect_url": "string",
           "regex": "string",
           "revoke_url": "string",
           "scopes": [
@@ -6671,6 +6724,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "mcp_tool_deny_regex": "string",
         "mcp_url": "string",
         "no_refresh": true,
+        "redirect_url": "string",
         "regex": "string",
         "revoke_url": "string",
         "scopes": [
@@ -7678,6 +7732,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "mcp_tool_deny_regex": "string",
   "mcp_url": "string",
   "no_refresh": true,
+  "redirect_url": "string",
   "regex": "string",
   "revoke_url": "string",
   "scopes": [
@@ -7691,23 +7746,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                               | Type            | Required | Restrictions | Description                                                                                                                                                 |
-|------------------------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `api_base_url`                     | string          | false    |              | Api base URL is the base URL for provider REST API calls (e.g., "https://api.github.com" for GitHub). Derived from defaults when not explicitly configured. |
-| `app_install_url`                  | string          | false    |              |                                                                                                                                                             |
-| `app_installations_url`            | string          | false    |              |                                                                                                                                                             |
-| `auth_url`                         | string          | false    |              |                                                                                                                                                             |
-| `client_id`                        | string          | false    |              |                                                                                                                                                             |
-| `code_challenge_methods_supported` | array of string | false    |              | Code challenge methods supported lists the PKCE code challenge methods The only one supported by Coder is "S256".                                           |
-| `device_code_url`                  | string          | false    |              |                                                                                                                                                             |
-| `device_flow`                      | boolean         | false    |              |                                                                                                                                                             |
-| `display_icon`                     | string          | false    |              | Display icon is a URL to an icon to display in the UI.                                                                                                      |
-| `display_name`                     | string          | false    |              | Display name is shown in the UI to identify the auth config.                                                                                                |
-| `id`                               | string          | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided.                                                                     |
-| `mcp_tool_allow_regex`             | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                |
-| `mcp_tool_deny_regex`              | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                |
-| `mcp_url`                          | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                |
-| `no_refresh`                       | boolean         | false    |              |                                                                                                                                                             |
+| Name                               | Type            | Required | Restrictions | Description                                                                                                                                                                                   |
+|------------------------------------|-----------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api_base_url`                     | string          | false    |              | Api base URL is the base URL for provider REST API calls (e.g., "https://api.github.com" for GitHub). Derived from defaults when not explicitly configured.                                   |
+| `app_install_url`                  | string          | false    |              |                                                                                                                                                                                               |
+| `app_installations_url`            | string          | false    |              |                                                                                                                                                                                               |
+| `auth_url`                         | string          | false    |              |                                                                                                                                                                                               |
+| `client_id`                        | string          | false    |              |                                                                                                                                                                                               |
+| `code_challenge_methods_supported` | array of string | false    |              | Code challenge methods supported lists the PKCE code challenge methods The only one supported by Coder is "S256".                                                                             |
+| `device_code_url`                  | string          | false    |              |                                                                                                                                                                                               |
+| `device_flow`                      | boolean         | false    |              |                                                                                                                                                                                               |
+| `display_icon`                     | string          | false    |              | Display icon is a URL to an icon to display in the UI.                                                                                                                                        |
+| `display_name`                     | string          | false    |              | Display name is shown in the UI to identify the auth config.                                                                                                                                  |
+| `id`                               | string          | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided.                                                                                                       |
+| `mcp_tool_allow_regex`             | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                  |
+| `mcp_tool_deny_regex`              | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                  |
+| `mcp_url`                          | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                  |
+| `no_refresh`                       | boolean         | false    |              |                                                                                                                                                                                               |
+| `redirect_url`                     | string          | false    |              | Redirect URL is optional, defaulting to 'ACCESS_URL'. Only useful in niche situations where the OAuth callback domain is different from the ACCESS_URL domain. The path component is ignored. |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
 Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex.|
 |`revoke_url`|string|false|||
@@ -9569,7 +9625,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 | `organization_field`                 | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `organization_mapping`               | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `redirect_allowed_hosts`             | array of string                  | false    |              | Redirect allowed hosts is an allowlist of hostnames that may be used as the host of the OIDC redirect_uri. When non-empty, the redirect_uri is constructed from the incoming request's Host header (validated against this list) instead of from AccessURL. Every listed host must also be registered as a valid redirect URI in the OIDC provider. This setting is mutually exclusive with RedirectURL: if RedirectURL is set, this allowlist is ignored. |
-| `redirect_url`                       | [serpent.URL](#serpenturl)       | false    |              | Redirect URL is optional, defaulting to 'ACCESS_URL'. Only useful in niche situations where the OIDC callback domain is different from the ACCESS_URL domain.                                                                                                                                                                                                                                                                                              |
+| `redirect_url`                       | [serpent.URL](#serpenturl)       | false    |              | Redirect URL is optional, defaulting to 'ACCESS_URL'. Only useful in niche situations where the OIDC callback domain is different from the ACCESS_URL domain. The path component is ignored.                                                                                                                                                                                                                                                               |
 | `scopes`                             | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `sign_in_text`                       | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `signups_disabled_text`              | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -14470,6 +14526,29 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |--------|--------|----------|--------------|-------------|
 | `hash` | string | false    |              |             |
 
+## codersdk.UpsertAIModelPricesRequest
+
+```json
+{
+  "prices": [
+    {
+      "cache_read_price": 0,
+      "cache_write_price": 0,
+      "input_price": 0,
+      "model": "string",
+      "output_price": 0,
+      "provider": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                                | Required | Restrictions | Description |
+|----------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `prices` | array of [codersdk.AIModelPriceUpsert](#codersdkaimodelpriceupsert) | false    |              |             |
+
 ## codersdk.UpsertGroupAIBudgetRequest
 
 ```json
@@ -19352,6 +19431,7 @@ None
       "mcp_tool_deny_regex": "string",
       "mcp_url": "string",
       "no_refresh": true,
+      "redirect_url": "string",
       "regex": "string",
       "revoke_url": "string",
       "scopes": [
