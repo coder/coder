@@ -12,6 +12,8 @@ import (
 	"golang.org/x/xerrors"
 )
 
+var rfc6052WellKnownPrefix = netip.MustParsePrefix("64:ff9b::/96")
+
 // extraBlockedPrefixes covers special-use ranges that netip.Addr's built-in
 // classifications do not recognize, preventing them from bypassing MCP SSRF protection.
 var extraBlockedPrefixes = []netip.Prefix{
@@ -30,8 +32,9 @@ var extraBlockedPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("240.0.0.0/4"),     // RFC 1112 reserved.
 
 	// IPv6 special-use ranges not covered by stdlib.
-	netip.MustParsePrefix("64:ff9b::/96"),      // RFC 6052 IPv4/IPv6 translation.
-	netip.MustParsePrefix("64:ff9b:1::/48"),    // RFC 8215 IPv4/IPv6 translation.
+	// RFC 8215 permits deployment-chosen embedding layouts, so its IPv4
+	// destination cannot be decoded reliably.
+	netip.MustParsePrefix("64:ff9b:1::/48"),
 	netip.MustParsePrefix("100::/64"),          // RFC 6666 discard-only.
 	netip.MustParsePrefix("100:0:0:1::/64"),    // RFC 9780 dummy prefix.
 	netip.MustParsePrefix("2001::/23"),         // RFC 2928 IETF protocol assignments.
@@ -68,6 +71,10 @@ func isBlockedAddr(addr netip.Addr, allowed []netip.Prefix) bool {
 		if prefix.Contains(addr) {
 			return false
 		}
+	}
+	if rfc6052WellKnownPrefix.Contains(addr) {
+		bytes := addr.As16()
+		return isBlockedAddr(netip.AddrFrom4([4]byte(bytes[12:])), allowed)
 	}
 	if addr.IsLoopback() ||
 		addr.IsPrivate() ||
