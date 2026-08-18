@@ -35,12 +35,24 @@ const AddMCPServerPage: FC = () => {
 					organizationPermissionsQuery.data?.[organization.id]
 						.viewMCPServerConfigs,
 			);
-	const organization =
-		viewableOrganizations.length > 0
-			? selectOrganization(
-					viewableOrganizations,
-					searchParams.get(orgSearchParam),
-				)
+	const creatableOrganizations = permissions.editDeploymentConfig
+		? organizations
+		: viewableOrganizations.filter(
+				(organization) =>
+					organizationPermissionsQuery.data?.[organization.id]
+						.createMCPServerConfig,
+			);
+	const requestedOrganization = viewableOrganizations.find(
+		(organization) => organization.name === searchParams.get(orgSearchParam),
+	);
+	const selectableOrganizations =
+		creatableOrganizations.length > 0
+			? creatableOrganizations
+			: viewableOrganizations;
+	const organization = requestedOrganization
+		? requestedOrganization
+		: selectableOrganizations.length > 0
+			? selectOrganization(selectableOrganizations, null)
 			: undefined;
 	const organizationPermissions = organization
 		? organizationPermissionsQuery.data?.[organization.id]
@@ -68,37 +80,36 @@ const AddMCPServerPage: FC = () => {
 			) : !permissions.editDeploymentConfig &&
 				!organizationPermissionsQuery.data ? (
 				<Loader />
+			) : creatableOrganizations.length === 0 ? (
+				<RequirePermission isFeatureVisible={false} />
 			) : (
-				<RequirePermission
-					isFeatureVisible={canCreate && Boolean(organization)}
-				>
-					{organization && (
-						<AddMCPServerPageView
-							isSaving={createMutation.isPending}
-							organizations={viewableOrganizations}
-							organization={organization}
-							onSelectOrganization={(org) => {
-								setSearchParams((params) => {
-									const next = new URLSearchParams(params);
-									next.set(orgSearchParam, org.name);
-									return next;
-								});
-							}}
-							onCancel={() => void navigate(mcpServersPath(organization))}
-							onCreateServer={async (req) => {
-								try {
-									const server = await createMutation.mutateAsync(req);
-									toast.success(`MCP server "${server.display_name}" added.`);
-									await navigate(updateMCPServerPath(server.id, organization));
-								} catch (error) {
-									toast.error(
-										getErrorMessage(error, "Failed to add MCP server."),
-									);
-								}
-							}}
-						/>
-					)}
-				</RequirePermission>
+				organization && (
+					<AddMCPServerPageView
+						isSaving={createMutation.isPending}
+						canCreate={canCreate}
+						organizations={creatableOrganizations}
+						organization={organization}
+						onSelectOrganization={(org) => {
+							setSearchParams((params) => {
+								const next = new URLSearchParams(params);
+								next.set(orgSearchParam, org.name);
+								return next;
+							});
+						}}
+						onCancel={() => void navigate(mcpServersPath(organization))}
+						onCreateServer={async (req) => {
+							try {
+								const server = await createMutation.mutateAsync(req);
+								toast.success(`MCP server "${server.display_name}" added.`);
+								await navigate(updateMCPServerPath(server.id, organization));
+							} catch (error) {
+								toast.error(
+									getErrorMessage(error, "Failed to add MCP server."),
+								);
+							}
+						}}
+					/>
+				)
 			)}
 		</RequirePermission>
 	);

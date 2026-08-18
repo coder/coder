@@ -14,6 +14,7 @@ import {
 	updateMCPServerConfig,
 } from "#/api/queries/chats";
 import { organizationsPermissions } from "#/api/queries/organizations";
+import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -68,7 +69,7 @@ const UpdateMCPServerPage: FC = () => {
 	const navigate = useNavigate();
 	const serverQuery = useQuery({
 		...mcpServerConfig(organization?.id ?? "", serverId ?? ""),
-		enabled: Boolean(serverId) && canUpdate,
+		enabled: Boolean(serverId) && (canUpdate || canDelete),
 	});
 	const server = serverQuery.data;
 	const updateMutation = useMutation(
@@ -86,11 +87,24 @@ const UpdateMCPServerPage: FC = () => {
 	const listPath = organization
 		? mcpServersPath(organization)
 		: "/ai/settings/mcp-servers";
+	const onUpdateServer = canUpdate
+		? async (id: string, req: TypesGen.UpdateMCPServerConfigRequest) => {
+				try {
+					const updated = await updateMutation.mutateAsync({ id, req });
+					toast.success(`MCP server "${updated.display_name}" updated.`);
+					await navigate(listPath);
+				} catch (error) {
+					toast.error(getErrorMessage(error, "Failed to update MCP server."));
+				}
+			}
+		: undefined;
 
 	return (
 		<RequirePermission
 			isFeatureVisible={
-				permissions.editDeploymentConfig || permissions.updateAnyMCPServerConfig
+				permissions.editDeploymentConfig ||
+				permissions.updateAnyMCPServerConfig ||
+				permissions.viewAnyMCPServerConfigs
 			}
 		>
 			{organizationPermissionsQuery.isError ? (
@@ -100,7 +114,7 @@ const UpdateMCPServerPage: FC = () => {
 				<Loader />
 			) : (
 				<RequirePermission
-					isFeatureVisible={canUpdate && Boolean(organization)}
+					isFeatureVisible={(canUpdate || canDelete) && Boolean(organization)}
 				>
 					{!serverId ? (
 						<Navigate to={listPath} replace />
@@ -131,22 +145,7 @@ const UpdateMCPServerPage: FC = () => {
 								isSaving={updateMutation.isPending}
 								isDeleting={deleteMutation.isPending}
 								onCancel={() => void navigate(listPath)}
-								onUpdateServer={async (id, req) => {
-									try {
-										const updated = await updateMutation.mutateAsync({
-											id,
-											req,
-										});
-										toast.success(
-											`MCP server "${updated.display_name}" updated.`,
-										);
-										await navigate(listPath);
-									} catch (error) {
-										toast.error(
-											getErrorMessage(error, "Failed to update MCP server."),
-										);
-									}
-								}}
+								onUpdateServer={onUpdateServer}
 								onDeleteServer={
 									canDelete
 										? async (id) => {
@@ -167,26 +166,30 @@ const UpdateMCPServerPage: FC = () => {
 											}
 										: undefined
 								}
-								onToggleEnabled={(enabled) => {
-									updateMutation.mutate(
-										{ id: server.id, req: { enabled } },
-										{
-											onSuccess: () => {
-												toast.success(
-													`MCP server "${server.display_name}" ${enabled ? "enabled" : "disabled"}.`,
+								onToggleEnabled={
+									canUpdate
+										? (enabled) => {
+												updateMutation.mutate(
+													{ id: server.id, req: { enabled } },
+													{
+														onSuccess: () => {
+															toast.success(
+																`MCP server "${server.display_name}" ${enabled ? "enabled" : "disabled"}.`,
+															);
+														},
+														onError: (error) => {
+															toast.error(
+																getErrorMessage(
+																	error,
+																	`Failed to ${enabled ? "enable" : "disable"} MCP server.`,
+																),
+															);
+														},
+													},
 												);
-											},
-											onError: (error) => {
-												toast.error(
-													getErrorMessage(
-														error,
-														`Failed to ${enabled ? "enable" : "disable"} MCP server.`,
-													),
-												);
-											},
-										},
-									);
-								}}
+											}
+										: undefined
+								}
 							/>
 						</>
 					)}

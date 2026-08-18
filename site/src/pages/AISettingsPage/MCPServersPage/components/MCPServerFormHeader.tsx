@@ -108,7 +108,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 									<Switch
 										checked={server.enabled}
 										onCheckedChange={(checked) => onToggleEnabled?.(checked)}
-										disabled={isDisabled}
+										disabled={isDisabled || !onToggleEnabled}
 										aria-label="Server enabled"
 									/>
 								</span>

@@ -79,6 +79,10 @@ const MCPServersPage: FC = () => {
 								permissions.editDeploymentConfig ||
 								Boolean(organizationPermissions?.updateMCPServerConfig)
 							}
+							canDelete={
+								permissions.editDeploymentConfig ||
+								Boolean(organizationPermissions?.deleteMCPServerConfig)
+							}
 							onSelectOrganization={(org) => {
 								setSearchParams((params) => {
 									const next = new URLSearchParams(params);

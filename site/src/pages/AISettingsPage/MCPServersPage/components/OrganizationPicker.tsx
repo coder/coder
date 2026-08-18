@@ -24,7 +24,10 @@ export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 	className,
 	disabled,
 }) => {
-	if (organizations.length <= 1) {
+	if (
+		organizations.length <= 1 &&
+		organizations.some((option) => option.id === organization.id)
+	) {
 		return null;
 	}
 

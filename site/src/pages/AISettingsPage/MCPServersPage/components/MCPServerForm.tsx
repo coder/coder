@@ -33,7 +33,7 @@ type MCPServerFormEditProps = {
 	isSaving: boolean;
 	isDeleting: boolean;
 	onCreateServer?: undefined;
-	onUpdateServer: (
+	onUpdateServer?: (
 		serverId: string,
 		req: TypesGen.UpdateMCPServerConfigRequest,
 	) => Promise<unknown>;
@@ -78,7 +78,9 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	});
 
 	const isDisabled = isSaving || isDeleting;
-	const canSubmit = canSubmitMCPServerForm(form.values, isDisabled);
+	const canUpdate = !isEditing || Boolean(onUpdateServer);
+	const canSubmit =
+		canUpdate && canSubmitMCPServerForm(form.values, isDisabled);
 	const unsavedChanges = useUnsavedChangesPrompt(
 		form.dirty && !form.isSubmitting,
 	);
@@ -102,7 +104,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 				<MCPServerFormFields
 					form={form}
 					isSaving={isSaving}
-					isDisabled={isDisabled}
+					isDisabled={isDisabled || !canUpdate}
 					canSubmit={canSubmit}
 					isEditing={isEditing}
 					onCancel={onCancel}

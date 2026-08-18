@@ -1,5 +1,6 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { MCPServerForm } from "../components/MCPServerForm";
 import { OrganizationPicker } from "../components/OrganizationPicker";
@@ -7,6 +8,7 @@ import { mcpServersPath } from "../organizationParam";
 
 interface AddMCPServerPageViewProps {
 	isSaving: boolean;
+	canCreate: boolean;
 	organizations: readonly TypesGen.Organization[];
 	organization: TypesGen.Organization;
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
@@ -18,6 +20,7 @@ interface AddMCPServerPageViewProps {
 
 const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 	isSaving,
+	canCreate,
 	organizations,
 	organization,
 	onSelectOrganization,
@@ -35,12 +38,14 @@ const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 				onChange={onSelectOrganization}
 				disabled={isSaving}
 			/>
-			<MCPServerForm
-				listPath={mcpServersPath(organization)}
-				isSaving={isSaving}
-				onCreateServer={onCreateServer}
-				onCancel={onCancel}
-			/>
+			<RequirePermission isFeatureVisible={canCreate}>
+				<MCPServerForm
+					listPath={mcpServersPath(organization)}
+					isSaving={isSaving}
+					onCreateServer={onCreateServer}
+					onCancel={onCancel}
+				/>
+			</RequirePermission>
 		</>
 	);
 };
