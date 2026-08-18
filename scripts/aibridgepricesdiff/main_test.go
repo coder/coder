@@ -69,6 +69,20 @@ func TestCompare(t *testing.T) {
 			wantChanged: []string{"anthropic/claude"},
 		},
 		{
+			// A previously missing price becoming populated is a change.
+			name: "price set",
+			old: []priceRow{{
+				Provider: "anthropic",
+				Model:    "claude",
+			}},
+			new: []priceRow{{
+				Provider:   "anthropic",
+				Model:      "claude",
+				InputPrice: int64Ptr(1),
+			}},
+			wantChanged: []string{"anthropic/claude"},
+		},
+		{
 			// A model whose price becomes null is a change, not a removal.
 			name: "price unset",
 			old: []priceRow{
