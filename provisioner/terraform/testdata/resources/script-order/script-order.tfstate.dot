@@ -1,0 +1,90 @@
+digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main", shape = "box"]
+		"[root] coder_script.counted (expand)" [label = "coder_script.counted", shape = "box"]
+		"[root] coder_script.keyed (expand)" [label = "coder_script.keyed", shape = "box"]
+		"[root] coder_script.root_start (expand)" [label = "coder_script.root_start", shape = "box"]
+		"[root] coder_script.stop_a (expand)" [label = "coder_script.stop_a", shape = "box"]
+		"[root] coder_script.stop_b (expand)" [label = "coder_script.stop_b", shape = "box"]
+		"[root] coder_script.unordered (expand)" [label = "coder_script.unordered", shape = "box"]
+		"[root] data.coder_script_order.overlapping (expand)" [label = "data.coder_script_order.overlapping", shape = "box"]
+		"[root] data.coder_script_order.primary (expand)" [label = "data.coder_script_order.primary", shape = "box"]
+		"[root] module.dependents.coder_script.module_script (expand)" [label = "module.dependents.coder_script.module_script", shape = "box"]
+		"[root] module.dependents.data.coder_script_order.nested (expand)" [label = "module.dependents.data.coder_script_order.nested", shape = "box"]
+		"[root] module.dependents.module.nested.coder_script.nested (expand)" [label = "module.dependents.module.nested.coder_script.nested", shape = "box"]
+		"[root] module.prerequisites.coder_script.module_script (expand)" [label = "module.prerequisites.coder_script.module_script", shape = "box"]
+		"[root] module.prerequisites.data.coder_script_order.nested (expand)" [label = "module.prerequisites.data.coder_script_order.nested", shape = "box"]
+		"[root] module.prerequisites.module.nested.coder_script.nested (expand)" [label = "module.prerequisites.module.nested.coder_script.nested", shape = "box"]
+		"[root] null_resource.workspace (expand)" [label = "null_resource.workspace", shape = "box"]
+		"[root] provider[\"registry.terraform.io/coder/coder\"]" [label = "provider[\"registry.terraform.io/coder/coder\"]", shape = "diamond"]
+		"[root] provider[\"registry.terraform.io/hashicorp/null\"]" [label = "provider[\"registry.terraform.io/hashicorp/null\"]", shape = "diamond"]
+		"[root] coder_agent.main (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] coder_script.counted (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] coder_script.keyed (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] coder_script.root_start (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] coder_script.stop_a (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] coder_script.stop_b (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] coder_script.unordered (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] data.coder_script_order.overlapping (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] data.coder_script_order.primary (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] module.dependents (close)" -> "[root] module.dependents.coder_script.module_script (expand)"
+		"[root] module.dependents (close)" -> "[root] module.dependents.data.coder_script_order.nested (expand)"
+		"[root] module.dependents (close)" -> "[root] module.dependents.module.nested (close)"
+		"[root] module.dependents.coder_script.module_script (expand)" -> "[root] module.dependents.var.agent_id (expand)"
+		"[root] module.dependents.coder_script.module_script (expand)" -> "[root] module.dependents.var.label (expand)"
+		"[root] module.dependents.data.coder_script_order.nested (expand)" -> "[root] module.dependents (expand)"
+		"[root] module.dependents.data.coder_script_order.nested (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] module.dependents.module.nested (close)" -> "[root] module.dependents.module.nested.coder_script.nested (expand)"
+		"[root] module.dependents.module.nested (expand)" -> "[root] module.dependents (expand)"
+		"[root] module.dependents.module.nested.coder_script.nested (expand)" -> "[root] module.dependents.module.nested.var.agent_id (expand)"
+		"[root] module.dependents.module.nested.coder_script.nested (expand)" -> "[root] module.dependents.module.nested.var.label (expand)"
+		"[root] module.dependents.module.nested.var.agent_id (expand)" -> "[root] module.dependents.module.nested (expand)"
+		"[root] module.dependents.module.nested.var.agent_id (expand)" -> "[root] module.dependents.var.agent_id (expand)"
+		"[root] module.dependents.module.nested.var.label (expand)" -> "[root] module.dependents.module.nested (expand)"
+		"[root] module.dependents.module.nested.var.label (expand)" -> "[root] module.dependents.var.label (expand)"
+		"[root] module.dependents.var.agent_id (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] module.dependents.var.agent_id (expand)" -> "[root] module.dependents (expand)"
+		"[root] module.dependents.var.label (expand)" -> "[root] module.dependents (expand)"
+		"[root] module.prerequisites (close)" -> "[root] module.prerequisites.coder_script.module_script (expand)"
+		"[root] module.prerequisites (close)" -> "[root] module.prerequisites.data.coder_script_order.nested (expand)"
+		"[root] module.prerequisites (close)" -> "[root] module.prerequisites.module.nested (close)"
+		"[root] module.prerequisites.coder_script.module_script (expand)" -> "[root] module.prerequisites.var.agent_id (expand)"
+		"[root] module.prerequisites.coder_script.module_script (expand)" -> "[root] module.prerequisites.var.label (expand)"
+		"[root] module.prerequisites.data.coder_script_order.nested (expand)" -> "[root] module.prerequisites (expand)"
+		"[root] module.prerequisites.data.coder_script_order.nested (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] module.prerequisites.module.nested (close)" -> "[root] module.prerequisites.module.nested.coder_script.nested (expand)"
+		"[root] module.prerequisites.module.nested (expand)" -> "[root] module.prerequisites (expand)"
+		"[root] module.prerequisites.module.nested.coder_script.nested (expand)" -> "[root] module.prerequisites.module.nested.var.agent_id (expand)"
+		"[root] module.prerequisites.module.nested.coder_script.nested (expand)" -> "[root] module.prerequisites.module.nested.var.label (expand)"
+		"[root] module.prerequisites.module.nested.var.agent_id (expand)" -> "[root] module.prerequisites.module.nested (expand)"
+		"[root] module.prerequisites.module.nested.var.agent_id (expand)" -> "[root] module.prerequisites.var.agent_id (expand)"
+		"[root] module.prerequisites.module.nested.var.label (expand)" -> "[root] module.prerequisites.module.nested (expand)"
+		"[root] module.prerequisites.module.nested.var.label (expand)" -> "[root] module.prerequisites.var.label (expand)"
+		"[root] module.prerequisites.var.agent_id (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] module.prerequisites.var.agent_id (expand)" -> "[root] module.prerequisites (expand)"
+		"[root] module.prerequisites.var.label (expand)" -> "[root] module.prerequisites (expand)"
+		"[root] null_resource.workspace (expand)" -> "[root] coder_agent.main (expand)"
+		"[root] null_resource.workspace (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"]"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.counted (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.keyed (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.root_start (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.stop_a (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.stop_b (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_script.unordered (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] data.coder_script_order.overlapping (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] data.coder_script_order.primary (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.dependents.coder_script.module_script (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.dependents.data.coder_script_order.nested (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.dependents.module.nested.coder_script.nested (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.prerequisites.coder_script.module_script (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.prerequisites.data.coder_script_order.nested (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] module.prerequisites.module.nested.coder_script.nested (expand)"
+		"[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)" -> "[root] null_resource.workspace (expand)"
+		"[root] root" -> "[root] module.dependents (close)"
+		"[root] root" -> "[root] module.prerequisites (close)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"
+		"[root] root" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)"
+	}
+}
