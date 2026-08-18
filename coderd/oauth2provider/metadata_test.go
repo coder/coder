@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -66,12 +65,12 @@ func TestGetAuthorizationServerMetadata_DCREnabled(t *testing.T) {
 	}{
 		{
 			name:                     "EnabledAdvertisesRegistrationEndpoint",
-			configureDCR:             ptr.Ref(true),
+			configureDCR:             new(true),
 			wantRegistrationEndpoint: true,
 		},
 		{
 			name:                     "DisabledOmitsRegistrationEndpoint",
-			configureDCR:             ptr.Ref(false),
+			configureDCR:             new(false),
 			wantRegistrationEndpoint: false,
 		},
 		{

@@ -28,7 +28,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/migrations"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -2792,18 +2791,18 @@ func setupMigration000565Apps(t *testing.T) (*sql.DB, context.Context, map[strin
 		`, id, now, name, clientType, authMethod)
 		require.NoError(t, err)
 	}
-	seed(ids["legacy"], "test-565-legacy", "confidential", ptr.Ref("none"))
+	seed(ids["legacy"], "test-565-legacy", "confidential", new("none"))
 	seed(ids["nullMethod"], "test-565-null", "confidential", nil)
-	seed(ids["publicMismatched"], "test-565-public-mismatch", "public", ptr.Ref("client_secret_basic"))
-	seed(ids["confidentialBasic"], "test-565-basic", "confidential", ptr.Ref("client_secret_basic"))
-	seed(ids["confidentialPost"], "test-565-post", "confidential", ptr.Ref("client_secret_post"))
-	seed(ids["publicNone"], "test-565-public", "public", ptr.Ref("none"))
+	seed(ids["publicMismatched"], "test-565-public-mismatch", "public", new("client_secret_basic"))
+	seed(ids["confidentialBasic"], "test-565-basic", "confidential", new("client_secret_basic"))
+	seed(ids["confidentialPost"], "test-565-post", "confidential", new("client_secret_post"))
+	seed(ids["publicNone"], "test-565-public", "public", new("none"))
 	// Neither of these is producible by today's write path: ApplyDefaults maps
 	// "" to client_secret_basic and Valid() rejects unknown methods. They stand
 	// in for history the squashed log cannot rule out, and both would satisfy
 	// the eventual cross-column constraint while remaining unusable.
-	seed(ids["confidentialEmpty"], "test-565-empty", "confidential", ptr.Ref(""))
-	seed(ids["confidentialJunk"], "test-565-junk", "confidential", ptr.Ref("client_secret_jwt"))
+	seed(ids["confidentialEmpty"], "test-565-empty", "confidential", new(""))
+	seed(ids["confidentialJunk"], "test-565-junk", "confidential", new("client_secret_jwt"))
 	seed(ids["publicNull"], "test-565-public-null", "public", nil)
 
 	return sqlDB, ctx, ids

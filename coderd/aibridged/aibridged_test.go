@@ -25,7 +25,6 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridged"
 	mock "github.com/coder/coder/v2/coderd/aibridged/aibridgedmock"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -214,7 +213,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{
 					Exceeded:         true,
-					SpendLimitMicros: ptr.Ref(int64(1_000)),
+					SpendLimitMicros: new(int64(1_000)),
 				}, nil)
 			},
 			expectedErr:    xerrors.New("AI budget of"),

@@ -32,7 +32,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -59,7 +58,8 @@ func TestExecutorAutostartOK(t *testing.T) {
 		})
 		// Given: we have a user with a workspace that has autostart enabled
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.AutostartSchedule = ptr.Ref(sched.String())
+			cwr.AutostartSchedule = new(string)
+			*cwr.AutostartSchedule = sched.String()
 		})
 	)
 	// Given: workspace is stopped
@@ -119,7 +119,8 @@ func TestMultipleLifecycleExecutors(t *testing.T) {
 		})
 		// Now create a workspace (we can use either client, it doesn't matter)
 		workspace = mustProvisionWorkspace(t, clientA, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.AutostartSchedule = ptr.Ref(sched.String())
+			cwr.AutostartSchedule = new(string)
+			*cwr.AutostartSchedule = sched.String()
 		})
 	)
 
@@ -231,7 +232,8 @@ func TestExecutorBuildNumberRaceIsHandled(t *testing.T) {
 			Pubsub:                   ps,
 		})
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.AutostartSchedule = ptr.Ref(sched.String())
+			cwr.AutostartSchedule = new(string)
+			*cwr.AutostartSchedule = sched.String()
 		})
 	)
 
@@ -304,7 +306,8 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 				})
 				// Given: we have a user with a workspace that has autostart enabled
 				workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
-					cwr.AutostartSchedule = ptr.Ref(sched.String())
+					cwr.AutostartSchedule = new(string)
+					*cwr.AutostartSchedule = sched.String()
 					// Given: automatic updates from the test case
 					cwr.AutomaticUpdates = tc.automaticUpdates
 				})
@@ -417,7 +420,8 @@ func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 		})
 		// Given: we have a user with a workspace that has autostart enabled
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.AutostartSchedule = ptr.Ref(sched.String())
+			cwr.AutostartSchedule = new(string)
+			*cwr.AutostartSchedule = sched.String()
 		})
 	)
 
@@ -491,7 +495,8 @@ func TestExecutorAutostartUserSuspended(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
 	userClient, user := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 	workspace := coderdtest.CreateWorkspace(t, userClient, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-		cwr.AutostartSchedule = ptr.Ref(sched.String())
+		cwr.AutostartSchedule = new(string)
+		*cwr.AutostartSchedule = sched.String()
 	})
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 	workspace = coderdtest.MustWorkspace(t, userClient, workspace.ID)
@@ -640,8 +645,8 @@ func TestExecutorAutostopAIAgentActivity(t *testing.T) {
 
 	// Given: template has activity bump enabled.
 	_, err := client.UpdateTemplateMeta(ctx, r.Template.ID, codersdk.UpdateTemplateMeta{
-		DefaultTTLMillis:   ptr.Ref((2 * time.Hour).Milliseconds()),
-		ActivityBumpMillis: ptr.Ref(time.Hour.Milliseconds()),
+		DefaultTTLMillis:   new((2 * time.Hour).Milliseconds()),
+		ActivityBumpMillis: new(time.Hour.Milliseconds()),
 	})
 	require.NoError(t, err)
 
@@ -801,7 +806,8 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 		})
 		// Given: we have a user with a workspace that has autostart enabled
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.AutostartSchedule = ptr.Ref(sched.String())
+			cwr.AutostartSchedule = new(string)
+			*cwr.AutostartSchedule = sched.String()
 		})
 	)
 
@@ -836,7 +842,8 @@ func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
 		// futureTimeCron = fmt.Sprintf("%d %d * * *", futureTime.Minute(), futureTime.Hour())
 		// Given: we have a user with a workspace configured to autostart some time in the future
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.AutostartSchedule = ptr.Ref(sched.String())
+			cwr.AutostartSchedule = new(string)
+			*cwr.AutostartSchedule = sched.String()
 		})
 	)
 
@@ -989,7 +996,8 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 		})
 		// Given: we have a user with a workspace that has autostart enabled (default)
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.AutostartSchedule = ptr.Ref(sched.String())
+			cwr.AutostartSchedule = new(string)
+			*cwr.AutostartSchedule = sched.String()
 		})
 	)
 	// Given: workspace is stopped
@@ -1049,7 +1057,8 @@ func TestExecutorAutostartWithParameters(t *testing.T) {
 
 		// Given: we have a user with a workspace that has autostart enabled
 		workspace = mustProvisionWorkspaceWithParameters(t, client, richParameters, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.AutostartSchedule = ptr.Ref(sched.String())
+			cwr.AutostartSchedule = new(string)
+			*cwr.AutostartSchedule = sched.String()
 			cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
 				{
 					Name:  stringParameterName,
@@ -1114,7 +1123,8 @@ func TestExecutorAutostartTemplateDisabled(t *testing.T) {
 		// futureTimeCron = fmt.Sprintf("%d %d * * *", futureTime.Minute(), futureTime.Hour())
 		// Given: we have a user with a workspace configured to autostart some time in the future
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.AutostartSchedule = ptr.Ref(sched.String())
+			cwr.AutostartSchedule = new(string)
+			*cwr.AutostartSchedule = sched.String()
 		})
 	)
 	// Given: workspace is stopped
@@ -1156,7 +1166,7 @@ func TestExecutorAutostopTemplateDisabled(t *testing.T) {
 		})
 		// Given: we have a user with a workspace configured to autostop 30 minutes in the future
 		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.TTLMillis = ptr.Ref(30 * time.Minute.Milliseconds())
+			cwr.TTLMillis = new(30 * time.Minute.Milliseconds())
 		})
 	)
 
@@ -1244,7 +1254,8 @@ func TestExecutorRequireActiveVersion(t *testing.T) {
 	memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 	ws := coderdtest.CreateWorkspace(t, memberClient, uuid.Nil, func(cwr *codersdk.CreateWorkspaceRequest) {
 		cwr.TemplateVersionID = inactiveVersion.ID
-		cwr.AutostartSchedule = ptr.Ref(sched.String())
+		cwr.AutostartSchedule = new(string)
+		*cwr.AutostartSchedule = sched.String()
 	})
 	_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, ownerClient, ws.LatestBuild.ID)
 	ws = coderdtest.MustTransitionWorkspace(t, memberClient, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
@@ -1304,7 +1315,7 @@ func TestExecutorFailedWorkspace(t *testing.T) {
 			ProvisionGraph: echo.GraphComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
+			ctr.FailureTTLMillis = new(failureTTL.Milliseconds())
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		ws := coderdtest.CreateWorkspace(t, client, template.ID)
@@ -1355,7 +1366,7 @@ func TestExecutorInactiveWorkspace(t *testing.T) {
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
+			ctr.TimeTilDormantMillis = new(inactiveTTL.Milliseconds())
 		})
 		ws := coderdtest.CreateWorkspace(t, client, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
@@ -1406,7 +1417,7 @@ func TestNotifications(t *testing.T) {
 
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.TimeTilDormantMillis = ptr.Ref(timeTilDormant.Milliseconds())
+			ctr.TimeTilDormantMillis = new(timeTilDormant.Milliseconds())
 		})
 		userClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
@@ -1489,8 +1500,8 @@ func TestNotifications(t *testing.T) {
 
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.TimeTilDormantMillis = ptr.Ref(timeTilDormant.Milliseconds())
-			ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref(timeTilDormantAutoDelete.Milliseconds())
+			ctr.TimeTilDormantMillis = new(timeTilDormant.Milliseconds())
+			ctr.TimeTilDormantAutoDeleteMillis = new(timeTilDormantAutoDelete.Milliseconds())
 		})
 		userClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
@@ -1921,7 +1932,7 @@ func setupAutostopReminderWorkspace(t *testing.T, timeTilAutostopNotify time.Dur
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 		if timeTilAutostopNotify > 0 {
-			ctr.TimeTilAutostopNotifyMillis = ptr.Ref(timeTilAutostopNotify.Milliseconds())
+			ctr.TimeTilAutostopNotifyMillis = new(timeTilAutostopNotify.Milliseconds())
 		}
 	})
 	ws := coderdtest.CreateWorkspace(t, client, template.ID)
@@ -2356,7 +2367,8 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 
 	// Create workspace with autostart enabled and matching provisioner tags
 	workspace := mustProvisionWorkspaceWithProvisionerTags(t, client, provisionerDaemonTags, func(cwr *codersdk.CreateWorkspaceRequest) {
-		cwr.AutostartSchedule = ptr.Ref(sched.String())
+		cwr.AutostartSchedule = new(string)
+		*cwr.AutostartSchedule = sched.String()
 	})
 
 	// Stop the workspace while provisioner is available
@@ -2463,7 +2475,7 @@ func TestExecutorTaskWorkspace(t *testing.T) {
 
 		if defaultTTL > 0 {
 			_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				DefaultTTLMillis: ptr.Ref(defaultTTL.Milliseconds()),
+				DefaultTTLMillis: new(defaultTTL.Milliseconds()),
 			})
 			require.NoError(t, err)
 		}
@@ -2510,7 +2522,7 @@ func TestExecutorTaskWorkspace(t *testing.T) {
 
 		// Given: The task workspace has an autostart schedule
 		err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-			Schedule: ptr.Ref(sched.String()),
+			Schedule: new(sched.String()),
 		})
 		require.NoError(t, err)
 

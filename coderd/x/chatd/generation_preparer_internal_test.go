@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -105,8 +104,8 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	}, "test-key")
 	modelConfigRaw, err := json.Marshal(codersdk.ChatModelCallConfig{
 		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-			Default: ptr.Ref(codersdk.ChatModelReasoningEffortLow),
-			Max:     ptr.Ref(codersdk.ChatModelReasoningEffortMedium),
+			Default: new(codersdk.ChatModelReasoningEffortLow),
+			Max:     new(codersdk.ChatModelReasoningEffortMedium),
 		},
 	})
 	require.NoError(t, err)
@@ -183,7 +182,7 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 		},
 		ProviderOptions: &codersdk.ChatModelProviderOptions{
 			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				User: ptr.Ref("computer-use"),
+				User: new("computer-use"),
 			},
 		},
 	})

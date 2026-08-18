@@ -21,7 +21,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	strings2 "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
@@ -356,7 +355,7 @@ func (r *Runner) update(ctx context.Context, u *proto.UpdateJobRequest) (*proto.
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 	defer func() {
-		r.lastUpdate.Store(ptr.Ref(time.Now()))
+		r.lastUpdate.Store(new(time.Now()))
 	}()
 
 	span.SetAttributes(

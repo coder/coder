@@ -929,7 +929,7 @@ func (s *Server) checkUserAIBudget(ctx context.Context, userID uuid.UUID, period
 
 	return userAIBudget{
 		Exceeded:         exceeded,
-		SpendLimitMicros: ptr.Ref(effectiveGroup.Limit.SpendLimitMicros),
+		SpendLimitMicros: new(effectiveGroup.Limit.SpendLimitMicros),
 		GroupID:          effectiveGroup.GroupID,
 	}, nil
 }

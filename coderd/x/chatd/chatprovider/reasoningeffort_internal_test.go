@@ -12,7 +12,6 @@ import (
 	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -35,8 +34,8 @@ func TestApplyReasoningEffort(t *testing.T) {
 
 		options := fantasy.ProviderOptions{
 			fantasyopenai.Name: &fantasyopenai.ResponsesProviderOptions{
-				Instructions: ptr.Ref("answer briefly"),
-				Store:        ptr.Ref(true),
+				Instructions: new("answer briefly"),
+				Store:        new(true),
 			},
 		}
 		got := applyReasoningEffort(NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-5"}, nil), options, new(codersdk.ChatModelReasoningEffortHigh))
@@ -53,8 +52,8 @@ func TestApplyReasoningEffort(t *testing.T) {
 
 		options := fantasy.ProviderOptions{
 			fantasyopenai.Name: &fantasyopenai.ProviderOptions{
-				User:              ptr.Ref("user"),
-				ParallelToolCalls: ptr.Ref(true),
+				User:              new("user"),
+				ParallelToolCalls: new(true),
 			},
 		}
 		got := applyReasoningEffort(NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}, nil), options, new(codersdk.ChatModelReasoningEffortHigh))
@@ -85,7 +84,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 		{
 			name:     "PreservesAnthropicEntry",
 			provider: fantasyanthropic.Name,
-			options:  fantasy.ProviderOptions{fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{SendReasoning: ptr.Ref(true)}},
+			options:  fantasy.ProviderOptions{fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{SendReasoning: new(true)}},
 			assert: func(t *testing.T, got fantasy.ProviderOptions) {
 				providerOptions := got[fantasyanthropic.Name].(*fantasyanthropic.ProviderOptions)
 				require.True(t, *providerOptions.SendReasoning)
@@ -105,7 +104,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 		{
 			name:     "PreservesOpenAICompatEntry",
 			provider: fantasyopenaicompat.Name,
-			options:  fantasy.ProviderOptions{fantasyopenaicompat.Name: &fantasyopenaicompat.ProviderOptions{User: ptr.Ref("user")}},
+			options:  fantasy.ProviderOptions{fantasyopenaicompat.Name: &fantasyopenaicompat.ProviderOptions{User: new("user")}},
 			assert: func(t *testing.T, got fantasy.ProviderOptions) {
 				providerOptions := got[fantasyopenaicompat.Name].(*fantasyopenaicompat.ProviderOptions)
 				require.Equal(t, "user", *providerOptions.User)
@@ -126,7 +125,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 		{
 			name:     "PreservesVercelNestedEntry",
 			provider: fantasyvercel.Name,
-			options:  fantasy.ProviderOptions{fantasyvercel.Name: &fantasyvercel.ProviderOptions{Reasoning: &fantasyvercel.ReasoningOptions{Enabled: ptr.Ref(true), MaxTokens: ptr.Ref(int64(1024))}}},
+			options:  fantasy.ProviderOptions{fantasyvercel.Name: &fantasyvercel.ProviderOptions{Reasoning: &fantasyvercel.ReasoningOptions{Enabled: new(true), MaxTokens: new(int64(1024))}}},
 			assert: func(t *testing.T, got fantasy.ProviderOptions) {
 				providerOptions := got[fantasyvercel.Name].(*fantasyvercel.ProviderOptions)
 				require.True(t, *providerOptions.Reasoning.Enabled)
@@ -148,7 +147,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 		{
 			name:     "PreservesOpenRouterNestedEntry",
 			provider: fantasyopenrouter.Name,
-			options:  fantasy.ProviderOptions{fantasyopenrouter.Name: &fantasyopenrouter.ProviderOptions{Reasoning: &fantasyopenrouter.ReasoningOptions{Enabled: ptr.Ref(true), MaxTokens: ptr.Ref(int64(1024))}}},
+			options:  fantasy.ProviderOptions{fantasyopenrouter.Name: &fantasyopenrouter.ProviderOptions{Reasoning: &fantasyopenrouter.ReasoningOptions{Enabled: new(true), MaxTokens: new(int64(1024))}}},
 			assert: func(t *testing.T, got fantasy.ProviderOptions) {
 				providerOptions, ok := got[fantasyopenrouter.Name].(*fantasyopenrouter.ProviderOptions)
 				require.True(t, ok, "%T", got[fantasyopenrouter.Name])

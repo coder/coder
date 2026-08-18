@@ -14,7 +14,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
@@ -258,7 +257,8 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				if err != nil {
 					return err
 				}
-				schedSpec = ptr.Ref(sched.String())
+				schedSpec = new(string)
+				*schedSpec = sched.String()
 			}
 
 			cliBuildParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
@@ -356,7 +356,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 
 			var ttlMillis *int64
 			if stopAfter > 0 {
-				ttlMillis = ptr.Ref(stopAfter.Milliseconds())
+				ttlMillis = new(stopAfter.Milliseconds())
 			}
 
 			req := codersdk.CreateWorkspaceRequest{

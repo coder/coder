@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -666,7 +665,7 @@ func TestChatTools(t *testing.T) {
 
 		disabledProviderConfig := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, chattest.OpenAI(t))
 		provider, err := client.UpdateAIProvider(ctx, disabledProviderConfig.AIProviderID.String(), codersdk.UpdateAIProviderRequest{
-			Enabled: ptr.Ref(false),
+			Enabled: new(false),
 		})
 		require.NoError(t, err)
 		require.False(t, provider.Enabled)

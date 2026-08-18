@@ -8,7 +8,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/schedule"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -124,14 +123,14 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 		// and asserts only that field changed in the resolved struct.
 		{
 			name: "Name",
-			req:  codersdk.UpdateTemplateMeta{Name: ptr.Ref("renamed")},
+			req:  codersdk.UpdateTemplateMeta{Name: new("renamed")},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.name = "renamed"
 			}},
 		},
 		{
 			name: "NameEmptyStringFallsBackToCurrent",
-			req:  codersdk.UpdateTemplateMeta{Name: ptr.Ref("")},
+			req:  codersdk.UpdateTemplateMeta{Name: new("")},
 			// Empty string is treated as "do not clear" because the UI
 			// disallows clearing the name. Resolver must keep the
 			// existing name.
@@ -140,77 +139,77 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 		},
 		{
 			name: "DisplayName",
-			req:  codersdk.UpdateTemplateMeta{DisplayName: ptr.Ref("Renamed")},
+			req:  codersdk.UpdateTemplateMeta{DisplayName: new("Renamed")},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.displayName = "Renamed"
 			}},
 		},
 		{
 			name: "Description",
-			req:  codersdk.UpdateTemplateMeta{Description: ptr.Ref("New description")},
+			req:  codersdk.UpdateTemplateMeta{Description: new("New description")},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.description = "New description"
 			}},
 		},
 		{
 			name: "Icon",
-			req:  codersdk.UpdateTemplateMeta{Icon: ptr.Ref("/new.svg")},
+			req:  codersdk.UpdateTemplateMeta{Icon: new("/new.svg")},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.icon = "/new.svg"
 			}},
 		},
 		{
 			name: "DefaultTTLMillis",
-			req:  codersdk.UpdateTemplateMeta{DefaultTTLMillis: ptr.Ref(int64(7200_000))},
+			req:  codersdk.UpdateTemplateMeta{DefaultTTLMillis: new(int64(7200_000))},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.defaultTTLMillis = 7200_000
 			}},
 		},
 		{
 			name: "DefaultTTLMillisZeroExplicit",
-			req:  codersdk.UpdateTemplateMeta{DefaultTTLMillis: ptr.Ref(int64(0))},
+			req:  codersdk.UpdateTemplateMeta{DefaultTTLMillis: new(int64(0))},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.defaultTTLMillis = 0
 			}},
 		},
 		{
 			name: "ActivityBumpMillis",
-			req:  codersdk.UpdateTemplateMeta{ActivityBumpMillis: ptr.Ref(int64(900_000))},
+			req:  codersdk.UpdateTemplateMeta{ActivityBumpMillis: new(int64(900_000))},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.activityBumpMillis = 900_000
 			}},
 		},
 		{
 			name: "TimeTilAutostopNotifyMillis",
-			req:  codersdk.UpdateTemplateMeta{TimeTilAutostopNotifyMillis: ptr.Ref(int64(300_000))},
+			req:  codersdk.UpdateTemplateMeta{TimeTilAutostopNotifyMillis: new(int64(300_000))},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.timeTilAutostopNotifyMillis = 300_000
 			}},
 		},
 		{
 			name: "TimeTilAutostopNotifyMillisZeroExplicit",
-			req:  codersdk.UpdateTemplateMeta{TimeTilAutostopNotifyMillis: ptr.Ref(int64(0))},
+			req:  codersdk.UpdateTemplateMeta{TimeTilAutostopNotifyMillis: new(int64(0))},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.timeTilAutostopNotifyMillis = 0
 			}},
 		},
 		{
 			name: "AllowUserAutostart",
-			req:  codersdk.UpdateTemplateMeta{AllowUserAutostart: ptr.Ref(true)},
+			req:  codersdk.UpdateTemplateMeta{AllowUserAutostart: new(true)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.allowUserAutostart = true
 			}},
 		},
 		{
 			name: "AllowUserAutostop",
-			req:  codersdk.UpdateTemplateMeta{AllowUserAutostop: ptr.Ref(true)},
+			req:  codersdk.UpdateTemplateMeta{AllowUserAutostop: new(true)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.allowUserAutostop = true
 			}},
 		},
 		{
 			name: "AllowUserAutostop/true",
-			req:  codersdk.UpdateTemplateMeta{AllowUserAutostop: ptr.Ref(false)},
+			req:  codersdk.UpdateTemplateMeta{AllowUserAutostop: new(false)},
 			expected: expected{
 				base: func(update *database.Template) {
 					update.AllowUserAutostop = true
@@ -222,70 +221,70 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 		},
 		{
 			name: "AllowUserCancelWorkspaceJobs",
-			req:  codersdk.UpdateTemplateMeta{AllowUserCancelWorkspaceJobs: ptr.Ref(true)},
+			req:  codersdk.UpdateTemplateMeta{AllowUserCancelWorkspaceJobs: new(true)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.allowUserCancelWorkspaceJobs = true
 			}},
 		},
 		{
 			name: "AgentsAllowed",
-			req:  codersdk.UpdateTemplateMeta{AgentsAllowed: ptr.Ref(false)},
+			req:  codersdk.UpdateTemplateMeta{AgentsAllowed: new(false)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.agentsAllowed = false
 			}},
 		},
 		{
 			name: "FailureTTLMillis",
-			req:  codersdk.UpdateTemplateMeta{FailureTTLMillis: ptr.Ref(int64(3_600_000))},
+			req:  codersdk.UpdateTemplateMeta{FailureTTLMillis: new(int64(3_600_000))},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.failureTTLMillis = 3_600_000
 			}},
 		},
 		{
 			name: "TimeTilDormantMillis",
-			req:  codersdk.UpdateTemplateMeta{TimeTilDormantMillis: ptr.Ref(int64(7_200_000))},
+			req:  codersdk.UpdateTemplateMeta{TimeTilDormantMillis: new(int64(7_200_000))},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.timeTilDormantMillis = 7_200_000
 			}},
 		},
 		{
 			name: "TimeTilDormantAutoDeleteMillis",
-			req:  codersdk.UpdateTemplateMeta{TimeTilDormantAutoDeleteMillis: ptr.Ref(int64(14_400_000))},
+			req:  codersdk.UpdateTemplateMeta{TimeTilDormantAutoDeleteMillis: new(int64(14_400_000))},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.timeTilDormantAutoDeleteMillis = 14_400_000
 			}},
 		},
 		{
 			name: "RequireActiveVersion",
-			req:  codersdk.UpdateTemplateMeta{RequireActiveVersion: ptr.Ref(false)},
+			req:  codersdk.UpdateTemplateMeta{RequireActiveVersion: new(false)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.requireActiveVersion = false
 			}},
 		},
 		{
 			name: "DeprecationMessage",
-			req:  codersdk.UpdateTemplateMeta{DeprecationMessage: ptr.Ref("now deprecated")},
+			req:  codersdk.UpdateTemplateMeta{DeprecationMessage: new("now deprecated")},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.deprecationMessage = "now deprecated"
 			}},
 		},
 		{
 			name: "DeprecationMessageEmptyStringClears",
-			req:  codersdk.UpdateTemplateMeta{DeprecationMessage: ptr.Ref("")},
+			req:  codersdk.UpdateTemplateMeta{DeprecationMessage: new("")},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.deprecationMessage = ""
 			}},
 		},
 		{
 			name: "UseClassicParameterFlow",
-			req:  codersdk.UpdateTemplateMeta{UseClassicParameterFlow: ptr.Ref(false)},
+			req:  codersdk.UpdateTemplateMeta{UseClassicParameterFlow: new(false)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.useClassicTemplateFlow = false
 			}},
 		},
 		{
 			name: "DisableModuleCache",
-			req:  codersdk.UpdateTemplateMeta{DisableModuleCache: ptr.Ref(false)},
+			req:  codersdk.UpdateTemplateMeta{DisableModuleCache: new(false)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.disableModuleCache = false
 			}},
@@ -295,7 +294,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 		{
 			name: "CORSBehaviorChange",
 			req: codersdk.UpdateTemplateMeta{
-				CORSBehavior: ptr.Ref(codersdk.CORSBehavior(database.CorsBehaviorSimple)),
+				CORSBehavior: new(codersdk.CORSBehavior(database.CorsBehaviorSimple)),
 			},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.corsBehavior = database.CorsBehaviorSimple
@@ -304,7 +303,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 		{
 			name: "CORSBehaviorEmptyStringPreserves",
 			req: codersdk.UpdateTemplateMeta{
-				CORSBehavior: ptr.Ref(codersdk.CORSBehavior("")),
+				CORSBehavior: new(codersdk.CORSBehavior("")),
 			},
 			// Empty string is treated as "do not change" for backwards
 			// compatibility with older clients that always send the
@@ -314,7 +313,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 		{
 			name: "CORSBehaviorInvalid",
 			req: codersdk.UpdateTemplateMeta{
-				CORSBehavior: ptr.Ref(codersdk.CORSBehavior("not-a-real-value")),
+				CORSBehavior: new(codersdk.CORSBehavior("not-a-real-value")),
 			},
 			expected: expected{
 				// Invalid value: keep current and surface a validation error.
@@ -396,38 +395,38 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 		// the corresponding *Intent field being false; only true triggers it.
 		{
 			name: "DisableEveryoneGroupAccessFalseIsNoop",
-			req:  codersdk.UpdateTemplateMeta{DisableEveryoneGroupAccess: ptr.Ref(false)},
+			req:  codersdk.UpdateTemplateMeta{DisableEveryoneGroupAccess: new(false)},
 			expected: expected{override: func(*templateMetaUpdate) {
 				// disableEveryoneIntent stays false.
 			}},
 		},
 		{
 			name: "DisableEveryoneGroupAccessTrueWithMembership",
-			req:  codersdk.UpdateTemplateMeta{DisableEveryoneGroupAccess: ptr.Ref(true)},
+			req:  codersdk.UpdateTemplateMeta{DisableEveryoneGroupAccess: new(true)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.groupACL = database.TemplateACL{}
 			}},
 		},
 		{
 			name:     "UpdateWorkspaceLastUsedAtFalseIsNoop",
-			req:      codersdk.UpdateTemplateMeta{UpdateWorkspaceLastUsedAt: ptr.Ref(false)},
+			req:      codersdk.UpdateTemplateMeta{UpdateWorkspaceLastUsedAt: new(false)},
 			expected: expected{override: func(*templateMetaUpdate) {}},
 		},
 		{
 			name: "UpdateWorkspaceLastUsedAtTrue",
-			req:  codersdk.UpdateTemplateMeta{UpdateWorkspaceLastUsedAt: ptr.Ref(true)},
+			req:  codersdk.UpdateTemplateMeta{UpdateWorkspaceLastUsedAt: new(true)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.updateWorkspaceLastUsedAtIntent = true
 			}},
 		},
 		{
 			name:     "UpdateWorkspaceDormantAtFalseIsNoop",
-			req:      codersdk.UpdateTemplateMeta{UpdateWorkspaceDormantAt: ptr.Ref(false)},
+			req:      codersdk.UpdateTemplateMeta{UpdateWorkspaceDormantAt: new(false)},
 			expected: expected{override: func(*templateMetaUpdate) {}},
 		},
 		{
 			name: "UpdateWorkspaceDormantAtTrue",
-			req:  codersdk.UpdateTemplateMeta{UpdateWorkspaceDormantAt: ptr.Ref(true)},
+			req:  codersdk.UpdateTemplateMeta{UpdateWorkspaceDormantAt: new(true)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.updateWorkspaceDormantAtIntent = true
 			}},
@@ -476,7 +475,7 @@ func TestResolveTemplateMetaUpdate_NameClearedFallsBackToTemplateName(t *testing
 	schedOpts := baselineScheduleOpts()
 
 	got, _ := resolveTemplateMetaUpdate(tpl, schedOpts, codersdk.UpdateTemplateMeta{
-		Name: ptr.Ref(""),
+		Name: new(""),
 	})
 	if got.name != tpl.Name {
 		t.Fatalf("got name = %q, want %q (preserved)", got.name, tpl.Name)

@@ -33,7 +33,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
@@ -1078,18 +1077,18 @@ func buildTaskEvent(
 		event.LastPausedAt = &row.StopBuildCreatedAt.Time
 		switch {
 		case row.StopBuildReason.Valid && row.StopBuildReason.BuildReason == database.BuildReasonTaskAutoPause:
-			event.PauseReason = ptr.Ref("auto")
+			event.PauseReason = new("auto")
 		case row.StopBuildReason.Valid && row.StopBuildReason.BuildReason == database.BuildReasonTaskManualPause:
-			event.PauseReason = ptr.Ref("manual")
+			event.PauseReason = new("manual")
 		default:
-			event.PauseReason = ptr.Ref("other")
+			event.PauseReason = new("other")
 		}
 
 		// Idle duration: time between last working status and the pause.
 		if row.LastWorkingStatusAt.Valid &&
 			row.StopBuildCreatedAt.Time.After(row.LastWorkingStatusAt.Time) {
-			idle := row.StopBuildCreatedAt.Time.Sub(row.LastWorkingStatusAt.Time)
-			event.IdleDurationMS = ptr.Ref(idle.Milliseconds())
+			event.IdleDurationMS = new(int64)
+			*event.IdleDurationMS = row.StopBuildCreatedAt.Time.Sub(row.LastWorkingStatusAt.Time).Milliseconds()
 		}
 	}
 
@@ -1097,8 +1096,8 @@ func buildTaskEvent(
 	if startedAfterStop {
 		// Paused duration: time between pause and resume.
 		if row.StartBuildCreatedAt.Time.After(createdAfter) {
-			paused := row.StartBuildCreatedAt.Time.Sub(row.StopBuildCreatedAt.Time)
-			event.PausedDurationMS = ptr.Ref(paused.Milliseconds())
+			event.PausedDurationMS = new(int64)
+			*event.PausedDurationMS = row.StartBuildCreatedAt.Time.Sub(row.StopBuildCreatedAt.Time).Milliseconds()
 		}
 
 		// Below only relevant for "resumed" tasks, not when initially created.
@@ -1107,30 +1106,30 @@ func buildTaskEvent(
 			switch {
 			// TODO(Cian): will this exist? Future readers may know better than I.
 			// case row.StartBuildReason == database.BuildReasonTaskAutoResume:
-			//	event.ResumeReason = ptr.Ref("auto")
+			//	event.ResumeReason = new("auto")
 			case row.StartBuildReason.BuildReason == database.BuildReasonTaskResume:
-				event.ResumeReason = ptr.Ref("manual")
+				event.ResumeReason = new("manual")
 			default: // Task resumed by starting workspace?
-				event.ResumeReason = ptr.Ref("other")
+				event.ResumeReason = new("other")
 			}
 		}
 	}
 
 	// Unresolved pause: report current paused duration.
 	if currentlyPaused {
-		paused := now.Sub(row.StopBuildCreatedAt.Time)
-		event.PausedDurationMS = ptr.Ref(paused.Milliseconds())
+		event.PausedDurationMS = new(int64)
+		*event.PausedDurationMS = now.Sub(row.StopBuildCreatedAt.Time).Milliseconds()
 	}
 
 	// Resume-to-status duration.
 	if row.FirstStatusAfterResumeAt.Valid && isResumed {
-		delta := row.FirstStatusAfterResumeAt.Time.Sub(row.StartBuildCreatedAt.Time)
-		event.ResumeToStatusMS = ptr.Ref(delta.Milliseconds())
+		event.ResumeToStatusMS = new(int64)
+		*event.ResumeToStatusMS = row.FirstStatusAfterResumeAt.Time.Sub(row.StartBuildCreatedAt.Time).Milliseconds()
 	}
 
 	// Active duration: from SQL calculation.
 	if row.ActiveDurationMs > 0 {
-		event.ActiveDurationMS = ptr.Ref(row.ActiveDurationMs)
+		event.ActiveDurationMS = new(row.ActiveDurationMs)
 	}
 
 	return event
@@ -1200,7 +1199,7 @@ func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 		BuildNumber: uint32(build.BuildNumber),
 	}
 	if build.HasAITask.Valid {
-		wb.HasAITask = ptr.Ref(build.HasAITask.Bool)
+		wb.HasAITask = new(build.HasAITask.Bool)
 	}
 	return wb
 }
@@ -1514,7 +1513,7 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		RequireActiveVersion:          dbTemplate.RequireActiveVersion,
 		AgentsAllowed:                 dbTemplate.AgentsAllowed,
 		Deprecated:                    dbTemplate.Deprecated != "",
-		UseClassicParameterFlow:       ptr.Ref(dbTemplate.UseClassicParameterFlow),
+		UseClassicParameterFlow:       new(dbTemplate.UseClassicParameterFlow),
 	}
 }
 
@@ -1533,7 +1532,7 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 		snapVersion.SourceExampleID = &version.SourceExampleID.String
 	}
 	if version.HasAITask.Valid {
-		snapVersion.HasAITask = ptr.Ref(version.HasAITask.Bool)
+		snapVersion.HasAITask = new(version.HasAITask.Bool)
 	}
 	return snapVersion
 }
@@ -2250,16 +2249,16 @@ func ConvertTask(task database.Task) Task {
 		CreatedAt:         task.CreatedAt,
 	}
 	if task.WorkspaceID.Valid {
-		t.WorkspaceID = ptr.Ref(task.WorkspaceID.UUID.String())
+		t.WorkspaceID = new(task.WorkspaceID.UUID.String())
 	}
 	if task.WorkspaceBuildNumber.Valid {
-		t.WorkspaceBuildNumber = ptr.Ref(int64(task.WorkspaceBuildNumber.Int32))
+		t.WorkspaceBuildNumber = new(int64(task.WorkspaceBuildNumber.Int32))
 	}
 	if task.WorkspaceAgentID.Valid {
-		t.WorkspaceAgentID = ptr.Ref(task.WorkspaceAgentID.UUID.String())
+		t.WorkspaceAgentID = new(task.WorkspaceAgentID.UUID.String())
 	}
 	if task.WorkspaceAppID.Valid {
-		t.WorkspaceAppID = ptr.Ref(task.WorkspaceAppID.UUID.String())
+		t.WorkspaceAppID = new(task.WorkspaceAppID.UUID.String())
 	}
 	return t
 }

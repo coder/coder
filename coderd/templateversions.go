@@ -38,7 +38,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
@@ -82,7 +81,8 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			api.Logger.Error(ctx, "failed to fetch provisioners for job id", slog.F("job_id", jobs[0].ProvisionerJob.ID), slog.Error(err))
 		} else {
-			matchedProvisioners = ptr.Ref(db2sdk.MatchedProvisioners(provisioners, dbtime.Now(), provisionerdserver.StaleInterval))
+			matchedProvisioners = new(codersdk.MatchedProvisioners)
+			*matchedProvisioners = db2sdk.MatchedProvisioners(provisioners, dbtime.Now(), provisionerdserver.StaleInterval)
 		}
 	}
 
@@ -214,7 +214,8 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			api.Logger.Error(ctx, "failed to fetch provisioners for job id", slog.F("job_id", jobs[0].ProvisionerJob.ID), slog.Error(err))
 		} else {
-			matchedProvisioners = ptr.Ref(db2sdk.MatchedProvisioners(provisioners, dbtime.Now(), provisionerdserver.StaleInterval))
+			matchedProvisioners = new(codersdk.MatchedProvisioners)
+			*matchedProvisioners = db2sdk.MatchedProvisioners(provisioners, dbtime.Now(), provisionerdserver.StaleInterval)
 		}
 	}
 
@@ -1012,7 +1013,8 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			api.Logger.Error(ctx, "failed to fetch provisioners for job id", slog.F("job_id", jobs[0].ProvisionerJob.ID), slog.Error(err))
 		} else {
-			matchedProvisioners = ptr.Ref(db2sdk.MatchedProvisioners(provisioners, dbtime.Now(), provisionerdserver.StaleInterval))
+			matchedProvisioners = new(codersdk.MatchedProvisioners)
+			*matchedProvisioners = db2sdk.MatchedProvisioners(provisioners, dbtime.Now(), provisionerdserver.StaleInterval)
 		}
 	}
 
@@ -1096,7 +1098,8 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		if err != nil {
 			api.Logger.Error(ctx, "failed to fetch provisioners for job id", slog.F("job_id", jobs[0].ProvisionerJob.ID), slog.Error(err))
 		} else {
-			matchedProvisioners = ptr.Ref(db2sdk.MatchedProvisioners(provisioners, dbtime.Now(), provisionerdserver.StaleInterval))
+			matchedProvisioners = new(codersdk.MatchedProvisioners)
+			*matchedProvisioners = db2sdk.MatchedProvisioners(provisioners, dbtime.Now(), provisionerdserver.StaleInterval)
 		}
 	}
 
@@ -1200,7 +1203,8 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		if err != nil {
 			api.Logger.Error(ctx, "failed to fetch provisioners for job id", slog.F("job_id", jobs[0].ProvisionerJob.ID), slog.Error(err))
 		} else {
-			matchedProvisioners = ptr.Ref(db2sdk.MatchedProvisioners(provisioners, dbtime.Now(), provisionerdserver.StaleInterval))
+			matchedProvisioners = new(codersdk.MatchedProvisioners)
+			*matchedProvisioners = db2sdk.MatchedProvisioners(provisioners, dbtime.Now(), provisionerdserver.StaleInterval)
 		}
 	}
 

@@ -52,7 +52,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
@@ -463,7 +462,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 500}, nil)
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         false,
-					SpendLimitMicros: ptr.Ref(int64(1_000)),
+					SpendLimitMicros: new(int64(1_000)),
 				}, uuid.Nil
 			},
 			wantMetricOutcome: "allowed",
@@ -481,7 +480,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 1_000}, nil)
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
-					SpendLimitMicros: ptr.Ref(int64(1_000)),
+					SpendLimitMicros: new(int64(1_000)),
 				}, groupID
 			},
 			wantMetricOutcome: "blocked",
@@ -500,7 +499,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 0}, nil)
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
-					SpendLimitMicros: ptr.Ref(int64(0)),
+					SpendLimitMicros: new(int64(0)),
 				}, groupID
 			},
 			wantMetricOutcome: "blocked",
@@ -518,7 +517,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 1_500}, nil)
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
-					SpendLimitMicros: ptr.Ref(int64(1_000)),
+					SpendLimitMicros: new(int64(1_000)),
 				}, groupID
 			},
 			wantMetricOutcome: "blocked",
@@ -540,7 +539,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 				})).Return(database.GetUserAISpendSinceRow{SpendMicros: 600}, nil)
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
-					SpendLimitMicros: ptr.Ref(int64(500)),
+					SpendLimitMicros: new(int64(500)),
 				}, overrideGroupID
 			},
 			wantMetricOutcome: "blocked",
@@ -1066,7 +1065,7 @@ func TestRecordInterception(t *testing.T) {
 					Model:           "claude-4-opus",
 					Metadata:        metadataProto,
 					StartedAt:       timestamppb.Now(),
-					ClientSessionId: ptr.Ref("session-abc-123"),
+					ClientSessionId: new("session-abc-123"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
@@ -1107,7 +1106,7 @@ func TestRecordInterception(t *testing.T) {
 					Model:           "claude-4-opus",
 					Metadata:        metadataProto,
 					StartedAt:       timestamppb.Now(),
-					ClientSessionId: ptr.Ref(""),
+					ClientSessionId: new(""),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
@@ -1147,8 +1146,8 @@ func TestRecordInterception(t *testing.T) {
 					Model:                       "claude-4-opus",
 					Metadata:                    metadataProto,
 					StartedAt:                   timestamppb.Now(),
-					AgentFirewallSessionId:      ptr.Ref(uuid.NewString()),
-					AgentFirewallSequenceNumber: ptr.Ref(int32(42)),
+					AgentFirewallSessionId:      new(uuid.NewString()),
+					AgentFirewallSequenceNumber: new(int32(42)),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
@@ -1227,8 +1226,8 @@ func TestRecordInterception(t *testing.T) {
 					Model:                       "claude-4-opus",
 					Metadata:                    metadataProto,
 					StartedAt:                   timestamppb.Now(),
-					AgentFirewallSessionId:      ptr.Ref("not-a-uuid"),
-					AgentFirewallSequenceNumber: ptr.Ref(int32(7)),
+					AgentFirewallSessionId:      new("not-a-uuid"),
+					AgentFirewallSequenceNumber: new(int32(7)),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
@@ -1429,7 +1428,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: ptr.Ref("call_abc"),
+					CorrelatingToolCallId: new("call_abc"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -1463,7 +1462,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: ptr.Ref("call_abc"),
+					CorrelatingToolCallId: new("call_abc"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -1492,7 +1491,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: ptr.Ref("call_abc"),
+					CorrelatingToolCallId: new("call_abc"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -1524,7 +1523,7 @@ func TestRecordInterception(t *testing.T) {
 					Provider:              "anthropic",
 					Model:                 "claude-4-opus",
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: ptr.Ref("call_orphan"),
+					CorrelatingToolCallId: new("call_orphan"),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
 					selfID, err := uuid.Parse(req.GetId())
@@ -3440,11 +3439,11 @@ func TestRecordToolUsage(t *testing.T) {
 					MsgId:           "msg_123",
 					ToolCallId:      "call_xyz",
 					ItemId:          "fc_item_xyz",
-					ServerUrl:       ptr.Ref("https://api.example.com"),
+					ServerUrl:       new("https://api.example.com"),
 					Tool:            "read_file",
 					Input:           `{"path": "/etc/hosts"}`,
 					Injected:        false,
-					InvocationError: ptr.Ref("permission denied"),
+					InvocationError: new("permission denied"),
 					Metadata:        metadataProto,
 					CreatedAt:       timestamppb.Now(),
 				},
@@ -3752,8 +3751,8 @@ func TestStructuredLogging(t *testing.T) {
 					Model:                 "claude-4-opus",
 					Metadata:              metadataProto,
 					StartedAt:             timestamppb.Now(),
-					CorrelatingToolCallId: ptr.Ref(toolCallID),
-					ClientSessionId:       ptr.Ref(sessionID),
+					CorrelatingToolCallId: new(toolCallID),
+					ClientSessionId:       new(sessionID),
 				})
 
 				return err
@@ -3913,11 +3912,11 @@ func TestStructuredLogging(t *testing.T) {
 				_, err := srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
 					InterceptionId:  intcID.String(),
 					MsgId:           "msg_123",
-					ServerUrl:       ptr.Ref("https://api.example.com"),
+					ServerUrl:       new("https://api.example.com"),
 					Tool:            "read_file",
 					Input:           `{"path": "/etc/hosts"}`,
 					Injected:        true,
-					InvocationError: ptr.Ref("permission denied"),
+					InvocationError: new("permission denied"),
 					Metadata:        metadataProto,
 					CreatedAt:       timestamppb.Now(),
 				})
@@ -4072,7 +4071,7 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 		Provider:              "anthropic",
 		Model:                 "claude-4-opus",
 		StartedAt:             timestamppb.Now(),
-		CorrelatingToolCallId: ptr.Ref("call_a"),
+		CorrelatingToolCallId: new("call_a"),
 	})
 	require.NoError(t, err)
 
@@ -4100,7 +4099,7 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 		Provider:              "anthropic",
 		Model:                 "claude-4-opus",
 		StartedAt:             timestamppb.Now(),
-		CorrelatingToolCallId: ptr.Ref("call_b"),
+		CorrelatingToolCallId: new("call_b"),
 	})
 	require.NoError(t, err)
 
@@ -4221,8 +4220,8 @@ func TestGetAIProviders(t *testing.T) {
 			Region:          "us-east-1",
 			Model:           "anthropic.claude-3",
 			SmallFastModel:  "anthropic.claude-haiku",
-			AccessKey:       ptr.Ref("AKID"),
-			AccessKeySecret: ptr.Ref("secret"),
+			AccessKey:       new("AKID"),
+			AccessKeySecret: new("secret"),
 			RoleARN:         "arn:aws:iam::123456789012:role/bedrock",
 		},
 	})

@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -360,17 +359,17 @@ func TestAnthropicThinkingDisplayFromChat(t *testing.T) {
 	}{
 		{
 			name:  "Summarized",
-			input: ptr.Ref(" SUMMARIZED "),
-			want:  ptr.Ref(fantasyanthropic.ThinkingDisplaySummarized),
+			input: new(" SUMMARIZED "),
+			want:  new(fantasyanthropic.ThinkingDisplaySummarized),
 		},
 		{
 			name:  "Omitted",
-			input: ptr.Ref("omitted"),
-			want:  ptr.Ref(fantasyanthropic.ThinkingDisplayOmitted),
+			input: new("omitted"),
+			want:  new(fantasyanthropic.ThinkingDisplayOmitted),
 		},
 		{
 			name:  "InvalidReturnsNil",
-			input: ptr.Ref("summary"),
+			input: new("summary"),
 		},
 		{
 			name:  "NilInputReturnsNil",
@@ -393,7 +392,7 @@ func TestProviderOptionsForCall_AnthropicThinkingDisplay(t *testing.T) {
 	providerOptions := chatprovider.ProviderOptionsForCall(chatprovider.Model{}, codersdk.ChatModelCallConfig{
 		ProviderOptions: &codersdk.ChatModelProviderOptions{
 			Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
-				ThinkingDisplay: ptr.Ref(" SUMMARIZED "),
+				ThinkingDisplay: new(" SUMMARIZED "),
 			},
 		},
 	}, nil)
@@ -1410,11 +1409,11 @@ func TestBetaHeadersFromCallConfig(t *testing.T) {
 		{name: "NilProviderOptions", provider: fantasyanthropic.Name, config: &codersdk.ChatModelCallConfig{}, want: nil},
 		{name: "NilAnthropicOptions", provider: fantasyanthropic.Name, config: &codersdk.ChatModelCallConfig{ProviderOptions: &codersdk.ChatModelProviderOptions{}}, want: nil},
 		{name: "Unset", provider: fantasyanthropic.Name, config: configWith1M(nil), want: nil},
-		{name: "Disabled", provider: fantasyanthropic.Name, config: configWith1M(ptr.Ref(false)), want: nil},
-		{name: "EnabledAnthropic", provider: fantasyanthropic.Name, config: configWith1M(ptr.Ref(true)), want: beta},
-		{name: "EnabledBedrock", provider: fantasybedrock.Name, config: configWith1M(ptr.Ref(true)), want: beta},
-		{name: "EnabledOpenAI", provider: fantasyopenai.Name, config: configWith1M(ptr.Ref(true)), want: nil},
-		{name: "EnabledUnknownProvider", provider: "does-not-exist", config: configWith1M(ptr.Ref(true)), want: nil},
+		{name: "Disabled", provider: fantasyanthropic.Name, config: configWith1M(new(false)), want: nil},
+		{name: "EnabledAnthropic", provider: fantasyanthropic.Name, config: configWith1M(new(true)), want: beta},
+		{name: "EnabledBedrock", provider: fantasybedrock.Name, config: configWith1M(new(true)), want: beta},
+		{name: "EnabledOpenAI", provider: fantasyopenai.Name, config: configWith1M(new(true)), want: nil},
+		{name: "EnabledUnknownProvider", provider: "does-not-exist", config: configWith1M(new(true)), want: nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

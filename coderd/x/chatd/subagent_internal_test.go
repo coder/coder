@@ -30,7 +30,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
@@ -1443,10 +1442,10 @@ func TestWithResolvedReasoningEffort(t *testing.T) {
 	t.Parallel()
 
 	baseOptions, err := json.Marshal(codersdk.ChatModelCallConfig{
-		MaxOutputTokens: ptr.Ref(int64(123)),
+		MaxOutputTokens: new(int64(123)),
 		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-			Default: ptr.Ref(codersdk.ChatModelReasoningEffortLow),
-			Max:     ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+			Default: new(codersdk.ChatModelReasoningEffortLow),
+			Max:     new(codersdk.ChatModelReasoningEffortHigh),
 		},
 	})
 	require.NoError(t, err)
@@ -1460,26 +1459,26 @@ func TestWithResolvedReasoningEffort(t *testing.T) {
 	t.Run("InvalidJSONReturnsOriginalConfig", func(t *testing.T) {
 		t.Parallel()
 		modelConfig := database.ChatModelConfig{Options: []byte(`{`)}
-		require.Equal(t, modelConfig, withResolvedReasoningEffort(modelConfig, ptr.Ref(codersdk.ChatModelReasoningEffortHigh)))
+		require.Equal(t, modelConfig, withResolvedReasoningEffort(modelConfig, new(codersdk.ChatModelReasoningEffortHigh)))
 	})
 
 	t.Run("NoReasoningConfigReturnsOriginalConfig", func(t *testing.T) {
 		t.Parallel()
 		modelConfig := database.ChatModelConfig{Options: []byte(`{"max_output_tokens":123}`)}
-		require.Equal(t, modelConfig, withResolvedReasoningEffort(modelConfig, ptr.Ref(codersdk.ChatModelReasoningEffortHigh)))
+		require.Equal(t, modelConfig, withResolvedReasoningEffort(modelConfig, new(codersdk.ChatModelReasoningEffortHigh)))
 	})
 
 	t.Run("ClampsRequestedEffortAndPreservesOtherOptions", func(t *testing.T) {
 		t.Parallel()
 		modelConfig := database.ChatModelConfig{Options: baseOptions}
 
-		got := withResolvedReasoningEffort(modelConfig, ptr.Ref(codersdk.ChatModelReasoningEffortXHigh))
+		got := withResolvedReasoningEffort(modelConfig, new(codersdk.ChatModelReasoningEffortXHigh))
 
 		var callConfig codersdk.ChatModelCallConfig
 		require.NoError(t, json.Unmarshal(got.Options, &callConfig))
-		require.Equal(t, ptr.Ref(int64(123)), callConfig.MaxOutputTokens)
-		require.Equal(t, ptr.Ref(codersdk.ChatModelReasoningEffortHigh), callConfig.ReasoningEffort.Default)
-		require.Equal(t, ptr.Ref(codersdk.ChatModelReasoningEffortHigh), callConfig.ReasoningEffort.Max)
+		require.Equal(t, new(int64(123)), callConfig.MaxOutputTokens)
+		require.Equal(t, new(codersdk.ChatModelReasoningEffortHigh), callConfig.ReasoningEffort.Default)
+		require.Equal(t, new(codersdk.ChatModelReasoningEffortHigh), callConfig.ReasoningEffort.Max)
 	})
 }
 
@@ -1499,7 +1498,7 @@ func TestCreateChildSubagentChat_StoresReasoningEffortOverride(t *testing.T) {
 		parentChat,
 		"delegate work",
 		"",
-		childSubagentChatOptions{reasoningEffortOverride: ptr.Ref("high")},
+		childSubagentChatOptions{reasoningEffortOverride: new("high")},
 	)
 	require.NoError(t, err)
 
