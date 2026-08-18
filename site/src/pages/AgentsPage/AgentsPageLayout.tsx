@@ -685,6 +685,15 @@ const AgentsPageLayout: FC = () => {
 				void invalidateChatListQueries(queryClient);
 				void invalidateChatsByWorkspace(queryClient);
 				void invalidateChatSearches(queryClient);
+				// The watch stream does not replay events missed while
+				// disconnected, so refetch the open chat's entity: its
+				// embedded child snapshots gate the archive actions and a
+				// child created during the gap may emit no further events
+				// for its whole run.
+				const activeChatId = activeChatIDRef.current;
+				if (activeChatId) {
+					void invalidateChatEntity(queryClient, activeChatId);
+				}
 			},
 		});
 	}, [queryClient]);
