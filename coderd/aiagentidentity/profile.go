@@ -29,6 +29,7 @@ var (
 		database.ApiKeyScopeChatRead,
 		database.ApiKeyScopeChatUpdate,
 		database.ApiKeyScopeUserRead,
+		database.ApiKeyScopeMcpGatewayUse,
 	}
 	workspaceAgentProfileScopes = database.APIKeyScopes{
 		database.ApiKeyScopeWorkspaceRead,
@@ -37,6 +38,7 @@ var (
 		database.ApiKeyScopeWorkspaceStop,
 		database.ApiKeyScopeWorkspaceSsh,
 		database.ApiKeyScopeWorkspaceApplicationConnect,
+		database.ApiKeyScopeMcpGatewayUse,
 	}
 	permittedProfileScopes      = newProfileScopeSet(chatAgentProfileScopes, workspaceAgentProfileScopes)
 	permittedProfilePermissions = mustExpandProfilePermissions(permittedProfileScopes)
@@ -66,6 +68,7 @@ func ChatAgentProfile(chatID uuid.UUID) Profile {
 			{Type: rbac.ResourceTemplate.Type, ID: policy.WildcardSymbol},
 			{Type: rbac.ResourceOrganizationMember.Type, ID: policy.WildcardSymbol},
 			{Type: rbac.ResourceUser.Type, ID: policy.WildcardSymbol},
+			{Type: rbac.ResourceMcpGateway.Type, ID: policy.WildcardSymbol},
 		},
 		TokenName: "ai-chat-" + chatID.String(),
 	}
@@ -82,6 +85,7 @@ func WorkspaceAgentIdentityProfile(workspaceID uuid.UUID) Profile {
 		Scopes: slices.Clone(workspaceAgentProfileScopes),
 		AllowList: database.AllowList{
 			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID.String()},
+			{Type: rbac.ResourceMcpGateway.Type, ID: policy.WildcardSymbol},
 		},
 		TokenName: "ai-ws-" + workspaceID.String(),
 	}
@@ -287,7 +291,7 @@ func sameProfileScopes(actual, expected database.APIKeyScopes) bool {
 }
 
 func matchesChatProfileAllowList(allowList database.AllowList) bool {
-	if len(allowList) != 5 {
+	if len(allowList) != 6 {
 		return false
 	}
 
@@ -296,6 +300,7 @@ func matchesChatProfileAllowList(allowList database.AllowList) bool {
 		rbac.ResourceTemplate.Type:           {},
 		rbac.ResourceOrganizationMember.Type: {},
 		rbac.ResourceUser.Type:               {},
+		rbac.ResourceMcpGateway.Type:         {},
 	}
 	seen := make(map[string]struct{}, len(allowList))
 	for _, entry := range allowList {
@@ -318,9 +323,22 @@ func matchesChatProfileAllowList(allowList database.AllowList) bool {
 }
 
 func matchesWorkspaceProfileAllowList(allowList database.AllowList) bool {
-	return len(allowList) == 1 &&
-		allowList[0].Type == rbac.ResourceWorkspace.Type &&
-		validProfileResourceID(allowList[0].ID)
+	if len(allowList) != 2 {
+		return false
+	}
+
+	var workspace, mcpGateway bool
+	for _, entry := range allowList {
+		switch entry.Type {
+		case rbac.ResourceWorkspace.Type:
+			workspace = !workspace && validProfileResourceID(entry.ID)
+		case rbac.ResourceMcpGateway.Type:
+			mcpGateway = !mcpGateway && entry.ID == policy.WildcardSymbol
+		default:
+			return false
+		}
+	}
+	return workspace && mcpGateway
 }
 
 func validProfileResourceID(id string) bool {
