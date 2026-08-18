@@ -204,6 +204,23 @@ export const addChildToParentInCache = (
 		});
 		return changed ? next : chats;
 	});
+	// Mirror the insertion into the parent's entity cache so the chat
+	// detail page sees new family members without a refetch.
+	queryClient.setQueryData<TypesGen.Chat | undefined>(
+		chatEntityKey(parentId),
+		(cachedParent) => {
+			if (
+				!cachedParent ||
+				cachedParent.children?.some((ch) => ch.id === child.id)
+			) {
+				return cachedParent;
+			}
+			return {
+				...cachedParent,
+				children: [child, ...(cachedParent.children ?? [])],
+			};
+		},
+	);
 };
 
 /**
@@ -652,6 +669,33 @@ export const mergeWatchedChatIntoCaches = (
 			return mergeCachedChat(cachedChat);
 		},
 	);
+	// The parent's entity cache embeds child snapshots too (the chat
+	// detail page reads family state from it), so merge the child there
+	// as well, not only in the infinite-list caches.
+	if (watchedChat.parent_chat_id) {
+		queryClient.setQueryData<TypesGen.Chat | undefined>(
+			chatEntityKey(watchedChat.parent_chat_id),
+			(cachedParent) => {
+				if (!cachedParent?.children?.length) {
+					return cachedParent;
+				}
+				let changed = false;
+				const nextChildren = cachedParent.children.map((child) => {
+					if (child.id !== watchedChat.id) {
+						return child;
+					}
+					const merged = mergeCachedChat(child);
+					if (merged !== child) {
+						changed = true;
+					}
+					return merged;
+				});
+				return changed
+					? { ...cachedParent, children: nextChildren }
+					: cachedParent;
+			},
+		);
+	}
 };
 
 const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {

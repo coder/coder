@@ -2368,6 +2368,27 @@ describe("addChildToParentInCache", () => {
 		const result = readInfiniteChats(queryClient);
 		expect(result?.[0].children).toHaveLength(1);
 	});
+
+	it("mirrors the insertion into the parent's entity cache", () => {
+		const queryClient = createTestQueryClient();
+		const parent = makeChat("parent-1");
+		seedInfiniteChats(queryClient, [parent]);
+		queryClient.setQueryData(chatEntityKey("parent-1"), parent);
+
+		const child = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+		});
+		addChildToParentInCache(queryClient, child, "parent-1");
+		// A second insert must not duplicate the entity-cache entry.
+		addChildToParentInCache(queryClient, child, "parent-1");
+
+		const cachedParent = queryClient.getQueryData<TypesGen.Chat>(
+			chatEntityKey("parent-1"),
+		);
+		expect(cachedParent?.children).toHaveLength(1);
+		expect(cachedParent?.children?.[0].id).toBe("child-1");
+	});
 });
 
 describe("updateChildInParentCache", () => {
@@ -2986,6 +3007,38 @@ describe("mergeWatchedChatIntoCaches", () => {
 		).toMatchObject({
 			status: "running",
 			last_model_config_id: "model-new",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+	});
+
+	it("merges a child status change into the parent entity's embedded child", () => {
+		const queryClient = createTestQueryClient();
+		const childId = "child-1";
+		const cachedChild = makeChat(childId, {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+			status: "waiting",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const parent = makeChat("parent-1", { children: [cachedChild] });
+		const watchedChild = makeChat(childId, {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+			status: "running",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		queryClient.setQueryData(chatEntityKey("parent-1"), parent);
+
+		mergeWatchedChatIntoCaches(queryClient, watchedChild, {
+			eventKind: "status_change",
+		});
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey("parent-1"))
+				?.children?.[0],
+		).toMatchObject({
+			status: "running",
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 	});
