@@ -1410,7 +1410,14 @@ func (a connectionLogTunnelAuditor) Audit(agentID uuid.UUID, authorizationErr er
 
 func (api *API) tunnelAuditor(r *http.Request) tailnet.TunnelAuditor {
 	subject, ok := dbauthz.ActorFromContext(r.Context())
-	if !ok || subject.Type != rbac.SubjectTypeUser {
+	if !ok {
+		api.Logger.Error(r.Context(), "tunnel auditor missing authorization subject")
+		return nil
+	}
+	if subject.Type != rbac.SubjectTypeUser {
+		api.Logger.Debug(r.Context(), "skip tunnel audit for non-user subject",
+			slog.F("subject_type", subject.Type),
+		)
 		return nil
 	}
 	userID, err := uuid.Parse(subject.ID)
@@ -1427,7 +1434,7 @@ func (api *API) tunnelAuditor(r *http.Request) tailnet.TunnelAuditor {
 }
 
 func (api *API) logTunnelConnection(agentID uuid.UUID, statusCode int32, userID uuid.UUID, ip, userAgent string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(api.ctx, 3*time.Second)
 	defer cancel()
 
 	// nolint:gocritic // System context is needed to attribute denied tunnel decisions.
