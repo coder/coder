@@ -1,6 +1,13 @@
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 
-import { type FC, type ReactNode, type RefObject, useState } from "react";
+import {
+	type FC,
+	type ReactNode,
+	type RefObject,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { invalidateChatDiffContents } from "#/api/queries/chats";
@@ -453,22 +460,20 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		}
 	};
 
-	// Write-through setters keep persistence in event handlers, so the
-	// defaults are never written to storage on mount. Persisting inside
-	// the state updater keeps consecutive updates composing from the
-	// latest tabs instead of a stale render closure; the storage write
-	// is idempotent, so a replayed updater is harmless.
-	const updateUserRightPanelTabs = (
-		updater: (tabs: UserRightPanelTab[]) => UserRightPanelTab[],
-	) => {
-		setUserRightPanelTabsState((tabs) => {
-			const next = updater(tabs);
-			if (!isArchived) {
-				savePersistedRightPanelTabs(agentId, next);
-			}
-			return next;
-		});
-	};
+	// Persist committed tab changes only: updaters stay pure and
+	// replayed or abandoned concurrent renders never write. Comparing
+	// against the last-persisted reference skips the initial state, so
+	// defaults are never written to storage on mount.
+	const lastPersistedTabsRef = useRef(userRightPanelTabs);
+	useEffect(() => {
+		if (lastPersistedTabsRef.current === userRightPanelTabs) {
+			return;
+		}
+		lastPersistedTabsRef.current = userRightPanelTabs;
+		if (!isArchived) {
+			savePersistedRightPanelTabs(agentId, userRightPanelTabs);
+		}
+	}, [userRightPanelTabs, isArchived, agentId]);
 
 	const updateDefaultTerminalHidden = (hidden: boolean) => {
 		setDefaultTerminalHiddenState(hidden);
@@ -623,7 +628,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			return;
 		}
 		const tabId = createUserRightPanelTabId("terminal");
-		updateUserRightPanelTabs((tabs) => [
+		setUserRightPanelTabsState((tabs) => [
 			...tabs,
 			{
 				id: tabId,
@@ -655,7 +660,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			agentId: workspaceAgent.id,
 			appId: app.id,
 		};
-		updateUserRightPanelTabs((tabs) => [...tabs, tab]);
+		setUserRightPanelTabsState((tabs) => [...tabs, tab]);
 		activateRightPanelTab(tab.id);
 	};
 
@@ -678,7 +683,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			initialCommand: app.command,
 			sourceAppId: app.id,
 		};
-		updateUserRightPanelTabs((tabs) => [...tabs, tab]);
+		setUserRightPanelTabsState((tabs) => [...tabs, tab]);
 		startPendingTab(tab.id);
 	};
 
@@ -705,7 +710,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			port: selection.port,
 			protocol: selection.protocol,
 		};
-		updateUserRightPanelTabs((tabs) => [...tabs, tab]);
+		setUserRightPanelTabsState((tabs) => [...tabs, tab]);
 		activateRightPanelTab(tab.id);
 	};
 
@@ -807,7 +812,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		if (tabId === "terminal") {
 			updateDefaultTerminalHidden(true);
 		} else {
-			updateUserRightPanelTabs((tabs) =>
+			setUserRightPanelTabsState((tabs) =>
 				tabs.filter((tab) => tab.id !== tabId),
 			);
 		}
