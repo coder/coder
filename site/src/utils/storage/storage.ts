@@ -313,8 +313,9 @@ const createHandle = <T>(
 	key: string,
 	codec: StorageCodec<NonNullable<T>>,
 	defaultValue: T,
-	timestamped: boolean,
+	options: { timestamped: boolean; overlay: boolean },
 ): StorageKeyHandle<T> => {
+	const { timestamped, overlay } = options;
 	const cacheKey = cacheKeyFor(area, key);
 
 	const decodeRaw = (raw: string | null): T => {
@@ -366,11 +367,15 @@ const createHandle = <T>(
 			// Cache the caller's value directly so getSnapshot hands the
 			// exact same reference back.
 			snapshotCache.set(cacheKey, { raw, value });
-		} else {
+		} else if (overlay) {
 			// Persistence failed; keep the value visible in this tab by
 			// overlaying it on the bytes currently persisted.
 			overlayKeys.add(cacheKey);
 			snapshotCache.set(cacheKey, { raw: readRaw(area, key), value });
+		} else {
+			// Callers with their own failure handling need reads to keep
+			// reflecting what actually persisted.
+			return result;
 		}
 		notifyKey(cacheKey);
 		return result;
@@ -412,7 +417,7 @@ export function defineStorageKey<T>(options: {
 		options.key,
 		options.codec,
 		options.defaultValue,
-		false,
+		{ timestamped: false, overlay: true },
 	);
 }
 
@@ -441,6 +446,12 @@ export function defineEntityStorageKey<T>(options: {
 	 */
 	timestamped?: boolean;
 	/**
+	 * Disable the in-memory fallback for failed writes. Callers that
+	 * check PersistResult and run their own quota handling need reads
+	 * to reflect what actually persisted.
+	 */
+	overlay?: boolean;
+	/**
 	 * Extracts the owning entity ID from the key part after `prefix`.
 	 * Defaults to the whole suffix; composite-ID families override it.
 	 */
@@ -454,6 +465,7 @@ export function defineEntityStorageKey<T>(options: {
 		defaultValue,
 		ttlMs,
 		timestamped = true,
+		overlay = true,
 		entityIdFromSuffix = (suffix) => suffix,
 		sweepValue,
 	} = options;
@@ -480,7 +492,10 @@ export function defineEntityStorageKey<T>(options: {
 			const key = prefix + idParts.join(".");
 			let handle = handleCache.get(key);
 			if (!handle) {
-				handle = createHandle("local", key, codec, defaultValue, timestamped);
+				handle = createHandle("local", key, codec, defaultValue, {
+					timestamped,
+					overlay,
+				});
 				handleCache.set(key, handle);
 			}
 			return handle;
