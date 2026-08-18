@@ -883,8 +883,11 @@ const AgentChatPage: FC = () => {
 		next: boolean | ((prev: boolean) => boolean),
 	) => {
 		clearSuppression();
+		// Evaluate updaters against the storage snapshot, not the render
+		// closure, so calls compose before a render commits and never
+		// clobber a newer preference written by another tab.
 		setSidebarPanelPreference(
-			typeof next === "function" ? next(showSidebarPanel) : next,
+			typeof next === "function" ? next(rightPanelOpenStorage.get()) : next,
 		);
 	};
 

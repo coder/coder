@@ -218,6 +218,24 @@ type StoredProxyLatencies = Record<string, StoredProxyLatencyReport[]>;
  * Latencies persist `at` as an ISO string, so decoding revives it to
  * a Date the way the previous hand-rolled reviver did.
  */
+const isStoredProxyLatencyReport = (
+	entry: unknown,
+): entry is StoredProxyLatencyReport => {
+	if (typeof entry !== "object" || entry === null) {
+		return false;
+	}
+	const record = entry as Record<string, unknown>;
+	return (
+		typeof record.accurate === "boolean" &&
+		typeof record.latencyMS === "number" &&
+		Number.isFinite(record.latencyMS) &&
+		record.at instanceof Date &&
+		!Number.isNaN(record.at.getTime()) &&
+		(record.nextHopProtocol === undefined ||
+			typeof record.nextHopProtocol === "string")
+	);
+};
+
 const proxyLatenciesCodec: StorageCodec<StoredProxyLatencies> = {
 	decode: (raw) => {
 		try {
@@ -231,8 +249,16 @@ const proxyLatenciesCodec: StorageCodec<StoredProxyLatencies> = {
 			) {
 				return undefined;
 			}
-			const valid = Object.values(parsed).every(Array.isArray);
-			return valid ? (parsed as StoredProxyLatencies) : undefined;
+			// Drop malformed entries instead of failing the whole cache;
+			// each report must be fully valid before it can feed the
+			// latency-based proxy auto-selection.
+			const validated: StoredProxyLatencies = {};
+			for (const [proxyId, reports] of Object.entries(parsed)) {
+				if (Array.isArray(reports)) {
+					validated[proxyId] = reports.filter(isStoredProxyLatencyReport);
+				}
+			}
+			return validated;
 		} catch {
 			return undefined;
 		}
