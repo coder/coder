@@ -2400,7 +2400,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	// only look up IDs already on the ACL, returning MinimalUser identity
 	// (including email, to disambiguate matching display names) for users, and
 	// group identity plus a member count (no roster) for groups. Mirrors the
-	// chat ACL and template available-ACL endpoints.
+	// chat ACL endpoint, which resolves the same scoped-ID lookup.
 
 	// Fetch all of the users and their organization memberships
 	userIDs := make([]uuid.UUID, 0, len(workspaceACL.Users))
