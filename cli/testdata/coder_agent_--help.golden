@@ -5,6 +5,9 @@ USAGE:
 
   Starts the Coder workspace agent.
 
+SUBCOMMANDS:
+    sandbox    Boots an embedded microVM and runs a Coder agent inside it.
+
 OPTIONS:
       --auth string, $CODER_AGENT_AUTH (default: token)
           Specify the authentication type to use for the agent.

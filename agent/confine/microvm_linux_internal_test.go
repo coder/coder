@@ -138,6 +138,15 @@ func TestEmbeddedMicroVMConfigWiresEvaluatorRecorderAndAgent(t *testing.T) {
 	}}, events)
 }
 
+func TestEmbeddedAgentCommandWithoutSessionToken(t *testing.T) {
+	t.Parallel()
+
+	command := embeddedAgentCommand("https://coder.example.com", "agent-token", "")
+	require.NotContains(t, command, "CODER_SESSION_TOKEN=")
+	//nolint:gosec // The generated command is the value under test.
+	require.NoError(t, exec.Command("sh", "-n", "-c", command).Run())
+}
+
 func TestEmbeddedAgentCommandShellQuoting(t *testing.T) {
 	t.Parallel()
 

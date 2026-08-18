@@ -29,6 +29,13 @@ type MicroVMOptions struct {
 	Policy      *PolicyEngine
 	Destination DestinationOptions
 	Event       EventCallback
+	Progress    func(string)
+}
+
+func reportMicroVMProgress(callback func(string), message string) {
+	if callback != nil {
+		callback(message)
+	}
 }
 
 type embeddedVM interface {

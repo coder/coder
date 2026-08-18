@@ -466,23 +466,26 @@ func (c *SandboxController) Run(ctx context.Context) (retErr error) {
 		)
 	}
 
-	port, err := accessURLPort(c.options.AccessURL)
-	if err != nil {
-		return err
+	var afterPolicyUpdate func(codersdk.AIEgressPolicy)
+	if !microVMMode {
+		afterPolicyUpdate = func(policy codersdk.AIEgressPolicy) {
+			c.exportSandboxPolicy(ctx, sandbox.ID, policy)
+		}
 	}
-	engine := NewPolicyEngine(c.options.AccessURL.Hostname(), port)
-	fetchCtx, fetchCancel := context.WithTimeout(ctx, fetchTimeout)
-	policy, fetchErr := c.options.Client.AIEgressPolicy(fetchCtx)
-	fetchCancel()
+	policyMonitor, err := NewPolicyMonitor(PolicyMonitorOptions{
+		Client:      c.options.Client,
+		Logger:      c.options.Logger,
+		AccessURL:   c.options.AccessURL,
+		AfterUpdate: afterPolicyUpdate,
+	})
+	if err != nil {
+		return xerrors.Errorf("create AI egress policy monitor: %w", err)
+	}
+	policy, fetchErr := policyMonitor.Start(ctx)
 	if fetchErr != nil {
 		c.signalDegraded("AI egress policy fetch failed; started deny-all (degraded)", fetchErr)
-	} else {
-		engine.Update(policy)
-		c.options.Logger.Info(ctx, "applied AI egress policy",
-			slog.F("revision", policy.Revision),
-			slog.F("rule_count", len(policy.Rules)),
-		)
 	}
+	engine := policyMonitor.Engine()
 	if !microVMMode {
 		c.exportSandboxPolicy(ctx, sandbox.ID, policy)
 	}
@@ -525,13 +528,6 @@ func (c *SandboxController) Run(ctx context.Context) (retErr error) {
 
 	runCtx, stop := context.WithCancel(ctx)
 	batcherDone := make(chan struct{})
-	var afterPolicyUpdate func(codersdk.AIEgressPolicy)
-	if !microVMMode {
-		afterPolicyUpdate = func(policy codersdk.AIEgressPolicy) {
-			c.exportSandboxPolicy(runCtx, sandbox.ID, policy)
-		}
-	}
-	go watchPolicy(runCtx, c.options.Client, c.options.Logger, engine, afterPolicyUpdate)
 	go func() {
 		defer close(batcherDone)
 		batcher.Run(runCtx, eventFlushPeriod)
@@ -761,7 +757,7 @@ func (c *SandboxController) signalDegraded(message string, cause error) {
 
 func watchPolicy(
 	ctx context.Context,
-	client AgentClient,
+	client PolicyClient,
 	logger slog.Logger,
 	engine *PolicyEngine,
 	afterUpdate func(codersdk.AIEgressPolicy),
@@ -782,6 +778,10 @@ func watchPolicy(
 		backoff = time.Second
 		for policy := range policies {
 			engine.Update(policy)
+			logger.Info(ctx, "applied AI egress policy update",
+				slog.F("revision", policy.Revision),
+				slog.F("rule_count", len(policy.Rules)),
+			)
 			if afterUpdate != nil {
 				afterUpdate(policy)
 			}

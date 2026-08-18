@@ -33,12 +33,16 @@ func StartEmbeddedMicroVM(ctx context.Context, options MicroVMOptions) (*Embedde
 	if err != nil {
 		return nil, err
 	}
+	reportMicroVMProgress(options.Progress, "provisioning microVM runtime and guest image")
 	vm, err := hostvm.Boot(ctx, config.hostOptions)
 	if err != nil {
 		return nil, xerrors.Errorf("boot embedded microVM: %w", err)
 	}
+	reportMicroVMProgress(options.Progress, "microVM booted")
+	reportMicroVMProgress(options.Progress, "launching guest agent")
 	status, execErr := vm.Exec(ctx, config.agentCommand)
 	if execErr == nil && status == 0 {
+		reportMicroVMProgress(options.Progress, "guest agent launched")
 		return &EmbeddedSandbox{vm: vm}, nil
 	}
 

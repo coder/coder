@@ -2,7 +2,6 @@ package confine
 
 import (
 	"context"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -46,8 +45,7 @@ const (
 
 // AgentClient is the agent API used by the confinement supervisor.
 type AgentClient interface {
-	AIEgressPolicy(context.Context) (codersdk.AIEgressPolicy, error)
-	WatchAIEgressPolicy(context.Context) (<-chan codersdk.AIEgressPolicy, io.Closer, error)
+	PolicyClient
 	PostAISandboxSession(context.Context, agentsdk.PostAISandboxSessionRequest) error
 	PatchAISandboxNetworkEvents(context.Context, agentsdk.PatchAISandboxNetworkEventsRequest) error
 	PatchLogs(context.Context, agentsdk.PatchLogs) error

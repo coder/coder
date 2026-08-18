@@ -694,6 +694,7 @@ func workspaceAgent() *serpent.Command {
 		},
 	}
 	agentAuth.AttachOptions(cmd, false)
+	cmd.Children = []*serpent.Command{agentSandbox(agentAuth)}
 	return cmd
 }
 
