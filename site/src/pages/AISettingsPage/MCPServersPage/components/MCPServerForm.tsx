@@ -97,14 +97,16 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 				listPath={listPath}
 				isEditing={isEditing}
 				isDisabled={isDisabled}
-				onRequestDelete={() => setConfirmingDelete(true)}
+				onRequestDelete={
+					onDeleteServer ? () => setConfirmingDelete(true) : undefined
+				}
 				onToggleEnabled={onToggleEnabled}
 			/>
 			<div className="flex flex-col gap-6 pt-6">
 				<MCPServerFormFields
 					form={form}
 					isSaving={isSaving}
-					isDisabled={isDisabled || !canUpdate}
+					isDisabled={isDisabled}
 					canSubmit={canSubmit}
 					isEditing={isEditing}
 					onCancel={onCancel}

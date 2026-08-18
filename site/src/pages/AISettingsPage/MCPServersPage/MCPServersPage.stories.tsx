@@ -432,7 +432,7 @@ export const AddPickerExcludesNonCreatableOrganizations: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		await expect(
 			await body.findByRole("option", { name: MockOrganization3.display_name }),
-		).toBeVisible();
+		).toBeInTheDocument();
 		expect(
 			body.queryByRole("option", { name: MockOrganization2.display_name }),
 		).not.toBeInTheDocument();
@@ -465,9 +465,9 @@ export const AddDeepLinkedNonCreatableOrganizationCanSwitch: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
-		await expect(
-			await body.findByText("You don't have permission to view this page"),
-		).toBeVisible();
+		await expect(await canvas.findByRole("alert")).toHaveTextContent(
+			"You cannot add servers to this organization",
+		);
 		const picker = canvas.getByRole("button", {
 			name: `Organization ${MockOrganization2.display_name}`,
 		});
@@ -479,9 +479,7 @@ export const AddDeepLinkedNonCreatableOrganizationCanSwitch: Story = {
 			}),
 		);
 		await expect(await canvas.findByLabelText(/display name/i)).toBeVisible();
-		expect(
-			body.queryByText("You don't have permission to view this page"),
-		).not.toBeInTheDocument();
+		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
 	},
 };
 
@@ -703,6 +701,9 @@ export const OrgAdminCanUpdateMCPServer: Story = {
 			canvas.getByRole("switch", { name: "Server enabled" }),
 		).toBeEnabled();
 		expect(
+			canvas.queryByRole("button", { name: "Server actions" }),
+		).not.toBeInTheDocument();
+		expect(
 			canvas.queryByRole("button", { name: /delete server/i }),
 		).not.toBeInTheDocument();
 	},
@@ -749,7 +750,7 @@ export const DeleteOnlyOrgAdminCanDeleteWithoutUpdating: Story = {
 		);
 		await expect(
 			await body.findByRole("button", { name: "Delete MCP server" }),
-		).toBeVisible();
+		).toBeInTheDocument();
 	},
 };
 

@@ -38,7 +38,7 @@ interface MCPServerFormHeaderProps {
 	listPath: string;
 	isEditing: boolean;
 	isDisabled: boolean;
-	onRequestDelete: () => void;
+	onRequestDelete?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
 }
 
@@ -56,7 +56,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 		<>
 			<div className="flex items-center justify-between">
 				<MCPServerFormBackLink to={listPath} />
-				{isEditing && server && (
+				{isEditing && server && onRequestDelete && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button

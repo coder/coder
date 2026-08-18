@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { pageTitle } from "#/utils/page";
 import { MCPServerForm } from "../components/MCPServerForm";
 import { OrganizationPicker } from "../components/OrganizationPicker";
@@ -38,14 +38,21 @@ const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 				onChange={onSelectOrganization}
 				disabled={isSaving}
 			/>
-			<RequirePermission isFeatureVisible={canCreate}>
+			{canCreate ? (
 				<MCPServerForm
 					listPath={mcpServersPath(organization)}
 					isSaving={isSaving}
 					onCreateServer={onCreateServer}
 					onCancel={onCancel}
 				/>
-			</RequirePermission>
+			) : (
+				<Alert severity="error" prominent>
+					<AlertTitle>You cannot add servers to this organization</AlertTitle>
+					<AlertDescription>
+						Choose an organization where you have permission to add MCP servers.
+					</AlertDescription>
+				</Alert>
+			)}
 		</>
 	);
 };
