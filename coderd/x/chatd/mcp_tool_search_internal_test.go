@@ -134,19 +134,19 @@ func TestDeriveDeferredMCPActivationsSameStepDirectCallPriority(t *testing.T) {
 		"same-step search activations cannot shed a directly invoked tool's schema")
 }
 
-func TestDeriveDeferredMCPActivationsExcludesDeniedDirectCalls(t *testing.T) {
+func TestDeriveDeferredMCPActivationsErroredDirectCallsActivateLast(t *testing.T) {
 	t.Parallel()
 	candidates := []deferredMCPTool{
-		testDeferredTool("server__denied", "denied", nil),
+		testDeferredTool("server__errored", "errored", nil),
 		testDeferredTool("server__searched", "searched", nil),
 	}
 	assistantStep, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageToolCall("call-search", chattool.FindToolsName, []byte(`{"queries":["x"]}`)),
-		codersdk.ChatMessageToolCall("call-denied", "server__denied", []byte(`{}`)),
+		codersdk.ChatMessageToolCall("call-errored", "server__errored", []byte(`{}`)),
 	})
 	require.NoError(t, err)
 	toolRow, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageToolResult("call-denied", "server__denied", []byte(`"blocked by policy"`), true, false),
+		codersdk.ChatMessageToolResult("call-errored", "server__errored", []byte(`"remote tool error"`), true, false),
 		codersdk.ChatMessageToolResult("call-search", chattool.FindToolsName, []byte(`{"activated":["server__searched"]}`), false, false),
 	})
 	require.NoError(t, err)
@@ -154,11 +154,26 @@ func TestDeriveDeferredMCPActivationsExcludesDeniedDirectCalls(t *testing.T) {
 		{Role: database.ChatMessageRoleAssistant, Content: assistantStep, ContentVersion: chatprompt.CurrentContentVersion},
 		{Role: database.ChatMessageRoleTool, Content: toolRow, ContentVersion: chatprompt.CurrentContentVersion},
 	}
-	require.Equal(t, []string{"server__searched"}, deriveDeferredMCPActivations(rows, candidates, 0),
-		"a direct call with an error result does not activate its schema")
+	require.Equal(t, []string{"server__searched", "server__errored"}, deriveDeferredMCPActivations(rows, candidates, 0),
+		"an errored direct call activates last so the model keeps the schema for a corrected retry")
 	searchedWeight := estimateDeferredMCPToolTokens(candidates[1:])
 	require.Equal(t, []string{"server__searched"}, deriveDeferredMCPActivations(rows, candidates, searchedWeight),
-		"a denied direct call cannot consume budget promised to the search's reported activations")
+		"an errored direct call cannot consume budget promised to the search's reported activations")
+
+	erroredCall, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall("call-errored", "server__errored", []byte(`{}`)),
+	})
+	require.NoError(t, err)
+	erroredResult, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolResult("call-errored", "server__errored", []byte(`"remote tool error"`), true, false),
+	})
+	require.NoError(t, err)
+	erroredOnly := []database.ChatMessage{
+		{Role: database.ChatMessageRoleAssistant, Content: erroredCall, ContentVersion: chatprompt.CurrentContentVersion},
+		{Role: database.ChatMessageRoleTool, Content: erroredResult, ContentVersion: chatprompt.CurrentContentVersion},
+	}
+	require.Equal(t, []string{"server__errored"}, deriveDeferredMCPActivations(erroredOnly, candidates, 0.001),
+		"the newest errored call keeps the first-activation allowance when nothing else activates")
 }
 
 func TestFlattenMCPParameterText(t *testing.T) {

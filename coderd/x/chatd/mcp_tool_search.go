@@ -211,11 +211,13 @@ func flattenMCPParameterText(value any) string {
 // shed the schema of a tool the model invoked directly. Results whose
 // call row was compacted away are admitted at the result row.
 //
-// Direct calls whose tool result is an error do not activate: the call
-// was denied before execution (hook policy, input validation) or
-// failed, so inlining its schema would spend budget that surviving
-// find_tools results have already promised elsewhere. Execution-time
-// reservation may still charge such calls, which only under-claims.
+// Direct calls whose tool result is an error are admitted last, newest
+// first. History cannot distinguish a pre-execution denial (hook
+// policy, input validation) from an executed call whose MCP server
+// returned an error, so errored calls activate only with budget left
+// after every other activation: the schema stays available for a
+// corrected retry without displacing schemas that find_tools results
+// or successful calls already claimed.
 func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []deferredMCPTool, tokenBudget float64) []string {
 	candidateByName := make(map[string]deferredMCPTool, len(candidates))
 	for _, candidate := range candidates {
@@ -259,10 +261,12 @@ func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []defe
 		}
 	}
 	pendingSearch := make(map[string][]string)
+	var erroredNames []string
 	for i := len(rows) - 1; i >= 0; i-- {
 		for _, part := range parsedParts[i] {
 			if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolName != chattool.FindToolsName {
 				if _, errored := erroredCallIDs[part.ToolCallID]; errored {
+					erroredNames = append(erroredNames, part.ToolName)
 					continue
 				}
 				appendName(part.ToolName)
@@ -289,6 +293,9 @@ func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []defe
 				delete(pendingSearch, part.ToolCallID)
 			}
 		}
+	}
+	for _, name := range erroredNames {
+		appendName(name)
 	}
 	return activated
 }
