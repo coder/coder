@@ -3402,6 +3402,92 @@ export const QueuedSendFromHistoryScrollsToLiveEdge: Story = {
 	},
 };
 
+/**
+ * A non-queued send whose turn already completed server-side returns the
+ * assistant as the latest durable row, so the new prompt never anchors and
+ * the live-edge fallback must move a reader from older history.
+ */
+export const CompletedSendFromHistoryScrollsToLiveEdge: Story = {
+	parameters: {
+		pixel: { exclude: true },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Long chat",
+				status: "waiting",
+			},
+			{
+				messages: buildLongConversationForPage(40),
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	decorators: [
+		(Story) => (
+			<div
+				style={{ height: "600px", display: "flex", flexDirection: "column" }}
+			>
+				<Story />
+			</div>
+		),
+	],
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({
+			queued: false,
+			messages: [
+				{
+					...MockChatMessage,
+					id: 41,
+					chat_id: CHAT_ID,
+					role: "user",
+					content: [{ type: "text", text: "Follow-up question." }],
+				},
+				{
+					...MockChatMessage,
+					id: 42,
+					chat_id: CHAT_ID,
+					role: "assistant",
+					content: [{ type: "text", text: "Here is the answer." }],
+				},
+			],
+		});
+		const scrollToMock = spyOn(Element.prototype, "scrollTo");
+		try {
+			const viewport = canvas.getByRole("region", { name: "Messages" });
+			// Position the reader in older history, the repro starting point.
+			viewport.scrollTop = 0;
+
+			const editor = await canvas.findByTestId("chat-message-input");
+			await userEvent.click(editor);
+			await userEvent.type(editor, "Follow-up question.");
+			await userEvent.keyboard("{Enter}");
+			await waitFor(() => {
+				expect(sendSpy).toHaveBeenCalledTimes(1);
+			});
+
+			// The assistant row is the latest durable message, so the new prompt
+			// is not an active anchor; the fallback scrolls to the live edge.
+			await waitFor(() => {
+				expect(scrollToMock).toHaveBeenCalledWith(
+					expect.objectContaining({ behavior: "smooth" }),
+				);
+			});
+		} finally {
+			scrollToMock.mockRestore();
+		}
+	},
+};
+
 export const SendResponseAfterChatSwitch: Story = {
 	render: () => <AgentChatSwitchHarness />,
 	parameters: {
