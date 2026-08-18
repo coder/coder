@@ -300,6 +300,7 @@ func TestAuthorizeMCPGateway(t *testing.T) {
 		user           database.User
 		wantAuthorized bool
 		wantSubjectID  string
+		wantSponsorID  string
 	}{
 		{
 			name:           "AI identity key",
@@ -308,6 +309,7 @@ func TestAuthorizeMCPGateway(t *testing.T) {
 			user:           agentUser,
 			wantAuthorized: true,
 			wantSubjectID:  owner.ID.String(),
+			wantSponsorID:  owner.ID.String(),
 		},
 		{
 			name:          "ordinary token without scope",
@@ -353,6 +355,7 @@ func TestAuthorizeMCPGateway(t *testing.T) {
 			require.Equal(t, tt.user.ID.String(), resp.GetInitiatorId())
 			require.Equal(t, tt.key.ID, resp.GetApiKeyId())
 			require.Equal(t, tt.user.Username, resp.GetUsername())
+			require.Equal(t, tt.wantSponsorID, resp.GetSponsorUserId())
 
 			require.Len(t, authorizer.Called, 1)
 			call := authorizer.Called[0]
@@ -1514,6 +1517,7 @@ func TestRecordInterception(t *testing.T) {
 					Id:             uuid.NewString(),
 					ApiKeyId:       uuid.NewString(),
 					InitiatorId:    uuid.NewString(),
+					SponsorUserId:  uuid.NewString(),
 					Provider:       "anthropic",
 					ProviderName:   "anthropic",
 					Model:          "claude-4-opus",
@@ -1527,9 +1531,12 @@ func TestRecordInterception(t *testing.T) {
 					assert.NoError(t, err, "parse interception UUID")
 					initiatorID, err := uuid.Parse(req.GetInitiatorId())
 					assert.NoError(t, err, "parse interception initiator UUID")
+					sponsorUserID, err := uuid.Parse(req.GetSponsorUserId())
+					assert.NoError(t, err, "parse interception sponsor UUID")
 
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
 						ID:             interceptionID,
+						SponsorUserID:  uuid.NullUUID{UUID: sponsorUserID, Valid: true},
 						APIKeyID:       sql.NullString{String: req.ApiKeyId, Valid: true},
 						InitiatorID:    initiatorID,
 						Provider:       req.GetProvider(),

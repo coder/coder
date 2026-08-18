@@ -11,8 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
@@ -20,7 +22,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const mcpGatewayRoutePrefix = "/mcp/"
+const (
+	mcpGatewayRoutePrefix      = "/mcp/"
+	mcpGatewayRecorderProvider = "mcp-gateway"
+)
 
 type mcpGatewayEnvelope struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -66,10 +71,18 @@ type mcpGatewayPolicy struct {
 type mcpGatewayPlan struct {
 	forward      []json.RawMessage
 	local        []json.RawMessage
+	toolCalls    []mcpGatewayToolCall
 	toolsListIDs map[string]struct{}
 	forceJSON    bool
 	batch        bool
 	policy       mcpGatewayPolicy
+}
+
+type mcpGatewayToolCall struct {
+	Tool            string
+	Input           string
+	JSONRPCID       string
+	InvocationError string
 }
 
 type mcpGatewayError struct {
@@ -191,29 +204,43 @@ func planMCPGatewayRequest(request mcpGatewayRequest, policy mcpGatewayPolicy) (
 				plan.forceJSON = true
 			}
 		case mcp.MethodToolsCall:
+			call := mcpGatewayToolCall{JSONRPCID: mcpGatewayIDValue(item.Envelope.ID)}
 			var params mcp.CallToolParams
 			if err := json.Unmarshal(item.Envelope.Params, &params); err != nil || strings.TrimSpace(params.Name) == "" {
+				call.Tool = params.Name
+				call.Input = "null"
+				call.InvocationError = "invalid tools/call parameters"
+				plan.toolCalls = append(plan.toolCalls, call)
 				if len(item.Envelope.ID) > 0 {
 					plan.local = append(plan.local, marshalMCPGatewayError(
 						item.Envelope.ID,
 						mcp.INVALID_PARAMS,
-						"invalid tools/call parameters",
+						call.InvocationError,
 						nil,
 					))
 				}
 				continue
 			}
+			input, err := json.Marshal(params.Arguments)
+			if err != nil {
+				return mcpGatewayPlan{}, xerrors.Errorf("encode MCP tool arguments: %w", err)
+			}
+			call.Tool = params.Name
+			call.Input = string(input)
 			if !policy.allowed(params.Name) {
+				call.InvocationError = fmt.Sprintf("tool %q denied by MCP gateway policy", params.Name)
+				plan.toolCalls = append(plan.toolCalls, call)
 				if len(item.Envelope.ID) > 0 {
 					plan.local = append(plan.local, marshalMCPGatewayError(
 						item.Envelope.ID,
 						mcp.INTERNAL_ERROR,
-						fmt.Sprintf("tool %q denied by MCP gateway policy", params.Name),
+						call.InvocationError,
 						map[string]any{"tool": params.Name},
 					))
 				}
 				continue
 			}
+			plan.toolCalls = append(plan.toolCalls, call)
 			plan.forward = append(plan.forward, item.Raw)
 		default:
 			plan.forward = append(plan.forward, item.Raw)
@@ -250,6 +277,83 @@ func mcpGatewayIDKey(id json.RawMessage) (string, bool) {
 		return "", false
 	}
 	return compact.String(), true
+}
+
+func mcpGatewayIDValue(id json.RawMessage) string {
+	trimmed := bytes.TrimSpace(id)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return ""
+	}
+	var stringID string
+	if err := json.Unmarshal(trimmed, &stringID); err == nil {
+		return stringID
+	}
+	key, _ := mcpGatewayIDKey(trimmed)
+	return key
+}
+
+// MCP gateway recording is best-effort observability. Recording failures must
+// never change the proxied request or response.
+func (s *Server) startMCPGatewayRecording(
+	ctx context.Context,
+	client DRPCClient,
+	authz *proto.AuthorizeMCPGatewayResponse,
+	cfg *proto.MCPGatewayServerConfig,
+	userAgent string,
+	toolCalls []mcpGatewayToolCall,
+) string {
+	interceptionID := uuid.NewString()
+	startedAt := time.Now()
+	_, err := client.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+		Id:             interceptionID,
+		InitiatorId:    authz.GetInitiatorId(),
+		SponsorUserId:  authz.GetSponsorUserId(),
+		Provider:       mcpGatewayRecorderProvider,
+		ProviderName:   mcpGatewayRecorderProvider,
+		Model:          cfg.GetSlug(),
+		StartedAt:      timestamppb.New(startedAt),
+		ApiKeyId:       authz.GetApiKeyId(),
+		Client:         mcpGatewayRecorderProvider,
+		UserAgent:      userAgent,
+		CredentialKind: "centralized",
+	})
+	if err != nil {
+		s.logger.Warn(ctx, "failed to record MCP gateway interception", slog.F("server_slug", cfg.GetSlug()), slog.Error(err))
+		return ""
+	}
+
+	serverURL := cfg.GetUrl()
+	for _, call := range toolCalls {
+		var invocationError *string
+		if call.InvocationError != "" {
+			invocationError = &call.InvocationError
+		}
+		_, err := client.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
+			InterceptionId:  interceptionID,
+			MsgId:           call.JSONRPCID,
+			ServerUrl:       &serverURL,
+			Tool:            call.Tool,
+			Input:           call.Input,
+			InvocationError: invocationError,
+			CreatedAt:       timestamppb.Now(),
+			ToolCallId:      call.JSONRPCID,
+			ItemId:          call.JSONRPCID,
+		})
+		if err != nil {
+			s.logger.Warn(ctx, "failed to record MCP gateway tool usage", slog.F("server_slug", cfg.GetSlug()), slog.F("tool", call.Tool), slog.Error(err))
+		}
+	}
+	return interceptionID
+}
+
+func (s *Server) endMCPGatewayRecording(ctx context.Context, client DRPCClient, interceptionID, slug string) {
+	_, err := client.RecordInterceptionEnded(ctx, &proto.RecordInterceptionEndedRequest{
+		Id:      interceptionID,
+		EndedAt: timestamppb.Now(),
+	})
+	if err != nil {
+		s.logger.Warn(ctx, "failed to end MCP gateway interception", slog.F("server_slug", slug), slog.Error(err))
+	}
 }
 
 func (s *Server) serveMCPGateway(rw http.ResponseWriter, r *http.Request, client DRPCClient, token, slug string) {
@@ -328,6 +432,12 @@ func (s *Server) serveMCPGateway(rw http.ResponseWriter, r *http.Request, client
 	if err != nil {
 		writeMCPGatewayJSON(rw, http.StatusOK, marshalMCPGatewayError(nil, mcp.INTERNAL_ERROR, err.Error(), nil))
 		return
+	}
+	if len(plan.toolCalls) > 0 {
+		interceptionID := s.startMCPGatewayRecording(ctx, client, authz, cfg, r.UserAgent(), plan.toolCalls)
+		if interceptionID != "" {
+			defer s.endMCPGatewayRecording(ctx, client, interceptionID, cfg.GetSlug())
+		}
 	}
 	if len(plan.forward) == 0 {
 		writeMCPGatewayLocalResponses(rw, plan)

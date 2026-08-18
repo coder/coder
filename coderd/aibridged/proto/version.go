@@ -29,9 +29,13 @@ import "github.com/coder/coder/v2/apiversion"
 // API v1.5:
 //   - Adds MCPConfigurator.GetMCPGatewayServerConfig for the governed MCP
 //     proxy data plane.
+//
+// API v1.6:
+//   - Adds sponsor attribution to MCP gateway authorization and interception
+//     recording.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 5
+	CurrentMinor = 6
 )
 
 // VersionQueryParam is the URL query parameter the standalone AI Gateway

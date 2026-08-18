@@ -260,11 +260,18 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 			slog.F("agent_firewall_session_id", in.GetAgentFirewallSessionId()), slog.Error(err))
 	}
 
+	var sponsorUserID uuid.NullUUID
+	if in.GetSponsorUserId() != "" {
+		sponsorID, err := uuid.Parse(in.GetSponsorUserId())
+		if err != nil {
+			return nil, xerrors.Errorf("invalid sponsor user ID %q: %w", in.GetSponsorUserId(), err)
+		}
+		sponsorUserID = uuid.NullUUID{UUID: sponsorID, Valid: true}
+	}
+
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
-		ID: intcID,
-		// Sponsor attribution is populated by MCP gateway interceptions;
-		// model-route interceptions recover lineage via ai_agents.
-		SponsorUserID:               uuid.NullUUID{},
+		ID:                          intcID,
+		SponsorUserID:               sponsorUserID,
 		APIKeyID:                    sql.NullString{String: in.ApiKeyId, Valid: true},
 		Client:                      sql.NullString{String: in.Client, Valid: in.Client != ""},
 		ClientSessionID:             sql.NullString{String: in.GetClientSessionId(), Valid: in.GetClientSessionId() != ""},
@@ -1039,10 +1046,24 @@ func (s *Server) AuthorizeMCPGateway(ctx context.Context, in *proto.AuthorizeMCP
 		return nil, ErrInactiveUser
 	}
 
+	sponsorUserID := ""
+	if user.Kind == database.UserKindAIAgent {
+		// Authentication already validated that the AI agent and its human owner
+		// are live. Resolve the authoritative sponsor from the agent record rather
+		// than using the API key's AI user ID.
+		identityCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic
+		agent, err := s.store.GetAIAgentByUserID(identityCtx, user.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("resolve AI agent sponsor: %w", err)
+		}
+		sponsorUserID = agent.OwnerUserID.String()
+	}
+
 	resp := &proto.AuthorizeMCPGatewayResponse{
-		InitiatorId: key.UserID.String(),
-		ApiKeyId:    key.ID,
-		Username:    user.Username,
+		InitiatorId:   key.UserID.String(),
+		ApiKeyId:      key.ID,
+		Username:      user.Username,
+		SponsorUserId: sponsorUserID,
 	}
 	err = s.authorizer.Authorize(ctx, subject, policy.ActionUse, rbac.ResourceMcpGateway.WithIDString(in.GetMcpServerConfigId()))
 	if rbac.IsUnauthorizedError(err) {

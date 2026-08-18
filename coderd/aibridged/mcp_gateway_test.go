@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	mock "github.com/coder/coder/v2/coderd/aibridged/aibridgedmock"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 )
 
@@ -44,6 +45,7 @@ func TestServeHTTP_MCPGatewayPolicy(t *testing.T) {
 
 	srv, client, _ := newTestServer(t)
 	initiatorID := uuid.NewString()
+	sponsorID := uuid.NewString()
 	client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{
 		OwnerId:  initiatorID,
 		ApiKeyId: "key-id",
@@ -61,11 +63,32 @@ func TestServeHTTP_MCPGatewayPolicy(t *testing.T) {
 		},
 	}, nil)
 	client.EXPECT().AuthorizeMCPGateway(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.AuthorizeMCPGatewayResponse{
-		Authorized:  true,
-		InitiatorId: initiatorID,
-		ApiKeyId:    "key-id",
-		Username:    "agent",
+		Authorized:    true,
+		InitiatorId:   initiatorID,
+		ApiKeyId:      "key-id",
+		Username:      "agent",
+		SponsorUserId: sponsorID,
 	}, nil)
+	var interceptionIDs []string
+	client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).Times(2).DoAndReturn(func(_ context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
+		require.Equal(t, initiatorID, in.GetInitiatorId())
+		require.Equal(t, sponsorID, in.GetSponsorUserId())
+		require.Equal(t, "key-id", in.GetApiKeyId())
+		require.Equal(t, "mcp-gateway", in.GetProvider())
+		require.Equal(t, "mcp-gateway", in.GetProviderName())
+		require.Equal(t, "github", in.GetModel())
+		interceptionIDs = append(interceptionIDs, in.GetId())
+		return &proto.RecordInterceptionResponse{}, nil
+	})
+	var toolUsages []*proto.RecordToolUsageRequest
+	client.EXPECT().RecordToolUsage(gomock.Any(), gomock.Any()).Times(2).DoAndReturn(func(_ context.Context, in *proto.RecordToolUsageRequest) (*proto.RecordToolUsageResponse, error) {
+		toolUsages = append(toolUsages, in)
+		return &proto.RecordToolUsageResponse{}, nil
+	})
+	client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).Times(2).DoAndReturn(func(_ context.Context, in *proto.RecordInterceptionEndedRequest) (*proto.RecordInterceptionEndedResponse, error) {
+		require.Contains(t, interceptionIDs, in.GetId())
+		return &proto.RecordInterceptionEndedResponse{}, nil
+	})
 
 	gateway := httptest.NewServer(srv)
 	t.Cleanup(gateway.Close)
@@ -90,6 +113,124 @@ func TestServeHTTP_MCPGatewayPolicy(t *testing.T) {
 	require.Contains(t, string(response), `"code":-32603`)
 	require.Contains(t, string(response), `write`)
 	require.Equal(t, int32(2), calls.Load(), "denied tool call must not reach upstream")
+
+	require.Len(t, toolUsages, 2)
+	require.Equal(t, interceptionIDs[0], toolUsages[0].GetInterceptionId())
+	require.Equal(t, "read", toolUsages[0].GetTool())
+	require.JSONEq(t, `{"path":"README.md"}`, toolUsages[0].GetInput())
+	require.Equal(t, upstream.URL, toolUsages[0].GetServerUrl())
+	require.Equal(t, "2", toolUsages[0].GetToolCallId())
+	require.Equal(t, "2", toolUsages[0].GetItemId())
+	require.Empty(t, toolUsages[0].GetInvocationError())
+
+	require.Equal(t, interceptionIDs[1], toolUsages[1].GetInterceptionId())
+	require.Equal(t, "write", toolUsages[1].GetTool())
+	require.JSONEq(t, "null", toolUsages[1].GetInput())
+	require.Equal(t, upstream.URL, toolUsages[1].GetServerUrl())
+	require.Contains(t, toolUsages[1].GetInvocationError(), `tool "write" denied`)
+}
+
+func TestServeHTTP_MCPGatewayRecording(t *testing.T) {
+	t.Parallel()
+
+	t.Run("batch", func(t *testing.T) {
+		t.Parallel()
+
+		upstream := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			var requests []mcpGatewayTestEnvelope
+			require.NoError(t, json.Unmarshal(body, &requests))
+			require.Len(t, requests, 2)
+			rw.Header().Set("Content-Type", "application/json")
+			_, _ = rw.Write([]byte(`[{"jsonrpc":"2.0","id":"call-a","result":{}},{"jsonrpc":"2.0","id":22,"result":{}}]`))
+		}))
+		t.Cleanup(upstream.Close)
+
+		srv, client, _ := newTestServer(t)
+		initiatorID := uuid.NewString()
+		setupMCPGatewayRecordingTest(t, client, upstream.URL, initiatorID)
+		var interceptionID string
+		client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(func(_ context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
+			interceptionID = in.GetId()
+			return &proto.RecordInterceptionResponse{}, nil
+		})
+		var usages []*proto.RecordToolUsageRequest
+		client.EXPECT().RecordToolUsage(gomock.Any(), gomock.Any()).Times(2).DoAndReturn(func(_ context.Context, in *proto.RecordToolUsageRequest) (*proto.RecordToolUsageResponse, error) {
+			usages = append(usages, in)
+			return &proto.RecordToolUsageResponse{}, nil
+		})
+		client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(func(_ context.Context, in *proto.RecordInterceptionEndedRequest) (*proto.RecordInterceptionEndedResponse, error) {
+			require.Equal(t, interceptionID, in.GetId())
+			return &proto.RecordInterceptionEndedResponse{}, nil
+		})
+
+		gateway := httptest.NewServer(srv)
+		t.Cleanup(gateway.Close)
+		response := mcpGatewayRequest(t, gateway.URL, `[
+			{"jsonrpc":"2.0","id":"call-a","method":"tools/call","params":{"name":"read","arguments":{"path":"a"}}},
+			{"jsonrpc":"2.0","id":22,"method":"tools/call","params":{"name":"search","arguments":{"query":"b"}}}
+		]`)
+		require.Contains(t, string(response), `"id":"call-a"`)
+		require.Len(t, usages, 2)
+		require.Equal(t, interceptionID, usages[0].GetInterceptionId())
+		require.Equal(t, interceptionID, usages[1].GetInterceptionId())
+		require.Equal(t, []string{"read", "search"}, []string{usages[0].GetTool(), usages[1].GetTool()})
+		require.Equal(t, "call-a", usages[0].GetToolCallId())
+		require.Equal(t, "22", usages[1].GetToolCallId())
+	})
+
+	t.Run("recording failure", func(t *testing.T) {
+		t.Parallel()
+
+		var upstreamCalls atomic.Int32
+		upstream := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+			upstreamCalls.Add(1)
+			rw.Header().Set("Content-Type", "application/json")
+			_, _ = rw.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"ok":true}}`))
+		}))
+		t.Cleanup(upstream.Close)
+
+		srv, client, _ := newTestServer(t)
+		setupMCPGatewayRecordingTest(t, client, upstream.URL, uuid.NewString())
+		client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).Return(nil, context.Canceled)
+
+		gateway := httptest.NewServer(srv)
+		t.Cleanup(gateway.Close)
+		response := mcpGatewayRequest(t, gateway.URL, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"read"}}`)
+		require.Contains(t, string(response), `"ok":true`)
+		require.Equal(t, int32(1), upstreamCalls.Load())
+	})
+}
+
+type mcpGatewayTestEnvelope struct {
+	ID     json.RawMessage `json:"id"`
+	Method string          `json:"method"`
+}
+
+func setupMCPGatewayRecordingTest(t *testing.T, client *mock.MockDRPCClient, upstreamURL, initiatorID string) {
+	t.Helper()
+	client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{
+		OwnerId:  initiatorID,
+		ApiKeyId: "key-id",
+		Username: "agent",
+	}, nil)
+	client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
+	client.EXPECT().GetMCPGatewayServerConfig(gomock.Any(), gomock.Any()).Return(&proto.GetMCPGatewayServerConfigResponse{
+		Found: true,
+		Config: &proto.MCPGatewayServerConfig{
+			Id:        uuid.NewString(),
+			Slug:      "github",
+			Url:       upstreamURL,
+			Transport: "streamable_http",
+		},
+	}, nil)
+	client.EXPECT().AuthorizeMCPGateway(gomock.Any(), gomock.Any()).Return(&proto.AuthorizeMCPGatewayResponse{
+		Authorized:  true,
+		InitiatorId: initiatorID,
+		ApiKeyId:    "key-id",
+		Username:    "agent",
+	}, nil)
 }
 
 func TestServeHTTP_MCPGatewayCredentials(t *testing.T) {
