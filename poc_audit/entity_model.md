@@ -78,10 +78,9 @@ party with whom the agent deals.
 The relation is fiduciary. Among the duties the agent owes the principal is the
 **duty to account**: to keep and render a faithful account of what was done
 under the delegated authority. That duty is the origin of the obligation the
-audit approach is concerned with. Double entry bookkeeping arose in the same
-mercantile tradition, as the means by which agents and factors accounted to
-their principals. Audit and agency are therefore not separate subjects that
-happen to meet. The account exists because authority was delegated.
+audit approach is concerned with. Audit and agency are therefore not separate
+subjects that happen to meet. The account exists because authority was
+delegated.
 
 **Usage of the bare word.** Unqualified, "agent" means an agent in the relation
 of principal and agent. That sense is the oldest of the three and the origin of

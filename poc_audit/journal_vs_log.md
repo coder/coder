@@ -50,6 +50,26 @@ Three properties of that practice survive into what we now call a log:
   corrected by an external observation of the sun or a star. A series of
   measurements never established where the ship was. It only ever estimated.
 
+### The word outgrew the measurements
+
+"Log" did not stay with soundings and speeds. By 1913 it named any record of
+facts entered in order, and usage went further still: a log records activity of
+any kind, including attempts, requests, and things that changed nothing.
+
+What generalized was the discipline, not the subject matter. A modern log is
+still **sampled**, now by level, by sampling rate, or by whether the code path
+bothered to write at all. It is still **kept for as long as it is useful**, with
+retention chosen for cost rather than for obligation. A missing line is still a
+**nuisance rather than a defect**.
+
+This matters for the comparison ahead. The table named `audit_logs` records
+requests, not measurements, and someone may reasonably object that a framing
+built on ships has nothing to say about it. The answer is that the framing was
+never about measurement. It is about what a record is for and what a gap in it
+means, and on both counts `audit_logs` is a log in the old sense exactly. (The
+name is half right: it is definitely a log, and definitely not an audit. An
+audit is something a party does, and nothing there does it.)
+
 ### A journal records transactions
 
 Journal means daily. Through Anglo-French from Late Latin `diurnalis`, it enters
