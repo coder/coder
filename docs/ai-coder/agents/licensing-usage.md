@@ -1,4 +1,6 @@
-# Licensing & Usage
+---
+title: Licensing & Usage
+---
 
 Coder Agents is licensed differently depending on whether your deployment holds a Community license or an AI Premium license with a purchased Agent Time allocation.
 
