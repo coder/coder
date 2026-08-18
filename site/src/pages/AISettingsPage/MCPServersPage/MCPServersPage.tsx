@@ -33,12 +33,23 @@ const MCPServersPage: FC = () => {
 						organizationPermissions?.deleteMCPServerConfig,
 				);
 			});
+	const creatableOrganizations = permissions.editDeploymentConfig
+		? organizations
+		: organizations.filter(
+				(organization) =>
+					organizationPermissionsQuery.data?.[organization.id]
+						.createMCPServerConfig,
+			);
 	const organization =
 		authorizedOrganizations.length > 0
 			? selectOrganization(
 					authorizedOrganizations,
 					searchParams.get(orgSearchParam),
 				)
+			: undefined;
+	const addOrganization =
+		creatableOrganizations.length > 0
+			? selectOrganization(creatableOrganizations, organization?.name ?? null)
 			: undefined;
 	const organizationPermissions = organization
 		? organizationPermissionsQuery.data?.[organization.id]
@@ -50,9 +61,6 @@ const MCPServersPage: FC = () => {
 				organizationPermissions?.updateMCPServerConfig ||
 				organizationPermissions?.deleteMCPServerConfig,
 		);
-	const canCreate =
-		permissions.editDeploymentConfig ||
-		Boolean(organizationPermissions?.createMCPServerConfig);
 	const canOpenServer =
 		permissions.editDeploymentConfig ||
 		Boolean(
@@ -96,7 +104,7 @@ const MCPServersPage: FC = () => {
 							servers={servers}
 							organizations={authorizedOrganizations}
 							organization={organization}
-							canCreate={canCreate}
+							addOrganization={addOrganization}
 							canOpenServer={canOpenServer}
 							onSelectOrganization={(org) => {
 								setSearchParams((params) => {

@@ -28,7 +28,7 @@ interface MCPServersPageViewProps {
 	servers: readonly TypesGen.MCPServerConfig[];
 	organizations: readonly TypesGen.Organization[];
 	organization: TypesGen.Organization;
-	canCreate: boolean;
+	addOrganization?: TypesGen.Organization;
 	canOpenServer: boolean;
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
 }
@@ -39,18 +39,22 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 	servers,
 	organizations,
 	organization,
-	canCreate,
+	addOrganization,
 	canOpenServer,
 	onSelectOrganization,
 }) => {
 	const navigate = useNavigate();
-	const goToAddServer = () => void navigate(addMCPServerPath(organization));
+	const goToAddServer = () => {
+		if (addOrganization) {
+			void navigate(addMCPServerPath(addOrganization));
+		}
+	};
 
 	return (
 		<div>
 			<SettingsHeader
 				actions={
-					canCreate && (
+					addOrganization && (
 						<Button variant="outline" onClick={goToAddServer}>
 							<PlusIcon />
 							<span>Add server</span>
@@ -96,7 +100,7 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 							message="No MCP servers configured"
 							description="Add a server to give agents access to external tools."
 							cta={
-								canCreate ? (
+								addOrganization ? (
 									<Button variant="outline" onClick={goToAddServer}>
 										<PlusIcon />
 										<span>Add server</span>

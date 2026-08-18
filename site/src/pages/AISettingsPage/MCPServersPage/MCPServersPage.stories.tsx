@@ -128,6 +128,11 @@ const ListRedirectProbe: FC = () => {
 	return <div>list-org:{searchParams.get(orgSearchParam) ?? "none"}</div>;
 };
 
+const AddRedirectProbe: FC = () => {
+	const [searchParams] = useSearchParams();
+	return <h1>add-org:{searchParams.get(orgSearchParam) ?? "none"}</h1>;
+};
+
 const DetailRedirectProbe: FC = () => {
 	const [searchParams] = useSearchParams();
 	return <h1>detail-org:{searchParams.get(orgSearchParam) ?? "none"}</h1>;
@@ -337,6 +342,53 @@ export const UpdateOnlyOrgAdminUsesAuthorizedOrganization: Story = {
 		expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
 			MockOrganization2.id,
 		);
+	},
+};
+
+export const ListCanAddToCreateOnlyOrganization: Story = {
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: true,
+			createAnyMCPServerConfig: true,
+			updateAnyMCPServerConfig: false,
+			deleteAnyMCPServerConfig: false,
+		},
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers" },
+			routing: [
+				{ path: "/ai/settings/mcp-servers", useStoryElement: true },
+				{
+					path: "/ai/settings/mcp-servers/add",
+					element: <AddRedirectProbe />,
+				},
+			],
+		}),
+	},
+	beforeEach: () => {
+		mockOrganizationPermissions({
+			[MockDefaultOrganization.id]: { view: true },
+			[MockOrganization2.id]: { create: true },
+		});
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([
+			MockCoderMCPServer,
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("Coder")).toBeVisible();
+		expect(
+			canvas.queryByRole("button", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
+		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("button", { name: "Add server" }));
+		await expect(
+			await canvas.findByRole("heading", {
+				name: `add-org:${MockOrganization2.name}`,
+			}),
+		).toBeVisible();
 	},
 };
 
