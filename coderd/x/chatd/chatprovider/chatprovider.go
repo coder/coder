@@ -1205,12 +1205,17 @@ func googleProviderOptionsFromChatConfig(
 			ThinkingBudget:  options.ThinkingConfig.ThinkingBudget,
 			IncludeThoughts: options.ThinkingConfig.IncludeThoughts,
 		}
-		// Models predating Gemini 3 reject requests carrying
-		// thinking_level, so drop a pinned level for them. Gating here
-		// rather than at config save time also covers updates that
-		// switch a config's model without resubmitting options.
-		if googleSupportsThinkingLevel(modelID) {
-			result.ThinkingConfig.ThinkingLevel = GoogleThinkingLevelFromChat(options.ThinkingConfig.ThinkingLevel)
+		// Each Gemini model accepts a different thinking_level subset and
+		// pre-Gemini-3 models reject the field entirely, so clamp a pinned
+		// level into the model's supported set and drop it for models
+		// without support. Gating here rather than at config save time
+		// also covers updates that switch a config's model without
+		// resubmitting options.
+		if pinned := GoogleThinkingLevelFromChat(options.ThinkingConfig.ThinkingLevel); pinned != nil {
+			if supported := googleSupportedThinkingLevels(modelID); len(supported) > 0 {
+				level := clampGoogleThinkingLevel(*pinned, supported)
+				result.ThinkingConfig.ThinkingLevel = &level
+			}
 		}
 	}
 	if options.SafetySettings != nil {

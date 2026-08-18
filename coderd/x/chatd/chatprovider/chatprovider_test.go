@@ -510,6 +510,53 @@ func TestProviderOptionsForCall_GoogleThinkingConfig(t *testing.T) {
 		require.True(t, *googleOptions.ThinkingConfig.IncludeThoughts)
 	})
 
+	t.Run("PinnedLevelClampedForGemini3Pro", func(t *testing.T) {
+		t.Parallel()
+
+		gemini3Pro := chatprovider.NewModel(&chattest.FakeModel{
+			ProviderName: fantasygoogle.Name,
+			ModelName:    "gemini-3-pro-preview",
+		}, nil)
+
+		providerOptions := chatprovider.ProviderOptionsForCall(gemini3Pro, codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Google: &codersdk.ChatModelGoogleProviderOptions{
+					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
+						ThinkingLevel: ptr.Ref("minimal"),
+					},
+				},
+			},
+		}, nil)
+
+		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, googleOptions.ThinkingConfig)
+		require.NotNil(t, googleOptions.ThinkingConfig.ThinkingLevel)
+		require.Equal(t, fantasygoogle.ThinkingLevelLow, *googleOptions.ThinkingConfig.ThinkingLevel)
+	})
+
+	t.Run("EffortClampedForGemini3Pro", func(t *testing.T) {
+		t.Parallel()
+
+		gemini3Pro := chatprovider.NewModel(&chattest.FakeModel{
+			ProviderName: fantasygoogle.Name,
+			ModelName:    "gemini-3-pro-preview",
+		}, nil)
+
+		providerOptions := chatprovider.ProviderOptionsForCall(gemini3Pro, codersdk.ChatModelCallConfig{
+			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+				Default: ptr.Ref(codersdk.ChatModelReasoningEffortMedium),
+				Max:     ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+			},
+		}, ptr.Ref(codersdk.ChatModelReasoningEffortMedium))
+
+		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, googleOptions.ThinkingConfig)
+		require.NotNil(t, googleOptions.ThinkingConfig.ThinkingLevel)
+		require.Equal(t, fantasygoogle.ThinkingLevelHigh, *googleOptions.ThinkingConfig.ThinkingLevel)
+	})
+
 	t.Run("EffortOverridesPinnedLevel", func(t *testing.T) {
 		t.Parallel()
 

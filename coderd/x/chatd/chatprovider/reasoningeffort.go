@@ -128,7 +128,8 @@ func applyReasoningEffort(
 	case fantasygoogle.Name:
 		// Only Gemini 3+ accepts thinking_level; older generations reject
 		// requests carrying it, so keep dropping the effort for them.
-		if !googleSupportsThinkingLevel(model.ModelID()) {
+		supported := googleSupportedThinkingLevels(model.ModelID())
+		if len(supported) == 0 {
 			return options
 		}
 		providerOptions := ensureProviderOptions[fantasygoogle.ProviderOptions](options, fantasygoogle.Name)
@@ -140,7 +141,7 @@ func applyReasoningEffort(
 		// overrides a config-pinned thinking_level so the user's effort
 		// selection stays meaningful.
 		if providerOptions.ThinkingConfig.ThinkingBudget == nil {
-			level := googleThinkingLevel(*effort)
+			level := clampGoogleThinkingLevel(googleThinkingLevel(*effort), supported)
 			providerOptions.ThinkingConfig.ThinkingLevel = &level
 		}
 	case fantasyopenaicompat.Name:
@@ -165,20 +166,108 @@ func applyReasoningEffort(
 	return options
 }
 
-// googleSupportsThinkingLevel reports whether the Google model accepts the
-// thinking_level generation option, which Gemini introduced in version 3.
-// Non-Gemini and unrecognized model IDs return false so reasoning effort
-// degrades to a no-op instead of a rejected request.
-func googleSupportsThinkingLevel(modelID string) bool {
+// googleThinkingLevelsAscending orders Google thinking levels from least to
+// most thinking, for clamping into a model's supported subset.
+var googleThinkingLevelsAscending = []fantasygoogle.ThinkingLevel{
+	fantasygoogle.ThinkingLevelMinimal,
+	fantasygoogle.ThinkingLevelLow,
+	fantasygoogle.ThinkingLevelMedium,
+	fantasygoogle.ThinkingLevelHigh,
+}
+
+// googleSupportedThinkingLevels returns the thinking_level values the Google
+// model accepts in ascending order, or nil when the model does not accept
+// thinking_level at all. Gemini introduced thinking_level in version 3, and
+// each model supports a different subset: Gemini 3 Pro launched with LOW and
+// HIGH, 3.1 Pro added MEDIUM, the Flash family accepts all four, and image
+// models accept only HIGH (plus MINIMAL for flash). Versionless "-latest"
+// aliases track the newest release of their family, which has been Gemini 3+
+// since the aliases were introduced. Non-Gemini and unrecognized model IDs
+// return nil so reasoning effort degrades to a no-op instead of a rejected
+// request.
+func googleSupportedThinkingLevels(modelID string) []fantasygoogle.ThinkingLevel {
 	normalized := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(modelID)), "models/")
-	version, ok := strings.CutPrefix(normalized, "gemini-")
+	rest, ok := strings.CutPrefix(normalized, "gemini-")
 	if !ok {
-		return false
+		return nil
 	}
-	version, _, _ = strings.Cut(version, "-")
-	major, _, _ := strings.Cut(version, ".")
-	majorVersion, err := strconv.Atoi(major)
-	return err == nil && majorVersion >= 3
+	segments := strings.Split(rest, "-")
+
+	major, minor, hasVersion := parseGoogleModelVersion(segments[0])
+	isLatestAlias := !hasVersion && segments[len(segments)-1] == "latest"
+	if hasVersion && major < 3 {
+		return nil
+	}
+	if !hasVersion && !isLatestAlias {
+		return nil
+	}
+
+	isPro := slices.Contains(segments, "pro")
+	isFlash := slices.Contains(segments, "flash")
+	isImage := slices.Contains(segments, "image")
+
+	switch {
+	case isImage && isFlash:
+		return []fantasygoogle.ThinkingLevel{
+			fantasygoogle.ThinkingLevelMinimal,
+			fantasygoogle.ThinkingLevelHigh,
+		}
+	case isImage:
+		return []fantasygoogle.ThinkingLevel{fantasygoogle.ThinkingLevelHigh}
+	case isFlash:
+		return slices.Clone(googleThinkingLevelsAscending)
+	case isPro && hasVersion && major == 3 && minor == 0:
+		return []fantasygoogle.ThinkingLevel{
+			fantasygoogle.ThinkingLevelLow,
+			fantasygoogle.ThinkingLevelHigh,
+		}
+	case isPro:
+		return []fantasygoogle.ThinkingLevel{
+			fantasygoogle.ThinkingLevelLow,
+			fantasygoogle.ThinkingLevelMedium,
+			fantasygoogle.ThinkingLevelHigh,
+		}
+	default:
+		// Unknown Gemini 3+ variant: LOW and HIGH are the intersection of
+		// every documented non-image model's supported set.
+		return []fantasygoogle.ThinkingLevel{
+			fantasygoogle.ThinkingLevelLow,
+			fantasygoogle.ThinkingLevelHigh,
+		}
+	}
+}
+
+// parseGoogleModelVersion parses a Gemini version segment such as "3" or
+// "3.7" into major and minor components.
+func parseGoogleModelVersion(segment string) (major, minor int, ok bool) {
+	majorText, minorText, hasMinor := strings.Cut(segment, ".")
+	major, err := strconv.Atoi(majorText)
+	if err != nil {
+		return 0, 0, false
+	}
+	if hasMinor {
+		minor, err = strconv.Atoi(minorText)
+		if err != nil {
+			return 0, 0, false
+		}
+	}
+	return major, minor, true
+}
+
+// clampGoogleThinkingLevel snaps the desired level into the model's supported
+// subset: the lowest supported level at or above the desired one, so at least
+// the requested reasoning depth is preserved, else the highest supported.
+func clampGoogleThinkingLevel(
+	desired fantasygoogle.ThinkingLevel,
+	supported []fantasygoogle.ThinkingLevel,
+) fantasygoogle.ThinkingLevel {
+	desiredRank := slices.Index(googleThinkingLevelsAscending, desired)
+	for _, candidate := range supported {
+		if slices.Index(googleThinkingLevelsAscending, candidate) >= desiredRank {
+			return candidate
+		}
+	}
+	return supported[len(supported)-1]
 }
 
 // googleThinkingLevel maps the global reasoning effort scale to Google

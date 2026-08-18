@@ -214,31 +214,73 @@ func TestApplyReasoningEffort(t *testing.T) {
 	}
 }
 
-func TestGoogleSupportsThinkingLevel(t *testing.T) {
+func TestGoogleSupportedThinkingLevels(t *testing.T) {
 	t.Parallel()
+
+	minimal := fantasygoogle.ThinkingLevelMinimal
+	low := fantasygoogle.ThinkingLevelLow
+	medium := fantasygoogle.ThinkingLevelMedium
+	high := fantasygoogle.ThinkingLevelHigh
 
 	tests := []struct {
 		modelID string
-		want    bool
+		want    []fantasygoogle.ThinkingLevel
 	}{
-		{modelID: "gemini-3.7-flash", want: true},
-		{modelID: "gemini-3-pro-preview", want: true},
-		{modelID: "models/gemini-3.7-flash", want: true},
-		{modelID: " Gemini-4-Flash ", want: true},
-		{modelID: "gemini-10.5-pro", want: true},
-		{modelID: "gemini-2.5-flash", want: false},
-		{modelID: "gemini-2.0-flash", want: false},
-		{modelID: "gemini-1.5-pro", want: false},
-		{modelID: "gemini-exp-1206", want: false},
-		{modelID: "gemma-3-27b-it", want: false},
-		{modelID: "learnlm-2.0-flash", want: false},
-		{modelID: "", want: false},
+		{modelID: "gemini-3.7-flash", want: []fantasygoogle.ThinkingLevel{minimal, low, medium, high}},
+		{modelID: "gemini-3-flash-preview", want: []fantasygoogle.ThinkingLevel{minimal, low, medium, high}},
+		{modelID: "models/gemini-3.7-flash", want: []fantasygoogle.ThinkingLevel{minimal, low, medium, high}},
+		{modelID: " Gemini-4-Flash ", want: []fantasygoogle.ThinkingLevel{minimal, low, medium, high}},
+		{modelID: "gemini-flash-latest", want: []fantasygoogle.ThinkingLevel{minimal, low, medium, high}},
+		{modelID: "gemini-flash-lite-latest", want: []fantasygoogle.ThinkingLevel{minimal, low, medium, high}},
+		{modelID: "gemini-3-pro-preview", want: []fantasygoogle.ThinkingLevel{low, high}},
+		{modelID: "gemini-3.1-pro-preview", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
+		{modelID: "gemini-10.5-pro", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
+		{modelID: "gemini-pro-latest", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
+		{modelID: "gemini-3-pro-image-preview", want: []fantasygoogle.ThinkingLevel{high}},
+		{modelID: "gemini-3.1-flash-image", want: []fantasygoogle.ThinkingLevel{minimal, high}},
+		{modelID: "gemini-3-ultra", want: []fantasygoogle.ThinkingLevel{low, high}},
+		{modelID: "gemini-2.5-flash", want: nil},
+		{modelID: "gemini-2.0-flash", want: nil},
+		{modelID: "gemini-1.5-flash-latest", want: nil},
+		{modelID: "gemini-exp-1206", want: nil},
+		{modelID: "gemma-3-27b-it", want: nil},
+		{modelID: "learnlm-2.0-flash", want: nil},
+		{modelID: "", want: nil},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.modelID, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tt.want, googleSupportsThinkingLevel(tt.modelID))
+			require.Equal(t, tt.want, googleSupportedThinkingLevels(tt.modelID))
+		})
+	}
+}
+
+func TestClampGoogleThinkingLevel(t *testing.T) {
+	t.Parallel()
+
+	gemini3Pro := googleSupportedThinkingLevels("gemini-3-pro-preview")
+	proImage := googleSupportedThinkingLevels("gemini-3-pro-image-preview")
+	flash := googleSupportedThinkingLevels("gemini-3.7-flash")
+
+	tests := []struct {
+		name      string
+		desired   fantasygoogle.ThinkingLevel
+		supported []fantasygoogle.ThinkingLevel
+		want      fantasygoogle.ThinkingLevel
+	}{
+		{name: "MinimalRoundsUpToLowOnPro", desired: fantasygoogle.ThinkingLevelMinimal, supported: gemini3Pro, want: fantasygoogle.ThinkingLevelLow},
+		{name: "MediumRoundsUpToHighOnPro", desired: fantasygoogle.ThinkingLevelMedium, supported: gemini3Pro, want: fantasygoogle.ThinkingLevelHigh},
+		{name: "HighExactOnPro", desired: fantasygoogle.ThinkingLevelHigh, supported: gemini3Pro, want: fantasygoogle.ThinkingLevelHigh},
+		{name: "LowRoundsUpToHighOnProImage", desired: fantasygoogle.ThinkingLevelLow, supported: proImage, want: fantasygoogle.ThinkingLevelHigh},
+		{name: "MediumExactOnFlash", desired: fantasygoogle.ThinkingLevelMedium, supported: flash, want: fantasygoogle.ThinkingLevelMedium},
+		{name: "MinimalExactOnFlash", desired: fantasygoogle.ThinkingLevelMinimal, supported: flash, want: fantasygoogle.ThinkingLevelMinimal},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, clampGoogleThinkingLevel(tt.desired, tt.supported))
 		})
 	}
 }
