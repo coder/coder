@@ -96,6 +96,20 @@ func TestCompare(t *testing.T) {
 			wantChanged: []string{"anthropic/claude"},
 		},
 		{
+			// Zero is a populated price, distinct from an absent one.
+			name: "null becomes zero",
+			old: []priceRow{{
+				Provider: "openai",
+				Model:    "gpt",
+			}},
+			new: []priceRow{{
+				Provider:   "openai",
+				Model:      "gpt",
+				InputPrice: int64Ptr(0),
+			}},
+			wantChanged: []string{"openai/gpt"},
+		},
+		{
 			// Zero is a real price, distinct from an absent one.
 			name: "zero is not null",
 			old: []priceRow{{
