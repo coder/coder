@@ -3043,6 +3043,29 @@ describe("mergeWatchedChatIntoCaches", () => {
 		});
 	});
 
+	it("appends a child missing from the parent entity's embedded children", () => {
+		const queryClient = createTestQueryClient();
+		// The child's `created` watch event was missed (socket
+		// disconnect), so the cached parent has no embedded child.
+		const parent = makeChat("parent-1", { children: [] });
+		const watchedChild = makeChat("child-1", {
+			parent_chat_id: "parent-1",
+			root_chat_id: "parent-1",
+			status: "running",
+		});
+
+		queryClient.setQueryData(chatEntityKey("parent-1"), parent);
+
+		mergeWatchedChatIntoCaches(queryClient, watchedChild, {
+			eventKind: "status_change",
+		});
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey("parent-1"))
+				?.children?.[0],
+		).toMatchObject({ id: "child-1", status: "running" });
+	});
+
 	it("does not let an older watch payload clobber newer cached metadata", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";

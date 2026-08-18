@@ -294,14 +294,26 @@ const AgentsPageLayout: FC = () => {
 		}: {
 			chatId: string;
 			workspaceId: string;
-		}) =>
-			archiveChatAndDeleteWorkspace(
+		}) => {
+			// Captured before the archive resets pin_order to 0, so the
+			// compensating unarchive can restore the pinned state.
+			const previousPinOrder =
+				queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))
+					?.pin_order ??
+				chatList.find((chat) => chat.id === chatId)?.pin_order ??
+				0;
+			return archiveChatAndDeleteWorkspace(
 				chatId,
 				workspaceId,
 				(id) => API.experimental.updateChat(id, { archived: true }),
 				(id) => API.deleteWorkspace(id),
-				(id) => API.experimental.updateChat(id, { archived: false }),
-			),
+				(id) =>
+					API.experimental.updateChat(id, {
+						archived: false,
+						...(previousPinOrder > 0 ? { pin_order: previousPinOrder } : {}),
+					}),
+			);
+		},
 		onSuccess: ({ chatId, workspaceId, deleteBuild }) => {
 			applyChatArchiveStateToCaches(queryClient, chatId, true);
 			removeChatFromChatsByWorkspace(queryClient, chatId);

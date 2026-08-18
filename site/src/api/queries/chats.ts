@@ -671,16 +671,27 @@ export const mergeWatchedChatIntoCaches = (
 	);
 	// The parent's entity cache embeds child snapshots too (the chat
 	// detail page reads family state from it), so merge the child there
-	// as well, not only in the infinite-list caches.
+	// as well, not only in the infinite-list caches. A child missing
+	// from the cached parent (its `created` event was lost to a socket
+	// disconnect) is appended so later child events still repair the
+	// family; archive removals cannot be resurrected this way because
+	// children only emit these events while their family is live.
 	if (watchedChat.parent_chat_id) {
 		queryClient.setQueryData<TypesGen.Chat | undefined>(
 			chatEntityKey(watchedChat.parent_chat_id),
 			(cachedParent) => {
-				if (!cachedParent?.children?.length) {
+				if (!cachedParent) {
 					return cachedParent;
 				}
+				const children = cachedParent.children ?? [];
+				if (!children.some((child) => child.id === watchedChat.id)) {
+					return {
+						...cachedParent,
+						children: [watchedChat, ...children],
+					};
+				}
 				let changed = false;
-				const nextChildren = cachedParent.children.map((child) => {
+				const nextChildren = children.map((child) => {
 					if (child.id !== watchedChat.id) {
 						return child;
 					}
