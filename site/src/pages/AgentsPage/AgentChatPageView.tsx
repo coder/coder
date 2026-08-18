@@ -18,12 +18,14 @@ import type {
 	ChatMessagePart,
 } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getAgentBrowserApp,
 	isWorkspaceAppEmbeddable,
 } from "#/modules/apps/apps";
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { findWorkspaceAgent } from "#/utils/workspace";
@@ -37,6 +39,7 @@ import {
 } from "./components/AgentsSkeletons";
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import type { useChatStore } from "./components/ChatConversation/chatStore";
+import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { SkillMetadata } from "./components/ChatMessageInput/SkillsTriggerMenu";
@@ -122,6 +125,7 @@ interface AgentChatPageViewProps {
 	isArchived: boolean;
 	isSharedChat: boolean;
 	chatOwner: ChatOwnerInfo | undefined;
+	queuedForCapacity?: boolean;
 	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
@@ -324,6 +328,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isArchived,
 	isSharedChat,
 	chatOwner,
+	queuedForCapacity,
 	canShareChat,
 	workspaceAgent,
 	workspace,
@@ -396,6 +401,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
+	const { entitlements } = useDashboard();
+	const { permissions } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 
 	const canOpenChatSharing = canShareChat && organizationId !== undefined;
@@ -830,6 +837,17 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
 
+	const hasLicense = entitlements.has_license;
+	const canManageLicenses = permissions.viewAllLicenses;
+	const runtimeHours = entitlements.features.agent_runtime_hours;
+	const agentHoursHardLimit =
+		runtimeHours.enabled &&
+		runtimeHours.hard_limit !== undefined &&
+		runtimeHours.actual !== undefined &&
+		runtimeHours.actual >= runtimeHours.hard_limit
+			? runtimeHours.hard_limit
+			: undefined;
+
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
@@ -942,6 +960,15 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							}
 							onSendAskUserQuestionResponse={
 								isOtherUserReadOnly ? undefined : canSendAskUserQuestionResponse
+							}
+							footer={
+								queuedForCapacity ? (
+									<QueuedForCapacityCallout
+										hasLicense={hasLicense}
+										canManageLicenses={canManageLicenses}
+										agentHoursHardLimit={agentHoursHardLimit}
+									/>
+								) : undefined
 							}
 						/>
 						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">

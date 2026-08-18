@@ -1621,6 +1621,18 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 
 	sdkChat := db2sdk.Chat(chat, diffStatus, chatFiles)
 
+	if api.chatDaemon != nil {
+		queued, err := api.chatDaemon.ChatQueuedForCapacity(ctx, chat)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to derive chat queued-for-capacity state",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+		} else {
+			sdkChat.QueuedForCapacity = queued
+		}
+	}
+
 	// Enrich the lightweight context summary with the chat's pinned
 	// resources (metadata only). This detail is computed on read and only
 	// attached on the single-chat GET; list and watch payloads stay

@@ -17518,6 +17518,10 @@ const docTemplate = `{
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
                 },
+                "queued_for_capacity": {
+                    "description": "QueuedForCapacity reports that the chat is waiting for a concurrent\nagent slot. Single-chat reads derive it; list responses leave it false.",
+                    "type": "boolean"
+                },
                 "root_chat_id": {
                     "type": "string",
                     "format": "uuid"

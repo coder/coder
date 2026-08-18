@@ -1979,6 +1979,11 @@ export interface Chat {
 	 * Nil when the chat has no pinned context yet.
 	 */
 	readonly context?: ChatContext;
+	/**
+	 * QueuedForCapacity reports that the chat is waiting for a concurrent
+	 * agent slot. Single-chat reads derive it; list responses leave it false.
+	 */
+	readonly queued_for_capacity?: boolean;
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**

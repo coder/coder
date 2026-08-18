@@ -105,6 +105,7 @@ interface ChatPageTimelineProps {
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	footer?: ReactNode;
 }
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
@@ -122,6 +123,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	onSendAskUserQuestionResponse,
 	urlTransform,
 	mcpServers,
+	footer,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
@@ -221,6 +223,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					isTranscriptEmpty={parsedMessages.length === 0}
 					liveStatus={liveStatus}
 				/>
+				{footer}
 			</div>
 		</Profiler>
 	);

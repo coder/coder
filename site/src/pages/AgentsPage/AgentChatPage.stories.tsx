@@ -1359,6 +1359,49 @@ export const Loading: Story = {
 	},
 };
 
+const capacityPollingChat: TypesGen.Chat = {
+	id: CHAT_ID,
+	...baseChatFields,
+	title: "Capacity polling",
+	status: "running",
+	queued_for_capacity: false,
+};
+
+export const QueuedForCapacityAfterPolling: Story = {
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(CHAT_ID), data: capacityPollingChat },
+			{
+				key: chatMessagesKey(CHAT_ID),
+				data: {
+					pages: [{ messages: [], queued_messages: [], has_more: false }],
+					pageParams: [undefined],
+				},
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue({
+			...capacityPollingChat,
+			queued_for_capacity: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByText(/This agent is queued and will start automatically/),
+		).not.toBeInTheDocument();
+
+		const callout = await canvas.findByRole("alert", undefined, {
+			timeout: 7_000,
+		});
+		expect(API.experimental.getChat).toHaveBeenCalledWith(CHAT_ID);
+		expect(callout).toHaveTextContent(
+			"This agent is queued and will start automatically when capacity is available.",
+		);
+	},
+};
+
 export const OtherUserChatReadOnly: Story = {
 	parameters: {
 		queries: buildQueries(
@@ -3074,10 +3117,14 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 		await userEvent.click(editor);
 		await userEvent.keyboard("/compact");
 		// The menu offers only the personal skill (the built-in command
-		// yields); first Enter accepts it, second Enter submits.
-		expect(
-			await within(document.body).findByText("Personal compact skill"),
-		).toBeVisible();
+		// yields); first Enter accepts it, second Enter submits. The menu item
+		// exists before the popover finishes positioning, so wait for
+		// visibility rather than asserting it once.
+		await waitFor(() => {
+			expect(
+				within(document.body).getByText("Personal compact skill"),
+			).toBeVisible();
+		});
 		await userEvent.keyboard("{Enter}");
 		await userEvent.keyboard("{Enter}");
 
@@ -3266,7 +3313,13 @@ export const SendResponseAfterChatSwitch: Story = {
 
 		await userEvent.click(canvas.getByRole("button", { name: "Switch chat" }));
 		const timeline = within(await canvas.findByTestId("conversation-timeline"));
-		expect(await timeline.findByText("Current chat message")).toBeVisible();
+		// The switched chat's messages render slowly under pixel's parallel
+		// load, so extend the default 1s lookup timeout.
+		expect(
+			await timeline.findByText("Current chat message", undefined, {
+				timeout: 10_000,
+			}),
+		).toBeVisible();
 
 		releaseSend?.();
 		await waitFor(() => {
