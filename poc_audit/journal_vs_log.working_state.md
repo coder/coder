@@ -157,15 +157,15 @@ The core of this section is expected to be a table over these axes.
    `audit_logs`".
 2. **done.** `user_id NOT NULL` with no actor type. Under Findings, stated as
    one of the required columns presuming a request made by a person.
-3. **part.** `resource_type` has 36 values. The count is under Findings. That a
-   quarter of them are settings or events rather than entities is not, and is
-   owed if the point is worth making.
+3. **done.** `resource_type` has 36 values, under Findings. That a quarter of
+   them are settings rather than entities is dropped: no argument in the
+   document rests on it.
 4. **done.** `workspace_agent` is in that enum with no mention in
    `coderd/audit/diff.go` or `enterprise/audit/table.go`. Under Findings.
 5. **done.** `id` is a uuid; ordering is by an index on `"time" DESC`, so
    same-transaction writes have no defined order. Under Findings.
-6. **open.** `diff jsonb` holds field-level before and after. Not yet needed by
-   any argument; belongs with section 9 if the omission of values is named.
+6. **drop.** `diff jsonb` holds field-level before and after. It was held for
+   section 9, which is dropped, and nothing else needs it.
 7. **done.** Retention deletion. `DeleteOldAuditLogs` in
    `coderd/database/queries/auditlogs.sql:268` takes every row older than the
    cutoff with no exemption, driven by `Retention.AuditLogs` and run by
@@ -174,18 +174,24 @@ The core of this section is expected to be a table over these axes.
 8. **done.** Registering one audited resource costs eight places plus a
    documentation generator. Under Findings, by reference to
    `audit_approach.md` rather than restated.
-9. **open.** `resource_type` is a Postgres enum, carrying the single-transaction
-   migration trap.
+9. **drop.** `resource_type` is a Postgres enum, carrying the single-transaction
+   migration trap. An implementation detail, recorded already in
+   `audit_approach.md` and `.claude/docs/DATABASE.md`, and 7.2 is answered by
+   precedent rather than by cost.
 10. **done.** Write paths. Under Findings, "What writes to `audit_logs`": the
     production caller, the filter that can drop a record before storage, the
     no-op implementation of the interface, and the development handler.
 11. **done.** `connection_logs` split out and four `audit_action` values were
     deprecated. Under Findings, and the precedent carries the answer to 7.2.
-12. **open.** `user_status_changes` and `user_deleted` are journal-spirited but
-    trigger-written, and a trigger cannot see the actor.
-13. **open.** `provisioner_jobs` is the existing intent-record pattern.
-14. **open.** `workspace_agents.auth_instance_id` is the nearest external
-    correspondence identifier, and it is inbound only.
+12. **done.** `user_status_changes` and `user_deleted` are trigger-written, so
+    they are a change-log of the `users` table rather than a journal of events.
+    Named in the answer to 7.5.
+13. **drop.** `provisioner_jobs` is the existing intent-record pattern. It
+    supported the ordering of entry and effect, which is dropped to
+    `audit_approach.md`.
+14. **drop.** `workspace_agents.auth_instance_id` is the nearest external
+    correspondence identifier. It supported correspondence keys and orphan
+    detection, both of which are out of scope here.
 
 ### 7. Counterarguments to answer
 
@@ -223,21 +229,31 @@ The core of this section is expected to be a table over these axes.
 
 ### 8. The concrete instance, so the abstract lands
 
-1. **open.** One journal for every entity, with `(type, identifier)` pairs.
-2. **open.** `BIGSERIAL`, because entries need distinct identifiers.
-3. **open.** Written in the same transaction as the state change.
-4. **open.** Append only: no update or delete query exists.
-5. **open.** Guarded so that an entity cannot write entries about itself.
-6. **open.** A closed type set.
+All six are dropped together. The code is not in a state worth holding up as an
+illustration, and a worked example drawn from it now would have to be hedged
+into uselessness. Doing this after the proof of concept is delivered would be
+worthwhile, and is recorded outside this file so that it survives the file's
+deletion.
+
+1. **drop.** One journal for every entity, with `(type, identifier)` pairs.
+2. **drop.** `BIGSERIAL`, because entries need distinct identifiers.
+3. **drop.** Written in the same transaction as the state change.
+4. **drop.** Append only: no update or delete query exists.
+5. **drop.** Guarded so that an entity cannot write entries about itself.
+6. **drop.** A closed type set.
 
 ### 9. Deliberate omissions, named as such
 
-1. **open.** No before-and-after values, by scope decision.
-2. **open.** No external correspondence identifier, so orphan detection is
+All five are dropped together. They are variously implementation details and
+proof of concept scope, and neither belongs in a document about the difference
+between two kinds of record.
+
+1. **drop.** No before-and-after values, by scope decision.
+2. **drop.** No external correspondence identifier, so orphan detection is
    unreachable.
-3. **open.** No reconciliation code at this phase.
-4. **open.** No credential lifecycle entries, reproducing P7 knowingly.
-5. **open.** No tamper evidence, such as hash chaining.
+3. **drop.** No reconciliation code at this phase.
+4. **drop.** No credential lifecycle entries, reproducing P7 knowingly.
+5. **drop.** No tamper evidence, such as hash chaining.
 
 ### 10. To verify before drafting the sections that need it
 
@@ -284,6 +300,14 @@ rather than against the table originally imagined for section 5.
 **Licensing is out of scope for the proof of concept.** Whether the existing
 table is gated behind a licence has no bearing on anything being built, so 4.4's
 clause, 5.3, and 10.1 are all disposed of on that basis.
+
+**Sections 8 and 9 are dropped whole, and section 6 with them.** The worked
+example from our own code waits until after delivery, since the code is not
+worth holding up yet. The deliberate omissions are implementation detail and
+proof of concept scope, neither of which belongs in a document about two kinds
+of record. Section 6's remainder then had nothing left to support: each item was
+inventoried to serve an argument that is now either answered another way or
+dropped.
 
 **Triggers fail on ordering, not on attribution.** The answer to 7.5 was going
 to argue that a trigger cannot see the actor. The deeper reason is that a
