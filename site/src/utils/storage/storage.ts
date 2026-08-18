@@ -503,10 +503,12 @@ export function clearEntityStorage(
 		return;
 	}
 	// Collect first: removing keys while enumerating by index skips
-	// entries. Overlay-only keys (failed writes with nothing persisted)
-	// exist solely in memory, so include them alongside localStorage.
+	// entries. Keys known only in memory (failed-write overlays, and
+	// snapshots read before enumeration became restricted) must be
+	// cleaned too, so include every locally cached key alongside the
+	// localStorage listing. Overlay keys always have a snapshot entry.
 	const candidateKeys = new Set<string>(listLocalKeys());
-	for (const cacheKey of overlayKeys) {
+	for (const cacheKey of snapshotCache.keys()) {
 		if (cacheKey.startsWith("local:")) {
 			candidateKeys.add(cacheKey.slice("local:".length));
 		}
