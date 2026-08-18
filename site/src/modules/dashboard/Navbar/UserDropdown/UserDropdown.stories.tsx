@@ -1,5 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { meAISpendKey } from "#/api/queries/users";
 import type { FeatureName, UserAISpendStatus } from "#/api/typesGenerated";
 import { MockBuildInfo, MockUserOwner } from "#/testHelpers/entities";
@@ -53,28 +60,15 @@ const openDropdown = async (canvasElement: HTMLElement) => {
 };
 
 // Overrides platform detection so the Coder Desktop gating can be exercised in
-// a story. Returns a cleanup that restores the original descriptors.
+// a story. Returns a cleanup that restores the spied getters.
 const mockPlatform = (platform: string, maxTouchPoints = 0) => {
-	const platformDesc = Object.getOwnPropertyDescriptor(navigator, "platform");
-	const touchDesc = Object.getOwnPropertyDescriptor(
-		navigator,
-		"maxTouchPoints",
-	);
-	Object.defineProperty(navigator, "platform", {
-		value: platform,
-		configurable: true,
-	});
-	Object.defineProperty(navigator, "maxTouchPoints", {
-		value: maxTouchPoints,
-		configurable: true,
-	});
+	const navigatorSpy = spyOn(window, "navigator", "get").mockReturnValue({
+		...window.navigator,
+		platform,
+		maxTouchPoints,
+	} as Navigator);
 	return () => {
-		if (platformDesc) {
-			Object.defineProperty(navigator, "platform", platformDesc);
-		}
-		if (touchDesc) {
-			Object.defineProperty(navigator, "maxTouchPoints", touchDesc);
-		}
+		navigatorSpy.mockRestore();
 	};
 };
 
