@@ -185,8 +185,8 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 							"Unlimited"
 						) : (
 							<>
-								<span className={hoursValueClassName}>{actualLabel}</span>{" "}
-								/ {allocation.toLocaleString("en-US")}
+								<span className={hoursValueClassName}>{actualLabel}</span> /{" "}
+								{allocation.toLocaleString("en-US")}
 							</>
 						)}
 					</div>
