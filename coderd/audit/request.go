@@ -156,9 +156,9 @@ func ResourceTarget[T Auditable](tgt T) string {
 		// filter but not the primary resource identifier.
 		return typed.ID.String()[:8]
 	case database.MCPServerConfig:
-		// Updates can persist an empty display name; fall back to the
-		// slug so the audit entry stays identifiable and filterable.
-		return cmp.Or(typed.DisplayName, typed.Slug)
+		// Updates can persist an empty display name; fall back to the slug, or
+		// the ID if both are empty, so the audit entry stays identifiable.
+		return cmp.Or(typed.DisplayName, typed.Slug, typed.ID.String())
 	case database.UserSecret:
 		return typed.Name
 	case database.UserSkill:

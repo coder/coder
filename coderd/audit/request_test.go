@@ -50,6 +50,7 @@ func TestResourceTarget_MCPServerConfigSlugFallback(t *testing.T) {
 	t.Parallel()
 
 	config := database.MCPServerConfig{
+		ID:          uuid.UUID{1},
 		DisplayName: "GitHub MCP",
 		Slug:        "github",
 	}
@@ -57,4 +58,7 @@ func TestResourceTarget_MCPServerConfigSlugFallback(t *testing.T) {
 
 	config.DisplayName = ""
 	require.Equal(t, "github", audit.ResourceTarget(config))
+
+	config.Slug = ""
+	require.Equal(t, config.ID.String(), audit.ResourceTarget(config))
 }
