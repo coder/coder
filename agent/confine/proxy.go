@@ -182,8 +182,8 @@ func (p *Proxy) start() {
 }
 
 // ephemeralProxyCA satisfies the sandbox proxy constructor without enabling
-// interception. The evaluator always returns TLSPassthrough, so this CA remains
-// in memory, is never planted into a trust store, and never signs a leaf.
+// interception. The evaluator always returns TLSPassthrough, so this CA never
+// signs a leaf. Callers may keep it in memory or plant its public certificate.
 func ephemeralProxyCA() (tls.Certificate, []byte, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {

@@ -452,7 +452,7 @@ require (
 	github.com/tailscale/certstore v0.1.1-0.20220316223106-78d6e1c49d8d // indirect
 	github.com/tailscale/golang-x-crypto v0.0.0-20230713185742-f0b76a10a08e // indirect
 	github.com/tailscale/goupnp v1.0.1-0.20210804011211-c64d0f06ea05 // indirect
-	github.com/tailscale/netlink v1.1.1-0.20211101221916-cabfb018fe85
+	github.com/tailscale/netlink v1.1.1-0.20240822203006-4d49adab4de7
 	github.com/tailscale/peercred v0.0.0-20250107143737-35a0c7bd7edc // indirect
 	github.com/tailscale/wireguard-go v0.0.0-20231121184858-cc193a0b3272
 	github.com/tchap/go-patricia/v2 v2.3.3 // indirect
@@ -464,8 +464,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/u-root/uio v0.0.0-20240224005618-d2acac8f3701 // indirect
-	github.com/vishvananda/netlink v1.2.1-beta.2 // indirect
-	github.com/vishvananda/netns v0.0.4 // indirect
+	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
@@ -522,12 +521,17 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.1 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
 	github.com/charmbracelet/x/exp/strings v0.1.0 // indirect
+	github.com/containers/gvisor-tap-vsock v0.8.9 // indirect
+	github.com/docker/docker-credential-helpers v0.9.3 // indirect
 	github.com/go-json-experiment/json v0.0.0-20260601182631-00ed12fed2a6 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
+	github.com/google/gopacket v1.1.19 // indirect
+	github.com/inetaf/tcpproxy v0.0.0-20250222171855-c4b9df066048 // indirect
 	github.com/linkdata/deadlock v0.5.5 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
 	github.com/petermattis/goid v0.0.0-20260226131333-17d1149c6ac6 // indirect
 	github.com/q-uint/parser v0.3.1 // indirect
+	github.com/stacklok/go-microvm v0.0.39 // indirect
 	github.com/trailofbits/go-mutexasserts v0.0.0-20250514102930-c1f3d2e37561 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.opentelemetry.io/collector/featuregate v1.51.1-0.20260205185216-81bc641f26c0 // indirect
@@ -701,4 +705,8 @@ tool (
 	storj.io/drpc/cmd/protoc-gen-go-drpc
 )
 
-replace github.com/coder/coder/coder-sandbox => github.com/coder/sandbox v0.0.0-20260817164040-477d573adc87
+replace github.com/coder/coder/coder-sandbox => github.com/coder/sandbox v0.0.0-20260818034305-a3b5669fe9a6
+
+// The sandbox prototype depends on its go-microvm fork. Dependency-module
+// replacement directives are not inherited by the main module.
+replace github.com/stacklok/go-microvm => github.com/coder/go-microvm v0.0.0-20260815101353-e49e51c96b91
