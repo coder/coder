@@ -461,7 +461,7 @@ module "zed" {
 module "devin-desktop" {
   count    = data.coder_workspace.me.start_count * (contains(local.ides, "devin-desktop") ? 1 : 0)
   source   = "registry.coder.com/coder/devin-desktop/coder"
-  version  = "~> 1.0"
+  version  = "~> 0.1"
   agent_id = coder_agent.main.id
   folder   = "/home/coder"
   order    = 6
