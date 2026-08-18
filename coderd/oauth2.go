@@ -324,6 +324,7 @@ func (api *API) oauth2ClientConfiguration() http.HandlerFunc {
 // @Param client_id path string true "Client ID"
 // @Param request body codersdk.OAuth2ClientRegistrationRequest true "Client update request"
 // @Success 200 {object} codersdk.OAuth2ClientConfiguration
+// @Failure 413 {object} codersdk.OAuth2Error "Request body exceeds 4 MiB"
 // @Router /oauth2/clients/{client_id} [put]
 func (api *API) putOAuth2ClientConfiguration() http.HandlerFunc {
 	return oauth2provider.UpdateClientConfiguration(api.Database, api.Auditor.Load(), api.Logger)
