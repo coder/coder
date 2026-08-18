@@ -211,9 +211,13 @@ func (e HBAISeats) Fields() map[string]any {
 // batch run in parallel, so the batch bills one window rather than a sum.
 // Sub-agent orchestration tools (spawn_agent, wait_agent, and the rest of
 // that category) are excluded because each sub-agent chat bills its own
-// runtime. Also excluded: client-executed (dynamic) tools and external
-// agents, time parked waiting for user action, idle time between turns,
-// and retry backoff between attempts.
+// runtime. Also excluded: client-executed (dynamic) tools and chats handed
+// off to external coding agents (the chat parks while that work happens
+// outside the server, which cannot measure it), time parked waiting for
+// user action, idle time between turns, and retry backoff between
+// attempts. Server-executed tools count even when their work runs in a
+// connected workspace, whatever the workspace's agent type: the server
+// dispatches and waits on them during the turn.
 //
 // This measures the new Coder Agents (the `chats` tables), not the deprecated
 // Tasks counted by dc_managed_agents_v1.

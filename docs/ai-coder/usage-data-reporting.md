@@ -68,13 +68,13 @@ What counts:
 
 - Assistant generation steps, in both top-level chats and sub-agent chats.
 - Context compaction (summarization) model calls.
-- Local tool execution: file, terminal, and process tools, workspace lifecycle operations, MCP tools, and other server-executed tools.
+- Local tool execution: file, terminal, and process tools, workspace lifecycle operations, MCP tools, and other server-executed tools. A tool's work may run in a connected workspace, but the server dispatches and waits on it during the turn, so it counts regardless of how the workspace's agent is managed.
 - Interrupted generation: the time streamed or spent executing tools before the interrupt is kept on the partial messages.
 
 What does not count:
 
 - Sub-agent orchestration tools, such as spawning and waiting on sub-agents. A sub-agent is its own chat and records its own runtime, so counting the parent's wait would double count. Waiting on a sub-agent never extends a tool batch's window, even when other tools in the batch do count.
-- Client-executed (dynamic) tools and external agents: the server cannot measure work it does not execute.
+- Client-executed (dynamic) tools and chats handed off to external coding agents: the chat parks while that work happens outside the server, which cannot measure it.
 - Idle time: chats waiting for user input or external tool results.
 - Failed model calls whose output was discarded, and the backoff between retried attempts. Retried and errored attempts persist no content, so they record no runtime.
 - Ancillary model calls that produce no chat messages, such as title generation.
