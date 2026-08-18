@@ -10467,11 +10467,12 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-			DisplayName: "Search MCP",
-			Slug:        "search-mcp",
-			Url:         mcpTS.URL,
-			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-			UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+			OrganizationID: org.ID,
+			DisplayName:    "Search MCP",
+			Slug:           "search-mcp",
+			Url:            mcpTS.URL,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
@@ -10549,11 +10550,12 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-			DisplayName: "Direct MCP",
-			Slug:        "direct-mcp",
-			Url:         mcpTS.URL,
-			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-			UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+			OrganizationID: org.ID,
+			DisplayName:    "Direct MCP",
+			Slug:           "direct-mcp",
+			Url:            mcpTS.URL,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
@@ -10609,11 +10611,12 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-			DisplayName: "Count MCP",
-			Slug:        "count-mcp",
-			Url:         mcpTS.URL,
-			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-			UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+			OrganizationID: org.ID,
+			DisplayName:    "Count MCP",
+			Slug:           "count-mcp",
+			Url:            mcpTS.URL,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
 		reg := prometheus.NewRegistry()
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
@@ -10666,11 +10669,12 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-			DisplayName: "Hooked MCP",
-			Slug:        "hooked-mcp",
-			Url:         mcpTS.URL,
-			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-			UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+			OrganizationID: org.ID,
+			DisplayName:    "Hooked MCP",
+			Slug:           "hooked-mcp",
+			Url:            mcpTS.URL,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
 		reg := prometheus.NewRegistry()
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
@@ -10727,11 +10731,12 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 		t.Cleanup(consumer.Close)
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-			DisplayName: "Failing MCP",
-			Slug:        "failing-mcp",
-			Url:         mcpTS.URL,
-			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-			UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+			OrganizationID: org.ID,
+			DisplayName:    "Failing MCP",
+			Slug:           "failing-mcp",
+			Url:            mcpTS.URL,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
 		reg := prometheus.NewRegistry()
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
@@ -10783,11 +10788,12 @@ func TestMCPToolSearchGenerationFlows(t *testing.T) {
 			model.ContextLimit = 100_000
 			model = updateChatModelContextLimit(t, db, model)
 			mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-				DisplayName: "Small MCP",
-				Slug:        "small-mcp",
-				Url:         mcpTS.URL,
-				CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-				UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+				OrganizationID: org.ID,
+				DisplayName:    "Small MCP",
+				Slug:           "small-mcp",
+				Url:            mcpTS.URL,
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 			})
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
