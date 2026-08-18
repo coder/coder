@@ -1,5 +1,5 @@
 import { ArrowLeftIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useId } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -52,6 +52,9 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	onRequestDelete,
 	onToggleEnabled,
 }) => {
+	const disabledReasonId = useId();
+	const lacksUpdatePermission = !onToggleEnabled;
+
 	return (
 		<>
 			<div className="flex items-center justify-between">
@@ -107,18 +110,34 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 								<span className="inline-flex">
 									<Switch
 										checked={server.enabled}
-										onCheckedChange={(checked) => onToggleEnabled?.(checked)}
-										disabled={isDisabled || !onToggleEnabled}
+										onCheckedChange={(checked) => {
+											if (onToggleEnabled) {
+												onToggleEnabled(checked);
+											}
+										}}
+										disabled={isDisabled}
+										aria-disabled={lacksUpdatePermission}
+										aria-describedby={
+											lacksUpdatePermission ? disabledReasonId : undefined
+										}
 										aria-label="Server enabled"
+										className="aria-disabled:cursor-not-allowed aria-disabled:data-[state=checked]:bg-surface-tertiary aria-disabled:data-[state=unchecked]:bg-surface-tertiary"
 									/>
 								</span>
 							</TooltipTrigger>
 							<TooltipContent side="bottom">
-								{server.enabled
-									? "Disable this server. It will be hidden from agents."
-									: "Enable this server. It will be visible to agents."}
+								{lacksUpdatePermission
+									? "You do not have permission to update this server."
+									: server.enabled
+										? "Disable this server. It will be hidden from agents."
+										: "Enable this server. It will be visible to agents."}
 							</TooltipContent>
 						</Tooltip>
+						{lacksUpdatePermission && (
+							<span id={disabledReasonId} className="sr-only">
+								You do not have permission to update this server.
+							</span>
+						)}
 						<span className="text-sm">Enable</span>
 					</div>
 				)}
