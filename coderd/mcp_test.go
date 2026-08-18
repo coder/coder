@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -170,6 +171,61 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	configs, err = client.MCPServerConfigs(ctx)
 	require.NoError(t, err)
 	require.Empty(t, configs)
+}
+
+func TestMCPServerConfigsAudit(t *testing.T) {
+	t.Parallel()
+
+	auditor := audit.NewMock()
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Auditor:             auditor,
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	slug := "audit-" + uuid.NewString()
+	created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:   "Audited MCP Server",
+		Slug:          slug,
+		Transport:     "streamable_http",
+		URL:           "https://mcp.example.com/audit",
+		AuthType:      "none",
+		Availability:  "default_on",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+	})
+	require.NoError(t, err)
+
+	var createLog *database.AuditLog
+	logs := auditor.AuditLogs()
+	for i := range logs {
+		if logs[i].Action == database.AuditActionCreate && logs[i].ResourceType == database.ResourceTypeMcpServerConfig {
+			createLog = &logs[i]
+			break
+		}
+	}
+	require.NotNil(t, createLog, "expected MCP server config create audit")
+	require.Equal(t, created.ID, createLog.ResourceID)
+	require.Equal(t, slug, createLog.ResourceTarget)
+
+	auditor.ResetLogs()
+	require.NoError(t, client.DeleteMCPServerConfig(ctx, created.ID))
+
+	var deleteLog *database.AuditLog
+	logs = auditor.AuditLogs()
+	for i := range logs {
+		if logs[i].Action == database.AuditActionDelete && logs[i].ResourceType == database.ResourceTypeMcpServerConfig {
+			deleteLog = &logs[i]
+			break
+		}
+	}
+	require.NotNil(t, deleteLog, "expected MCP server config delete audit")
+	require.Equal(t, created.ID, deleteLog.ResourceID)
+	require.Equal(t, slug, deleteLog.ResourceTarget)
 }
 
 func TestMCPServerConfigsExternalAuthAndToolRules(t *testing.T) {
@@ -1503,7 +1559,7 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 
 		// Sanity-check the full path structure.
 		require.Contains(t, redirectURI,
-			"/api/experimental/mcp/servers/"+created.ID.String()+"/oauth2/callback",
+			"/api/v2/ai-gateway/mcp-servers/"+created.ID.String()+"/oauth2/callback",
 			"redirect URI should have the expected callback path")
 
 		// Double-check that the ID segment is a valid UUID (not some

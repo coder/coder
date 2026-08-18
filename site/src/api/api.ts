@@ -359,7 +359,7 @@ const userSkillPath = (user: string, name: string) =>
 	`${userSkillsPath(user)}/${encodeURIComponent(name)}`;
 const userAIProviderKeysPath = (user = "me") =>
 	`/api/experimental/users/${encodeURIComponent(user)}/ai-provider-keys`;
-const mcpServerConfigsPath = "/api/experimental/mcp/servers";
+const mcpServerConfigsPath = "/api/v2/ai-gateway/mcp-servers";
 
 type Claims = {
 	license_expires: number;
