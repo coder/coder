@@ -472,6 +472,46 @@ export const ListDisambiguatesCollidingCreateOnlyTargets: Story = {
 	},
 };
 
+export const ListDisambiguatesAddTargetFromSelectedOrganization: Story = {
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: true,
+			createAnyMCPServerConfig: true,
+			updateAnyMCPServerConfig: false,
+			deleteAnyMCPServerConfig: false,
+		},
+		organizations: [
+			MockDefaultOrganization,
+			{
+				...MockOrganization2,
+				display_name: MockDefaultOrganization.display_name,
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers" },
+			routing: { path: "/ai/settings/mcp-servers" },
+		}),
+	},
+	beforeEach: () => {
+		mockOrganizationPermissions({
+			[MockDefaultOrganization.id]: { view: true },
+			[MockOrganization2.id]: { create: true },
+		});
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([
+			MockCoderMCPServer,
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("Coder")).toBeVisible();
+		const addButton = canvas.getByRole("button", {
+			name: `Add server to ${MockDefaultOrganization.display_name} (${MockOrganization2.name})`,
+		});
+		await expect(addButton).toBeVisible();
+	},
+};
+
 export const AddDeepLinkShowsSingleCreatableOrganization: Story = {
 	render: () => <AddMCPServerPage />,
 	parameters: {

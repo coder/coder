@@ -47,11 +47,14 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 	onSelectOrganization,
 }) => {
 	const navigate = useNavigate();
-	// Disambiguate against creation targets: colliding display names
-	// among create-only organizations never appear in the list picker.
+	// Disambiguate against every organization sharing the page context:
+	// other creation targets and the currently selected organization.
 	const addButtonLabel =
 		addOrganization && addOrganization.id !== organization.id
-			? `Add server to ${getOrganizationLabel(addOrganization, addOrganizations)}`
+			? `Add server to ${getOrganizationLabel(addOrganization, [
+					...addOrganizations,
+					organization,
+				])}`
 			: undefined;
 	const goToAddServer = () => {
 		if (addOrganization) {
