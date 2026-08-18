@@ -45,12 +45,21 @@ func TestScopeStringToAPIKeyScopes(t *testing.T) {
 	t.Run("EveryCatalogNameMintable", func(t *testing.T) {
 		t.Parallel()
 
-		names := rbac.ExternalScopeNames()
+		// ExternalScopeNames omits the backward-compatibility aliases
+		// IsExternalScope accepts, and neither alias is an enum member, so they
+		// are listed here and run through CanonicalScopeName the way
+		// authorization spells them before persisting. A new alias has to be
+		// added here too; the catalog exposes no way to enumerate them.
+		names := append(rbac.ExternalScopeNames(), "all", "application_connect")
 		require.NotEmpty(t, names)
 		for _, name := range names {
-			scopes, err := scopeStringToAPIKeyScopes(name)
+			require.Truef(t, rbac.IsExternalScope(rbac.ScopeName(name)),
+				"scope %q is not negotiable, so this loop is not driving the catalog", name)
+
+			canonical := string(rbac.CanonicalScopeName(rbac.ScopeName(name)))
+			scopes, err := scopeStringToAPIKeyScopes(canonical)
 			require.NoErrorf(t, err, "scope %q can be negotiated but not minted", name)
-			require.Equal(t, database.APIKeyScopes{database.APIKeyScope(name)}, scopes)
+			require.Equal(t, database.APIKeyScopes{database.APIKeyScope(canonical)}, scopes)
 		}
 	})
 
