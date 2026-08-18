@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -617,6 +618,19 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		// not username-scoped in the URL like workspaces or tasks.
 		return fmt.Sprintf("/agents/%s", alog.AuditLog.ResourceID)
 	case database.ResourceTypeMCPServerConfig:
+		config, err := api.Database.GetMCPServerConfigByID(ctx, alog.AuditLog.ResourceID)
+		if err != nil {
+			return ""
+		}
+		actor, ok := dbauthz.ActorFromContext(ctx)
+		if !ok {
+			return ""
+		}
+		if err := api.HTTPAuth.Authorizer.Authorize(ctx, actor, policy.ActionUpdate, config.RBACObject()); err != nil {
+			if err := api.HTTPAuth.Authorizer.Authorize(ctx, actor, policy.ActionDelete, config.RBACObject()); err != nil {
+				return ""
+			}
+		}
 		return fmt.Sprintf("/ai/settings/mcp-servers/%s", alog.AuditLog.ResourceID)
 	case database.ResourceTypeUserSecret:
 		// TODO(PLAT-102): point at the user secrets management page once

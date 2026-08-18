@@ -151,6 +151,7 @@ func TestAuditLogs(t *testing.T) {
 		db, ps := dbtestutil.NewDB(t)
 		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 		user := coderdtest.CreateFirstUser(t, client)
+		auditor, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleAuditor())
 
 		config := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: user.OrganizationID,
@@ -163,14 +164,23 @@ func TestAuditLogs(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		auditLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
+		auditorLogs, err := auditor.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			Pagination: codersdk.Pagination{
 				Limit: 1,
 			},
 		})
 		require.NoError(t, err)
-		require.Len(t, auditLogs.AuditLogs, 1)
-		require.Equal(t, fmt.Sprintf("/ai/settings/mcp-servers/%s", config.ID), auditLogs.AuditLogs[0].ResourceLink)
+		require.Len(t, auditorLogs.AuditLogs, 1)
+		require.Empty(t, auditorLogs.AuditLogs[0].ResourceLink)
+
+		ownerLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
+			Pagination: codersdk.Pagination{
+				Limit: 1,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, ownerLogs.AuditLogs, 1)
+		require.Equal(t, fmt.Sprintf("/ai/settings/mcp-servers/%s", config.ID), ownerLogs.AuditLogs[0].ResourceLink)
 	})
 
 	t.Run("Organization", func(t *testing.T) {
