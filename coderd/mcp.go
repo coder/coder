@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
@@ -274,6 +275,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				Transport:               strings.TrimSpace(req.Transport),
 				Url:                     strings.TrimSpace(req.URL),
 				AuthType:                strings.TrimSpace(req.AuthType),
+				ExternalAuthProviderID:  sql.NullString{},
 				OAuth2ClientID:          "",
 				OAuth2ClientSecret:      "",
 				OAuth2ClientSecretKeyID: sql.NullString{},
@@ -288,6 +290,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				CustomHeadersKeyID:      sql.NullString{},
 				ToolAllowList:           coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
 				ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
+				ToolRules:               pqtype.NullRawMessage{},
+				ToolDefault:             "",
 				Availability:            strings.TrimSpace(req.Availability),
 				Enabled:                 req.Enabled,
 				ModelIntent:             req.ModelIntent,
@@ -380,6 +384,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				Transport:               inserted.Transport,
 				Url:                     inserted.Url,
 				AuthType:                inserted.AuthType,
+				ExternalAuthProviderID:  inserted.ExternalAuthProviderID,
 				OAuth2ClientID:          result.clientID,
 				OAuth2ClientSecret:      result.clientSecret,
 				OAuth2ClientSecretKeyID: sql.NullString{},
@@ -394,12 +399,17 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				CustomHeadersKeyID:      inserted.CustomHeadersKeyID,
 				ToolAllowList:           inserted.ToolAllowList,
 				ToolDenyList:            inserted.ToolDenyList,
-				Availability:            inserted.Availability,
-				Enabled:                 inserted.Enabled,
-				ModelIntent:             inserted.ModelIntent,
-				AllowInPlanMode:         inserted.AllowInPlanMode,
-				ForwardCoderHeaders:     inserted.ForwardCoderHeaders,
-				UpdatedBy:               apiKey.UserID,
+				ToolRules: pqtype.NullRawMessage{
+					RawMessage: inserted.ToolRules,
+					Valid:      true,
+				},
+				ToolDefault:         inserted.ToolDefault,
+				Availability:        inserted.Availability,
+				Enabled:             inserted.Enabled,
+				ModelIntent:         inserted.ModelIntent,
+				AllowInPlanMode:     inserted.AllowInPlanMode,
+				ForwardCoderHeaders: inserted.ForwardCoderHeaders,
+				UpdatedBy:           apiKey.UserID,
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -451,6 +461,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		Transport:               strings.TrimSpace(req.Transport),
 		Url:                     strings.TrimSpace(req.URL),
 		AuthType:                strings.TrimSpace(req.AuthType),
+		ExternalAuthProviderID:  sql.NullString{},
 		OAuth2ClientID:          strings.TrimSpace(req.OAuth2ClientID),
 		OAuth2ClientSecret:      strings.TrimSpace(req.OAuth2ClientSecret),
 		OAuth2ClientSecretKeyID: sql.NullString{},
@@ -465,6 +476,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		CustomHeadersKeyID:      sql.NullString{},
 		ToolAllowList:           coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
 		ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
+		ToolRules:               pqtype.NullRawMessage{},
+		ToolDefault:             "",
 		Availability:            strings.TrimSpace(req.Availability),
 		Enabled:                 req.Enabled,
 		ModelIntent:             req.ModelIntent,
@@ -831,6 +844,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			Transport:               transport,
 			Url:                     serverURL,
 			AuthType:                authType,
+			ExternalAuthProviderID:  existing.ExternalAuthProviderID,
 			OAuth2ClientID:          oauth2ClientID,
 			OAuth2ClientSecret:      oauth2ClientSecret,
 			OAuth2ClientSecretKeyID: oauth2ClientSecretKeyID,
@@ -845,13 +859,18 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			CustomHeadersKeyID:      customHeadersKeyID,
 			ToolAllowList:           toolAllowList,
 			ToolDenyList:            toolDenyList,
-			Availability:            availability,
-			Enabled:                 enabled,
-			ModelIntent:             modelIntent,
-			AllowInPlanMode:         allowInPlanMode,
-			ForwardCoderHeaders:     forwardCoderHeaders,
-			UpdatedBy:               apiKey.UserID,
-			ID:                      existing.ID,
+			ToolRules: pqtype.NullRawMessage{
+				RawMessage: existing.ToolRules,
+				Valid:      true,
+			},
+			ToolDefault:         existing.ToolDefault,
+			Availability:        availability,
+			Enabled:             enabled,
+			ModelIntent:         modelIntent,
+			AllowInPlanMode:     allowInPlanMode,
+			ForwardCoderHeaders: forwardCoderHeaders,
+			UpdatedBy:           apiKey.UserID,
+			ID:                  existing.ID,
 		})
 		return err
 	}, nil)

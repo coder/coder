@@ -347,6 +347,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		Transport:               takeFirst(seed.Transport, "streamable_http"),
 		Url:                     takeFirst(seed.Url, "https://mcp.example.com"),
 		AuthType:                takeFirst(seed.AuthType, "none"),
+		ExternalAuthProviderID:  seed.ExternalAuthProviderID,
 		OAuth2ClientID:          seed.OAuth2ClientID,
 		OAuth2ClientSecret:      seed.OAuth2ClientSecret,
 		OAuth2ClientSecretKeyID: seed.OAuth2ClientSecretKeyID,
@@ -361,13 +362,18 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		CustomHeadersKeyID:      seed.CustomHeadersKeyID,
 		ToolAllowList:           takeFirstSlice(seed.ToolAllowList, []string{}),
 		ToolDenyList:            takeFirstSlice(seed.ToolDenyList, []string{}),
-		Availability:            takeFirst(seed.Availability, "default_off"),
-		Enabled:                 takeFirst(seed.Enabled, true),
-		ModelIntent:             seed.ModelIntent,
-		AllowInPlanMode:         seed.AllowInPlanMode,
-		ForwardCoderHeaders:     seed.ForwardCoderHeaders,
-		CreatedBy:               createdBy,
-		UpdatedBy:               updatedBy,
+		ToolRules: pqtype.NullRawMessage{
+			RawMessage: seed.ToolRules,
+			Valid:      len(seed.ToolRules) > 0,
+		},
+		ToolDefault:         takeFirst(seed.ToolDefault, "enabled"),
+		Availability:        takeFirst(seed.Availability, "default_off"),
+		Enabled:             takeFirst(seed.Enabled, true),
+		ModelIntent:         seed.ModelIntent,
+		AllowInPlanMode:     seed.AllowInPlanMode,
+		ForwardCoderHeaders: seed.ForwardCoderHeaders,
+		CreatedBy:           createdBy,
+		UpdatedBy:           updatedBy,
 	})
 	require.NoError(t, err, "insert MCP server config")
 	return cfg
