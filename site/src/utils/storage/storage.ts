@@ -164,6 +164,14 @@ const keyListeners = new Map<string, Set<() => void>>();
 type SnapshotCacheEntry = { raw: string | null; value: unknown };
 const snapshotCache = new Map<string, SnapshotCacheEntry>();
 
+/**
+ * Keys whose snapshot holds a value newer than what is persisted
+ * because the write failed (quota, unavailable storage). The value
+ * stays visible in this tab for the session; any real change to the
+ * underlying bytes discards the overlay.
+ */
+const overlayKeys = new Set<string>();
+
 const notifyKey = (cacheKey: string): void => {
 	const listeners = keyListeners.get(cacheKey);
 	if (!listeners) {
@@ -176,6 +184,7 @@ const notifyKey = (cacheKey: string): void => {
 
 const invalidateAndNotify = (area: StorageArea, key: string): void => {
 	const cacheKey = cacheKeyFor(area, key);
+	overlayKeys.delete(cacheKey);
 	snapshotCache.delete(cacheKey);
 	notifyKey(cacheKey);
 };
@@ -329,8 +338,8 @@ const createHandle = <T>(
 
 	const remove = (): void => {
 		// Skip the write and listener notification when there is
-		// nothing to remove.
-		if (readRaw(area, key) === null) {
+		// nothing to remove, persisted or overlaid.
+		if (readRaw(area, key) === null && !overlayKeys.has(cacheKey)) {
 			return;
 		}
 		removeRaw(area, key);
@@ -353,11 +362,17 @@ const createHandle = <T>(
 				// is stamped by the next sweep.
 				writeTimestamp(key, raw, Date.now());
 			}
+			overlayKeys.delete(cacheKey);
 			// Cache the caller's value directly so getSnapshot hands the
 			// exact same reference back.
 			snapshotCache.set(cacheKey, { raw, value });
-			notifyKey(cacheKey);
+		} else {
+			// Persistence failed; keep the value visible in this tab by
+			// overlaying it on the bytes currently persisted.
+			overlayKeys.add(cacheKey);
+			snapshotCache.set(cacheKey, { raw: readRaw(area, key), value });
 		}
+		notifyKey(cacheKey);
 		return result;
 	};
 
@@ -633,5 +648,6 @@ const sweepTimestampedKey = (
 export function _resetStorageForTesting(): void {
 	sweepHasRun = false;
 	snapshotCache.clear();
+	overlayKeys.clear();
 	keyListeners.clear();
 }

@@ -171,13 +171,31 @@ describe("storage core", () => {
 	});
 
 	it("reports quota errors without throwing", () => {
+		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+			throw new DOMException("full", "QuotaExceededError");
+		});
+		expect(boolKey.set(true)).toEqual({ ok: false, reason: "quota" });
+	});
+
+	it("keeps the requested value visible when persistence fails", () => {
 		const listener = vi.fn();
 		const unsubscribe = boolKey.subscribe(listener);
 		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
 			throw new DOMException("full", "QuotaExceededError");
 		});
-		expect(boolKey.set(true)).toEqual({ ok: false, reason: "quota" });
-		expect(listener).not.toHaveBeenCalled();
+
+		expect(boolKey.set(true).ok).toBe(false);
+
+		// Subscribers are notified and reads serve the in-memory value
+		// even though nothing persisted.
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(boolKey.get()).toBe(true);
+		expect(localStorage.getItem("test.bool")).toBeNull();
+
+		// remove() clears the overlay too.
+		boolKey.remove();
+		expect(listener).toHaveBeenCalledTimes(2);
+		expect(boolKey.get()).toBe(false);
 		unsubscribe();
 	});
 
