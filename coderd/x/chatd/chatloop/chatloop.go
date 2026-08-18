@@ -1160,10 +1160,12 @@ func executeTools(
 			toolNameAliases,
 		)
 	}
-	// Calls to tools that opt in via SerialToolCalls run on one
-	// goroutine in tool-call order, so order-sensitive shared state
-	// (for example the find_tools activation budget) is claimed
-	// deterministically. All other calls stay concurrent.
+	// Calls to tools that opt in via SerialToolCalls run in tool-call
+	// order after every concurrent sibling has settled. The step waits
+	// for all calls anyway, so sequencing them last costs nothing, and
+	// order-sensitive shared state (for example the find_tools
+	// activation budget) is claimed deterministically after sibling
+	// outcomes are known. All other calls stay concurrent.
 	var serialIndexes []int
 	var wg sync.WaitGroup
 	for i, tc := range localToolCalls {
@@ -1177,18 +1179,22 @@ func executeTools(
 			runCall(i, tc)
 		}()
 	}
-	if len(serialIndexes) > 0 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for _, i := range serialIndexes {
-				runCall(i, localToolCalls[i])
-			}
-		}()
-	}
 	wg.Wait()
 
-	notifyStepToolResultObservers(toolMap, toolNameAliases, results)
+	// Reconcile settled sibling outcomes before serial tools run, so
+	// for example find_tools refunds reservations of errored direct
+	// calls before its searches admit activations.
+	settled := make([]fantasy.ToolResultContent, 0, len(results))
+	for i := range results {
+		if !slices.Contains(serialIndexes, i) {
+			settled = append(settled, results[i])
+		}
+	}
+	notifyStepToolResultObservers(toolMap, toolNameAliases, localToolCalls, settled)
+
+	for _, i := range serialIndexes {
+		runCall(i, localToolCalls[i])
+	}
 
 	// Publish results in the original tool-call order so SSE
 	// subscribers see a deterministic event sequence.
@@ -1539,13 +1545,14 @@ type stepToolResultObserver interface {
 	ObserveStepToolResults(succeeded, errored []string)
 }
 
-// notifyStepToolResultObservers passes the step's resolved result
-// outcomes to each distinct called tool that observes them, after
-// every call in the step has settled.
-func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, results []fantasy.ToolResultContent) {
-	succeeded := make([]string, 0, len(results))
-	errored := make([]string, 0, len(results))
-	for _, tr := range results {
+// notifyStepToolResultObservers passes the settled sibling outcomes to
+// each distinct called tool that observes them. Serial calls have not
+// run yet, so their own outcomes are absent; observers only need the
+// concurrent siblings they share state with.
+func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, calls []fantasy.ToolCallContent, settled []fantasy.ToolResultContent) {
+	succeeded := make([]string, 0, len(settled))
+	errored := make([]string, 0, len(settled))
+	for _, tr := range settled {
 		name := tr.ToolName
 		if alias, ok := toolNameAliases[name]; ok {
 			name = alias
@@ -1556,8 +1563,12 @@ func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNam
 			succeeded = append(succeeded, name)
 		}
 	}
-	notified := make(map[string]struct{}, len(results))
-	for _, name := range append(append([]string{}, succeeded...), errored...) {
+	notified := make(map[string]struct{}, len(calls))
+	for _, tc := range calls {
+		name := tc.ToolName
+		if alias, ok := toolNameAliases[name]; ok {
+			name = alias
+		}
 		if _, dup := notified[name]; dup {
 			continue
 		}

@@ -218,8 +218,9 @@ func flattenMCPParameterText(value any) string {
 // after every other activation: the schema stays available for a
 // corrected retry without displacing schemas that find_tools results
 // or successful calls already claimed. Search-time reservations mirror
-// this order because the step result observer refunds an errored
-// call's reservation, so later searches see the same leftover budget.
+// this order because sibling calls settle before a step's searches run
+// and the step result observer refunds errored reservations first, so
+// searches see the same leftover budget.
 func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []deferredMCPTool, tokenBudget float64) []string {
 	candidateByName := make(map[string]deferredMCPTool, len(candidates))
 	for _, candidate := range candidates {

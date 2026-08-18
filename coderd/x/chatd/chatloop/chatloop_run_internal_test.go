@@ -1024,6 +1024,78 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 		"error results and unresolvable tools both settle as errored outcomes")
 }
 
+type serialResultObserverTool struct {
+	fantasy.AgentTool
+	observedResults func(succeeded, errored []string)
+}
+
+func (serialResultObserverTool) SerialToolCalls() bool { return true }
+
+func (t serialResultObserverTool) ObserveStepToolResults(succeeded, errored []string) {
+	t.observedResults(succeeded, errored)
+}
+
+func TestExecuteToolsReconcilesResultsBeforeSerialCalls(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var erroredAtNotify []string
+	var erroredAtRun []string
+	notified := false
+	serial := serialResultObserverTool{
+		AgentTool: fantasy.NewAgentTool(
+			"serial_observer",
+			"observes sibling outcomes before running",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				mu.Lock()
+				erroredAtRun = append([]string{}, erroredAtNotify...)
+				mu.Unlock()
+				return fantasy.NewTextResponse("ok"), nil
+			},
+		),
+		observedResults: func(_, errored []string) {
+			mu.Lock()
+			defer mu.Unlock()
+			notified = true
+			erroredAtNotify = append([]string{}, errored...)
+		},
+	}
+	failing := fantasy.NewAgentTool(
+		"failing_tool",
+		"returns an error result",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextErrorResponse("remote error"), nil
+		},
+	)
+
+	results := executeTools(
+		context.Background(),
+		quartz.NewReal(),
+		[]fantasy.AgentTool{serial, failing},
+		nil,
+		nil,
+		nil,
+		[]fantasy.ToolCallContent{
+			{ToolCallID: "1", ToolName: "serial_observer", Input: "{}"},
+			{ToolCallID: "2", ToolName: "failing_tool", Input: "{}"},
+		},
+		nil,
+		NewMetrics(prometheus.NewRegistry()),
+		slog.Make(),
+		"fake", "fake-model",
+		map[string]bool{},
+		defaultToolResultBytes,
+		nil,
+		nil,
+	)
+
+	require.True(t, notified)
+	require.Equal(t, []string{"failing_tool"}, erroredAtRun,
+		"a serial tool must see settled sibling outcomes before it executes")
+	require.Len(t, results, 2)
+	require.Equal(t, "1", results[0].ToolCallID, "results keep original call order")
+}
+
 func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 	t.Parallel()
 
