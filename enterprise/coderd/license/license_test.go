@@ -3,6 +3,7 @@ package license_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -49,6 +50,9 @@ func premiumRuntimeHoursFixture(t *testing.T) (*dbmock.MockStore, *coderdenttest
 
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
+	// Refreshes that observe publishing disabled read the enabled-since
+	// marker to clear it if present.
+	mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 	licenseOpts := (&coderdenttest.LicenseOptions{
 		FeatureSet: codersdk.FeatureSetPremium,
@@ -909,6 +913,9 @@ func TestEntitlements(t *testing.T) {
 		// workspace builds.
 		ctrl := gomock.NewController(t)
 		mDB := dbmock.NewMockStore(ctrl)
+		// Refreshes that observe publishing disabled read the enabled-since
+		// marker to clear it if present.
+		mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 		licenseOpts := (&coderdenttest.LicenseOptions{
 			FeatureSet: codersdk.FeatureSetPremium,
@@ -1046,6 +1053,9 @@ func TestEntitlements(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		mDB := dbmock.NewMockStore(ctrl)
+		// Refreshes that observe publishing disabled read the enabled-since
+		// marker to clear it if present.
+		mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 		licenseOpts := (&coderdenttest.LicenseOptions{
 			FeatureSet: codersdk.FeatureSetPremium,
@@ -1210,6 +1220,9 @@ func TestEntitlements(t *testing.T) {
 
 				ctrl := gomock.NewController(t)
 				mDB := dbmock.NewMockStore(ctrl)
+				// Refreshes that observe publishing disabled read the enabled-since
+				// marker to clear it if present.
+				mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 				licenseOpts := (&coderdenttest.LicenseOptions{
 					FeatureSet: codersdk.FeatureSetPremium,
@@ -1287,6 +1300,9 @@ func TestEntitlements(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			mDB := dbmock.NewMockStore(ctrl)
+			// Refreshes that observe publishing disabled read the enabled-since
+			// marker to clear it if present.
+			mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 			licenseOpts := &coderdenttest.LicenseOptions{
 				NotBefore: dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
@@ -1350,6 +1366,9 @@ func TestEntitlements(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			mDB := dbmock.NewMockStore(ctrl)
+			// Refreshes that observe publishing disabled read the enabled-since
+			// marker to clear it if present.
+			mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 			licenseOpts := &coderdenttest.LicenseOptions{
 				NotBefore: dbtime.Now().Add(-2 * time.Hour).Truncate(time.Second),
@@ -1412,6 +1431,9 @@ func TestEntitlements(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			mDB := dbmock.NewMockStore(ctrl)
+			// Refreshes that observe publishing disabled read the enabled-since
+			// marker to clear it if present.
+			mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 			// Premium license without the AI Governance addon.
 			licenseOpts := (&coderdenttest.LicenseOptions{

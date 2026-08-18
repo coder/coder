@@ -48,21 +48,24 @@ const (
 	// UsagePublishingEnabledSinceKey is the runtime config key recording the
 	// current usage publishing enabled period as a JSON
 	// usagePublishingEnabledMarker. Every entitlements refresh that observes
-	// publishing enabled stamps last_seen; a refresh that finds last_seen
-	// older than usagePublishingEnabledMarkerStaleAfter concludes publishing
-	// was disabled (or coderd was down) in between and starts a new period.
+	// publishing enabled stamps last_seen; a refresh that observes it
+	// disabled deletes the marker, so the next enabled refresh starts a new
+	// period. A refresh that finds last_seen older than
+	// usagePublishingEnabledMarkerStaleAfter also starts a new period,
+	// covering disablement no refresh observed (e.g. coderd was down).
 	// Publish failure detection clamps failure ages to enabled_since,
 	// granting a fresh failure threshold after every (re-)enablement, while
 	// continuous license renewals never interrupt the refresh cadence and so
-	// cannot reset an active warning. Refreshes never touch the marker while
-	// publishing is disabled, so air-gapped deployments incur no writes.
+	// cannot reset an active warning. Deployments that never enable
+	// publishing (e.g. air-gapped) have no marker, so their refreshes read
+	// but never write.
 	UsagePublishingEnabledSinceKey = "usage_publishing_enabled_since"
 	// usagePublishingEnabledMarkerStaleAfter is how old the marker's
 	// last_seen may be before the current enabled period is considered
 	// interrupted. Entitlements refresh every 10 minutes, so an hour
-	// tolerates slow refreshes while still catching real disablement.
-	// Disabled intervals shorter than this may go unobserved and count as
-	// continuous.
+	// tolerates slow refreshes while still catching unobserved disablement.
+	// Disabled intervals no refresh observed that are shorter than this
+	// count as continuous.
 	usagePublishingEnabledMarkerStaleAfter = time.Hour
 )
 
@@ -195,6 +198,25 @@ func Entitlements(
 	})
 	if err != nil {
 		return entitlements, err
+	}
+
+	if !entitlements.UsagePublishing.PublishingEnabled {
+		// This refresh observed publishing disabled; forget the marker so
+		// the next enablement starts a fresh grace period even when the
+		// disabled interval is shorter than the staleness window.
+		// Best-effort: on failure the staleness fallback still catches
+		// longer intervals, and the next refresh retries.
+		// nolint:gocritic // Maintaining the usage publishing marker is a system function.
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		_, err := db.GetRuntimeConfig(sysCtx, UsagePublishingEnabledSinceKey)
+		if err == nil {
+			err = db.DeleteRuntimeConfig(sysCtx, UsagePublishingEnabledSinceKey)
+			if err != nil {
+				logger.Warn(ctx, "delete usage publishing enabled-since marker", slog.Error(err))
+			}
+		} else if !xerrors.Is(err, sql.ErrNoRows) {
+			logger.Warn(ctx, "get usage publishing enabled-since marker", slog.Error(err))
+		}
 	}
 
 	return entitlements, nil
