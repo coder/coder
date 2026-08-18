@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -161,6 +162,16 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if strings.EqualFold(strings.TrimSpace(req.Name), "mcp") {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid AI provider request.",
+			Validations: []codersdk.ValidationError{{
+				Field:  "name",
+				Detail: `name "mcp" is reserved for the MCP gateway route`,
+			}},
+		})
+		return
+	}
 	if validations := req.Validate(); len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid AI provider request.",

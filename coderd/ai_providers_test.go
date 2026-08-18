@@ -287,6 +287,34 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Equal(t, "name", sdkErr.Validations[0].Field)
 	})
 
+	t.Run("ReservedMCPRouteName", func(t *testing.T) {
+		t.Parallel()
+
+		for _, name := range []string{"mcp", "MCP", " mCp "} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				client := coderdtest.New(t, nil)
+				_ = coderdtest.CreateFirstUser(t, client)
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				//nolint:gocritic // Owner role is the audience for this endpoint.
+				_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+					Type:    codersdk.AIProviderTypeOpenAI,
+					Name:    name,
+					Enabled: true,
+					BaseURL: "https://api.openai.com/v1",
+				})
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, "Invalid AI provider request.", sdkErr.Message)
+				require.Equal(t, []codersdk.ValidationError{{
+					Field:  "name",
+					Detail: `name "mcp" is reserved for the MCP gateway route`,
+				}}, sdkErr.Validations)
+			})
+		}
+	})
+
 	t.Run("InvalidType", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
