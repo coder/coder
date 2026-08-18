@@ -85,10 +85,13 @@ Three reasons the sandbox shape is the one to build first:
 The deferred combination is "an AI-designated workspace that also runs a
 sandbox", which is deferred for reason 2, not because it is uninteresting.
 
-Honest consequence of the reduction: the retained shape is **attested**
-rather than structurally enforced. The startup script builds the boundary,
-and the platform records what the administrator claims about it without
-verifying the claim.
+Honest consequence of the reduction: custom runtime modes remain
+**attested** rather than structurally enforced. An administrator-provided
+startup script builds their boundary, and the platform records what the
+administrator claims about it without verifying the claim. Embedded microVM
+mode is different: the Coder agent builds the boundary and installs the
+in-process gateway proxy itself, so the platform directly controls the
+mechanism supporting the claim.
 
 ## Declaration model
 
@@ -160,6 +163,69 @@ output), and a `parent_id` relationship between the host agent and the
 sandbox's agent (which would additionally buy nested presentation in the
 UI and the existing sub-agent deletion checks).
 
+### Environment-declared managed runtime modes
+
+Until a first-class Terraform sandbox resource exists, the host agent selects
+its sandbox runtime from process environment. Mode selection is explicit and
+fail closed:
+
+| Variable                              |        Default | Contract                                                                                                                                  |
+|---------------------------------------|---------------:|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `CODER_AI_SANDBOX_MICROVM`            |          unset | A value parsed as boolean `true` selects the embedded microVM mode. Invalid boolean values are configuration errors.                      |
+| `CODER_AI_SANDBOX_CREATE_SCRIPT`      |          unset | A non-empty value selects the administrator-provided create-script mode. It is mutually exclusive with `CODER_AI_SANDBOX_MICROVM=true`.   |
+| `CODER_AI_EGRESS_PROXY`               |          unset | A non-empty value selects proxy-only mode when neither managed mode is selected. Terraform or another external owner creates the sandbox. |
+| `CODER_AI_SANDBOX_IMAGE`              | `ubuntu:24.04` | OCI image used only by embedded microVM mode.                                                                                             |
+| `CODER_AI_SANDBOX_MEMORY_MIB`         |         `1024` | Positive guest memory size used only by embedded microVM mode.                                                                            |
+| `CODER_AI_SANDBOX_CPUS`               |            `1` | Positive virtual CPU count used only by embedded microVM mode.                                                                            |
+| `CODER_AI_SANDBOX_NAME`               |      `sandbox` | Reconciliation name and embedded VM name. Embedded mode additionally requires a lowercase microVM-safe name.                              |
+| `CODER_AI_SANDBOX_EGRESS_ENFORCEMENT` |         `none` | Administrator declaration recorded on the managed sandbox session. Embedded mode does not automatically change it.                        |
+
+Declaring embedded mode on any platform other than Linux amd64 is a startup
+configuration error. The error must be returned before the controller begins
+reconciliation, rather than silently falling back to a different runtime.
+Usable `/dev/kvm` access and outbound access for first-boot runtime and image
+downloads are host prerequisites, not additional product binaries.
+
+Embedded microVM mode keeps the managed control-plane lifecycle:
+
+1. Delete stale sandbox records, reconcile the named sandbox and child agent,
+   fetch the initial policy into a shared `PolicyEngine`, start the SSE watcher,
+   report the session, and run the network event batcher.
+2. Resolve the current Coder executable and its symlinks, then mount that same
+   binary read-only at `/opt/coder` in the guest. No separate sandbox or guest
+   agent binary is required.
+3. Store runtime downloads and per-VM state under
+   `~/.config/coder-ai/microvm/cache` and
+   `~/.config/coder-ai/microvm/state`. A persistent home volume therefore
+   retains first-boot artifacts across workspace restarts.
+4. Do not start the parent loopback proxy listener. The guest cannot use it;
+   the embedded runtime provides a private gateway listener backed by the
+   in-process proxy and the shared policy engine.
+5. Do not export a policy file or invoke create, destroy, or policy reload
+   scripts. SSE updates atomically replace policy in memory and immediately
+   affect new gateway proxy decisions.
+6. Give boot the same five-minute bound as a create script. Boot failure reports
+   degraded and leaves the host workspace active, but it must not launch an
+   unconfined child agent or fall back to another mode.
+7. On controller shutdown, close a successfully started VM with a one-minute
+   bound. Close failure is reported as degraded. Session close and final event
+   flushing still run.
+
+Create-script mode remains supported for custom container, VM, or third-party
+sandbox runtimes. It continues to start the parent proxy, optionally export the
+translated policy file, invoke the create and reload hooks, and invoke the
+optional destroy script. Embedded mode is additive; it does not replace or
+reinterpret that contract.
+
+| Controller behavior                          | Create-script mode                                   | Embedded microVM mode                                    | Proxy-only mode                                       |
+|----------------------------------------------|------------------------------------------------------|----------------------------------------------------------|-------------------------------------------------------|
+| Server-side sandbox and child reconciliation | Yes                                                  | Yes                                                      | No                                                    |
+| Enforcement runtime                          | Administrator script or external daemon              | Coder agent embedded runtime                             | Terraform or another external owner                   |
+| Coder parent proxy listener                  | Yes                                                  | No, private gateway listener instead                     | Yes                                                   |
+| Policy file translation                      | Optional                                             | Never                                                    | Optional                                              |
+| Lifecycle scripts                            | Create, optional reload and destroy                  | None                                                     | Ordinary Terraform or workspace scripts own lifecycle |
+| Live policy path                             | SSE to `PolicyEngine`, optional file and reload hook | SSE to shared `PolicyEngine` to in-process gateway proxy | SSE to `PolicyEngine` to parent proxy                 |
+
 ## Credential starvation
 
 Binding must activate fail-closed credential handling at every source of
@@ -214,28 +280,31 @@ widen what the deployment permits.
 
 ```text
 [ workspace container ]
-  host agent  ── runs policy proxy, holds policy, reports events
+  host agent  ── holds policy, runs enforcement, reports events
        │
-       │  startup script builds the boundary and starts the sandbox
+       │  selected runtime builds the boundary and starts the sandbox
        ▼
 [ sandbox: container or microVM ]
   bound agent + AI process ── no ambient credentials, no policy,
-                              egress routed to the host proxy
+                              egress routed through selected enforcement
 ```
 
-The host agent is the **egress supervisor**: it holds policy, runs the
-proxy, and reports network events. The sandbox is the **confined party**.
-The two roles must be distinguishable from data the server owns, which is
-what binding provides.
+The host agent is the **egress supervisor**: it holds policy, runs or owns the
+enforcement proxy, and reports network events. The sandbox is the **confined
+party**. In create-script and proxy-only modes, the guest routes to a parent
+listener. In embedded microVM mode, the host agent attaches the same evaluator
+to the VM's private gateway listener. The two roles must be distinguishable
+from data the server owns, which is what binding provides.
 
 ### Ordering requirement
 
-The proxy must be listening, and the boundary must be in place, before the
-confined process can make its first connection. Concretely the host agent
-must, in this order: obtain policy, start the proxy, then run the startup
-script that builds the boundary and launches the sandbox. A window in
-which the sandbox is running but unconfined is a correctness failure, not
-a performance detail.
+Enforcement must be attached, and the boundary must be in place, before the
+confined process can make its first connection. Create-script and proxy-only
+modes must obtain policy and start the parent listener before an external owner
+launches the confined process. Embedded microVM mode must obtain policy and
+configure the private gateway proxy before booting the guest and launching its
+agent. A window in which the sandbox is running but unconfined is a correctness
+failure, not a performance detail.
 
 ### Policy storage and delivery
 
@@ -273,11 +342,13 @@ produce an unconfined sandbox.
 
 ### Host-side policy export contract
 
-Some sandbox runtimes cannot route the confined guest through the Coder
-confine proxy. A host-side runtime such as `coder/sandbox` may enforce the
-same template policy in its own proxy instead. This mode does not deliver
-policy to the confined agent or guest. The unbound host agent exports policy
-to a host-only file consumed by the sandbox daemon.
+Some custom sandbox runtimes cannot route the confined guest through the Coder
+parent proxy. A host-side runtime such as `coder/sandbox` may enforce the same
+template policy in its own proxy instead. This create-script integration does
+not deliver policy to the confined agent or guest. The unbound host agent
+exports policy to a host-only file consumed by the external sandbox daemon.
+Embedded microVM mode does not use this export contract because its gateway
+proxy reads the shared `PolicyEngine` directly.
 
 The contract is opt-in through two agent process environment variables:
 
@@ -368,10 +439,9 @@ dialing, rejecting loopback, link-local, private, and cloud metadata
 ranges, so that an allowed hostname cannot be used to reach the
 supervisor's own network position.
 
-### Attestation, not verification
+### Attestation and platform-run enforcement
 
-`egress_enforcement` is what the administrator claims the startup script
-built:
+`egress_enforcement` remains an administrator declaration:
 
 | Value      | Claim                                                                     |
 |------------|---------------------------------------------------------------------------|
@@ -379,10 +449,18 @@ built:
 | `advisory` | Proxy environment variables are set; a process that ignores them escapes. |
 | `none`     | No claim.                                                                 |
 
-The platform records and surfaces the claim through API and UI and must
-not present it as verified. Detecting a mismatch, for example an
-attested-`forced` sandbox whose proxy sees no traffic while the AI is
-active, is auditing work and belongs to the auditing vertical.
+For create-script and proxy-only modes, the platform records and surfaces the
+claim through API and UI but does not verify that the external owner built the
+stated boundary. Detecting a mismatch, for example an attested-`forced` sandbox
+whose proxy sees no traffic while the AI is active, is auditing work.
+
+Embedded microVM mode gives the claim a stronger basis. The Coder agent itself
+boots the guest with a private gateway, installs the in-process evaluator, and
+records its flows, so a `forced` declaration can describe a platform-run path
+instead of an external-script promise. The controller still does not infer or
+automatically set `forced`; it records the administrator's declared value. A
+boot failure reports degraded and starts no guest, rather than falling back to
+an unenforced path.
 
 ### Proxy access control
 
@@ -393,20 +471,24 @@ container-based sandbox generally cannot reach the host agent's loopback
 address, so the proxy must bind a reachable interface, which removes that
 boundary.
 
-The proxy must therefore authenticate its clients. Issue a per-sandbox
+A parent listener must therefore authenticate its clients. Issue a per-sandbox
 bearer token, require it on CONNECT and on forwarded requests, and reject
-unauthenticated clients. Without it, any process that can reach the
-listener can use the workspace's egress allowlist, and, more seriously,
-its traffic is recorded against the sandbox's session, which corrupts
-attribution for the auditing vertical.
+unauthenticated clients. Without it, any process that can reach the listener
+can use the workspace's egress allowlist and corrupt the sandbox session's
+network attribution.
 
-## What the platform supplies to the startup script
+Embedded microVM mode does not open this parent listener. Its gateway listener
+is private to one VM, and the embedded runtime supplies the trusted sandbox
+subject directly to the proxy connection context.
 
-The script cannot be self-contained: it needs values that do not exist
-until the agent is running, and it must not contain credentials, because a
-script body is stored server-side and readable through the API. The agent
-must therefore inject these at exec time rather than the template
-interpolating them:
+## What the platform supplies to a create script
+
+The create-script mode cannot be self-contained: it needs values that do not
+exist until the agent is running, and it must not contain credentials, because
+a script body is stored server-side and readable through the API. The agent
+must therefore inject these at exec time rather than the template interpolating
+them. Embedded microVM mode passes the same managed agent credentials directly
+to `StartEmbeddedMicroVM` and does not expose a create-script environment.
 
 | Variable                 | Purpose                                                                                        |
 |--------------------------|------------------------------------------------------------------------------------------------|
@@ -451,13 +533,14 @@ not repeated.
    audit record when the shape attests `forced`.
 6. **The confined party never consumes policy.** The sandbox never
    fetches, holds, or sees egress policy, on any channel.
-7. **Ordering.** The proxy is listening and the boundary is in place
+7. **Ordering.** The selected proxy is attached and the boundary is in place
    before the confined process can connect.
 8. **Fail closed on policy.** A policy fetch failure yields deny-all and a
    degraded report, never an unconfined sandbox.
 9. **Attestation honesty.** A declared enforcement level is recorded and
-   surfaced as a claim. The platform does not verify it and must not
-   present it as verified.
+   surfaced as a claim. Custom runtimes are not presented as verified;
+   embedded mode may state that its enforcement path is platform-run without
+   automatically changing the declared value.
 10. **Durable attribution.** Bound-agent requests and background events
     record actor equals agent and on-behalf-of equals sponsor. Egress
     records survive identity cleanup.
@@ -517,14 +600,16 @@ Step 5 depends on step 4's policy object but not on step 6.
 
 ## Known gaps and decisions still open
 
-- **MicroVM event retention.** In host-side policy export mode, the guest
-  uses the external runtime's proxy rather than the Coder confine proxy.
-  The external runtime may record requests locally, but those flows are not
-  yet retained as Coder AI sandbox network events.
-- **MicroVM IPv6 enforcement.** The current `coder/sandbox` VM firewall
-  parses and restricts IPv4 guest egress, but forwards IPv6 and other
-  non-IPv4 EtherTypes without equivalent policy enforcement. A template
-  using this backend must not attest `forced` until that gap is closed.
+- **External-runtime event retention.** In host-side policy export mode, the
+  guest uses the external runtime's proxy rather than a Coder proxy. The
+  external runtime may record requests locally, but those flows are not yet
+  retained as Coder AI sandbox network events. Embedded microVM mode does not
+  have this gap because its recorder feeds the normal event batcher.
+- **External `coder/sandbox` IPv6 enforcement.** The daemon-backed VM firewall
+  parses and restricts IPv4 guest egress, but forwards IPv6 and other non-IPv4
+  EtherTypes without equivalent policy enforcement. A create-script template
+  using this backend must not attest `forced` until that gap is closed. This
+  statement does not describe the embedded mode's platform-run gateway path.
 - **Wildcard widening.** Coder egress policy gives `*.example.com`
   single-label semantics. `coder/sandbox` treats the same syntax as an
   arbitrary-depth suffix. Policy export preserves the pattern, so this
@@ -533,19 +618,21 @@ Step 5 depends on step 4's policy object but not on step 6.
   include the exported `runtime.network` mapping from another file. The
   reload hook must re-render a complete descriptor, adding integration
   complexity and another file replacement step.
-- **Proxy client authentication** is specified above but is the single
+- **Parent proxy client authentication** is specified above but is the single
   largest gap between this document and a sound implementation of the
-  container backend.
+  container backend. Embedded microVM mode avoids the shared parent listener.
 - **Agent token reachability.** The host agent's token is deliberately
   placed in the agent environment and inherited by spawned processes, so a
   process the AI controls can call agent APIs as the host agent. Scrubbing
   it from AI-visible environments is worth investigating, but it may break
   `coder` subcommands that legitimately rely on it.
-- **Create-script failure semantics.** A failed sandbox build currently
-  has two defensible readings: leave the workspace running without the
-  sandbox and report degraded, or fail the build. The analogous
-  structural-confinement path treats setup failure as fatal. Decide
-  deliberately.
+- **Managed runtime failure semantics.** Create-script failure and embedded
+  microVM boot failure leave the host workspace running and report degraded.
+  Neither path may launch an unconfined child or fall back to another mode.
+- **KVM-gated validation.** Unit tests cover embedded controller wiring with a
+  fake VM, and the real boot smoke test skips without usable `/dev/kvm` access.
+  Guest boot, child connection, and live policy behavior still require regular
+  validation on a Linux amd64 KVM-capable host.
 - **Cross-sandbox isolation** within one workspace, if more than one
   sandbox is ever used, is unspecified.
 - **The deferred namespace shape** remains desirable for AI-designated
