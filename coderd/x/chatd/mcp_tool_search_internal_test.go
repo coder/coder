@@ -200,6 +200,20 @@ func TestDeriveDeferredMCPActivationsReusedCallIDs(t *testing.T) {
 	bWeight := estimateDeferredMCPToolTokens(candidates[1:2])
 	require.Equal(t, []string{"server__b"}, deriveDeferredMCPActivations(rows, candidates, bWeight),
 		"under budget the reused-ID success wins over newer errored calls")
+
+	// server__a's result is missing entirely; a later step reuses its
+	// ID for server__b whose result errors. The error belongs to the
+	// newer call, and the abandoned older call counts as successful.
+	missingResult := []database.ChatMessage{
+		row(t, database.ChatMessageRoleAssistant, codersdk.ChatMessageToolCall("call-1", "server__a", []byte(`{}`))),
+		row(t, database.ChatMessageRoleAssistant, codersdk.ChatMessageToolCall("call-1", "server__b", []byte(`{}`))),
+		row(t, database.ChatMessageRoleTool, codersdk.ChatMessageToolResult("call-1", "server__b", []byte(`"boom"`), true, false)),
+	}
+	require.Equal(t, []string{"server__a", "server__b"}, deriveDeferredMCPActivations(missingResult, candidates, 0),
+		"a reused ID must not assign the newer call's result to the older missing-result call")
+	aWeight := estimateDeferredMCPToolTokens(candidates[:1])
+	require.Equal(t, []string{"server__a"}, deriveDeferredMCPActivations(missingResult, candidates, aWeight),
+		"under budget the abandoned call keeps its successful position")
 }
 
 func TestFlattenMCPParameterText(t *testing.T) {

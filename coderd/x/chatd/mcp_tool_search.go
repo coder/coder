@@ -282,13 +282,14 @@ func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []defe
 			}
 		}
 	}
-	// Providers may reuse a tool-call ID in a later step, so each call
-	// pairs with its own result: walking oldest first, a result settles
-	// the oldest still-unpaired call with its ID. A call whose result
-	// was compacted away stays unpaired and counts as successful.
+	// Providers may reuse a tool-call ID in a later step, so a result
+	// settles the newest unpaired call with its ID: a new call abandons
+	// any older unpaired call, whose own result was lost or compacted
+	// away, and abandoned calls count as successful rather than
+	// adopting a later call's result.
 	type callRef struct{ row, part int }
 	callErrored := make(map[callRef]bool)
-	pendingByID := make(map[string][]callRef)
+	pendingByID := make(map[string]callRef)
 	for i := range rows {
 		for j, part := range parsedParts[i] {
 			if part.ToolCallID == "" {
@@ -296,11 +297,11 @@ func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []defe
 			}
 			switch part.Type {
 			case codersdk.ChatMessagePartTypeToolCall:
-				pendingByID[part.ToolCallID] = append(pendingByID[part.ToolCallID], callRef{row: i, part: j})
+				pendingByID[part.ToolCallID] = callRef{row: i, part: j}
 			case codersdk.ChatMessagePartTypeToolResult:
-				if refs := pendingByID[part.ToolCallID]; len(refs) > 0 {
-					callErrored[refs[0]] = part.IsError
-					pendingByID[part.ToolCallID] = refs[1:]
+				if ref, ok := pendingByID[part.ToolCallID]; ok {
+					callErrored[ref] = part.IsError
+					delete(pendingByID, part.ToolCallID)
 				}
 			}
 		}

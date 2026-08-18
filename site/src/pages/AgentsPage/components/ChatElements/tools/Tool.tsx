@@ -986,58 +986,49 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const parseStringList = (value: unknown): string[] | null => {
-	if (typeof value === "string") {
+// parseArray narrows a value (or its JSON-encoded string form) to an
+// array and maps every element with parseItem, returning null when the
+// value is not an array or any element fails to parse.
+const parseArray = <T,>(
+	value: unknown,
+	parseItem: (item: unknown) => T | null,
+): T[] | null => {
+	let array = value;
+	if (typeof array === "string") {
 		try {
-			return parseStringList(JSON.parse(value));
+			array = JSON.parse(array);
 		} catch {
 			return null;
 		}
 	}
-	if (!Array.isArray(value)) {
+	if (!Array.isArray(array)) {
 		return null;
 	}
-	const strings: string[] = [];
-	for (const item of value) {
-		if (typeof item !== "string") {
+	const items: T[] = [];
+	for (const item of array) {
+		const parsed = parseItem(item);
+		if (parsed === null) {
 			return null;
 		}
-		const trimmed = item.trim();
-		if (trimmed) {
-			strings.push(trimmed);
-		}
+		items.push(parsed);
 	}
-	return strings;
+	return items;
 };
 
-const parseFindToolsMatches = (value: unknown): FindToolsMatch[] | null => {
-	if (typeof value === "string") {
-		try {
-			return parseFindToolsMatches(JSON.parse(value));
-		} catch {
-			return null;
-		}
-	}
-	if (!Array.isArray(value)) {
-		return null;
-	}
-	const matches: FindToolsMatch[] = [];
-	for (const item of value) {
+const parseStringList = (value: unknown): string[] | null =>
+	parseArray(value, (item) =>
+		typeof item === "string" ? item.trim() : null,
+	)?.filter(Boolean) ?? null;
+
+const parseFindToolsMatches = (value: unknown): FindToolsMatch[] | null =>
+	parseArray(value, (item) => {
 		const record = asRecord(item);
-		if (
-			!record ||
-			typeof record.name !== "string" ||
-			typeof record.description !== "string"
-		) {
-			return null;
-		}
-		matches.push({
-			name: record.name,
-			description: record.description,
-		});
-	}
-	return matches;
-};
+		return record &&
+			typeof record.name === "string" &&
+			typeof record.description === "string"
+			? { name: record.name, description: record.description }
+			: null;
+	});
 
 const FindToolsRenderer: FC<ToolRendererProps> = (props) => {
 	const parsedArgs = parseArgs(props.args);
