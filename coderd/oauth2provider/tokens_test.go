@@ -92,6 +92,72 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 			mintedKeyScopes(ctx, t, db, token.RefreshToken))
 	})
 
+	// The scopes on the key only mean something once the authorizer reads them,
+	// so this drives the issued access token against the real API: one action
+	// the negotiated scope covers, one it does not. coder:workspaces.access
+	// carries template:read but not template:delete, and the user behind the
+	// grant owns the deployment, so the role permits both calls and the scope
+	// is the only thing standing between the client and the deletion.
+	t.Run("IssuedTokenBoundsTheAPI", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		tpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: owner.OrganizationID,
+			CreatedBy:      owner.UserID,
+		})
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		asApp := codersdk.New(client.URL)
+		asApp.SetSessionToken(token.AccessToken)
+
+		got, err := asApp.Template(ctx, tpl.ID)
+		require.NoError(t, err, "template:read is within the negotiated scope")
+		require.Equal(t, tpl.ID, got.ID)
+
+		err = asApp.DeleteTemplate(ctx, tpl.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+
+	// A grant that predates the scope columns carries what migration 000569
+	// backfilled onto it: coder:all, which records an unrestricted grant rather
+	// than an absent one. Refreshing one has to keep working and has to keep
+	// meaning unrestricted, so the row is seeded the way the migration leaves
+	// it instead of being written by an exchange this server just ran.
+	t.Run("BackfilledScopeRefreshesUnrestricted", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		tpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: owner.OrganizationID,
+			CreatedBy:      owner.UserID,
+		})
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, string(database.ApiKeyScopeCoderAll))
+
+		form := url.Values{}
+		form.Set("grant_type", "refresh_token")
+		form.Set("refresh_token", refreshToken)
+		form.Set("client_id", app.ID.String())
+		form.Set("client_secret", app.ClientSecret)
+		status, body := postTokenRequest(ctx, t, client, form)
+		refreshed := requireTokenResponse(t, status, body)
+
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken))
+
+		asApp := codersdk.New(client.URL)
+		asApp.SetSessionToken(refreshed.AccessToken)
+		require.NoError(t, asApp.DeleteTemplate(ctx, tpl.ID),
+			"an unrestricted grant must still reach what it reached before")
+	})
+
 	// A scope the api_key_scope enum does not define cannot become a key. The
 	// authorize endpoint cannot produce such a row, so the code is seeded
 	// directly: the case covers a row written before the name was removed, or
@@ -125,6 +191,7 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 type appWithSecret struct {
 	database.OAuth2ProviderApp
 	ClientSecret string
+	SecretID     uuid.UUID
 }
 
 func seedAppWithSecret(t *testing.T, db database.Store, allowlist sql.NullString) appWithSecret {
@@ -138,13 +205,49 @@ func seedAppWithSecret(t *testing.T, db database.Store, allowlist sql.NullString
 
 	secret, err := oauth2provider.GenerateSecret()
 	require.NoError(t, err)
-	dbgen.OAuth2ProviderAppSecret(t, db, database.OAuth2ProviderAppSecret{
+	dbSecret := dbgen.OAuth2ProviderAppSecret(t, db, database.OAuth2ProviderAppSecret{
 		AppID:        app.ID,
 		SecretPrefix: []byte(secret.Prefix),
 		HashedSecret: secret.Hashed,
 	})
 
-	return appWithSecret{OAuth2ProviderApp: app, ClientSecret: secret.Formatted}
+	return appWithSecret{
+		OAuth2ProviderApp: app,
+		ClientSecret:      secret.Formatted,
+		SecretID:          dbSecret.ID,
+	}
+}
+
+// seedRefreshToken writes a refresh token row for an existing grant and returns
+// the secret that redeems it, so a refresh can be exercised without the
+// exchange that would otherwise have written the row. dbgen is not used because
+// it derives expires_at from created_at, which would leave the row expired and
+// fail the refresh before it reaches the scope.
+func seedRefreshToken(ctx context.Context, t *testing.T, db database.Store, app appWithSecret, userID uuid.UUID, scope string) string {
+	t.Helper()
+
+	key, _ := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    userID,
+		LoginType: database.LoginTypeOAuth2ProviderApp,
+	})
+
+	secret, err := oauth2provider.GenerateSecret()
+	require.NoError(t, err)
+
+	_, err = db.InsertOAuth2ProviderAppToken(dbauthz.AsSystemRestricted(ctx), database.InsertOAuth2ProviderAppTokenParams{
+		ID:          uuid.New(),
+		CreatedAt:   dbtime.Now(),
+		ExpiresAt:   dbtime.Now().Add(time.Hour),
+		HashPrefix:  []byte(secret.Prefix),
+		RefreshHash: secret.Hashed,
+		AppID:       app.ID,
+		AppSecretID: uuid.NullUUID{UUID: app.SecretID, Valid: true},
+		APIKeyID:    key.ID,
+		UserID:      userID,
+		Scope:       scope,
+	})
+	require.NoError(t, err)
+	return secret.Formatted
 }
 
 // authorizeCode runs a full authorization and returns the issued code with the

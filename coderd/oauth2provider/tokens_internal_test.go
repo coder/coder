@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -34,6 +35,23 @@ func TestScopeStringToAPIKeyScopes(t *testing.T) {
 			database.ApiKeyScopeWorkspaceSsh,
 			database.ApiKeyScopeTemplateRead,
 		}, scopes)
+	})
+
+	// The scope catalog and the api_key_scope enum are maintained separately.
+	// A name the catalog offers but the enum does not define is negotiable at
+	// authorization and unmintable at exchange, so the client would hold a
+	// code it can never redeem. Driving the whole catalog through the
+	// conversion catches that drift when a name is added on one side only.
+	t.Run("EveryCatalogNameMintable", func(t *testing.T) {
+		t.Parallel()
+
+		names := rbac.ExternalScopeNames()
+		require.NotEmpty(t, names)
+		for _, name := range names {
+			scopes, err := scopeStringToAPIKeyScopes(name)
+			require.NoErrorf(t, err, "scope %q can be negotiated but not minted", name)
+			require.Equal(t, database.APIKeyScopes{database.APIKeyScope(name)}, scopes)
+		}
 	})
 
 	t.Run("UnknownNameRejected", func(t *testing.T) {
