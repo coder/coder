@@ -533,13 +533,13 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		require.True(t, byResourceID[deletedID].IsDeleted)
 	})
 
-	t.Run("WriteDeniedAudited", func(t *testing.T) {
+	t.Run("WriteDeniedConcealed", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, mAudit := newAuditedMCPClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client)
-		memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		config := createMCPServerConfig(t, client, firstUser.OrganizationID, "audit-denied", true)
 
 		mAudit.ResetLogs()
@@ -549,41 +549,25 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		})
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		require.Equal(t, database.AuditActionWrite, logs[0].Action)
-		require.Equal(t, database.ResourceTypeMCPServerConfig, logs[0].ResourceType)
-		require.Equal(t, config.ID, logs[0].ResourceID)
-		require.Equal(t, member.ID, logs[0].UserID)
-		require.Equal(t, firstUser.OrganizationID, logs[0].OrganizationID)
-		require.EqualValues(t, http.StatusForbidden, logs[0].StatusCode)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.Empty(t, mAudit.AuditLogs())
 	})
 
-	t.Run("DeleteDeniedAudited", func(t *testing.T) {
+	t.Run("DeleteDeniedConcealed", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, mAudit := newAuditedMCPClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client)
-		memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		config := createMCPServerConfig(t, client, firstUser.OrganizationID, "audit-delete-denied", true)
 
 		mAudit.ResetLogs()
 		err := memberClient.DeleteMCPServerConfig(ctx, firstUser.OrganizationID, config.ID)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		require.Equal(t, database.AuditActionDelete, logs[0].Action)
-		require.Equal(t, database.ResourceTypeMCPServerConfig, logs[0].ResourceType)
-		require.Equal(t, config.ID, logs[0].ResourceID)
-		require.Equal(t, member.ID, logs[0].UserID)
-		require.Equal(t, firstUser.OrganizationID, logs[0].OrganizationID)
-		require.EqualValues(t, http.StatusForbidden, logs[0].StatusCode)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.Empty(t, mAudit.AuditLogs())
 	})
 }
 
@@ -775,16 +759,13 @@ func TestMCPServerConfigACL(t *testing.T) {
 
 	_, err = groupMemberClient.MCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID)
 	require.ErrorAs(t, err, &sdkErr)
-	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 
 	mAudit.ResetLogs()
 	err = groupMemberClient.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{})
 	require.ErrorAs(t, err, &sdkErr)
-	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-	logs = mAudit.AuditLogs()
-	require.Len(t, logs, 1)
-	require.EqualValues(t, http.StatusForbidden, logs[0].StatusCode)
-	require.Equal(t, groupMember.ID, logs[0].UserID)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	require.Empty(t, mAudit.AuditLogs())
 
 	err = adminClient.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
 		UserRoles: map[string]codersdk.MCPServerConfigRole{
