@@ -8,6 +8,7 @@ import { API } from "#/api/api";
 import { mcpServerConfigKey } from "#/api/queries/chats";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -46,33 +47,40 @@ type MCPOrganizationStoryPermissions = Readonly<{
 	delete?: boolean;
 }>;
 
+const organizationPermissionsResponse = (
+	permissionsByOrganizationId: Readonly<
+		Record<string, MCPOrganizationStoryPermissions>
+	>,
+	checks: Readonly<Record<string, TypesGen.AuthorizationCheck>>,
+) =>
+	Object.fromEntries(
+		Object.keys(checks).map((key) => {
+			const separator = key.indexOf(".");
+			const organizationId = key.slice(0, separator);
+			const permission = key.slice(separator + 1);
+			const permissions = permissionsByOrganizationId[organizationId];
+			const allowed =
+				permission === "viewMCPServerConfigs"
+					? permissions?.view
+					: permission === "createMCPServerConfig"
+						? permissions?.create
+						: permission === "updateMCPServerConfig"
+							? permissions?.update
+							: permission === "deleteMCPServerConfig"
+								? permissions?.delete
+								: false;
+			return [key, Boolean(allowed)];
+		}),
+	);
+
 const mockOrganizationPermissions = (
 	permissionsByOrganizationId: Readonly<
 		Record<string, MCPOrganizationStoryPermissions>
 	>,
-) => {
+) =>
 	spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
-		Object.fromEntries(
-			Object.keys(checks).map((key) => {
-				const separator = key.indexOf(".");
-				const organizationId = key.slice(0, separator);
-				const permission = key.slice(separator + 1);
-				const permissions = permissionsByOrganizationId[organizationId];
-				const allowed =
-					permission === "viewMCPServerConfigs"
-						? permissions?.view
-						: permission === "createMCPServerConfig"
-							? permissions?.create
-							: permission === "updateMCPServerConfig"
-								? permissions?.update
-								: permission === "deleteMCPServerConfig"
-									? permissions?.delete
-									: false;
-				return [key, Boolean(allowed)];
-			}),
-		),
+		organizationPermissionsResponse(permissionsByOrganizationId, checks),
 	);
-};
 
 const RefetchServerDetailProbe: FC = () => {
 	const queryClient = useQueryClient();
@@ -100,13 +108,15 @@ const withRefetchServerDetailProbe: Decorator = (Story) => (
 
 const RefetchPermissionsProbe: FC = () => {
 	const queryClient = useQueryClient();
+	const { organizations } = useDashboard();
 	return (
 		<button
 			type="button"
 			onClick={() =>
 				void queryClient.refetchQueries({
-					queryKey: organizationsPermissions([MockDefaultOrganization.id])
-						.queryKey,
+					queryKey: organizationsPermissions(
+						organizations.map((organization) => organization.id),
+					).queryKey,
 					exact: true,
 				})
 			}
@@ -577,6 +587,7 @@ export const CreateOnlyOrgAdminCanAddMCPServer: Story = {
 
 export const AddDeniedRequestedOrganizationDoesNotFallback: Story = {
 	render: () => <AddMCPServerPage />,
+	decorators: [withRefetchPermissionsProbe],
 	parameters: {
 		permissions: {
 			editDeploymentConfig: false,
@@ -595,14 +606,30 @@ export const AddDeniedRequestedOrganizationDoesNotFallback: Story = {
 		}),
 	},
 	beforeEach: () => {
-		mockOrganizationPermissions({
+		const checkAuthorization = mockOrganizationPermissions({
 			[MockDefaultOrganization.id]: {},
 			[MockOrganization2.id]: { create: true },
 		});
+		checkAuthorization.mockImplementationOnce(async ({ checks }) =>
+			organizationPermissionsResponse(
+				{
+					[MockDefaultOrganization.id]: { view: true, create: true },
+					[MockOrganization2.id]: { create: true },
+				},
+				checks,
+			),
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.type(
+			await canvas.findByLabelText(/display name/i),
+			"Draft server",
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Refetch permissions" }),
+		);
 		await expect(
 			await body.findByText("You don't have permission to view this page"),
 		).toBeInTheDocument();
