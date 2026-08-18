@@ -16,7 +16,7 @@ variable "docker_socket" {
 }
 
 variable "workspace_image" {
-  description = "Image for the workspace container that runs the Coder agent."
+  description = "Image for the workspace container that runs the host Coder agent."
   type        = string
   default     = "codercom/enterprise-base:ubuntu"
 }
@@ -58,32 +58,23 @@ data "coder_parameter" "kvm_gid" {
 
 locals {
   workspace_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  agent_init = replace(
+  host_agent_init = replace(
     coder_agent.main.init_script,
     "/localhost|127\\.0\\.0\\.1/",
     "host.docker.internal",
   )
-
-  sandbox_env = {
-    CODER_AI_SANDBOX_MICROVM            = "true"
-    CODER_AI_SANDBOX_NAME               = "microvm"
-    CODER_AI_SANDBOX_IMAGE              = var.sandbox_image
-    CODER_AI_SANDBOX_MEMORY_MIB         = tostring(var.sandbox_memory_mib)
-    CODER_AI_SANDBOX_CPUS               = tostring(var.sandbox_cpus)
-    CODER_AI_SANDBOX_EGRESS_ENFORCEMENT = "forced"
-  }
 }
 
 resource "coder_agent" "main" {
   arch = "amd64"
   os   = "linux"
 
-  env = merge(local.sandbox_env, {
+  env = {
     GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_AUTHOR_EMAIL    = data.coder_workspace_owner.me.email
     GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL = data.coder_workspace_owner.me.email
-  })
+  }
 
   metadata {
     display_name = "CPU Usage"
@@ -100,6 +91,49 @@ resource "coder_agent" "main" {
     interval     = 10
     timeout      = 1
   }
+}
+
+resource "coder_agent" "ai" {
+  arch = "amd64"
+  os   = "linux"
+
+  ai_bound           = true
+  egress_enforcement = "forced"
+}
+
+resource "coder_script" "sandbox" {
+  agent_id           = coder_agent.main.id
+  display_name       = "Start AI microVM sandbox"
+  run_on_start       = true
+  start_blocks_login = false
+  script             = <<-EOT
+    #!/bin/sh
+    set -eu
+
+    log_file=/tmp/coder-agent-sandbox.log
+    pid_file=/tmp/coder-agent-sandbox.pid
+
+    if [ -s "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
+      echo "coder agent sandbox is already running with PID $(cat "$pid_file")" >>"$log_file"
+      exit 0
+    fi
+
+    coder_bin="$(readlink -f /proc/$PPID/exe 2>/dev/null || true)"
+    case "$coder_bin" in
+      *coder*) ;;
+      *) coder_bin="$(command -v coder || true)" ;;
+    esac
+    if [ ! -x "$coder_bin" ]; then
+      echo "cannot locate coder agent binary" >&2
+      exit 1
+    fi
+
+    echo "starting coder agent sandbox at $(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$log_file"
+    nohup "$coder_bin" agent sandbox </dev/null >>"$log_file" 2>&1 &
+    sandbox_pid=$!
+    echo "$sandbox_pid" >"$pid_file"
+    echo "started coder agent sandbox with PID $sandbox_pid; logs: $log_file"
+  EOT
 }
 
 resource "docker_volume" "home_volume" {
@@ -130,11 +164,14 @@ resource "docker_container" "workspace" {
   name     = local.workspace_name
   hostname = data.coder_workspace.me.name
 
-  entrypoint = ["sh", "-c", local.agent_init]
-  env = concat(
-    ["CODER_AGENT_TOKEN=${coder_agent.main.token}"],
-    [for name, value in local.sandbox_env : "${name}=${value}"],
-  )
+  entrypoint = ["sh", "-c", local.host_agent_init]
+  env = [
+    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+    "CODER_SANDBOX_AGENT_TOKEN=${coder_agent.ai.token}",
+    "CODER_SANDBOX_IMAGE=${var.sandbox_image}",
+    "CODER_SANDBOX_MEMORY_MIB=${var.sandbox_memory_mib}",
+    "CODER_SANDBOX_CPUS=${var.sandbox_cpus}",
+  ]
 
   group_add = [data.coder_parameter.kvm_gid.value]
 
@@ -149,9 +186,6 @@ resource "docker_container" "workspace" {
     ip   = "host-gateway"
   }
 
-  # The agent stores downloaded runtime artifacts and OCI image layers below
-  # ~/.config/coder-ai/microvm, so the home volume makes first-boot downloads
-  # reusable across workspace restarts.
   volumes {
     container_path = "/home/coder"
     volume_name    = docker_volume.home_volume.name
