@@ -29,10 +29,10 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+	StatusIndicator,
+	StatusIndicatorDot,
+	type StatusIndicatorProps,
+} from "#/components/StatusIndicator/StatusIndicator";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useIsBelowMdViewport } from "#/hooks/useIsBelowMdViewport";
@@ -47,6 +47,7 @@ import {
 	usePortsData,
 } from "#/modules/resources/usePortsData";
 import { cn } from "#/utils/cn";
+import type { DisplayWorkspaceStatusType } from "#/utils/workspace";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
 import { MobilePortsPanel, PortsMenuItem } from "./WorkspacePillPorts";
 
@@ -68,11 +69,10 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	onRemoveWorkspace,
 }) => {
 	const [open, setOpen] = useState(false);
-	const [tooltipOpen, setTooltipOpen] = useState(false);
 	const isRunning = workspace.latest_build.status === "running";
 	const route = `/@${workspace.owner_name}/${workspace.name}`;
 
-	const { effectiveType, statusLabel } = getWorkspaceStatus(workspace, agent);
+	const { effectiveType, statusText } = getWorkspaceStatus(workspace, agent);
 
 	const { mutate: generateKey, isPending: isGeneratingKey } = useMutation({
 		mutationFn: () => API.getApiKey(),
@@ -126,40 +126,30 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 			}}
 		>
 			<span className="inline-flex min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary md:min-w-[2.75rem]">
-				<Tooltip
-					open={tooltipOpen}
-					onOpenChange={(v) => setTooltipOpen(v && !open)}
-				>
-					<TooltipTrigger asChild>
-						<DropdownMenuTrigger asChild>
-							<button
-								type="button"
-								aria-label={`${workspace.name} workspace menu`}
-								className={cn(
-									"inline-flex min-w-0 cursor-pointer items-center justify-center gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-									"size-7 md:size-auto md:max-w-[200px] md:justify-start md:px-2 md:py-0.5",
-								)}
-							>
-								<StatusIcon
-									type={effectiveType}
-									className="size-icon-sm shrink-0 md:size-3"
-								/>
-								<span className="hidden min-w-0 truncate md:inline">
-									{workspace.name}
-								</span>
-								<ChevronDownIcon
-									className={cn(
-										"hidden size-3 shrink-0 opacity-60 transition-transform md:block",
-										open && "rotate-180",
-									)}
-								/>
-							</button>
-						</DropdownMenuTrigger>
-					</TooltipTrigger>
-					<TooltipContent className="hidden md:block">
-						{statusLabel}
-					</TooltipContent>
-				</Tooltip>
+				<DropdownMenuTrigger asChild>
+					<button
+						type="button"
+						aria-label={`${workspace.name} workspace menu`}
+						className={cn(
+							"inline-flex min-w-0 cursor-pointer items-center justify-center gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+							"size-7 md:size-auto md:max-w-[200px] md:justify-start md:px-2 md:py-0.5",
+						)}
+					>
+						<StatusIcon
+							type={effectiveType}
+							className="size-icon-sm shrink-0 md:size-3"
+						/>
+						<span className="hidden min-w-0 truncate md:inline">
+							{workspace.name}
+						</span>
+						<ChevronDownIcon
+							className={cn(
+								"hidden size-3 shrink-0 opacity-60 transition-transform md:block",
+								open && "rotate-180",
+							)}
+						/>
+					</button>
+				</DropdownMenuTrigger>
 			</span>
 
 			<DropdownMenuContent
@@ -243,10 +233,20 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						)}
 
 						{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
-						<DropdownMenuItem asChild>
+						<DropdownMenuItem asChild className="items-start">
 							<Link to={route} target="_blank" rel="noreferrer">
-								<MonitorIcon className="size-3.5" />
-								View Workspace
+								<MonitorIcon className="mt-px size-3.5 shrink-0" />
+								<span className="flex min-w-0 flex-col">
+									<span className="truncate">View Workspace</span>
+									<StatusIndicator
+										size="sm"
+										variant={statusDotVariant[effectiveType]}
+										className="min-w-0 font-normal"
+									>
+										<StatusIndicatorDot />
+										<span className="truncate">{statusText}</span>
+									</StatusIndicator>
+								</span>
 							</Link>
 						</DropdownMenuItem>
 						{onRemoveWorkspace && (
@@ -266,6 +266,18 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
+};
+
+const statusDotVariant: Record<
+	DisplayWorkspaceStatusType,
+	StatusIndicatorProps["variant"]
+> = {
+	success: "success",
+	active: "pending",
+	inactive: "inactive",
+	error: "failed",
+	danger: "failed",
+	warning: "warning",
 };
 
 const VSCodeMenuItem: FC<{
