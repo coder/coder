@@ -170,16 +170,14 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		"Username": resp.GetUsername(),
 	}))
 
-	handler, err := s.GetRequestHandler(ctx, Request{
+	err = s.Serve(ctx, Request{
 		SessionKey:  key,
 		APIKeyID:    resp.ApiKeyId,
 		InitiatorID: id,
-	})
+	}, rw, r)
 	if err != nil {
 		logger.Warn(ctx, "failed to acquire request handler", slog.Error(err))
 		http.Error(rw, ErrAcquireRequestHandler.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	handler.ServeHTTP(rw, r)
 }

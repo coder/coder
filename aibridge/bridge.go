@@ -86,6 +86,7 @@ type RequestBridge struct {
 
 	clock quartz.Clock
 
+	retireOnce   sync.Once
 	shutdownOnce sync.Once
 	closed       chan struct{}
 }
@@ -390,15 +391,14 @@ func writeRequestBodyTooLarge(w http.ResponseWriter) {
 	), http.StatusRequestEntityTooLarge)
 }
 
-// ServeHTTP exposes the internal http.Handler, which has all [Provider]s' routes registered.
-// It also tracks inflight requests.
-func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+// admit reserves an in-flight slot for one request. It returns false after the
+// bridge has been retired.
+func (b *RequestBridge) admit() (release func(), ok bool) {
 	b.inflightMu.RLock()
 	select {
 	case <-b.closed:
 		b.inflightMu.RUnlock()
-		http.Error(rw, "server closed", http.StatusInternalServerError)
-		return
+		return nil, false
 	default:
 	}
 
@@ -408,11 +408,27 @@ func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	b.inflightReqs.Add(1)
 	b.inflightWG.Add(1)
 	b.inflightMu.RUnlock()
-	defer func() {
+	return func() {
 		b.inflightReqs.Add(-1)
 		b.inflightWG.Done()
-	}()
+	}, true
+}
 
+// TryServe admits and serves one request. It returns false if the bridge has
+// been retired, in which case the caller must retry with another bridge.
+func (b *RequestBridge) TryServe(rw http.ResponseWriter, r *http.Request) bool {
+	release, ok := b.admit()
+	if !ok {
+		return false
+	}
+	defer release()
+
+	b.serveAdmitted(rw, r)
+	return true
+}
+
+// serveAdmitted serves a request which already holds an in-flight slot.
+func (b *RequestBridge) serveAdmitted(rw http.ResponseWriter, r *http.Request) {
 	// We want to abide by the context passed in without losing any of its
 	// functionality, but we still want to link our shutdown context to each
 	// request.
@@ -424,16 +440,31 @@ func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	b.mux.ServeHTTP(rw, r.WithContext(ctx))
 }
 
-// Shutdown will attempt to gracefully shutdown. This entails waiting for all requests to
-// complete, and shutting down the MCP server proxier.
-// TODO: add tests.
-func (b *RequestBridge) Shutdown(ctx context.Context) error {
-	var err error
-	b.shutdownOnce.Do(func() {
-		// Close under inflightMu so no ServeHTTP sits mid-admission (see inflightMu).
+// ServeHTTP exposes the internal http.Handler, which has all [Provider]s' routes registered.
+// It also tracks inflight requests.
+func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	if !b.TryServe(rw, r) {
+		http.Error(rw, "server closed", http.StatusInternalServerError)
+	}
+}
+
+// Retire prevents new requests from being admitted. Already admitted requests
+// continue until they complete or a shutdown context cancels them.
+func (b *RequestBridge) Retire() {
+	b.retireOnce.Do(func() {
+		// Close under inflightMu so no request sits mid-admission.
 		b.inflightMu.Lock()
 		close(b.closed)
 		b.inflightMu.Unlock()
+	})
+}
+
+// Shutdown retires the bridge, waits for admitted requests to complete, and
+// shuts down the MCP server proxier.
+func (b *RequestBridge) Shutdown(ctx context.Context) error {
+	var err error
+	b.shutdownOnce.Do(func() {
+		b.Retire()
 
 		// Wait for inflight requests to complete or context cancellation.
 		done := make(chan struct{})

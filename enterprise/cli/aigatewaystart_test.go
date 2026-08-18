@@ -495,11 +495,16 @@ func requireAIGatewaySessions(ctx context.Context, t *testing.T, dep *aiGatewayD
 	return sessions
 }
 
-// TestAIGatewayStartE2E_ReconnectAfterDisconnect covers a coderd outage: the
-// gateway serves LLM traffic again once coderd returns, without any operator
-// intervention, which requires the provider cache and the recorder to recover
-// alongside the DRPC connection.
-func TestAIGatewayStartE2E_ReconnectAfterDisconnect(t *testing.T) {
+// TestAIGatewayStartE2E_CoderdOutage covers a coderd outage end to end: traffic
+// is served before it, a request arriving during it is parked rather than
+// failed, readiness withdraws and recovers, and afterwards both the parked
+// request and a new one are served. Serving again requires the provider cache
+// and the recorder to recover alongside the DRPC connection.
+//
+// Readiness transitions appear here as steps. The full matrix, including
+// /healthz staying up throughout, is asserted by
+// TestStandaloneGatewayHealthAndReadiness.
+func TestAIGatewayStartE2E_CoderdOutage(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -514,7 +519,8 @@ func TestAIGatewayStartE2E_ReconnectAfterDisconnect(t *testing.T) {
 	before := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 
-	// Then: it is served and recorded.
+	// Then: it is served and recorded. Waiting for the record here keeps the
+	// outage below from cutting the recording RPCs of this request.
 	require.NoError(t, before.err)
 	require.Equal(t, http.StatusOK, before.status, "body: %s", before.body)
 	requireAIGatewaySessions(ctx, t, dep, 1)
@@ -522,8 +528,25 @@ func TestAIGatewayStartE2E_ReconnectAfterDisconnect(t *testing.T) {
 	// When: coderd becomes unreachable.
 	proxy.disconnect()
 
-	// Then: readiness withdraws.
+	// Then: readiness withdraws, so a load balancer stops sending traffic.
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusServiceUnavailable)
+
+	// When: a request arrives during the outage.
+	responses := make(chan aiGatewayResponse, 1)
+	go func() {
+		responses <- postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+			dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
+	}()
+
+	// Then: it is parked rather than failed, and does not reach the upstream
+	// before it is authorized. The proxy is still unhealthy, so there is no path
+	// for it to complete; the window only has to cover it reaching the handler.
+	select {
+	case result := <-responses:
+		t.Fatalf("request completed while disconnected: status=%d, err=%v", result.status, result.err)
+	case <-time.After(testutil.IntervalMedium):
+	}
+	require.Equal(t, int32(1), dep.upstreamHits.Load(), "a request must not reach the upstream while it cannot be authorized")
 
 	// When: coderd is reachable again.
 	proxy.setHealthy(true)
@@ -531,58 +554,21 @@ func TestAIGatewayStartE2E_ReconnectAfterDisconnect(t *testing.T) {
 	// Then: readiness recovers with no intervention.
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
-	// Then: a new request is served and both interceptions are recorded, so the
-	// provider cache and the recorder recovered with the connection.
+	// Then: the parked request is served.
+	parked := testutil.RequireReceive(ctx, t, responses)
+	require.NoError(t, parked.err)
+	require.Equal(t, http.StatusOK, parked.status, "body: %s", parked.body)
+	require.Contains(t, string(parked.body), "standalone gateway e2e response")
+
+	// Then: a request arriving after the outage is served too, and every
+	// interception is recorded.
 	after := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 	require.NoError(t, after.err)
 	require.Equal(t, http.StatusOK, after.status, "body: %s", after.body)
 	require.Contains(t, string(after.body), "standalone gateway e2e response")
-	require.Equal(t, int32(2), dep.upstreamHits.Load())
-	requireAIGatewaySessions(ctx, t, dep, 2)
-}
-
-// TestAIGatewayStartE2E_RequestWhileDisconnected pins the behavior of an LLM
-// request that arrives while the gateway has no DRPC connection to coderd. The
-// request is parked until the connection returns rather than failing fast,
-// because the pre-flight calls block in [aibridged.Server.Client] with the
-// caller's context as the only bound.
-func TestAIGatewayStartE2E_RequestWhileDisconnected(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	dep := setupAIGatewayDeployment(ctx, t)
-
-	// Given: a ready gateway that then loses its connection to coderd.
-	proxy := newChaosProxy(t, dep.client.URL)
-	baseURL, _ := startAIGatewayCommand(ctx, t, proxy.srv.URL, dep.key)
-	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
-	proxy.disconnect()
-	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusServiceUnavailable)
-
-	// When: a request arrives while the gateway has no connection to coderd.
-	responses := make(chan aiGatewayResponse, 1)
-	go func() {
-		responses <- postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
-			dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
-	}()
-
-	// Then: it does not fail fast, and it does not reach the upstream before it
-	// is authorized which requires a connection to coderd.
-	select {
-	case result := <-responses:
-		t.Fatalf("request completed while disconnected: status=%d, err=%v", result.status, result.err)
-	case <-time.After(testutil.IntervalMedium):
-	}
-	require.Equal(t, int32(0), dep.upstreamHits.Load(), "a request must not reach the upstream before it is authorized")
-
-	// When: coderd returns. Then: the parked request is served.
-	proxy.setHealthy(true)
-	result := testutil.RequireReceive(ctx, t, responses)
-	require.NoError(t, result.err)
-	require.Equal(t, http.StatusOK, result.status, "body: %s", result.body)
-	require.Contains(t, string(result.body), "standalone gateway e2e response")
-	require.Equal(t, int32(1), dep.upstreamHits.Load(), "the parked request reaches the upstream once it is authorized")
+	require.Equal(t, int32(3), dep.upstreamHits.Load())
+	requireAIGatewaySessions(ctx, t, dep, 3)
 }
 
 // readAIGatewayStreamEvent returns the payload of the next server-sent event,

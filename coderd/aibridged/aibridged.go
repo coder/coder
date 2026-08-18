@@ -183,18 +183,19 @@ func (s *Server) Client(ctx context.Context) (DRPCClient, error) {
 	}
 }
 
-// GetRequestHandler retrieves a (possibly reused) [*aibridge.RequestBridge] from the pool, for the given user.
-func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handler, error) {
+// Serve retrieves a (possibly reused) [*aibridge.RequestBridge] from the pool
+// for the given user and serves the request through it.
+func (s *Server) Serve(ctx context.Context, req Request, rw http.ResponseWriter, r *http.Request) error {
 	if s.requestBridgePool == nil {
-		return nil, xerrors.New("nil requestBridgePool")
+		return xerrors.New("nil requestBridgePool")
 	}
 
-	reqBridge, err := s.requestBridgePool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.tracer, s.Client))
+	err := s.requestBridgePool.Serve(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.tracer, s.Client), rw, r)
 	if err != nil {
-		return nil, xerrors.Errorf("acquire request bridge: %w", err)
+		return xerrors.Errorf("acquire request bridge: %w", err)
 	}
 
-	return reqBridge, nil
+	return nil
 }
 
 // Ready reports whether the server currently has an active DRPC connection to coderd.

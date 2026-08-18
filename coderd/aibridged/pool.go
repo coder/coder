@@ -2,6 +2,7 @@ package aibridged
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"slices"
 	"strconv"
@@ -18,23 +19,23 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/keypool"
-	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/quartz"
 )
 
-const (
-	cacheCost = 1 // We can't know the actual size in bytes of the value (it'll change over time).
+const cacheCost = 1
+
+var (
+	errGenerationRetired = xerrors.New("provider generation retired")
+	errCacheRejected     = xerrors.New("request bridge rejected by cache")
 )
 
-// Pooler describes a pool of [*aibridge.RequestBridge] instances from which instances can be retrieved.
-// One [*aibridge.RequestBridge] instance is created per given key.
+// Pooler describes a pool of [*aibridge.RequestBridge] instances.
 type Pooler interface {
-	Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpBootstrapper MCPProxyBuilder) (http.Handler, error)
+	Serve(ctx context.Context, req Request, clientFn ClientFunc, mcpBootstrapper MCPProxyBuilder, rw http.ResponseWriter, r *http.Request) error
 	// ReplaceProviders swaps the providers used to construct future
-	// RequestBridge instances and clears the cache. Disabled providers
-	// must be included; the bridge serves a 503 sentinel on their
-	// routes.
+	// RequestBridge instances. Disabled providers must be included; the bridge
+	// serves a 503 sentinel on their routes.
 	ReplaceProviders(providers []aibridge.Provider)
 	Shutdown(ctx context.Context) error
 }
@@ -56,17 +57,35 @@ var DefaultPoolOptions = PoolOptions{MaxItems: 5000, TTL: time.Minute * 15}
 
 var _ Pooler = &CachedBridgePool{}
 
-type CachedBridgePool struct {
-	cache *ristretto.Cache[string, *aibridge.RequestBridge]
-	clock quartz.Clock
-	// providers is the live provider set used by new RequestBridge
-	// instances. Includes disabled providers.
-	providers       atomic.Pointer[[]aibridge.Provider]
-	providerVersion atomic.Int64
-	logger          slog.Logger
-	options         PoolOptions
+type providerGeneration struct {
+	id        uint64
+	providers []aibridge.Provider
 
-	singleflight *singleflight.Group[string, *aibridge.RequestBridge]
+	mu        sync.Mutex
+	retired   bool
+	entries   map[*bridgeEntry]struct{}
+	publishWG sync.WaitGroup
+}
+
+type bridgeEntry struct {
+	key        string
+	generation *providerGeneration
+	bridge     *aibridge.RequestBridge
+	retired    atomic.Bool
+	retireOnce sync.Once
+}
+
+type CachedBridgePool struct {
+	cache *ristretto.Cache[string, *bridgeEntry]
+	clock quartz.Clock
+
+	generation atomic.Pointer[providerGeneration]
+	replaceMu  sync.Mutex
+
+	logger  slog.Logger
+	options PoolOptions
+
+	singleflight *singleflight.Group[string, *bridgeEntry]
 
 	metrics *aibridge.Metrics
 	tracer  trace.Tracer
@@ -74,106 +93,112 @@ type CachedBridgePool struct {
 	shutDownOnce   sync.Once
 	shuttingDownCh chan struct{}
 
-	// cacheMu + cacheWG order cache use against Shutdown. Without it,
-	// (*ristretto.Cache).Close may race against cache usage.
+	// cacheMu and cacheWG order complete pool operations against Shutdown.
+	// This prevents cache use and retirement registration after cache.Close.
 	cacheMu sync.RWMutex
 	cacheWG sync.WaitGroup
+
+	retirementCtx    context.Context
+	retirementCancel context.CancelFunc
+	retirementWG     sync.WaitGroup
 }
 
 func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, logger slog.Logger, metrics *aibridge.Metrics, tracer trace.Tracer) (*CachedBridgePool, error) {
-	cache, err := ristretto.NewCache(&ristretto.Config[string, *aibridge.RequestBridge]{
-		NumCounters:        options.MaxItems * 10,        // Docs suggest setting this 10x number of keys.
-		MaxCost:            options.MaxItems * cacheCost, // Up to n instances.
-		IgnoreInternalCost: true,                         // Don't try estimate cost using bytes (ristretto does this naïvely anyway, just using the size of the value struct not the REAL memory usage).
-		BufferItems:        64,                           // Sticking with recommendation from docs.
-		Metrics:            true,                         // Collect metrics (only used in tests, for now).
-		OnEvict: func(item *ristretto.Item[*aibridge.RequestBridge]) {
-			if item == nil || item.Value == nil {
-				return
-			}
-			// Capture the value synchronously: ristretto reuses the
-			// item slot after OnEvict returns, so reading item.Value
-			// from the goroutine below races with the caller of
-			// Clear/Set. The shutdown still runs in the background to
-			// avoid blocking ristretto's eviction loop.
-			bridge := item.Value
-			go func() {
-				shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				defer cancel()
-				_ = bridge.Shutdown(shutdownCtx)
-			}()
-		},
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("create cache: %w", err)
-	}
-
 	clk := options.Clock
 	if clk == nil {
 		clk = quartz.NewReal()
 	}
 
+	retirementCtx, retirementCancel := context.WithCancel(context.Background())
 	pool := &CachedBridgePool{
-		cache:   cache,
 		clock:   clk,
 		options: options,
 		metrics: metrics,
 		tracer:  tracer,
 		logger:  logger,
 
-		singleflight: &singleflight.Group[string, *aibridge.RequestBridge]{},
+		singleflight: &singleflight.Group[string, *bridgeEntry]{},
 
 		shuttingDownCh: make(chan struct{}),
+
+		retirementCtx:    retirementCtx,
+		retirementCancel: retirementCancel,
 	}
-	initial := slices.Clone(providers)
-	pool.providers.Store(&initial)
+
+	cache, err := ristretto.NewCache(&ristretto.Config[string, *bridgeEntry]{
+		NumCounters:        options.MaxItems * 10,
+		MaxCost:            options.MaxItems * cacheCost,
+		IgnoreInternalCost: true,
+		BufferItems:        64,
+		Metrics:            true,
+		OnExit: func(entry *bridgeEntry) {
+			if entry != nil {
+				entry.retire(pool)
+			}
+		},
+	})
+	if err != nil {
+		retirementCancel()
+		return nil, xerrors.Errorf("create cache: %w", err)
+	}
+	pool.cache = cache
+
+	initial := &providerGeneration{
+		id:        1,
+		providers: slices.Clone(providers),
+		entries:   make(map[*bridgeEntry]struct{}),
+	}
+	pool.generation.Store(initial)
 	return pool, nil
 }
 
-// ReplaceProviders swaps the provider snapshot used by future Acquires.
-// It is safe to call concurrently with Acquire and is a no-op after
-// Shutdown.
+// ReplaceProviders publishes a new provider generation and retires the old one.
+// Already admitted requests continue to drain against their original generation.
 func (p *CachedBridgePool) ReplaceProviders(providers []aibridge.Provider) {
-	p.cacheMu.RLock()
-	select {
-	case <-p.shuttingDownCh:
-		p.cacheMu.RUnlock()
+	if !p.beginOperation() {
 		return
-	default:
 	}
-	p.cacheWG.Add(1)
-	p.cacheMu.RUnlock()
 	defer p.cacheWG.Done()
 
-	snapshot := slices.Clone(providers)
-	p.providers.Store(&snapshot)
-	version := p.clock.Now("provider_reload_version").UnixNano()
-	p.providerVersion.Store(version)
-	// Clear evicts every cached bridge; OnEvict shuts each one down in
-	// the background. Wait for buffered writes to drain so a replacement
-	// immediately followed by an Acquire always sees the cleared cache.
-	p.cache.Clear()
-	p.cache.Wait()
-	p.logger.Info(context.Background(), "request bridge pool reloaded",
-		slog.F("provider_count", len(snapshot)),
-		slog.F("provider_version", version),
-	)
-}
-
-// loadProviders returns the current providers snapshot. The returned
-// slice must not be mutated.
-func (p *CachedBridgePool) loadProviders() []aibridge.Provider {
-	if ptr := p.providers.Load(); ptr != nil {
-		return *ptr
+	p.replaceMu.Lock()
+	defer p.replaceMu.Unlock()
+	if p.isShuttingDown() {
+		return
 	}
-	return nil
+
+	old := p.generation.Load()
+	nextID := uint64(1)
+	if old != nil {
+		nextID = old.id + 1
+	}
+	next := &providerGeneration{
+		id:        nextID,
+		providers: slices.Clone(providers),
+		entries:   make(map[*bridgeEntry]struct{}),
+	}
+	// Trap point for deterministic replacement and shutdown tests.
+	_ = p.clock.Now("provider_generation_publish")
+	p.generation.Store(next)
+
+	if old != nil {
+		old.retire(p)
+	}
+
+	p.logger.Info(context.Background(), "request bridge pool reloaded",
+		slog.F("provider_count", len(next.providers)),
+		slog.F("provider_generation", next.id),
+	)
 }
 
 // KeyPools returns the key pools of the current live providers.
 func (p *CachedBridgePool) KeyPools() []*keypool.Pool {
-	providers := p.loadProviders()
-	pools := make([]*keypool.Pool, 0, len(providers))
-	for _, prov := range providers {
+	generation := p.generation.Load()
+	if generation == nil {
+		return nil
+	}
+
+	pools := make([]*keypool.Pool, 0, len(generation.providers))
+	for _, prov := range generation.providers {
 		if pool := prov.KeyPool(); pool != nil {
 			pools = append(pools, pool)
 		}
@@ -181,11 +206,9 @@ func (p *CachedBridgePool) KeyPools() []*keypool.Pool {
 	return pools
 }
 
-// Acquire retrieves or creates a [*aibridge.RequestBridge] instance per given key.
-//
-// Each returned [*aibridge.RequestBridge] is safe for concurrent use.
-// Each [*aibridge.RequestBridge] is stateful because it has MCP clients which maintain sessions to the configured MCP server.
-func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpProxyFactory MCPProxyBuilder) (_ http.Handler, outErr error) {
+// Serve retrieves or creates a request bridge for the current provider
+// generation, admits the request, and serves it.
+func (p *CachedBridgePool) Serve(ctx context.Context, req Request, clientFn ClientFunc, mcpProxyFactory MCPProxyBuilder, rw http.ResponseWriter, r *http.Request) (outErr error) {
 	spanAttrs := []attribute.KeyValue{
 		attribute.String(tracing.InitiatorID, req.InitiatorID.String()),
 		attribute.String(tracing.APIKeyID, req.APIKeyID),
@@ -195,108 +218,318 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 	ctx = tracing.WithRequestBridgeAttributesInContext(ctx, spanAttrs)
 
 	if err := ctx.Err(); err != nil {
-		return nil, xerrors.Errorf("acquire: %w", err)
+		return xerrors.Errorf("acquire: %w", err)
 	}
-
-	p.cacheMu.RLock()
-	select {
-	case <-p.shuttingDownCh:
-		p.cacheMu.RUnlock()
-		return nil, xerrors.New("pool shutting down")
-	default:
+	if !p.beginOperation() {
+		return xerrors.New("pool shutting down")
 	}
-	p.cacheWG.Add(1)
-	p.cacheMu.RUnlock()
 	defer p.cacheWG.Done()
 
-	// Wait for all buffered writes to be applied, otherwise multiple calls in quick succession
-	// may visit the slow path unnecessarily.
-	defer p.cache.Wait()
+	operationCtx, cancelOperation := context.WithCancel(ctx)
+	stopRetirementCancel := context.AfterFunc(p.retirementCtx, cancelOperation)
+	defer func() {
+		stopRetirementCancel()
+		cancelOperation()
+	}()
+	ctx = operationCtx
 
-	// Fast path.
-	cacheKey := req.InitiatorID.String() + "|" + req.APIKeyID
-	bridge, ok := p.cache.Get(cacheKey)
-	if ok && bridge != nil {
-		// TODO: future improvement:
-		// Once we can detect token expiry against an MCP server, we no longer need to let these instances
-		// expire after the original TTL; we can extend the TTL on each Acquire() call.
-		// For now, we need to let the instance expiry to keep the MCP connections fresh.
+	for {
+		if err := ctx.Err(); err != nil {
+			return xerrors.Errorf("acquire: %w", err)
+		}
+		if p.isShuttingDown() {
+			return xerrors.New("pool shutting down")
+		}
 
-		span.AddEvent("cache_hit")
-		return bridge, nil
+		generation := p.generation.Load()
+		if generation == nil {
+			return xerrors.New("no provider generation")
+		}
+
+		entry, err := p.getOrBuild(ctx, req, clientFn, mcpProxyFactory, generation, span)
+		switch {
+		case err == nil:
+			if entry.bridge.TryServe(rw, r) {
+				return nil
+			}
+			span.AddEvent("admission_retry")
+			continue
+		case errors.Is(err, errGenerationRetired):
+			span.AddEvent("generation_retry")
+			continue
+		case errors.Is(err, errCacheRejected):
+			err = p.serveUncached(ctx, req, clientFn, mcpProxyFactory, generation, rw, r)
+			if errors.Is(err, errGenerationRetired) {
+				span.AddEvent("generation_retry")
+				continue
+			}
+			return err
+		default:
+			return err
+		}
 	}
+}
 
+func (p *CachedBridgePool) getOrBuild(ctx context.Context, req Request, clientFn ClientFunc, mcpProxyFactory MCPProxyBuilder, generation *providerGeneration, span trace.Span) (*bridgeEntry, error) {
+	cacheKey := bridgeCacheKey(generation.id, req)
+	if entry, ok := p.cache.Get(cacheKey); ok && entry != nil && !entry.retired.Load() {
+		span.AddEvent("cache_hit")
+		return entry, nil
+	}
 	span.AddEvent("cache_miss")
-	providerVersion := p.providerVersion.Load()
+
+	entry, err, _ := p.singleflight.Do(cacheKey, func() (*bridgeEntry, error) {
+		bridge, err := p.buildBridge(ctx, req, clientFn, mcpProxyFactory, generation.providers)
+		if err != nil {
+			return nil, err
+		}
+		entry := &bridgeEntry{key: cacheKey, generation: generation, bridge: bridge}
+
+		// Trap point for deterministic generation publication tests.
+		_ = p.clock.Now("bridge_cache_publish")
+
+		if !generation.publish(p.cache, entry, p.options.TTL) {
+			entry.retire(p)
+			if generation.isRetired() {
+				return nil, errGenerationRetired
+			}
+			return nil, errCacheRejected
+		}
+
+		// Make publication visible before singleflight releases its waiters.
+		// Policy rejection invokes OnExit, which marks the entry retired.
+		p.cache.Wait()
+		if entry.retired.Load() {
+			return nil, errCacheRejected
+		}
+		return entry, nil
+	})
+	return entry, err
+}
+
+func (p *CachedBridgePool) serveUncached(ctx context.Context, req Request, clientFn ClientFunc, mcpProxyFactory MCPProxyBuilder, generation *providerGeneration, rw http.ResponseWriter, r *http.Request) error {
+	bridge, err := p.buildBridge(ctx, req, clientFn, mcpProxyFactory, generation.providers)
+	if err != nil {
+		return err
+	}
+	entry := &bridgeEntry{generation: generation, bridge: bridge}
+	if !generation.register(entry) {
+		entry.retire(p)
+		return errGenerationRetired
+	}
+	defer entry.retire(p)
+
+	if !bridge.TryServe(rw, r) {
+		return errGenerationRetired
+	}
+	return nil
+}
+
+func (p *CachedBridgePool) buildBridge(ctx context.Context, req Request, clientFn ClientFunc, mcpProxyFactory MCPProxyBuilder, providers []aibridge.Provider) (*aibridge.RequestBridge, error) {
 	recorder := aibridge.NewRecorder(p.logger.Named("recorder"), p.tracer, func(clientCtx context.Context) (aibridge.Recorder, error) {
-		// The recorder outlives this Acquire call, so the client is acquired
-		// against the context of the record call being served.
 		client, err := clientFn(clientCtx)
 		if err != nil {
 			return nil, xerrors.Errorf("acquire client: %w", err)
 		}
-
 		return &recorderTranslation{apiKeyID: req.APIKeyID, client: client}, nil
 	})
 
-	// Slow path.
-	// Creating an *aibridge.RequestBridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.
-	// TODO: track startup time since it adds latency to first request (histogram count will also help us see how often this occurs).
-	singleflightKey := cacheKey + "|" + strconv.FormatInt(providerVersion, 10)
-	instance, err, _ := p.singleflight.Do(singleflightKey, func() (*aibridge.RequestBridge, error) {
-		var (
-			mcpServers mcp.ServerProxier
-			err        error
-		)
-
-		mcpServers, err = mcpProxyFactory.Build(ctx, req, p.tracer)
-		if err != nil {
-			p.logger.Warn(ctx, "failed to create MCP server proxiers", slog.Error(err))
-			// Don't fail here; MCP server injection can gracefully degrade.
+	mcpServers, err := mcpProxyFactory.Build(ctx, req, p.tracer)
+	if err != nil {
+		p.logger.Warn(ctx, "failed to create MCP server proxiers", slog.Error(err))
+	}
+	if mcpServers != nil {
+		if err := mcpServers.Init(ctx); err != nil {
+			p.logger.Warn(ctx, "failed to initialize MCP server proxier(s)", slog.Error(err))
 		}
+	}
 
+	bridge, err := aibridge.NewRequestBridge(ctx, providers, recorder, mcpServers, p.logger, p.metrics, p.tracer, aibridge.WithClock(p.clock))
+	if err != nil {
 		if mcpServers != nil {
-			// This will block while connections are established with upstream MCP server(s), and tools are listed.
-			if err := mcpServers.Init(ctx); err != nil {
-				p.logger.Warn(ctx, "failed to initialize MCP server proxier(s)", slog.Error(err))
-			}
+			_ = mcpServers.Shutdown(ctx)
 		}
+		return nil, xerrors.Errorf("create new request bridge: %w", err)
+	}
+	return bridge, nil
+}
 
-		bridge, err := aibridge.NewRequestBridge(ctx, p.loadProviders(), recorder, mcpServers, p.logger, p.metrics, p.tracer, aibridge.WithClock(p.clock))
-		if err != nil {
-			return nil, xerrors.Errorf("create new request bridge: %w", err)
+func bridgeCacheKey(generation uint64, req Request) string {
+	return strconv.FormatUint(generation, 10) + "|" + req.InitiatorID.String() + "|" + req.APIKeyID
+}
+
+func (g *providerGeneration) publish(cache *ristretto.Cache[string, *bridgeEntry], entry *bridgeEntry, ttl time.Duration) bool {
+	g.mu.Lock()
+	if g.retired {
+		g.mu.Unlock()
+		return false
+	}
+	g.entries[entry] = struct{}{}
+	g.publishWG.Add(1)
+	g.mu.Unlock()
+
+	// SetWithTTL can synchronously invoke OnExit when replacing an existing
+	// value. Do not hold g.mu while calling it. publishWG prevents generation
+	// retirement from finishing until this publication attempt completes.
+	ok := cache.SetWithTTL(entry.key, entry, cacheCost, ttl)
+	g.publishWG.Done()
+	if ok {
+		return true
+	}
+	g.remove(entry)
+	return false
+}
+
+func (g *providerGeneration) register(entry *bridgeEntry) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.retired {
+		return false
+	}
+	g.entries[entry] = struct{}{}
+	return true
+}
+
+func (g *providerGeneration) remove(entry *bridgeEntry) {
+	g.mu.Lock()
+	delete(g.entries, entry)
+	g.mu.Unlock()
+}
+
+func (g *providerGeneration) isRetired() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.retired
+}
+
+func (g *providerGeneration) retire(pool *CachedBridgePool) {
+	g.mu.Lock()
+	if g.retired {
+		g.mu.Unlock()
+		return
+	}
+	g.retired = true
+	g.mu.Unlock()
+
+	// publish registers with publishWG before releasing g.mu. Once retired is
+	// set, no new publication can start, so this Wait cannot race an Add.
+	g.publishWG.Wait()
+
+	g.mu.Lock()
+	entries := make([]*bridgeEntry, 0, len(g.entries))
+	for entry := range g.entries {
+		entries = append(entries, entry)
+	}
+	clear(g.entries)
+	g.mu.Unlock()
+
+	for _, entry := range entries {
+		entry.retire(pool)
+		if entry.key != "" {
+			// Del invokes OnExit synchronously. entry.retireOnce makes the
+			// converging callback a no-op.
+			pool.cache.Del(entry.key)
 		}
+	}
+	pool.cache.Wait()
+}
 
-		if p.providerVersion.Load() == providerVersion {
-			p.cache.SetWithTTL(cacheKey, bridge, cacheCost, p.options.TTL)
-		}
-
-		return bridge, nil
+func (entry *bridgeEntry) retire(pool *CachedBridgePool) {
+	entry.retireOnce.Do(func() {
+		entry.retired.Store(true)
+		// Removal matters for eviction and rejection paths. Generation retirement
+		// clears the registry before reaching here, so this is then a no-op.
+		entry.generation.remove(entry)
+		pool.trackShutdown(entry.bridge)
 	})
+}
 
-	return instance, err
+func (p *CachedBridgePool) trackShutdown(bridge *aibridge.RequestBridge) {
+	bridge.Retire()
+	p.retirementWG.Add(1)
+	go func() {
+		defer p.retirementWG.Done()
+		_ = bridge.Shutdown(p.retirementCtx)
+	}()
+}
+
+func (p *CachedBridgePool) isShuttingDown() bool {
+	select {
+	case <-p.shuttingDownCh:
+		return true
+	default:
+		return false
+	}
+}
+
+func (p *CachedBridgePool) beginOperation() bool {
+	p.cacheMu.RLock()
+	defer p.cacheMu.RUnlock()
+	select {
+	case <-p.shuttingDownCh:
+		return false
+	default:
+		p.cacheWG.Add(1)
+		return true
+	}
 }
 
 func (p *CachedBridgePool) CacheMetrics() PoolMetrics {
 	if p.cache == nil {
 		return nil
 	}
-
 	return p.cache.Metrics
 }
 
-// Shutdown will close the cache which will trigger eviction of all the Bridge entries.
-func (p *CachedBridgePool) Shutdown(_ context.Context) error {
+// Shutdown prevents new pool operations, retires the current generation, and
+// waits for operations and bridge cleanup. Context cancellation accelerates
+// retirement by canceling admitted requests.
+func (p *CachedBridgePool) Shutdown(ctx context.Context) error {
+	var outErr error
 	p.shutDownOnce.Do(func() {
-		// Block new cache use, drain in-flight ops, then close (see cacheMu).
 		p.cacheMu.Lock()
 		close(p.shuttingDownCh)
 		p.cacheMu.Unlock()
 
-		p.cacheWG.Wait()
+		// Serialize with replacement so the generation observed here is the last
+		// one that can be published. Retire before waiting for Serve operations to
+		// close admission and let context cancellation unblock active handlers.
+		p.replaceMu.Lock()
+		if generation := p.generation.Load(); generation != nil {
+			generation.retire(p)
+		}
+		p.replaceMu.Unlock()
+
+		operationsDone := make(chan struct{})
+		go func() {
+			p.cacheWG.Wait()
+			close(operationsDone)
+		}()
+
+		select {
+		case <-operationsDone:
+		case <-ctx.Done():
+			p.retirementCancel()
+			<-operationsDone
+			outErr = ctx.Err()
+		}
 
 		p.cache.Close()
-	})
 
-	return nil
+		retirementDone := make(chan struct{})
+		go func() {
+			p.retirementWG.Wait()
+			close(retirementDone)
+		}()
+
+		select {
+		case <-retirementDone:
+			p.retirementCancel()
+		case <-ctx.Done():
+			p.retirementCancel()
+			<-retirementDone
+			outErr = ctx.Err()
+		}
+	})
+	return outErr
 }
