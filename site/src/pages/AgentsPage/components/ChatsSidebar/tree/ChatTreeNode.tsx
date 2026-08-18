@@ -187,44 +187,15 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 						)}
 					>
-						<div
-							className={cn(
-								"group/icon relative mt-1.5 size-5 shrink-0",
-								hasChildren && "cursor-pointer",
-							)}
-						>
-							<div
-								className={cn(
-									"flex size-5 items-center justify-center rounded-md",
-									hasChildren &&
-										"[@media(hover:hover)]:group-hover/icon:invisible",
-								)}
-							>
-								<StatusIcon
-									data-testid={
-										isDelegatedExecuting
-											? `agents-tree-executing-${chat.id}`
-											: undefined
-									}
-									className={cn("size-3.5 shrink-0", statusClassName)}
-								/>
-							</div>
-							{hasChildren && (
-								<Button
-									variant="subtle"
-									size="icon"
-									onClick={() => toggleExpanded(chatID)}
-									className={cn(
-										"absolute inset-0 invisible flex size-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
-										"[@media(hover:hover)]:group-hover/icon:visible",
-									)}
-									data-testid={`agents-tree-toggle-${chat.id}`}
-									aria-label={isExpanded ? "Collapse" : "Expand"}
-									aria-expanded={isExpanded}
-								>
-									{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-								</Button>
-							)}
+						<div className="mt-1.5 flex size-5 shrink-0 items-center justify-center rounded-md">
+							<StatusIcon
+								data-testid={
+									isDelegatedExecuting
+										? `agents-tree-executing-${chat.id}`
+										: undefined
+								}
+								className={cn("size-3.5 shrink-0", statusClassName)}
+							/>
 						</div>
 						<NavLink
 							to={{
@@ -254,6 +225,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												{...subagentToggleProps}
 												role="button"
 												tabIndex={0}
+												data-testid={`agents-tree-toggle-${chat.id}`}
 												className="inline-flex shrink-0 cursor-pointer items-center gap-0.5 rounded-sm text-[13px] leading-4 tabular-nums text-content-secondary hover:text-content-primary"
 												aria-expanded={isExpanded}
 												aria-label={`${
@@ -264,6 +236,17 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											>
 												{childIDs.length}
 												<BotIcon className="size-3.5" aria-hidden="true" />
+												{isExpanded ? (
+													<ChevronDownIcon
+														className="size-3.5"
+														aria-hidden="true"
+													/>
+												) : (
+													<ChevronRightIcon
+														className="size-3.5"
+														aria-hidden="true"
+													/>
+												)}
 											</span>
 										)}
 										{hasLinkedDiffStatus && hasLineStats && (

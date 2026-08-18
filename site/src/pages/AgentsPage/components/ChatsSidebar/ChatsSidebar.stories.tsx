@@ -475,17 +475,16 @@ export const RunningChatPreservesSpinner: Story = {
 		const spinner = node.querySelector(".animate-spin");
 		await expect(spinner).toBeInTheDocument();
 
-		// The toggle button should exist (the node has children) but
-		// must be invisible by default. It only appears on hover of
-		// the icon area itself, not the whole row.
+		// The subagent count doubles as a persistent expand toggle, so it
+		// is always visible when the node has children (no hover required).
 		const toggle = canvas.getByTestId("agents-tree-toggle-root-running");
 		await expect(toggle).toBeInTheDocument();
-		await expect(toggle.className).toMatch(/\binvisible\b/);
+		await expect(toggle.className).not.toMatch(/\binvisible\b/);
 	},
 };
 
-// When a root chat is idle but has a running child, the chevron
-// should still be scoped to the icon area hover, not the full row.
+// When a root chat is idle but has a running child, the persistent
+// expand toggle next to the subagent count is still shown.
 export const IdleParentWithRunningChild: Story = {
 	args: {
 		chats: [
@@ -517,12 +516,12 @@ export const IdleParentWithRunningChild: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// The parent's toggle should use icon-only hover scope because
-		// its child is actively running.
+		// The parent exposes a persistent expand toggle next to its
+		// subagent count, regardless of the running child.
 		const toggle = canvas.getByTestId("agents-tree-toggle-idle-parent");
 		await expect(toggle).toBeInTheDocument();
-		await expect(toggle.className).toMatch(/\binvisible\b/);
-		await expect(toggle.className).toContain("group-hover/icon:visible");
+		await expect(toggle.className).not.toMatch(/\binvisible\b/);
+		await expect(toggle).toHaveAttribute("aria-expanded", "true");
 	},
 };
 
