@@ -133,6 +133,22 @@ rendering is not.
 Together the two are what the duty to account requires. One party keeps, and
 renders when called upon. The other receives and examines.
 
+### Auditing is not forensic investigation
+
+The two consult the same records, which is why they are easily conflated. The
+difference is in what each is looking for.
+
+**Forensics examines a known anomaly.** Something has gone wrong, or is
+suspected to have, and the investigation works outward from it to establish what
+happened.
+
+**Auditing looks for anomalies not yet known.** Nothing need be wrong. The
+examination is systematic rather than directed, and finding nothing is a result.
+
+They are complementary rather than competing. An auditor who finds an anomaly
+may open a forensic investigation in order to finish the audit. That is one
+party taking on two roles, not the two activities collapsing into one.
+
 ### What this work is, under that distinction
 
 **The proof of concept is primarily recordkeeping. Auditing is a stretch goal.**
