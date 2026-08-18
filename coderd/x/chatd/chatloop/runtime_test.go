@@ -437,6 +437,47 @@ func TestExecuteLocalTools_DuplicateToolCallIDsKeepOccurrenceCompletions(t *test
 	require.Equal(t, "call-dup", outcome.BatchRuntimeToolCallID)
 }
 
+// A call without a tool call ID, which providers can emit, still
+// executes: its completion defines the window like any other billed
+// call instead of being discarded as a missing result.
+func TestExecuteLocalTools_EmptyToolCallIDStillBillsWindow(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	trap := clock.Trap().Now()
+	defer trap.Close()
+
+	idlessGo := make(chan struct{})
+	fastGo := make(chan struct{})
+	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
+		Tools: []fantasy.AgentTool{
+			blockingTool("idless_tool", idlessGo, fantasy.NewTextResponse("done")),
+			blockingTool("fast_tool", fastGo, fantasy.NewTextResponse("done")),
+		},
+		ActiveTools: []string{"idless_tool", "fast_tool"},
+		ToolCalls: []fantasy.ToolCallContent{
+			{ToolCallID: "", ToolName: "idless_tool", Input: "{}"},
+			{ToolCallID: "call-fast", ToolName: "fast_tool", Input: "{}"},
+		},
+	})
+
+	// Batch start.
+	trap.MustWait(ctx).MustRelease(ctx)
+	// The identified call completes at 10 seconds.
+	clock.Advance(10 * time.Second)
+	close(fastGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+	// The ID-less call completes at 60 seconds and defines the window.
+	clock.Advance(50 * time.Second)
+	close(idlessGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+
+	outcome := testutil.RequireReceive(ctx, t, resultCh)
+	require.Equal(t, 60*time.Second, outcome.BatchRuntime)
+	require.Empty(t, outcome.BatchRuntimeToolCallID)
+}
+
 // OnToolComplete reports each tool's completion the instant it finishes,
 // while slower siblings are still running, with the same instants the
 // outcome's ToolResultCreatedAt later carries. The interrupt path

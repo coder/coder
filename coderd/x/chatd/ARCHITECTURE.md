@@ -936,6 +936,8 @@ The goroutine does the following in order:
 3. It reads the buffered parts for that episode by calling the `GetParts` method on the message part buffer.
 4. It applies the `FinishInterruption(partial?)` transition on the core state machine. If there are no buffered parts for that episode, or the episode is not found, it passes `nil` as the `partial` argument.
 
+TODO(CODAGT-928): update steps 2 and 3 above. The interrupt goroutine now closes the episode and snapshots its billing stamps in one atomic step via `CloseEpisodeForBilling`, uses the episode's first-close instant as the interrupt instant, carries the snapshot and buffered parts across task retry attempts so buffer eviction during a stalled attempt cannot lose them, and synthesizes tool cancellation rows whose `runtime_ms` bills the interrupted tool batch's partial window.
+
 #### Dynamic tools timeout goroutine
 
 The dynamic tools timeout goroutine is responsible for waiting for the dynamic tool timeout to pass, which is determined by the `requires_action_deadline_at` field on the chat. It is spawned when the event indicates the core state machine is in `A0` or `A1` (status is `requires_action`). The goroutine fetches the deadline value from the database. When the timeout passes, it applies the `CancelRequiresAction` transition on the core state machine.

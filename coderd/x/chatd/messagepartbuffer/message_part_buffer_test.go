@@ -346,9 +346,13 @@ func TestBuffer_CloseEpisodeForBillingRefreshesEviction(t *testing.T) {
 	require.Equal(t, first, again)
 
 	// Once retries stop refreshing it, the episode ages out and a later
-	// close reports empty billing again.
+	// close reports empty billing again. GetParts collects due episodes
+	// synchronously, so the assertions cannot race the cleanup
+	// goroutine's handling of the delivered ticks.
 	clock.Advance(time.Minute).MustWait(ctx)
 	clock.Advance(time.Minute).MustWait(ctx)
+	_, err = buffer.GetParts(key)
+	require.ErrorIs(t, err, messagepartbuffer.ErrEpisodeNotFound)
 	expired, err := buffer.CloseEpisodeForBilling(key)
 	require.NoError(t, err)
 	require.Zero(t, expired.ToolBatchStartedAt)

@@ -168,6 +168,39 @@ func TestBuildCommitStepMessages_DuplicateToolCallIDsBillOnce(t *testing.T) {
 	require.False(t, got.Messages[1].RuntimeMs.Valid)
 }
 
+// A window defined by a call without a tool call ID still persists: the
+// positive window gates the match, so the runtime lands on the first
+// ID-less tool row instead of being dropped with the empty-ID sentinel.
+func TestBuildCommitStepMessages_EmptyIDWindowLandsOnIDLessRow(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		step: stepData{
+			Content: []fantasy.Content{
+				fantasy.ToolResultContent{
+					ToolCallID: "call-fast",
+					ToolName:   "fast_tool",
+					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"fast"}`},
+				},
+				fantasy.ToolResultContent{
+					ToolCallID: "",
+					ToolName:   "idless_tool",
+					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"slow"}`},
+				},
+			},
+			BatchRuntime:           60 * time.Second,
+			BatchRuntimeToolCallID: "",
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 2)
+	require.False(t, got.Messages[0].RuntimeMs.Valid, "the identified row is not the window-defining one")
+	require.Equal(t, sql.NullInt64{Int64: 60_000, Valid: true}, got.Messages[1].RuntimeMs)
+}
+
 // Assistant rows synthesized from a tool batch (attachment file parts)
 // never carry the batch runtime: it belongs to the tool row alone.
 func TestBuildCommitStepMessages_BatchAttachmentAssistantRowStaysNull(t *testing.T) {

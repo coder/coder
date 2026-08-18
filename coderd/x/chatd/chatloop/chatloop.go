@@ -691,9 +691,11 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 // sub-agent orchestration) never extend the window even when they run
 // longest. completions is aligned with toolCalls by occurrence, so
 // duplicate tool call IDs each keep their own completion. Returns the
-// tool call whose completion ends the window, with ties broken by call
-// order; (0, "") when no billed tool completed or the window rounds to
-// nothing.
+// ID of the tool call whose completion ends the window, with ties
+// broken by call order; a zero duration means no billed tool completed
+// or the window rounds to nothing. The ID can be empty even when the
+// window exists, because providers can emit calls without IDs and
+// those still execute and bill.
 func billableBatchWindow(
 	batchStart time.Time,
 	toolCalls []fantasy.ToolCallContent,
@@ -701,6 +703,7 @@ func billableBatchWindow(
 	unbilledToolNames map[string]bool,
 ) (time.Duration, string) {
 	var (
+		found      bool
 		windowEnd  time.Time
 		toolCallID string
 	)
@@ -717,11 +720,12 @@ func billableBatchWindow(
 		}
 		// Strictly-after keeps the earliest call on ties.
 		if end.After(windowEnd) {
+			found = true
 			windowEnd = end
 			toolCallID = tc.ToolCallID
 		}
 	}
-	if toolCallID == "" || !windowEnd.After(batchStart) {
+	if !found || !windowEnd.After(batchStart) {
 		return 0, ""
 	}
 	return windowEnd.Sub(batchStart), toolCallID

@@ -80,10 +80,13 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		// usage reporting, which sums runtime_ms across rows, bills the
 		// batch exactly once. Only the first row with the window-defining
 		// ID carries it, because providers can emit duplicate tool call
-		// IDs and billing every duplicate would multiply the sum. Zero
-		// maps to NULL, so a sub-millisecond window persists the same
-		// way an unmeasured one does.
-		if !batchRuntimeAssigned && toolResult.ToolCallID != "" && toolResult.ToolCallID == input.step.BatchRuntimeToolCallID {
+		// IDs and billing every duplicate would multiply the sum. A
+		// positive window gates the match instead of a non-empty ID,
+		// because calls without IDs also execute and bill; their window
+		// lands on the first ID-less tool row. Zero maps to NULL, so a
+		// sub-millisecond window persists the same way an unmeasured
+		// one does.
+		if !batchRuntimeAssigned && input.step.BatchRuntime > 0 && toolResult.ToolCallID == input.step.BatchRuntimeToolCallID {
 			msg.RuntimeMs = nullInt64IfNonZero(input.step.BatchRuntime.Milliseconds())
 			batchRuntimeAssigned = true
 		}
