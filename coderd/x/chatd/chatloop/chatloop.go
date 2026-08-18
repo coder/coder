@@ -1539,19 +1539,23 @@ func notifyStepToolCallObservers(toolMap map[string]fantasy.AgentTool, toolNameA
 }
 
 // stepToolResultObserver is implemented by tools that need the step's
-// execution outcomes, for example so find_tools can refund budget it
-// reserved for a direct call whose execution errored.
+// per-call execution outcomes, for example so find_tools can refund
+// budget it reserved for a direct call whose execution errored. names
+// and errored are parallel slices in the observed tool-call order;
+// outcomes are kept per call because one tool can be called several
+// times in a step with different results.
 type stepToolResultObserver interface {
-	ObserveStepToolResults(succeeded, errored []string)
+	ObserveStepToolResults(names []string, errored []bool)
 }
 
 // notifyStepToolResultObservers passes the settled sibling outcomes to
-// each distinct called tool that observes them. Serial calls have not
-// run yet, so their own outcomes are absent; observers only need the
-// concurrent siblings they share state with. Observed calls missing
-// from the executed batch were rejected before execution (for example
-// malformed JSON partitioned into synthetic denials) and settle as
-// errored, since their persisted results always carry IsError.
+// each distinct called tool that observes them, per call in observed
+// order. Observed calls missing from the executed batch were rejected
+// before execution (for example malformed JSON partitioned into
+// synthetic denials) and settle as errored, since their persisted
+// results always carry IsError. Serial calls have not run yet, so
+// their own outcomes are reported as not errored; observers only need
+// the concurrent siblings they share state with.
 func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, calls, observed []fantasy.ToolCallContent, settled []fantasy.ToolResultContent) {
 	resolve := func(name string) string {
 		if alias, ok := toolNameAliases[name]; ok {
@@ -1559,23 +1563,25 @@ func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNam
 		}
 		return name
 	}
-	succeeded := make([]string, 0, len(settled))
-	errored := make([]string, 0, len(settled))
+	erroredByID := make(map[string]bool, len(settled))
 	for _, tr := range settled {
-		if _, isErr := tr.Result.(fantasy.ToolResultOutputContentError); isErr {
-			errored = append(errored, resolve(tr.ToolName))
-		} else {
-			succeeded = append(succeeded, resolve(tr.ToolName))
-		}
+		_, isErr := tr.Result.(fantasy.ToolResultOutputContentError)
+		erroredByID[tr.ToolCallID] = isErr
 	}
 	executedIDs := make(map[string]struct{}, len(calls))
 	for _, tc := range calls {
 		executedIDs[tc.ToolCallID] = struct{}{}
 	}
+	names := make([]string, 0, len(observed))
+	errored := make([]bool, 0, len(observed))
 	for _, tc := range observed {
-		if _, ok := executedIDs[tc.ToolCallID]; !ok {
-			errored = append(errored, resolve(tc.ToolName))
+		names = append(names, resolve(tc.ToolName))
+		if isErr, ok := erroredByID[tc.ToolCallID]; ok {
+			errored = append(errored, isErr)
+			continue
 		}
+		_, executed := executedIDs[tc.ToolCallID]
+		errored = append(errored, !executed)
 	}
 	notified := make(map[string]struct{}, len(calls))
 	for _, tc := range calls {
@@ -1592,7 +1598,7 @@ func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNam
 			continue
 		}
 		if observer, ok := tool.(stepToolResultObserver); ok {
-			observer.ObserveStepToolResults(succeeded, errored)
+			observer.ObserveStepToolResults(names, errored)
 		}
 	}
 }

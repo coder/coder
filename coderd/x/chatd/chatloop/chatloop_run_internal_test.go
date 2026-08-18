@@ -960,18 +960,19 @@ func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
 
 type resultObserverMarkerTool struct {
 	fantasy.AgentTool
-	observedResults func(succeeded, errored []string)
+	observedResults func(names []string, errored []bool)
 }
 
-func (t resultObserverMarkerTool) ObserveStepToolResults(succeeded, errored []string) {
-	t.observedResults(succeeded, errored)
+func (t resultObserverMarkerTool) ObserveStepToolResults(names []string, errored []bool) {
+	t.observedResults(names, errored)
 }
 
 func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 	t.Parallel()
 
 	var mu sync.Mutex
-	var gotSucceeded, gotErrored []string
+	var gotNames []string
+	var gotErrored []bool
 	notifications := 0
 	observer := resultObserverMarkerTool{
 		AgentTool: fantasy.NewAgentTool(
@@ -981,12 +982,12 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 				return fantasy.NewTextResponse("ok"), nil
 			},
 		),
-		observedResults: func(succeeded, errored []string) {
+		observedResults: func(names []string, errored []bool) {
 			mu.Lock()
 			defer mu.Unlock()
 			notifications++
-			gotSucceeded = append([]string{}, succeeded...)
-			gotErrored = append([]string{}, errored...)
+			gotNames = append([]string{}, names...)
+			gotErrored = append([]bool{}, errored...)
 		},
 	}
 	failing := fantasy.NewAgentTool(
@@ -1023,20 +1024,21 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 	)
 
 	require.Equal(t, 1, notifications, "each called observer is notified once per step")
-	require.Equal(t, []string{"observer_tool"}, gotSucceeded)
-	require.Equal(t, []string{"failing_tool", "missing_tool", "rejected_tool"}, gotErrored,
+	require.Equal(t, []string{"observer_tool", "failing_tool", "missing_tool", "rejected_tool"}, gotNames,
+		"outcomes are reported per call in observed order with aliases resolved")
+	require.Equal(t, []bool{false, true, true, true}, gotErrored,
 		"error results, unresolvable tools, and observed calls rejected before execution all settle as errored outcomes")
 }
 
 type serialResultObserverTool struct {
 	fantasy.AgentTool
-	observedResults func(succeeded, errored []string)
+	observedResults func(names []string, errored []bool)
 }
 
 func (serialResultObserverTool) SerialToolCalls() bool { return true }
 
-func (t serialResultObserverTool) ObserveStepToolResults(succeeded, errored []string) {
-	t.observedResults(succeeded, errored)
+func (t serialResultObserverTool) ObserveStepToolResults(names []string, errored []bool) {
+	t.observedResults(names, errored)
 }
 
 func TestExecuteToolsReconcilesResultsBeforeSerialCalls(t *testing.T) {
@@ -1057,11 +1059,16 @@ func TestExecuteToolsReconcilesResultsBeforeSerialCalls(t *testing.T) {
 				return fantasy.NewTextResponse("ok"), nil
 			},
 		),
-		observedResults: func(_, errored []string) {
+		observedResults: func(names []string, errored []bool) {
 			mu.Lock()
 			defer mu.Unlock()
 			notified = true
-			erroredAtNotify = append([]string{}, errored...)
+			erroredAtNotify = nil
+			for i, name := range names {
+				if errored[i] {
+					erroredAtNotify = append(erroredAtNotify, name)
+				}
+			}
 		},
 	}
 	failing := fantasy.NewAgentTool(

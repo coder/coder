@@ -97,15 +97,15 @@ type FindToolsResult struct {
 type findToolsTool struct {
 	fantasy.AgentTool
 	reserveStepCalls  func(names []string)
-	settleStepResults func(succeeded, errored []string)
+	settleStepResults func(names []string, errored []bool)
 }
 
 func (findToolsTool) SerialToolCalls() bool { return true }
 
 func (t findToolsTool) ObserveStepToolCalls(names []string) { t.reserveStepCalls(names) }
 
-func (t findToolsTool) ObserveStepToolResults(succeeded, errored []string) {
-	t.settleStepResults(succeeded, errored)
+func (t findToolsTool) ObserveStepToolResults(names []string, errored []bool) {
+	t.settleStepResults(names, errored)
 }
 
 // FindTools returns the built-in used to discover deferred MCP tool schemas.
@@ -118,20 +118,23 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 	var budgetMu sync.Mutex
 	remainingBudget := options.SchemaTokenBudget
 	// Direct calls to deferred tools in the same step are admitted by
-	// derivation before any search activations, in call order, while
-	// their cumulative weight fits the budget (the first always fits,
-	// mirroring derivation's newest-keep rule). Only that retained
-	// prefix is free to activate; a call past it is unclaimable this
-	// step because derivation marks it seen at its rejected direct-call
-	// position, so no same-step search can inline its schema either.
-	// Errored calls (including calls rejected before execution) leave
-	// the prefix when siblings settle; a name that ever executed
-	// successfully stays, since derivation admits it at full priority.
-	var observedOrder []string
+	// derivation before any search activations, per call in call order,
+	// while their cumulative weight fits the budget (the first always
+	// fits, mirroring derivation's newest-keep rule). Only that
+	// retained prefix is free to activate; a call past it is
+	// unclaimable this step because derivation marks it seen at its
+	// rejected position, so no same-step search can inline its schema
+	// either. Errored calls (including calls rejected before execution)
+	// are skipped per call when siblings settle, exactly as derivation
+	// postpones them by call ID, so one tool called several times with
+	// mixed outcomes admits at its first successful call's position.
+	type stepToolCall struct {
+		name    string
+		errored bool
+	}
+	var stepCalls []stepToolCall
 	reserved := make(map[string]struct{})
 	unclaimable := make(map[string]struct{})
-	executedOK := make(map[string]struct{})
-	erroredNames := make(map[string]struct{})
 	// Derivation deduplicates activations by name, so a name an earlier
 	// search already claimed is free for later searches in the step.
 	claimedBySearch := make(map[string]struct{})
@@ -140,21 +143,34 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 		clear(reserved)
 		clear(unclaimable)
 		charged := 0.0
-		for _, name := range observedOrder {
-			if _, errored := erroredNames[name]; errored {
-				if _, ok := executedOK[name]; !ok {
-					continue
-				}
-			}
-			weight := schemaTokensByName[name]
-			if len(reserved) > 0 && charged+weight > options.SchemaTokenBudget {
-				unclaimable[name] = struct{}{}
+		seen := make(map[string]struct{}, len(stepCalls))
+		for _, call := range stepCalls {
+			if call.errored {
 				continue
 			}
-			reserved[name] = struct{}{}
+			if _, dup := seen[call.name]; dup {
+				continue
+			}
+			seen[call.name] = struct{}{}
+			weight := schemaTokensByName[call.name]
+			if len(reserved) > 0 && charged+weight > options.SchemaTokenBudget {
+				unclaimable[call.name] = struct{}{}
+				continue
+			}
+			reserved[call.name] = struct{}{}
 			charged += weight
 		}
 		remainingBudget = options.SchemaTokenBudget - charged - searchClaimed
+	}
+	rebuild := func(names []string, errored []bool) {
+		stepCalls = stepCalls[:0]
+		for i, name := range names {
+			if _, ok := schemaTokensByName[name]; !ok {
+				continue
+			}
+			stepCalls = append(stepCalls, stepToolCall{name: name, errored: len(errored) > i && errored[i]})
+		}
+		recompute()
 	}
 	reserve := func(names []string) {
 		if options.SchemaTokenBudget <= 0 {
@@ -162,32 +178,18 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 		}
 		budgetMu.Lock()
 		defer budgetMu.Unlock()
-		for _, name := range names {
-			if _, ok := schemaTokensByName[name]; !ok {
-				continue
-			}
-			if slices.Contains(observedOrder, name) {
-				continue
-			}
-			observedOrder = append(observedOrder, name)
-		}
-		recompute()
+		// Outcomes are unknown before execution, so every call charges;
+		// settle rebuilds with real per-call outcomes before searches
+		// run.
+		rebuild(names, nil)
 	}
-	settle := func(succeeded, errored []string) {
+	settle := func(names []string, errored []bool) {
 		if options.SchemaTokenBudget <= 0 {
 			return
 		}
 		budgetMu.Lock()
 		defer budgetMu.Unlock()
-		for _, name := range succeeded {
-			if _, ok := schemaTokensByName[name]; ok {
-				executedOK[name] = struct{}{}
-			}
-		}
-		for _, name := range errored {
-			erroredNames[name] = struct{}{}
-		}
-		recompute()
+		rebuild(names, errored)
 	}
 	return findToolsTool{reserveStepCalls: reserve, settleStepResults: settle, AgentTool: fantasy.NewAgentTool(
 		FindToolsName,
