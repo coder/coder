@@ -66,15 +66,17 @@ export function useBatchActions(
 
 	const deleteAllMutation = useMutation({
 		mutationFn: (workspaces: readonly Workspace[]) => {
-			return Promise.all(workspaces.map((w) => API.deleteWorkspace(w.id)));
+			return Promise.all(
+				workspaces.map(async (w) => {
+					// Clear per-workspace as each delete succeeds so a mixed
+					// batch still cleans up the workspaces that were deleted.
+					const build = await API.deleteWorkspace(w.id);
+					clearEntityStorage("workspace", w.id);
+					return build;
+				}),
+			);
 		},
-		onSuccess: (
-			_builds: WorkspaceBuild[],
-			workspaces: readonly Workspace[],
-		) => {
-			for (const workspace of workspaces) {
-				clearEntityStorage("workspace", workspace.id);
-			}
+		onSuccess: (_builds: WorkspaceBuild[]) => {
 			return onSuccess();
 		},
 		onError: (error) => {
