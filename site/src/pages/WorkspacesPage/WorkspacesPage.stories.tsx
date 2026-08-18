@@ -7,6 +7,7 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
@@ -238,6 +239,42 @@ export const Empty: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("heading", { name: /Create a workspace/ });
+	},
+};
+
+export const EmptyWithoutTemplates: Story = {
+	parameters: {
+		permissions: {
+			createTemplates: true,
+			createWorkspace: true,
+		},
+		queries: [
+			{
+				key: getTemplatesQueryKey(),
+				data: [],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: { path: "/workspaces" },
+			routing: [
+				{ path: "/workspaces", useStoryElement: true },
+				{
+					path: "/templates/new/builder",
+					element: <div>Template builder</div>,
+				},
+			],
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({ workspaces: [], count: 0 });
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		await user.click(
+			await canvas.findByRole("link", { name: "Create a template" }),
+		);
+		await canvas.findByText("Template builder");
 	},
 };
 
