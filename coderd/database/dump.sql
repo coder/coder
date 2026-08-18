@@ -1704,7 +1704,8 @@ CREATE TABLE aibridge_interceptions (
     agent_firewall_session_id uuid,
     agent_firewall_sequence_number integer,
     error_type aibridge_interception_error_type,
-    error_message character varying(1024)
+    error_message character varying(1024),
+    sponsor_user_id uuid
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1732,6 +1733,8 @@ COMMENT ON COLUMN aibridge_interceptions.agent_firewall_sequence_number IS 'The 
 COMMENT ON COLUMN aibridge_interceptions.error_type IS 'Categorised terminal upstream error for a failed interception; NULL when the interception succeeded.';
 
 COMMENT ON COLUMN aibridge_interceptions.error_message IS 'Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.';
+
+COMMENT ON COLUMN aibridge_interceptions.sponsor_user_id IS 'Sponsoring human user for requests initiated by an AI identity.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,
@@ -5305,6 +5308,9 @@ ALTER TABLE ONLY ai_seat_state
 
 ALTER TABLE ONLY aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id);
+
+ALTER TABLE ONLY aibridge_interceptions
+    ADD CONSTRAINT aibridge_interceptions_sponsor_user_id_fkey FOREIGN KEY (sponsor_user_id) REFERENCES users(id);
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

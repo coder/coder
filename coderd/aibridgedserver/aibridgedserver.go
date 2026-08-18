@@ -261,7 +261,10 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	}
 
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
-		ID:                          intcID,
+		ID: intcID,
+		// Sponsor attribution is populated by MCP gateway interceptions;
+		// model-route interceptions recover lineage via ai_agents.
+		SponsorUserID:               uuid.NullUUID{},
 		APIKeyID:                    sql.NullString{String: in.ApiKeyId, Valid: true},
 		Client:                      sql.NullString{String: in.Client, Valid: in.Client != ""},
 		ClientSessionID:             sql.NullString{String: in.GetClientSessionId(), Valid: in.GetClientSessionId() != ""},
