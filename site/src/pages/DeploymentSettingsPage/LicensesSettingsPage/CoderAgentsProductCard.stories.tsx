@@ -8,8 +8,6 @@ const meta: Meta<typeof CoderAgentsProductCard> = {
 	component: CoderAgentsProductCard,
 	args: {
 		allocation: 20000,
-		// Fractional usage renders with one decimal; whole values render
-		// with a trailing .0 (see Exceeded).
 		actual: 16264.3,
 		isSoftLimitReached: false,
 		isExceeded: false,

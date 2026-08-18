@@ -138,9 +138,8 @@ export const Premium: Story = {
 			actual: 100,
 			limit: 1000,
 		},
-		// The backend grandfathers premium licenses without agent hour
-		// claims into a zero-hour allocation, so the merged entitlement is
-		// always present: disabled, zero limit, usage measured.
+		// Premium licenses without agent hour claims are grandfathered
+		// into a zero-hour allocation, so the merged entitlement exists.
 		agentRuntimeHoursFeature: {
 			enabled: false,
 			entitlement: "entitled",
@@ -170,10 +169,8 @@ export const Premium: Story = {
 	},
 };
 
-// Issued-at of the license that supplies the merged entitlement. The
-// merged usage period is copied from that license's iat/nbf/exp claims,
-// so only the license whose claims reproduce the whole period shows
-// usage and overage.
+// Issued-at of the license supplying the merged entitlement; only the
+// license whose iat/nbf/exp reproduce the merged period shows usage.
 const WINNING_ISSUED_AT = dayjs("2026-01-01T12:00:00Z");
 const winningUsagePeriod = {
 	issued_at: WINNING_ISSUED_AT.toISOString(),
@@ -338,9 +335,8 @@ export const PremiumWithAgentHoursExceededByFraction: Story = {
 			limit: 20000,
 			soft_limit: 16000,
 			hard_limit: 25000,
-			// The whole-hour actual sits exactly at the allocation, but the
-			// extra 6 minutes push the tenths-precision value past it, so
-			// the fraction alone flips the exceeded state.
+			// The extra 6 minutes push the tenths-precision value past the
+			// allocation, so the fraction alone flips the exceeded state.
 			actual: 20000,
 			actual_ms: 20_000 * 3_600_000 + 6 * 60_000,
 			usage_period: winningUsagePeriod,
@@ -398,8 +394,6 @@ export const LowerAgentHoursCardUsesMergedEntitlement: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Usage belongs to the winning 20,000-hour license, so this card
-		// shows no usage and no overage.
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"\u2014 / 10,000",
 		);
@@ -411,10 +405,8 @@ export const LowerAgentHoursCardUsesMergedEntitlement: Story = {
 
 export const ReplacedDuplicateAllocationShowsNoUsage: Story = {
 	args: {
-		// An older license with the same allocation as the winning renewal.
-		// Only the license whose iat matches the merged usage period shows
-		// usage, so this card stays free of usage and overage even though
-		// its allocation equals the merged limit.
+		// Same allocation as the winning renewal but an older usage
+		// period, so the merged usage does not belong to this license.
 		license: premiumLicenseWithAgentHours(
 			20000,
 			WINNING_ISSUED_AT.subtract(1, "year"),
@@ -455,10 +447,8 @@ const sameIssuedAtShorterTermLicense = (() => {
 
 export const SameIssuedAtDifferentTermEndShowsNoUsage: Story = {
 	args: {
-		// Same iat and allocation as the winning license, but a shorter
-		// term. Feature.Compare tie-breaks equal issued-at values on the
-		// period end, so this license loses and must not display the
-		// merged usage or overage.
+		// Same iat and allocation as the winning license but a shorter
+		// term; the backend tie-breaks equal issued-at on the period end.
 		license: sameIssuedAtShorterTermLicense,
 		agentRuntimeHoursFeature: {
 			enabled: true,
@@ -496,9 +486,8 @@ const enterpriseLicenseWithAgentHours = (() => {
 
 export const EnterpriseWithAgentHours: Story = {
 	args: {
-		// The backend accepts runtime hour claims on any feature set, so
-		// an Enterprise license carrying an allocation renders the Coder
-		// Agents product with its usage.
+		// Runtime hour claims apply to any feature set, so an Enterprise
+		// license with an allocation renders the Coder Agents product.
 		license: enterpriseLicenseWithAgentHours,
 		agentRuntimeHoursFeature: {
 			enabled: true,

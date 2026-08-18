@@ -3,10 +3,8 @@ import type { GetLicensesResponse } from "#/api/api";
 import type { Feature } from "#/api/typesGenerated";
 
 /**
- * Usage and overage indicators only apply to licenses that are currently
- * effective: past their nbf and not expired, unless the merged entitlement
- * for the feature is in its grace period (an expired license can still be
- * the one granting the feature while the grace period lasts).
+ * A license is applicable when past its nbf and not expired, or when the
+ * feature is in its grace period (an expired license can still grant it).
  */
 export function isLicenseApplicableForFeatureUsage(
 	license: GetLicensesResponse,

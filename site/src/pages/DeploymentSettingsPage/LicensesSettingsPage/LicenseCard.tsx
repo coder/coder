@@ -88,26 +88,20 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		? aiGovernanceActual
 		: undefined;
 
-	// Agent runtime hour claims, in hours. The -1 allocation is the
-	// unlimited sentinel; other negative allocations are ignored by the
-	// backend, and a zero allocation grants the feature disabled.
+	// Agent runtime hour claims, in hours. -1 means unlimited; other
+	// negatives are ignored and zero grants the feature disabled.
 	const agentHoursAllocation =
 		license.claims.features.agent_runtime_hours_allocation;
-	// The backend decodes runtime hour claims for every license
-	// regardless of feature set, so an Enterprise license carrying a
-	// usable allocation claim also gets the Coder Agents product.
-	// Premium licenses without claims are grandfathered into the
-	// zero-hour (upgrade) display.
+	// The backend decodes these claims for any feature set, so a
+	// non-Premium license with a usable claim also shows Coder Agents.
 	const hasAgentHoursClaim =
 		agentHoursAllocation !== undefined &&
 		(agentHoursAllocation >= 0 || agentHoursAllocation === -1);
 	const licenseGrantsAgentHours =
 		agentHoursAllocation !== undefined &&
 		(agentHoursAllocation > 0 || agentHoursAllocation === -1);
-	// Thresholds after the backend's claim validation: soft must be
-	// non-negative and below a positive allocation, hard at or above it.
-	// Invalid threshold claims are ignored rather than disqualifying the
-	// license.
+	// Mirror the backend's threshold validation; invalid claims are
+	// ignored rather than disqualifying the license.
 	const agentHoursSoftLimitClaim =
 		license.claims.features.agent_runtime_hours_limit_soft;
 	const agentHoursHardLimitClaim =
@@ -131,12 +125,9 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		license,
 		agentRuntimeHoursFeature,
 	);
-	// The merged entitlement's usage period is copied verbatim from the
-	// license the backend selected (issued_at from iat, start from nbf,
-	// end from exp), so a license only "wins" when all three match.
-	// Feature.Compare tie-breaks equal issued-at values on the period
-	// end, so matching issued-at alone could mark two licenses with the
-	// same second-granularity iat as the winner.
+	// The merged usage period is copied from the winning license's
+	// iat/nbf/exp claims. All three must match: issued-at alone can
+	// collide across licenses.
 	const mergedUsagePeriod = agentRuntimeHoursFeature?.usage_period;
 	const matchesMergedUsagePeriod =
 		license.claims.iat !== undefined &&
@@ -146,11 +137,8 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		dayjs.unix(license.claims.iat).isSame(mergedUsagePeriod.issued_at) &&
 		dayjs.unix(license.claims.nbf).isSame(mergedUsagePeriod.start) &&
 		dayjs.unix(license.claims.exp).isSame(mergedUsagePeriod.end);
-	// Beyond the usage period, the license's allocation and validated
-	// thresholds must equal the merged entitlement's: equal limits (or an
-	// unlimited allocation with the merged limit omitted) and equal
-	// soft/hard thresholds, since the backend retains only the selected
-	// license's thresholds.
+	// The winner's allocation and thresholds must also equal the merged
+	// entitlement's; an unlimited allocation reports no merged limit.
 	const isWinningAgentHoursLicense =
 		matchesMergedUsagePeriod &&
 		agentHoursSoftLimit === agentRuntimeHoursFeature?.soft_limit &&
@@ -163,16 +151,15 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 				agentHoursAllocation === agentRuntimeHoursFeature?.limit);
 	const canUseAgentHoursUsageForThisLicense =
 		isAgentHoursLicenseApplicable && isWinningAgentHoursLicense;
-	// Precise usage in tenths of hours, floored via integer math so the
-	// displayed number and the exceeded state below flip at the same
-	// instant as the backend's whole-hour warning thresholds.
+	// Usage floored to tenths of an hour via integer math so the display
+	// and the exceeded states below flip at the same instant.
 	const agentHoursActualMs = agentRuntimeHoursFeature?.actual_ms;
 	const agentHoursActual =
 		agentHoursActualMs === undefined
 			? undefined
 			: Math.floor(agentHoursActualMs / 360_000) / 10;
-	// Usage applies to the winning license's quota. Licenses without an
-	// allocation show deployment-wide usage in their upgrade card instead.
+	// Licenses without an allocation show deployment-wide usage in their
+	// upgrade card.
 	const agentHoursDisplayActual =
 		isAgentHoursLicenseApplicable &&
 		(isWinningAgentHoursLicense || !licenseGrantsAgentHours)

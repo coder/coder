@@ -11,28 +11,23 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 
-// Sentinel allocation claim value meaning the license grants unlimited
-// agent runtime hours (AgentRuntimeHoursUnlimitedAllocation in
-// enterprise/coderd/license).
+// Allocation sentinel for unlimited agent runtime hours
+// (AgentRuntimeHoursUnlimitedAllocation in enterprise/coderd/license).
 const unlimitedAllocation = -1;
 
-// Mirrors defaultMaxConcurrentRootAgents in coderd/x/chatd, which caps
-// concurrent chats once the hard limit is reached. It is not exposed via
-// the API, so keep this value in sync with the backend.
+// Concurrent chat cap once the hard limit is reached. Mirrors
+// defaultMaxConcurrentRootAgents in coderd/x/chatd; keep in sync.
 const maxConcurrentChatsOverHardLimit = 5;
 
 type CoderAgentsProductCardProps = {
 	/**
 	 * The license's agent_runtime_hours_allocation claim, in hours.
-	 * Undefined or non-positive (other than the -1 unlimited sentinel)
-	 * means the license does not include Coder Agents hours.
+	 * Undefined or non-positive (except -1, unlimited) grants no hours.
 	 */
 	allocation?: number;
 	/**
-	 * Agent runtime hours used in the current usage period, from the
-	 * merged entitlements, floored to tenths of an hour. Undefined when
-	 * usage does not apply to this license (another license provides the
-	 * feature) or is unknown.
+	 * Hours used in the current usage period, floored to tenths.
+	 * Undefined when usage does not apply to this license.
 	 */
 	actual?: number;
 	/**
@@ -97,8 +92,7 @@ const concurrentChatsTooltip =
 	"Number of Coder Agents chats that can run at the same time.";
 const concurrentChatsHardLimitTooltip = `${concurrentChatsTooltip} You've reached your limit: concurrent chats are now capped at ${maxConcurrentChatsOverHardLimit} (down from unlimited).`;
 
-// Usage always renders with exactly one decimal (e.g. 42.0, 10.3). The
-// value is already floored to tenths, so no rounding happens here.
+// The value is already floored to tenths, so no rounding happens here.
 const formatHoursUsed = (hours: number) =>
 	hours.toLocaleString("en-US", {
 		minimumFractionDigits: 1,
