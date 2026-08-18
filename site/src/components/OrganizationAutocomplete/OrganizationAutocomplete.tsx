@@ -22,6 +22,10 @@ type OrganizationAutocompleteProps = {
 	value: Organization | null;
 	onChange: (organization: Organization | null) => void;
 	options: readonly Organization[];
+	// Collision set for disambiguation labels. Lets callers include
+	// organizations that are visible but not selectable, such as a
+	// selected organization missing from options. Defaults to options.
+	labelOrganizations?: readonly Organization[];
 	id?: string;
 	ariaLabel?: string;
 	required?: boolean;
@@ -49,12 +53,14 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	value,
 	onChange,
 	options,
+	labelOrganizations,
 	id,
 	ariaLabel,
 	required,
 	disabled,
 }) => {
 	const [open, setOpen] = useState(false);
+	const labelContext = labelOrganizations ?? options;
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -77,7 +83,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 								fallback={value.display_name}
 							/>
 							<span className="truncate">
-								{getOrganizationLabel(value, options)}
+								{getOrganizationLabel(value, labelContext)}
 							</span>
 						</>
 					) : (
@@ -112,7 +118,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 										fallback={org.display_name}
 									/>
 									<span className="truncate">
-										{getOrganizationLabel(org, options)}
+										{getOrganizationLabel(org, labelContext)}
 									</span>
 									{value?.id === org.id && (
 										<CheckIcon className="ml-auto size-icon-sm shrink-0" />

@@ -33,12 +33,21 @@ export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 		return null;
 	}
 
+	// The selected organization can fall outside the selectable options,
+	// such as a deep link to an organization where servers are listable
+	// but not creatable, so include it when disambiguating labels.
+	const labelOrganizations = organizations.some(
+		(option) => option.id === organization.id,
+	)
+		? organizations
+		: [...organizations, organization];
+
 	return (
 		<div className={cn("flex w-72 flex-col gap-2", className)}>
 			<Label htmlFor={id}>Organization</Label>
 			<OrganizationAutocomplete
 				id={id}
-				ariaLabel={`Organization ${getOrganizationLabel(organization, organizations)}`}
+				ariaLabel={`Organization ${getOrganizationLabel(organization, labelOrganizations)}`}
 				value={organization}
 				onChange={(org) => {
 					if (org) {
@@ -46,6 +55,7 @@ export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 					}
 				}}
 				options={organizations}
+				labelOrganizations={labelOrganizations}
 				required
 				disabled={disabled || !onChange || hasSingleSelectedOrganization}
 			/>

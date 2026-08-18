@@ -63,6 +63,41 @@ export const CollidingDisplayNames: Story = {
 	},
 };
 
+// Collides with an option but is not itself selectable, mirroring a
+// deep link to a list-only organization.
+const listOnlyOrganization = {
+	...MockOrganization,
+	id: "org-t",
+	name: "org-t",
+	display_name: "Dev",
+};
+
+export const NonOptionValueDisambiguatesOptions: Story = {
+	args: {
+		value: listOnlyOrganization,
+		options: collidingDisplayNameOrganizations.slice(0, 1),
+		labelOrganizations: [
+			...collidingDisplayNameOrganizations.slice(0, 1),
+			listOnlyOrganization,
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Dev \(org-t\)/ }),
+		).toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("button"));
+		await waitFor(() => {
+			expect(
+				screen.getByRole("option", { name: "Dev (org-a)" }),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByRole("option", { name: /org-t/ }),
+			).not.toBeInTheDocument();
+		});
+	},
+};
+
 export const FallbackNameCollision: Story = {
 	args: {
 		value: null,
