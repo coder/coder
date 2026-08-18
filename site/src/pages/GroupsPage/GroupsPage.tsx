@@ -32,12 +32,9 @@ const GroupsPage: FC = () => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const groupsQuery = usePaginatedQuery({
 		...paginatedGroupsByOrganization(organization?.name ?? "", searchParams),
-		// Groups require the template_rbac (Premium) entitlement. Without it the
-		// view renders a paywall, so skip the request instead of firing one that
-		// fails with "Template RBAC is a Premium feature" and surfaces a redundant
-		// error toast alongside the paywall (DEVEX-159). groupsEnabled is undefined
-		// (not false) when unlicensed, so coerce it: React Query treats
-		// `enabled: undefined` as enabled, which would still fire the request.
+		// Skip the request when unentitled; the paywall covers it. Boolean() is
+		// required since groupsEnabled is undefined (not false) when unlicensed,
+		// and React Query treats enabled: undefined as enabled.
 		enabled: Boolean(groupsEnabled && organization),
 	});
 	const filter = useFilter({
