@@ -30,9 +30,14 @@ const GroupsPage: FC = () => {
 	const { organization, showOrganizations } = useGroupsSettings();
 	const aibridgeVisible = Boolean(aibridge);
 	const [searchParams, setSearchParams] = useSearchParams();
-	const groupsQuery = usePaginatedQuery(
-		paginatedGroupsByOrganization(organization?.name ?? "", searchParams),
-	);
+	const groupsQuery = usePaginatedQuery({
+		...paginatedGroupsByOrganization(organization?.name ?? "", searchParams),
+		// Groups require the template_rbac (Premium) entitlement. Without it the
+		// view renders a paywall, so skip the request instead of firing one that
+		// fails with "Template RBAC is a Premium feature" and surfaces a redundant
+		// error toast alongside the paywall (DEVEX-159).
+		enabled: groupsEnabled && Boolean(organization),
+	});
 	const filter = useFilter({
 		searchParams,
 		onSearchParamsChange: setSearchParams,
