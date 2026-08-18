@@ -1006,6 +1006,7 @@ func TestExternalAuthYAMLConfig(t *testing.T) {
 		ID:                            "id",
 		AuthURL:                       "https://example.com/auth",
 		TokenURL:                      "https://example.com/token",
+		RedirectURL:                   "https://example.com/redirect",
 		ValidateURL:                   "https://example.com/validate",
 		RevokeURL:                     "https://example.com/revoke",
 		AppInstallURL:                 "https://example.com/install",
