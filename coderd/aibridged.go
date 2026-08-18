@@ -14,9 +14,33 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridged"
 	aibridgedproto "github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
+	"github.com/coder/coder/v2/coderd/capabilities"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
+
+// aiBridgeCapabilityChecker builds the checker that resolves the capabilities
+// annotated onto each interception. It returns a nil checker when the
+// workspace-capable-licensing experiment is disabled, which leaves
+// interceptions unannotated.
+func (api *API) aiBridgeCapabilityChecker() (capabilities.Checker, error) {
+	var checker capabilities.Checker
+	if !api.Experiments.Enabled(codersdk.ExperimentWorkspaceCapableLicensing) {
+		return checker, nil
+	}
+	dbChecker, err := capabilities.NewDBChecker(capabilities.Options{
+		DB:         api.Database,
+		Authorizer: api.Authorizer,
+		Logger:     api.Logger.Named("capabilities"),
+		Clock:      api.Clock,
+	})
+	if err != nil {
+		return nil, err
+	}
+	checker = dbChecker
+	return checker, nil
+}
 
 // AIGatewayHandler returns the in-memory AI Gateway HTTP handler
 // set by [API.RegisterInMemoryAIBridgedHTTPHandler], or nil if the daemon
@@ -65,10 +89,15 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 	}()
 
 	mux := drpcmux.New()
+	capabilityChecker, err := api.aiBridgeCapabilityChecker()
+	if err != nil {
+		return nil, err
+	}
 	srv, err := aibridgedserver.NewServer(api.ctx, aibridgedserver.Options{
 		Store:               api.Database,
 		Pubsub:              api.Pubsub,
 		AISeatTracker:       api.AISeatTracker,
+		CapabilityChecker:   capabilityChecker,
 		Enqueuer:            api.NotificationsEnqueuer,
 		AccessURL:           api.AccessURL.String(),
 		GatewayCfg:          api.DeploymentValues.AI.BridgeConfig,

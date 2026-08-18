@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/aiseats"
 	"github.com/coder/coder/v2/coderd/apikey"
+	"github.com/coder/coder/v2/coderd/capabilities"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -117,6 +118,9 @@ type Server struct {
 	structuredLogging bool
 	aiSeatTracker     aiseats.SeatTracker
 	experiments       codersdk.Experiments
+	// capabilityChecker resolves the initiator's capabilities when recording an
+	// interception. Nil disables capability annotation.
+	capabilityChecker capabilities.Checker
 	// budgetPolicy selects the effective group when a user belongs to multiple
 	// budgeted groups, used for cost attribution on token usage records.
 	budgetPolicy codersdk.AIBudgetPolicy
@@ -134,6 +138,10 @@ type Options struct {
 	Store         store
 	Pubsub        pubsub.Pubsub
 	AISeatTracker aiseats.SeatTracker
+	// CapabilityChecker resolves the capabilities annotated onto each
+	// interception. When nil, interceptions are recorded without capability
+	// annotations.
+	CapabilityChecker capabilities.Checker
 	// Enqueuer enqueues notifications. When nil, NewServer substitutes a no-op
 	// enqueuer.
 	Enqueuer notifications.Enqueuer
@@ -172,6 +180,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 		externalAuthConfigs: eac,
 		structuredLogging:   opts.GatewayCfg.StructuredLogging.Value(),
 		aiSeatTracker:       opts.AISeatTracker,
+		capabilityChecker:   opts.CapabilityChecker,
 		experiments:         opts.Experiments,
 		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(opts.GatewayCfg.BudgetPolicy),
 		budgetPeriod:        codersdk.NewAIBudgetPeriodFromString(opts.GatewayCfg.BudgetPeriod),
@@ -264,6 +273,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		ProviderName:                providerName,
 		Model:                       in.Model,
 		Metadata:                    out,
+		Annotations:                 s.interceptionAnnotations(ctx, initID),
 		StartedAt:                   in.StartedAt.AsTime(),
 		ThreadParentInterceptionID:  uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
 		ThreadRootInterceptionID:    uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
@@ -281,6 +291,23 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		s.aiSeatTracker.RecordUsage(ctx, initID, reason)
 	}
 	return &proto.RecordInterceptionResponse{}, nil
+}
+
+// interceptionAnnotations resolves the annotations recorded alongside an
+// interception. Resolution failures are logged and yield empty annotations
+// rather than failing the interception, since annotations are informational and
+// this runs on the request path.
+func (s *Server) interceptionAnnotations(ctx context.Context, initiatorID uuid.UUID) database.AIBridgeInterceptionAnnotations {
+	if s.capabilityChecker == nil {
+		return database.AIBridgeInterceptionAnnotations{}
+	}
+	caps, err := s.capabilityChecker.Capabilities(ctx, initiatorID)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to resolve initiator capabilities for interception",
+			slog.F("initiator_id", initiatorID), slog.Error(err))
+		return database.AIBridgeInterceptionAnnotations{}
+	}
+	return database.AIBridgeInterceptionCapabilities(capabilities.Strings(caps))
 }
 
 func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordInterceptionEndedRequest) (*proto.RecordInterceptionEndedResponse, error) {

@@ -1862,6 +1862,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/ai/spen
 Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
 The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
 An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.
+The capabilities column lists the distinct capabilities the user held across the interceptions behind the row, semicolon-separated. It is empty for interceptions recorded without capability annotations.
 Requires organization-level administrator permissions.
 
 ### Parameters

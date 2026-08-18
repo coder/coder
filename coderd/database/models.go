@@ -4723,6 +4723,8 @@ type AIBridgeInterception struct {
 	ErrorType NullAIBridgeInterceptionErrorType `db:"error_type" json:"error_type"`
 	// Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.
 	ErrorMessage sql.NullString `db:"error_message" json:"error_message"`
+	// Server-derived annotations captured when the interception was recorded, such as the capabilities the initiator held at that time. Distinct from metadata, which is supplied by the client or provider.
+	Annotations AIBridgeInterceptionAnnotations `db:"annotations" json:"annotations"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge

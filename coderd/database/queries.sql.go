@@ -1211,7 +1211,7 @@ func (q *sqlQuerier) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UU
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message, annotations
 FROM
 	aibridge_interceptions
 WHERE
@@ -1242,6 +1242,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.AgentFirewallSequenceNumber,
 		&i.ErrorType,
 		&i.ErrorMessage,
+		&i.Annotations,
 	)
 	return i, err
 }
@@ -1276,7 +1277,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionLineageByToolCallID(ctx context.Cont
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message, annotations
 FROM
 	aibridge_interceptions
 `
@@ -1311,6 +1312,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.AgentFirewallSequenceNumber,
 			&i.ErrorType,
 			&i.ErrorMessage,
+			&i.Annotations,
 		); err != nil {
 			return nil, err
 		}
@@ -1561,30 +1563,31 @@ func (q *sqlQuerier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context,
 
 const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number
+	id, api_key_id, initiator_id, provider, provider_name, model, metadata, annotations, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number
 ) VALUES (
-	$1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '{}'::jsonb), $8, $9, $10, $11::uuid, $12::uuid, $13, $14, $15::uuid, $16
+	$1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '{}'::jsonb), $8, $9, $10, $11, $12::uuid, $13::uuid, $14, $15, $16::uuid, $17
 )
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message, annotations
 `
 
 type InsertAIBridgeInterceptionParams struct {
-	ID                          uuid.UUID       `db:"id" json:"id"`
-	APIKeyID                    sql.NullString  `db:"api_key_id" json:"api_key_id"`
-	InitiatorID                 uuid.UUID       `db:"initiator_id" json:"initiator_id"`
-	Provider                    string          `db:"provider" json:"provider"`
-	ProviderName                string          `db:"provider_name" json:"provider_name"`
-	Model                       string          `db:"model" json:"model"`
-	Metadata                    json.RawMessage `db:"metadata" json:"metadata"`
-	StartedAt                   time.Time       `db:"started_at" json:"started_at"`
-	Client                      sql.NullString  `db:"client" json:"client"`
-	ClientSessionID             sql.NullString  `db:"client_session_id" json:"client_session_id"`
-	ThreadParentInterceptionID  uuid.NullUUID   `db:"thread_parent_interception_id" json:"thread_parent_interception_id"`
-	ThreadRootInterceptionID    uuid.NullUUID   `db:"thread_root_interception_id" json:"thread_root_interception_id"`
-	CredentialKind              CredentialKind  `db:"credential_kind" json:"credential_kind"`
-	CredentialHint              string          `db:"credential_hint" json:"credential_hint"`
-	AgentFirewallSessionID      uuid.NullUUID   `db:"agent_firewall_session_id" json:"agent_firewall_session_id"`
-	AgentFirewallSequenceNumber sql.NullInt32   `db:"agent_firewall_sequence_number" json:"agent_firewall_sequence_number"`
+	ID                          uuid.UUID                       `db:"id" json:"id"`
+	APIKeyID                    sql.NullString                  `db:"api_key_id" json:"api_key_id"`
+	InitiatorID                 uuid.UUID                       `db:"initiator_id" json:"initiator_id"`
+	Provider                    string                          `db:"provider" json:"provider"`
+	ProviderName                string                          `db:"provider_name" json:"provider_name"`
+	Model                       string                          `db:"model" json:"model"`
+	Metadata                    json.RawMessage                 `db:"metadata" json:"metadata"`
+	Annotations                 AIBridgeInterceptionAnnotations `db:"annotations" json:"annotations"`
+	StartedAt                   time.Time                       `db:"started_at" json:"started_at"`
+	Client                      sql.NullString                  `db:"client" json:"client"`
+	ClientSessionID             sql.NullString                  `db:"client_session_id" json:"client_session_id"`
+	ThreadParentInterceptionID  uuid.NullUUID                   `db:"thread_parent_interception_id" json:"thread_parent_interception_id"`
+	ThreadRootInterceptionID    uuid.NullUUID                   `db:"thread_root_interception_id" json:"thread_root_interception_id"`
+	CredentialKind              CredentialKind                  `db:"credential_kind" json:"credential_kind"`
+	CredentialHint              string                          `db:"credential_hint" json:"credential_hint"`
+	AgentFirewallSessionID      uuid.NullUUID                   `db:"agent_firewall_session_id" json:"agent_firewall_session_id"`
+	AgentFirewallSequenceNumber sql.NullInt32                   `db:"agent_firewall_sequence_number" json:"agent_firewall_sequence_number"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error) {
@@ -1596,6 +1599,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		arg.ProviderName,
 		arg.Model,
 		arg.Metadata,
+		arg.Annotations,
 		arg.StartedAt,
 		arg.Client,
 		arg.ClientSessionID,
@@ -1628,6 +1632,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.AgentFirewallSequenceNumber,
 		&i.ErrorType,
 		&i.ErrorMessage,
+		&i.Annotations,
 	)
 	return i, err
 }
@@ -2137,7 +2142,7 @@ WITH paginated_threads AS (
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.agent_firewall_session_id, aibridge_interceptions.agent_firewall_sequence_number, aibridge_interceptions.error_type, aibridge_interceptions.error_message
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.agent_firewall_session_id, aibridge_interceptions.agent_firewall_sequence_number, aibridge_interceptions.error_type, aibridge_interceptions.error_message, aibridge_interceptions.annotations
 FROM
 	aibridge_interceptions
 JOIN
@@ -2205,6 +2210,7 @@ func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIB
 			&i.AIBridgeInterception.AgentFirewallSequenceNumber,
 			&i.AIBridgeInterception.ErrorType,
 			&i.AIBridgeInterception.ErrorMessage,
+			&i.AIBridgeInterception.Annotations,
 		); err != nil {
 			return nil, err
 		}
@@ -2681,7 +2687,7 @@ UPDATE aibridge_interceptions
 WHERE
 	id = $5::uuid
 	AND ended_at IS NULL
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message, annotations
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
@@ -2722,6 +2728,7 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 		&i.AgentFirewallSequenceNumber,
 		&i.ErrorType,
 		&i.ErrorMessage,
+		&i.Annotations,
 	)
 	return i, err
 }
@@ -2760,40 +2767,92 @@ func (q *sqlQuerier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid
 }
 
 const exportOrganizationAISpend = `-- name: ExportOrganizationAISpend :many
+WITH usage AS (
+	SELECT
+		ai.initiator_id AS user_id,
+		users.username AS username,
+		tu.effective_group_id AS group_id,
+		groups.name AS group_name,
+		groups.organization_id AS organization_id,
+		organizations.name AS organization_name,
+		ai.model AS model,
+		ai.provider AS provider,
+		ai.provider_name AS provider_name,
+		COALESCE(SUM(tu.input_tokens), 0)::BIGINT AS input_tokens,
+		COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
+		COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
+		COALESCE(SUM(tu.cache_write_input_tokens), 0)::BIGINT AS cache_write_tokens,
+		COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros
+	FROM aibridge_token_usages tu
+	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+	JOIN users ON users.id = ai.initiator_id
+	JOIN groups ON groups.id = tu.effective_group_id
+	JOIN organizations ON organizations.id = groups.organization_id
+	WHERE groups.organization_id = $1
+		AND tu.created_at >= $2::timestamptz
+		AND tu.created_at < $3::timestamptz
+	GROUP BY
+		ai.initiator_id,
+		users.username,
+		tu.effective_group_id,
+		groups.name,
+		groups.organization_id,
+		organizations.name,
+		ai.model,
+		ai.provider,
+		ai.provider_name
+), capabilities AS (
+	SELECT
+		ai.initiator_id AS user_id,
+		tu.effective_group_id AS group_id,
+		ai.model AS model,
+		ai.provider AS provider,
+		ai.provider_name AS provider_name,
+		STRING_AGG(DISTINCT capability.value, ';' ORDER BY capability.value) AS capabilities
+	FROM aibridge_token_usages tu
+	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+	JOIN groups ON groups.id = tu.effective_group_id
+	-- jsonb_array_elements_text errors on a non-array value, so anything that is
+	-- not an array is treated as no capabilities.
+	CROSS JOIN LATERAL jsonb_array_elements_text(
+		CASE WHEN jsonb_typeof(ai.annotations -> 'capabilities') = 'array'
+			THEN ai.annotations -> 'capabilities'
+			ELSE '[]'::jsonb
+		END
+	) AS capability(value)
+	WHERE groups.organization_id = $1
+		AND tu.created_at >= $2::timestamptz
+		AND tu.created_at < $3::timestamptz
+	GROUP BY
+		ai.initiator_id,
+		tu.effective_group_id,
+		ai.model,
+		ai.provider,
+		ai.provider_name
+)
 SELECT
-	ai.initiator_id AS user_id,
-	users.username AS username,
-	tu.effective_group_id AS group_id,
-	groups.name AS group_name,
-	groups.organization_id AS organization_id,
-	organizations.name AS organization_name,
-	ai.model AS model,
-	ai.provider AS provider,
-	ai.provider_name AS provider_name,
-	COALESCE(SUM(tu.input_tokens), 0)::BIGINT AS input_tokens,
-	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
-	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
-	COALESCE(SUM(tu.cache_write_input_tokens), 0)::BIGINT AS cache_write_tokens,
-	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros
-FROM aibridge_token_usages tu
-JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
-JOIN users ON users.id = ai.initiator_id
-JOIN groups ON groups.id = tu.effective_group_id
-JOIN organizations ON organizations.id = groups.organization_id
-WHERE groups.organization_id = $1
-	AND tu.created_at >= $2::timestamptz
-	AND tu.created_at < $3::timestamptz
-GROUP BY
-	ai.initiator_id,
-	users.username,
-	tu.effective_group_id,
-	groups.name,
-	groups.organization_id,
-	organizations.name,
-	ai.model,
-	ai.provider,
-	ai.provider_name
-ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model
+	usage.user_id,
+	usage.username,
+	usage.group_id,
+	usage.group_name,
+	usage.organization_id,
+	usage.organization_name,
+	usage.model,
+	usage.provider,
+	usage.provider_name,
+	usage.input_tokens,
+	usage.output_tokens,
+	usage.cache_read_tokens,
+	usage.cache_write_tokens,
+	usage.cost_micros,
+	COALESCE(capabilities.capabilities, '')::text AS capabilities
+FROM usage
+LEFT JOIN capabilities ON capabilities.user_id = usage.user_id
+	AND capabilities.group_id = usage.group_id
+	AND capabilities.model = usage.model
+	AND capabilities.provider = usage.provider
+	AND capabilities.provider_name = usage.provider_name
+ORDER BY usage.user_id, usage.group_id, usage.provider, usage.provider_name, usage.model
 `
 
 type ExportOrganizationAISpendParams struct {
@@ -2817,12 +2876,18 @@ type ExportOrganizationAISpendRow struct {
 	CacheReadTokens  int64         `db:"cache_read_tokens" json:"cache_read_tokens"`
 	CacheWriteTokens int64         `db:"cache_write_tokens" json:"cache_write_tokens"`
 	CostMicros       int64         `db:"cost_micros" json:"cost_micros"`
+	Capabilities     string        `db:"capabilities" json:"capabilities"`
 }
 
 // Returns per-user, per-group, per-model, per-provider aggregated AI spend for
 // @organization_id over the [period_start, period_end) window. Spend is
 // attributed through the token usage's effective group, and rows are bucketed
 // by the token usage created_at, matching how ai_user_daily_spend is derived.
+// Capabilities are annotated per interception, so the distinct values observed
+// across the interceptions behind each row are collapsed into one
+// semicolon-separated cell. The capability set is computed in a separate CTE
+// because the lateral expansion of the annotations array would otherwise
+// multiply the summed token and cost values.
 func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error) {
 	rows, err := q.db.QueryContext(ctx, exportOrganizationAISpend, arg.OrganizationID, arg.PeriodStart, arg.PeriodEnd)
 	if err != nil {
@@ -2847,6 +2912,7 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 			&i.CacheReadTokens,
 			&i.CacheWriteTokens,
 			&i.CostMicros,
+			&i.Capabilities,
 		); err != nil {
 			return nil, err
 		}
