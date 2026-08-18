@@ -51,6 +51,7 @@ import {
 	invalidateChatDebugRuns,
 	invalidateChatDiffContents,
 	invalidateChatEntity,
+	invalidateChatFamilyEntities,
 	invalidateChatListQueries,
 	invalidateChatMessages,
 	invalidateChatPrompts,
@@ -251,6 +252,34 @@ describe("advisor config query factories", () => {
 		expect(queryClient.getQueryState(chatAdvisorConfigKey)?.isInvalidated).toBe(
 			true,
 		);
+	});
+});
+
+describe("invalidateChatFamilyEntities", () => {
+	it("invalidates the root and its loaded children, not other chats", async () => {
+		const queryClient = createTestQueryClient();
+		const root = makeChat("root-1");
+		const child = makeChat("child-1", { parent_chat_id: "root-1" });
+		const unrelated = makeChat("other-1");
+
+		queryClient.setQueryData(chatEntityKey(root.id), root);
+		queryClient.setQueryData(chatEntityKey(child.id), child);
+		queryClient.setQueryData(chatEntityKey(unrelated.id), unrelated);
+
+		await invalidateChatFamilyEntities(queryClient, root.id);
+
+		expect(
+			queryClient.getQueryState(chatEntityKey(root.id))?.isInvalidated,
+			"root entity should be invalidated",
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey(child.id))?.isInvalidated,
+			"child entity should be invalidated",
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatEntityKey(unrelated.id))?.isInvalidated,
+			"unrelated entity should NOT be invalidated",
+		).not.toBe(true);
 	});
 });
 

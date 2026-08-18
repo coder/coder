@@ -30,6 +30,7 @@ import {
 	invalidateChatCostTree,
 	invalidateChatDiffContents,
 	invalidateChatEntity,
+	invalidateChatFamilyEntities,
 	invalidateChatListQueries,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
@@ -308,7 +309,7 @@ const AgentsPageLayout: FC = () => {
 			clearPersistedSidebarTabId(chatId);
 			clearPersistedRightPanelState(chatId);
 			void invalidateChatListQueries(queryClient);
-			void invalidateChatEntity(queryClient, chatId);
+			void invalidateChatFamilyEntities(queryClient, chatId);
 			void invalidateChatsByWorkspace(queryClient);
 			void invalidateChatSearches(queryClient);
 			void invalidateWorkspaceMutationQueries(queryClient, {
@@ -333,9 +334,11 @@ const AgentsPageLayout: FC = () => {
 			// The archive may have committed server-side even when the
 			// request appeared to fail (transport errors), and on delete
 			// failures the chat stays archived; refetch every chat
-			// collection so all caches converge on the server.
+			// collection and every loaded family entity (the archive
+			// cascades over children, and a mounted child page reads its
+			// own entity) so all caches converge on the server.
 			void invalidateChatListQueries(queryClient);
-			void invalidateChatEntity(queryClient, chatId);
+			void invalidateChatFamilyEntities(queryClient, chatId);
 			void invalidateChatsByWorkspace(queryClient);
 			void invalidateChatSearches(queryClient);
 			// A failed delete may still have committed server-side (lost

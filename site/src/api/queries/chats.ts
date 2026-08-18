@@ -776,6 +776,32 @@ export const invalidateChatEntity = (
 		exact: true,
 	});
 
+/**
+ * Invalidates the root chat's entity and every loaded child entity of
+ * its family. Archive operations cascade server-side over the whole
+ * family, so after a partial archive-and-delete failure each mounted
+ * family member must refetch its own entity.
+ */
+export const invalidateChatFamilyEntities = (
+	queryClient: QueryClient,
+	rootChatId: string,
+) => {
+	const entities = queryClient.getQueriesData<TypesGen.Chat>({
+		queryKey: chatEntitiesFamilyKey,
+	});
+	return Promise.all(
+		entities
+			.filter(
+				([, chat]) =>
+					chat !== undefined &&
+					(chat.id === rootChatId || chat.parent_chat_id === rootChatId),
+			)
+			.map(([queryKey]) =>
+				queryClient.invalidateQueries({ queryKey, exact: true }),
+			),
+	);
+};
+
 export const invalidateChatListQueries = (queryClient: QueryClient) =>
 	queryClient.invalidateQueries({
 		queryKey: chatListFamilyKey,
