@@ -188,7 +188,11 @@ func (c *DBChecker) resolve(ctx context.Context, userID uuid.UUID) ([]Capability
 	subject = subject.WithCachedASTValue()
 
 	var caps []Capability
-	if c.canCreateWorkspace(ctx, subject) {
+	capable, err := c.canCreateWorkspace(ctx, subject)
+	if err != nil {
+		return nil, xerrors.Errorf("authorize workspace create: %w", err)
+	}
+	if capable {
 		caps = append(caps, Workspace)
 	}
 	return caps, nil
@@ -201,9 +205,21 @@ func (c *DBChecker) resolve(ctx context.Context, userID uuid.UUID) ([]Capability
 // The any-organization form allows exactly when some per-organization check
 // would, because the policy takes the maximum vote across the subject's
 // memberships, and it also covers users who belong to zero organizations.
-func (c *DBChecker) canCreateWorkspace(ctx context.Context, subject rbac.Subject) bool {
-	return c.authorizer.Authorize(ctx, subject, policy.ActionCreate,
-		rbac.ResourceWorkspace.AnyOrganization().WithOwner(subject.ID)) == nil
+//
+// Only an authorization denial reports false. Any other failure, such as a
+// canceled context or an evaluation error, is returned as an error so the
+// caller does not record it as a denial.
+func (c *DBChecker) canCreateWorkspace(ctx context.Context, subject rbac.Subject) (bool, error) {
+	err := c.authorizer.Authorize(ctx, subject, policy.ActionCreate,
+		rbac.ResourceWorkspace.AnyOrganization().WithOwner(subject.ID))
+	switch {
+	case err == nil:
+		return true, nil
+	case rbac.IsUnauthorizedError(err):
+		return false, nil
+	default:
+		return false, err
+	}
 }
 
 // subjectFor builds the evaluation subject for a user, with roles and groups

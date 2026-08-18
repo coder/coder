@@ -20,25 +20,36 @@ import (
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
-// aiBridgeCapabilityChecker builds the checker that resolves the capabilities
-// annotated onto each interception. It returns a nil checker when the
-// workspace-capable-licensing experiment is disabled, which leaves
-// interceptions unannotated.
-func (api *API) aiBridgeCapabilityChecker() (capabilities.Checker, error) {
+// AIBridgeCapabilityChecker returns the checker that resolves the capabilities
+// annotated onto each interception, constructing it on first use. It returns a
+// nil checker when the workspace-capable-licensing experiment is disabled,
+// which leaves interceptions unannotated.
+//
+// The checker is shared by every AI Gateway connection so that its cache is not
+// discarded when a gateway reconnects.
+func (api *API) AIBridgeCapabilityChecker() (capabilities.Checker, error) {
+	api.aiBridgeCapabilitiesMu.Lock()
+	defer api.aiBridgeCapabilitiesMu.Unlock()
+	if api.aiBridgeCapabilitiesInit {
+		return api.aiBridgeCapabilities, nil
+	}
+
 	var checker capabilities.Checker
-	if !api.Experiments.Enabled(codersdk.ExperimentWorkspaceCapableLicensing) {
-		return checker, nil
+	if api.Experiments.Enabled(codersdk.ExperimentWorkspaceCapableLicensing) {
+		dbChecker, err := capabilities.NewDBChecker(capabilities.Options{
+			DB:         api.Database,
+			Authorizer: api.Authorizer,
+			Logger:     api.Logger.Named("capabilities"),
+			Clock:      api.Clock,
+		})
+		if err != nil {
+			return nil, err
+		}
+		checker = dbChecker
 	}
-	dbChecker, err := capabilities.NewDBChecker(capabilities.Options{
-		DB:         api.Database,
-		Authorizer: api.Authorizer,
-		Logger:     api.Logger.Named("capabilities"),
-		Clock:      api.Clock,
-	})
-	if err != nil {
-		return nil, err
-	}
-	checker = dbChecker
+
+	api.aiBridgeCapabilities = checker
+	api.aiBridgeCapabilitiesInit = true
 	return checker, nil
 }
 
@@ -89,7 +100,7 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 	}()
 
 	mux := drpcmux.New()
-	capabilityChecker, err := api.aiBridgeCapabilityChecker()
+	capabilityChecker, err := api.AIBridgeCapabilityChecker()
 	if err != nil {
 		return nil, err
 	}

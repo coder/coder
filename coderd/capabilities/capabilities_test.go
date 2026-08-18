@@ -2,12 +2,14 @@ package capabilities_test
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/capabilities"
 	"github.com/coder/coder/v2/coderd/database"
@@ -196,4 +198,47 @@ func TestStrings(t *testing.T) {
 	require.Equal(t, []string{"workspace"}, capabilities.Strings([]capabilities.Capability{
 		capabilities.Workspace, capabilities.Workspace,
 	}))
+}
+
+// erroringAuthorizer fails every authorization with a non-denial error.
+type erroringAuthorizer struct {
+	calls atomic.Int64
+	err   error
+}
+
+func (a *erroringAuthorizer) Authorize(context.Context, rbac.Subject, policy.Action, rbac.Object) error {
+	a.calls.Add(1)
+	return a.err
+}
+
+func (*erroringAuthorizer) Prepare(context.Context, rbac.Subject, policy.Action, string) (rbac.PreparedAuthorized, error) {
+	return nil, xerrors.New("not implemented")
+}
+
+// TestDBCheckerAuthorizerError covers the distinction between a denial and an
+// evaluation failure: a failure must surface as an error and must not be cached
+// as "holds no capabilities".
+func TestDBCheckerAuthorizerError(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{Status: database.UserStatusActive})
+
+	authorizer := &erroringAuthorizer{err: xerrors.New("evaluation exploded")}
+	checker, err := capabilities.NewDBChecker(capabilities.Options{
+		DB:         db,
+		Authorizer: authorizer,
+		Logger:     testutil.Logger(t),
+		Clock:      quartz.NewMock(t),
+	})
+	require.NoError(t, err)
+
+	_, err = checker.Capabilities(ctx, user.ID)
+	require.ErrorContains(t, err, "evaluation exploded")
+
+	// The failure is not cached, so the next call re-evaluates.
+	_, err = checker.Capabilities(ctx, user.ID)
+	require.Error(t, err)
+	require.Equal(t, int64(2), authorizer.calls.Load())
 }

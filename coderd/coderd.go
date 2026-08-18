@@ -56,6 +56,7 @@ import (
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/azureidentity"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
+	"github.com/coder/coder/v2/coderd/capabilities"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -2371,6 +2372,13 @@ type API struct {
 	// routes (license-gated) which apply their own StripPrefix, and by
 	// the in-memory transport (used by chatd, license-exempt).
 	aiGatewayHandler http.Handler
+	// aiBridgeCapabilities resolves the capabilities annotated onto AI Bridge
+	// interceptions. It is built on first use by AIBridgeCapabilityChecker and
+	// shared across gateway connections so its cache survives reconnects. A nil
+	// checker after initialization means annotation is disabled.
+	aiBridgeCapabilitiesMu   sync.Mutex
+	aiBridgeCapabilities     capabilities.Checker
+	aiBridgeCapabilitiesInit bool
 	// AIGatewayServerMetrics records AI budget cost-control metrics. May be nil.
 	AIGatewayServerMetrics *aibridgedserver.Metrics
 

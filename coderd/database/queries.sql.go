@@ -2782,7 +2782,14 @@ WITH usage AS (
 		COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
 		COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
 		COALESCE(SUM(tu.cache_write_input_tokens), 0)::BIGINT AS cache_write_tokens,
-		COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros
+		COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
+		-- jsonb_array_elements_text errors on a non-array value, so anything
+		-- that is not an array contributes no capabilities.
+		JSONB_AGG(DISTINCT CASE
+			WHEN jsonb_typeof(ai.annotations -> 'capabilities') = 'array'
+			THEN ai.annotations -> 'capabilities'
+			ELSE '[]'::jsonb
+		END) AS capability_sets
 	FROM aibridge_token_usages tu
 	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
 	JOIN users ON users.id = ai.initiator_id
@@ -2798,34 +2805,6 @@ WITH usage AS (
 		groups.name,
 		groups.organization_id,
 		organizations.name,
-		ai.model,
-		ai.provider,
-		ai.provider_name
-), capabilities AS (
-	SELECT
-		ai.initiator_id AS user_id,
-		tu.effective_group_id AS group_id,
-		ai.model AS model,
-		ai.provider AS provider,
-		ai.provider_name AS provider_name,
-		STRING_AGG(DISTINCT capability.value, ';' ORDER BY capability.value) AS capabilities
-	FROM aibridge_token_usages tu
-	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
-	JOIN groups ON groups.id = tu.effective_group_id
-	-- jsonb_array_elements_text errors on a non-array value, so anything that is
-	-- not an array is treated as no capabilities.
-	CROSS JOIN LATERAL jsonb_array_elements_text(
-		CASE WHEN jsonb_typeof(ai.annotations -> 'capabilities') = 'array'
-			THEN ai.annotations -> 'capabilities'
-			ELSE '[]'::jsonb
-		END
-	) AS capability(value)
-	WHERE groups.organization_id = $1
-		AND tu.created_at >= $2::timestamptz
-		AND tu.created_at < $3::timestamptz
-	GROUP BY
-		ai.initiator_id,
-		tu.effective_group_id,
 		ai.model,
 		ai.provider,
 		ai.provider_name
@@ -2845,13 +2824,12 @@ SELECT
 	usage.cache_read_tokens,
 	usage.cache_write_tokens,
 	usage.cost_micros,
-	COALESCE(capabilities.capabilities, '')::text AS capabilities
+	COALESCE((
+		SELECT STRING_AGG(DISTINCT capability.value, ';' ORDER BY capability.value)
+		FROM jsonb_array_elements(usage.capability_sets) AS capability_set(value),
+			jsonb_array_elements_text(capability_set.value) AS capability(value)
+	), '')::text AS capabilities
 FROM usage
-LEFT JOIN capabilities ON capabilities.user_id = usage.user_id
-	AND capabilities.group_id = usage.group_id
-	AND capabilities.model = usage.model
-	AND capabilities.provider = usage.provider
-	AND capabilities.provider_name = usage.provider_name
 ORDER BY usage.user_id, usage.group_id, usage.provider, usage.provider_name, usage.model
 `
 
@@ -2885,9 +2863,9 @@ type ExportOrganizationAISpendRow struct {
 // by the token usage created_at, matching how ai_user_daily_spend is derived.
 // Capabilities are annotated per interception, so the distinct values observed
 // across the interceptions behind each row are collapsed into one
-// semicolon-separated cell. The capability set is computed in a separate CTE
-// because the lateral expansion of the annotations array would otherwise
-// multiply the summed token and cost values.
+// semicolon-separated cell. The per-interception arrays are aggregated inside
+// the same GROUP BY as the sums and expanded afterwards, because expanding them
+// alongside the token usage rows would multiply the summed values.
 func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error) {
 	rows, err := q.db.QueryContext(ctx, exportOrganizationAISpend, arg.OrganizationID, arg.PeriodStart, arg.PeriodEnd)
 	if err != nil {

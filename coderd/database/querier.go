@@ -260,9 +260,9 @@ type sqlcQuerier interface {
 	// by the token usage created_at, matching how ai_user_daily_spend is derived.
 	// Capabilities are annotated per interception, so the distinct values observed
 	// across the interceptions behind each row are collapsed into one
-	// semicolon-separated cell. The capability set is computed in a separate CTE
-	// because the lateral expansion of the annotations array would otherwise
-	// multiply the summed token and cost values.
+	// semicolon-separated cell. The per-interception arrays are aggregated inside
+	// the same GROUP BY as the sums and expanded afterwards, because expanding them
+	// alongside the token usage rows would multiply the summed values.
 	ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error)
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentMemoryResourceMonitor, error)
