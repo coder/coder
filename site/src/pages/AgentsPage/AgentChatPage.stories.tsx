@@ -3270,7 +3270,13 @@ export const SendResponseAfterChatSwitch: Story = {
 
 		await userEvent.click(canvas.getByRole("button", { name: "Switch chat" }));
 		const timeline = within(await canvas.findByTestId("conversation-timeline"));
-		expect(await timeline.findByText("Current chat message")).toBeVisible();
+		// The switched chat's messages render slowly under pixel's parallel
+		// load, so extend the default 1s lookup timeout.
+		expect(
+			await timeline.findByText("Current chat message", undefined, {
+				timeout: 10_000,
+			}),
+		).toBeVisible();
 
 		releaseSend?.();
 		await waitFor(() => {
