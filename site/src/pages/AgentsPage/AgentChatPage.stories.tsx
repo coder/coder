@@ -3117,10 +3117,14 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 		await userEvent.click(editor);
 		await userEvent.keyboard("/compact");
 		// The menu offers only the personal skill (the built-in command
-		// yields); first Enter accepts it, second Enter submits.
-		expect(
-			await within(document.body).findByText("Personal compact skill"),
-		).toBeVisible();
+		// yields); first Enter accepts it, second Enter submits. The menu item
+		// exists before the popover finishes positioning, so wait for
+		// visibility rather than asserting it once.
+		await waitFor(() => {
+			expect(
+				within(document.body).getByText("Personal compact skill"),
+			).toBeVisible();
+		});
 		await userEvent.keyboard("{Enter}");
 		await userEvent.keyboard("{Enter}");
 
@@ -3309,7 +3313,13 @@ export const SendResponseAfterChatSwitch: Story = {
 
 		await userEvent.click(canvas.getByRole("button", { name: "Switch chat" }));
 		const timeline = within(await canvas.findByTestId("conversation-timeline"));
-		expect(await timeline.findByText("Current chat message")).toBeVisible();
+		// The switched chat's messages render slowly under pixel's parallel
+		// load, so extend the default 1s lookup timeout.
+		expect(
+			await timeline.findByText("Current chat message", undefined, {
+				timeout: 10_000,
+			}),
+		).toBeVisible();
 
 		releaseSend?.();
 		await waitFor(() => {
