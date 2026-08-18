@@ -62,11 +62,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			<DropdownMenuSeparator />
 			{supportsCoderDesktop() && (
 				<DropdownMenuItem asChild>
-					<a
-						href={CODER_DESKTOP_DOCS_URL}
-						target="_blank"
-						rel="noreferrer"
-					>
+					<a href={CODER_DESKTOP_DOCS_URL} target="_blank" rel="noreferrer">
 						<MonitorIcon />
 						<span>Install Coder Desktop</span>
 					</a>

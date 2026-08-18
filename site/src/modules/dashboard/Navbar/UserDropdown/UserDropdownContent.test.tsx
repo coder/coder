@@ -98,8 +98,6 @@ describe("UserDropdownContent", () => {
 		renderUserDropdownContent({ onSignOut: vi.fn() });
 		await waitForLoaderToBeRemoved();
 
-		expect(
-			screen.queryByText("Install Coder Desktop"),
-		).not.toBeInTheDocument();
+		expect(screen.queryByText("Install Coder Desktop")).not.toBeInTheDocument();
 	});
 });
