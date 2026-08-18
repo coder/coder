@@ -619,7 +619,10 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		// not username-scoped in the URL like workspaces or tasks.
 		return fmt.Sprintf("/agents/%s", alog.AuditLog.ResourceID)
 	case database.ResourceTypeMCPServerConfig:
-		config, err := api.Database.GetMCPServerConfigByID(ctx, alog.AuditLog.ResourceID)
+		// Mutation-only administrators may lack read access, so fetch
+		// with system access; the explicit checks below authorize.
+		//nolint:gocritic // The requester is authorized against the fetched config right below.
+		config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), alog.AuditLog.ResourceID)
 		if err != nil {
 			return ""
 		}
