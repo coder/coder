@@ -46,6 +46,10 @@ type FindToolsCall struct {
 	MatchCount    int
 	Activated     []string
 	TotalDeferred int
+	// BudgetRejected marks a call that returned the budget-exhausted
+	// error instead of results, so callers can count it without
+	// polluting match or activation statistics.
+	BudgetRejected bool
 }
 
 type FindToolsOptions struct {
@@ -167,6 +171,14 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 				// retained by derivation, whatever the budget holds.
 				if admitted > 0 && admitted > remainingBudget && remainingBudget < options.SchemaTokenBudget {
 					budgetMu.Unlock()
+					if options.OnCall != nil {
+						options.OnCall(ctx, FindToolsCall{
+							Queries:        args.Queries,
+							Names:          args.Names,
+							TotalDeferred:  len(entries),
+							BudgetRejected: true,
+						})
+					}
 					return fantasy.NewTextErrorResponse(findToolsBudgetExhausted), nil
 				}
 				remainingBudget -= admitted

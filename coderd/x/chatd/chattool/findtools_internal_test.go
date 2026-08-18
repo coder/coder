@@ -197,6 +197,30 @@ func TestFindToolsDirectCallReservation(t *testing.T) {
 		require.Equal(t, []string{"server__c"}, result.Activated)
 	})
 
+	t.Run("budget-rejected calls still reach OnCall", func(t *testing.T) {
+		t.Parallel()
+		var calls []FindToolsCall
+		tool := FindTools(FindToolsOptions{
+			Entries: []FindToolCatalogEntry{
+				{Name: "server__a", SchemaTokens: 60},
+				{Name: "server__b", SchemaTokens: 50},
+			},
+			SchemaTokenBudget: 60,
+			OnCall:            func(_ context.Context, call FindToolsCall) { calls = append(calls, call) },
+		})
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__a"]}`})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+		resp, err = tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__b"]}`})
+		require.NoError(t, err)
+		require.True(t, resp.IsError)
+		require.Len(t, calls, 2, "rejected calls count toward call totals")
+		require.False(t, calls[0].BudgetRejected)
+		require.True(t, calls[1].BudgetRejected)
+		require.Equal(t, []string{"server__b"}, calls[1].Names)
+		require.Empty(t, calls[1].Activated, "a rejected call reports no activations")
+	})
+
 	t.Run("reserved names stay activatable after the budget is spent", func(t *testing.T) {
 		t.Parallel()
 		tool, observer := newTool(50)

@@ -623,17 +623,24 @@ func (server *Server) prepareGeneration(
 			CatalogTokenBudget: activationTokenBudget,
 			OnCall: func(callCtx context.Context, call chattool.FindToolsCall) {
 				server.metrics.FindToolsCallsTotal.Inc()
-				server.metrics.FindToolsMatchCount.Observe(float64(call.MatchCount))
-				server.metrics.FindToolsActivationsTotal.Add(float64(len(call.Activated)))
-				if call.MatchCount == 0 {
-					server.metrics.FindToolsEmptyTotal.Inc()
+				if !call.BudgetRejected {
+					server.metrics.FindToolsMatchCount.Observe(float64(call.MatchCount))
+					server.metrics.FindToolsActivationsTotal.Add(float64(len(call.Activated)))
+					if call.MatchCount == 0 {
+						server.metrics.FindToolsEmptyTotal.Inc()
+					}
 				}
+				// Queries and names are model output that can echo
+				// prompt content, so standard logs carry only
+				// aggregate fields; raw values are visible through
+				// the opt-in chat debug logging path.
 				logger.Info(callCtx, "deferred MCP tool search",
-					slog.F("queries", call.Queries),
-					slog.F("names", call.Names),
+					slog.F("query_count", len(call.Queries)),
+					slog.F("name_count", len(call.Names)),
 					slog.F("match_count", call.MatchCount),
-					slog.F("activated", call.Activated),
+					slog.F("activated_count", len(call.Activated)),
 					slog.F("total_deferred", call.TotalDeferred),
+					slog.F("budget_rejected", call.BudgetRejected),
 				)
 			},
 		})
