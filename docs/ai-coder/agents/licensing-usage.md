@@ -39,6 +39,8 @@ Agent Time is measured with millisecond precision and is rounded down to the nea
 
 ## Concurrency and usage limits
 
+Coder handles concurrency and usage limits differently, depending on the license you use for Coder.
+
 ### Community concurrency limit
 
 When a Community license deployment reaches its limit of five concurrently active agents, any additional agents are placed in a queue.
