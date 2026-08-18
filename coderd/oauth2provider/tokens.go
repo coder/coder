@@ -40,9 +40,10 @@ var (
 	// errConflictingClientAuth means the client provided credentials in both the
 	// request body and HTTP Basic, but they did not match.
 	errConflictingClientAuth = xerrors.New("conflicting client authentication")
-	// errUnstorableScope means a persisted scope carries a name the
-	// api_key_scope enum does not define, so no key can be minted from it.
-	errUnstorableScope = xerrors.New("stored scope is not a valid API key scope")
+	// errUnmintableScope means the scope persisted against a grant names
+	// something no API key can be minted from: either a name the api_key_scope
+	// enum does not define, or an empty scope list.
+	errUnmintableScope = xerrors.New("scope is not a valid API key scope")
 )
 
 // scopeStringToAPIKeyScopes converts the space-separated scope persisted on an
@@ -53,24 +54,23 @@ var (
 // to apikey.Generate's own check. Generate returns a bare error that the grant
 // surfaces as a 500, which is the wrong answer for a value that came out of the
 // database: the request was well-formed and the deployment's data is not. This
-// returns errUnstorableScope instead, which Tokens() maps to invalid_scope.
+// returns errUnmintableScope instead, which Tokens() maps to invalid_scope.
 //
-// The empty case is defensive only. The column is NOT NULL with a CHECK
-// constraint rejecting the empty string, and authorization always writes at
-// least the unrestricted sentinel, so a row cannot reach here empty. Treating
-// it as unrestricted rather than as an error would silently widen a grant, so
-// it is rejected too.
+// The empty case is defensive only. The column is NOT NULL, and every writer
+// (authorization and the backfill) emits at least one non-whitespace name, so
+// a row cannot reach here empty. Treating it as unrestricted rather than as an
+// error would silently widen a grant, so it is rejected too.
 func scopeStringToAPIKeyScopes(scope string) (database.APIKeyScopes, error) {
 	names := strings.Fields(scope)
 	if len(names) == 0 {
-		return nil, xerrors.Errorf("%q: %w", scope, errUnstorableScope)
+		return nil, xerrors.Errorf("'%s': %w", scope, errUnmintableScope)
 	}
 
 	scopes := make(database.APIKeyScopes, 0, len(names))
 	for _, name := range names {
 		s := database.APIKeyScope(name)
 		if !s.Valid() {
-			return nil, xerrors.Errorf("%q: %w", name, errUnstorableScope)
+			return nil, xerrors.Errorf("'%s': %w", name, errUnmintableScope)
 		}
 		scopes = append(scopes, s)
 	}
@@ -258,7 +258,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
 			return
 		}
-		if errors.Is(err, errUnstorableScope) {
+		if errors.Is(err, errUnmintableScope) {
 			// The grant is well-formed; the scope stored against it names
 			// something this deployment cannot mint a key for. Reported as
 			// invalid_scope rather than a 500 so the client sees a defined
@@ -579,9 +579,8 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
-	// Carry the granted scope onto the replacement key. The refresh row has
-	// always held it; only the key minted from it did not, so without this a
-	// narrowly scoped token widened to coder:all on its first refresh.
+	// Carry the scope held on the refresh row onto the replacement key so the
+	// refreshed token bears the same authority the original grant did.
 	scopes, err := scopeStringToAPIKeyScopes(dbToken.Scope)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
