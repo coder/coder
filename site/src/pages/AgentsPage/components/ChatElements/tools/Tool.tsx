@@ -1043,6 +1043,24 @@ const FindToolsRenderer: FC<ToolRendererProps> = (props) => {
 		return <GenericToolRenderer {...props} />;
 	}
 	const parsedResult = parseArgs(props.result);
+	if (props.isError) {
+		// Error results carry plain text or an error record instead of
+		// matches, so they render through the specialized error state
+		// rather than the malformed-result fallback.
+		const errorMessage = parsedResult
+			? asString(parsedResult.error || parsedResult.message)
+			: asString(props.result);
+		return (
+			<FindToolsTool
+				queries={queries}
+				names={names}
+				matches={[]}
+				status={props.status}
+				isError
+				errorMessage={errorMessage || undefined}
+			/>
+		);
+	}
 	let matches: FindToolsMatch[] | null = [];
 	if (props.status !== "running" || props.result !== undefined) {
 		matches = parsedResult ? parseFindToolsMatches(parsedResult.matches) : null;
@@ -1051,17 +1069,13 @@ const FindToolsRenderer: FC<ToolRendererProps> = (props) => {
 		return <GenericToolRenderer {...props} />;
 	}
 
-	const errorMessage = parsedResult
-		? asString(parsedResult.error || parsedResult.message)
-		: "";
 	return (
 		<FindToolsTool
 			queries={queries}
 			names={names}
 			matches={matches}
 			status={props.status}
-			isError={props.isError}
-			errorMessage={errorMessage || undefined}
+			isError={false}
 		/>
 	);
 };

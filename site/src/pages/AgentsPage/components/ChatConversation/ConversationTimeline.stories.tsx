@@ -641,6 +641,109 @@ export const FindToolsSearchResult: Story = {
 	},
 };
 
+export const FindToolsEmptyResult: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "find-tools-empty",
+						tool_name: "find_tools",
+						args: { queries: JSON.stringify(["nonexistent capability"]) },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "find-tools-empty",
+						tool_name: "find_tools",
+						result: {
+							matches: JSON.stringify([]),
+							activated: JSON.stringify([]),
+							total_deferred: "24",
+						},
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summary = canvas.getByText(
+			"Searched tools: nonexistent capability -> 0 matched",
+		);
+		expect(summary).toBeVisible();
+		// A valid empty result has no match list to expand and no error
+		// indicator.
+		expect(
+			canvas.queryByRole("button", {
+				name: "Searched tools: nonexistent capability -> 0 matched",
+			}),
+		).not.toBeInTheDocument();
+		expect(canvas.queryByRole("img")).not.toBeInTheDocument();
+	},
+};
+
+export const FindToolsErrorResult: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "find-tools-error",
+						tool_name: "find_tools",
+						args: { queries: JSON.stringify(["github issues"]) },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "find-tools-error",
+						tool_name: "find_tools",
+						is_error: true,
+						result: {
+							error:
+								"The schema budget for this step is exhausted; call the tools already activated or retry next step.",
+						},
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("Searched tools: github issues -> 0 matched"),
+		).toBeVisible();
+		// The failure indicator carries the persisted error message.
+		expect(
+			canvas.getByRole("img", {
+				name: "The schema budget for this step is exhausted; call the tools already activated or retry next step.",
+			}),
+		).toBeVisible();
+	},
+};
+
 export const FindToolsMalformedResultUsesDefaultRenderer: Story = {
 	args: {
 		...defaultArgs,

@@ -797,6 +797,16 @@ func (s *taskStarter) admitStepToolCalls(
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
 	preflight.Denied = append(preflight.Denied, ambiguous...)
+	// Calls denied at admission persist synthetic results with the
+	// assistant step, so they never surface as unresolved calls where
+	// executeLocalTools counts find_tools invocations; count them here.
+	if prepared.BuiltinToolNames[chattool.FindToolsName] {
+		for _, result := range preflight.Denied {
+			if result.ToolName == chattool.FindToolsName {
+				s.server.metrics.FindToolsCallsTotal.Inc()
+			}
+		}
+	}
 	return preflight, nil
 }
 
