@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"golang.org/x/xerrors"
@@ -36,6 +37,24 @@ type mcpGatewayRequest struct {
 type mcpGatewayRequestItem struct {
 	Raw      json.RawMessage
 	Envelope mcpGatewayEnvelope
+}
+
+const mcpGatewayCredentialTTL = time.Minute
+
+type mcpGatewayCredentialCacheKey struct {
+	InitiatorID string
+	ServerID    string
+}
+
+type mcpGatewayCredentialCacheEntry struct {
+	AccessToken string
+	ProviderID  string
+	ExpiresAt   time.Time
+}
+
+type mcpGatewayCredentialFailure struct {
+	Message string
+	Data    map[string]any
 }
 
 type mcpGatewayPolicy struct {
@@ -286,7 +305,7 @@ func (s *Server) serveMCPGateway(rw http.ResponseWriter, r *http.Request, client
 
 	switch r.Method {
 	case http.MethodGet, http.MethodDelete:
-		s.forwardMCPGatewayResponse(rw, r, cfg, nil, nil)
+		s.forwardMCPGatewayResponse(rw, r, client, token, authz.GetInitiatorId(), cfg, nil, nil, nil)
 		return
 	case http.MethodPost:
 	default:
@@ -323,24 +342,69 @@ func (s *Server) serveMCPGateway(rw http.ResponseWriter, r *http.Request, client
 			return
 		}
 	}
-	s.forwardMCPGatewayResponse(rw, r, cfg, forwardBody, &plan)
+	s.forwardMCPGatewayResponse(rw, r, client, token, authz.GetInitiatorId(), cfg, forwardBody, &plan, mcpGatewayResponseID(request))
 }
 
-func (s *Server) forwardMCPGatewayResponse(rw http.ResponseWriter, r *http.Request, cfg *proto.MCPGatewayServerConfig, body []byte, plan *mcpGatewayPlan) {
+func mcpGatewayResponseID(request mcpGatewayRequest) json.RawMessage {
+	for _, item := range request.Items {
+		if len(bytes.TrimSpace(item.Envelope.ID)) > 0 {
+			return item.Envelope.ID
+		}
+	}
+	return nil
+}
+
+func (s *Server) forwardMCPGatewayResponse(
+	rw http.ResponseWriter,
+	r *http.Request,
+	client DRPCClient,
+	token string,
+	initiatorID string,
+	cfg *proto.MCPGatewayServerConfig,
+	body []byte,
+	plan *mcpGatewayPlan,
+	responseID json.RawMessage,
+) {
 	acceptOverride := ""
 	if plan != nil && plan.forceJSON {
 		acceptOverride = "application/json"
 	}
-	upstreamRequest, err := newMCPGatewayUpstreamRequest(r.Context(), r, cfg.GetUrl(), body, acceptOverride)
+
+	authHeaders, externalAuth, failure, err := s.resolveMCPGatewayUpstreamAuth(r.Context(), client, token, initiatorID, cfg)
 	if err != nil {
-		http.Error(rw, "failed to create upstream MCP request", http.StatusBadGateway)
+		s.logger.Warn(r.Context(), "failed to resolve upstream MCP credentials", slog.F("server_slug", cfg.GetSlug()), slog.Error(err))
+		writeMCPGatewayJSON(rw, http.StatusOK, marshalMCPGatewayError(responseID, mcp.INTERNAL_ERROR, "failed to resolve upstream MCP credentials", nil))
 		return
 	}
-	response, err := http.DefaultClient.Do(upstreamRequest)
+	if failure != nil {
+		writeMCPGatewayJSON(rw, http.StatusOK, marshalMCPGatewayError(responseID, mcp.INTERNAL_ERROR, failure.Message, failure.Data))
+		return
+	}
+
+	response, err := doMCPGatewayUpstreamRequest(r.Context(), r, cfg.GetUrl(), body, acceptOverride, authHeaders)
 	if err != nil {
 		s.logger.Warn(r.Context(), "upstream MCP request failed", slog.F("server_slug", cfg.GetSlug()), slog.Error(err))
 		http.Error(rw, "upstream MCP request failed", http.StatusBadGateway)
 		return
+	}
+	if response.StatusCode == http.StatusUnauthorized && externalAuth {
+		_ = response.Body.Close()
+		authHeaders, failure, err = s.refreshMCPGatewayUpstreamAuth(r.Context(), client, token, initiatorID, cfg)
+		if err != nil {
+			s.logger.Warn(r.Context(), "failed to refresh upstream MCP credentials", slog.F("server_slug", cfg.GetSlug()), slog.Error(err))
+			writeMCPGatewayJSON(rw, http.StatusOK, marshalMCPGatewayError(responseID, mcp.INTERNAL_ERROR, "failed to refresh upstream MCP credentials", nil))
+			return
+		}
+		if failure != nil {
+			writeMCPGatewayJSON(rw, http.StatusOK, marshalMCPGatewayError(responseID, mcp.INTERNAL_ERROR, failure.Message, failure.Data))
+			return
+		}
+		response, err = doMCPGatewayUpstreamRequest(r.Context(), r, cfg.GetUrl(), body, acceptOverride, authHeaders)
+		if err != nil {
+			s.logger.Warn(r.Context(), "upstream MCP retry failed", slog.F("server_slug", cfg.GetSlug()), slog.Error(err))
+			http.Error(rw, "upstream MCP request failed", http.StatusBadGateway)
+			return
+		}
 	}
 	defer response.Body.Close()
 
@@ -371,7 +435,126 @@ func (s *Server) forwardMCPGatewayResponse(rw http.ResponseWriter, r *http.Reque
 	writeMCPGatewayJSON(rw, response.StatusCode, filtered)
 }
 
-func newMCPGatewayUpstreamRequest(ctx context.Context, incoming *http.Request, upstreamURL string, body []byte, acceptOverride string) (*http.Request, error) {
+func (s *Server) resolveMCPGatewayUpstreamAuth(
+	ctx context.Context,
+	client DRPCClient,
+	token string,
+	initiatorID string,
+	cfg *proto.MCPGatewayServerConfig,
+) (http.Header, bool, *mcpGatewayCredentialFailure, error) {
+	headers := make(http.Header)
+	switch authType := strings.TrimSpace(cfg.GetAuthType()); authType {
+	case "", "none":
+		return headers, false, nil, nil
+	case "api_key":
+		headerName := strings.TrimSpace(cfg.GetApiKeyHeader())
+		if headerName == "" || cfg.GetApiKeyValue() == "" {
+			return nil, false, nil, xerrors.New("MCP API key header and value are required")
+		}
+		headers.Set(headerName, cfg.GetApiKeyValue())
+		return headers, false, nil, nil
+	case "custom_headers":
+		var configured map[string]string
+		if err := json.Unmarshal([]byte(cfg.GetCustomHeaders()), &configured); err != nil {
+			return nil, false, nil, xerrors.Errorf("decode MCP custom headers: %w", err)
+		}
+		for key, value := range configured {
+			headers.Set(key, value)
+		}
+		return headers, false, nil, nil
+	case "user_oidc", "oauth2":
+		return nil, false, &mcpGatewayCredentialFailure{
+			Message: fmt.Sprintf("MCP gateway does not support upstream auth type %q yet", authType),
+			Data:    map[string]any{"auth_type": authType},
+		}, nil
+	case "external_auth":
+		providerID := strings.TrimSpace(cfg.GetExternalAuthProviderId())
+		if providerID == "" {
+			return nil, true, nil, xerrors.New("external auth provider ID is required")
+		}
+		cacheKey := mcpGatewayCredentialCacheKey{
+			InitiatorID: initiatorID,
+			ServerID:    cfg.GetId(),
+		}
+		if cached, ok := s.mcpCredentialCache.Load(cacheKey); ok {
+			entry, valid := cached.(mcpGatewayCredentialCacheEntry)
+			if valid && time.Now().Before(entry.ExpiresAt) && entry.ProviderID == providerID {
+				headers.Set("Authorization", "Bearer "+entry.AccessToken)
+				return headers, true, nil, nil
+			}
+			s.mcpCredentialCache.Delete(cacheKey)
+		}
+
+		credential, err := client.GetMCPUpstreamCredential(ctx, &proto.GetMCPUpstreamCredentialRequest{
+			Key:                    token,
+			ExternalAuthProviderId: providerID,
+		})
+		if err != nil {
+			return nil, true, nil, xerrors.Errorf("get MCP upstream credential: %w", err)
+		}
+		if credential.GetReauthRequired() {
+			return nil, true, &mcpGatewayCredentialFailure{
+				Message: fmt.Sprintf("Authentication is required for MCP provider %q. Ask the user to authenticate using the provided URL.", credential.GetProviderId()),
+				Data: map[string]any{
+					"reauth_url":  credential.GetReauthUrl(),
+					"provider_id": credential.GetProviderId(),
+				},
+			}, nil
+		}
+		if credential.GetAccessToken() == "" {
+			return nil, true, nil, xerrors.New("MCP upstream credential is empty")
+		}
+		entry := mcpGatewayCredentialCacheEntry{
+			AccessToken: credential.GetAccessToken(),
+			ProviderID:  providerID,
+			ExpiresAt:   time.Now().Add(mcpGatewayCredentialTTL),
+		}
+		s.mcpCredentialCache.Store(cacheKey, entry)
+		headers.Set("Authorization", "Bearer "+entry.AccessToken)
+		return headers, true, nil, nil
+	default:
+		return nil, false, nil, xerrors.Errorf("unsupported MCP auth type %q", authType)
+	}
+}
+
+func (s *Server) refreshMCPGatewayUpstreamAuth(
+	ctx context.Context,
+	client DRPCClient,
+	token string,
+	initiatorID string,
+	cfg *proto.MCPGatewayServerConfig,
+) (http.Header, *mcpGatewayCredentialFailure, error) {
+	s.mcpCredentialCache.Delete(mcpGatewayCredentialCacheKey{
+		InitiatorID: initiatorID,
+		ServerID:    cfg.GetId(),
+	})
+	headers, _, failure, err := s.resolveMCPGatewayUpstreamAuth(ctx, client, token, initiatorID, cfg)
+	return headers, failure, err
+}
+
+func doMCPGatewayUpstreamRequest(
+	ctx context.Context,
+	incoming *http.Request,
+	upstreamURL string,
+	body []byte,
+	acceptOverride string,
+	authHeaders http.Header,
+) (*http.Response, error) {
+	upstreamRequest, err := newMCPGatewayUpstreamRequest(ctx, incoming, upstreamURL, body, acceptOverride, authHeaders)
+	if err != nil {
+		return nil, err
+	}
+	return http.DefaultClient.Do(upstreamRequest)
+}
+
+func newMCPGatewayUpstreamRequest(
+	ctx context.Context,
+	incoming *http.Request,
+	upstreamURL string,
+	body []byte,
+	acceptOverride string,
+	authHeaders http.Header,
+) (*http.Request, error) {
 	var reader io.Reader
 	if body != nil {
 		reader = bytes.NewReader(body)
@@ -391,6 +574,9 @@ func newMCPGatewayUpstreamRequest(ctx context.Context, incoming *http.Request, u
 		if value := incoming.Header.Values(header); len(value) > 0 {
 			request.Header[header] = append([]string(nil), value...)
 		}
+	}
+	for key, values := range authHeaders {
+		request.Header[key] = append([]string(nil), values...)
 	}
 	if acceptOverride != "" {
 		request.Header.Set("Accept", acceptOverride)

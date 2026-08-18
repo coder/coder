@@ -92,6 +92,273 @@ func TestServeHTTP_MCPGatewayPolicy(t *testing.T) {
 	require.Equal(t, int32(2), calls.Load(), "denied tool call must not reach upstream")
 }
 
+func TestServeHTTP_MCPGatewayCredentials(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		config        *proto.MCPGatewayServerConfig
+		expected      http.Header
+		requestCount  int
+		credentialRPC *proto.GetMCPUpstreamCredentialResponse
+	}{
+		{
+			name: "none",
+			config: &proto.MCPGatewayServerConfig{
+				AuthType: "none",
+			},
+			expected: http.Header{},
+		},
+		{
+			name: "api key",
+			config: &proto.MCPGatewayServerConfig{
+				AuthType:     "api_key",
+				ApiKeyHeader: "X-Upstream-Key",
+				ApiKeyValue:  "api-secret",
+			},
+			expected: http.Header{"X-Upstream-Key": []string{"api-secret"}},
+		},
+		{
+			name: "custom headers",
+			config: &proto.MCPGatewayServerConfig{
+				AuthType:      "custom_headers",
+				CustomHeaders: `{"X-Custom-One":"one","X-Custom-Two":"two"}`,
+			},
+			expected: http.Header{
+				"X-Custom-One": []string{"one"},
+				"X-Custom-Two": []string{"two"},
+			},
+		},
+		{
+			name: "external auth caches credential",
+			config: &proto.MCPGatewayServerConfig{
+				AuthType:               "external_auth",
+				ExternalAuthProviderId: "github",
+			},
+			expected:     http.Header{"Authorization": []string{"Bearer sponsor-token"}},
+			requestCount: 2,
+			credentialRPC: &proto.GetMCPUpstreamCredentialResponse{
+				AccessToken: "sponsor-token",
+				ProviderId:  "github",
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var calls atomic.Int32
+			upstream := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				for key, values := range testCase.expected {
+					require.Equal(t, values, r.Header.Values(key))
+				}
+				if testCase.expected.Get("Authorization") == "" {
+					require.Empty(t, r.Header.Get("Authorization"))
+				}
+				require.Empty(t, r.Header.Get("X-Coder-AI-Governance-Token"))
+				require.Empty(t, r.Header.Get("X-Api-Key"))
+				require.Empty(t, r.Header.Get("Cookie"))
+				rw.Header().Set("Content-Type", "application/json")
+				_, _ = rw.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{}}`))
+			}))
+			t.Cleanup(upstream.Close)
+
+			srv, client, _ := newTestServer(t)
+			initiatorID := uuid.NewString()
+			configID := uuid.NewString()
+			testCase.config.Id = configID
+			testCase.config.Slug = "github"
+			testCase.config.Url = upstream.URL
+			testCase.config.Transport = "streamable_http"
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{
+				OwnerId:  initiatorID,
+				ApiKeyId: "key-id",
+				Username: "agent",
+			}, nil)
+			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
+			client.EXPECT().GetMCPGatewayServerConfig(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.GetMCPGatewayServerConfigResponse{
+				Found:  true,
+				Config: testCase.config,
+			}, nil)
+			client.EXPECT().AuthorizeMCPGateway(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.AuthorizeMCPGatewayResponse{
+				Authorized:  true,
+				InitiatorId: initiatorID,
+				ApiKeyId:    "key-id",
+				Username:    "agent",
+			}, nil)
+			if testCase.credentialRPC != nil {
+				client.EXPECT().GetMCPUpstreamCredential(gomock.Any(), &proto.GetMCPUpstreamCredentialRequest{
+					Key:                    "coder-token",
+					ExternalAuthProviderId: "github",
+				}).Times(1).Return(testCase.credentialRPC, nil)
+			}
+
+			gateway := httptest.NewServer(srv)
+			t.Cleanup(gateway.Close)
+
+			requestCount := testCase.requestCount
+			if requestCount == 0 {
+				requestCount = 1
+			}
+			for range requestCount {
+				response := mcpGatewayRequest(t, gateway.URL, `{"jsonrpc":"2.0","id":1,"method":"ping"}`)
+				require.Contains(t, string(response), `"result":{}`)
+			}
+			require.EqualValues(t, requestCount, calls.Load())
+		})
+	}
+}
+
+func TestServeHTTP_MCPGatewayCredentialReauth(t *testing.T) {
+	t.Parallel()
+
+	var upstreamCalls atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		upstreamCalls.Add(1)
+	}))
+	t.Cleanup(upstream.Close)
+
+	srv, client, _ := newTestServer(t)
+	initiatorID := uuid.NewString()
+	client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: initiatorID}, nil)
+	client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
+	client.EXPECT().GetMCPGatewayServerConfig(gomock.Any(), gomock.Any()).Return(&proto.GetMCPGatewayServerConfigResponse{
+		Found: true,
+		Config: &proto.MCPGatewayServerConfig{
+			Id:                     uuid.NewString(),
+			Slug:                   "github",
+			Url:                    upstream.URL,
+			Transport:              "streamable_http",
+			AuthType:               "external_auth",
+			ExternalAuthProviderId: "github",
+		},
+	}, nil)
+	client.EXPECT().AuthorizeMCPGateway(gomock.Any(), gomock.Any()).Return(&proto.AuthorizeMCPGatewayResponse{
+		Authorized:  true,
+		InitiatorId: initiatorID,
+	}, nil)
+	client.EXPECT().GetMCPUpstreamCredential(gomock.Any(), gomock.Any()).Return(&proto.GetMCPUpstreamCredentialResponse{
+		ReauthRequired: true,
+		ReauthUrl:      "https://coder.example/external-auth/github",
+		ProviderId:     "github",
+	}, nil)
+
+	gateway := httptest.NewServer(srv)
+	t.Cleanup(gateway.Close)
+	response := mcpGatewayRequest(t, gateway.URL, `{"jsonrpc":"2.0","id":42,"method":"ping"}`)
+	var decoded struct {
+		ID    int `json:"id"`
+		Error struct {
+			Message string         `json:"message"`
+			Data    map[string]any `json:"data"`
+		} `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal(response, &decoded))
+	require.Equal(t, 42, decoded.ID)
+	require.Contains(t, decoded.Error.Message, "Authentication is required")
+	require.Equal(t, "https://coder.example/external-auth/github", decoded.Error.Data["reauth_url"])
+	require.Equal(t, "github", decoded.Error.Data["provider_id"])
+	require.Zero(t, upstreamCalls.Load())
+}
+
+func TestServeHTTP_MCPGatewayExternalAuthRetry(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		attempt := calls.Add(1)
+		if attempt == 1 {
+			require.Equal(t, "Bearer expired-token", r.Header.Get("Authorization"))
+			rw.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		require.Equal(t, "Bearer refreshed-token", r.Header.Get("Authorization"))
+		rw.Header().Set("Content-Type", "application/json")
+		_, _ = rw.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"ok":true}}`))
+	}))
+	t.Cleanup(upstream.Close)
+
+	srv, client, _ := newTestServer(t)
+	initiatorID := uuid.NewString()
+	client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: initiatorID}, nil)
+	client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
+	client.EXPECT().GetMCPGatewayServerConfig(gomock.Any(), gomock.Any()).Return(&proto.GetMCPGatewayServerConfigResponse{
+		Found: true,
+		Config: &proto.MCPGatewayServerConfig{
+			Id:                     uuid.NewString(),
+			Slug:                   "github",
+			Url:                    upstream.URL,
+			Transport:              "streamable_http",
+			AuthType:               "external_auth",
+			ExternalAuthProviderId: "github",
+		},
+	}, nil)
+	client.EXPECT().AuthorizeMCPGateway(gomock.Any(), gomock.Any()).Return(&proto.AuthorizeMCPGatewayResponse{
+		Authorized:  true,
+		InitiatorId: initiatorID,
+	}, nil)
+	gomock.InOrder(
+		client.EXPECT().GetMCPUpstreamCredential(gomock.Any(), gomock.Any()).Return(&proto.GetMCPUpstreamCredentialResponse{
+			AccessToken: "expired-token",
+			ProviderId:  "github",
+		}, nil),
+		client.EXPECT().GetMCPUpstreamCredential(gomock.Any(), gomock.Any()).Return(&proto.GetMCPUpstreamCredentialResponse{
+			AccessToken: "refreshed-token",
+			ProviderId:  "github",
+		}, nil),
+	)
+
+	gateway := httptest.NewServer(srv)
+	t.Cleanup(gateway.Close)
+	response := mcpGatewayRequest(t, gateway.URL, `{"jsonrpc":"2.0","id":1,"method":"ping"}`)
+	require.Contains(t, string(response), `"ok":true`)
+	require.Equal(t, int32(2), calls.Load())
+}
+
+func TestServeHTTP_MCPGatewayUnsupportedCredentials(t *testing.T) {
+	t.Parallel()
+
+	for _, authType := range []string{"oauth2", "user_oidc"} {
+		t.Run(authType, func(t *testing.T) {
+			t.Parallel()
+
+			var upstreamCalls atomic.Int32
+			upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				upstreamCalls.Add(1)
+			}))
+			t.Cleanup(upstream.Close)
+
+			srv, client, _ := newTestServer(t)
+			initiatorID := uuid.NewString()
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: initiatorID}, nil)
+			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
+			client.EXPECT().GetMCPGatewayServerConfig(gomock.Any(), gomock.Any()).Return(&proto.GetMCPGatewayServerConfigResponse{
+				Found: true,
+				Config: &proto.MCPGatewayServerConfig{
+					Id:        uuid.NewString(),
+					Slug:      "github",
+					Url:       upstream.URL,
+					Transport: "streamable_http",
+					AuthType:  authType,
+				},
+			}, nil)
+			client.EXPECT().AuthorizeMCPGateway(gomock.Any(), gomock.Any()).Return(&proto.AuthorizeMCPGatewayResponse{
+				Authorized:  true,
+				InitiatorId: initiatorID,
+			}, nil)
+
+			gateway := httptest.NewServer(srv)
+			t.Cleanup(gateway.Close)
+			response := mcpGatewayRequest(t, gateway.URL, `{"jsonrpc":"2.0","id":1,"method":"ping"}`)
+			require.Contains(t, string(response), "does not support upstream auth type")
+			require.Contains(t, string(response), authType)
+			require.Zero(t, upstreamCalls.Load())
+		})
+	}
+}
+
 func TestServeHTTP_MCPGatewayAuthResponses(t *testing.T) {
 	t.Parallel()
 
@@ -127,6 +394,9 @@ func mcpGatewayRequest(t *testing.T, gatewayURL, body string) []byte {
 	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, gatewayURL+"/mcp/github", bytes.NewBufferString(body))
 	require.NoError(t, err)
 	request.Header.Set("Authorization", "Bearer coder-token")
+	request.Header.Set("X-Coder-AI-Governance-Token", "coder-token")
+	request.Header.Set("X-Api-Key", "coder-token")
+	request.Header.Set("Cookie", "coder_session_token=coder-token")
 	request.Header.Set("Content-Type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	require.NoError(t, err)
