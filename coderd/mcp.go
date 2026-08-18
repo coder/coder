@@ -1369,6 +1369,10 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 			httpapi.Write(ctx, rw, http.StatusOK, codersdk.MCPServerOAuth2DisconnectResponse{})
 			return
 		}
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to disconnect OAuth2 token.",
 			Detail:  err.Error(),
@@ -1439,8 +1443,13 @@ func (api *API) refreshMCPUserToken(
 			expiry = sql.NullTime{Time: result.Expiry, Valid: true}
 		}
 
+		// The caller can read the token, but a read-only key cannot persist refresh
+		// results. System access permits storing rotated credentials after a
+		// successful refresh.
+		//nolint:gocritic // Token refresh persistence follows an authorized read of the same token.
+		persistCtx := dbauthz.AsSystemRestricted(ctx)
 		_, err = api.Database.UpdateMCPServerUserTokenFromRefresh(
-			ctx,
+			persistCtx,
 			database.UpdateMCPServerUserTokenFromRefreshParams{
 				ID:                tok.ID,
 				UpdatedAt:         tok.UpdatedAt,
@@ -1474,8 +1483,9 @@ func (api *API) currentMCPUserTokenConnected(
 	ctx context.Context,
 	tok database.MCPServerUserToken,
 ) (bool, error) {
+	//nolint:gocritic // Refresh reconciliation follows an authorized read of the same token.
 	current, err := api.Database.GetMCPServerUserToken(
-		ctx,
+		dbauthz.AsSystemRestricted(ctx),
 		database.GetMCPServerUserTokenParams{
 			MCPServerConfigID: tok.MCPServerConfigID,
 			UserID:            tok.UserID,
@@ -1502,8 +1512,9 @@ func (api *API) markMCPTokenRefreshFailure(
 	tok database.MCPServerUserToken,
 	refreshErr error,
 ) bool {
+	//nolint:gocritic // Refresh failure recording follows an authorized read of the same token.
 	_, err := api.Database.MarkMCPServerUserTokenRefreshFailure(
-		ctx,
+		dbauthz.AsSystemRestricted(ctx),
 		database.MarkMCPServerUserTokenRefreshFailureParams{
 			ID:                        tok.ID,
 			UpdatedAt:                 tok.UpdatedAt,

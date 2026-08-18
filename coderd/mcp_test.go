@@ -756,6 +756,102 @@ func TestMCPServerConfigScopedKeyWithoutPersonalTokenRead(t *testing.T) {
 	require.False(t, config.AuthConnected)
 }
 
+func TestMCPServerConfigScopedKeyRefreshPersistsRotatedToken(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		authConnected func(*testing.T, context.Context, *codersdk.Client, uuid.UUID, uuid.UUID) bool
+	}{
+		{
+			name: "List",
+			authConnected: func(t *testing.T, ctx context.Context, client *codersdk.Client, organizationID, _ uuid.UUID) bool {
+				configs, err := client.MCPServerConfigs(ctx, organizationID)
+				require.NoError(t, err)
+				require.Len(t, configs, 1)
+				return configs[0].AuthConnected
+			},
+		},
+		{
+			name: "Get",
+			authConnected: func(t *testing.T, ctx context.Context, client *codersdk.Client, organizationID, configID uuid.UUID) bool {
+				config, err := client.MCPServerConfigByID(ctx, organizationID, configID)
+				require.NoError(t, err)
+				return config.AuthConnected
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				require.NoError(t, r.ParseForm())
+				require.Equal(t, "old-refresh", r.Form.Get("refresh_token"))
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"access_token":"fresh-access","refresh_token":"rotated-refresh","token_type":"Bearer","expires_in":3600}`))
+			}))
+			t.Cleanup(tokenSrv.Close)
+
+			providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+			adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				DeploymentValues:    mcpDeploymentValues(t),
+				ChatProviderAPIKeys: &providerKeys,
+			})
+			firstUser := coderdtest.CreateFirstUser(t, adminClient)
+			created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+				DisplayName:    "OAuth Refresh " + test.name,
+				Slug:           "oauth-refresh-" + strings.ToLower(test.name),
+				Transport:      "streamable_http",
+				URL:            "https://mcp.example.com/refresh",
+				AuthType:       "oauth2",
+				OAuth2ClientID: "cid",
+				OAuth2AuthURL:  "https://auth.example.com/authorize",
+				OAuth2TokenURL: tokenSrv.URL,
+				Availability:   "default_on",
+				Enabled:        true,
+				ToolAllowList:  []string{},
+				ToolDenyList:   []string{},
+			})
+			require.NoError(t, err)
+
+			//nolint:gocritic // Seeding token state requires system access.
+			_, err = db.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+				MCPServerConfigID: created.ID,
+				UserID:            firstUser.UserID,
+				AccessToken:       "expired-access",
+				RefreshToken:      "old-refresh",
+				TokenType:         "Bearer",
+				Expiry:            sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+			})
+			require.NoError(t, err)
+
+			_, token := dbgen.APIKey(t, db, database.APIKey{
+				UserID: firstUser.UserID,
+				Scopes: database.APIKeyScopes{
+					database.ApiKeyScopeMcpServerConfigRead,
+					database.ApiKeyScopeOrganizationRead,
+					database.ApiKeyScopeUserReadPersonal,
+				},
+			})
+			scopedClient := codersdk.New(adminClient.URL)
+			scopedClient.SetSessionToken(token)
+
+			require.True(t, test.authConnected(t, ctx, scopedClient, created.OrganizationID, created.ID))
+
+			//nolint:gocritic // Verifying persisted state requires system access.
+			row, err := db.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
+				MCPServerConfigID: created.ID,
+				UserID:            firstUser.UserID,
+			})
+			require.NoError(t, err)
+			require.Equal(t, "fresh-access", row.AccessToken)
+			require.Equal(t, "rotated-refresh", row.RefreshToken)
+		})
+	}
+}
+
 func TestMCPServerConfigACL(t *testing.T) {
 	t.Parallel()
 
@@ -1686,6 +1782,36 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		})
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	}
+
+	t.Run("ScopedKeyWithoutPersonalTokenUpdate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		memberClient, memberID, db, configID := newDisconnectFixture(t, "disc-scoped-key", "")
+		seedToken(t, db, configID, memberID)
+
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID: memberID,
+			Scopes: database.APIKeyScopes{
+				database.ApiKeyScopeUserReadPersonal,
+			},
+		})
+		scopedClient := codersdk.New(memberClient.URL)
+		scopedClient.SetSessionToken(token)
+
+		_, err := scopedClient.MCPServerOAuth2DisconnectWithResponse(ctx, configID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+		//nolint:gocritic // Verifying persisted state requires system access.
+		row, err := db.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: configID,
+			UserID:            memberID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "refresh-token", row.RefreshToken)
+	})
 
 	t.Run("NoToken", func(t *testing.T) {
 		t.Parallel()
