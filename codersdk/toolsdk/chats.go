@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -34,9 +35,11 @@ func parseChatID(chatID string) (uuid.UUID, error) {
 }
 
 type ChatToolFile struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	MimeType string `json:"mime_type"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	MimeType  string    `json:"mime_type"`
+	SizeBytes int64     `json:"size_bytes"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type ChatToolStatus struct {
@@ -48,6 +51,7 @@ type ChatToolStatus struct {
 	LastTurnSummary string              `json:"last_turn_summary,omitempty"`
 	WorkspaceID     string              `json:"workspace_id,omitempty"`
 	URL             string              `json:"url"`
+	Labels          map[string]string   `json:"labels,omitempty"`
 	Files           []ChatToolFile      `json:"files,omitempty"`
 }
 
@@ -59,6 +63,7 @@ func chatToolStatus(deps Deps, chat codersdk.Chat) ChatToolStatus {
 		Archived:  chat.Archived,
 		LastError: chat.LastError,
 		URL:       fmt.Sprintf("%s/agents/%s", deps.ServerURL(), chat.ID),
+		Labels:    chat.Labels,
 	}
 	if chat.LastTurnSummary != nil {
 		resp.LastTurnSummary = *chat.LastTurnSummary
@@ -68,9 +73,11 @@ func chatToolStatus(deps Deps, chat codersdk.Chat) ChatToolStatus {
 	}
 	for _, file := range chat.Files {
 		resp.Files = append(resp.Files, ChatToolFile{
-			ID:       file.ID.String(),
-			Name:     file.Name,
-			MimeType: file.MimeType,
+			ID:        file.ID.String(),
+			Name:      file.Name,
+			MimeType:  file.MimeType,
+			SizeBytes: file.SizeBytes,
+			CreatedAt: file.CreatedAt,
 		})
 	}
 	return resp
@@ -191,10 +198,345 @@ var GetChat = Tool[GetChatArgs, ChatToolStatus]{
 	},
 }
 
+type DownloadChatFileArgs struct {
+	FileID   string `json:"file_id"`
+	ChatID   string `json:"chat_id"`
+	FileName string `json:"file_name"`
+}
+
+type DownloadChatFileResponse struct {
+	FileID    string    `json:"file_id"`
+	Name      string    `json:"name"`
+	MimeType  string    `json:"mime_type"`
+	SizeBytes int64     `json:"size_bytes"`
+	SHA256    string    `json:"sha256"`
+	URL       string    `json:"url"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+func chatFilesDescription(files []codersdk.ChatFileMetadata) string {
+	descriptions := make([]string, len(files))
+	for i, file := range files {
+		descriptions[i] = fmt.Sprintf("{id: %s, name: %q, mime_type: %q, size_bytes: %d}", file.ID, file.Name, file.MimeType, file.SizeBytes)
+	}
+	return "[" + strings.Join(descriptions, ", ") + "]"
+}
+
+var DownloadChatFile = Tool[DownloadChatFileArgs, DownloadChatFileResponse]{
+	Tool: aisdk.Tool{
+		Name: ToolNameDownloadChatFile,
+		Description: `Create a short-lived download URL for a file attached to a Coder Agents chat.
+
+Address the file with file_id alone, or with chat_id and an exact file_name. The URL expires in about 5 minutes and needs no authentication header. Fetch it with curl -fSs -o <path> "<url>". Do not read binary contents into context.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"file_id": map[string]any{
+					"type":        "string",
+					"description": "Optional chat file UUID. Use this alone when the file ID is known.",
+				},
+				"chat_id": map[string]any{
+					"type":        "string",
+					"description": "Optional chat UUID. Use together with file_name when the file ID is unknown.",
+				},
+				"file_name": map[string]any{
+					"type":        "string",
+					"description": "Optional exact file name. Use together with chat_id.",
+				},
+			},
+			Required: []string{},
+		},
+	},
+	MCPAnnotations: mcpReadOnlyAnnotations,
+	Handler: func(ctx context.Context, deps Deps, args DownloadChatFileArgs) (DownloadChatFileResponse, error) {
+		fileIDMode := args.FileID != "" && args.ChatID == "" && args.FileName == ""
+		chatFileMode := args.FileID == "" && args.ChatID != "" && args.FileName != ""
+		if !fileIDMode && !chatFileMode {
+			return DownloadChatFileResponse{}, xerrors.New("provide exactly one addressing mode: file_id alone, or chat_id with file_name")
+		}
+
+		var fileID uuid.UUID
+		if fileIDMode {
+			var err error
+			fileID, err = uuid.Parse(args.FileID)
+			if err != nil {
+				return DownloadChatFileResponse{}, xerrors.New("file_id must be a valid UUID")
+			}
+		} else {
+			chatID, err := parseChatID(args.ChatID)
+			if err != nil {
+				return DownloadChatFileResponse{}, err
+			}
+			chat, err := codersdk.NewExperimentalClient(deps.coderClient).GetChat(ctx, chatID)
+			if err != nil {
+				return DownloadChatFileResponse{}, xerrors.Errorf("get chat: %w", err)
+			}
+			found := false
+			for _, file := range chat.Files {
+				if file.Name != args.FileName {
+					continue
+				}
+				if found {
+					return DownloadChatFileResponse{}, xerrors.Errorf("multiple chat files named %q; available files: %s", args.FileName, chatFilesDescription(chat.Files))
+				}
+				fileID = file.ID
+				found = true
+			}
+			if !found {
+				return DownloadChatFileResponse{}, xerrors.Errorf("no chat file named %q; available files: %s", args.FileName, chatFilesDescription(chat.Files))
+			}
+		}
+
+		download, err := codersdk.NewExperimentalClient(deps.coderClient).ChatFileDownloadURL(ctx, fileID)
+		if err != nil {
+			return DownloadChatFileResponse{}, xerrors.Errorf("create chat file download URL: %w", err)
+		}
+		return DownloadChatFileResponse{
+			FileID:    fileID.String(),
+			Name:      download.Name,
+			MimeType:  download.MimeType,
+			SizeBytes: download.SizeBytes,
+			SHA256:    download.SHA256,
+			URL:       download.URL,
+			ExpiresAt: download.ExpiresAt,
+		}, nil
+	},
+}
+
+type AwaitChatArgs struct {
+	ChatID   string `json:"chat_id"`
+	WaitSecs int    `json:"wait_secs"`
+}
+
+type AwaitChatResponse struct {
+	TimedOut bool           `json:"timed_out"`
+	Chat     ChatToolStatus `json:"chat"`
+}
+
+func chatStatusBusy(status codersdk.ChatStatus) bool {
+	return status == codersdk.ChatStatusRunning || status == codersdk.ChatStatusInterrupting
+}
+
+var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameAwaitChat,
+		Description: `Block until a Coder Agents chat stops generating or the wait times out. Waiting, error, and requires_action all end the wait. If timed_out is true, chat holds the last status observed inside the wait window; call this tool again to continue waiting.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"chat_id": map[string]any{
+					"type":        "string",
+					"description": chatIDDescription,
+				},
+				"wait_secs": map[string]any{
+					"type":        "integer",
+					"description": "Maximum seconds to wait (1-120, default 60).",
+				},
+			},
+			Required: []string{"chat_id"},
+		},
+	},
+	MCPAnnotations: mcpReadOnlyAnnotations,
+	Handler: func(ctx context.Context, deps Deps, args AwaitChatArgs) (AwaitChatResponse, error) {
+		chatID, err := parseChatID(args.ChatID)
+		if err != nil {
+			return AwaitChatResponse{}, err
+		}
+		if args.WaitSecs < 0 || args.WaitSecs > 120 {
+			return AwaitChatResponse{}, xerrors.New("wait_secs must be between 1 and 120")
+		}
+		waitSecs := args.WaitSecs
+		if waitSecs == 0 {
+			waitSecs = 60
+		}
+
+		expClient := codersdk.NewExperimentalClient(deps.coderClient)
+		// Every request in the wait window runs under this deadline so a
+		// stalled websocket upgrade or REST call cannot extend the wait
+		// past wait_secs.
+		waitCtx, cancelWait := context.WithTimeout(ctx, time.Duration(waitSecs)*time.Second)
+		defer cancelWait()
+
+		// lastBusy is the most recent (busy) chat state observed inside
+		// the wait window; non-busy states return immediately instead.
+		var lastBusy *codersdk.Chat
+
+		// finalStatus reports the last busy state observed inside the
+		// wait window once it closes. Every caller runs after lastBusy
+		// is set, and no request runs after the window ends, so
+		// wait_secs stays a hard upper bound on the tool's duration.
+		finalStatus := func() (AwaitChatResponse, error) {
+			if ctx.Err() != nil {
+				return AwaitChatResponse{}, ctx.Err()
+			}
+			return AwaitChatResponse{TimedOut: true, Chat: chatToolStatus(deps, *lastBusy)}, nil
+		}
+
+		// Dial asynchronously: a slow or failed watch dial (e.g. a proxy
+		// stalling or rejecting upgrades) must not block the REST poller.
+		// The events channel stays nil until the dial succeeds; a missed
+		// transition in that window is caught by the next poll tick.
+		type watchDial struct {
+			events <-chan codersdk.ChatWatchEvent
+			closer io.Closer
+		}
+		dialed := make(chan watchDial, 1)
+		go func() {
+			events, closer, err := expClient.WatchChats(waitCtx)
+			if err != nil {
+				return
+			}
+			dialed <- watchDial{events: events, closer: closer}
+		}()
+		var (
+			events      <-chan codersdk.ChatWatchEvent
+			watchCloser io.Closer
+		)
+		defer func() {
+			cancelWait()
+			if watchCloser == nil {
+				select {
+				case dial := <-dialed:
+					watchCloser = dial.closer
+				default:
+				}
+			}
+			if watchCloser != nil {
+				_ = watchCloser.Close()
+			}
+		}()
+
+		// The initial status request errors when it outlives the wait
+		// window: no state was observed, and a post-deadline fetch would
+		// break the wait_secs bound.
+		chat, err := expClient.GetChat(waitCtx, chatID)
+		if err != nil {
+			return AwaitChatResponse{}, xerrors.Errorf("get chat: %w", err)
+		}
+		if !chatStatusBusy(chat.Status) {
+			return AwaitChatResponse{Chat: chatToolStatus(deps, chat)}, nil
+		}
+		lastBusy = &chat
+		// Chat status events are published only on the owner's channel, so
+		// shared-chat callers need polling to observe transitions.
+		poller := time.NewTicker(5 * time.Second)
+		defer poller.Stop()
+		for {
+			select {
+			case <-waitCtx.Done():
+				return finalStatus()
+			case <-poller.C:
+				chat, err := expClient.GetChat(waitCtx, chatID)
+				if err != nil {
+					if waitCtx.Err() != nil {
+						return finalStatus()
+					}
+					return AwaitChatResponse{}, xerrors.Errorf("get chat while polling: %w", err)
+				}
+				if !chatStatusBusy(chat.Status) {
+					return AwaitChatResponse{Chat: chatToolStatus(deps, chat)}, nil
+				}
+				lastBusy = &chat
+			case dial := <-dialed:
+				events = dial.events
+				watchCloser = dial.closer
+				dialed = nil
+			case event, ok := <-events:
+				if !ok {
+					// A dropped watch stream must not end the wait early;
+					// the poll ticker keeps observing until the window closes.
+					events = nil
+					continue
+				}
+				if event.Chat.ID == chatID && !chatStatusBusy(event.Chat.Status) {
+					chat, err := expClient.GetChat(waitCtx, chatID)
+					if err != nil {
+						if waitCtx.Err() != nil {
+							return finalStatus()
+						}
+						return AwaitChatResponse{}, xerrors.Errorf("get chat after status change: %w", err)
+					}
+					// A new turn may start between the event and this
+					// confirmation; keep waiting if the chat is busy again.
+					if !chatStatusBusy(chat.Status) {
+						return AwaitChatResponse{Chat: chatToolStatus(deps, chat)}, nil
+					}
+					lastBusy = &chat
+				}
+			}
+		}
+	},
+}
+
+type ListChatsArgs struct {
+	Labels map[string]string `json:"labels"`
+	Query  string            `json:"query"`
+	Limit  int               `json:"limit"`
+}
+
+type ListChatsResponse struct {
+	Chats []ChatToolStatus `json:"chats"`
+}
+
+var ListChats = Tool[ListChatsArgs, ListChatsResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameListChats,
+		Description: `List Coder Agents chats, optionally filtered by labels or a search query.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"labels": map[string]any{
+					"type":                 "object",
+					"description":          "Optional exact-match string key/value labels.",
+					"additionalProperties": map[string]any{"type": "string"},
+				},
+				"query": map[string]any{
+					"type":        "string",
+					"description": "Optional chat search query using fielded terms; bare text is rejected. Supported fields: search:<text> (full-text, cannot combine with title, pr_title, or pr), title:<text>, repo:<owner/name>, pr:<number>, pr_title:<text>, pr_status:<draft|open|merged|closed>, diff_url:<url>, archived:<true|false>, has_unread:<true|false>, source:<created_by_me|shared_with_me>. Quote values containing spaces or colons (URLs always need quoting), e.g. search:\"failed deployment\" or diff_url:\"https://github.com/org/repo/pull/1\".",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Maximum chats to return (1-100, default 25).",
+				},
+			},
+			Required: []string{},
+		},
+	},
+	MCPAnnotations: mcpReadOnlyAnnotations,
+	Handler: func(ctx context.Context, deps Deps, args ListChatsArgs) (ListChatsResponse, error) {
+		if args.Limit < 0 || args.Limit > 100 {
+			return ListChatsResponse{}, xerrors.New("limit must be between 1 and 100")
+		}
+		limit := args.Limit
+		if limit == 0 {
+			limit = 25
+		}
+		chats, err := codersdk.NewExperimentalClient(deps.coderClient).ListChats(ctx, &codersdk.ListChatsOptions{
+			Query:  args.Query,
+			Labels: args.Labels,
+			Pagination: codersdk.Pagination{
+				Limit: limit,
+			},
+		})
+		if err != nil {
+			return ListChatsResponse{}, xerrors.Errorf("list chats: %w", err)
+		}
+		resp := ListChatsResponse{Chats: make([]ChatToolStatus, len(chats))}
+		for i, chat := range chats {
+			resp.Chats[i] = chatToolStatus(deps, chat)
+		}
+		return resp, nil
+	},
+}
+
 type GetChatMessagesArgs struct {
 	ChatID   string `json:"chat_id"`
 	Limit    int    `json:"limit"`
 	BeforeID int64  `json:"before_id"`
+	AfterID  int64  `json:"after_id"`
+}
+
+type ChatToolMessageFile struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	MimeType string `json:"mime_type"`
 }
 
 type ChatToolMessage struct {
@@ -202,15 +544,15 @@ type ChatToolMessage struct {
 	Role      codersdk.ChatMessageRole `json:"role"`
 	CreatedAt time.Time                `json:"created_at"`
 	Text      string                   `json:"text"`
+	Files     []ChatToolMessageFile    `json:"files,omitempty"`
 }
 
 type GetChatMessagesResponse struct {
 	Messages []ChatToolMessage `json:"messages"`
 	HasMore  bool              `json:"has_more"`
-	// NextBeforeID is the cursor for the next older page when HasMore is
-	// true. It is derived from the unfiltered API page, so it stays valid
-	// even when every message in this page was filtered out as non-text.
+	// Cursors come from the raw page so filtered pages remain traversable.
 	NextBeforeID int64 `json:"next_before_id,omitempty"`
+	NextAfterID  int64 `json:"next_after_id,omitempty"`
 	// QueuedMessages is populated only on the initial page.
 	QueuedMessages []string `json:"queued_messages,omitempty"`
 }
@@ -228,12 +570,34 @@ func userFacingText(parts []codersdk.ChatMessagePart) string {
 	return strings.Join(texts, "\n")
 }
 
+func chatToolMessage(msg codersdk.ChatMessage) (ChatToolMessage, bool) {
+	toolMessage := ChatToolMessage{
+		ID:        msg.ID,
+		Role:      msg.Role,
+		CreatedAt: msg.CreatedAt,
+		Text:      userFacingText(msg.Content),
+	}
+	for _, part := range msg.Content {
+		if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID.Valid {
+			toolMessage.Files = append(toolMessage.Files, ChatToolMessageFile{
+				ID:       part.FileID.UUID.String(),
+				Name:     part.Name,
+				MimeType: part.MediaType,
+			})
+		}
+	}
+	if toolMessage.Text == "" && len(toolMessage.Files) == 0 {
+		return ChatToolMessage{}, false
+	}
+	return toolMessage, true
+}
+
 var GetChatMessages = Tool[GetChatMessagesArgs, GetChatMessagesResponse]{
 	Tool: aisdk.Tool{
 		Name: ToolNameGetChatMessages,
-		Description: `Get the newest messages of a Coder Agents chat in chronological order.
+		Description: `Get messages from a Coder Agents chat in chronological order.
 
-Only user-facing text content is returned (including lifecycle hook notices); tool calls and other internal parts are omitted. Prompts still queued behind a busy chat appear in queued_messages. When has_more is true, pass next_before_id as before_id to page through older messages.`,
+Only user-facing text content is returned (including lifecycle hook notices); tool calls and other internal parts are omitted. Prompts still queued behind a busy chat appear in queued_messages. Use before_id with next_before_id to page backward from the newest messages, or after_id with next_after_id to page forward.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"chat_id": map[string]any{
@@ -242,11 +606,15 @@ Only user-facing text content is returned (including lifecycle hook notices); to
 				},
 				"limit": map[string]any{
 					"type":        "integer",
-					"description": "Maximum number of messages to fetch, from newest to oldest (1-200, default 50).",
+					"description": "Maximum number of messages per page (1-200, default 50). Pages are newest-first unless after_id is set, which pages forward in chronological order.",
 				},
 				"before_id": map[string]any{
 					"type":        "integer",
 					"description": "Only fetch messages with an id lower than this cursor. Omit to fetch the newest messages.",
+				},
+				"after_id": map[string]any{
+					"type":        "integer",
+					"description": "Only fetch messages with an id greater than this cursor, in chronological order. Cannot be combined with before_id.",
 				},
 			},
 			Required: []string{"chat_id"},
@@ -264,45 +632,80 @@ Only user-facing text content is returned (including lifecycle hook notices); to
 		if args.BeforeID < 0 {
 			return GetChatMessagesResponse{}, xerrors.New("before_id must be a positive message id")
 		}
+		if args.AfterID < 0 {
+			return GetChatMessagesResponse{}, xerrors.New("after_id must be a positive message id")
+		}
+		if args.BeforeID > 0 && args.AfterID > 0 {
+			return GetChatMessagesResponse{}, xerrors.New("before_id and after_id cannot be used together")
+		}
 		var opts *codersdk.ChatMessagesPaginationOptions
-		if args.Limit > 0 || args.BeforeID > 0 {
+		if args.Limit > 0 || args.BeforeID > 0 || args.AfterID > 0 {
 			opts = &codersdk.ChatMessagesPaginationOptions{
 				Limit:    args.Limit,
 				BeforeID: args.BeforeID,
+				AfterID:  args.AfterID,
 			}
 		}
 		resp, err := codersdk.NewExperimentalClient(deps.coderClient).GetChatMessages(ctx, chatID, opts)
 		if err != nil {
 			return GetChatMessagesResponse{}, xerrors.Errorf("get chat messages: %w", err)
 		}
-		// The API returns messages newest first; reverse into
-		// chronological order so the transcript reads naturally.
 		messages := make([]ChatToolMessage, 0, len(resp.Messages))
-		for i := len(resp.Messages) - 1; i >= 0; i-- {
-			msg := resp.Messages[i]
-			text := userFacingText(msg.Content)
-			if text == "" {
-				continue
+		if args.AfterID > 0 {
+			for _, msg := range resp.Messages {
+				if toolMessage, ok := chatToolMessage(msg); ok {
+					messages = append(messages, toolMessage)
+				}
 			}
-			messages = append(messages, ChatToolMessage{
-				ID:        msg.ID,
-				Role:      msg.Role,
-				CreatedAt: msg.CreatedAt,
-				Text:      text,
-			})
+		} else {
+			for i := len(resp.Messages) - 1; i >= 0; i-- {
+				if toolMessage, ok := chatToolMessage(resp.Messages[i]); ok {
+					messages = append(messages, toolMessage)
+				}
+			}
 		}
 		var queued []string
 		for _, msg := range resp.QueuedMessages {
-			if text := userFacingText(msg.Content); text != "" {
+			text := userFacingText(msg.Content)
+			if text == "" {
+				// A queued prompt can carry only file parts; represent it
+				// by its attachments instead of dropping it.
+				var names []string
+				for _, part := range msg.Content {
+					if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID.Valid {
+						name := part.Name
+						if name == "" {
+							name = part.FileID.UUID.String()
+						}
+						names = append(names, name)
+					}
+				}
+				if len(names) > 0 {
+					text = "(attached files: " + strings.Join(names, ", ") + ")"
+				}
+			}
+			if text != "" {
 				queued = append(queued, text)
 			}
 		}
-		var nextBeforeID int64
-		if resp.HasMore && len(resp.Messages) > 0 {
-			nextBeforeID = resp.Messages[0].ID
-			for _, msg := range resp.Messages {
-				if msg.ID < nextBeforeID {
-					nextBeforeID = msg.ID
+		var nextBeforeID, nextAfterID int64
+		if len(resp.Messages) > 0 {
+			if args.AfterID > 0 {
+				// Forward pollers need a cursor from every nonempty page,
+				// even the last one, or a page of filtered-out internal
+				// messages would leave them stuck replaying the same page.
+				nextAfterID = resp.Messages[0].ID
+				for _, msg := range resp.Messages {
+					if msg.ID > nextAfterID {
+						nextAfterID = msg.ID
+					}
+				}
+			} else if resp.HasMore {
+				nextBeforeID = resp.Messages[0].ID
+				for _, msg := range resp.Messages {
+					if msg.ID < nextBeforeID {
+						nextBeforeID = msg.ID
+					}
 				}
 			}
 		}
@@ -310,6 +713,7 @@ Only user-facing text content is returned (including lifecycle hook notices); to
 			Messages:       messages,
 			HasMore:        resp.HasMore,
 			NextBeforeID:   nextBeforeID,
+			NextAfterID:    nextAfterID,
 			QueuedMessages: queued,
 		}, nil
 	},

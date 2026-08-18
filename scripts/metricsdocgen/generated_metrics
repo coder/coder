@@ -283,6 +283,18 @@ coderd_chatd_chats{state=""} 0
 # HELP coderd_chatd_compaction_total Total compaction outcomes (only recorded when compaction was triggered or failed).
 # TYPE coderd_chatd_compaction_total counter
 coderd_chatd_compaction_total{provider="",model="",result=""} 0
+# HELP coderd_chatd_find_tools_activations_total Total deferred tool activations returned by find_tools.
+# TYPE coderd_chatd_find_tools_activations_total counter
+coderd_chatd_find_tools_activations_total 0
+# HELP coderd_chatd_find_tools_calls_total Total find_tools calls.
+# TYPE coderd_chatd_find_tools_calls_total counter
+coderd_chatd_find_tools_calls_total 0
+# HELP coderd_chatd_find_tools_empty_total Total find_tools calls with no matches.
+# TYPE coderd_chatd_find_tools_empty_total counter
+coderd_chatd_find_tools_empty_total 0
+# HELP coderd_chatd_find_tools_match_count Number of matches returned by find_tools calls.
+# TYPE coderd_chatd_find_tools_match_count histogram
+coderd_chatd_find_tools_match_count 0
 # HELP coderd_chatd_hook_context_size_bytes Lifecycle hook model context response size in bytes.
 # TYPE coderd_chatd_hook_context_size_bytes histogram
 coderd_chatd_hook_context_size_bytes{event=""} 0

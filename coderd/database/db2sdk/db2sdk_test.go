@@ -848,6 +848,7 @@ func TestChat_FileMetadataConversion(t *testing.T) {
 			OrganizationID: orgID,
 			Name:           "screenshot.png",
 			Mimetype:       "image/png",
+			SizeBytes:      1234,
 			CreatedAt:      now,
 		},
 	}
@@ -861,6 +862,7 @@ func TestChat_FileMetadataConversion(t *testing.T) {
 	require.Equal(t, orgID, f.OrganizationID, "OrganizationID must be mapped from DB row")
 	require.Equal(t, "screenshot.png", f.Name)
 	require.Equal(t, "image/png", f.MimeType)
+	require.Equal(t, int64(1234), f.SizeBytes)
 	require.Equal(t, now, f.CreatedAt)
 
 	// Verify JSON serialization uses snake_case for mime_type.
