@@ -826,17 +826,20 @@ func (s *taskStarter) executeLocalTools(
 	var outcome chatloop.ToolExecutionOutcome
 	var spawnDispatchErr error
 	if len(allowed) > 0 {
-		// Stamp the batch start and the dispatched calls on the buffer
+		// Seed the batch start and the dispatched calls on the buffer
 		// episode so an interrupt can bill the partial window this step
-		// would have reported. Only dispatched calls are seeded, keyed
-		// by their position in the unresolved call order the interrupt
-		// walks: rejected calls never run, so an interrupt must not
-		// treat their missing completions as still-running work, and a
+		// would have reported. Chatloop invokes the callback only once
+		// dispatch is guaranteed, so an interrupt whose cancellation
+		// lands before the tools launch finds no batch and bills
+		// nothing. Only dispatched calls are seeded, keyed by their
+		// position in the unresolved call order the interrupt walks:
+		// rejected calls never run, so an interrupt must not treat
+		// their missing completions as still-running work, and a
 		// rejected call must not consume a same-ID dispatched
 		// occurrence. An exclusive-policy violation dispatches nothing
-		// (chatloop synthesizes error results for the whole batch), so
-		// no billable batch starts and an interrupt racing those
-		// synthetic results bills nothing.
+		// (chatloop synthesizes error results before the callback), so
+		// no billable batch starts there either.
+		var onBatchStart func()
 		if !exclusiveRejected {
 			dispatched := make([]messagepartbuffer.DispatchedToolCall, 0, len(allowed))
 			for j, tc := range allowed {
@@ -845,7 +848,9 @@ func (s *taskStarter) executeLocalTools(
 					ToolCallID: tc.ToolCallID,
 				})
 			}
-			attempt.startToolBatch(dispatched)
+			onBatchStart = func() {
+				attempt.startToolBatch(dispatched)
+			}
 		}
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
 			Tools:              prepared.Tools,
@@ -859,6 +864,7 @@ func (s *taskStarter) executeLocalTools(
 			ContextLimit:       prepared.ContextLimitFallback,
 			ToolNameAliases:    subagentToolNameAliases,
 			UnbilledToolNames:  unbilledSubagentToolNames,
+			OnBatchStart:       onBatchStart,
 			OnToolComplete:     attempt.recordToolCompletion,
 			PublishMessagePart: attempt.publish,
 			Logger:             s.opts.Logger,

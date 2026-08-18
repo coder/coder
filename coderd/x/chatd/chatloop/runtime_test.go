@@ -437,6 +437,77 @@ func TestExecuteLocalTools_DuplicateToolCallIDsKeepOccurrenceCompletions(t *test
 	require.Equal(t, "call-dup", outcome.BatchRuntimeToolCallID)
 }
 
+// OnBatchStart seeds billing state only once dispatch is guaranteed: it
+// fires before the tool goroutines launch, and never fires when
+// cancellation or the exclusive policy stops the batch, so an interrupt
+// racing those paths finds no batch to bill.
+func TestExecuteLocalTools_OnBatchStartFiresOnlyOnDispatch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("dispatched batch seeds before tools run", func(t *testing.T) {
+		t.Parallel()
+
+		starts := 0
+		seededWhenToolRan := false
+		tool := fantasy.NewAgentTool(
+			"fast_tool",
+			"test tool",
+			func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				seededWhenToolRan = starts > 0
+				return fantasy.NewTextResponse("done"), nil
+			},
+		)
+		outcome, err := chatloop.ExecuteLocalTools(context.Background(), chatloop.ExecuteLocalToolsOptions{
+			Clock:        quartz.NewMock(t),
+			Tools:        []fantasy.AgentTool{tool},
+			ActiveTools:  []string{"fast_tool"},
+			OnBatchStart: func() { starts++ },
+			ToolCalls: []fantasy.ToolCallContent{
+				{ToolCallID: "call-1", ToolName: "fast_tool", Input: "{}"},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, outcome.Step.Content, 1)
+		require.Equal(t, 1, starts)
+		require.True(t, seededWhenToolRan, "the batch must be seeded before any tool goroutine runs")
+	})
+
+	t.Run("canceled context never seeds", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		started := false
+		_, err := chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
+			Clock:        quartz.NewMock(t),
+			OnBatchStart: func() { started = true },
+			ToolCalls: []fantasy.ToolCallContent{
+				{ToolCallID: "call-1", ToolName: "fast_tool", Input: "{}"},
+			},
+		})
+		require.ErrorIs(t, err, context.Canceled)
+		require.False(t, started, "a canceled batch dispatches nothing and must not seed billing state")
+	})
+
+	t.Run("exclusive violation never seeds", func(t *testing.T) {
+		t.Parallel()
+
+		started := false
+		outcome, err := chatloop.ExecuteLocalTools(context.Background(), chatloop.ExecuteLocalToolsOptions{
+			Clock:              quartz.NewMock(t),
+			ExclusiveToolNames: map[string]bool{"exclusive_tool": true},
+			OnBatchStart:       func() { started = true },
+			ToolCalls: []fantasy.ToolCallContent{
+				{ToolCallID: "call-1", ToolName: "exclusive_tool", Input: "{}"},
+				{ToolCallID: "call-2", ToolName: "fast_tool", Input: "{}"},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, outcome.Step.Content, 2, "the whole batch resolves to synthesized policy errors")
+		require.False(t, started, "a policy-rejected batch dispatches nothing and must not seed billing state")
+	})
+}
+
 // A call without a tool call ID, which providers can emit, still
 // executes: its completion defines the window like any other billed
 // call instead of being discarded as a missing result.

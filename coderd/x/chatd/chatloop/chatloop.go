@@ -265,6 +265,14 @@ type ExecuteLocalToolsOptions struct {
 	// name as called, so deprecated aliases must be listed alongside
 	// their canonical names.
 	UnbilledToolNames map[string]bool
+	// OnBatchStart, when set, is invoked once cancellation and
+	// exclusive-policy checks have passed, immediately before the
+	// batch's tool goroutines launch. Dispatch is unconditional after
+	// it fires. The interrupt path uses it to seed the batch's billing
+	// state on the buffer episode: seeding any earlier would let an
+	// interrupt whose cancellation lands before dispatch bill calls
+	// that never ran as if they were still running.
+	OnBatchStart func()
 	// OnToolComplete, when set, is invoked with each local tool call's
 	// completion instant as the tool finishes, the same instant
 	// PersistedStep.ToolResultCreatedAt later carries. Tool results are
@@ -627,6 +635,9 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	}
 
 	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
+	if opts.OnBatchStart != nil {
+		opts.OnBatchStart()
+	}
 	batchStart := clockNow(opts.Clock)
 	// Completion instants aligned with localCalls by occurrence.
 	// billableBatchWindow reads these instead of the ID-keyed
