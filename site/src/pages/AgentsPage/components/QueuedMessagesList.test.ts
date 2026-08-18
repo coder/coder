@@ -131,7 +131,7 @@ describe("getQueuedMessageInfo", () => {
 		});
 	});
 
-	it("preserves media_type from file parts", () => {
+	it("counts multiple file attachments alongside text", () => {
 		const result = getQueuedMessageInfo(
 			buildMessage([
 				{ type: "text", text: "check this" },

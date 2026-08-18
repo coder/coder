@@ -1089,8 +1089,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}
-					onDelete={(id) => void onDeleteQueuedMessage?.(id)}
-					onPromote={(id) => void onPromoteQueuedMessage?.(id)}
+					onDelete={(id) => onDeleteQueuedMessage?.(id)}
+					onPromote={(id) => onPromoteQueuedMessage?.(id)}
 					className="mb-2"
 				/>
 			)}

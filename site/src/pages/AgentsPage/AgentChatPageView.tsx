@@ -1002,7 +1002,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								remountKey={editing.remountKey}
 								onContentChange={editing.handleContentChange}
 								isEditing={isEditing}
-								isEditingHistoryMessage={editing.editingMessageId !== null}
 								onCancelHistoryEdit={editing.handleCancelHistoryEdit}
 								editingFileBlocks={editing.editingFileBlocks}
 								mcpServers={mcpServers}

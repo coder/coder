@@ -278,7 +278,6 @@ interface ChatPageInputProps {
 		hasFileReferences: boolean,
 	) => void;
 	isEditing: boolean;
-	isEditingHistoryMessage: boolean;
 	onCancelHistoryEdit: () => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
@@ -341,7 +340,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	remountKey,
 	onContentChange,
 	isEditing,
-	isEditingHistoryMessage,
 	onCancelHistoryEdit,
 	editingFileBlocks,
 	mcpServers,
@@ -566,7 +564,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			queuedMessages={queuedMessages}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
-			isEditingHistoryMessage={isEditingHistoryMessage}
+			isEditingHistoryMessage={isEditing}
 			onCancelHistoryEdit={onCancelHistoryEdit}
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
@@ -609,11 +607,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			unsupportedProviderNames={unsupportedProviderNames}
 			aiGatewayDisabled={aiGatewayDisabled}
 			// Commands act on the whole chat, so they only make sense
-			// for new sends: hide them while editing a history or
-			// queued message.
-			slashCommands={
-				isEditing || isEditingHistoryMessage ? undefined : CHAT_SLASH_COMMANDS
-			}
+			// for new sends: hide them while editing a history message.
+			slashCommands={isEditing ? undefined : CHAT_SLASH_COMMANDS}
 		/>
 	);
 
