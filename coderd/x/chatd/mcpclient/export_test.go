@@ -2,6 +2,7 @@ package mcpclient
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"charm.land/fantasy"
@@ -22,12 +23,13 @@ func ConnectAllForTest(
 	ctx context.Context,
 	logger slog.Logger,
 	configs []database.MCPServerConfig,
+	httpClient *http.Client,
 	timeout time.Duration,
 	reaperDone func(),
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	return connectAllWithHooks(
 		ctx, logger, configs, nil, uuid.Nil, nil, nil,
-		timeout, connectHooks{reaperDone: reaperDone},
+		httpClient, timeout, connectHooks{reaperDone: reaperDone},
 	)
 }
 

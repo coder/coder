@@ -20,6 +20,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"net/netip"
 	"net/url"
 	"os"
 	"os/user"
@@ -731,6 +732,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
+			mcpAllowedPrivateCIDRs := make([]netip.Prefix, 0, len(vals.MCPAllowedPrivateCIDRs))
+			for _, cidr := range vals.MCPAllowedPrivateCIDRs {
+				prefix, err := netip.ParsePrefix(cidr)
+				if err != nil {
+					return xerrors.Errorf("parse MCP allowed private CIDR %q: %w", cidr, err)
+				}
+				mcpAllowedPrivateCIDRs = append(mcpAllowedPrivateCIDRs, prefix)
+			}
+
 			// Resolve this replica's cluster host: the explicit Cluster.Host,
 			// else the DERP relay host for older HA deployments that predate the
 			// setting. Used as the NATS cluster route host and, when an IP, the
@@ -768,6 +778,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
+				MCPAllowedPrivateCIDRs:      mcpAllowedPrivateCIDRs,
 				TemplateScheduleStore:       &atomic.Pointer[schedule.TemplateScheduleStore]{},
 				UserQuietHoursScheduleStore: &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{},
 				SSHConfig:                   sshConfigResponse,

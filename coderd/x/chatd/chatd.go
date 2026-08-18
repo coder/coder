@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/mcpssrf"
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -188,6 +189,7 @@ type Server struct {
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
+	mcpHTTPClient                  *http.Client
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -3069,6 +3071,7 @@ type Config struct {
 	// May be nil if the deployment has no OIDC provider; servers
 	// using user_oidc will then send no Authorization header.
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
+	MCPHTTPClient   *http.Client
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
@@ -3115,6 +3118,11 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		instructionLookupTimeout = homeInstructionLookupTimeout
 	}
 
+	mcpHTTPClient := cfg.MCPHTTPClient
+	if mcpHTTPClient == nil {
+		mcpHTTPClient = mcpssrf.NewHTTPClient(&http.Client{}, nil)
+	}
+
 	workerID := cfg.ReplicaID
 	if workerID == uuid.Nil {
 		workerID = uuid.New()
@@ -3153,6 +3161,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
 		oidcTokenSource:                cfg.OIDCTokenSource,
+		mcpHTTPClient:                  mcpHTTPClient,
 		debugSvcFactory: func() *chatdebug.Service {
 			debugSvc := chatdebug.NewService(
 				cfg.Database,
@@ -5184,7 +5193,7 @@ func (p *Server) refreshMCPTokenIfNeeded(
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 ) (database.MCPServerUserToken, error) {
-	result, err := mcpclient.RefreshOAuth2Token(ctx, cfg, tok)
+	result, err := mcpclient.RefreshOAuth2Token(ctx, p.mcpHTTPClient, cfg, tok)
 	if err != nil {
 		if mcpclient.IsPermanentRefreshError(err) {
 			return p.markMCPTokenRefreshFailure(ctx, logger, cfg, tok, err), nil

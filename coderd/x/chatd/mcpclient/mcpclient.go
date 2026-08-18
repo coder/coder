@@ -27,6 +27,7 @@ import (
 	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/mcpssrf"
 )
 
 // toolNameSep separates the server slug from the original tool
@@ -126,10 +127,11 @@ func ConnectAll(
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
+	httpClient *http.Client,
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	return connectAllWithHooks(
 		ctx, logger, configs, tokens, userID, oidcSrc, coderHeaders,
-		connectTimeout, connectHooks{},
+		httpClient, connectTimeout, connectHooks{},
 	)
 }
 
@@ -150,6 +152,7 @@ func connectAllWithHooks(
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
+	httpClient *http.Client,
 	timeout time.Duration,
 	hooks connectHooks,
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
@@ -196,7 +199,7 @@ func connectAllWithHooks(
 			start := time.Now()
 			serverTools, session, connectErr := connectOne(
 				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
-				timeout, hooks,
+				httpClient, timeout, hooks,
 			)
 			duration := time.Since(start)
 			summary := ConnectSummary{
@@ -327,6 +330,7 @@ func connectOne(
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
+	httpClient *http.Client,
 	timeout time.Duration,
 	hooks connectHooks,
 ) ([]fantasy.AgentTool, *mcp.ClientSession, error) {
@@ -353,7 +357,7 @@ func connectOne(
 		}
 	}
 
-	tr, err := createTransport(cfg, headers)
+	tr, err := createTransport(cfg, headers, httpClient)
 	if err != nil {
 		return nil, nil, xerrors.Errorf(
 			"create transport: %w", err,
@@ -461,8 +465,9 @@ func connectOne(
 func createTransport(
 	cfg database.MCPServerConfig,
 	headers map[string]string,
+	baseHTTPClient *http.Client,
 ) (mcp.Transport, error) {
-	httpClient := httpClientWithHeaders(headers)
+	httpClient := httpClientWithHeaders(baseHTTPClient, headers)
 
 	switch cfg.Transport {
 	case "sse":
@@ -1058,6 +1063,7 @@ func RefreshFailureReason(err error) string {
 // Refreshed is true.
 func RefreshOAuth2Token(
 	ctx context.Context,
+	httpClient *http.Client,
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 ) (RefreshResult, error) {
@@ -1083,6 +1089,12 @@ func RefreshOAuth2Token(
 	// matches connectTimeout used for MCP server connections.
 	refreshCtx, cancel := context.WithTimeout(ctx, connectTimeout)
 	defer cancel()
+	if httpClient == nil {
+		httpClient = mcpssrf.NewHTTPClient(&http.Client{}, nil)
+	}
+	refreshClient := *httpClient
+	refreshClient.CheckRedirect = mcpssrf.CheckSameOriginRedirect
+	refreshCtx = context.WithValue(refreshCtx, oauth2.HTTPClient, &refreshClient)
 
 	// TokenSource automatically refreshes expired tokens. It
 	// uses a 10-second expiry window, so tokens about to expire
@@ -1131,14 +1143,11 @@ func RevokeOAuth2Token(
 	}
 
 	if httpClient == nil {
-		httpClient = mcpHTTPClient()
-	}
-	if httpClient == nil {
-		httpClient = http.DefaultClient
+		httpClient = mcpssrf.NewHTTPClient(&http.Client{}, nil)
 	}
 	// Copy so CheckRedirect does not leak into the shared client.
 	redirectSafe := *httpClient
-	redirectSafe.CheckRedirect = checkRevocationRedirect
+	redirectSafe.CheckRedirect = mcpssrf.CheckSameOriginRedirect
 	httpClient = &redirectSafe
 
 	token, hint := tok.AccessToken, "access_token"
@@ -1207,52 +1216,6 @@ func isAllowedRevocationScheme(u *url.URL) bool {
 		return true
 	}
 	return u.Scheme == "http" && isLoopbackHost(u.Hostname())
-}
-
-// checkRevocationRedirect stops the revocation POST, which carries
-// token material and client credentials, from following redirects off
-// the provider's origin. Loopback to loopback is exempt.
-func checkRevocationRedirect(req *http.Request, via []*http.Request) error {
-	if len(via) >= 10 {
-		return xerrors.New("stopped after 10 redirects")
-	}
-	// net/http follows 301/302/303 with a bodyless GET; the token never
-	// reaches the endpoint and a trailing 200 would be a false success.
-	if req.Method != http.MethodPost {
-		return xerrors.New(
-			"revocation redirect dropped the POST body",
-		)
-	}
-	if !isAllowedRevocationScheme(req.URL) {
-		return xerrors.New("revocation redirect target must use https")
-	}
-	origin := via[0].URL
-	if isLoopbackHost(req.URL.Hostname()) && isLoopbackHost(origin.Hostname()) {
-		return nil
-	}
-	if req.URL.Scheme != origin.Scheme ||
-		!strings.EqualFold(req.URL.Hostname(), origin.Hostname()) ||
-		normalizedPort(req.URL) != normalizedPort(origin) {
-		return xerrors.Errorf(
-			"revocation redirect must stay on origin %q",
-			origin.Scheme+"://"+origin.Host,
-		)
-	}
-	return nil
-}
-
-func normalizedPort(u *url.URL) string {
-	if p := u.Port(); p != "" {
-		return p
-	}
-	switch u.Scheme {
-	case "https":
-		return "443"
-	case "http":
-		return "80"
-	default:
-		return ""
-	}
 }
 
 func isRevocationSuccessStatus(status int) bool {

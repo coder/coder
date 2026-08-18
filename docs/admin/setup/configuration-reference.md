@@ -840,6 +840,16 @@ Serve pprof metrics on the address defined by pprof address.
 - CLI flag: [`--pprof-enable`](../../reference/cli/server.md#--pprof-enable)
 - YAML key: `introspection.pprof.enable`
 
+## MCP
+
+### Allowed private CIDRs
+
+MCP server destinations in private or reserved IP ranges are blocked by default for SSRF protection. This applies to OAuth2 discovery, OAuth2 token and revocation exchanges, and runtime MCP connections from coderd. This option exempts specific CIDRs.
+
+- Environment variable: `CODER_MCP_ALLOWED_PRIVATE_CIDRS`
+- CLI flag: [`--mcp-allowed-private-cidrs`](../../reference/cli/server.md#--mcp-allowed-private-cidrs)
+- YAML key: `mcp.allowed_private_cidrs`
+
 ## Networking
 
 ### Access URL
