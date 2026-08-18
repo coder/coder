@@ -153,22 +153,32 @@ The core of this section is expected to be a table over these axes.
 
 ### 6. Evidence in this codebase
 
-1. **open.** `audit_logs` is request-shaped: `ip`, `user_agent`, `status_code`,
-   `request_id`.
-2. **open.** `user_id NOT NULL` with no actor type.
-3. **open.** `resource_type` has 36 values, a quarter of them settings or events
-   rather than entities.
-4. **open.** `workspace_agent` is in that enum with zero coverage, which is P7.
-5. **open.** `id` is a uuid; ordering comes from an index on `"time" DESC`, so
-   same-transaction writes have no defined order.
-6. **open.** `diff jsonb` holds field-level before and after.
-7. **open.** Retention deletion exists as its own queries. Needs 10.2.
-8. **open.** Registering one audited resource touches eight places plus
-   `auditdocgen`.
+1. **done.** `audit_logs` is request-shaped. Under Findings, "The shape of
+   `audit_logs`".
+2. **done.** `user_id NOT NULL` with no actor type. Under Findings, stated as
+   one of the required columns presuming a request made by a person.
+3. **part.** `resource_type` has 36 values. The count is under Findings. That a
+   quarter of them are settings or events rather than entities is not, and is
+   owed if the point is worth making.
+4. **done.** `workspace_agent` is in that enum with no mention in
+   `coderd/audit/diff.go` or `enterprise/audit/table.go`. Under Findings.
+5. **done.** `id` is a uuid; ordering is by an index on `"time" DESC`, so
+   same-transaction writes have no defined order. Under Findings.
+6. **open.** `diff jsonb` holds field-level before and after. Not yet needed by
+   any argument; belongs with section 9 if the omission of values is named.
+7. **done.** Retention deletion. `DeleteOldAuditLogs` in
+   `coderd/database/queries/auditlogs.sql:268` takes every row older than the
+   cutoff with no exemption, driven by `Retention.AuditLogs` and run by
+   `coderd/database/dbpurge/dbpurge.go` on a ten minute ticker. Cited in the
+   answer to 7.1.
+8. **done.** Registering one audited resource costs eight places plus a
+   documentation generator. Under Findings, by reference to
+   `audit_approach.md` rather than restated.
 9. **open.** `resource_type` is a Postgres enum, carrying the single-transaction
    migration trap.
-10. **open.** Written from handlers through middleware, so non-HTTP paths bypass
-    it. Needs 10.3.
+10. **done.** Write paths. Under Findings, "What writes to `audit_logs`": the
+    production caller, the filter that can drop a record before storage, the
+    no-op implementation of the interface, and the development handler.
 11. **open.** `connection_logs` split out and four enum values were deprecated.
     Needs 10.4.
 12. **open.** `user_status_changes` and `user_deleted` are journal-spirited but
@@ -179,7 +189,11 @@ The core of this section is expected to be a table over these axes.
 
 ### 7. Counterarguments to answer
 
-1. **open.** Why not extend `audit_logs`?
+1. **done.** Why not extend `audit_logs`? Its own section, since it is the
+   question the document exists to answer. Structured around three claims stated
+   first: `audit_logs` is a log, this work needs a journal, one record cannot
+   serve both well. The three readings of "extend" are a demonstration inside
+   the third claim rather than the shape of the section.
 2. **open.** Why not just add enum values?
 3. **open.** Is this not duplication?
 4. **open.** Can one be derived from the other?
@@ -209,9 +223,12 @@ The core of this section is expected to be a table over these axes.
 
 1. **drop.** The exact licensing gate for the existing mechanism. Nothing
    depends on it now that licensing is out of scope.
-2. **open.** The retention deletion query names, and what schedules them.
-3. **open.** Whether anything writes `audit_logs` outside the HTTP middleware
-   path.
+2. **done.** `DeleteOldAuditLogs` and `DeleteOldAuditLogConnectionEvents`,
+   scheduled by `dbpurge` on a ten minute ticker. Connection events keep their
+   own ninety day maximum.
+3. **done.** Two callers of `InsertAuditLog`. One is the enterprise backend's
+   `Export`, the real path. The other is `generateFakeAuditLog`, a development
+   handler. Nothing else writes the table.
 4. **open.** Whether `connection_logs` has the properties of a log or of a
    journal. It is the most recent split and may be a useful precedent either
    way.
@@ -246,6 +263,26 @@ rather than against the table originally imagined for section 5.
 **Licensing is out of scope for the proof of concept.** Whether the existing
 table is gated behind a licence has no bearing on anything being built, so 4.4's
 clause, 5.3, and 10.1 are all disposed of on that basis.
+
+**7.1 states its answer before its reasons.** The first draft opened by
+conceding that the question was fair and then walked three readings of "extend",
+which buried the conclusion. It now leads with the three claims and gives the
+concession one sentence afterwards. The technical detail sits under the third
+claim, where it is a demonstration rather than the argument's structure.
+
+**Findings became its own section, and the etymology did not move.** The
+codebase facts are separated from the arguments they support, so a skeptical
+reader can check them without first accepting the reasoning. The etymology stays
+in place: its citations are there for the curious rather than to carry an
+argument, and cutting the history out of the narrative would break the thing
+that does the persuading. "Why they are so easily confused" also stays in
+Established, since its purpose is to set out the similarities that make the
+differences matter rather than to assert that anyone is confused.
+
+**7.1 points at Findings rather than carrying its evidence.** It was written
+the other way first, with the schema and the retention query inline, and split
+once the argument and the facts proved easier to check apart. The three readings
+of "extend" read more tightly for it.
 
 **Two of section 5 were elevated, the rest tabulated.** Unbypassability and
 evidentiary standing became paragraphs under The distinctions; the remaining
