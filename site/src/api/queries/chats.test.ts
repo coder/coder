@@ -638,6 +638,35 @@ describe("archiveChat optimistic update", () => {
 		});
 	});
 
+	it("removes the chat's persisted storage keys after success", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		localStorage.setItem(`agents.draft-input.${chatId}`, "draft");
+		localStorage.setItem(`agents.last-active-tab.${chatId}`, "terminal");
+		localStorage.setItem(`agents.right-panel-tabs.${chatId}`, "[]");
+		localStorage.setItem(`agents.default-terminal-hidden.${chatId}`, "true");
+		localStorage.setItem(`agents.chat-draft-attachments.org-1.${chatId}`, "[]");
+		localStorage.setItem("agents.draft-input.chat-2", "other draft");
+
+		const mutation = archiveChat(queryClient);
+		mutation.onSuccess(undefined, chatId);
+
+		expect(localStorage.getItem(`agents.draft-input.${chatId}`)).toBeNull();
+		expect(localStorage.getItem(`agents.last-active-tab.${chatId}`)).toBeNull();
+		expect(
+			localStorage.getItem(`agents.right-panel-tabs.${chatId}`),
+		).toBeNull();
+		expect(
+			localStorage.getItem(`agents.default-terminal-hidden.${chatId}`),
+		).toBeNull();
+		expect(
+			localStorage.getItem(`agents.chat-draft-attachments.org-1.${chatId}`),
+		).toBeNull();
+		expect(localStorage.getItem("agents.draft-input.chat-2")).toBe(
+			"other draft",
+		);
+	});
+
 	it("clears pin order for archived chats that remain in archived lists", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";

@@ -449,7 +449,7 @@ describe("useFileAttachments persistence", () => {
 		expect(result.current.attachments[0].name).toBe("b.png");
 
 		const stored = JSON.parse(
-			localStorage.getItem(persistedAttachmentsStorage.key)!,
+			localStorage.getItem(persistedAttachmentsStorage.key) ?? "null",
 		);
 		expect(stored).toHaveLength(1);
 		expect(stored[0].fileId).toBe("file-2");
@@ -487,7 +487,7 @@ describe("useFileAttachments persistence", () => {
 		});
 
 		const stored = JSON.parse(
-			localStorage.getItem(persistedAttachmentsStorage.key)!,
+			localStorage.getItem(persistedAttachmentsStorage.key) ?? "null",
 		);
 		expect(stored).toHaveLength(1);
 		expect(stored[0].fileId).toBe("new-file-id");
@@ -543,7 +543,7 @@ describe("useFileAttachments persistence", () => {
 
 		// localStorage should be pruned to only the matching org.
 		const stored = JSON.parse(
-			localStorage.getItem(persistedAttachmentsStorage.key)!,
+			localStorage.getItem(persistedAttachmentsStorage.key) ?? "null",
 		);
 		expect(stored).toHaveLength(1);
 		expect(stored[0].fileId).toBe("f1");
@@ -611,7 +611,7 @@ describe("useFileAttachments persistence", () => {
 		});
 
 		const stored = JSON.parse(
-			localStorage.getItem(persistedAttachmentsStorage.key)!,
+			localStorage.getItem(persistedAttachmentsStorage.key) ?? "null",
 		);
 		expect(stored).toHaveLength(1);
 		expect(stored[0].organizationId).toBe("org-1");
