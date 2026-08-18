@@ -131,6 +131,11 @@ WHERE
 --     than created_at because heartbeat events backfilled after downtime
 --     carry a historical created_at; measuring event age would flag them as
 --     failing before publishing was ever attempted.
+--   - attempt_expired_before: now minus the publisher's 1-hour attempt
+--     expiry (matching SelectUsageEventsForPublishing). In-flight attempts
+--     newer than this are skipped; older markers are from replicas that
+--     exited mid-publish, and the publisher considers those rows retryable,
+--     so the status scan must too or they could stay stuck without warning.
 --   - rejected_after: now minus the failure threshold. Permanent rejections
 --     that happened after this are considered recent failures.
 WITH last_success AS (
@@ -149,9 +154,11 @@ WITH last_success AS (
     -- an exact minimum over a potentially unbounded unpublished backlog
     -- (e.g. after publishing was disabled for weeks). A stuck event behind
     -- the first batch surfaces once the queue ahead of it drains or is
-    -- attempted; the publisher cannot reach it any earlier either. Rows
-    -- currently being attempted (publish_started_at set) are skipped; they
-    -- either resolve or re-surface within an hour when the attempt expires.
+    -- attempted; the publisher cannot reach it any earlier either. Rows with
+    -- a live in-flight attempt are skipped; they either resolve or become
+    -- retryable when the attempt expires, mirroring the publisher's
+    -- expired-attempt predicate so a replica that exited mid-publish cannot
+    -- hide a stuck event forever.
     SELECT MIN(
         CASE
             WHEN queued.failure_message IS NULL
@@ -163,7 +170,10 @@ WITH last_success AS (
         SELECT inserted_at, failure_message, first_failed_at
         FROM usage_events
         WHERE published_at IS NULL
-            AND publish_started_at IS NULL
+            AND (
+                publish_started_at IS NULL
+                OR publish_started_at < @attempt_expired_before::timestamptz
+            )
             AND created_at > @window_start::timestamptz
         ORDER BY created_at ASC
         LIMIT 100

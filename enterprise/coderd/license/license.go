@@ -39,6 +39,11 @@ const (
 	// published, so they must not be considered stuck or a warning would get
 	// permanently stuck too.
 	usagePublishingWindow = 30 * 24 * time.Hour
+	// usagePublishAttemptExpiry matches the publisher's 1-hour in-flight
+	// attempt expiry in SelectUsageEventsForPublishing. Attempts older than
+	// this belong to replicas that exited mid-publish; the publisher retries
+	// such rows, so failure detection must consider them too.
+	usagePublishAttemptExpiry = time.Hour
 )
 
 // Entitlements processes licenses to return whether features are enabled or not.
@@ -139,10 +144,11 @@ func Entitlements(
 		UsagePublishStatusFn: func(ctx context.Context, licenseStart time.Time) (database.GetUsagePublishStatusRow, error) {
 			// nolint:gocritic // Reading the usage publish status is a system function.
 			return db.GetUsagePublishStatus(dbauthz.AsSystemRestricted(ctx), database.GetUsagePublishStatusParams{
-				LicenseStart:  licenseStart,
-				WindowStart:   now.Add(-usagePublishingWindow),
-				StuckCutoff:   now.Add(-UsagePublishingFailureThreshold),
-				RejectedAfter: now.Add(-UsagePublishingFailureThreshold),
+				LicenseStart:         licenseStart,
+				WindowStart:          now.Add(-usagePublishingWindow),
+				StuckCutoff:          now.Add(-UsagePublishingFailureThreshold),
+				AttemptExpiredBefore: now.Add(-usagePublishAttemptExpiry),
+				RejectedAfter:        now.Add(-UsagePublishingFailureThreshold),
 			})
 		},
 	})

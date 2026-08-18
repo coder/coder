@@ -11119,19 +11119,21 @@ func TestGetUsagePublishStatus(t *testing.T) {
 	// All times are fixed relative to now so the test never depends on the
 	// wall clock.
 	var (
-		now           = time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
-		threshold     = 24 * time.Hour
-		licenseStart  = now.Add(-90 * 24 * time.Hour)
-		windowStart   = now.Add(-30 * 24 * time.Hour)
-		stuckCutoff   = now.Add(-threshold)
-		rejectedAfter = now.Add(-threshold)
+		now                  = time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+		threshold            = 24 * time.Hour
+		licenseStart         = now.Add(-90 * 24 * time.Hour)
+		windowStart          = now.Add(-30 * 24 * time.Hour)
+		stuckCutoff          = now.Add(-threshold)
+		attemptExpiredBefore = now.Add(-time.Hour)
+		rejectedAfter        = now.Add(-threshold)
 	)
 
 	params := database.GetUsagePublishStatusParams{
-		LicenseStart:  licenseStart,
-		WindowStart:   windowStart,
-		StuckCutoff:   stuckCutoff,
-		RejectedAfter: rejectedAfter,
+		LicenseStart:         licenseStart,
+		WindowStart:          windowStart,
+		StuckCutoff:          stuckCutoff,
+		AttemptExpiredBefore: attemptExpiredBefore,
+		RejectedAfter:        rejectedAfter,
 	}
 
 	type seedEvent struct {
@@ -11193,11 +11195,12 @@ func TestGetUsagePublishStatus(t *testing.T) {
 		events []seedEvent
 		// licenseStartOverride overrides params.LicenseStart when non-zero.
 		licenseStartOverride time.Time
-		// markInFlight runs SelectUsageEventsForPublishing after seeding so
-		// eligible events get publish_started_at set, as if a replica were
-		// publishing them right now.
-		markInFlight bool
-		want         database.GetUsagePublishStatusRow
+		// markInFlightAt, when non-zero, runs SelectUsageEventsForPublishing
+		// at that time after seeding so eligible events get
+		// publish_started_at set, as if a replica had started publishing
+		// them then.
+		markInFlightAt time.Time
+		want           database.GetUsagePublishStatusRow
 	}{
 		{
 			name:   "Empty",
@@ -11206,14 +11209,27 @@ func TestGetUsagePublishStatus(t *testing.T) {
 		},
 		{
 			// Events currently being attempted by a replica are not stuck:
-			// the attempt either resolves them or they re-surface when it
-			// expires an hour later.
+			// the attempt either resolves them or they become retryable when
+			// it expires an hour later.
 			name: "InFlightEventNotStuck",
 			events: []seedEvent{
 				{id: "1", createdAt: now.Add(-48 * time.Hour)},
 			},
-			markInFlight: true,
-			want:         database.GetUsagePublishStatusRow{},
+			markInFlightAt: now,
+			want:           database.GetUsagePublishStatusRow{},
+		},
+		{
+			// An in-flight attempt older than the publisher's 1-hour expiry
+			// belongs to a replica that exited mid-publish. The publisher
+			// considers the row retryable, so failure detection must too.
+			name: "ExpiredAttemptStillStuck",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-48 * time.Hour)},
+			},
+			markInFlightAt: now.Add(-2 * time.Hour),
+			want: database.GetUsagePublishStatusRow{
+				OldestStuckAt: now.Add(-48 * time.Hour),
+			},
 		},
 		{
 			name: "AllPublished",
@@ -11412,8 +11428,8 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 			db, _ := dbtestutil.NewDB(t)
 			seed(ctx, t, db, tc.events)
-			if tc.markInFlight {
-				_, err := db.SelectUsageEventsForPublishing(ctx, now)
+			if !tc.markInFlightAt.IsZero() {
+				_, err := db.SelectUsageEventsForPublishing(ctx, tc.markInFlightAt)
 				require.NoError(t, err)
 			}
 

@@ -1,6 +1,7 @@
 import { BellIcon, BellOffIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
 import { healthSettings, updateHealthSettings } from "#/api/queries/debug";
 import type { HealthSection } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -33,10 +34,17 @@ export const MuteWarningsButton = (props: { healthcheck: HealthSection }) => {
 						(dismissedHealthcheck) =>
 							dismissedHealthcheck !== props.healthcheck,
 					);
-					await unmuteMutation.mutateAsync({
-						dismissed_healthchecks: updatedSettings,
-					});
-					toast.success("Warnings unmuted successfully.");
+					try {
+						await unmuteMutation.mutateAsync({
+							dismissed_healthchecks: updatedSettings,
+						});
+						toast.success("Warnings unmuted successfully.");
+					} catch (error) {
+						// A replica that predates this section rejects its enum
+						// value, e.g. during a rolling upgrade; surface the
+						// failure instead of failing silently.
+						toast.error(getErrorMessage(error, "Failed to unmute warnings."));
+					}
 				}}
 			>
 				<Spinner loading={unmuteMutation.isPending}>
@@ -53,10 +61,17 @@ export const MuteWarningsButton = (props: { healthcheck: HealthSection }) => {
 			variant="outline"
 			onClick={async () => {
 				const updatedSettings = [...dismissed_healthchecks, props.healthcheck];
-				await muteMutation.mutateAsync({
-					dismissed_healthchecks: updatedSettings,
-				});
-				toast.success("Warnings muted successfully.");
+				try {
+					await muteMutation.mutateAsync({
+						dismissed_healthchecks: updatedSettings,
+					});
+					toast.success("Warnings muted successfully.");
+				} catch (error) {
+					// A replica that predates this section rejects its enum
+					// value, e.g. during a rolling upgrade; surface the
+					// failure instead of failing silently.
+					toast.error(getErrorMessage(error, "Failed to mute warnings."));
+				}
 			}}
 		>
 			<Spinner loading={muteMutation.isPending}>

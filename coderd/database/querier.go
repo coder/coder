@@ -897,6 +897,11 @@ type sqlcQuerier interface {
 	//     than created_at because heartbeat events backfilled after downtime
 	//     carry a historical created_at; measuring event age would flag them as
 	//     failing before publishing was ever attempted.
+	//   - attempt_expired_before: now minus the publisher's 1-hour attempt
+	//     expiry (matching SelectUsageEventsForPublishing). In-flight attempts
+	//     newer than this are skipped; older markers are from replicas that
+	//     exited mid-publish, and the publisher considers those rows retryable,
+	//     so the status scan must too or they could stay stuck without warning.
 	//   - rejected_after: now minus the failure threshold. Permanent rejections
 	//     that happened after this are considered recent failures.
 	GetUsagePublishStatus(ctx context.Context, arg GetUsagePublishStatusParams) (GetUsagePublishStatusRow, error)
