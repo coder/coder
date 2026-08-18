@@ -705,6 +705,57 @@ func TestMCPServerConfigsScopedKeyFullView(t *testing.T) {
 	}
 }
 
+func TestMCPServerConfigScopedKeyWithoutPersonalTokenRead(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:    "OAuth Server",
+		Slug:           "oauth-server-scoped-key",
+		Transport:      "streamable_http",
+		URL:            "https://mcp.example.com/oauth",
+		AuthType:       "oauth2",
+		OAuth2ClientID: "cid",
+		OAuth2AuthURL:  "https://auth.example.com/authorize",
+		OAuth2TokenURL: "https://auth.example.com/token",
+		Availability:   "default_on",
+		Enabled:        true,
+		ToolAllowList:  []string{},
+		ToolDenyList:   []string{},
+	})
+	require.NoError(t, err)
+
+	//nolint:gocritic // Seeding token state requires system access.
+	_, err = db.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+		MCPServerConfigID: created.ID,
+		UserID:            firstUser.UserID,
+		AccessToken:       "access-token",
+		TokenType:         "Bearer",
+		Expiry:            sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, token := dbgen.APIKey(t, db, database.APIKey{
+		UserID: firstUser.UserID,
+		Scopes: database.APIKeyScopes{
+			"mcp_server_config:read",
+			"organization:read",
+		},
+	})
+	scopedClient := codersdk.New(adminClient.URL)
+	scopedClient.SetSessionToken(token)
+
+	config, err := scopedClient.MCPServerConfigByID(ctx, created.OrganizationID, created.ID)
+	require.NoError(t, err)
+	require.False(t, config.AuthConnected)
+}
+
 func TestMCPServerConfigACL(t *testing.T) {
 	t.Parallel()
 

@@ -552,7 +552,8 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err == nil {
 			sdkConfig.AuthConnected = api.refreshMCPUserToken(ctx, config, tok)
-		} else if !errors.Is(err, sql.ErrNoRows) {
+			// Token visibility is separately scoped, so denial means disconnected here.
+		} else if !errors.Is(err, sql.ErrNoRows) && !dbauthz.IsNotAuthorizedError(err) {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to get user token.",
 				Detail:  err.Error(),
