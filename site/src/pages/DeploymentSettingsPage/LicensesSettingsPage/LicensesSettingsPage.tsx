@@ -97,6 +97,9 @@ const LicensesSettingsPage: FC = () => {
 				aiGovernanceUserFeature={
 					entitlementsQuery.data?.features.ai_governance_user_limit
 				}
+				agentRuntimeHoursFeature={
+					entitlementsQuery.data?.features.agent_runtime_hours
+				}
 				refreshEntitlements={async () => {
 					try {
 						await refreshEntitlementsMutation.mutateAsync();
