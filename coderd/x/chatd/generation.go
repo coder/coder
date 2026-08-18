@@ -786,7 +786,7 @@ func (s *taskStarter) admitStepToolCalls(
 	if err := chathooks.RejectDuplicateToolUseIDs(toolCalls); err != nil {
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
-	unambiguous, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
+	unambiguous, _, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
 	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), unambiguous)
 	if err != nil {
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
@@ -805,10 +805,12 @@ func (s *taskStarter) executeLocalTools(
 	prepared generationPrepared,
 	decision generationDecision,
 ) error {
+	exclusiveRejected := exclusiveBatchRejected(decision.localToolCalls, prepared.ExclusiveToolNames)
 	allowed := decision.localToolCalls
+	var allowedIndexes []int
 	var denied []fantasy.ToolResultContent
-	if !exclusiveBatchRejected(decision.localToolCalls, prepared.ExclusiveToolNames) {
-		allowed, denied = partitionAmbiguousToolCalls(prepared, decision.localToolCalls)
+	if !exclusiveRejected {
+		allowed, allowedIndexes, denied = partitionAmbiguousToolCalls(prepared, decision.localToolCalls)
 	}
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
@@ -824,16 +826,27 @@ func (s *taskStarter) executeLocalTools(
 	var outcome chatloop.ToolExecutionOutcome
 	var spawnDispatchErr error
 	if len(allowed) > 0 {
-		// Stamp the batch start and the dispatched call IDs on the
-		// buffer episode so an interrupt can bill the partial window
-		// this step would have reported. Only allowed calls are
-		// listed: denied calls never run, so an interrupt must not
-		// treat their missing completions as still-running work.
-		allowedCallIDs := make([]string, 0, len(allowed))
-		for _, tc := range allowed {
-			allowedCallIDs = append(allowedCallIDs, tc.ToolCallID)
+		// Stamp the batch start and the dispatched calls on the buffer
+		// episode so an interrupt can bill the partial window this step
+		// would have reported. Only dispatched calls are seeded, keyed
+		// by their position in the unresolved call order the interrupt
+		// walks: rejected calls never run, so an interrupt must not
+		// treat their missing completions as still-running work, and a
+		// rejected call must not consume a same-ID dispatched
+		// occurrence. An exclusive-policy violation dispatches nothing
+		// (chatloop synthesizes error results for the whole batch), so
+		// no billable batch starts and an interrupt racing those
+		// synthetic results bills nothing.
+		if !exclusiveRejected {
+			dispatched := make([]messagepartbuffer.DispatchedToolCall, 0, len(allowed))
+			for j, tc := range allowed {
+				dispatched = append(dispatched, messagepartbuffer.DispatchedToolCall{
+					CallIndex:  allowedIndexes[j],
+					ToolCallID: tc.ToolCallID,
+				})
+			}
+			attempt.startToolBatch(dispatched)
 		}
-		attempt.startToolBatch(allowedCallIDs)
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
 			Tools:              prepared.Tools,
 			ActiveTools:        prepared.ActiveTools,
@@ -1064,11 +1077,11 @@ type generationAttempt struct {
 	startModelInvocation func()
 	// startToolBatch marks the start of the attempt's billable local
 	// tool batch window on the buffer episode and records which tool
-	// calls were actually dispatched, so an interrupt can bill the
-	// window the step would have reported without charging calls that
-	// were rejected before execution. It is always non-nil when
-	// beginGenerationAttempt succeeds.
-	startToolBatch func(toolCallIDs []string)
+	// call occurrences were actually dispatched, so an interrupt can
+	// bill the window the step would have reported without charging
+	// calls that were rejected before execution. It is always non-nil
+	// when beginGenerationAttempt succeeds.
+	startToolBatch func(calls []messagepartbuffer.DispatchedToolCall)
 	// recordToolCompletion records a tool call occurrence's completion
 	// instant on the buffer episode as the batch executes, so an
 	// interrupt can end an already-finished tool's billable window at
@@ -1123,8 +1136,8 @@ func (s *taskStarter) beginGenerationAttempt(
 		startModelInvocation: func() {
 			_ = s.opts.MessagePartBuffer.StartModelInvocation(key)
 		},
-		startToolBatch: func(toolCallIDs []string) {
-			_ = s.opts.MessagePartBuffer.StartToolBatch(key, toolCallIDs)
+		startToolBatch: func(calls []messagepartbuffer.DispatchedToolCall) {
+			_ = s.opts.MessagePartBuffer.StartToolBatch(key, calls)
 		},
 		recordToolCompletion: func(callIndex int, toolCallID string, completedAt time.Time) {
 			_ = s.opts.MessagePartBuffer.RecordToolCompletion(key, callIndex, toolCallID, completedAt)

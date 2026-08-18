@@ -233,10 +233,26 @@ func (b *Buffer) StartModelInvocation(key Key) error {
 	return nil
 }
 
+// DispatchedToolCall identifies one tool call occurrence dispatched in an
+// episode's local tool batch.
+type DispatchedToolCall struct {
+	// CallIndex is the caller-assigned position of this occurrence in the
+	// step's full unresolved tool-call order, which is the order interrupt
+	// reconstruction walks. It differs from the occurrence's position in
+	// the dispatched batch when calls were rejected before execution, and
+	// it disambiguates duplicate tool call IDs.
+	CallIndex  int
+	ToolCallID string
+}
+
 // ToolCompletion tracks one dispatched tool call occurrence in an
 // episode's local tool batch. CompletedAt is zero while the call is
 // still running.
 type ToolCompletion struct {
+	// CallIndex mirrors DispatchedToolCall.CallIndex. It is -1 for
+	// completions recorded without a matching seeded occurrence, which
+	// never correlate to an unresolved call.
+	CallIndex   int
 	ToolCallID  string
 	CompletedAt time.Time
 }
@@ -248,7 +264,7 @@ type ToolCompletion struct {
 // completion) from one never dispatched at all (absent), such as a call
 // denied by a lifecycle hook or rejected as ambiguous before execution,
 // and duplicate tool call IDs keep distinct per-occurrence states.
-func (b *Buffer) StartToolBatch(key Key, toolCallIDs []string) error {
+func (b *Buffer) StartToolBatch(key Key, calls []DispatchedToolCall) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {
@@ -262,9 +278,12 @@ func (b *Buffer) StartToolBatch(key Key, toolCallIDs []string) error {
 		return ErrEpisodeClosed
 	}
 	episode.toolBatchStartedAt = b.opts.Clock.Now("message-part-buffer", "tool-batch-start")
-	episode.toolCompletions = make([]ToolCompletion, 0, len(toolCallIDs))
-	for _, id := range toolCallIDs {
-		episode.toolCompletions = append(episode.toolCompletions, ToolCompletion{ToolCallID: id})
+	episode.toolCompletions = make([]ToolCompletion, 0, len(calls))
+	for _, call := range calls {
+		episode.toolCompletions = append(episode.toolCompletions, ToolCompletion{
+			CallIndex:  call.CallIndex,
+			ToolCallID: call.ToolCallID,
+		})
 	}
 	return nil
 }
@@ -273,14 +292,15 @@ func (b *Buffer) StartToolBatch(key Key, toolCallIDs []string) error {
 // episode's tool batch finished. Tool goroutines report completions as
 // they happen, so an interrupt can bill tools that already finished up
 // to their real completion instead of treating every canceled call as
-// still running. callIndex addresses the exact occurrence seeded by
-// StartToolBatch: duplicate tool call IDs make the ID alone ambiguous,
-// and stamping the wrong same-ID occurrence would let a finished call
-// mark its still-running twin as done. When callIndex does not match
-// the seeded occurrence, the stamp falls back to the first
-// still-running occurrence with the ID, or is appended, so an executed
-// call is never dropped.
-func (b *Buffer) RecordToolCompletion(key Key, callIndex int, toolCallID string, completedAt time.Time) error {
+// still running. dispatchIndex addresses the exact occurrence seeded by
+// StartToolBatch, as the occurrence's position within the dispatched
+// batch: duplicate tool call IDs make the ID alone ambiguous, and
+// stamping the wrong same-ID occurrence would let a finished call mark
+// its still-running twin as done. When dispatchIndex does not match the
+// seeded occurrence, the stamp falls back to the first still-running
+// occurrence with the ID, or is appended with CallIndex -1, so an
+// executed call is never dropped.
+func (b *Buffer) RecordToolCompletion(key Key, dispatchIndex int, toolCallID string, completedAt time.Time) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {
@@ -293,8 +313,8 @@ func (b *Buffer) RecordToolCompletion(key Key, callIndex int, toolCallID string,
 	if episode.closed {
 		return ErrEpisodeClosed
 	}
-	if callIndex >= 0 && callIndex < len(episode.toolCompletions) {
-		entry := &episode.toolCompletions[callIndex]
+	if dispatchIndex >= 0 && dispatchIndex < len(episode.toolCompletions) {
+		entry := &episode.toolCompletions[dispatchIndex]
 		if entry.ToolCallID == toolCallID && entry.CompletedAt.IsZero() {
 			entry.CompletedAt = completedAt
 			return nil
@@ -308,6 +328,7 @@ func (b *Buffer) RecordToolCompletion(key Key, callIndex int, toolCallID string,
 		}
 	}
 	episode.toolCompletions = append(episode.toolCompletions, ToolCompletion{
+		CallIndex:   -1,
 		ToolCallID:  toolCallID,
 		CompletedAt: completedAt,
 	})

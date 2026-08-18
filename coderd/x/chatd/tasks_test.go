@@ -592,7 +592,10 @@ func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T
 	// this mock clock.
 	// Attempt setup happens before the tools start and is not billable.
 	batch.clock.Advance(2 * time.Second)
-	require.NoError(t, buffer.StartToolBatch(batch.key, []string{execCallID, waitCallID}))
+	require.NoError(t, buffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{
+		{CallIndex: 0, ToolCallID: execCallID},
+		{CallIndex: 1, ToolCallID: waitCallID},
+	}))
 	// execute completes 3 seconds into the batch and records its
 	// completion, the way the tool goroutine's completion callback
 	// does. Its result is not published: results publish only after
@@ -622,7 +625,7 @@ func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
 	})
 
 	batch.clock.Advance(2 * time.Second)
-	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []string{execCallID}))
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 0, ToolCallID: execCallID}}))
 	// The tool is still running when the interrupt lands 7 seconds in.
 	batch.clock.Advance(7 * time.Second)
 
@@ -643,7 +646,7 @@ func TestInterruptTask_UnbilledOnlyBatchBillsNothingOnInterrupt(t *testing.T) {
 	})
 
 	batch.clock.Advance(2 * time.Second)
-	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []string{waitCallID}))
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 0, ToolCallID: waitCallID}}))
 	batch.clock.Advance(10 * time.Second)
 
 	messages := batch.interrupt(t, f)
@@ -667,7 +670,10 @@ func TestInterruptTask_DuplicateCallIDsKeepOccurrenceStates(t *testing.T) {
 	buffer := batch.starter.opts.MessagePartBuffer
 
 	batch.clock.Advance(2 * time.Second)
-	require.NoError(t, buffer.StartToolBatch(batch.key, []string{dupCallID, dupCallID}))
+	require.NoError(t, buffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{
+		{CallIndex: 0, ToolCallID: dupCallID},
+		{CallIndex: 1, ToolCallID: dupCallID},
+	}))
 	// One occurrence completes 3 seconds in; the other keeps running
 	// until the interrupt lands 3 seconds later, defining the window.
 	batch.clock.Advance(3 * time.Second)
@@ -700,7 +706,10 @@ func TestInterruptTask_DuplicateCallIDCompletionStampsOwnOccurrence(t *testing.T
 	buffer := batch.starter.opts.MessagePartBuffer
 
 	batch.clock.Advance(2 * time.Second)
-	require.NoError(t, buffer.StartToolBatch(batch.key, []string{dupCallID, dupCallID}))
+	require.NoError(t, buffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{
+		{CallIndex: 0, ToolCallID: dupCallID},
+		{CallIndex: 1, ToolCallID: dupCallID},
+	}))
 	// The unbilled wait_agent occurrence (index 1) completes 3 seconds
 	// in; the billed execute occurrence (index 0) keeps running until
 	// the interrupt 3 seconds later.
@@ -716,6 +725,36 @@ func TestInterruptTask_DuplicateCallIDCompletionStampsOwnOccurrence(t *testing.T
 		}
 	}
 	require.Equal(t, []int64{6_000}, billed, "the running execute occurrence bills to the interrupt; wait_agent's early completion must not end it at 3s")
+}
+
+// A rejected call must not steal a same-ID dispatched occurrence: with
+// a rejected billed execute preceding a dispatched unbilled wait_agent
+// that shares its ID, positional matching leaves the execute row
+// without an occurrence, so the interrupted batch bills nothing instead
+// of charging the whole wait window to a call that never ran.
+func TestInterruptTask_RejectedDuplicateIDDoesNotStealDispatchedOccurrence(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	dupCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: dupCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: dupCallID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)},
+	})
+
+	batch.clock.Advance(2 * time.Second)
+	// Only the wait_agent occurrence (unresolved position 1) was
+	// dispatched: the execute occurrence sharing its ID was rejected
+	// as malformed before execution.
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 1, ToolCallID: dupCallID}}))
+	batch.clock.Advance(10 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	for _, msg := range messages {
+		if msg.Role == database.ChatMessageRoleTool {
+			require.False(t, msg.RuntimeMs.Valid, "no cancellation row may bill: only the unbilled wait_agent occurrence ran")
+		}
+	}
 }
 
 // A billed call rejected before execution (hook denial, ambiguous-call
@@ -736,8 +775,9 @@ func TestInterruptTask_RejectedCallBillsNothingOnInterrupt(t *testing.T) {
 
 	batch.clock.Advance(2 * time.Second)
 	// Only wait_agent was dispatched: execute was rejected before
-	// execution and never ran.
-	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []string{waitCallID}))
+	// execution and never ran, so only the occurrence at wait_agent's
+	// unresolved position (1) is seeded.
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 1, ToolCallID: waitCallID}}))
 	batch.clock.Advance(10 * time.Second)
 
 	messages := batch.interrupt(t, f)

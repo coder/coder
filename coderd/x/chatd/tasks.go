@@ -700,16 +700,17 @@ type interruptedToolBatchBilling struct {
 	// cancellation rows carry no runtime.
 	batchStartedAt time.Time
 	// toolCompletions holds the live batch's dispatched tool call
-	// occurrences in dispatch order: seeded with zero completions when
-	// the batch started and stamped as each tool finished. A stamped
-	// occurrence ends its billable window at its completion, so a
-	// batch whose billed tools all finished early does not bill the
-	// longer window of a still-running unbilled tool such as
-	// wait_agent. A seeded but unstamped occurrence was still running
-	// when the interrupt landed. A call with no matching occurrence
-	// was never dispatched, such as a call denied by a lifecycle hook
-	// or rejected as ambiguous, and bills nothing even though it too
-	// receives a cancellation row.
+	// occurrences, each keyed by its position in the step's unresolved
+	// call order: seeded with zero completions when the batch started
+	// and stamped as each tool finished. A stamped occurrence ends its
+	// billable window at its completion, so a batch whose billed tools
+	// all finished early does not bill the longer window of a
+	// still-running unbilled tool such as wait_agent. A seeded but
+	// unstamped occurrence was still running when the interrupt
+	// landed. A call with no occurrence at its position was never
+	// dispatched, such as a call rejected as malformed or ambiguous
+	// before execution, and bills nothing even though it too receives
+	// a cancellation row.
 	toolCompletions []messagepartbuffer.ToolCompletion
 }
 
@@ -734,20 +735,24 @@ func committedPendingLocalToolCancellationMessages(
 	if len(localCalls) == 0 {
 		return nil, nil
 	}
-	// Per-ID queues of dispatched occurrences, in dispatch order.
-	// Unresolved calls walk the same assistant part order the batch was
-	// dispatched from, so each history row consumes its own occurrence
-	// and duplicate tool call IDs never share one completion state.
-	pendingOccurrences := make(map[string][]time.Time, len(billing.toolCompletions))
+	// Dispatched occurrences keyed by their position in the unresolved
+	// call order, the same order this loop walks. Positional matching
+	// keeps a call rejected before execution from consuming a same-ID
+	// dispatched occurrence and keeps duplicate tool call IDs from
+	// sharing one completion state.
+	dispatched := make(map[int]messagepartbuffer.ToolCompletion, len(billing.toolCompletions))
 	for _, completion := range billing.toolCompletions {
-		pendingOccurrences[completion.ToolCallID] = append(pendingOccurrences[completion.ToolCallID], completion.CompletedAt)
+		if completion.CallIndex < 0 {
+			continue
+		}
+		dispatched[completion.CallIndex] = completion
 	}
 	var (
 		windowEnd    time.Time
 		windowRowIdx = -1
 	)
 	result := make([]chatstate.Message, 0, len(localCalls))
-	for _, call := range localCalls {
+	for i, call := range localCalls {
 		payload, err := json.Marshal(map[string]string{"error": interruptedToolResultErrorMessage})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal interrupted tool result: %w", err)
@@ -767,26 +772,21 @@ func committedPendingLocalToolCancellationMessages(
 			ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: chat.LastModelConfigID != uuid.Nil},
 			ContentVersion: chatprompt.CurrentContentVersion,
 		})
-		if billing.batchStartedAt.IsZero() {
+		if billing.batchStartedAt.IsZero() || unbilledSubagentToolNames[call.ToolName] {
 			continue
 		}
-		// Only dispatched calls bill: a call with no remaining
-		// occurrence was rejected before execution. Every dispatched
-		// call consumes its occurrence, including unbilled ones, so
-		// same-ID occurrences stay aligned with the history walk. A
-		// stamped occurrence finished at that instant; a seeded but
-		// unstamped one was still running, so its window ends at the
-		// interrupt. Strictly-after keeps the earliest call on ties,
-		// matching billableBatchWindow.
-		queue := pendingOccurrences[call.ToolCallID]
-		if len(queue) == 0 {
+		// Only dispatched calls bill: a call with no occurrence at its
+		// position was rejected before execution, and an ID mismatch
+		// means the seed does not describe this call. A stamped
+		// occurrence finished at that instant; a seeded but unstamped
+		// one was still running, so its window ends at the interrupt.
+		// Strictly-after keeps the earliest call on ties, matching
+		// billableBatchWindow.
+		occurrence, ok := dispatched[i]
+		if !ok || occurrence.ToolCallID != call.ToolCallID {
 			continue
 		}
-		end := queue[0]
-		pendingOccurrences[call.ToolCallID] = queue[1:]
-		if unbilledSubagentToolNames[call.ToolName] {
-			continue
-		}
+		end := occurrence.CompletedAt
 		if end.IsZero() {
 			end = interruptedAt
 		}
