@@ -138,6 +138,11 @@ const ListRedirectProbe: FC = () => {
 	return <div>list-org:{searchParams.get(orgSearchParam) ?? "none"}</div>;
 };
 
+const AddRedirectProbe: FC = () => {
+	const [searchParams] = useSearchParams();
+	return <h1>add-org:{searchParams.get(orgSearchParam) ?? "none"}</h1>;
+};
+
 const DetailRedirectProbe: FC = () => {
 	const [searchParams] = useSearchParams();
 	return <h1>detail-org:{searchParams.get(orgSearchParam) ?? "none"}</h1>;
@@ -366,7 +371,7 @@ export const ListCanAddToCreateOnlyOrganization: Story = {
 				{ path: "/ai/settings/mcp-servers", useStoryElement: true },
 				{
 					path: "/ai/settings/mcp-servers/add",
-					element: <AddMCPServerPage />,
+					element: <AddRedirectProbe />,
 				},
 			],
 		}),
@@ -397,8 +402,8 @@ export const ListCanAddToCreateOnlyOrganization: Story = {
 		);
 		await userEvent.click(addButton);
 		await expect(
-			await canvas.findByRole("button", {
-				name: `Organization ${MockOrganization2.display_name}`,
+			await canvas.findByRole("heading", {
+				name: `add-org:${MockOrganization2.name}`,
 			}),
 		).toBeVisible();
 	},
