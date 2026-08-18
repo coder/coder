@@ -141,6 +141,60 @@ func TestRead(t *testing.T) {
 	})
 }
 
+// TestReadContentType verifies that Read rejects cookie-authenticated
+// requests whose body is not declared as application/json. Browsers can send
+// cross-origin POSTs without a CORS preflight only for "simple" content
+// types (e.g. text/plain), so decoding JSON from such bodies would enable
+// CSRF on any endpoint mistakenly exempted from the CSRF middleware.
+// Requests without a session cookie are unaffected.
+func TestReadContentType(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		Name          string
+		ContentType   string
+		SessionCookie bool
+		WantOK        bool
+	}{
+		{Name: "CookieJSON", ContentType: "application/json", SessionCookie: true, WantOK: true},
+		{Name: "CookieJSONCharset", ContentType: "application/json; charset=utf-8", SessionCookie: true, WantOK: true},
+		{Name: "CookieJSONUppercase", ContentType: "APPLICATION/JSON", SessionCookie: true, WantOK: true},
+		{Name: "CookieTextPlain", ContentType: "text/plain", SessionCookie: true, WantOK: false},
+		{Name: "CookieForm", ContentType: "application/x-www-form-urlencoded", SessionCookie: true, WantOK: false},
+		{Name: "CookieMissing", ContentType: "", SessionCookie: true, WantOK: false},
+		{Name: "CookieMalformed", ContentType: "application/", SessionCookie: true, WantOK: false},
+		{Name: "NoCookieTextPlain", ContentType: "text/plain", SessionCookie: false, WantOK: true},
+		{Name: "NoCookieMissing", ContentType: "", SessionCookie: false, WantOK: true},
+	}
+
+	for _, c := range cases {
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+			rw := httptest.NewRecorder()
+			r := httptest.NewRequest("POST", "/", bytes.NewBufferString(`{"value":"hi"}`))
+			if c.ContentType != "" {
+				r.Header.Set("Content-Type", c.ContentType)
+			}
+			if c.SessionCookie {
+				r.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: "test"})
+			}
+
+			var v struct {
+				Value string `json:"value"`
+			}
+			ok := httpapi.Read(ctx, rw, r, &v)
+			require.Equal(t, c.WantOK, ok)
+			if !c.WantOK {
+				require.Equal(t, http.StatusUnsupportedMediaType, rw.Code)
+				require.Contains(t, rw.Body.String(), "Unsupported Content-Type")
+			} else {
+				require.Equal(t, "hi", v.Value)
+			}
+		})
+	}
+}
+
 func TestWebsocketCloseMsg(t *testing.T) {
 	t.Parallel()
 
