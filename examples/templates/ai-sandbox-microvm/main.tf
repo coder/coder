@@ -78,14 +78,6 @@ resource "coder_agent" "main" {
   arch = "amd64"
   os   = "linux"
 
-  startup_script = <<-EOT
-    set -e
-    if [ ! -f ~/.init_done ]; then
-      cp -rT /etc/skel ~ 2>/dev/null || true
-      touch ~/.init_done
-    fi
-  EOT
-
   env = merge(local.sandbox_env, {
     GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_AUTHOR_EMAIL    = data.coder_workspace_owner.me.email
