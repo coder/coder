@@ -242,6 +242,8 @@ message Script {
   bool run_on_stop = 7;
   int32 timeout_seconds = 8;
   string log_path = 9;
+  string resource_address = 10;
+  repeated ScriptDependency dependencies = 11;
 }
 
 message Devcontainer {
@@ -484,6 +486,8 @@ message GraphComplete {
   bool has_ai_tasks = 7;
   repeated provisioner.AITask ai_tasks = 8;
   bool has_external_agents = 9;
+  int32 script_order_data_source_count = 10;
+  int32 script_order_rule_count = 11;
 }
 
 message Timing {
@@ -574,6 +578,19 @@ message ChunkPiece {
   // DataUpload message
   bytes full_data_hash = 2;
   int32 piece_index = 3;
+}
+
+enum ScriptDependencyRequirement {
+  SCRIPT_DEPENDENCY_REQUIREMENT_UNSPECIFIED = 0;
+  SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS = 1;
+  SCRIPT_DEPENDENCY_REQUIREMENT_COMPLETION = 2;
+}
+
+// ScriptDependency identifies a prerequisite script and the outcome required
+// from it.
+message ScriptDependency {
+  string prerequisite_resource_address = 1;
+  ScriptDependencyRequirement requirement = 2;
 }
 
 service Provisioner {

@@ -498,14 +498,16 @@ func TestConvertResources(t *testing.T) {
 					Architecture:    "amd64",
 					Scripts: []*proto.Script{
 						{
-							DisplayName: "Foobar Script 1",
-							Script:      "echo foobar 1",
-							RunOnStart:  true,
+							DisplayName:     "Foobar Script 1",
+							Script:          "echo foobar 1",
+							RunOnStart:      true,
+							ResourceAddress: "coder_script.script1",
 						},
 						{
-							DisplayName: "Foobar Script 2",
-							Script:      "echo foobar 2",
-							RunOnStart:  true,
+							DisplayName:     "Foobar Script 2",
+							Script:          "echo foobar 2",
+							RunOnStart:      true,
+							ResourceAddress: "coder_script.script2",
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -523,9 +525,10 @@ func TestConvertResources(t *testing.T) {
 					Architecture:    "amd64",
 					Scripts: []*proto.Script{
 						{
-							DisplayName: "Foobar Script 3",
-							Script:      "echo foobar 3",
-							RunOnStart:  true,
+							DisplayName:     "Foobar Script 3",
+							Script:          "echo foobar 3",
+							RunOnStart:      true,
+							ResourceAddress: "coder_script.script3",
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -1007,10 +1010,11 @@ func TestConvertResources(t *testing.T) {
 								},
 								Scripts: []*proto.Script{
 									{
-										DisplayName: "Devcontainer Script",
-										Script:      "echo devcontainer",
-										RunOnStart:  true,
-										RunOnStop:   false,
+										DisplayName:     "Devcontainer Script",
+										Script:          "echo devcontainer",
+										RunOnStart:      true,
+										RunOnStop:       false,
+										ResourceAddress: "coder_script.devcontainer-script",
 									},
 								},
 								Envs: []*proto.Env{

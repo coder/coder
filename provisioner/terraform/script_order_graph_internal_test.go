@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 func TestBuildScriptOrderWithoutDataSources(t *testing.T) {
@@ -328,6 +329,63 @@ func TestConvertStateBuildsScriptOrderForDevcontainerSubagent(t *testing.T) {
 			scriptOrderTestGraph("coder_devcontainer.dev", ScriptOrderPhaseStartup, "coder_script.a", "coder_script.b"),
 		},
 	}, state.ScriptOrder)
+
+	var scripts []*proto.Script
+	for _, resource := range state.Resources {
+		for _, agent := range resource.Agents {
+			for _, devcontainer := range agent.Devcontainers {
+				scripts = append(scripts, devcontainer.Scripts...)
+			}
+		}
+	}
+	require.Len(t, scripts, 2)
+	require.Equal(t, "coder_script.a", scripts[0].ResourceAddress)
+	require.Empty(t, scripts[0].Dependencies)
+	require.Equal(t, "coder_script.b", scripts[1].ResourceAddress)
+	require.Equal(t, []*proto.ScriptDependency{{
+		PrerequisiteResourceAddress: "coder_script.a",
+		Requirement:                 proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS,
+	}}, scripts[1].Dependencies)
+}
+
+func TestScriptDependencyRequirementProto(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name        string
+		requirement ScriptOrderRequirement
+		want        proto.ScriptDependencyRequirement
+		wantError   bool
+	}{
+		{
+			name:        "success",
+			requirement: ScriptOrderRequirementSuccess,
+			want:        proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS,
+		},
+		{
+			name:        "completion",
+			requirement: ScriptOrderRequirementCompletion,
+			want:        proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_COMPLETION,
+		},
+		{
+			name:        "unknown",
+			requirement: "unknown",
+			want:        proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_UNSPECIFIED,
+			wantError:   true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := scriptDependencyRequirementProto(test.requirement)
+			if test.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, test.want, got)
+		})
+	}
 }
 
 func TestConvertStateBuildsScriptOrderForModuleScriptsFromPlan(t *testing.T) {

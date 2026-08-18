@@ -236,6 +236,7 @@ func (s *server) Graph(
 	logTerraformEnvVars(sess)
 
 	modules := []*tfjson.StateModule{}
+	var orderUsage scriptOrderUsage
 	switch request.Source {
 	case proto.GraphSource_SOURCE_PLAN:
 		plan, err := e.parsePlan(ctx, killCtx, e.files.PlanFilePath())
@@ -244,6 +245,7 @@ func (s *server) Graph(
 		}
 
 		modules = planModules(plan)
+		orderUsage = countScriptOrderUsage(plan.Config)
 	case proto.GraphSource_SOURCE_STATE:
 		tfState, err := e.state(ctx, killCtx)
 		if err != nil {
@@ -268,17 +270,20 @@ func (s *server) Graph(
 		return provisionersdk.GraphError("convert state for graph: %s", err)
 	}
 
-	return &proto.GraphComplete{
-		Error:                 "",
-		Timings:               e.timings.aggregate(),
-		Resources:             state.Resources,
-		Parameters:            state.Parameters,
-		ExternalAuthProviders: state.ExternalAuthProviders,
-		Presets:               state.Presets,
-		HasAiTasks:            state.HasAITasks,
-		AiTasks:               state.AITasks,
-		HasExternalAgents:     state.HasExternalAgents,
+	response := &proto.GraphComplete{
+		Error:                      "",
+		Timings:                    e.timings.aggregate(),
+		Resources:                  state.Resources,
+		Parameters:                 state.Parameters,
+		ExternalAuthProviders:      state.ExternalAuthProviders,
+		Presets:                    state.Presets,
+		HasAiTasks:                 state.HasAITasks,
+		AiTasks:                    state.AITasks,
+		HasExternalAgents:          state.HasExternalAgents,
+		ScriptOrderDataSourceCount: orderUsage.dataSourceCount,
+		ScriptOrderRuleCount:       orderUsage.ruleCount,
 	}
+	return response
 }
 
 func (s *server) Apply(
