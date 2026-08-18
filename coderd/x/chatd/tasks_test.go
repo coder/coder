@@ -651,6 +651,39 @@ func TestInterruptTask_UnbilledOnlyBatchBillsNothingOnInterrupt(t *testing.T) {
 	require.False(t, waitRow.RuntimeMs.Valid)
 }
 
+// Two dispatched billed calls sharing one tool call ID keep distinct
+// occurrence states: one completing early must not make the other look
+// finished, so the interrupted batch still bills through to the
+// interrupt, once.
+func TestInterruptTask_DuplicateCallIDsKeepOccurrenceStates(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	dupCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: dupCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: dupCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+	})
+	buffer := batch.starter.opts.MessagePartBuffer
+
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, buffer.StartToolBatch(batch.key, []string{dupCallID, dupCallID}))
+	// One occurrence completes 3 seconds in; the other keeps running
+	// until the interrupt lands 3 seconds later, defining the window.
+	batch.clock.Advance(3 * time.Second)
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, dupCallID, batch.clock.Now()))
+	batch.clock.Advance(3 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	var billed []int64
+	for _, msg := range messages {
+		if msg.Role == database.ChatMessageRoleTool && msg.RuntimeMs.Valid {
+			billed = append(billed, msg.RuntimeMs.Int64)
+		}
+	}
+	require.Equal(t, []int64{6_000}, billed, "the still-running occurrence bills the full window exactly once")
+}
+
 // A billed call rejected before execution (hook denial, ambiguous-call
 // rejection) is absent from the batch's dispatched set, so its missing
 // completion is not evidence that it ran: an interrupted batch whose

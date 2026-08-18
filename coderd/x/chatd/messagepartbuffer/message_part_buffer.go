@@ -19,7 +19,6 @@ import (
 	"container/heap"
 	"context"
 	"encoding/json"
-	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -108,13 +107,16 @@ type episodeState struct {
 	// episodes that never execute local tools, such as model
 	// invocations that finish without tool calls.
 	toolBatchStartedAt time.Time
-	// toolCompletedAt holds the batch's dispatched tool call IDs,
-	// seeded with zero times by StartToolBatch and stamped by
-	// RecordToolCompletion as each tool finishes. Tool results are
-	// published only after the whole batch completes, so these
-	// per-tool stamps are the only live view of which tools were
-	// dispatched and which already finished when an interrupt lands.
-	toolCompletedAt map[string]time.Time
+	// toolCompletions holds one entry per dispatched tool call
+	// occurrence, seeded by StartToolBatch in dispatch order and
+	// stamped by RecordToolCompletion as each tool finishes. Tool
+	// results are published only after the whole batch completes, so
+	// these per-occurrence stamps are the only live view of which
+	// tools were dispatched and which already finished when an
+	// interrupt lands. Keyed storage would collapse duplicate tool
+	// call IDs, which reach execution when lifecycle hooks are
+	// disabled, into one shared state.
+	toolCompletions []ToolCompletion
 	closed          bool
 	closedAt        time.Time
 	closedHeapItem  *closedEpisodeItem
@@ -231,12 +233,21 @@ func (b *Buffer) StartModelInvocation(key Key) error {
 	return nil
 }
 
+// ToolCompletion tracks one dispatched tool call occurrence in an
+// episode's local tool batch. CompletedAt is zero while the call is
+// still running.
+type ToolCompletion struct {
+	ToolCallID  string
+	CompletedAt time.Time
+}
+
 // StartToolBatch stamps the instant the episode begins executing its local
 // tool batch, which starts the batch's billable runtime window, and seeds
-// the batch's dispatched tool call IDs with zero completions. Readers can
-// then distinguish a dispatched call that is still running (present, zero)
-// from one never dispatched at all (absent), such as a call denied by a
-// lifecycle hook or rejected as ambiguous before execution.
+// one still-running entry per dispatched tool call occurrence. Readers can
+// then distinguish a dispatched call that is still running (seeded, zero
+// completion) from one never dispatched at all (absent), such as a call
+// denied by a lifecycle hook or rejected as ambiguous before execution,
+// and duplicate tool call IDs keep distinct per-occurrence states.
 func (b *Buffer) StartToolBatch(key Key, toolCallIDs []string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -251,13 +262,9 @@ func (b *Buffer) StartToolBatch(key Key, toolCallIDs []string) error {
 		return ErrEpisodeClosed
 	}
 	episode.toolBatchStartedAt = b.opts.Clock.Now("message-part-buffer", "tool-batch-start")
-	if episode.toolCompletedAt == nil {
-		episode.toolCompletedAt = make(map[string]time.Time, len(toolCallIDs))
-	}
+	episode.toolCompletions = make([]ToolCompletion, 0, len(toolCallIDs))
 	for _, id := range toolCallIDs {
-		if _, ok := episode.toolCompletedAt[id]; !ok {
-			episode.toolCompletedAt[id] = time.Time{}
-		}
+		episode.toolCompletions = append(episode.toolCompletions, ToolCompletion{ToolCallID: id})
 	}
 	return nil
 }
@@ -266,7 +273,11 @@ func (b *Buffer) StartToolBatch(key Key, toolCallIDs []string) error {
 // episode's tool batch finished. Tool goroutines report completions as
 // they happen, so an interrupt can bill tools that already finished up
 // to their real completion instead of treating every canceled call as
-// still running.
+// still running. The stamp lands on the first still-running occurrence
+// with the given ID: same-ID occurrences are indistinguishable to
+// callers, and assigning them in seeded order keeps the batch's set of
+// completion states correct. A completion whose ID was never seeded is
+// appended, so an executed call is never dropped.
 func (b *Buffer) RecordToolCompletion(key Key, toolCallID string, completedAt time.Time) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -280,10 +291,17 @@ func (b *Buffer) RecordToolCompletion(key Key, toolCallID string, completedAt ti
 	if episode.closed {
 		return ErrEpisodeClosed
 	}
-	if episode.toolCompletedAt == nil {
-		episode.toolCompletedAt = make(map[string]time.Time)
+	for i := range episode.toolCompletions {
+		entry := &episode.toolCompletions[i]
+		if entry.ToolCallID == toolCallID && entry.CompletedAt.IsZero() {
+			entry.CompletedAt = completedAt
+			return nil
+		}
 	}
-	episode.toolCompletedAt[toolCallID] = completedAt
+	episode.toolCompletions = append(episode.toolCompletions, ToolCompletion{
+		ToolCallID:  toolCallID,
+		CompletedAt: completedAt,
+	})
 	return nil
 }
 
@@ -385,20 +403,61 @@ func (b *Buffer) ToolBatchStartedAt(key Key) time.Time {
 	return episode.toolBatchStartedAt
 }
 
-// ToolCompletionsAt returns a copy of the tool batch's completion map,
-// keyed by tool call ID, or nil when the episode is unknown or never
-// started a batch. Calls seeded by StartToolBatch but not yet stamped
-// by RecordToolCompletion carry the zero time: they were dispatched and
-// are still running. Read it before CloseEpisode: closed episodes are
-// garbage collected, so reading afterwards races the cleanup loop.
-func (b *Buffer) ToolCompletionsAt(key Key) map[string]time.Time {
+// ToolCompletions returns a copy of the tool batch's dispatched call
+// occurrences in dispatch order, or nil when the episode is unknown or
+// never started a batch. Occurrences seeded by StartToolBatch but not
+// yet stamped by RecordToolCompletion carry the zero time: they were
+// dispatched and are still running. Interrupt handling must use
+// CloseEpisodeForBilling instead: a separate read-then-close would let
+// completions land in the gap and go missing from the snapshot.
+func (b *Buffer) ToolCompletions(key Key) []ToolCompletion {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	episode := b.episodes[key]
 	if episode == nil {
 		return nil
 	}
-	return maps.Clone(episode.toolCompletedAt)
+	return slices.Clone(episode.toolCompletions)
+}
+
+// EpisodeBilling is the billing state an episode accumulated before it
+// closed.
+type EpisodeBilling struct {
+	// ModelInvokedAt is the StartModelInvocation stamp, or zero when
+	// the episode never opened a provider stream.
+	ModelInvokedAt time.Time
+	// ToolBatchStartedAt is the StartToolBatch stamp, or zero when the
+	// episode never started a local tool batch.
+	ToolBatchStartedAt time.Time
+	// ToolCompletions are the tool batch's dispatched call occurrences
+	// in dispatch order; see Buffer.ToolCompletions.
+	ToolCompletions []ToolCompletion
+}
+
+// CloseEpisodeForBilling closes the episode like CloseEpisode and
+// returns its billing stamps from the same critical section. The
+// interrupt task uses it so every stamp accepted before closure is in
+// the snapshot and none can be recorded afterwards: reading and closing
+// in separate steps would let a tool completion or batch start land in
+// the gap, billing a finished tool as still running or losing a live
+// batch's window entirely. Closing an unknown episode creates it
+// closed, mirroring CloseEpisode, and reports empty billing.
+func (b *Buffer) CloseEpisodeForBilling(key Key) (EpisodeBilling, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return EpisodeBilling{}, ErrMessagePartBufferClosed
+	}
+	episode := b.getOrCreateEpisodeLocked(key)
+	if episode.close(b.opts.Clock.Now("message-part-buffer", "close")) {
+		b.queueClosedEpisodeLocked(key, episode)
+		episode.notifySubscribers()
+	}
+	return EpisodeBilling{
+		ModelInvokedAt:     episode.modelStartedAt,
+		ToolBatchStartedAt: episode.toolBatchStartedAt,
+		ToolCompletions:    slices.Clone(episode.toolCompletions),
+	}, nil
 }
 
 // SubscribeToEpisode replays existing parts and streams new parts.

@@ -260,10 +260,12 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		HistoryVersion:    input.HistoryVersion,
 		GenerationAttempt: chat.GenerationAttempt,
 	}
-	modelInvokedAt := s.opts.MessagePartBuffer.ModelInvokedAt(key)
-	toolBatchStartedAt := s.opts.MessagePartBuffer.ToolBatchStartedAt(key)
-	toolCompletions := s.opts.MessagePartBuffer.ToolCompletionsAt(key)
-	if err := s.opts.MessagePartBuffer.CloseEpisode(key); err != nil {
+	// Closing and snapshotting billing state must be one atomic step:
+	// the generation goroutine records batch starts and tool
+	// completions concurrently, so a read-then-close would let stamps
+	// land in the gap and go missing from the snapshot.
+	episodeBilling, err := s.opts.MessagePartBuffer.CloseEpisodeForBilling(key)
+	if err != nil {
 		if ctx.Err() != nil {
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("close message part episode: %w", err), ctx.Err())
 		}
@@ -282,8 +284,8 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	}
 	interruptedAt := s.opts.Clock.Now("chatworker", "interrupt")
 	var attemptRuntime time.Duration
-	if !modelInvokedAt.IsZero() {
-		attemptRuntime = interruptedAt.Sub(modelInvokedAt)
+	if !episodeBilling.ModelInvokedAt.IsZero() {
+		attemptRuntime = interruptedAt.Sub(episodeBilling.ModelInvokedAt)
 	}
 	partialMessages, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
 		parts:          parts,
@@ -305,8 +307,8 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		}
 		messages := partialMessages
 		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, s.opts.Clock.Now("chatworker", "interrupt"), interruptedToolBatchBilling{
-			batchStartedAt:  toolBatchStartedAt,
-			toolCompletions: toolCompletions,
+			batchStartedAt:  episodeBilling.ToolBatchStartedAt,
+			toolCompletions: episodeBilling.ToolCompletions,
 		})
 		if err != nil {
 			return xerrors.Errorf("committed pending local tool cancellation messages: %w", err)
@@ -692,17 +694,18 @@ type interruptedToolBatchBilling struct {
 	// interrupt (crash recovery, state promotion), in which case the
 	// cancellation rows carry no runtime.
 	batchStartedAt time.Time
-	// toolCompletions holds the live batch's dispatched tool call IDs:
-	// seeded with zero times when the batch started and stamped with
-	// completion instants as each tool finished. A stamped tool ends
-	// its billable window at its completion, so a batch whose billed
-	// tools all finished early does not bill the longer window of a
-	// still-running unbilled tool such as wait_agent. A seeded but
-	// unstamped tool was still running when the interrupt landed. A
-	// tool absent from the map was never dispatched, such as a call
-	// denied by a lifecycle hook or rejected as ambiguous, and bills
-	// nothing even though it too receives a cancellation row.
-	toolCompletions map[string]time.Time
+	// toolCompletions holds the live batch's dispatched tool call
+	// occurrences in dispatch order: seeded with zero completions when
+	// the batch started and stamped as each tool finished. A stamped
+	// occurrence ends its billable window at its completion, so a
+	// batch whose billed tools all finished early does not bill the
+	// longer window of a still-running unbilled tool such as
+	// wait_agent. A seeded but unstamped occurrence was still running
+	// when the interrupt landed. A call with no matching occurrence
+	// was never dispatched, such as a call denied by a lifecycle hook
+	// or rejected as ambiguous, and bills nothing even though it too
+	// receives a cancellation row.
+	toolCompletions []messagepartbuffer.ToolCompletion
 }
 
 func committedPendingLocalToolCancellationMessages(
@@ -725,6 +728,14 @@ func committedPendingLocalToolCancellationMessages(
 	}
 	if len(localCalls) == 0 {
 		return nil, nil
+	}
+	// Per-ID queues of dispatched occurrences, in dispatch order.
+	// Unresolved calls walk the same assistant part order the batch was
+	// dispatched from, so each history row consumes its own occurrence
+	// and duplicate tool call IDs never share one completion state.
+	pendingOccurrences := make(map[string][]time.Time, len(billing.toolCompletions))
+	for _, completion := range billing.toolCompletions {
+		pendingOccurrences[completion.ToolCallID] = append(pendingOccurrences[completion.ToolCallID], completion.CompletedAt)
 	}
 	var (
 		windowEnd    time.Time
@@ -754,16 +765,18 @@ func committedPendingLocalToolCancellationMessages(
 		if billing.batchStartedAt.IsZero() || unbilledSubagentToolNames[call.ToolName] {
 			continue
 		}
-		// Only dispatched calls bill: a call absent from the batch's
-		// completion map was rejected before execution. A dispatched
-		// call with a stamped completion finished at that instant; a
-		// seeded but unstamped one was still running, so its window
-		// ends at the interrupt. Strictly-after keeps the earliest
-		// call on ties, matching billableBatchWindow.
-		end, dispatched := billing.toolCompletions[call.ToolCallID]
-		if !dispatched {
+		// Only dispatched calls bill: a call with no remaining
+		// occurrence was rejected before execution. A stamped
+		// occurrence finished at that instant; a seeded but unstamped
+		// one was still running, so its window ends at the interrupt.
+		// Strictly-after keeps the earliest call on ties, matching
+		// billableBatchWindow.
+		queue := pendingOccurrences[call.ToolCallID]
+		if len(queue) == 0 {
 			continue
 		}
+		end := queue[0]
+		pendingOccurrences[call.ToolCallID] = queue[1:]
 		if end.IsZero() {
 			end = interruptedAt
 		}
