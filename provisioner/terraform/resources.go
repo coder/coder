@@ -169,6 +169,7 @@ type State struct {
 	AITasks               []*proto.AITask
 	HasAITasks            bool
 	HasExternalAgents     bool
+	ScriptOrder           *ScriptOrder `json:",omitempty"`
 }
 
 var ErrInvalidTerraformAddr = xerrors.New("invalid terraform address")
@@ -202,6 +203,10 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 
 	resources := make([]*proto.Resource, 0)
 	resourceAgents := map[string][]*proto.Agent{}
+	allAgents := make([]*proto.Agent, 0)
+	agentRuntimeAddresses := map[*proto.Agent]string{}
+	devcontainerRuntimeAddresses := map[*proto.Devcontainer]string{}
+	scriptOrderScripts := map[string]scriptOrderScript{}
 
 	// Indexes Terraform resources by their label.
 	// The label is what "terraform graph" uses to reference nodes.
@@ -351,6 +356,8 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			Order:                    attrs.Order,
 			ApiKeyScope:              attrs.APIKeyScope,
 		}
+		allAgents = append(allAgents, agent)
+		agentRuntimeAddresses[agent] = tfResource.Address
 		// Support the legacy script attributes in the agent!
 		if attrs.StartupScript != "" {
 			agent.Scripts = append(agent.Scripts, &proto.Script{
@@ -438,21 +445,21 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		if err != nil {
 			return nil, xerrors.Errorf("decode devcontainer attributes: %w", err)
 		}
-		for _, agents := range resourceAgents {
-			for _, agent := range agents {
-				// Find agents with the matching ID and associate them!
-				if !dependsOnAgent(graph, agent, attrs.AgentID, resource) {
-					continue
-				}
-
-				agent.Devcontainers = append(agent.Devcontainers, &proto.Devcontainer{
-					Id:              attrs.ID,
-					Name:            resource.Name,
-					WorkspaceFolder: attrs.WorkspaceFolder,
-					ConfigPath:      attrs.ConfigPath,
-					SubagentId:      attrs.SubAgentID,
-				})
+		for _, agent := range allAgents {
+			// Find agents with the matching ID and associate them!
+			if !dependsOnAgent(graph, agent, agentRuntimeAddresses[agent], attrs.AgentID, resource) {
+				continue
 			}
+
+			devcontainer := &proto.Devcontainer{
+				Id:              attrs.ID,
+				Name:            resource.Name,
+				WorkspaceFolder: attrs.WorkspaceFolder,
+				ConfigPath:      attrs.ConfigPath,
+				SubagentId:      attrs.SubAgentID,
+			}
+			agent.Devcontainers = append(agent.Devcontainers, devcontainer)
+			devcontainerRuntimeAddresses[devcontainer] = resource.Address
 		}
 	}
 
@@ -586,13 +593,13 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		for _, agents := range resourceAgents {
 			for _, agent := range agents {
 				// Find agents with the matching ID and associate them!
-				if dependsOnAgent(graph, agent, attrs.AgentID, resource) {
+				if dependsOnAgent(graph, agent, agentRuntimeAddresses[agent], attrs.AgentID, resource) {
 					agent.Apps = append(agent.Apps, app)
 					break appAgentLoop
 				}
 
 				for _, dc := range agent.GetDevcontainers() {
-					if dependsOnDevcontainer(graph, dc, attrs.AgentID, resource) {
+					if dependsOnDevcontainer(graph, dc, devcontainerRuntimeAddresses[dc], attrs.AgentID, resource) {
 						dc.Apps = append(dc.Apps, app)
 						break appAgentLoop
 					}
@@ -623,13 +630,13 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		for _, agents := range resourceAgents {
 			for _, agent := range agents {
 				// Find agents with the matching ID and associate them!
-				if dependsOnAgent(graph, agent, attrs.AgentID, resource) {
+				if dependsOnAgent(graph, agent, agentRuntimeAddresses[agent], attrs.AgentID, resource) {
 					agent.ExtraEnvs = append(agent.ExtraEnvs, env)
 					break envAgentLoop
 				}
 
 				for _, dc := range agent.GetDevcontainers() {
-					if dependsOnDevcontainer(graph, dc, attrs.AgentID, resource) {
+					if dependsOnDevcontainer(graph, dc, devcontainerRuntimeAddresses[dc], attrs.AgentID, resource) {
 						dc.Envs = append(dc.Envs, env)
 						break envAgentLoop
 					}
@@ -659,24 +666,41 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			RunOnStop:        attrs.RunOnStop,
 			TimeoutSeconds:   attrs.TimeoutSeconds,
 		}
+		orderScript := scriptOrderScript{
+			RunOnStart: attrs.RunOnStart,
+			RunOnStop:  attrs.RunOnStop,
+			Cron:       attrs.Cron,
+		}
 
 	scriptAgentLoop:
-		for _, agents := range resourceAgents {
-			for _, agent := range agents {
-				// Find agents with the matching ID and associate them!
-				if dependsOnAgent(graph, agent, attrs.AgentID, resource) {
-					agent.Scripts = append(agent.Scripts, script)
-					break scriptAgentLoop
-				}
+		for _, agent := range allAgents {
+			// Find agents with the matching ID and associate them!
+			if dependsOnAgent(graph, agent, agentRuntimeAddresses[agent], attrs.AgentID, resource) {
+				agent.Scripts = append(agent.Scripts, script)
+				orderScript.RuntimeAddress = agentRuntimeAddresses[agent]
+				break scriptAgentLoop
+			}
 
-				for _, dc := range agent.GetDevcontainers() {
-					if dependsOnDevcontainer(graph, dc, attrs.AgentID, resource) {
-						dc.Scripts = append(dc.Scripts, script)
-						break scriptAgentLoop
-					}
+			for _, dc := range agent.GetDevcontainers() {
+				if dependsOnDevcontainer(graph, dc, devcontainerRuntimeAddresses[dc], attrs.AgentID, resource) {
+					dc.Scripts = append(dc.Scripts, script)
+					orderScript.RuntimeAddress = devcontainerRuntimeAddresses[dc]
+					break scriptAgentLoop
 				}
 			}
 		}
+		if resource.Mode == tfjson.ManagedResourceMode {
+			scriptOrderScripts[resource.Address] = orderScript
+		}
+	}
+
+	scriptOrder, err := buildScriptOrder(modules, scriptOrderScripts)
+	if err != nil {
+		return nil, xerrors.Errorf("validate script order graph: %w", err)
+	}
+	var resolvedScriptOrder *ScriptOrder
+	if len(scriptOrder.Graphs) > 0 {
+		resolvedScriptOrder = &scriptOrder
 	}
 	// Associate metadata blocks with resources.
 	resourceMetadata := map[string][]*proto.Resource_Metadata{}
@@ -1072,6 +1096,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		HasAITasks:            len(aiTasks) > 0,
 		AITasks:               aiTasks,
 		HasExternalAgents:     hasExternalAgentResources(graph),
+		ScriptOrder:           resolvedScriptOrder,
 	}, nil
 }
 
@@ -1173,52 +1198,83 @@ func convertAddressToModulePath(address string) (string, error) {
 	return addr.ModulePath.String(), nil
 }
 
-func dependsOnAgent(graph *gographviz.Graph, agent *proto.Agent, resourceAgentID string, resource *tfjson.StateResource) bool {
+func dependsOnAgent(graph *gographviz.Graph, agent *proto.Agent, agentAddress, resourceAgentID string, resource *tfjson.StateResource) bool {
 	// Plan: we need to find if there is edge between the agent and the resource.
 	if agent.Id == "" && resourceAgentID == "" {
-		resourceNodeSuffix := fmt.Sprintf(`] %s.%s (expand)"`, resource.Type, resource.Name)
-		agentNodeSuffix := fmt.Sprintf(`] coder_agent.%s (expand)"`, agent.Name)
-
-		// Traverse the graph to check if the coder_<resource_type> depends on coder_agent.
-		for _, dst := range graph.Edges.SrcToDsts {
-			for _, edges := range dst {
-				for _, edge := range edges {
-					if strings.HasSuffix(edge.Src, resourceNodeSuffix) &&
-						strings.HasSuffix(edge.Dst, agentNodeSuffix) {
-						return true
-					}
-				}
-			}
+		if agentAddress == "" {
+			agentAddress = "coder_agent." + agent.Name
 		}
-		return false
+		return terraformGraphResourceDependsOn(graph, resource.Address, agentAddress)
 	}
 
 	// Provision: agent ID and child resource ID are present
 	return agent.Id == resourceAgentID
 }
 
-func dependsOnDevcontainer(graph *gographviz.Graph, dc *proto.Devcontainer, resourceAgentID string, resource *tfjson.StateResource) bool {
+func dependsOnDevcontainer(graph *gographviz.Graph, dc *proto.Devcontainer, devcontainerAddress, resourceAgentID string, resource *tfjson.StateResource) bool {
 	// Plan: we need to find if there is an edge between the resource and the devcontainer.
 	if dc.SubagentId == "" && resourceAgentID == "" {
-		resourceNodeSuffix := fmt.Sprintf(`] %s.%s (expand)"`, resource.Type, resource.Name)
-		agentNodeSuffix := fmt.Sprintf(`] coder_devcontainer.%s (expand)"`, dc.Name)
-
-		// Traverse the graph to check if the coder_<resource_type> depends on coder_devcontainer.
-		for _, dst := range graph.Edges.SrcToDsts {
-			for _, edges := range dst {
-				for _, edge := range edges {
-					if strings.HasSuffix(edge.Src, resourceNodeSuffix) &&
-						strings.HasSuffix(edge.Dst, agentNodeSuffix) {
-						return true
-					}
-				}
-			}
+		if devcontainerAddress == "" {
+			devcontainerAddress = "coder_devcontainer." + dc.Name
 		}
-		return false
+		return terraformGraphResourceDependsOn(graph, resource.Address, devcontainerAddress)
 	}
 
 	// Provision: subagent ID and child resource ID are present
 	return dc.SubagentId == resourceAgentID
+}
+
+func terraformGraphResourceDependsOn(graph *gographviz.Graph, resourceAddress, dependencyAddress string) bool {
+	resourceNodes := terraformGraphResourceNodes(graph, resourceAddress)
+	dependencyNodes := terraformGraphResourceNodes(graph, dependencyAddress)
+	if len(resourceNodes) == 0 || len(dependencyNodes) == 0 {
+		return false
+	}
+
+	dependencies := make(map[string]struct{}, len(dependencyNodes))
+	for _, node := range dependencyNodes {
+		dependencies[node] = struct{}{}
+	}
+	visited := make(map[string]struct{}, len(graph.Nodes.Lookup))
+	remaining := slices.Clone(resourceNodes)
+	for len(remaining) > 0 {
+		node := remaining[0]
+		remaining = remaining[1:]
+		if _, ok := visited[node]; ok {
+			continue
+		}
+		visited[node] = struct{}{}
+		if _, ok := dependencies[node]; ok {
+			return true
+		}
+		for destination := range graph.Edges.SrcToDsts[node] {
+			remaining = append(remaining, destination)
+		}
+	}
+	return false
+}
+
+func terraformGraphResourceNodes(graph *gographviz.Graph, address string) []string {
+	// The Terraform graph contains configuration nodes, so state instance keys must
+	// be removed before matching resource addresses.
+	parsed, err := tfaddr.NewAddress(address)
+	if err == nil {
+		for index := range parsed.ModulePath {
+			parsed.ModulePath[index].Index = tfaddr.Index{}
+		}
+		parsed.ResourceSpec.Index = tfaddr.Index{}
+		address = parsed.String()
+	}
+
+	suffix := fmt.Sprintf(`] %s (expand)"`, address)
+	var nodes []string
+	for node := range graph.Nodes.Lookup {
+		if strings.HasSuffix(node, suffix) {
+			nodes = append(nodes, node)
+		}
+	}
+	slices.Sort(nodes)
+	return nodes
 }
 
 type graphResource struct {

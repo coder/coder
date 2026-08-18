@@ -1,8 +1,10 @@
 package terraform
 
 import (
+	"cmp"
 	"maps"
 	"slices"
+	"strings"
 
 	tfaddr "github.com/hashicorp/go-terraform-address"
 	tfjson "github.com/hashicorp/terraform-json"
@@ -72,6 +74,50 @@ type resolvedScriptOrder struct {
 	rules []resolvedScriptOrderRule
 }
 
+type ScriptOrder struct {
+	Graphs []ScriptOrderGraph
+}
+
+type ScriptOrderGraph struct {
+	RuntimeAddress string
+	Phase          ScriptOrderPhase
+	Scripts        []string
+	Dependencies   []ScriptOrderDependency
+}
+
+type ScriptOrderDependency struct {
+	ScriptAddress       string
+	PrerequisiteAddress string
+	Requirement         ScriptOrderRequirement
+}
+
+type scriptOrderGraphKey struct {
+	runtimeAddress string
+	phase          ScriptOrderPhase
+}
+
+type scriptOrderEdgeKey struct {
+	scriptAddress       string
+	prerequisiteAddress string
+}
+
+type scriptOrderEdgeOrigin struct {
+	dataSourceAddress string
+	ruleIndex         int
+	runSelector       string
+	afterSelector     string
+}
+
+type scriptOrderEdge struct {
+	requirement ScriptOrderRequirement
+	origin      scriptOrderEdgeOrigin
+}
+
+type scriptOrderGraph struct {
+	scripts map[string]struct{}
+	edges   map[scriptOrderEdgeKey]scriptOrderEdge
+}
+
 func resolveScriptOrderRules(modules []*tfjson.StateModule, scripts map[string]scriptOrderScript) (resolvedScriptOrder, error) {
 	dataSources, err := collectScriptOrderDataSources(modules)
 	if err != nil {
@@ -132,6 +178,168 @@ func resolveScriptOrderRules(modules []*tfjson.StateModule, scripts map[string]s
 		}
 	}
 	return result, nil
+}
+
+func buildScriptOrder(modules []*tfjson.StateModule, scripts map[string]scriptOrderScript) (ScriptOrder, error) {
+	resolved, err := resolveScriptOrderRules(modules, scripts)
+	if err != nil {
+		return ScriptOrder{}, err
+	}
+	if len(resolved.rules) == 0 {
+		return ScriptOrder{}, nil
+	}
+
+	graphs := map[scriptOrderGraphKey]*scriptOrderGraph{}
+	for _, rule := range resolved.rules {
+		graphKey := scriptOrderGraphKey{
+			runtimeAddress: rule.runtimeAddress,
+			phase:          rule.phase,
+		}
+		graph := graphs[graphKey]
+		if graph == nil {
+			graph = &scriptOrderGraph{
+				scripts: map[string]struct{}{},
+				edges:   map[scriptOrderEdgeKey]scriptOrderEdge{},
+			}
+			graphs[graphKey] = graph
+		}
+
+		for _, address := range resolvedScriptOrderAddresses(rule.run) {
+			graph.scripts[address] = struct{}{}
+		}
+		for _, address := range resolvedScriptOrderAddresses(rule.after) {
+			graph.scripts[address] = struct{}{}
+		}
+		if err := addScriptOrderRuleEdges(graph, rule); err != nil {
+			return ScriptOrder{}, err
+		}
+	}
+
+	var result ScriptOrder
+	graphKeys := slices.SortedFunc(maps.Keys(graphs), func(a, b scriptOrderGraphKey) int {
+		if n := cmp.Compare(a.runtimeAddress, b.runtimeAddress); n != 0 {
+			return n
+		}
+		return cmp.Compare(a.phase, b.phase)
+	})
+	for _, graphKey := range graphKeys {
+		graph := graphs[graphKey]
+		if cycle, origin := findScriptOrderCycle(graph); len(cycle) > 0 {
+			return ScriptOrder{}, xerrors.Errorf("script order data source %q rule %d: run selector %q and after selector %q create dependency cycle: %s", origin.dataSourceAddress, origin.ruleIndex, origin.runSelector, origin.afterSelector,
+				strings.Join(cycle, " -> "))
+		}
+		result.Graphs = append(result.Graphs, scriptOrderGraphResult(graphKey, graph))
+	}
+	return result, nil
+}
+
+func addScriptOrderRuleEdges(graph *scriptOrderGraph, rule resolvedScriptOrderRule) error {
+	for _, runAddress := range expandResolvedScriptOrderAddresses(rule.run) {
+		for _, afterAddress := range expandResolvedScriptOrderAddresses(rule.after) {
+			edgeKey := scriptOrderEdgeKey{
+				scriptAddress:       runAddress.address,
+				prerequisiteAddress: afterAddress.address,
+			}
+			origin := scriptOrderEdgeOrigin{
+				dataSourceAddress: rule.dataSourceAddress,
+				ruleIndex:         rule.ruleIndex,
+				runSelector:       runAddress.selector,
+				afterSelector:     afterAddress.selector,
+			}
+			if existing, ok := graph.edges[edgeKey]; ok {
+				if existing.requirement != rule.requirement {
+					return xerrors.Errorf("script order data source %q rule %d: run selector %q and after selector %q declare script %q after %q with requires %q, conflicting with requires %q from data source %q rule %d", rule.dataSourceAddress, rule.ruleIndex, runAddress.selector, afterAddress.selector,
+						runAddress.address, afterAddress.address, rule.requirement, existing.requirement,
+						existing.origin.dataSourceAddress, existing.origin.ruleIndex)
+				}
+				continue
+			}
+			graph.edges[edgeKey] = scriptOrderEdge{
+				requirement: rule.requirement,
+				origin:      origin,
+			}
+		}
+	}
+	return nil
+}
+
+func scriptOrderGraphResult(graphKey scriptOrderGraphKey, graph *scriptOrderGraph) ScriptOrderGraph {
+	dependencies := make([]ScriptOrderDependency, 0, len(graph.edges))
+	for edgeKey, edge := range graph.edges {
+		dependencies = append(dependencies, ScriptOrderDependency{
+			ScriptAddress:       edgeKey.scriptAddress,
+			PrerequisiteAddress: edgeKey.prerequisiteAddress,
+			Requirement:         edge.requirement,
+		})
+	}
+	slices.SortFunc(dependencies, func(a, b ScriptOrderDependency) int {
+		if n := cmp.Compare(a.ScriptAddress, b.ScriptAddress); n != 0 {
+			return n
+		}
+		if n := cmp.Compare(a.PrerequisiteAddress, b.PrerequisiteAddress); n != 0 {
+			return n
+		}
+		return cmp.Compare(a.Requirement, b.Requirement)
+	})
+	return ScriptOrderGraph{
+		RuntimeAddress: graphKey.runtimeAddress,
+		Phase:          graphKey.phase,
+		Scripts:        slices.Sorted(maps.Keys(graph.scripts)),
+		Dependencies:   dependencies,
+	}
+}
+
+func findScriptOrderCycle(graph *scriptOrderGraph) ([]string, scriptOrderEdgeOrigin) {
+	adjacent := map[string][]string{}
+	for edgeKey := range graph.edges {
+		adjacent[edgeKey.scriptAddress] = append(adjacent[edgeKey.scriptAddress], edgeKey.prerequisiteAddress)
+	}
+	for address := range adjacent {
+		slices.Sort(adjacent[address])
+	}
+
+	const (
+		unvisited = iota
+		visiting
+		visited
+	)
+	states := map[string]int{}
+	positions := map[string]int{}
+	stack := make([]string, 0, len(graph.scripts))
+	var cycle []string
+	var origin scriptOrderEdgeOrigin
+	var visit func(string) bool
+	visit = func(address string) bool {
+		states[address] = visiting
+		positions[address] = len(stack)
+		stack = append(stack, address)
+		for _, prerequisite := range adjacent[address] {
+			switch states[prerequisite] {
+			case unvisited:
+				if visit(prerequisite) {
+					return true
+				}
+			case visiting:
+				cycle = append(slices.Clone(stack[positions[prerequisite]:]), prerequisite)
+				origin = graph.edges[scriptOrderEdgeKey{
+					scriptAddress:       address,
+					prerequisiteAddress: prerequisite,
+				}].origin
+				return true
+			}
+		}
+		stack = stack[:len(stack)-1]
+		delete(positions, address)
+		states[address] = visited
+		return false
+	}
+
+	for _, address := range slices.Sorted(maps.Keys(graph.scripts)) {
+		if states[address] == unvisited && visit(address) {
+			return cycle, origin
+		}
+	}
+	return nil, scriptOrderEdgeOrigin{}
 }
 
 func collectScriptOrderDataSources(modules []*tfjson.StateModule) ([]scriptOrderDataSource, error) {
