@@ -1,274 +1,16 @@
 # Working state for journal_vs_log.md
 
-Recorded 2026-08-13. This file is scaffolding for
-`poc_audit/journal_vs_log.md`, not part of the design. It exists so that the
-material feeding that document is disposed of deliberately rather than
-forgotten, and so that a later session can pick the work up without
-reconstructing the conversation that produced it.
+Recorded 2026-08-13, trimmed 2026-08-18.
 
-Delete this file when the document is finished and nothing here is open.
+The document this file supported is finished, and the punch list that tracked
+its sections has been removed. It had done its work and held nothing worth
+returning to.
 
-## How to read the punch list
-
-The list below is the original inventory, in its original order, with its
-original numbers. **Numbers are never reused and never renumbered**, including
-when an item is dropped. New items take the next free number in their section.
-
-Each item carries one of four states:
-
-- **done.** In the document, and nothing further is owed.
-- **part.** Some of it landed. The note says what is still owed.
-- **open.** Not addressed yet.
-- **drop.** Deliberately excluded. The note says why, so that the exclusion is
-  not mistaken for an oversight and not silently reversed.
-
-## Punch list
-
-### 1. Purpose and audience
-
-1. **open.** Two readers: a human collaborator to persuade, and a future session
-   to bring to the same understanding.
-2. **open.** Standing failure mode it prevents: anyone meeting `audit_logs`
-   first will assume that is the audit system.
-3. **part.** Reconstructible from itself, with claims carrying evidence. The
-   etymology carries sources. Code claims are owed once section 6 is written.
-4. **done.** Refers to `audit_approach.md` for the approach; its own subject is
-   the distinction.
-5. **done.** Follows the standing-marked section convention.
-
-### 2. Vocabulary to fix before anything else
-
-1. **done.** Journal in the accounting sense: a chronological record of events.
-2. **done.** Not a journal in the systems sense, meaning a write ahead log. The
-   note in the document stops at the misreading it prevents. The reasoning
-   behind it is recorded under "Coupling, and where this belongs" below, and is
-   owed to `audit_approach.md` rather than to this document.
-3. **done.** A journal is not a ledger.
-4. **drop.** Entry versus record. The distinction is defined in
-   `audit_approach.md` under Terminology, and this document has no need of it.
-   A single sentence remains available if the comparison section turns out to
-   want one.
-5. **done.** Log defined, in both senses. The historical one, and the modern
-   one under "The word outgrew the measurements".
-6. **drop.** "Audit journal" names a category, not one particular journal. Moot:
-   the phrase is retired. `audit_approach.md` now records that "audit" is an
-   action and is never used to modify another noun, so there is no compound left
-   to explain.
-7. **drop.** The word "audit" is currently claimed by `audit_logs`, and the
-   rename recommendation stands. Landed in `audit_approach.md` instead: the
-   Terminology entry states that "audit" never refers to that table, and the
-   attributive rule explains how "audit log" came to name a log nobody audits.
-   The rename recommendation continues to live under the relationship section
-   there.
-
-### 3. What a journal is for
-
-1. **done.** Recordkeeping is an integrity property, not a feature. Summarized
-   as "Authority" under The distinctions: a journal is the record, a log is best
-   effort. The definitive text stays in `audit_approach.md`, where the section
-   is now "Recordkeeping as an integrity property".
-2. **drop.** The auditable event is the persistent state change; the entry is a
-   reflection and recording of it. It was held open in case section 5 needed it.
-   It does not: section 5 is illustrative rather than persuasive, so a precise
-   understanding of "event" is not required to read it.
-3. **done.** The obligation comes from delegated authority: the duty to account.
-4. **done.** Double entry bookkeeping named. Resolved where the item arose, by
-   removing the claim from `entity_model.md` rather than by repeating it here.
-   Checking it found the causal claim contested: recent work dates the method to
-   Florentine moneychanger-bankers and attributes the catalyst to cash shortage
-   and defence against disputes, not to agents accounting to principals. What
-   survives there does not depend on the history: the duty to account is an
-   agency duty, so the account exists because authority was delegated. Double
-   entry is still named in `journal_vs_log.md`, where the use is definitional
-   and makes no claim about origins.
-5. **drop.** The ideal is one entry per state change; reality diverges. Not a
-   point about how the two kinds of record are used, which is this document's
-   subject, and the full story is already in `audit_approach.md`.
-6. **done.** Reconciliation in the accounting sense. Stated as a contrast under
-   The distinctions: a log cannot be reconciled against reliably, because a
-   discrepancy might be a divergence or might be a line nobody wrote. Against a
-   journal one explanation is left, so it can be escalated.
-7. **drop.** Three exhaustive divergence classes.
-8. **drop.** Correspondence keys.
-9. **drop.** Ordering of entry and effect.
-10. **drop.** One transaction collapses the ordering problem.
-11. **drop.** Detection is not resolution.
-12. **drop.** Who reads each, and why. Not a distinction but a side effect of
-    what each is made for, and the purposes are already stated. Reworded once
-    before dropping, because the original made a process into a reader.
-
-### 4. What a log is for
-
-1. **done.** Telemetry and forensics. Not a property of logs at all: both are
-   consulted for both purposes, so this belongs with the resemblances and is now
-   a clause under Why they are so easily confused. The related point that
-   auditing is not forensic investigation, one looking for unknown anomalies and
-   the other working outward from a known one, is recorded in
-   `audit_approach.md`.
-2. **done.** Records **activity**, with attempting, succeeding, failing, being
-   asked, and declining to act as exemplars. Symmetry needed no separate
-   statement once the exemplars carry it.
-3. **done.** Arranged for whoever reads it later: levels and filters to find
-   the interesting lines, retention chosen by weighing storage against how far
-   back anyone will look. Both possible only because nothing depends on the log
-   being complete.
-4. **done.** Deletable, droppable, and samplable, all covered by the modern
-   sense and by the retention point. **Licensing is out of scope for the proof
-   of concept**, so that clause is dropped rather than owed.
-5. **done.** No completeness obligation, so gaps are not defects.
-
-### 5. Properties where the two diverge
-
-The core of this section is expected to be a table over these axes.
-
-1. **done.** Completeness. Stated under The distinctions rather than in a
-   table.
-2. **done.** Permanence. Stated under The distinctions.
-3. **drop.** Availability, meaning unconditional versus licence-gated.
-   Licensing is out of scope for the proof of concept.
-4. **done.** Filterability. Table row.
-5. **done.** Unit of record. Table row, and already implicit in the two
-   definition sections.
-6. **done.** Attempts. Table row.
-7. **done.** Failure symmetry. Table row, reduced to which failures a journal
-   records at all.
-8. **done.** Actor. Table row. Stated generally, since "a user" is a fact about
-   `audit_logs` rather than about logs, and belongs to section 6.
-9. **done.** Ordering. Table row.
-10. **done.** Reconcilability. Stated under The distinctions.
-11. **done.** Mutability. Table row.
-12. **done.** Transactionality. Table row, as "when written".
-13. **done.** Unbypassability. **Elevated to a paragraph.** It is what turns
-    completeness from an aspiration into a constraint on every write path, so it
-    reads as a claim about the system rather than about the journal.
-14. **done.** Evidentiary standing. **Elevated to a paragraph.** Distinguished
-    from Authority explicitly: authority settles which account prevails between
-    parties who accept the records, evidence persuades a party who accepts
-    nothing yet.
-15. **done.** Points of similarity, and why the two are so often confused. The
-    resemblance is in the form of an entry; the difference shows in what a
-    missing entry means. Added after the first draft was read. Numbered here
-    because it is the complement of this section, though it appears earlier in
-    the document.
-
-### 6. Evidence in this codebase
-
-1. **done.** `audit_logs` is request-shaped. Under Findings, "The shape of
-   `audit_logs`".
-2. **done.** `user_id NOT NULL` with no actor type. Under Findings, stated as
-   one of the required columns presuming a request made by a person.
-3. **done.** `resource_type` has 36 values, under Findings. That a quarter of
-   them are settings rather than entities is dropped: no argument in the
-   document rests on it.
-4. **done.** `workspace_agent` is in that enum with no mention in
-   `coderd/audit/diff.go` or `enterprise/audit/table.go`. Under Findings.
-5. **done.** `id` is a uuid; ordering is by an index on `"time" DESC`, so
-   same-transaction writes have no defined order. Under Findings.
-6. **drop.** `diff jsonb` holds field-level before and after. It was held for
-   section 9, which is dropped, and nothing else needs it.
-7. **done.** Retention deletion. `DeleteOldAuditLogs` in
-   `coderd/database/queries/auditlogs.sql:268` takes every row older than the
-   cutoff with no exemption, driven by `Retention.AuditLogs` and run by
-   `coderd/database/dbpurge/dbpurge.go` on a ten minute ticker. Cited in the
-   answer to 7.1.
-8. **done.** Registering one audited resource costs eight places plus a
-   documentation generator. Under Findings, by reference to
-   `audit_approach.md` rather than restated.
-9. **drop.** `resource_type` is a Postgres enum, carrying the single-transaction
-   migration trap. An implementation detail, recorded already in
-   `audit_approach.md` and `.claude/docs/DATABASE.md`, and 7.2 is answered by
-   precedent rather than by cost.
-10. **done.** Write paths. Under Findings, "What writes to `audit_logs`": the
-    production caller, the filter that can drop a record before storage, the
-    no-op implementation of the interface, and the development handler.
-11. **done.** `connection_logs` split out and four `audit_action` values were
-    deprecated. Under Findings, and the precedent carries the answer to 7.2.
-12. **done.** `user_status_changes` and `user_deleted` are trigger-written, so
-    they are a change-log of the `users` table rather than a journal of events.
-    Named in the answer to 7.5.
-13. **drop.** `provisioner_jobs` is the existing intent-record pattern. It
-    supported the ordering of entry and effect, which is dropped to
-    `audit_approach.md`.
-14. **drop.** `workspace_agents.auth_instance_id` is the nearest external
-    correspondence identifier. It supported correspondence keys and orphan
-    detection, both of which are out of scope here.
-
-### 7. Counterarguments to answer
-
-1. **done.** Why not extend `audit_logs`? Its own section, since it is the
-   question the document exists to answer. Structured around three claims stated
-   first: `audit_logs` is a log, this work needs a journal, one record cannot
-   serve both well. The three readings of "extend" are a demonstration inside
-   the third claim rather than the shape of the section.
-2. **done.** Why not just add enum values? Clarified first: the question is
-   about adding `ai_agent` to `audit_logs.resource_type`. Answered with the
-   precedent, since this codebase already recorded connections that way and then
-   moved them out to `connection_logs` in migration `000349`.
-3. **done.** Is this not duplication? Answered as apparent only: the two sit at
-   different levels of the stack, `audit_logs` recording how an action came
-   about and the journal recording the action. A one to one correspondence is
-   not an identity, and the correspondence is not even general, since a
-   background state change makes no request.
-4. **done.** Can one be derived from the other? Folded into 7.1, under "One
-   record cannot serve both well", as the strongest form of that claim: keep one
-   and derive the other. No in both directions, since each is missing precisely
-   what the other exists for.
-5. **done.** Why not triggers, as with the user history tables? The root reason
-   is that a trigger is subordinate by construction, so what it writes is not the
-   original entry and the arrangement inverts into a change-log derived from a
-   table. The actor objection is a consequence of that rather than a separate
-   complaint. Triggers are not ruled out, only redirected: fired on the insertion
-   of an entry they are doing posting.
-6. **drop.** Why not a transaction manager? Answered in `audit_approach.md`
-   under Reconciliation: given one, coherence could be complete on commit, and
-   the approach must not presume one. A statement about the approach rather than
-   about journals and logs.
-7. **done.** Why two systems rather than a migration? No separate answer
-   needed. Folded into 7.1 as one clause: migrating is not a fourth option,
-   because there is nothing to migrate into that would hold what is needed.
-
-### 8. The concrete instance, so the abstract lands
-
-All six are dropped together. The code is not in a state worth holding up as an
-illustration, and a worked example drawn from it now would have to be hedged
-into uselessness. Doing this after the proof of concept is delivered would be
-worthwhile, and is recorded outside this file so that it survives the file's
-deletion.
-
-1. **drop.** One journal for every entity, with `(type, identifier)` pairs.
-2. **drop.** `BIGSERIAL`, because entries need distinct identifiers.
-3. **drop.** Written in the same transaction as the state change.
-4. **drop.** Append only: no update or delete query exists.
-5. **drop.** Guarded so that an entity cannot write entries about itself.
-6. **drop.** A closed type set.
-
-### 9. Deliberate omissions, named as such
-
-All five are dropped together. They are variously implementation details and
-proof of concept scope, and neither belongs in a document about the difference
-between two kinds of record.
-
-1. **drop.** No before-and-after values, by scope decision.
-2. **drop.** No external correspondence identifier, so orphan detection is
-   unreachable.
-3. **drop.** No reconciliation code at this phase.
-4. **drop.** No credential lifecycle entries, reproducing P7 knowingly.
-5. **drop.** No tamper evidence, such as hash chaining.
-
-### 10. To verify before drafting the sections that need it
-
-1. **drop.** The exact licensing gate for the existing mechanism. Nothing
-   depends on it now that licensing is out of scope.
-2. **done.** `DeleteOldAuditLogs` and `DeleteOldAuditLogConnectionEvents`,
-   scheduled by `dbpurge` on a ten minute ticker. Connection events keep their
-   own ninety day maximum.
-3. **done.** Two callers of `InsertAuditLog`. One is the enterprise backend's
-   `Export`, the real path. The other is `generateFakeAuditLog`, a development
-   handler. Nothing else writes the table.
-4. **done.** `connection_logs` is a log, decisively: its rows are updated in
-   place as later events arrive, and its merge key includes an identifier the
-   schema itself calls not guaranteed to be unique. It is a useful precedent
-   after all, though for 7.2 rather than as a comparison.
+**What remains is material developed alongside the document that has not been
+recorded anywhere else.** Some of it is owed to another document and says so.
+Some exists to stop a later session redoing work already done, or reintroducing
+a formulation already rejected. Some is probably discardable. It has not been
+sorted, and sorting it is a conversation still to have.
 
 ## Decisions taken
 
@@ -279,10 +21,8 @@ without the conversation. The alternative, opening with the property comparison,
 was rejected as persuasive only to someone already convinced there is something
 to compare.
 
-**Items 2.6 and 2.7 are held back rather than dropped.** Both concern the name
-`audit_logs`, and land better beside the comparison than in the framing.
-
-**Items 3.7 through 3.11 are dropped.** Divergence classes, correspondence keys,
+**Reasoning already in the approach document was not repeated.** Divergence
+classes, correspondence keys,
 the ordering of entry and effect, the effect of a single transaction, and
 detection versus resolution are all stated in `audit_approach.md`. Restating
 them here would create two homes for one position, and the two would drift. The
@@ -294,23 +34,32 @@ already being sent to the approach document.
 **"The distinction" became "The distinctions", and is where contrasts live.**
 The document does not need every property of a journal, only those where the
 purpose leads somewhere a log does not go. Authority, completeness, permanence,
-and reconcilability are stated there. Items were closed against that section
-rather than against the table originally imagined for section 5.
+and reconcilability are stated there, rather than in the table of properties
+originally imagined.
 
 **Licensing is out of scope for the proof of concept.** Whether the existing
-table is gated behind a licence has no bearing on anything being built, so 4.4's
-clause, 5.3, and 10.1 are all disposed of on that basis.
+table is gated behind a licence has no bearing on anything being built, so every
+point resting on it was dropped.
 
-**Sections 8 and 9 are dropped whole, and section 6 with them.** The worked
-example from our own code waits until after delivery, since the code is not
-worth holding up yet. The deliberate omissions are implementation detail and
+**The draft notice is gone from the document.** It would be a distraction once
+the pass is finished, and the deferred worked example is recorded outside this
+file rather than as a caveat inside the document. This also removes the
+document's only pointer to this file; `poc_audit/AGENTS.md` still indexes both.
+
+**The preamble carries what the document says about itself.** It names the
+failure mode it prevents, names its two readers, and states the evidence
+standard it holds itself to. A separate section for any of that would have been
+odd, since none of it is about the subject.
+
+**A worked example, the deliberate omissions, and the surplus evidence were all
+dropped.** The example from our own code waits until after delivery, since the
+code is not worth holding up yet. The omissions are implementation detail and
 proof of concept scope, neither of which belongs in a document about two kinds
-of record. Section 6's remainder then had nothing left to support: each item was
-inventoried to serve an argument that is now either answered another way or
-dropped.
+of record. The remaining evidence then had nothing left to support, each piece
+having been gathered for an argument since answered another way or dropped.
 
-**Triggers fail on ordering, not on attribution.** The answer to 7.5 was going
-to argue that a trigger cannot see the actor. The deeper reason is that a
+**Triggers fail on ordering, not on attribution.** The answer was going to
+argue that a trigger cannot see the actor. The deeper reason is that a
 journal is the book of original entry and a trigger is subordinate to a prior
 database write, so a trigger-written entry is derived from state rather than
 being its origin. That inverts the journal and ledger relation, which is the
@@ -321,12 +70,13 @@ residue.
 **`audit_logs` is not special, and the first finding says so.** There are at
 least four logs in this codebase, none behaving like a journal, and one of them
 is an `UNLOGGED` table that Postgres truncates after a crash. That changes the
-shape of 7.1: the question only fastens on `audit_logs` because of its name, and
+shape of the answer: the question only fastens on `audit_logs` because of its name, and
 splits into why not an existing log and why not a new one, with the same answer
 to both. The name would not invite the question if the table were called
 something like `user_http_logs`.
 
-**7.1 states its answer before its reasons.** The first draft opened by
+**The main answer states its conclusion before its reasons.** The first draft
+opened by
 conceding that the question was fair and then walked three readings of "extend",
 which buried the conclusion. It now leads with the three claims and gives the
 concession one sentence afterwards. The technical detail sits under the third
@@ -341,21 +91,22 @@ that does the persuading. "Why they are so easily confused" also stays in
 Established, since its purpose is to set out the similarities that make the
 differences matter rather than to assert that anyone is confused.
 
-**7.1 points at Findings rather than carrying its evidence.** It was written
+**The main answer points at Findings rather than carrying its evidence.** It
+was written
 the other way first, with the schema and the retention query inline, and split
 once the argument and the facts proved easier to check apart. The three readings
 of "extend" read more tightly for it.
 
-**Two of section 5 were elevated, the rest tabulated.** Unbypassability and
+**Two properties were elevated, the rest tabulated.** Unbypassability and
 evidentiary standing became paragraphs under The distinctions; the remaining
-eight are a table at the end of it. The table is deliberately terse, since the
-section is illustrative and each row follows from a paragraph above it.
+eight are a table at the end of it. The table is deliberately terse, since each
+row follows from a paragraph above it.
 
-**Section 5 is illustrative, not persuasive.** The table of properties shows
-where the two kinds of record differ. It is not required to argue for each
-difference or to rest on definitions established elsewhere. Several items were
-dropped on that basis, including 3.2, since a reader does not need a precise
-account of "event" to follow an illustration.
+**The table of properties illustrates, it does not persuade.** It shows where
+the two kinds of record differ, and is not required to argue each difference or
+to rest on definitions established elsewhere. Several candidates were dropped on
+that basis, including a precise account of "event", which a reader does not need
+in order to follow an illustration.
 
 **"Audit journal" is retired, not merely deprecated.** The defect is the
 attributive use of an action word, which turns the action into a kind of thing.
@@ -364,9 +115,9 @@ audience, which is why `entity_journal` is well named and why purpose belongs in
 a sentence rather than in a compound. Recorded in `audit_approach.md` under
 Terminology.
 
-**The similarities are stated before the distinction, not after.** A reader who
-has confused the two is owed an account of why the confusion is reasonable
-before being told it is wrong. Item 5.15.
+**The similarities are stated before the distinctions, not after.** A reader who
+has taken the two for one thing is owed an account of why that is reasonable
+before being told it is wrong.
 
 ## Coupling, and where this belongs
 
