@@ -63,7 +63,14 @@ export const AIBudgetUncapped: Story = {
 		await expect(
 			canvas.getByLabelText("Monthly limit per member"),
 		).toHaveAttribute("placeholder", "no budget");
-		await expect(canvas.getByText("no budget")).toBeInTheDocument();
+		await expect(
+			canvas.getByText("This group doesn't have a budget set."),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByText(
+				/Members without a budget from another group won't have AI access/,
+			),
+		).toBeInTheDocument();
 		await expect(
 			canvas.getByRole("link", {
 				name: /learn how budgets apply across groups/i,
@@ -74,9 +81,6 @@ export const AIBudgetUncapped: Story = {
 				"/ai-coder/ai-gateway/cost-controls#effective-group-resolution",
 			),
 		);
-		await expect(
-			canvas.queryByText("A $0 limit disables AI access for this group."),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -91,9 +95,11 @@ export const AIBudgetDisabled: Story = {
 		await expect(canvas.getByLabelText("Monthly limit per member")).toHaveValue(
 			0,
 		);
-		await expect(canvas.getByText("no budget")).toBeInTheDocument();
 		await expect(
-			canvas.getByText("A $0 limit disables AI access for this group."),
+			canvas.getByText("This group's limit has been set to $0."),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByText(/A \$0 limit disables AI access for this group/),
 		).toBeInTheDocument();
 	},
 };
