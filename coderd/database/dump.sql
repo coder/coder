@@ -4909,10 +4909,6 @@ CREATE INDEX idx_usage_events_ai_seats ON usage_events USING btree (event_type, 
 
 CREATE INDEX idx_usage_events_select_for_publishing ON usage_events USING btree (published_at, publish_started_at, created_at);
 
-CREATE INDEX idx_usage_events_unpublished_attempted ON usage_events USING btree (inserted_at) WHERE ((published_at IS NULL) AND (failure_message IS NOT NULL));
-
-CREATE INDEX idx_usage_events_unpublished_no_attempt ON usage_events USING btree (inserted_at) WHERE ((published_at IS NULL) AND (failure_message IS NULL));
-
 CREATE INDEX idx_user_ai_provider_keys_ai_provider_id ON user_ai_provider_keys USING btree (ai_provider_id);
 
 CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at);

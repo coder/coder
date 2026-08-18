@@ -28693,38 +28693,34 @@ WITH last_success AS (
     FROM usage_events
     WHERE published_at IS NOT NULL
         AND failure_message IS NULL
-), never_attempted AS (
-    -- The oldest insertion time among unpublished events with no publish
-    -- attempt yet. Bounded by idx_usage_events_unpublished_no_attempt.
-    SELECT MIN(inserted_at) AS min_inserted_at
-    FROM usage_events
-    WHERE published_at IS NULL
-        AND failure_message IS NULL
-        AND created_at > $3::timestamptz
-), attempted AS (
-    -- The oldest insertion time among unpublished events with at least one
-    -- failed attempt. Bounded by idx_usage_events_unpublished_attempted.
-    SELECT MIN(inserted_at) AS min_inserted_at
-    FROM usage_events
-    WHERE published_at IS NULL
-        AND failure_message IS NOT NULL
-        AND created_at > $3::timestamptz
 ), stuck AS (
-    -- The effective stuck time of the oldest event that should have been
-    -- published by now but wasn't. GREATEST is monotonic in inserted_at, so
-    -- applying it to each branch's MIN is equivalent to taking MIN over
-    -- per-event effective stuck times, without scanning the whole backlog.
-    -- The CASE guards the never-attempted branch because GREATEST ignores
-    -- NULL arguments: no rows must yield NULL, not license_start. LEAST
-    -- likewise ignores a NULL branch.
-    SELECT LEAST(
+    -- The earliest effective stuck time among events at the front of the
+    -- publisher's queue. This deliberately inspects at most one publisher
+    -- batch (100 rows, matching SelectUsageEventsForPublishing) in the
+    -- publisher's own selection order, which
+    -- idx_usage_events_select_for_publishing supports, instead of computing
+    -- an exact minimum over a potentially unbounded unpublished backlog
+    -- (e.g. after publishing was disabled for weeks). A stuck event behind
+    -- the first batch surfaces once the queue ahead of it drains or is
+    -- attempted; the publisher cannot reach it any earlier either. Rows
+    -- currently being attempted (publish_started_at set) are skipped; they
+    -- either resolve or re-surface within an hour when the attempt expires.
+    SELECT MIN(
         CASE
-            WHEN never_attempted.min_inserted_at IS NOT NULL
-                THEN GREATEST(never_attempted.min_inserted_at, $4::timestamptz)
-        END,
-        attempted.min_inserted_at
+            WHEN queued.failure_message IS NULL
+                THEN GREATEST(queued.inserted_at, $3::timestamptz)
+            ELSE queued.inserted_at
+        END
     ) AS oldest_stuck_at
-    FROM never_attempted, attempted
+    FROM (
+        SELECT inserted_at, failure_message
+        FROM usage_events
+        WHERE published_at IS NULL
+            AND publish_started_at IS NULL
+            AND created_at > $4::timestamptz
+        ORDER BY created_at ASC
+        LIMIT 100
+    ) queued
 )
 SELECT
     COALESCE((SELECT last_published_at FROM last_success), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS last_published_at,
@@ -28742,8 +28738,8 @@ SELECT
 type GetUsagePublishStatusParams struct {
 	StuckCutoff   time.Time `db:"stuck_cutoff" json:"stuck_cutoff"`
 	RejectedAfter time.Time `db:"rejected_after" json:"rejected_after"`
-	WindowStart   time.Time `db:"window_start" json:"window_start"`
 	LicenseStart  time.Time `db:"license_start" json:"license_start"`
+	WindowStart   time.Time `db:"window_start" json:"window_start"`
 }
 
 type GetUsagePublishStatusRow struct {
@@ -28768,20 +28764,20 @@ type GetUsagePublishStatusRow struct {
 //   - window_start: the start of the publisher's selection window (now minus
 //     30 days, matching SelectUsageEventsForPublishing). Events older than
 //     this are never published, so they must not trigger a failure forever.
-//   - stuck_cutoff: now minus the failure threshold. Unpublished events
-//     whose effective stuck time is before this are considered stuck.
-//     Stuckness is measured against inserted_at rather than created_at
-//     because heartbeat events backfilled after downtime carry a historical
-//     created_at; measuring event age would flag them as failing before
-//     publishing was ever attempted.
+//   - stuck_cutoff: now minus the failure threshold. Events at the front of
+//     the publisher's queue whose effective stuck time is before this are
+//     considered stuck. Stuckness is measured against inserted_at rather
+//     than created_at because heartbeat events backfilled after downtime
+//     carry a historical created_at; measuring event age would flag them as
+//     failing before publishing was ever attempted.
 //   - rejected_after: now minus the failure threshold. Permanent rejections
 //     that happened after this are considered recent failures.
 func (q *sqlQuerier) GetUsagePublishStatus(ctx context.Context, arg GetUsagePublishStatusParams) (GetUsagePublishStatusRow, error) {
 	row := q.db.QueryRowContext(ctx, getUsagePublishStatus,
 		arg.StuckCutoff,
 		arg.RejectedAfter,
-		arg.WindowStart,
 		arg.LicenseStart,
+		arg.WindowStart,
 	)
 	var i GetUsagePublishStatusRow
 	err := row.Scan(&i.LastPublishedAt, &i.OldestStuckAt, &i.EarliestRecentRejectionAt)

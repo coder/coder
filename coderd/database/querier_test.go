@@ -11181,12 +11181,27 @@ func TestGetUsagePublishStatus(t *testing.T) {
 		events []seedEvent
 		// licenseStartOverride overrides params.LicenseStart when non-zero.
 		licenseStartOverride time.Time
-		want                 database.GetUsagePublishStatusRow
+		// markInFlight runs SelectUsageEventsForPublishing after seeding so
+		// eligible events get publish_started_at set, as if a replica were
+		// publishing them right now.
+		markInFlight bool
+		want         database.GetUsagePublishStatusRow
 	}{
 		{
 			name:   "Empty",
 			events: nil,
 			want:   database.GetUsagePublishStatusRow{},
+		},
+		{
+			// Events currently being attempted by a replica are not stuck:
+			// the attempt either resolves them or they re-surface when it
+			// expires an hour later.
+			name: "InFlightEventNotStuck",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-48 * time.Hour)},
+			},
+			markInFlight: true,
+			want:         database.GetUsagePublishStatusRow{},
 		},
 		{
 			name: "AllPublished",
@@ -11360,6 +11375,10 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 			db, _ := dbtestutil.NewDB(t)
 			seed(ctx, t, db, tc.events)
+			if tc.markInFlight {
+				_, err := db.SelectUsageEventsForPublishing(ctx, now)
+				require.NoError(t, err)
+			}
 
 			callParams := params
 			if !tc.licenseStartOverride.IsZero() {

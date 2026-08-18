@@ -887,12 +887,12 @@ type sqlcQuerier interface {
 	//   - window_start: the start of the publisher's selection window (now minus
 	//     30 days, matching SelectUsageEventsForPublishing). Events older than
 	//     this are never published, so they must not trigger a failure forever.
-	//   - stuck_cutoff: now minus the failure threshold. Unpublished events
-	//     whose effective stuck time is before this are considered stuck.
-	//     Stuckness is measured against inserted_at rather than created_at
-	//     because heartbeat events backfilled after downtime carry a historical
-	//     created_at; measuring event age would flag them as failing before
-	//     publishing was ever attempted.
+	//   - stuck_cutoff: now minus the failure threshold. Events at the front of
+	//     the publisher's queue whose effective stuck time is before this are
+	//     considered stuck. Stuckness is measured against inserted_at rather
+	//     than created_at because heartbeat events backfilled after downtime
+	//     carry a historical created_at; measuring event age would flag them as
+	//     failing before publishing was ever attempted.
 	//   - rejected_after: now minus the failure threshold. Permanent rejections
 	//     that happened after this are considered recent failures.
 	GetUsagePublishStatus(ctx context.Context, arg GetUsagePublishStatusParams) (GetUsagePublishStatusRow, error)
