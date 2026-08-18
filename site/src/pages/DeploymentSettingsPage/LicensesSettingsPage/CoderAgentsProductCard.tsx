@@ -1,6 +1,7 @@
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import {
@@ -34,6 +35,11 @@ type CoderAgentsProductCardProps = {
 	 * feature) or is unknown.
 	 */
 	actual?: number;
+	/**
+	 * Usage is at or above this license's advisory soft limit, but still
+	 * within the purchased allocation.
+	 */
+	isSoftLimitReached: boolean;
 	/** Usage is above this license's allocation. */
 	isExceeded: boolean;
 	/** Usage is at or above this license's hard limit. */
@@ -63,17 +69,23 @@ const MetricLabel: FC<{ label: string; tooltip: string }> = ({
 	</div>
 );
 
-const CardContainer: FC<{ className?: string; children: ReactNode }> = ({
-	className,
-	children,
-}) => (
+const CardContainer: FC<{
+	className?: string;
+	headerEnd?: ReactNode;
+	children: ReactNode;
+}> = ({ className, headerEnd, children }) => (
 	<div
 		className={cn(
-			"min-w-[320px] flex-1 rounded-sm border px-6 py-4",
+			"coder-agents-product-card min-w-[320px] flex-1 rounded-sm border px-6 py-4",
 			className,
 		)}
 	>
-		<div className="text-sm font-medium text-content-primary">Coder Agents</div>
+		<div className="flex items-center justify-between gap-3">
+			<div className="text-sm font-medium text-content-primary">
+				Coder Agents
+			</div>
+			{headerEnd}
+		</div>
 		{children}
 	</div>
 );
@@ -83,6 +95,7 @@ const totalAgentHoursTooltip =
 	"Total agent runtime hours used out of the hours included in this license.";
 const concurrentChatsTooltip =
 	"Number of Coder Agents chats that can run at the same time.";
+const concurrentChatsHardLimitTooltip = `${concurrentChatsTooltip} You've reached your limit: concurrent chats are now capped at ${maxConcurrentChatsOverHardLimit} (down from unlimited).`;
 
 // Usage always renders with exactly one decimal (e.g. 42.0, 10.3). The
 // value is already floored to tenths, so no rounding happens here.
@@ -95,6 +108,7 @@ const formatHoursUsed = (hours: number) =>
 export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 	allocation,
 	actual,
+	isSoftLimitReached,
 	isExceeded,
 	isHardLimitExceeded,
 }) => {
@@ -135,13 +149,30 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 
 	const isOverage = isExceeded || isHardLimitExceeded;
 	const actualLabel = actual === undefined ? "\u2014" : formatHoursUsed(actual);
+	const hoursValueClassName = isOverage
+		? "text-content-destructive"
+		: isSoftLimitReached
+			? "text-border-warning"
+			: undefined;
 
 	return (
 		<CardContainer
 			className={cn(
 				"border-solid",
-				isOverage ? "border-border-destructive" : "border-border",
+				isOverage
+					? "border-border-destructive"
+					: isSoftLimitReached
+						? "border-border-warning"
+						: "border-border",
 			)}
+			headerEnd={
+				isHardLimitExceeded ? (
+					<Badge variant="destructive" size="sm" role="status">
+						<TriangleAlertIcon />
+						Limit reached
+					</Badge>
+				) : undefined
+			}
 		>
 			<div className="mt-3 flex flex-wrap gap-x-12 gap-y-3 text-xs">
 				<div>
@@ -154,9 +185,7 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 							"Unlimited"
 						) : (
 							<>
-								<span className={cn({ "text-content-destructive": isOverage })}>
-									{actualLabel}
-								</span>{" "}
+								<span className={hoursValueClassName}>{actualLabel}</span>{" "}
 								/ {allocation.toLocaleString("en-US")}
 							</>
 						)}
@@ -165,9 +194,20 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 				<div>
 					<MetricLabel
 						label="Concurrent chats"
-						tooltip={concurrentChatsTooltip}
+						tooltip={
+							isHardLimitExceeded
+								? concurrentChatsHardLimitTooltip
+								: concurrentChatsTooltip
+						}
 					/>
-					<div className="mt-0.5 text-sm font-medium text-content-primary">
+					<div
+						className={cn(
+							"mt-0.5 text-sm font-medium",
+							isHardLimitExceeded
+								? "text-content-destructive"
+								: "text-content-primary",
+						)}
+					>
 						{isHardLimitExceeded
 							? maxConcurrentChatsOverHardLimit
 							: "Unlimited"}

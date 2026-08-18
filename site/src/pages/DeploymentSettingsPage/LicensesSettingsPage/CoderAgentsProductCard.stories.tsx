@@ -11,6 +11,7 @@ const meta: Meta<typeof CoderAgentsProductCard> = {
 		// Fractional usage renders with one decimal; whole values render
 		// with a trailing .0 (see Exceeded).
 		actual: 16264.3,
+		isSoftLimitReached: false,
 		isExceeded: false,
 		isHardLimitExceeded: false,
 	},
@@ -100,6 +101,27 @@ export const NotProvidingUsage: Story = {
 	},
 };
 
+export const SoftLimitReached: Story = {
+	args: {
+		actual: 16264.3,
+		isSoftLimitReached: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const hoursValue = getMetricValue(canvas, "Total Agent hours");
+		await expect(hoursValue).toHaveTextContent("16,264.3 / 20,000");
+		await expect(hoursValue?.querySelector("span")).toHaveClass(
+			"text-border-warning",
+		);
+		await expect(
+			canvas.getByText("Coder Agents").closest(".coder-agents-product-card"),
+		).toHaveClass("border-border-warning");
+		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+			"Unlimited",
+		);
+	},
+};
+
 export const Exceeded: Story = {
 	args: {
 		actual: 21000,
@@ -113,6 +135,9 @@ export const Exceeded: Story = {
 		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
 			"Unlimited",
 		);
+		await expect(
+			canvas.queryByRole("status", { name: "Limit reached" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -126,9 +151,20 @@ export const HardLimitExceeded: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"25,000.0 / 20,000",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
-			"5",
+		const concurrentChats = getMetricValue(canvas, "Concurrent chats");
+		await expect(concurrentChats).toHaveTextContent("5");
+		await expect(concurrentChats).toHaveClass("text-content-destructive");
+		await expect(
+			canvas.getByRole("status", { name: "Limit reached" }),
+		).toBeInTheDocument();
+		await userEvent.hover(
+			canvas.getByRole("button", { name: "Concurrent chats information" }),
 		);
+		await waitFor(async () => {
+			await expect(screen.getByRole("tooltip")).toHaveTextContent(
+				"Number of Coder Agents chats that can run at the same time. You've reached your limit: concurrent chats are now capped at 5 (down from unlimited).",
+			);
+		});
 	},
 };
 

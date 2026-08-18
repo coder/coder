@@ -190,6 +190,19 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		agentHoursAllocation > 0 &&
 		agentHoursDisplayActual !== undefined &&
 		agentHoursDisplayActual > agentHoursAllocation;
+	// Advisory only: at or above the soft threshold, still inside the
+	// purchased allocation. Allocation and hard-limit overage supersede
+	// this so the product card never stacks warning on destructive.
+	const isAgentHoursSoftLimitReached =
+		canUseAgentHoursUsageForThisLicense &&
+		!isAgentHoursHardLimitExceeded &&
+		!isAgentHoursExceeded &&
+		agentHoursAllocation !== undefined &&
+		agentHoursAllocation > 0 &&
+		agentHoursSoftLimit !== undefined &&
+		agentHoursDisplayActual !== undefined &&
+		agentHoursDisplayActual >= agentHoursSoftLimit &&
+		agentHoursDisplayActual < agentHoursAllocation;
 
 	const statusClassName =
 		isAgentHoursHardLimitExceeded ||
@@ -201,7 +214,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 				? "text-content-warning"
 				: "text-content-success";
 	const statusText = isAgentHoursHardLimitExceeded
-		? "Hard limit exceeded"
+		? "Limit exceeded"
 		: isAgentHoursExceeded
 			? "Agent hours exceeded"
 			: isAiGovernanceAddOnExceeded
@@ -367,6 +380,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 								<CoderAgentsProductCard
 									allocation={agentHoursAllocation}
 									actual={agentHoursDisplayActual}
+									isSoftLimitReached={isAgentHoursSoftLimitReached}
 									isExceeded={isAgentHoursExceeded}
 									isHardLimitExceeded={isAgentHoursHardLimitExceeded}
 								/>
