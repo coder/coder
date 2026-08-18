@@ -3176,9 +3176,18 @@ func (api *API) workspaceAvailableUsers(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Email is intentionally not populated here. This endpoint is not yet
+	// org-scoped (it lists users deployment-wide under the System context), so
+	// surfacing email would leak addresses across organizations. #28241 scopes
+	// the endpoint to the caller's organization and populates email there.
 	minimalUsers := make([]codersdk.MinimalUser, 0, len(users))
 	for _, user := range users {
-		minimalUsers = append(minimalUsers, db2sdk.MinimalUser(user))
+		minimalUsers = append(minimalUsers, codersdk.MinimalUser{
+			ID:        user.ID,
+			Username:  user.Username,
+			Name:      user.Name,
+			AvatarURL: user.AvatarURL,
+		})
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, minimalUsers)
