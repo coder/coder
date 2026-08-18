@@ -563,6 +563,16 @@ func Test_diff(t *testing.T) {
 
 	runDiffTests(t, []diffTest{
 		{
+			name: "CreateEmptyStoredValues",
+			left: audit.Empty[database.MCPServerConfig](),
+			right: database.MCPServerConfig{
+				CustomHeaders: "{}",
+				ToolAllowList: []string{},
+				ToolDenyList:  []string{},
+			},
+			exp: audit.Map{},
+		},
+		{
 			name: "Create",
 			left: audit.Empty[database.MCPServerConfig](),
 			right: database.MCPServerConfig{
@@ -574,6 +584,8 @@ func Test_diff(t *testing.T) {
 				APIKeyHeader:       "X-Api-Key",
 				APIKeyValue:        "plaintext-api-key",
 				CustomHeaders:      `{"Authorization":"Bearer plaintext-header"}`,
+				ToolAllowList:      []string{"issues"},
+				ToolDenyList:       []string{"delete_repository"},
 				OAuth2ClientSecret: "plaintext-oauth-secret",
 				Enabled:            true,
 				CreatedBy:          uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
@@ -588,6 +600,8 @@ func Test_diff(t *testing.T) {
 				"api_key_header":       audit.OldNew{Old: "", New: "X-Api-Key"},
 				"api_key_value":        audit.OldNew{Old: "", New: "", Secret: true},
 				"custom_headers":       audit.OldNew{Old: "", New: "", Secret: true},
+				"tool_allow_list":      audit.OldNew{Old: []string(nil), New: []string{"issues"}},
+				"tool_deny_list":       audit.OldNew{Old: []string(nil), New: []string{"delete_repository"}},
 				"oauth2_client_secret": audit.OldNew{Old: "", New: "", Secret: true},
 				"enabled":              audit.OldNew{Old: false, New: true},
 				"created_by":           audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
