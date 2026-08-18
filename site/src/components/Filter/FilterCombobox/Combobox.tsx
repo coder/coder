@@ -1,5 +1,5 @@
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
-import { CheckIcon, XIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
 import {
 	type ComponentPropsWithRef,
 	createContext,
@@ -20,12 +20,21 @@ import {
 import { cn } from "#/utils/cn";
 
 /**
- * A chip-based multi-select combobox built on cmdk (listbox, keyboard
- * navigation, `aria-activedescendant`) and Radix Popover (positioning,
- * dismissal). It exposes a controlled API shaped for `FilterCombobox`:
- * `value`/`onValueChange` are the selected chip tokens, `inputValue`/
- * `onInputValueChange` the free-text input, and `onItemHighlighted` reports the
- * cmdk-highlighted row so callers can implement Tab completion.
+ * A chip-based combobox built on cmdk (listbox, keyboard navigation,
+ * `aria-activedescendant`) and Radix Popover (positioning, dismissal). It
+ * exposes a controlled API shaped for `FilterCombobox`:
+ *
+ * - `open` is caller-owned; the popup only ever opens because the caller sets
+ *   it, so the component reports the single event Radix can actually observe,
+ *   `onDismiss` (escape / outside press).
+ * - `value` is the committed chip tokens, rendered through `ComboboxValue`.
+ *   Chips are removed via `onRemoveValue`; additions are driven by the caller.
+ * - Dropdown rows are actions: each `ComboboxItem` invokes its own `onSelect`
+ *   rather than mutating a selection array, so categories, value suggestions,
+ *   and resource previews stay distinct concerns.
+ * - `inputValue`/`onInputValueChange` is the free-text input, and
+ *   `onItemHighlighted` reports the cmdk-highlighted row so callers can
+ *   implement Tab completion.
  */
 
 const ComboboxAnchorContext =
@@ -34,10 +43,8 @@ const ComboboxAnchorContext =
 type ComboboxStateValue = {
 	value: string[];
 	inputValue: string;
-	open: boolean;
-	multiple: boolean;
-	onInputValueChange?: (value: string, details: { reason: string }) => void;
-	select: (value: string) => void;
+	onInputValueChange?: (value: string) => void;
+	onRemoveValue: (value: string) => void;
 };
 
 const ComboboxStateContext = createContext<ComboboxStateValue | null>(null);
@@ -51,13 +58,13 @@ function useComboboxState(): ComboboxStateValue {
 }
 
 type ComboboxProps = {
-	multiple?: boolean;
 	open?: boolean;
-	onOpenChange?: (open: boolean, details: { reason: string }) => void;
+	/** Fired when Radix requests a close (escape / outside press). */
+	onDismiss?: () => void;
 	value?: string[];
-	onValueChange?: (value: string[]) => void;
+	onRemoveValue?: (value: string) => void;
 	inputValue?: string;
-	onInputValueChange?: (value: string, details: { reason: string }) => void;
+	onInputValueChange?: (value: string) => void;
 	onItemHighlighted?: (value: string | undefined) => void;
 	/** Accessible label for the input. cmdk wires it via `aria-labelledby`. */
 	label?: string;
@@ -65,11 +72,10 @@ type ComboboxProps = {
 };
 
 export function Combobox({
-	multiple = true,
 	open = false,
-	onOpenChange,
+	onDismiss,
 	value = [],
-	onValueChange,
+	onRemoveValue,
 	inputValue = "",
 	onInputValueChange,
 	onItemHighlighted,
@@ -80,42 +86,16 @@ export function Combobox({
 	// cmdk only reports highlight changes through `onValueChange` when its value
 	// is controlled, so track the highlighted row here and surface it to callers.
 	const [highlightedValue, setHighlightedValue] = useState("");
-	const valueRef = useRef(value);
-	valueRef.current = value;
-	const onValueChangeRef = useRef(onValueChange);
-	onValueChangeRef.current = onValueChange;
-	const onOpenChangeRef = useRef(onOpenChange);
-	onOpenChangeRef.current = onOpenChange;
 	const onItemHighlightedRef = useRef(onItemHighlighted);
 	onItemHighlightedRef.current = onItemHighlighted;
-
-	const select = (next: string) => {
-		const current = valueRef.current;
-		const exists = current.includes(next);
-		const updated = exists
-			? current.filter((entry) => entry !== next)
-			: multiple
-				? [...current, next]
-				: [next];
-		onValueChangeRef.current?.(updated);
-	};
-
-	// Radix only reports a boolean, so synthesize a reason for the caller. Opens
-	// are driven directly by the caller through `open`; Radix mostly reports
-	// dismissals (outside press / escape).
-	const handleOpenChange = (nextOpen: boolean) => {
-		onOpenChangeRef.current?.(nextOpen, {
-			reason: nextOpen ? "trigger-press" : "outside-press",
-		});
-	};
+	const onDismissRef = useRef(onDismiss);
+	onDismissRef.current = onDismiss;
 
 	const state: ComboboxStateValue = {
 		value,
 		inputValue,
-		open,
-		multiple,
 		onInputValueChange,
-		select,
+		onRemoveValue: (token) => onRemoveValue?.(token),
 	};
 
 	return (
@@ -132,7 +112,21 @@ export function Combobox({
 						onItemHighlightedRef.current?.(highlighted || undefined);
 					}}
 				>
-					<Popover open={open} onOpenChange={handleOpenChange} modal={false}>
+					{/*
+					 * There is no PopoverTrigger, so Radix never opens the popup on
+					 * its own; opens flow from the caller through `open`. The only
+					 * event Radix originates is a close request, which we forward as
+					 * `onDismiss`.
+					 */}
+					<Popover
+						open={open}
+						onOpenChange={(nextOpen) => {
+							if (!nextOpen) {
+								onDismissRef.current?.();
+							}
+						}}
+						modal={false}
+					>
 						{children}
 					</Popover>
 				</CommandPrimitive>
@@ -207,49 +201,30 @@ export const ComboboxList: FC<ComboboxListProps> = ({
 	);
 };
 
-type ComboboxItemProps = ComponentPropsWithRef<typeof CommandPrimitive.Item> & {
-	showIndicator?: boolean;
-};
+type ComboboxItemProps = ComponentPropsWithRef<typeof CommandPrimitive.Item>;
 
+/**
+ * A dropdown row. Rows are actions, not toggles: pass `onSelect` to run the
+ * row's behavior (open a category, add a chip, navigate to a result). cmdk
+ * calls `onSelect` on click and on Enter for the highlighted row.
+ */
 export const ComboboxItem: FC<ComboboxItemProps> = ({
 	className,
-	children,
-	showIndicator = true,
-	value,
-	onSelect,
 	...props
 }) => {
-	const { value: selected, select } = useComboboxState();
-	const isSelected = value !== undefined && selected.includes(String(value));
-
 	return (
 		<CommandPrimitive.Item
 			data-slot="combobox-item"
-			value={value}
-			onSelect={(selectedValue) => {
-				if (value !== undefined) {
-					select(String(value));
-				}
-				onSelect?.(selectedValue);
-			}}
 			className={cn(
 				`relative flex w-full cursor-default select-none items-center gap-2 rounded-sm
-				py-1.5 pr-8 pl-2 text-sm text-content-secondary outline-none
+				px-2 py-1.5 text-sm text-content-secondary outline-none
 				data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary
 				data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50
 				[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-icon-sm`,
-				!showIndicator && "pr-2",
 				className,
 			)}
 			{...props}
-		>
-			{children}
-			{showIndicator && isSelected && (
-				<span className="pointer-events-none absolute right-2 flex size-icon-sm items-center justify-center">
-					<CheckIcon className="pointer-events-none size-icon-sm" />
-				</span>
-			)}
-		</CommandPrimitive.Item>
+		/>
 	);
 };
 
@@ -370,7 +345,7 @@ export const ComboboxChip: FC<ComboboxChipProps> = ({
 	removeLabel,
 	...props
 }) => {
-	const { select } = useComboboxState();
+	const { onRemoveValue } = useComboboxState();
 	const chipText =
 		typeof children === "string" || typeof children === "number"
 			? String(children)
@@ -398,7 +373,7 @@ export const ComboboxChip: FC<ComboboxChipProps> = ({
 					onClick={(event) => {
 						event.stopPropagation();
 						if (chipText) {
-							select(chipText);
+							onRemoveValue(chipText);
 						}
 					}}
 				>
@@ -425,9 +400,7 @@ export const ComboboxChipsInput: FC<ComboboxChipsInputProps> = ({
 			ref={ref}
 			data-slot="combobox-chip-input"
 			value={inputValue}
-			onValueChange={(next) =>
-				onInputValueChange?.(next, { reason: "input-change" })
-			}
+			onValueChange={(next) => onInputValueChange?.(next)}
 			className={cn(
 				`h-6 min-w-16 flex-1 border-0 bg-transparent p-0 text-sm font-medium
 				text-content-primary outline-none placeholder:text-content-secondary`,

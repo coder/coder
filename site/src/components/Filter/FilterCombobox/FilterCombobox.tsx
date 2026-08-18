@@ -24,7 +24,6 @@ import {
 } from "./Combobox";
 import { chipToken } from "./filterQuery";
 import type { FilterCategory, FilterOption, SearchResult } from "./types";
-import { searchResultToken } from "./types";
 import { useFilterCombobox } from "./useFilterCombobox";
 
 type FilterComboboxProps = Readonly<{
@@ -71,13 +70,17 @@ export function FilterCombobox({
 		searchResultsLoading,
 		chipValues,
 		toggleFilterMenu,
+		selectCategory,
+		selectCategoryOption,
+		selectValueSuggestion,
+		selectSearchResult,
+		handleRemoveChip,
 		setInputRef,
 		handleInputFocus,
 		handleInputKeyDown,
 		handleItemHighlighted,
 		handleInputValueChange,
-		handleOpenChange,
-		handleValueChange,
+		handleDismiss,
 	} = useFilterCombobox({
 		value,
 		onChange,
@@ -112,11 +115,10 @@ export function FilterCombobox({
 
 	return (
 		<Combobox
-			multiple
 			open={open}
-			onOpenChange={handleOpenChange}
+			onDismiss={handleDismiss}
 			value={chipValues}
-			onValueChange={handleValueChange}
+			onRemoveValue={handleRemoveChip}
 			inputValue={inputValue}
 			onInputValueChange={handleInputValueChange}
 			onItemHighlighted={handleItemHighlighted}
@@ -205,6 +207,9 @@ export function FilterCombobox({
 						showValueSuggestions={showValueSuggestions}
 						typeaheadLoading={typeaheadLoading}
 						typeaheadError={typeaheadError}
+						onSelectCategory={selectCategory}
+						onSelectSuggestion={selectValueSuggestion}
+						onSelectSearchResult={selectSearchResult}
 					/>
 				) : (
 					<CategoryOptionsList
@@ -214,6 +219,7 @@ export function FilterCombobox({
 						activeOptionsLoading={activeOptionsLoading}
 						activeOptionsError={activeOptionsError}
 						retryActiveOptions={retryActiveOptions}
+						onSelectOption={selectCategoryOption}
 					/>
 				)}
 			</ComboboxContent>
@@ -238,6 +244,9 @@ type TypeaheadListProps = Readonly<{
 	showValueSuggestions: boolean;
 	typeaheadLoading: boolean;
 	typeaheadError: boolean;
+	onSelectCategory: (categoryKey: string) => void;
+	onSelectSuggestion: (token: string) => void;
+	onSelectSearchResult: (result: SearchResult) => void;
 }>;
 
 function TypeaheadList({
@@ -249,6 +258,9 @@ function TypeaheadList({
 	showValueSuggestions,
 	typeaheadLoading,
 	typeaheadError,
+	onSelectCategory,
+	onSelectSuggestion,
+	onSelectSearchResult,
 }: TypeaheadListProps) {
 	const valueSuggestionsByCategory = new Map<string, ValueSuggestion[]>();
 	for (const suggestion of valueSuggestions) {
@@ -274,7 +286,7 @@ function TypeaheadList({
 						className={OPTION_ITEM_CLASS}
 						key={category.key}
 						value={category.key}
-						showIndicator={false}
+						onSelect={() => onSelectCategory(category.key)}
 					>
 						{category.icon && (
 							<span
@@ -296,7 +308,7 @@ function TypeaheadList({
 									className={OPTION_ITEM_CLASS}
 									key={suggestion.token}
 									value={suggestion.token}
-									showIndicator={false}
+									onSelect={() => onSelectSuggestion(suggestion.token)}
 								>
 									{suggestion.option.startIcon ? (
 										<span aria-hidden>{suggestion.option.startIcon}</span>
@@ -316,8 +328,8 @@ function TypeaheadList({
 							<ComboboxItem
 								className={OPTION_ITEM_CLASS}
 								key={result.value}
-								value={searchResultToken(result.value)}
-								showIndicator={false}
+								value={result.value}
+								onSelect={() => onSelectSearchResult(result)}
 							>
 								{(result.startIcon ?? result.imageUrl !== undefined) ? (
 									<span aria-hidden>
@@ -370,6 +382,7 @@ type CategoryOptionsListProps = Readonly<{
 	activeOptionsLoading: boolean;
 	activeOptionsError: boolean;
 	retryActiveOptions: () => void;
+	onSelectOption: (token: string) => void;
 }>;
 
 function CategoryOptionsList({
@@ -379,6 +392,7 @@ function CategoryOptionsList({
 	activeOptionsLoading,
 	activeOptionsError,
 	retryActiveOptions,
+	onSelectOption,
 }: CategoryOptionsListProps) {
 	if (activeOptionsError) {
 		return (
@@ -422,7 +436,7 @@ function CategoryOptionsList({
 									className={OPTION_ITEM_CLASS}
 									key={item}
 									value={item}
-									showIndicator={false}
+									onSelect={() => onSelectOption(item)}
 								>
 									{option.startIcon ? (
 										<span aria-hidden>{option.startIcon}</span>

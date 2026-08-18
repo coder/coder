@@ -41,15 +41,3 @@ export type SearchResult = {
 	/** Opaque payload for `onSearchResultSelect`, e.g. a workspace URL path. */
 	href?: string;
 };
-
-const SEARCH_RESULT_TOKEN_PREFIX = "__search:";
-
-export const searchResultToken = (value: string) =>
-	`${SEARCH_RESULT_TOKEN_PREFIX}${value}`;
-
-export const parseSearchResultToken = (token: string): string | null => {
-	if (!token.startsWith(SEARCH_RESULT_TOKEN_PREFIX)) {
-		return null;
-	}
-	return token.slice(SEARCH_RESULT_TOKEN_PREFIX.length);
-};

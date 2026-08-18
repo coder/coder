@@ -11,7 +11,6 @@ import {
 	queryToChips,
 } from "./filterQuery";
 import type { FilterCategory, FilterOption, SearchResult } from "./types";
-import { parseSearchResultToken } from "./types";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -27,46 +26,6 @@ type UseFilterComboboxOptions = {
 	categories: readonly FilterCategory[];
 	getSearchResults?: (query: string) => Promise<SearchResult[]>;
 	onSearchResultSelect?: (result: SearchResult) => void;
-};
-
-type CommittedSelection =
-	| { kind: "search"; result: SearchResult }
-	| { kind: "ignore" }
-	| { kind: "category"; key: string }
-	| { kind: "suggestion"; token: string };
-
-const matchCommittedSelection = (
-	token: string,
-	options: {
-		searchResults: readonly SearchResult[];
-		categories: readonly FilterCategory[];
-		chipKeys: readonly string[];
-		allowCategory: boolean;
-		allowSuggestion: boolean;
-	},
-): CommittedSelection | null => {
-	const searchValue = parseSearchResultToken(token);
-	if (searchValue) {
-		const result = options.searchResults.find(
-			(entry) => entry.value === searchValue,
-		);
-		// `__search:` tokens are never chips. If the preview row is gone, drop
-		// the commit instead of writing the internal token into the query.
-		return result ? { kind: "search", result } : { kind: "ignore" };
-	}
-
-	if (options.allowCategory) {
-		const category = options.categories.find((entry) => entry.key === token);
-		if (category) {
-			return { kind: "category", key: category.key };
-		}
-	}
-
-	if (options.allowSuggestion && parseChipToken(token, options.chipKeys)) {
-		return { kind: "suggestion", token };
-	}
-
-	return null;
 };
 
 export const useFilterCombobox = ({
@@ -333,8 +292,6 @@ export const useFilterCombobox = ({
 		activeCategoryKey === null &&
 		isBrowsing &&
 		(suggestionsError || (hasSearchResults && searchResultsQuery.isError));
-	const searchResultsRef = useRef(searchResults);
-	searchResultsRef.current = searchResults;
 
 	const updateFromChips = (tokens: string[], freeText?: string) => {
 		const nextFreeText =
@@ -356,24 +313,16 @@ export const useFilterCombobox = ({
 		resetPopup("clear");
 	};
 
+	// In category mode, choosing an option commits its chip while preserving the
+	// free-text name search that preceded the category prefix.
+	const selectCategoryOption = (token: string) => {
+		updateFromChips([...chipValues, token]);
+		resetPopup("restore");
+	};
+
 	const selectSearchResult = (result: SearchResult) => {
 		onSearchResultSelectRef.current?.(result);
 		resetPopup("keep");
-	};
-
-	const applyCommittedSelection = (selection: CommittedSelection) => {
-		switch (selection.kind) {
-			case "search":
-				selectSearchResult(selection.result);
-				return;
-			case "ignore":
-				return;
-			case "category":
-				selectCategory(selection.key);
-				return;
-			case "suggestion":
-				selectValueSuggestion(selection.token);
-		}
 	};
 
 	const handleInputFocus = () => {
@@ -383,19 +332,7 @@ export const useFilterCombobox = ({
 		enterBrowsing();
 	};
 
-	const handleInputValueChange = (
-		nextValue: string,
-		eventDetails: { reason: string },
-	) => {
-		if (eventDetails.reason === "input-clear") {
-			if (activeCategoryKey === null) {
-				restoreFreeTextInput();
-				return;
-			}
-			setInputValue("");
-			return;
-		}
-
+	const handleInputValueChange = (nextValue: string) => {
 		const typedCategory = parseTypedCategoryPrefix(nextValue, categories);
 		if (typedCategory) {
 			setCommittedNameSearch(typedCategory.freeText);
@@ -421,51 +358,14 @@ export const useFilterCombobox = ({
 		enterBrowsing();
 	};
 
-	const handleOpenChange = (
-		nextOpen: boolean,
-		eventDetails: { reason: string },
-	) => {
-		// Radix reports opens we did not ask for (focus). Ignore those unless the
-		// toggle or an in-progress browsing/facet session already owns the popup.
-		if (
-			nextOpen &&
-			!facetModeRef.current &&
-			!isBrowsingRef.current &&
-			eventDetails.reason !== "trigger-press"
-		) {
-			return;
-		}
-
-		if (!nextOpen) {
-			resetPopup("restore");
-			return;
-		}
-
-		if (eventDetails.reason === "trigger-press") {
-			enterBrowsing();
-			return;
-		}
-
-		setOpen(true);
+	// Radix only originates close requests (escape / outside press); opens flow
+	// from the caller, so a dismissal simply restores the free-text input.
+	const handleDismiss = () => {
+		resetPopup("restore");
 	};
 
-	const handleValueChange = (nextTokens: string[]) => {
-		const added = nextTokens.find((token) => !chipValues.includes(token));
-		if (added) {
-			const selection = matchCommittedSelection(added, {
-				searchResults: searchResultsRef.current,
-				categories,
-				chipKeys,
-				allowCategory: activeCategoryKey === null,
-				allowSuggestion: activeCategoryKey === null && isBrowsingRef.current,
-			});
-			if (selection) {
-				applyCommittedSelection(selection);
-				return;
-			}
-		}
-
-		updateFromChips(nextTokens);
+	const handleRemoveChip = (token: string) => {
+		updateFromChips(chipValues.filter((entry) => entry !== token));
 		resetPopup("restore");
 	};
 
@@ -492,6 +392,9 @@ export const useFilterCombobox = ({
 		}
 
 		// Enter is committed by cmdk through the highlighted item's `onSelect`.
+		// Tab completes the highlighted filter only. A highlighted resource
+		// preview has no chip token, so Tab falls through to the default focus
+		// move rather than navigating.
 		const isTabComplete = event.key === "Tab" && !event.shiftKey;
 		if (!isTabComplete || !isBrowsingRef.current) {
 			return;
@@ -502,16 +405,18 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		event.preventDefault();
-		const selection = matchCommittedSelection(highlighted, {
-			searchResults: searchResultsRef.current,
-			categories: listedCategoriesRef.current,
-			chipKeys,
-			allowCategory: true,
-			allowSuggestion: true,
-		});
-		if (selection) {
-			applyCommittedSelection(selection);
+		const category = listedCategoriesRef.current.find(
+			(entry) => entry.key === highlighted,
+		);
+		if (category) {
+			event.preventDefault();
+			selectCategory(category.key);
+			return;
+		}
+
+		if (parseChipToken(highlighted, chipKeys)) {
+			event.preventDefault();
+			selectValueSuggestion(highlighted);
 		}
 	};
 
@@ -534,6 +439,11 @@ export const useFilterCombobox = ({
 		searchResultsLoading,
 		chipValues,
 		toggleFilterMenu,
+		selectCategory,
+		selectCategoryOption,
+		selectValueSuggestion,
+		selectSearchResult,
+		handleRemoveChip,
 		setInputRef: (node: HTMLInputElement | null) => {
 			storeInputRef.current = node;
 		},
@@ -543,7 +453,6 @@ export const useFilterCombobox = ({
 			highlightedItemRef.current = highlightedValue ?? null;
 		},
 		handleInputValueChange,
-		handleOpenChange,
-		handleValueChange,
+		handleDismiss,
 	};
 };
