@@ -49,6 +49,6 @@ As soon as an active agent completes its task, the next queued agent begins its 
 ### AI Premium Agent Time exhaustion
 
 When an AI Premium deployment exhausts its purchased Agent Time, the deployment may be provisioned to fall back to the Community concurrency model until more Agent Time is purchased.
-In this state, agents are limited to five concurrent active agents, and any additional agents are queued until capacity is available.
+In this state, your Coder deployment is limited to five concurrent active agents, and any additional agents are queued until capacity is available.
 
 Deployment administrators see an in-app soft warning message as the deployment approaches its maximum allotted Agent Time, so they can purchase additional Agent Time before the concurrency fallback takes effect.
