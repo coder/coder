@@ -137,6 +137,7 @@ const AgentAPIVersionREST = "1.0"
 // @Tags Agents
 // @Param request body agentsdk.PatchLogs true "logs"
 // @Success 200 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response "Agent log storage limit exceeded"
 // @Router /api/v2/workspaceagents/me/logs [patch]
 func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

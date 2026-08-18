@@ -2007,6 +2007,86 @@ export const AgentWithWorkspaceMenuFull: Story = {
 	},
 };
 
+// A collapsed parent chat exposes a "Show subagents (N)" action in its
+// actions menu; selecting it expands the children and the label flips to
+// "Hide subagents". Leaf chats never show the toggle.
+export const SubagentsMenuToggle: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "root-subagents",
+				title: "Parent with subagents",
+				workspace_id: "workspace-1",
+				updated_at: recentTimestamp,
+				children: [
+					buildChat({
+						id: "subagent-1",
+						title: "Subagent one",
+						parent_chat_id: "root-subagents",
+						root_chat_id: "root-subagents",
+					}),
+					buildChat({
+						id: "subagent-2",
+						title: "Subagent two",
+						parent_chat_id: "root-subagents",
+						root_chat_id: "root-subagents",
+					}),
+					buildChat({
+						id: "subagent-3",
+						title: "Subagent three",
+						parent_chat_id: "root-subagents",
+						root_chat_id: "root-subagents",
+					}),
+				],
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			// Route to the parent (not a child) so the tree starts collapsed and
+			// the menu reads "Show subagents (3)".
+			location: {
+				path: "/agents/root-subagents",
+				pathParams: { agentId: "root-subagents" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Parent with subagents")).toBeInTheDocument();
+		});
+		// Collapsed by default: children are not rendered yet.
+		expect(canvas.queryByText("Subagent one")).not.toBeInTheDocument();
+
+		const trigger = canvas.getByLabelText(
+			"Open actions for Parent with subagents",
+		);
+		await userEvent.click(trigger);
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByText("Show subagents (3)")).toBeInTheDocument();
+		});
+
+		// Selecting the toggle closes the menu and expands the children.
+		await userEvent.click(body.getByText("Show subagents (3)"));
+		await waitFor(() => {
+			expect(canvas.getByText("Subagent one")).toBeInTheDocument();
+		});
+
+		// Reopening the menu now offers the inverse action.
+		await userEvent.click(
+			canvas.getByLabelText("Open actions for Parent with subagents"),
+		);
+		await waitFor(() => {
+			expect(
+				within(document.body).getByText("Hide subagents"),
+			).toBeInTheDocument();
+		});
+	},
+};
+
 export const ArchivedChildChatRowHasNoActionsMenu: Story = {
 	args: {
 		chats: [

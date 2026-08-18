@@ -142,7 +142,7 @@ const ChatInputSkeleton: FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
 		<div
 			className={cn("mx-auto w-full pb-0 sm:pb-4", chatWidthClass(fullWidth))}
 		>
-			<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm">
+			<div className="rounded-2xl bg-surface-secondary/45 p-1 shadow-sm">
 				<div className="min-h-[60px] sm:min-h-24 px-3 py-2" />
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 					<Skeleton className="h-6 w-24 rounded" />

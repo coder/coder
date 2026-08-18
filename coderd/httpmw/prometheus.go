@@ -90,6 +90,21 @@ func Prometheus(register prometheus.Registerer, ws *WSMetrics) func(http.Handler
 		Help:      "Latency distribution of requests in seconds.",
 		Buckets:   []float64{0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.500, 1, 5, 10, 30},
 	}, []string{"method", "path"})
+	// Series here exist only for routes that have actually rejected a body,
+	// which is what makes this readable at a glance where filtering
+	// requests_processed_total by code is not.
+	requestsTooLarge := factory.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "api",
+		Name:      "requests_too_large_total",
+		Help: "The total number of API requests answered 413, by the reason " +
+			"they were rejected. A sustained rate of reason=\"request_body\" " +
+			"on one route is more often a limit set too tight for a " +
+			"legitimate payload than an attempt to exhaust memory. " +
+			"reason=\"other\" counts 413s raised for reasons unrelated to " +
+			"the size of the request body, such as agent log storage " +
+			"overflow or an archive that is too large once expanded.",
+	}, []string{"method", "path", "reason"})
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -123,6 +138,14 @@ func Prometheus(register prometheus.Registerer, ws *WSMetrics) func(http.Handler
 				distOpts = []string{method}
 			}
 
+			// Counting by status rather than at the point of rejection reaches
+			// handlers that bound their bodies themselves to keep their own
+			// error shapes, such as aibridge. It also reaches the 413s that have
+			// nothing to do with body size, such as agent log storage overflow,
+			// so the tracker separates the two.
+			bodyLimit := &httpapi.RequestBodyLimitTracker{}
+			r = r.WithContext(httpapi.WithRequestBodyLimitTracker(r.Context(), bodyLimit))
+
 			next.ServeHTTP(w, r)
 
 			distOpts = append(distOpts, path)
@@ -130,6 +153,14 @@ func Prometheus(register prometheus.Registerer, ws *WSMetrics) func(http.Handler
 
 			requestsProcessed.WithLabelValues(statusStr, method, path).Inc()
 			dist.WithLabelValues(distOpts...).Observe(time.Since(start).Seconds())
+
+			if sw.Status == http.StatusRequestEntityTooLarge {
+				reason := "other"
+				if bodyLimit.Exceeded() {
+					reason = "request_body"
+				}
+				requestsTooLarge.WithLabelValues(method, path, reason).Inc()
+			}
 		})
 	}
 }

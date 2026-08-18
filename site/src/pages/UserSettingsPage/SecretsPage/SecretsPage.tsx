@@ -36,16 +36,10 @@ const SecretsPage: FC = () => {
 			secrets={secretsQuery.data}
 			isLoading={!secretsQuery.isFetched && secretsQuery.isFetching}
 			hasLoaded={secretsQuery.isSuccess}
-			isRefreshing={secretsQuery.isFetching && secretsQuery.isFetched}
 			isCreating={createSecretMutation.isPending}
 			isUpdating={updateSecretMutation.isPending}
 			isDeleting={deleteSecretMutation.isPending}
 			getSecretsError={secretsQuery.error}
-			onRefresh={() => {
-				void queryClient.invalidateQueries({
-					queryKey: secretsQueryOptions.queryKey,
-				});
-			}}
 			onCreateSecret={async (request) => {
 				const secret = await createSecretMutation.mutateAsync(request);
 				toast.success(`Created secret "${secret.name}" successfully.`);

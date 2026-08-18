@@ -5,12 +5,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
@@ -261,7 +264,83 @@ func Test_Middleware_SessionID(t *testing.T) {
 			attribute.String(tracing.SessionIDBaggageKey, testSessionID),
 			"span attribute name must match the baggage key")
 	})
+
+	// QuerySessionIDNotInSpanName guards the interaction between the
+	// query-parameter fallback and span naming. A client_session_id supplied
+	// via the query string (as the web terminal PTY does) must surface as the
+	// client_session_id span attribute but must never leak into an exported
+	// span name, which is emitted to tracing backends at span start.
+	t.Run("QuerySessionIDNotInSpanName", func(t *testing.T) {
+		t.Parallel()
+
+		startNames := &startNameRecorder{}
+		recorder := tracetest.NewSpanRecorder()
+		provider := sdktrace.NewTracerProvider(
+			sdktrace.WithSpanProcessor(startNames),
+			sdktrace.WithSpanProcessor(recorder),
+		)
+
+		rw := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
+		r := httptest.NewRequest(http.MethodGet,
+			"/api/v2/workspaceagents/abc/pty?"+tracing.SessionIDBaggageKey+"="+testSessionID, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		ctx = context.WithValue(ctx, chi.RouteCtxKey, chi.NewRouteContext())
+		r = r.WithContext(ctx)
+
+		tracing.Middleware(provider)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})).ServeHTTP(rw, r)
+
+		require.NoError(t, provider.ForceFlush(ctx))
+
+		// Neither the span-start name nor the exported span name may contain
+		// the session ID, since the initial name is built from the path only.
+		require.NotEmpty(t, startNames.names)
+		for _, name := range startNames.names {
+			require.NotContains(t, name, testSessionID,
+				"span start name must not carry the query session ID")
+		}
+		spans := recorder.Ended()
+		require.NotEmpty(t, spans)
+		for _, span := range spans {
+			require.NotContains(t, span.Name(), testSessionID,
+				"exported span name must not carry the query session ID")
+		}
+
+		// The ID must still be recorded as the dedicated span attribute.
+		var found bool
+		for _, span := range spans {
+			for _, attr := range span.Attributes() {
+				if string(attr.Key) == tracing.SessionIDBaggageKey {
+					require.Equal(t, testSessionID, attr.Value.AsString())
+					found = true
+				}
+			}
+		}
+		require.True(t, found,
+			"client_session_id from the query parameter must be recorded as a span attribute")
+	})
 }
+
+// startNameRecorder captures span names as they are at span start, before
+// EndHTTPSpan renames them, because span names are exported to tracing
+// backends at span start.
+type startNameRecorder struct {
+	mu    sync.Mutex
+	names []string
+}
+
+func (r *startNameRecorder) OnStart(_ context.Context, s sdktrace.ReadWriteSpan) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.names = append(r.names, s.Name())
+}
+
+func (*startNameRecorder) OnEnd(sdktrace.ReadOnlySpan)      {}
+func (*startNameRecorder) Shutdown(context.Context) error   { return nil }
+func (*startNameRecorder) ForceFlush(context.Context) error { return nil }
 
 func Test_Middleware(t *testing.T) {
 	t.Parallel()
@@ -317,6 +396,49 @@ func Test_Middleware(t *testing.T) {
 				didRun := fake.startCalled.Load() == 1
 				require.Equal(t, c.runs, didRun, "expected middleware to run/not run")
 			})
+		}
+	})
+
+	t.Run("QueryCredentialsNotExported", func(t *testing.T) {
+		t.Parallel()
+
+		// Some endpoints accept bearer credentials as query parameters
+		// (e.g. signed chat file download tokens). No exported span name
+		// or attribute may carry the query string.
+		const token = "super-secret-download-token"
+
+		startNames := &startNameRecorder{}
+		recorder := tracetest.NewSpanRecorder()
+		provider := sdktrace.NewTracerProvider(
+			sdktrace.WithSpanProcessor(startNames),
+			sdktrace.WithSpanProcessor(recorder),
+		)
+
+		rw := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
+		r := httptest.NewRequest("GET", "/api/experimental/chats/files/abc/download?token="+token, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		ctx = context.WithValue(ctx, chi.RouteCtxKey, chi.NewRouteContext())
+		r = r.WithContext(ctx)
+
+		tracing.Middleware(provider)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})).ServeHTTP(rw, r)
+
+		require.NoError(t, provider.ForceFlush(ctx))
+		require.NotEmpty(t, startNames.names)
+		for _, name := range startNames.names {
+			require.NotContains(t, name, token)
+		}
+		spans := recorder.Ended()
+		require.NotEmpty(t, spans)
+		for _, span := range spans {
+			require.NotContains(t, span.Name(), token)
+			for _, attr := range span.Attributes() {
+				require.NotContains(t, attr.Value.Emit(), token,
+					"span attribute %s must not carry query credentials", attr.Key)
+			}
 		}
 	})
 }

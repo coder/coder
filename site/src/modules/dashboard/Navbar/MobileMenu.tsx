@@ -2,6 +2,7 @@ import {
 	ChevronRightIcon,
 	CircleHelpIcon,
 	MenuIcon,
+	RadioIcon,
 	XIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
@@ -26,6 +27,7 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Latency } from "#/components/Latency/Latency";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { cn } from "#/utils/cn";
+import { getLatencyColor } from "#/utils/latency";
 import {
 	AdminSettingsItems,
 	type AdminSettingsPermissions,
@@ -132,12 +134,19 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 				>
 					Workspace proxy settings:
 					<span className="leading-none flex items-center gap-1">
-						<ExternalImage
-							className="size-4"
-							src={selectedProxy.icon_url}
-							alt={selectedProxy.name}
+						<span className="sr-only">
+							Latency for {selectedProxy.display_name || selectedProxy.name}
+						</span>
+						<RadioIcon
+							aria-hidden="true"
+							className={cn("size-4", getLatencyColor(latency?.latencyMS))}
 						/>
-						{latency && <Latency latency={latency.latencyMS} />}
+						<Latency
+							className={
+								latency?.latencyMS ? "text-content-primary" : undefined
+							}
+							latency={latency?.latencyMS}
+						/>
 					</span>
 					<ChevronRightIcon
 						className={cn("ml-auto", open ? "rotate-90" : "")}

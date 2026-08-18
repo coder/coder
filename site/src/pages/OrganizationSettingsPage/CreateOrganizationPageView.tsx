@@ -16,7 +16,6 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import type { Permissions } from "#/modules/permissions";
 import { cn } from "#/utils/cn";
-import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -98,11 +97,10 @@ export const CreateOrganizationPageView: FC<
 					</header>
 				</div>
 				{!isEntitled ? (
-					<div className="min-w-fit mx-auto">
+					<div className="mx-auto w-full max-w-4xl">
 						<PaywallPremium
 							message="Organizations"
 							description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
-							documentationLink={docs("/admin/users/organizations")}
 							canViewPremium={permissions.viewAllLicenses}
 						/>
 					</div>

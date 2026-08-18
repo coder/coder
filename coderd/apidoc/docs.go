@@ -64,6 +64,85 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/ai/model-prices": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "List AI model prices",
+                "operationId": "list-ai-model-prices",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Only return prices for this provider",
+                        "name": "provider",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only return prices for this model",
+                        "name": "model",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AIModelPrice"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Upsert AI model prices",
+                "operationId": "upsert-ai-model-prices",
+                "parameters": [
+                    {
+                        "description": "Prices to set",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpsertAIModelPricesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -135,6 +214,12 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 256 KiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -245,6 +330,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.UploadChatFileResponse"
                         }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 10 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -293,6 +384,91 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
+            }
+        },
+        "/api/experimental/chats/files/{file}/download": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/gif",
+                    "image/webp",
+                    "text/plain",
+                    "text/markdown",
+                    "text/csv",
+                    "application/json",
+                    "application/pdf"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Download chat file with signed token",
+                "operationId": "download-chat-file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "File ID",
+                        "name": "file",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Signed download token",
+                        "name": "token",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/chats/files/{file}/download-url": {
+            "post": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat file download URL",
+                "operationId": "create-chat-file-download-url",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "File ID",
+                        "name": "file",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatFileDownloadURLResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/experimental/chats/models": {
@@ -2290,7 +2466,7 @@ const docTemplate = `{
                         "description": "OK"
                     },
                     "413": {
-                        "description": "Request Entity Too Large",
+                        "description": "Request body exceeds 64 KiB",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -3087,6 +3263,12 @@ const docTemplate = `{
                         "description": "Returns newly created file",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UploadResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 100 MiB, or a .zip archive exceeds it once expanded",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -11362,7 +11544,7 @@ const docTemplate = `{
                         }
                     },
                     "413": {
-                        "description": "Request Entity Too Large",
+                        "description": "Request body exceeds 8 MiB",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -12234,6 +12416,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
+                    },
+                    "413": {
+                        "description": "Agent log storage limit exceeded",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -12346,6 +12534,12 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "413": {
+                        "description": "Request body exceeds 64 KiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -15939,6 +16133,60 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIModelPrice": {
+            "type": "object",
+            "properties": {
+                "cache_read_price": {
+                    "type": "integer"
+                },
+                "cache_write_price": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "input_price": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "output_price": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.AIModelPriceUpsert": {
+            "type": "object",
+            "properties": {
+                "cache_read_price": {
+                    "type": "integer"
+                },
+                "cache_write_price": {
+                    "type": "integer"
+                },
+                "input_price": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "output_price": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AIProvider": {
             "type": "object",
             "properties": {
@@ -17385,6 +17633,10 @@ const docTemplate = `{
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
                 },
+                "queued_for_capacity": {
+                    "description": "QueuedForCapacity reports that the chat is waiting for a concurrent\nagent slot. Single-chat reads derive it; list responses leave it false.",
+                    "type": "boolean"
+                },
                 "root_chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -17769,6 +18021,31 @@ const docTemplate = `{
                 "ChatErrorKindHookDenied"
             ]
         },
+        "codersdk.ChatFileDownloadURLResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sha256": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string",
+                    "format": "uri"
+                }
+            }
+        },
         "codersdk.ChatFileMetadata": {
             "type": "object",
             "properties": {
@@ -17793,6 +18070,9 @@ const docTemplate = `{
                 "owner_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "size_bytes": {
+                    "type": "integer"
                 }
             }
         },
@@ -19721,6 +20001,7 @@ const docTemplate = `{
                 "workspace_apps_api_key",
                 "workspace_apps_token",
                 "oidc_convert",
+                "chat_files_token",
                 "tailnet_resume",
                 "nats_ca"
             ],
@@ -19728,6 +20009,7 @@ const docTemplate = `{
                 "CryptoKeyFeatureWorkspaceAppsAPIKey",
                 "CryptoKeyFeatureWorkspaceAppsToken",
                 "CryptoKeyFeatureOIDCConvert",
+                "CryptoKeyFeatureChatFilesToken",
                 "CryptoKeyFeatureTailnetResume",
                 "CryptoKeyFeatureNATSCA"
             ]
@@ -20417,6 +20699,7 @@ const docTemplate = `{
                 "workspace-usage",
                 "oauth2",
                 "mcp-server-http",
+                "mcp-tool-search",
                 "workspace-build-updates",
                 "nats_pubsub",
                 "workspace-capable-licensing",
@@ -20433,6 +20716,7 @@ const docTemplate = `{
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
+                "ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
@@ -20447,6 +20731,7 @@ const docTemplate = `{
                 "Enables the new workspace usage tracking.",
                 "Enables OAuth2 provider functionality.",
                 "Enables the MCP HTTP server functionality.",
+                "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "Enables embedded NATS pubsub.",
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
@@ -20462,6 +20747,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceUsage",
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
+                "ExperimentMCPToolSearch",
                 "ExperimentWorkspaceBuildUpdates",
                 "ExperimentNATSPubsub",
                 "ExperimentWorkspaceCapableLicensing",
@@ -20606,6 +20892,10 @@ const docTemplate = `{
                 "no_refresh": {
                     "type": "boolean"
                 },
+                "redirect_url": {
+                    "description": "RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche\nsituations where the OAuth callback domain is different from the ACCESS_URL\ndomain. The path component is ignored.",
+                    "type": "string"
+                },
                 "regex": {
                     "description": "Regex allows API requesters to match an auth config by\na string (e.g. coder.com) instead of by it's type.\n\nGit clone makes use of this by parsing the URL from:\n'Username for \"https://github.com\":'\nAnd sending it to the Coder server to match against the Regex.",
                     "type": "string"
@@ -20704,6 +20994,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "actual": {
+                    "description": "Actual is the usage measured against Limit, when known: a\npoint-in-time count for most features, or usage accumulated over\nUsagePeriod for features that set one. Its unit matches Limit's;\nFeatureAgentRuntimeHours reports whole hours floored from the\nrecorded milliseconds, with the precise value available in\nActualMs. FeatureAgentRuntimeHours usage can trail by roughly one\nhour because the current hour is not emitted, plus the entitlement\nrefresh interval.",
+                    "type": "integer"
+                },
+                "actual_ms": {
+                    "description": "ActualMs is the precise usage backing Actual, in milliseconds, for\nfeatures measured in time. It has the same freshness as Actual.\nOnly FeatureAgentRuntimeHours sets this field.",
                     "type": "integer"
                 },
                 "enabled": {
@@ -20717,14 +21012,15 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "limit": {
+                    "description": "Limit is the maximum value the license grants for the feature, in the\nfeature's own unit. For FeatureAgentRuntimeHours, an enabled feature\nwith Limit omitted means the license grants unlimited runtime hours.",
                     "type": "integer"
                 },
                 "soft_limit": {
-                    "description": "SoftLimit is the advisory warning threshold that accompanies Limit for\nfeatures whose license carries it. For these features, Limit carries\nthe purchased allocation.\n\nOnly certain features set this field:\n- FeatureAgentRuntimeHours",
+                    "description": "SoftLimit is the advisory warning threshold that accompanies Limit for\nfeatures whose license carries it. For these features, Limit carries\nthe purchased allocation; an unlimited allocation has no thresholds,\nso SoftLimit is omitted alongside the omitted Limit. Only\nFeatureAgentRuntimeHours sets this field.",
                     "type": "integer"
                 },
                 "usage_period": {
-                    "description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense).\n\nThese dates are determined from the license that this entitlement comes\nfrom, see enterprise/coderd/license/license.go.\n\nOnly certain features set these fields:\n- FeatureManagedAgentLimit\n- FeatureAgentRuntimeHours",
+                    "description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense). These dates are determined from the license that this\nentitlement comes from, see enterprise/coderd/license/license.go.\nOnly FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this\nfield.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.UsagePeriod"
@@ -22301,7 +22597,7 @@ const docTemplate = `{
                     }
                 },
                 "redirect_url": {
-                    "description": "RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche\nsituations where the OIDC callback domain is different from the ACCESS_URL\ndomain.",
+                    "description": "RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche\nsituations where the OIDC callback domain is different from the ACCESS_URL\ndomain. The path component is ignored.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/serpent.URL"
@@ -24039,7 +24335,8 @@ const docTemplate = `{
                 "user_ai_budget_override",
                 "chat",
                 "user_secret",
-                "user_skill"
+                "user_skill",
+                "chat_instruction_settings"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -24077,7 +24374,8 @@ const docTemplate = `{
                 "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret",
-                "ResourceTypeUserSkill"
+                "ResourceTypeUserSkill",
+                "ResourceTypeChatInstructionSettings"
             ]
         },
         "codersdk.Response": {
@@ -26472,6 +26770,17 @@ const docTemplate = `{
                 "hash": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UpsertAIModelPricesRequest": {
+            "type": "object",
+            "properties": {
+                "prices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIModelPriceUpsert"
+                    }
                 }
             }
         },

@@ -222,6 +222,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		},
 	})
 
+	options.Options.ChatAgentCapacityUnlock = entchatd.NewAgentCapacityUnlock(options.Entitlements)
+
 	api.AGPL = coderd.New(options.Options)
 	api.aiSeatTracker = aiseats.New(options.Database, api.Logger.Named("aiseats"), quartz.NewReal(), &api.AGPL.Auditor)
 	api.AGPL.AISeatTracker = api.aiSeatTracker
@@ -331,6 +333,17 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 			)
 			r.Get("/", api.aiGatewayServe)
+		})
+	})
+
+	api.AGPL.ExperimentalHandler.Group(func(r chi.Router) {
+		r.Route("/ai/model-prices", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/", api.listAIModelPrices)
+			r.Post("/", api.upsertAIModelPrices)
 		})
 	})
 
