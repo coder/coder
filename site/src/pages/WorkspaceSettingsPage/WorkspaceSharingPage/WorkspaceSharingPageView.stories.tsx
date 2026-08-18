@@ -19,6 +19,7 @@ const mockWorkspaceUser: WorkspaceUser = {
 	id: MockUserMember.id,
 	username: MockUserMember.username,
 	name: MockUserMember.name,
+	email: MockUserMember.email,
 	avatar_url: MockUserMember.avatar_url,
 	role: "use",
 };
@@ -27,6 +28,7 @@ const mockWorkspaceUserAdmin: WorkspaceUser = {
 	id: MockUserOwner.id,
 	username: MockUserOwner.username,
 	name: MockUserOwner.name,
+	email: MockUserOwner.email,
 	avatar_url: MockUserOwner.avatar_url,
 	role: "admin",
 };

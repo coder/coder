@@ -475,6 +475,7 @@ title: Schemas
       "id": "string",
       "initiator": {
         "avatar_url": "http://example.com",
+        "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "name": "string",
         "username": "string"
@@ -594,6 +595,7 @@ title: Schemas
   "id": "string",
   "initiator": {
     "avatar_url": "http://example.com",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "username": "string"
@@ -685,6 +687,7 @@ title: Schemas
   "id": "string",
   "initiator": {
     "avatar_url": "http://example.com",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "username": "string"
@@ -2463,6 +2466,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "users": [
     {
       "avatar_url": "http://example.com",
+      "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "role": "read",
@@ -4087,6 +4091,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "avatar_url": "http://example.com",
+  "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "role": "read",
@@ -4099,6 +4104,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name         | Type                                   | Required | Restrictions | Description |
 |--------------|----------------------------------------|----------|--------------|-------------|
 | `avatar_url` | string                                 | false    |              |             |
+| `email`      | string                                 | true     |              |             |
 | `id`         | string                                 | true     |              |             |
 | `name`       | string                                 | false    |              |             |
 | `role`       | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
@@ -8708,6 +8714,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "avatar_url": "http://example.com",
+  "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "username": "string"
@@ -8719,6 +8726,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name         | Type   | Required | Restrictions | Description |
 |--------------|--------|----------|--------------|-------------|
 | `avatar_url` | string | false    |              |             |
+| `email`      | string | true     |              |             |
 | `id`         | string | true     |              |             |
 | `name`       | string | false    |              |             |
 | `username`   | string | true     |              |             |
@@ -13557,6 +13565,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "username": "string"
@@ -15623,6 +15632,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "users": [
     {
       "avatar_url": "http://example.com",
+      "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "role": "admin",
@@ -17441,6 +17451,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "avatar_url": "http://example.com",
+  "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "role": "admin",
@@ -17453,6 +17464,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name         | Type                                             | Required | Restrictions | Description |
 |--------------|--------------------------------------------------|----------|--------------|-------------|
 | `avatar_url` | string                                           | false    |              |             |
+| `email`      | string                                           | true     |              |             |
 | `id`         | string                                           | true     |              |             |
 | `name`       | string                                           | false    |              |             |
 | `role`       | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |             |

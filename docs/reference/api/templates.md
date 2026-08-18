@@ -478,6 +478,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "username": "string"
@@ -581,6 +582,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "username": "string"
@@ -709,6 +711,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "username": "string"
@@ -1334,6 +1337,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": {
       "avatar_url": "http://example.com",
+      "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "username": "string"
@@ -1416,6 +1420,7 @@ Status Code **200**
 | `» created_at`                   | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
 | `» created_by`                   | [codersdk.MinimalUser](schemas.md#codersdkminimaluser)                       | false    |              |                                                                                                                                                                     |
 | `»» avatar_url`                  | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
+| `»» email`                       | string(email)                                                                | true     |              |                                                                                                                                                                     |
 | `»» id`                          | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
 | `»» name`                        | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»» username`                    | string                                                                       | true     |              |                                                                                                                                                                     |
@@ -1617,6 +1622,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": {
       "avatar_url": "http://example.com",
+      "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "username": "string"
@@ -1699,6 +1705,7 @@ Status Code **200**
 | `» created_at`                   | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
 | `» created_by`                   | [codersdk.MinimalUser](schemas.md#codersdkminimaluser)                       | false    |              |                                                                                                                                                                     |
 | `»» avatar_url`                  | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
+| `»» email`                       | string(email)                                                                | true     |              |                                                                                                                                                                     |
 | `»» id`                          | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
 | `»» name`                        | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»» username`                    | string                                                                       | true     |              |                                                                                                                                                                     |
@@ -1790,6 +1797,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "username": "string"
@@ -1902,6 +1910,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "username": "string"

@@ -984,7 +984,7 @@ func TestGroupSync(t *testing.T) {
 			}
 
 			for _, group := range orgGroups {
-				userInGroup := slice.ContainsCompare(group.Members, codersdk.ReducedUser{Email: user.Email}, func(a, b codersdk.ReducedUser) bool {
+				userInGroup := slice.ContainsCompare(group.Members, codersdk.ReducedUser{MinimalUser: codersdk.MinimalUser{Email: user.Email}}, func(a, b codersdk.ReducedUser) bool {
 					return a.Email == b.Email
 				})
 				if group.IsEveryone() {
