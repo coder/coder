@@ -40,6 +40,7 @@ func TestSandboxDeclarationFromEnv(t *testing.T) {
 				confine.EnvAISandboxCreateScript: "create-sandbox",
 			},
 			want: confine.SandboxDeclaration{
+				Mode:              confine.SandboxModeCreateScript,
 				CreateScript:      "create-sandbox",
 				Name:              "sandbox",
 				EgressEnforcement: codersdk.AISandboxEgressEnforcementNone,
@@ -58,6 +59,7 @@ func TestSandboxDeclarationFromEnv(t *testing.T) {
 				confine.EnvAISandboxProxyAddress:       "192.0.2.1:0",
 			},
 			want: confine.SandboxDeclaration{
+				Mode:               confine.SandboxModeCreateScript,
 				CreateScript:       "create-sandbox",
 				DestroyScript:      "destroy-sandbox",
 				PolicyFile:         "/tmp/policy.yaml",
@@ -66,6 +68,72 @@ func TestSandboxDeclarationFromEnv(t *testing.T) {
 				EgressEnforcement:  codersdk.AISandboxEgressEnforcementForced,
 				ProxyAddress:       "192.0.2.1:0",
 			},
+		},
+		{
+			name: "microVM defaults",
+			env: map[string]string{
+				confine.EnvAISandboxMicroVM: "true",
+			},
+			want: confine.SandboxDeclaration{
+				Mode:              confine.SandboxModeMicroVM,
+				Name:              "sandbox",
+				EgressEnforcement: codersdk.AISandboxEgressEnforcementNone,
+				MicroVMImage:      "ubuntu:24.04",
+				MicroVMMemoryMiB:  1024,
+				MicroVMCPUs:       1,
+				ProxyAddress:      "127.0.0.1:0",
+			},
+		},
+		{
+			name: "microVM explicit",
+			env: map[string]string{
+				confine.EnvAISandboxMicroVM:      "true",
+				confine.EnvAISandboxImage:        "debian:bookworm",
+				confine.EnvAISandboxMemoryMiB:    "2048",
+				confine.EnvAISandboxCPUs:         "4",
+				confine.EnvAISandboxName:         "microvm",
+				confine.EnvAISandboxProxyAddress: "ignored:1234",
+			},
+			want: confine.SandboxDeclaration{
+				Mode:              confine.SandboxModeMicroVM,
+				Name:              "microvm",
+				EgressEnforcement: codersdk.AISandboxEgressEnforcementNone,
+				MicroVMImage:      "debian:bookworm",
+				MicroVMMemoryMiB:  2048,
+				MicroVMCPUs:       4,
+				ProxyAddress:      "ignored:1234",
+			},
+		},
+		{
+			name: "microVM and create script",
+			env: map[string]string{
+				confine.EnvAISandboxMicroVM:      "true",
+				confine.EnvAISandboxCreateScript: "create-sandbox",
+			},
+			errorString: "mutually exclusive",
+		},
+		{
+			name: "invalid microVM boolean",
+			env: map[string]string{
+				confine.EnvAISandboxMicroVM: "enabled",
+			},
+			errorString: "parse CODER_AI_SANDBOX_MICROVM",
+		},
+		{
+			name: "invalid microVM memory",
+			env: map[string]string{
+				confine.EnvAISandboxMicroVM:   "true",
+				confine.EnvAISandboxMemoryMiB: "0",
+			},
+			errorString: "CODER_AI_SANDBOX_MEMORY_MIB must be a positive integer",
+		},
+		{
+			name: "invalid microVM CPUs",
+			env: map[string]string{
+				confine.EnvAISandboxMicroVM: "true",
+				confine.EnvAISandboxCPUs:    "many",
+			},
+			errorString: "CODER_AI_SANDBOX_CPUS must be a positive integer",
 		},
 		{
 			name: "invalid enforcement",
@@ -572,6 +640,7 @@ func TestSandboxDeclarationProxyOnly(t *testing.T) {
 			confine.EnvAISandboxEgressEnforcement: "forced",
 		}))
 		require.NoError(t, err)
+		require.Equal(t, confine.SandboxModeProxy, declaration.Mode)
 		require.Empty(t, declaration.CreateScript,
 			"proxy-only mode must not invent a create script")
 		require.Equal(t, "0.0.0.0:0", declaration.ProxyAddress)
@@ -594,6 +663,7 @@ func TestSandboxDeclarationProxyOnly(t *testing.T) {
 			confine.EnvAIEgressProxy:         "true",
 		}))
 		require.NoError(t, err)
+		require.Equal(t, confine.SandboxModeCreateScript, declaration.Mode)
 		require.Equal(t, "/opt/up.sh", declaration.CreateScript,
 			"a declared create script keeps the platform-managed sandbox path")
 	})

@@ -2,11 +2,14 @@ package confine
 
 import (
 	"context"
+	"regexp"
 
 	"golang.org/x/xerrors"
 )
 
 const embeddedCoderGuestPath = "/opt/coder"
+
+var embeddedMicroVMNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,62}$`)
 
 // MicroVMOptions configures an in-process microVM sandbox.
 type MicroVMOptions struct {

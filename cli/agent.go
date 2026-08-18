@@ -273,13 +273,13 @@ func workspaceAgent() *serpent.Command {
 				scriptExtraEnv    func() []string
 				scriptStartupWait func(context.Context) error
 			)
-			// Two declaration surfaces: a create script, which makes the
-			// platform manage the sandbox, or the proxy-only switch, used by
-			// templates that declare an ai_bound coder_agent and build the
-			// sandbox from an ordinary coder_script.
+			// A create script and embedded microVM both reconcile a managed
+			// sandbox. Proxy-only mode supports templates where an ai_bound
+			// coder_agent and coder_script own the sandbox instead.
 			_, hasCreateScript := os.LookupEnv(confine.EnvAISandboxCreateScript)
+			_, hasMicroVM := os.LookupEnv(confine.EnvAISandboxMicroVM)
 			_, hasEgressProxy := os.LookupEnv(confine.EnvAIEgressProxy)
-			if hasCreateScript || hasEgressProxy {
+			if hasCreateScript || hasMicroVM || hasEgressProxy {
 				declaration, err := confine.SandboxDeclarationFromEnv(os.LookupEnv)
 				if err != nil {
 					return xerrors.Errorf("parse AI sandbox declaration: %w", err)

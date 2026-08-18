@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -19,8 +18,6 @@ import (
 )
 
 const embeddedMicroVMCleanupTimeout = time.Minute
-
-var embeddedMicroVMNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,62}$`)
 
 type embeddedMicroVMConfig struct {
 	hostOptions  hostvm.Options

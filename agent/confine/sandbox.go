@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +24,14 @@ import (
 const (
 	// EnvAISandboxCreateScript declares the sandbox create command.
 	EnvAISandboxCreateScript = "CODER_AI_SANDBOX_CREATE_SCRIPT"
+	// EnvAISandboxMicroVM declares the embedded microVM sandbox mode.
+	EnvAISandboxMicroVM = "CODER_AI_SANDBOX_MICROVM"
+	// EnvAISandboxImage declares the embedded microVM OCI image.
+	EnvAISandboxImage = "CODER_AI_SANDBOX_IMAGE"
+	// EnvAISandboxMemoryMiB declares embedded microVM memory in MiB.
+	EnvAISandboxMemoryMiB = "CODER_AI_SANDBOX_MEMORY_MIB"
+	// EnvAISandboxCPUs declares the embedded microVM virtual CPU count.
+	EnvAISandboxCPUs = "CODER_AI_SANDBOX_CPUS"
 	// EnvAIEgressProxy runs the egress proxy without a platform-managed
 	// sandbox, for templates that declare the sandbox as an ai_bound
 	// coder_agent plus an ordinary coder_script. Any non-empty value enables
@@ -52,24 +62,43 @@ const (
 	// EnvSandboxID is the sandbox lifecycle ID passed to sandbox scripts.
 	EnvSandboxID = "CODER_SANDBOX_ID"
 
-	defaultSandboxName         = "sandbox"
-	defaultSandboxProxyAddress = "127.0.0.1:0"
-	createScriptTimeout        = 5 * time.Minute
-	destroyScriptTimeout       = time.Minute
-	sessionReportAttempts      = 3
-	sessionReportWindow        = 20 * time.Second
+	defaultSandboxName          = "sandbox"
+	defaultSandboxProxyAddress  = "127.0.0.1:0"
+	defaultSandboxMicroVMImage  = "ubuntu:24.04"
+	defaultSandboxMicroVMMemory = 1024
+	defaultSandboxMicroVMCPUs   = 1
+	createScriptTimeout         = 5 * time.Minute
+	destroyScriptTimeout        = time.Minute
+	sessionReportAttempts       = 3
+	sessionReportWindow         = 20 * time.Second
 )
 
 var sandboxNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
 
+// SandboxMode selects how the agent creates and enforces an AI sandbox.
+type SandboxMode string
+
+const (
+	// SandboxModeCreateScript runs an administrator-provided sandbox runtime.
+	SandboxModeCreateScript SandboxMode = "create-script"
+	// SandboxModeProxy runs only the parent-side proxy for a declared sandbox.
+	SandboxModeProxy SandboxMode = "proxy"
+	// SandboxModeMicroVM runs the platform's embedded microVM runtime.
+	SandboxModeMicroVM SandboxMode = "microvm"
+)
+
 // SandboxDeclaration describes one interim environment-declared AI sandbox.
 type SandboxDeclaration struct {
+	Mode               SandboxMode
 	CreateScript       string
 	DestroyScript      string
 	PolicyFile         string
 	PolicyReloadScript string
 	Name               string
 	EgressEnforcement  codersdk.AISandboxEgressEnforcement
+	MicroVMImage       string
+	MicroVMMemoryMiB   int
+	MicroVMCPUs        int
 	// ProxyAddress defaults to parent loopback. Isolation technologies that
 	// cannot reach parent loopback, such as Docker, must declare a
 	// bridge-reachable parent address.
@@ -79,27 +108,70 @@ type SandboxDeclaration struct {
 // SandboxDeclarationFromEnv parses the interim environment declaration used
 // until the Terraform sandbox resource is available.
 func SandboxDeclarationFromEnv(lookup func(string) (string, bool)) (SandboxDeclaration, error) {
-	createScript, ok := lookup(EnvAISandboxCreateScript)
-	if !ok || strings.TrimSpace(createScript) == "" {
-		// Proxy-only mode. A template that declares its sandbox with an
-		// ai_bound coder_agent and an ordinary coder_script does not hand the
-		// agent a create script: the script runner owns the sandbox, and the
-		// agent owns only the egress proxy. The proxy still has to be
-		// listening before any script runs, so the controller is still what
-		// starts it.
-		if enable, ok := lookup(EnvAIEgressProxy); !ok || strings.TrimSpace(enable) == "" {
+	createScript, _ := lookup(EnvAISandboxCreateScript)
+	hasCreateScript := strings.TrimSpace(createScript) != ""
+
+	microVM := false
+	if value, ok := lookup(EnvAISandboxMicroVM); ok {
+		enabled, err := strconv.ParseBool(strings.TrimSpace(value))
+		if err != nil {
+			return SandboxDeclaration{}, xerrors.Errorf("parse %s: %w", EnvAISandboxMicroVM, err)
+		}
+		microVM = enabled
+	}
+	if microVM && hasCreateScript {
+		return SandboxDeclaration{}, xerrors.Errorf(
+			"%s and %s are mutually exclusive", EnvAISandboxMicroVM, EnvAISandboxCreateScript,
+		)
+	}
+
+	mode := SandboxMode("")
+	switch {
+	case microVM:
+		mode = SandboxModeMicroVM
+	case hasCreateScript:
+		mode = SandboxModeCreateScript
+	default:
+		// Proxy-only mode is used when an ai_bound coder_agent and ordinary
+		// coder_script own the sandbox while this controller owns its proxy.
+		enable, ok := lookup(EnvAIEgressProxy)
+		if !ok || strings.TrimSpace(enable) == "" {
 			return SandboxDeclaration{}, xerrors.Errorf(
-				"%s or %s is required", EnvAISandboxCreateScript, EnvAIEgressProxy,
+				"one of %s, %s, or %s is required",
+				EnvAISandboxMicroVM, EnvAISandboxCreateScript, EnvAIEgressProxy,
 			)
 		}
-		createScript = ""
+		mode = SandboxModeProxy
 	}
 
 	declaration := SandboxDeclaration{
+		Mode:              mode,
 		CreateScript:      createScript,
 		Name:              defaultSandboxName,
 		EgressEnforcement: codersdk.AISandboxEgressEnforcementNone,
 		ProxyAddress:      defaultSandboxProxyAddress,
+	}
+	if mode == SandboxModeMicroVM {
+		declaration.MicroVMImage = defaultSandboxMicroVMImage
+		declaration.MicroVMMemoryMiB = defaultSandboxMicroVMMemory
+		declaration.MicroVMCPUs = defaultSandboxMicroVMCPUs
+		if value, ok := lookup(EnvAISandboxImage); ok && strings.TrimSpace(value) != "" {
+			declaration.MicroVMImage = strings.TrimSpace(value)
+		}
+		if value, ok := lookup(EnvAISandboxMemoryMiB); ok && strings.TrimSpace(value) != "" {
+			memory, err := parseSandboxPositiveInt(EnvAISandboxMemoryMiB, value)
+			if err != nil {
+				return SandboxDeclaration{}, err
+			}
+			declaration.MicroVMMemoryMiB = memory
+		}
+		if value, ok := lookup(EnvAISandboxCPUs); ok && strings.TrimSpace(value) != "" {
+			cpus, err := parseSandboxPositiveInt(EnvAISandboxCPUs, value)
+			if err != nil {
+				return SandboxDeclaration{}, err
+			}
+			declaration.MicroVMCPUs = cpus
+		}
 	}
 	if value, ok := lookup(EnvAISandboxDestroyScript); ok {
 		declaration.DestroyScript = value
@@ -134,6 +206,14 @@ func SandboxDeclarationFromEnv(lookup func(string) (string, bool)) (SandboxDecla
 	return declaration, nil
 }
 
+func parseSandboxPositiveInt(name, value string) (int, error) {
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || parsed <= 0 {
+		return 0, xerrors.Errorf("%s must be a positive integer", name)
+	}
+	return parsed, nil
+}
+
 // SandboxClient is the parent-agent API used by the sandbox controller.
 type SandboxClient interface {
 	AgentClient
@@ -152,10 +232,20 @@ type SandboxControllerOptions struct {
 	Execer      agentexec.Execer
 }
 
+type runningMicroVMSandbox interface {
+	Close(context.Context) error
+}
+
+type startMicroVMFunc func(context.Context, MicroVMOptions) (runningMicroVMSandbox, error)
+
 // SandboxController reconciles one sandbox and owns its proxy and session.
 type SandboxController struct {
 	options          SandboxControllerOptions
 	scriptEnvHandoff *sandboxScriptEnvHandoff
+	startMicroVM     startMicroVMFunc
+	coderBinaryPath  string
+	microVMCacheDir  string
+	microVMStateDir  string
 }
 
 type sandboxScriptEnvHandoff struct {
@@ -208,8 +298,6 @@ func NewSandboxController(options SandboxControllerOptions) (*SandboxController,
 	if options.LogDir == "" {
 		return nil, xerrors.New("AI sandbox log directory is required")
 	}
-	// An empty create script selects proxy-only mode; see
-	// SandboxDeclarationFromEnv.
 	if !sandboxNamePattern.MatchString(options.Declaration.Name) {
 		return nil, xerrors.Errorf("invalid AI sandbox name %q", options.Declaration.Name)
 	}
@@ -222,16 +310,94 @@ func NewSandboxController(options SandboxControllerOptions) (*SandboxController,
 			"invalid AI sandbox egress enforcement %q", options.Declaration.EgressEnforcement,
 		)
 	}
-	if options.Declaration.ProxyAddress == "" {
-		return nil, xerrors.New("AI sandbox proxy address is required")
+
+	if options.Declaration.Mode == "" {
+		if strings.TrimSpace(options.Declaration.CreateScript) == "" {
+			options.Declaration.Mode = SandboxModeProxy
+		} else {
+			options.Declaration.Mode = SandboxModeCreateScript
+		}
 	}
-	if options.Execer == nil {
-		options.Execer = agentexec.DefaultExecer
-	}
-	return &SandboxController{
+	controller := &SandboxController{
 		options:          options,
 		scriptEnvHandoff: newSandboxScriptEnvHandoff(),
-	}, nil
+		startMicroVM: func(ctx context.Context, options MicroVMOptions) (runningMicroVMSandbox, error) {
+			return StartEmbeddedMicroVM(ctx, options)
+		},
+	}
+	switch options.Declaration.Mode {
+	case SandboxModeCreateScript:
+		if strings.TrimSpace(options.Declaration.CreateScript) == "" {
+			return nil, xerrors.New("AI sandbox create script is required in create-script mode")
+		}
+		if options.Declaration.ProxyAddress == "" {
+			return nil, xerrors.New("AI sandbox proxy address is required")
+		}
+	case SandboxModeProxy:
+		if strings.TrimSpace(options.Declaration.CreateScript) != "" {
+			return nil, xerrors.New("AI sandbox create script is not valid in proxy mode")
+		}
+		if options.Declaration.ProxyAddress == "" {
+			return nil, xerrors.New("AI sandbox proxy address is required")
+		}
+	case SandboxModeMicroVM:
+		if strings.TrimSpace(options.Declaration.CreateScript) != "" {
+			return nil, xerrors.Errorf(
+				"%s and %s are mutually exclusive", EnvAISandboxMicroVM, EnvAISandboxCreateScript,
+			)
+		}
+		if err := validateSandboxMicroVMPlatform(runtime.GOOS, runtime.GOARCH); err != nil {
+			return nil, err
+		}
+		if !embeddedMicroVMNamePattern.MatchString(options.Declaration.Name) {
+			return nil, xerrors.Errorf("invalid embedded microVM name %q", options.Declaration.Name)
+		}
+		if strings.TrimSpace(options.Declaration.MicroVMImage) == "" {
+			return nil, xerrors.New("AI sandbox microVM image is required")
+		}
+		if options.Declaration.MicroVMMemoryMiB <= 0 {
+			return nil, xerrors.New("AI sandbox microVM memory must be positive")
+		}
+		if options.Declaration.MicroVMCPUs <= 0 {
+			return nil, xerrors.New("AI sandbox microVM CPU count must be positive")
+		}
+
+		executablePath, err := os.Executable()
+		if err != nil {
+			return nil, xerrors.Errorf("resolve Coder executable: %w", err)
+		}
+		executablePath, err = filepath.Abs(executablePath)
+		if err != nil {
+			return nil, xerrors.Errorf("resolve Coder executable path: %w", err)
+		}
+		controller.coderBinaryPath, err = filepath.EvalSymlinks(executablePath)
+		if err != nil {
+			return nil, xerrors.Errorf("resolve Coder executable symlinks: %w", err)
+		}
+		configDir, err := os.UserConfigDir()
+		if err != nil {
+			return nil, xerrors.Errorf("resolve user config directory: %w", err)
+		}
+		microVMDir := filepath.Join(configDir, "coder-ai", "microvm")
+		controller.microVMCacheDir = filepath.Join(microVMDir, "cache")
+		controller.microVMStateDir = filepath.Join(microVMDir, "state")
+	default:
+		return nil, xerrors.Errorf("invalid AI sandbox mode %q", options.Declaration.Mode)
+	}
+	if options.Execer == nil {
+		controller.options.Execer = agentexec.DefaultExecer
+	}
+	return controller, nil
+}
+
+func validateSandboxMicroVMPlatform(goos, goarch string) error {
+	if goos != "linux" || goarch != "amd64" {
+		return xerrors.Errorf(
+			"AI sandbox microVM mode is supported only on linux/amd64, got %s/%s",
+			goos, goarch,
+		)
+	}
+	return nil
 }
 
 // WaitForProxy waits until the proxy is listening and script environment is ready.
@@ -244,21 +410,20 @@ func (c *SandboxController) ScriptExtraEnv() []string {
 	return c.scriptEnvHandoff.environment()
 }
 
-// Run reconciles the declared sandbox, executes its scripts, and retains the
-// proxy and audit session until ctx is canceled.
+// Run reconciles the declared sandbox, starts its selected runtime, and retains
+// policy delivery and audit reporting until ctx is canceled.
 func (c *SandboxController) Run(ctx context.Context) (retErr error) {
 	defer func() {
 		err := retErr
 		if err == nil {
-			err = xerrors.New("AI sandbox controller stopped before proxy was ready")
+			err = xerrors.New("AI sandbox controller stopped before sandbox networking was ready")
 		}
 		c.scriptEnvHandoff.complete(nil, err)
 	}()
-	// Proxy-only mode: the template owns the sandbox through an ai_bound
-	// coder_agent and a coder_script, so there is no platform-managed sandbox
-	// to reconcile or create. The controller contributes the egress proxy and
-	// the policy it enforces, and nothing else.
-	proxyOnly := strings.TrimSpace(c.options.Declaration.CreateScript) == ""
+
+	mode := c.options.Declaration.Mode
+	proxyOnly := mode == SandboxModeProxy
+	microVMMode := mode == SandboxModeMicroVM
 
 	var sandbox agentsdk.CreateAISandboxResponse
 	if proxyOnly {
@@ -318,39 +483,55 @@ func (c *SandboxController) Run(ctx context.Context) (retErr error) {
 			slog.F("rule_count", len(policy.Rules)),
 		)
 	}
-	c.exportSandboxPolicy(ctx, sandbox.ID, policy)
+	if !microVMMode {
+		c.exportSandboxPolicy(ctx, sandbox.ID, policy)
+	}
 
 	sessionID := uuid.New()
 	batcher := newEventBatcher(c.options.Client, c.options.Logger, sessionID, eventQueueSize)
-	proxy, err := ListenProxyWithOptions(
-		c.options.Declaration.ProxyAddress,
-		engine,
-		batcher.Add,
-		DestinationOptions{
-			// The exact control-plane host may resolve to a private address in
-			// local and on-prem deployments. It is policy-allowed implicitly,
-			// and this exemption lets only that hostname pass destination range
-			// validation; every other private destination remains denied.
-			AllowPrivateHost: c.options.AccessURL.Hostname(),
-		},
-	)
-	if err != nil {
-		return xerrors.Errorf("start AI sandbox egress proxy: %w", err)
+	var proxy *Proxy
+	if !microVMMode {
+		proxy, err = ListenProxyWithOptions(
+			c.options.Declaration.ProxyAddress,
+			engine,
+			batcher.Add,
+			DestinationOptions{
+				// The exact control-plane host may resolve to a private address in
+				// local and on-prem deployments. It is policy-allowed implicitly,
+				// and this exemption lets only that hostname pass destination range
+				// validation; every other private destination remains denied.
+				AllowPrivateHost: c.options.AccessURL.Hostname(),
+			},
+		)
+		if err != nil {
+			return xerrors.Errorf("start AI sandbox egress proxy: %w", err)
+		}
+		c.options.Logger.Info(ctx, "ai sandbox egress proxy started",
+			slog.F("proxy_address", proxy.Addr().String()),
+			slog.F("sandbox_id", sandbox.ID),
+		)
+		c.scriptEnvHandoff.complete([]string{
+			EnvEgressProxy + "=" + proxy.Addr().String(),
+			EnvSandboxID + "=" + sandbox.ID.String(),
+		}, nil)
+	} else {
+		// The embedded guest can reach only hostvm's private gateway listener,
+		// which serves the in-process proxy. A parent loopback listener would be
+		// unreachable from the guest and would not enforce any additional path.
+		c.options.Logger.Info(ctx, "using embedded microVM gateway proxy",
+			slog.F("sandbox_id", sandbox.ID),
+		)
 	}
-	c.options.Logger.Info(ctx, "ai sandbox egress proxy started",
-		slog.F("proxy_address", proxy.Addr().String()),
-		slog.F("sandbox_id", sandbox.ID),
-	)
-	c.scriptEnvHandoff.complete([]string{
-		EnvEgressProxy + "=" + proxy.Addr().String(),
-		EnvSandboxID + "=" + sandbox.ID.String(),
-	}, nil)
 
 	runCtx, stop := context.WithCancel(ctx)
 	batcherDone := make(chan struct{})
-	go watchPolicy(runCtx, c.options.Client, c.options.Logger, engine, func(policy codersdk.AIEgressPolicy) {
-		c.exportSandboxPolicy(runCtx, sandbox.ID, policy)
-	})
+	var afterPolicyUpdate func(codersdk.AIEgressPolicy)
+	if !microVMMode {
+		afterPolicyUpdate = func(policy codersdk.AIEgressPolicy) {
+			c.exportSandboxPolicy(runCtx, sandbox.ID, policy)
+		}
+	}
+	go watchPolicy(runCtx, c.options.Client, c.options.Logger, engine, afterPolicyUpdate)
 	go func() {
 		defer close(batcherDone)
 		batcher.Run(runCtx, eventFlushPeriod)
@@ -378,19 +559,62 @@ func (c *SandboxController) Run(ctx context.Context) (retErr error) {
 		)
 	}
 
-	if !proxyOnly {
+	var microVMSandbox runningMicroVMSandbox
+	switch mode {
+	case SandboxModeCreateScript:
 		createEnv := c.createScriptEnvironment(sandbox, proxy.Addr().String())
 		if err := c.runScript(ctx, "create", c.options.Declaration.CreateScript, createEnv, createScriptTimeout); err != nil {
 			c.signalDegraded("AI sandbox create script failed; sandbox remains active (degraded)", err)
 		}
+	case SandboxModeMicroVM:
+		bootCtx, bootCancel := context.WithTimeout(ctx, createScriptTimeout)
+		microVMSandbox, err = c.startMicroVM(bootCtx, MicroVMOptions{
+			Image:           c.options.Declaration.MicroVMImage,
+			Name:            c.options.Declaration.Name,
+			CacheDir:        c.microVMCacheDir,
+			StateDir:        c.microVMStateDir,
+			CPUs:            c.options.Declaration.MicroVMCPUs,
+			MemoryMiB:       c.options.Declaration.MicroVMMemoryMiB,
+			CoderBinaryPath: c.coderBinaryPath,
+			AgentURL:        c.options.AccessURL.String(),
+			AgentToken:      sandbox.AgentToken,
+			SessionToken:    sandbox.SessionToken,
+			Policy:          engine,
+			Destination: DestinationOptions{
+				AllowPrivateHost: c.options.AccessURL.Hostname(),
+			},
+			Event: batcher.Add,
+		})
+		bootCancel()
+		if err != nil {
+			c.signalDegraded("AI sandbox microVM boot failed; sandbox remains active (degraded)", err)
+		} else {
+			c.options.Logger.Info(ctx, "embedded AI sandbox microVM started",
+				slog.F("sandbox_id", sandbox.ID),
+				slog.F("name", c.options.Declaration.Name),
+			)
+		}
+		c.scriptEnvHandoff.complete([]string{EnvSandboxID + "=" + sandbox.ID.String()}, nil)
 	}
 
 	<-ctx.Done()
 
-	if strings.TrimSpace(c.options.Declaration.DestroyScript) != "" {
-		destroyEnv := c.destroyScriptEnvironment(sandbox, proxy.Addr().String())
-		if err := c.runScript(context.Background(), "destroy", c.options.Declaration.DestroyScript, destroyEnv, destroyScriptTimeout); err != nil {
-			c.signalDegraded("AI sandbox destroy script failed (degraded)", err)
+	switch mode {
+	case SandboxModeCreateScript:
+		if strings.TrimSpace(c.options.Declaration.DestroyScript) != "" {
+			destroyEnv := c.destroyScriptEnvironment(sandbox, proxy.Addr().String())
+			if err := c.runScript(context.Background(), "destroy", c.options.Declaration.DestroyScript, destroyEnv, destroyScriptTimeout); err != nil {
+				c.signalDegraded("AI sandbox destroy script failed (degraded)", err)
+			}
+		}
+	case SandboxModeMicroVM:
+		if microVMSandbox != nil {
+			closeMicroVMCtx, closeMicroVMCancel := context.WithTimeout(context.Background(), destroyScriptTimeout)
+			err := microVMSandbox.Close(closeMicroVMCtx)
+			closeMicroVMCancel()
+			if err != nil {
+				c.signalDegraded("AI sandbox microVM shutdown failed (degraded)", err)
+			}
 		}
 	}
 
@@ -408,8 +632,10 @@ func (c *SandboxController) Run(ctx context.Context) (retErr error) {
 	stop()
 	<-batcherDone
 	batcher.Flush()
-	if err := proxy.Close(); err != nil {
-		c.options.Logger.Warn(context.Background(), "close AI sandbox egress proxy", slog.Error(err))
+	if proxy != nil {
+		if err := proxy.Close(); err != nil {
+			c.options.Logger.Warn(context.Background(), "close AI sandbox egress proxy", slog.Error(err))
+		}
 	}
 	return nil
 }
