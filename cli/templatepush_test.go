@@ -81,6 +81,254 @@ func TestTemplatePush(t *testing.T) {
 		require.Equal(t, "example", templateVersions[1].Name)
 	})
 
+	t.Run("CreateWithFrontMatter", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		require.NoError(t, os.WriteFile(filepath.Join(source, "README.md"), []byte(`---
+display_name: Front Matter Template
+description: from README front matter
+icon: /tmp/icon.png
+---
+`), 0o600))
+
+		inv, root := clitest.New(t, "templates", "push", "frontmatter-create",
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--name", "example",
+		)
+		clitest.SetupConfig(t, templateAdmin, root)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv = inv.WithContext(ctx)
+		w := clitest.StartWithWaiter(t, inv)
+
+		stdout.ExpectMatch(ctx, "Upload")
+		stdin.WriteLine("yes")
+
+		w.RequireSuccess()
+
+		template, err := client.TemplateByName(ctx, owner.OrganizationID, "frontmatter-create")
+		require.NoError(t, err)
+		assert.Equal(t, "Front Matter Template", template.DisplayName)
+		assert.Equal(t, "from README front matter", template.Description)
+		assert.Equal(t, "/tmp/icon.png", template.Icon)
+	})
+
+	t.Run("UpdateWithFrontMatter", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		require.NoError(t, os.WriteFile(filepath.Join(source, "README.md"), []byte(`---
+display_name: Updated Template
+description: updated from README front matter
+icon: /tmp/updated.png
+---
+`), 0o600))
+
+		inv, root := clitest.New(t, "templates", "push", template.Name,
+			"--activate=false",
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--name", "example",
+		)
+		clitest.SetupConfig(t, templateAdmin, root)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv = inv.WithContext(ctx)
+		w := clitest.StartWithWaiter(t, inv)
+
+		stdout.ExpectMatch(ctx, "Upload")
+		stdin.WriteLine("yes")
+
+		w.RequireSuccess()
+
+		updatedTemplate, err := client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "Updated Template", updatedTemplate.DisplayName)
+		assert.Equal(t, "updated from README front matter", updatedTemplate.Description)
+		assert.Equal(t, "/tmp/updated.png", updatedTemplate.Icon)
+	})
+
+	t.Run("FlagOverridesFrontMatter", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		require.NoError(t, os.WriteFile(filepath.Join(source, "README.md"), []byte(`---
+display_name: Front Matter Template
+description: from README front matter
+icon: /tmp/frontmatter.png
+---
+`), 0o600))
+
+		inv, root := clitest.New(t, "templates", "push", "frontmatter-override",
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--name", "example",
+			"--display-name", "CLI Override",
+			"--icon", "/tmp/cli.png",
+		)
+		clitest.SetupConfig(t, templateAdmin, root)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv = inv.WithContext(ctx)
+		w := clitest.StartWithWaiter(t, inv)
+
+		stdout.ExpectMatch(ctx, "Upload")
+		stdin.WriteLine("yes")
+
+		w.RequireSuccess()
+
+		template, err := client.TemplateByName(ctx, owner.OrganizationID, "frontmatter-override")
+		require.NoError(t, err)
+		assert.Equal(t, "CLI Override", template.DisplayName)
+		assert.Equal(t, "/tmp/cli.png", template.Icon)
+	})
+
+	t.Run("NoReadme", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+
+		inv, root := clitest.New(t, "templates", "push", "frontmatter-none",
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--name", "example",
+		)
+		clitest.SetupConfig(t, templateAdmin, root)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv = inv.WithContext(ctx)
+		w := clitest.StartWithWaiter(t, inv)
+
+		stdout.ExpectMatch(ctx, "Upload")
+		stdin.WriteLine("yes")
+
+		w.RequireSuccess()
+
+		template, err := client.TemplateByName(ctx, owner.OrganizationID, "frontmatter-none")
+		require.NoError(t, err)
+		assert.Empty(t, template.DisplayName)
+		assert.Empty(t, template.Description)
+		assert.Empty(t, template.Icon)
+	})
+
+	t.Run("MalformedFrontMatter", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		require.NoError(t, os.WriteFile(filepath.Join(source, "README.md"), []byte(`---
+display_name: [broken
+---
+`), 0o600))
+
+		inv, root := clitest.New(t, "templates", "push", "frontmatter-malformed",
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--name", "example",
+		)
+		clitest.SetupConfig(t, templateAdmin, root)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv = inv.WithContext(ctx)
+		w := clitest.StartWithWaiter(t, inv)
+
+		stdout.ExpectMatch(ctx, "Upload")
+		stdin.WriteLine("yes")
+
+		w.RequireSuccess()
+
+		template, err := client.TemplateByName(ctx, owner.OrganizationID, "frontmatter-malformed")
+		require.NoError(t, err)
+		assert.Empty(t, template.DisplayName)
+		assert.Empty(t, template.Description)
+		assert.Empty(t, template.Icon)
+	})
+
+	t.Run("StdinSkipsFrontMatter", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		source, err := echo.Tar(&echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		require.NoError(t, err)
+
+		inv, root := clitest.New(
+			t, "templates", "push", "frontmatter-stdin",
+			"--directory", "-",
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--display-name", "CLI Only",
+			"--icon", "/tmp/stdin.png",
+		)
+		clitest.SetupConfig(t, templateAdmin, root)
+		inv.Stdin = bytes.NewReader(source)
+
+		execDone := make(chan error)
+		go func() {
+			execDone <- inv.Run()
+		}()
+
+		require.NoError(t, <-execDone)
+
+		template, err := client.TemplateByName(context.Background(), owner.OrganizationID, "frontmatter-stdin")
+		require.NoError(t, err)
+		assert.Equal(t, "CLI Only", template.DisplayName)
+		assert.Equal(t, "/tmp/stdin.png", template.Icon)
+		assert.Empty(t, template.Description)
+	})
+
 	t.Run("Message less than or equal to 72 chars", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -922,7 +1170,7 @@ func TestTemplatePush(t *testing.T) {
 		t.Run("WithVariableOption", func(t *testing.T) {
 			t.Parallel()
 			logger := testutil.Logger(t)
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+ 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			owner := coderdtest.CreateFirstUser(t, client)
 			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
+	"github.com/gohugoio/hugo/parser/pageparser"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -36,6 +38,8 @@ func (r *RootCmd) templatePush() *serpent.Command {
 		provisionerTags      []string
 		uploadFlags          templateUploadFlags
 		activate             bool
+		displayName          string
+		icon                 string
 		orgContext           = NewOrganizationContext()
 	)
 	cmd := &serpent.Command{
@@ -72,6 +76,33 @@ func (r *RootCmd) templatePush() *serpent.Command {
 					return xerrors.Errorf("template version name %q is invalid: %w", versionName, err)
 				}
 			}
+
+			// If the user has not provided a display name and icon via flag, we will attempt to read it from the README.md front matter.
+			content, err := os.ReadFile(filepath.Join(uploadFlags.directory, "README.md"))
+			if err != nil {
+				return xerrors.Errorf("README.md required: %w", err)
+			}
+			parsed, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(content))
+			if err != nil {
+				return xerrors.Errorf("failed to parse README.md: %w", err)
+			}
+			
+
+			if displayName != "" {
+				err = codersdk.DisplayNameValid(displayName)
+				if err != nil {
+					return xerrors.Errorf("display name %q is invalid: %w", displayName, err)
+				}
+			}else {
+				// If displayName is not provided via flag, we will attempt to read it from the README.md front matter.
+				displayName, _ = parsed.FrontMatter["display_name"].(string)
+			}
+
+			if icon == "" {
+				icon, _ = parsed.FrontMatter["icon"].(string)
+			}
+
+			description, _ := parsed.FrontMatter["description"].(string)
 
 			var createTemplate bool
 			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
@@ -184,8 +215,11 @@ func (r *RootCmd) templatePush() *serpent.Command {
 
 			if createTemplate {
 				_, err = client.CreateTemplate(inv.Context(), organization.ID, codersdk.CreateTemplateRequest{
-					Name:      name,
-					VersionID: job.ID,
+					Name:        name,
+					VersionID:   job.ID,
+					DisplayName: displayName,
+					Description: description,
+					Icon:        icon,
 				})
 				if err != nil {
 					return err
@@ -195,12 +229,26 @@ func (r *RootCmd) templatePush() *serpent.Command {
 					inv.Stdout, "\n"+cliui.Wrap(
 						"The "+cliui.Keyword(name)+" template has been created at "+cliui.Timestamp(time.Now())+"! "+
 							"Developers can provision a workspace with this template using:")+"\n")
-			} else if activate {
-				err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
-					ID: job.ID,
-				})
-				if err != nil {
-					return err
+			} else {
+				meta := codersdk.UpdateTemplateMeta{
+					DisplayName: &displayName,
+					Description: &description,
+					Icon:        &icon,
+				}
+				if meta.DisplayName != nil || meta.Description != nil || meta.Icon != nil {
+					_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, meta)
+					if err != nil {
+						return xerrors.Errorf("update template metadata from README.md front matter: %w", err)
+					}
+				}
+
+				if activate {
+					err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
+						ID: job.ID,
+					})
+					if err != nil {
+						return err
+					}
 				}
 			}
 
@@ -261,6 +309,16 @@ func (r *RootCmd) templatePush() *serpent.Command {
 			Description: "Whether the new template will be marked active.",
 			Default:     "true",
 			Value:       serpent.BoolOf(&activate),
+		},
+		{
+			Flag:        "display-name",
+			Description: "Specify a display name for the template. Takes precedence over display_name in README.md front matter, if present.",
+			Value:       serpent.StringOf(&displayName),
+		},
+		{
+			Flag:        "icon",
+			Description: "Specify an icon path or external URL for the template. Takes precedence over icon in README.md front matter, if present.",
+			Value:       serpent.StringOf(&icon),
 		},
 		cliui.SkipPromptOption(),
 	}
