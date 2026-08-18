@@ -1699,12 +1699,6 @@ const AgentChatPage: FC = () => {
 			throw new CompactCommandPendingError();
 		}
 
-		// Sends and /compact are an explicit ask to be at the live edge,
-		// even one that appends no visible prompt. That edge is the new user
-		// row: each one doubles as the scroll anchor for its turn, so the
-		// scroller lands on the new prompt as soon as the durable message
-		// renders without the page scrolling it explicitly.
-
 		if (isExactCompactSubmission && compactCommandResolution === "available") {
 			// Optimistically show the running state before awaiting so
 			// a fast compaction cannot race this write: the worker's
