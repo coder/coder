@@ -73,6 +73,50 @@ func createMCPServerConfig(t testing.TB, client *codersdk.Client, organizationID
 	return config
 }
 
+func newMCPDiscoveryServer(t testing.TB, registrationRequests *atomic.Int64) string {
+	t.Helper()
+
+	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/oauth-authorization-server":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"issuer": "` + "http://" + r.Host + `",
+				"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
+				"token_endpoint": "` + "http://" + r.Host + `/token",
+				"registration_endpoint": "` + "http://" + r.Host + `/register",
+				"response_types_supported": ["code"]
+			}`))
+		case "/register":
+			registrationRequests.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{
+				"client_id": "discovered-client-id",
+				"client_secret": "discovered-client-secret"
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(authServer.Close)
+
+	mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/oauth-protected-resource/mcp":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"resource": "` + "http://" + r.Host + `/mcp",
+				"authorization_servers": ["` + authServer.URL + `"]
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(mcpServer.Close)
+	return mcpServer.URL + "/mcp"
+}
+
 func TestMCPServerConfigLegacyRoutesRemoved(t *testing.T) {
 	t.Parallel()
 
@@ -1409,11 +1453,7 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		require.Equal(t, "https://override.example.com/revoke", overridden.OAuth2RevocationURL)
 	})
 
-	// Verify that when both path-aware and root-level protected
-	// resource metadata are available, the path-aware URL takes
-	// priority. Each points to a different auth server so we can
-	// distinguish which one was actually used.
-	t.Run("CreateOnlyScopeRejectedUpFront", func(t *testing.T) {
+	t.Run("CreateOnlyScopeAllowed", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1424,8 +1464,7 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
-		// MCP config scopes are not user-mintable, so seed a create-only key
-		// to verify automatic discovery requires full management access.
+		// MCP config scopes are not user-mintable, so seed a create-only key.
 		_, token := dbgen.APIKey(t, db, database.APIKey{
 			UserID: firstUser.UserID,
 			Scopes: database.APIKeyScopes{
@@ -1435,28 +1474,51 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		})
 		scopedClient := codersdk.New(client.URL)
 		scopedClient.SetSessionToken(token)
+		var registrationRequests atomic.Int64
 
-		_, err := scopedClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+		created, err := scopedClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:  "Create Only Discovery",
 			Slug:         "create-only-discovery",
 			Transport:    "streamable_http",
-			URL:          "http://127.0.0.1:1",
+			URL:          newMCPDiscoveryServer(t, &registrationRequests),
+			AuthType:     "oauth2",
+			Availability: "default_on",
+			Enabled:      true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "discovered-client-id", created.OAuth2ClientID)
+		require.EqualValues(t, 1, registrationRequests.Load())
+	})
+
+	t.Run("ExistingSlugSkipsRegistration", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		createMCPServerConfig(t, client, firstUser.OrganizationID, "discovery-conflict", true)
+		var registrationRequests atomic.Int64
+
+		_, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:  "Discovery Conflict",
+			Slug:         " discovery-conflict ",
+			Transport:    "streamable_http",
+			URL:          newMCPDiscoveryServer(t, &registrationRequests),
 			AuthType:     "oauth2",
 			Availability: "default_on",
 			Enabled:      true,
 		})
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-
-		//nolint:gocritic // Verifying persisted state requires system access.
-		_, err = db.GetMCPServerConfigByOrganizationAndSlug(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerConfigByOrganizationAndSlugParams{
-			OrganizationID: firstUser.OrganizationID,
-			Slug:           "create-only-discovery",
-		})
-		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+		require.Equal(t, "MCP server config already exists.", sdkErr.Message)
+		require.Zero(t, registrationRequests.Load())
 	})
 
+	// Verify that when both path-aware and root-level protected
+	// resource metadata are available, the path-aware URL takes
+	// priority. Each points to a different auth server so we can
+	// distinguish which one was actually used.
 	t.Run("PathAwareTakesPriority", func(t *testing.T) {
 		t.Parallel()
 

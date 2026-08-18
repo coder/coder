@@ -268,14 +268,27 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		// Metadata (RFC 9728) and Authorization Server Metadata
 		// (RFC 8414), then register a client dynamically.
 		if req.OAuth2ClientID == "" && req.OAuth2AuthURL == "" && req.OAuth2TokenURL == "" {
-			if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) ||
-				!api.Authorize(r, policy.ActionDelete, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) {
-				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-					Message: "OAuth2 auto-discovery requires permission to update and delete MCP server configs.",
-					Detail:  "Provide oauth2_client_id, oauth2_auth_url, and oauth2_token_url manually, or use credentials with broader MCP server config permissions.",
+			// Create-only callers cannot read configs. This pre-DCR check reveals nothing
+			// beyond the insert's conflict response, which remains authoritative for races.
+			//nolint:gocritic // Restrict system access to this existence check.
+			_, err := api.Database.GetMCPServerConfigByOrganizationAndSlug(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerConfigByOrganizationAndSlugParams{
+				OrganizationID: organization.ID,
+				Slug:           strings.TrimSpace(req.Slug),
+			})
+			switch {
+			case err == nil:
+				httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+					Message: "MCP server config already exists.",
+				})
+				return
+			case !errors.Is(err, sql.ErrNoRows):
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to create MCP server config.",
+					Detail:  err.Error(),
 				})
 				return
 			}
+
 			callbackURL := api.AccessURL.String() + mcpServerOAuth2CallbackPath(configID)
 			// Discovery targets are attacker-influenced (the MCP
 			// server URL and any endpoints or redirects it
