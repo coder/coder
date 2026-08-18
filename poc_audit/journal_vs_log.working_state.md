@@ -179,8 +179,8 @@ The core of this section is expected to be a table over these axes.
 10. **done.** Write paths. Under Findings, "What writes to `audit_logs`": the
     production caller, the filter that can drop a record before storage, the
     no-op implementation of the interface, and the development handler.
-11. **open.** `connection_logs` split out and four enum values were deprecated.
-    Needs 10.4.
+11. **done.** `connection_logs` split out and four `audit_action` values were
+    deprecated. Under Findings, and the precedent carries the answer to 7.2.
 12. **open.** `user_status_changes` and `user_deleted` are journal-spirited but
     trigger-written, and a trigger cannot see the actor.
 13. **open.** `provisioner_jobs` is the existing intent-record pattern.
@@ -194,12 +194,17 @@ The core of this section is expected to be a table over these axes.
    first: `audit_logs` is a log, this work needs a journal, one record cannot
    serve both well. The three readings of "extend" are a demonstration inside
    the third claim rather than the shape of the section.
-2. **open.** Why not just add enum values?
+2. **done.** Why not just add enum values? Clarified first: the question is
+   about adding `ai_agent` to `audit_logs.resource_type`. Answered with the
+   precedent, since this codebase already recorded connections that way and then
+   moved them out to `connection_logs` in migration `000349`.
 3. **open.** Is this not duplication?
 4. **open.** Can one be derived from the other?
 5. **open.** Why not triggers, as with the user history tables?
 6. **open.** Why not a transaction manager?
-7. **open.** Why two systems rather than a migration?
+7. **done.** Why two systems rather than a migration? No separate answer
+   needed. Folded into 7.1 as one clause: migrating is not a fourth option,
+   because there is nothing to migrate into that would hold what is needed.
 
 ### 8. The concrete instance, so the abstract lands
 
@@ -229,9 +234,10 @@ The core of this section is expected to be a table over these axes.
 3. **done.** Two callers of `InsertAuditLog`. One is the enterprise backend's
    `Export`, the real path. The other is `generateFakeAuditLog`, a development
    handler. Nothing else writes the table.
-4. **open.** Whether `connection_logs` has the properties of a log or of a
-   journal. It is the most recent split and may be a useful precedent either
-   way.
+4. **done.** `connection_logs` is a log, decisively: its rows are updated in
+   place as later events arrive, and its merge key includes an identifier the
+   schema itself calls not guaranteed to be unique. It is a useful precedent
+   after all, though for 7.2 rather than as a comparison.
 
 ## Decisions taken
 
@@ -263,6 +269,14 @@ rather than against the table originally imagined for section 5.
 **Licensing is out of scope for the proof of concept.** Whether the existing
 table is gated behind a licence has no bearing on anything being built, so 4.4's
 clause, 5.3, and 10.1 are all disposed of on that basis.
+
+**`audit_logs` is not special, and the first finding says so.** There are at
+least four logs in this codebase, none behaving like a journal, and one of them
+is an `UNLOGGED` table that Postgres truncates after a crash. That changes the
+shape of 7.1: the question only fastens on `audit_logs` because of its name, and
+splits into why not an existing log and why not a new one, with the same answer
+to both. The name would not invite the question if the table were called
+something like `user_http_logs`.
 
 **7.1 states its answer before its reasons.** The first draft opened by
 conceding that the question was fair and then walked three readings of "extend",
