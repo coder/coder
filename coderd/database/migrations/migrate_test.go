@@ -3008,10 +3008,10 @@ func TestMigration000566OAuth2AuthMethodBackfill(t *testing.T) {
 		"the backfill aligns the declaration to what is enforced, so the enforced value must be unchanged")
 }
 
-func TestMigration000571MCPServerConfigsOrganizationID(t *testing.T) {
+func TestMigration000574MCPServerConfigsOrganizationID(t *testing.T) {
 	t.Parallel()
 
-	const priorMigrationVersion = 570
+	const priorMigrationVersion = 573
 
 	sqlDB := testSQLDB(t)
 	next, err := migrations.Stepper(sqlDB)
@@ -3159,7 +3159,7 @@ func TestMigration000571MCPServerConfigsOrganizationID(t *testing.T) {
 
 	version, _, err := next()
 	require.NoError(t, err)
-	require.EqualValues(t, 571, version)
+	require.EqualValues(t, 574, version)
 
 	var totalConfigs int
 	err = sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM mcp_server_configs`).Scan(&totalConfigs)
@@ -3219,7 +3219,7 @@ func TestMigration000571MCPServerConfigsOrganizationID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{orgLocalConfigID}, getChatIDs(t, chatID))
 
-	downSQL, err := os.ReadFile("000571_mcp_server_configs_organization_id.down.sql")
+	downSQL, err := os.ReadFile("000574_mcp_server_configs_organization_id.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
