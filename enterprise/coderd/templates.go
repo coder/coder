@@ -44,17 +44,9 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// We have to use the system restricted context here because the caller
-	// might not have permission to read all users.
-	// nolint:gocritic
-	users, _, ok := api.AGPL.GetUsers(rw, r.WithContext(dbauthz.AsSystemRestricted(ctx)))
-	if !ok {
-		return
-	}
-
-	// Apply the same q/limit semantics to groups as the users half of this response.
-	// The query semantics are defined for the users, which is awkward. But we can
-	// just reuse the search part of the query which is a fuzzy match.
+	// Apply the same q/limit semantics to users and groups. The query semantics
+	// are defined for the users, which is awkward. But we can just reuse the
+	// search part of the query which is a fuzzy match.
 	userFilter, verr := searchquery.Users(r.URL.Query().Get("q"))
 	if len(verr) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -66,6 +58,60 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 	groupPagination, ok := agpl.ParsePagination(rw, r)
 	if !ok {
 		return
+	}
+
+	// Only members of the template's organization can be granted access to it,
+	// so the candidate list is that organization's roster, not every user on the
+	// deployment. We look members up under the caller's own context via
+	// PaginatedOrganizationMembers, which enforces organization_member read. This
+	// keeps the listing scoped to the template's organization and avoids exposing
+	// users (and their email) from other organizations in multi-org deployments.
+	members, err := api.Database.PaginatedOrganizationMembers(ctx, database.PaginatedOrganizationMembersParams{
+		AfterID:          groupPagination.AfterID,
+		OrganizationID:   template.OrganizationID,
+		IncludeSystem:    false,
+		Search:           userFilter.Search,
+		Name:             userFilter.Name,
+		ExactUsername:    userFilter.ExactUsername,
+		ExactEmail:       userFilter.ExactEmail,
+		Status:           userFilter.Status,
+		IsServiceAccount: userFilter.IsServiceAccount,
+		RbacRole:         userFilter.RbacRole,
+		LastSeenBefore:   userFilter.LastSeenBefore,
+		LastSeenAfter:    userFilter.LastSeenAfter,
+		CreatedAfter:     userFilter.CreatedAfter,
+		CreatedBefore:    userFilter.CreatedBefore,
+		GithubComUserID:  userFilter.GithubComUserID,
+		LoginType:        userFilter.LoginType,
+		// #nosec G115 - Pagination offsets are small and fit in int32
+		OffsetOpt: int32(groupPagination.Offset),
+		// #nosec G115 - Pagination limits are small and fit in int32
+		LimitOpt: int32(groupPagination.Limit),
+	})
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	reducedUsers := make([]codersdk.ReducedUser, 0, len(members))
+	for _, member := range members {
+		reducedUsers = append(reducedUsers, db2sdk.ReducedUser(database.User{
+			ID:               member.OrganizationMember.UserID,
+			Username:         member.Username,
+			Name:             member.Name,
+			Email:            member.Email,
+			AvatarURL:        member.AvatarURL,
+			CreatedAt:        member.UserCreatedAt,
+			UpdatedAt:        member.UserUpdatedAt,
+			LastSeenAt:       member.LastSeenAt,
+			Status:           member.Status,
+			LoginType:        member.LoginType,
+			IsServiceAccount: member.IsServiceAccount,
+		}))
 	}
 
 	// Perm check is the template update check.
@@ -112,10 +158,7 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ACLAvailable{
-		// TODO: @emyrk we should return a MinimalUser here instead of a full user.
-		// The FE requires the `email` field, so this cannot be done without
-		// a UI change.
-		Users:  db2sdk.ReducedUsers(users),
+		Users:  reducedUsers,
 		Groups: sdkGroups,
 	})
 }

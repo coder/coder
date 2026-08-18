@@ -5059,3 +5059,43 @@ func TestWorkspaceAITask(t *testing.T) {
 		require.Len(t, usage.GetDiscreteEvents(), 1)
 	})
 }
+
+// TestWorkspaceAvailableUsersMultiOrg verifies that the available-users
+// people-picker is scoped to the organization in the request path and does not
+// leak members of other organizations in a multi-org deployment.
+func TestWorkspaceAvailableUsersMultiOrg(t *testing.T) {
+	t.Parallel()
+
+	client, first := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// A second organization with a member who does not belong to the first org.
+	secondOrg, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+		Name: "second",
+	})
+	require.NoError(t, err)
+	_, otherOrgUser := coderdtest.CreateAnotherUser(t, client, secondOrg.ID)
+
+	// A member of the first organization, to confirm same-org users are listed.
+	_, firstOrgUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+	// The owner listing available users for the first organization must only see
+	// members of that organization, never the second organization's member.
+	users, err := client.WorkspaceAvailableUsers(ctx, first.OrganizationID, "me")
+	require.NoError(t, err)
+
+	usernames := make([]string, 0, len(users))
+	for _, u := range users {
+		usernames = append(usernames, u.Username)
+	}
+	require.Contains(t, usernames, firstOrgUser.Username)
+	require.NotContains(t, usernames, otherOrgUser.Username,
+		"available-users must not leak members of another organization")
+}
