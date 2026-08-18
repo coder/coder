@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -335,11 +336,17 @@ func TestRequestBodySizeLimit(t *testing.T) {
 			// Copilot's bridged route checks Authorization before reading the
 			// body, so provide a token to reach the read path.
 			req.Header.Set("Authorization", "Bearer test-key")
+			// coderd mounts aibridge behind the middleware that turns this
+			// tracker into the too-large metric's reason label, so a rejection
+			// that leaves it unset is counted as some other kind of 413.
+			var tracker httpapi.RequestBodyLimitTracker
+			req = req.WithContext(httpapi.WithRequestBodyLimitTracker(req.Context(), &tracker))
 			resp := httptest.NewRecorder()
 			bridge.ServeHTTP(resp, req)
 
 			assert.Equal(t, http.StatusRequestEntityTooLarge, resp.Code)
 			assert.Contains(t, resp.Body.String(), "Request body too large")
+			assert.True(t, tracker.Exceeded(), "rejection must be attributed to the body size limit")
 		})
 	}
 }

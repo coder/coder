@@ -105,6 +105,7 @@ export const useChatStore = (
 	options: UseChatStoreOptions,
 ): {
 	store: ChatStore;
+	isHydratingMessages: boolean;
 	acceptServerChatStatus: () => void;
 	clearStreamError: () => void;
 	setCacheQueuedMessages: (
@@ -142,8 +143,8 @@ export const useChatStore = (
 	// source for chatStatus and the REST-fetched chatRecord.status
 	// must not overwrite it. Without this guard, a React Query
 	// refetch (e.g. on window focus) can regress chatStatus to a
-	// stale value like "waiting", causing shouldApplyMessagePart()
-	// to drop all incoming parts.
+	// stale value like "waiting", hiding live status from the user
+	// until the next server event arrives.
 	const wsStatusReceivedRef = useRef(false);
 	const [pendingStatusResync, setPendingStatusResync] = useState(false);
 	const pendingStatusResyncUpdatedAtRef = useRef<number | null>(null);
@@ -220,6 +221,16 @@ export const useChatStore = (
 		[chatID, queryClient],
 	);
 
+	// Content snapshot of the messages the hydration effect last ingested.
+	// State (not a ref) so the paging gate re-renders when hydration lands.
+	// Only updated when the message content itself changed, never when an
+	// unrelated field like queued_messages handed us a fresh array, so a
+	// caller passing an unmemoized array cannot loop: content-equal renders
+	// skip the setState, and equal state bails out of the re-render.
+	const [lastHydratedMessages, setLastHydratedMessages] = useState<
+		readonly TypesGen.ChatMessage[]
+	>([]);
+
 	useEffect(() => {
 		store.batch(() => {
 			// When the active chat changes, clear stale messages
@@ -247,6 +258,9 @@ export const useChatStore = (
 					chatMessages.length !== prev.length ||
 					chatMessages.some((m, i) => m !== prev[i]);
 				lastSyncedMessagesRef.current = chatMessages;
+				if (contentChanged) {
+					setLastHydratedMessages(chatMessages);
+				}
 
 				const storeSnap = store.getSnapshot();
 				const fetchedIDs = new Set(chatMessages.map((m) => m.id));
@@ -269,6 +283,15 @@ export const useChatStore = (
 			}
 		});
 	}, [chatID, chatMessages, store]);
+
+	// True when the query has data the store has not yet ingested. Used to
+	// keep the history-paging gate closed until hydration catches up.
+	// Content comparison, not identity: unmemoized callers produce a fresh
+	// array identity every render even when nothing changed.
+	const isHydratingMessages =
+		chatMessages !== undefined &&
+		(chatMessages.length !== lastHydratedMessages.length ||
+			chatMessages.some((m, i) => m !== lastHydratedMessages[i]));
 
 	useEffect(() => {
 		if (pendingStatusResync) {
@@ -400,9 +423,13 @@ export const useChatStore = (
 		let historyResetPending = false;
 		const historyReplacementBuf: TypesGen.ChatMessage[] = [];
 
-		const shouldApplyMessagePart = (): boolean => {
-			return store.getSnapshot().chatStatus !== "waiting";
-		};
+		// Set when the stream reports "waiting", cleared by any other
+		// stream status. While set, parts are dropped: they are late
+		// leftovers from the finished turn. REST and optimistic
+		// statuses never set it, because they can lag a live turn.
+		let streamReportedWaiting = false;
+
+		const shouldKeepMessagePart = (): boolean => !streamReportedWaiting;
 
 		const schedulePartsFlush = () => {
 			if (partsFlushTimer !== null || partsBuf.length === 0) {
@@ -413,11 +440,11 @@ export const useChatStore = (
 				if (disposed || activeChatIDRef.current !== chatID) {
 					return;
 				}
-				const parts = partsBuf.splice(0);
-				if (parts.length === 0 || !shouldApplyMessagePart()) {
+				if (!shouldKeepMessagePart()) {
+					partsBuf.length = 0;
 					return;
 				}
-				store.applyMessageParts(parts);
+				store.applyMessageParts(partsBuf.splice(0));
 			}, 0);
 		};
 
@@ -432,11 +459,11 @@ export const useChatStore = (
 				clearTimeout(partsFlushTimer);
 				partsFlushTimer = null;
 			}
-			const parts = partsBuf.splice(0);
-			if (activeChatIDRef.current !== chatID || !shouldApplyMessagePart()) {
+			if (activeChatIDRef.current !== chatID || !shouldKeepMessagePart()) {
+				partsBuf.length = 0;
 				return;
 			}
-			store.applyMessageParts(parts);
+			store.applyMessageParts(partsBuf.splice(0));
 		};
 
 		// Discard buffered parts without applying them. Used when
@@ -498,7 +525,7 @@ export const useChatStore = (
 							continue;
 						}
 						commitHistoryReplacement();
-						if (!shouldApplyMessagePart()) {
+						if (!shouldKeepMessagePart()) {
 							continue;
 						}
 						const part = streamEvent.message_part?.part;
@@ -599,6 +626,7 @@ export const useChatStore = (
 								continue;
 							}
 
+							streamReportedWaiting = nextStatus === "waiting";
 							wsStatusReceivedRef.current = true;
 							store.clearRetryState();
 							store.applyServerChatStatus(nextStatus);
@@ -620,6 +648,7 @@ export const useChatStore = (
 								kind: "generic",
 								message: "Chat processing failed.",
 							};
+							streamReportedWaiting = false;
 							wsStatusReceivedRef.current = true;
 							store.applyServerChatStatus("error");
 							store.setStreamError(reason);
@@ -675,9 +704,8 @@ export const useChatStore = (
 							clearTimeout(partsFlushTimer);
 							partsFlushTimer = null;
 						}
-						const nextParts = partsBuf.splice(0);
-						if (shouldApplyMessagePart()) {
-							store.applyMessageParts(nextParts);
+						if (shouldKeepMessagePart()) {
+							store.applyMessageParts(partsBuf.splice(0));
 						}
 					}
 				}
@@ -742,6 +770,7 @@ export const useChatStore = (
 	]);
 	return {
 		store,
+		isHydratingMessages,
 		clearStreamError: () => {
 			store.clearStreamError();
 		},

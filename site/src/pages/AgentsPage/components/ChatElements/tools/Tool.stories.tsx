@@ -8,7 +8,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
-import { BlockList } from "../../ChatConversation/ConversationTimeline";
+import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool, toolRendererNames } from "./Tool";
 
@@ -139,6 +139,20 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		},
 	},
 	{
+		name: "list_subagent_models",
+		result: {
+			models: [
+				{
+					model_config_id: "model-1",
+					display_name: "Fast Model",
+					model: "fast-1",
+					provider: "openai",
+					is_default: true,
+				},
+			],
+		},
+	},
+	{
 		name: "read_template",
 		args: { template_id: "template-1" },
 		result: {
@@ -248,6 +262,20 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		result: {
 			workspace_name: "agent-icons",
 			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	{
+		name: "find_tools",
+		args: { queries: ["github issues"] },
+		result: {
+			matches: [
+				{
+					name: "github__list_issues",
+					description: "List issues in a GitHub repository.",
+				},
+			],
+			activated: ["github__list_issues"],
+			total_deferred: 12,
 		},
 	},
 	{
@@ -1321,6 +1349,117 @@ export const ListAgentsError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Listed 0 agents")).toBeInTheDocument();
+	},
+};
+
+// ---------------------------------------------------------------------------
+// ListSubagentModels stories
+// ---------------------------------------------------------------------------
+
+export const ListSubagentModelsCompleted: Story = {
+	args: {
+		name: "list_subagent_models",
+		status: "completed",
+		args: {},
+		result: {
+			models: [
+				{
+					model_config_id: "10000000-0000-0000-0000-000000000001",
+					display_name: "Fast Model",
+					model: "fast-1",
+					provider: "openai",
+					context_limit: 200_000,
+					is_default: true,
+					reasoning_efforts: ["low", "medium", "high"],
+				},
+				{
+					model_config_id: "20000000-0000-0000-0000-000000000002",
+					display_name: "Large Model",
+					model: "large-2",
+					provider: "anthropic",
+					context_limit: 1_000_000,
+					is_default: false,
+					reasoning_efforts: [
+						"none",
+						"minimal",
+						"low",
+						"medium",
+						"high",
+						"xhigh",
+						"max",
+					],
+				},
+				{
+					model_config_id: "30000000-0000-0000-0000-000000000003",
+					display_name: "",
+					model: "gemini-3.6-flash",
+					provider: "google",
+					context_limit: 262_000,
+					is_default: false,
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const header = canvas.getByRole("button", {
+			name: /Listed 3 subagent models/,
+		});
+		expect(header).toBeInTheDocument();
+		await userEvent.click(header);
+		expect(canvas.getByText("OpenAI")).toBeInTheDocument();
+		expect(canvas.getByText("Anthropic")).toBeInTheDocument();
+		expect(canvas.getByText("Google")).toBeInTheDocument();
+		expect(canvas.getByText("Fast Model")).toBeInTheDocument();
+		expect(canvas.getByText("(200K)")).toBeInTheDocument();
+		expect(canvas.getByText("low - high")).toBeInTheDocument();
+		expect(canvas.getByText("Large Model")).toBeInTheDocument();
+		expect(canvas.getByText("(1M)")).toBeInTheDocument();
+		expect(canvas.getByText("none - max")).toBeInTheDocument();
+		expect(canvas.getByText("(262K)")).toBeInTheDocument();
+		expect(canvas.getByText("gemini-3.6-flash")).toBeInTheDocument();
+	},
+};
+
+export const ListSubagentModelsRunning: Story = {
+	args: {
+		name: "list_subagent_models",
+		status: "running",
+		args: {},
+		result: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Listing subagent models…")).toBeInTheDocument();
+	},
+};
+
+export const ListSubagentModelsEmpty: Story = {
+	args: {
+		name: "list_subagent_models",
+		status: "completed",
+		args: {},
+		result: {
+			models: [],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Listed 0 subagent models")).toBeInTheDocument();
+	},
+};
+
+export const ListSubagentModelsError: Story = {
+	args: {
+		name: "list_subagent_models",
+		status: "error",
+		isError: true,
+		args: {},
+		result: "list_subagent_models is only available on root chats",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Listed 0 subagent models")).toBeInTheDocument();
 	},
 };
 

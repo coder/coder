@@ -26,7 +26,7 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 		<Sidebar>
 			<SidebarCaption>Resources</SidebarCaption>
 			{failed && (
-				<p className="m-0 py-4 text-[13px] text-content-secondary leading-normal">
+				<p className="m-0 py-4 text-sm font-normal text-content-secondary leading-normal">
 					Your workspace build failed, so the necessary resources couldn&apos;t
 					be created.
 				</p>

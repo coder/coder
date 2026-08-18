@@ -8,7 +8,8 @@ For the callout syntax and severity table, refer to [Formatting](./formatting.md
 Rules adapted from an external standard cite the source so an editor can consult the original rationale.
 The source for most of this page is [ASD-STE100 Simplified Technical English](https://www.asd-ste100.org/) (Issue 9, 2025), the controlled-language standard for aerospace and defense maintenance documentation.
 STE optimizes for readers who must never misread an instruction.
-The Coder docs adopt its procedure-level discipline without its controlled dictionary or its grammar restrictions, which are scoped to a different audience.
+The Coder docs adopt its procedure-level discipline.
+The controlled dictionary and the grammar restrictions stay out, because they serve that stricter audience.
 
 ## One instruction per step
 
@@ -29,7 +30,7 @@ Two actions belong in one step only when they happen at the same time.
 1. Run `coder port-forward` and leave it running while you test the connection.
 ```
 
-The second example is one step because the two actions overlap in time.
+The second example stays a single step because its actions overlap in time.
 
 **Don't**:
 
@@ -37,7 +38,7 @@ The second example is one step because the two actions overlap in time.
 1. Run `coder login` and paste the session token into the terminal prompt.
 ```
 
-The two actions happen in sequence, so they belong in two steps.
+The actions happen in sequence, so they belong in separate steps.
 
 *Adapted from ASD-STE100 Issue 9, rule 5.2.
 Documentation-only.
@@ -75,7 +76,7 @@ Steps get a tighter budget because the reader is mid-task and holds the instruct
 
 When a step exceeds the budget, split the sentence, or move background information into the prose around the procedure.
 The budget is a target, not a ceiling.
-Don't cut words that carry meaning to hit the number.
+Don't cut words that carry meaning to meet the budget.
 
 **Do**:
 
@@ -152,7 +153,7 @@ A warning that names no consequence reads as decoration, and the reader cannot w
 Documentation-only.
 No Vale rule.*
 
-## Related
+## Learn more
 
 - [Style guide landing page](./README.md)
 - [Voice and tone](./voice-and-tone.md)

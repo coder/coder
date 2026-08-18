@@ -112,7 +112,7 @@ export const OptionConfig: FC<OptionConfigProps> = ({
 			{...attrs}
 			className={cn(
 				"inline-flex items-center gap-1.5 rounded border border-solid p-1.5",
-				"font-mono text-[13px] font-semibold leading-none",
+				"font-mono text-xs font-semibold leading-none",
 				"border-border-secondary bg-surface-secondary",
 				isSource &&
 					"border-content-link [&_[data-slot=option-config-flag]]:bg-content-link",
@@ -129,7 +129,7 @@ export const OptionConfigFlag: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 			data-slot="option-config-flag"
 			className={cn(
 				"block rounded-[1px] bg-border-secondary px-1 py-0.5",
-				"text-[10px] font-semibold leading-none text-content-primary",
+				"text-2xs font-semibold leading-none text-content-primary",
 				props.className,
 			)}
 		/>

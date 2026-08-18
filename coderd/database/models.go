@@ -2043,6 +2043,7 @@ const (
 	CryptoKeyFeatureOIDCConvert         CryptoKeyFeature = "oidc_convert"
 	CryptoKeyFeatureTailnetResume       CryptoKeyFeature = "tailnet_resume"
 	CryptoKeyFeatureNATSCA              CryptoKeyFeature = "nats_ca"
+	CryptoKeyFeatureChatFilesToken      CryptoKeyFeature = "chat_files_token"
 )
 
 func (e *CryptoKeyFeature) Scan(src interface{}) error {
@@ -2086,7 +2087,8 @@ func (e CryptoKeyFeature) Valid() bool {
 		CryptoKeyFeatureWorkspaceAppsAPIKey,
 		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume,
-		CryptoKeyFeatureNATSCA:
+		CryptoKeyFeatureNATSCA,
+		CryptoKeyFeatureChatFilesToken:
 		return true
 	}
 	return false
@@ -2099,6 +2101,7 @@ func AllCryptoKeyFeatureValues() []CryptoKeyFeature {
 		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume,
 		CryptoKeyFeatureNATSCA,
+		CryptoKeyFeatureChatFilesToken,
 	}
 }
 
@@ -3532,6 +3535,7 @@ const (
 	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
 	ResourceTypeUserAIBudgetOverride        ResourceType = "user_ai_budget_override"
 	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
+	ResourceTypeChatInstructionSettings     ResourceType = "chat_instruction_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3606,7 +3610,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
 		ResourceTypeUserAIBudgetOverride,
-		ResourceTypeOauth2ProviderSettings:
+		ResourceTypeOauth2ProviderSettings,
+		ResourceTypeChatInstructionSettings:
 		return true
 	}
 	return false
@@ -3650,6 +3655,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAIGatewayKey,
 		ResourceTypeUserAIBudgetOverride,
 		ResourceTypeOauth2ProviderSettings,
+		ResourceTypeChatInstructionSettings,
 	}
 }
 
@@ -5583,6 +5589,8 @@ type OAuth2ProviderAppCode struct {
 	StateHash sql.NullString `db:"state_hash" json:"state_hash"`
 	// The redirect_uri provided during authorization, to be verified during token exchange (RFC 6749 §4.1.3).
 	RedirectUri sql.NullString `db:"redirect_uri" json:"redirect_uri"`
+	// Space-separated scope negotiated at authorization time, drawn from the api_key_scope vocabulary. Always set; coder:all records an unrestricted grant.
+	Scope string `db:"scope" json:"scope"`
 }
 
 type OAuth2ProviderAppSecret struct {
@@ -5611,6 +5619,8 @@ type OAuth2ProviderAppToken struct {
 	UserID uuid.UUID `db:"user_id" json:"user_id"`
 	// Denormalized app ID so ownership checks (e.g. revocation) do not need to join through app_secret_id, which is NULL for public clients.
 	AppID uuid.UUID `db:"app_id" json:"app_id"`
+	// Space-separated scope granted to this token, drawn from the api_key_scope vocabulary. Always set; coder:all records an unrestricted grant. Later phases will narrow this on refresh and never widen it.
+	Scope string `db:"scope" json:"scope"`
 }
 
 type Organization struct {

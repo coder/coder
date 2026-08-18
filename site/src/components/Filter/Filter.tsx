@@ -26,13 +26,16 @@ import { SearchField } from "#/components/SearchField/SearchField";
 import { Skeleton, type SkeletonProps } from "#/components/Skeleton/Skeleton";
 import { useDebouncedFunction } from "#/hooks/debounce";
 import { cn } from "#/utils/cn";
+import {
+	type FilterValues,
+	parseFilterQuery,
+	stringifyFilter,
+} from "./filterQuery";
 
 type PresetFilter = {
 	name: string;
 	query: string;
 };
-
-type FilterValues = Record<string, string | undefined>;
 
 type UseFilterConfig = {
 	/**
@@ -100,39 +103,6 @@ export const useFilter = ({
 		values: parseFilterQuery(query),
 		used: query !== "" && query !== fallbackFilter,
 	};
-};
-
-const parseFilterQuery = (filterQuery: string): FilterValues => {
-	if (filterQuery === "") {
-		return {};
-	}
-
-	const result: FilterValues = {};
-	const keyValuePair = /(\w+):"([^"]+)"|(\w+):(\S+)/g;
-
-	for (const match of filterQuery.matchAll(keyValuePair)) {
-		const key = match[1] ?? match[3];
-		const value = match[2] ?? match[4];
-		if (key && value) {
-			result[key] = value;
-		}
-	}
-
-	return result;
-};
-
-const stringifyFilter = (filterValue: FilterValues): string => {
-	let result = "";
-
-	for (const key in filterValue) {
-		const value = filterValue[key];
-		if (value) {
-			const needsQuotes = value.includes(" ");
-			result += needsQuotes ? `${key}:"${value}" ` : `${key}:${value} `;
-		}
-	}
-
-	return result.trim();
 };
 
 const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {

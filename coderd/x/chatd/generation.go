@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -40,13 +41,14 @@ type generationPrepared struct {
 	Chat     database.Chat
 	Messages []database.ChatMessage
 
-	Model             chatprovider.Model
-	Prompt            []fantasy.Message
-	Tools             []fantasy.AgentTool
-	ActiveTools       []string
-	ProviderTools     []chatloop.ProviderTool
-	ModelRoute        aiGatewayModelRoute
-	ModelBuildOptions modelBuildOptions
+	Model              chatprovider.Model
+	Prompt             []fantasy.Message
+	Tools              []fantasy.AgentTool
+	ActiveTools        []string
+	AllowInactiveTools map[string]bool
+	ProviderTools      []chatloop.ProviderTool
+	ModelRoute         aiGatewayModelRoute
+	ModelBuildOptions  modelBuildOptions
 
 	// ResolvedProvider is the configured provider identity used to label
 	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
@@ -781,20 +783,46 @@ func (s *taskStarter) admitStepToolCalls(
 	if len(toolCalls) == 0 || exclusiveBatchRejected(toolCalls, prepared.ExclusiveToolNames) {
 		return chathooks.PreToolUseExecutionResult{}, nil
 	}
+	// An admission error discards the whole batch before it can be
+	// committed, so its find_tools calls would otherwise never reach
+	// the executeLocalTools counter; count them at each error exit.
+	countBatch := func() {
+		if !prepared.BuiltinToolNames[chattool.FindToolsName] {
+			return
+		}
+		for _, toolCall := range toolCalls {
+			if toolCall.ToolName == chattool.FindToolsName {
+				s.server.metrics.FindToolsCallsTotal.Inc()
+			}
+		}
+	}
 	// Check the full batch first: a call removed below still occupies its ID
 	// in the step, so filtering before this would hide the collision.
 	if err := chathooks.RejectDuplicateToolUseIDs(toolCalls); err != nil {
+		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
 	unambiguous, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
 	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), unambiguous)
 	if err != nil {
+		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
 	if err := validateOverriddenToolInputs(prepared, preflight); err != nil {
+		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
 	preflight.Denied = append(preflight.Denied, ambiguous...)
+	// Calls denied at admission persist synthetic results with the
+	// assistant step, so they never surface as unresolved calls where
+	// executeLocalTools counts find_tools invocations; count them here.
+	if prepared.BuiltinToolNames[chattool.FindToolsName] {
+		for _, result := range preflight.Denied {
+			if result.ToolName == chattool.FindToolsName {
+				s.server.metrics.FindToolsCallsTotal.Inc()
+			}
+		}
+	}
 	return preflight, nil
 }
 
@@ -809,6 +837,17 @@ func (s *taskStarter) executeLocalTools(
 	var denied []fantasy.ToolResultContent
 	if !exclusiveBatchRejected(decision.localToolCalls, prepared.ExclusiveToolNames) {
 		allowed, denied = partitionAmbiguousToolCalls(prepared, decision.localToolCalls)
+	}
+	// find_tools calls are counted here, at the single point every
+	// model-emitted call passes through, because rejections upstream of
+	// the tool (partition denials, hook denials, exclusive-policy
+	// batches) never reach its handler or OnCall.
+	if prepared.BuiltinToolNames[chattool.FindToolsName] {
+		for _, toolCall := range decision.localToolCalls {
+			if toolCall.ToolName == chattool.FindToolsName {
+				s.server.metrics.FindToolsCallsTotal.Inc()
+			}
+		}
 	}
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
@@ -827,8 +866,10 @@ func (s *taskStarter) executeLocalTools(
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
 			Tools:              prepared.Tools,
 			ActiveTools:        prepared.ActiveTools,
+			AllowInactiveTools: prepared.AllowInactiveTools,
 			ProviderTools:      prepared.ProviderTools,
 			ToolCalls:          allowed,
+			ObservedToolCalls:  decision.localToolCalls,
 			ExclusiveToolNames: prepared.ExclusiveToolNames,
 			BuiltinToolNames:   prepared.BuiltinToolNames,
 			ModelProvider:      provider,
