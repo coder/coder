@@ -1,24 +1,32 @@
 # Journals and Logs
 
 Recorded 2026-08-13. This document distinguishes a journal from a log, and says
-why the difference means the audit approach cannot be served by the mechanism
-this codebase already calls `audit_logs`.
+why the difference means the audit approach cannot be served by any of the logs
+this codebase already has.
 
 It is the framing for `poc_audit/audit_approach.md`, which states the approach
 itself. Where that document says what to build, this one says why something new
 has to be built at all.
+
+**It exists because of a name.** A reader meeting `audit_logs` first will take
+it for the audit system, and will then ask, reasonably, why a second thing is
+being built. The answer needs the distinction this document draws, and needs it
+before anything else about the design can be discussed. That question is
+answered under "Why not extend `audit_logs`?" below, and everything before it is
+what that answer rests on.
+
+Two readers are in view. A colleague who has to be persuaded, and who is
+entitled to check rather than believe. And a later session picking this work up
+without the conversation that produced it, for whom a position recorded without
+its reasons is worth little. Both are served the same way: every factual claim
+is attributed to something that can be looked at, in this codebase under
+Findings, and in the history of the words under Sources.
 
 Sections are separated by the standing of their contents. **Established**
 records positions that have been decided. **Derived** records reasoning built
 on top of them, which is offered for challenge rather than settled.
 **Findings** records verifiable facts about the existing codebase. **Open**
 records questions not yet answered.
-
-**This document is a draft.** The distinctions are drawn and the central
-objection is answered. Several further objections are not yet addressed, this
-work's own journal is not yet used as an illustration, and what it deliberately
-leaves out is not yet named. What remains, and what has been dropped on purpose,
-is tracked in `poc_audit/journal_vs_log.working_state.md`.
 
 ## Established
 
