@@ -363,11 +363,13 @@ without such a license (for example,
 
 #### Usage Events Failing to Publish
 
-**Problem:** Coder has been unable to publish usage data to Coder's servers
-for an extended period.
+**Problem:** Coder has been unable to publish usage data to Coder's servers.
+This warning appears when usage events have been waiting to publish for more
+than 24 hours, or immediately when Coder's servers permanently reject an
+event.
 
-**Solution:** Ensure the deployment can reach `tallyman-prod.coder.com` over
-HTTPS. Contact support if the issue persists.
+**Solution:** Contact support for help troubleshooting usage publishing
+failures.
 
 ### EUNKNOWN
 

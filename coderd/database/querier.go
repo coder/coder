@@ -876,13 +876,14 @@ type sqlcQuerier interface {
 	// cannot reliably infer the nullability of aggregate expressions. All cutoff
 	// parameters are computed by the caller so tests can control time:
 	//   - license_start: the nbf of the earliest currently-valid license with
-	//     usage publishing enabled. Until the deployment has published
-	//     successfully at least once, events count as stuck only from
-	//     license_start, giving the publisher a grace period to work through a
-	//     backlog that predates publishing being enabled (e.g. after switching
-	//     from an air-gapped license). After any successful publish the grace no
-	//     longer applies, so a license renewal cannot reset an active failure
-	//     warning even though renewal advances license_start.
+	//     usage publishing enabled. Events that have never had a publish attempt
+	//     count as stuck only from license_start, giving the publisher a grace
+	//     period to work through a backlog accumulated while publishing was
+	//     disabled or before it was first enabled (e.g. after switching from an
+	//     air-gapped license). Events with at least one failed attempt (an
+	//     unpublished row's failure_message is set by every failed attempt)
+	//     count from their insertion time regardless, so an ongoing outage keeps
+	//     warning even though a license renewal advances license_start.
 	//   - window_start: the start of the publisher's selection window (now minus
 	//     30 days, matching SelectUsageEventsForPublishing). Events older than
 	//     this are never published, so they must not trigger a failure forever.

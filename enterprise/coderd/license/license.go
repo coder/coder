@@ -183,9 +183,10 @@ type FeatureArguments struct {
 	// UsagePublishStatusFn fetches the usage event publishing status from the
 	// database. It is only called when a currently-valid license enables
 	// usage publishing. licenseStart is the earliest nbf among such licenses;
-	// until the deployment has published successfully at least once, events
-	// count as stuck only from licenseStart so a pre-enablement backlog gets
-	// the full failure threshold as a grace period.
+	// events that have never had a publish attempt count as stuck only from
+	// licenseStart, so a backlog accumulated while publishing was disabled
+	// (or before it was first enabled) gets the full failure threshold as a
+	// grace period after (re-)enablement.
 	UsagePublishStatusFn UsagePublishStatusFn
 }
 

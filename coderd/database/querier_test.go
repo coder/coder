@@ -11244,9 +11244,9 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			},
 		},
 		{
-			// Never published successfully, so the pre-enablement backlog
-			// counts as stuck only from license_start, which is too recent
-			// to breach the threshold.
+			// A never-attempted pre-enablement backlog counts as stuck only
+			// from license_start, which is too recent to breach the
+			// threshold.
 			name: "FirstEnablementBacklogWithinGrace",
 			events: []seedEvent{
 				{id: "1", createdAt: now.Add(-48 * time.Hour)},
@@ -11255,9 +11255,9 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			want:                 database.GetUsagePublishStatusRow{},
 		},
 		{
-			// Once the grace from license_start elapses without a single
-			// successful publish, the backlog warns with license_start as
-			// the effective stuck time.
+			// Once the grace from license_start elapses with the backlog
+			// still unattempted and unpublished, it warns with license_start
+			// as the effective stuck time.
 			name: "FirstEnablementBacklogWarnsAfterGrace",
 			events: []seedEvent{
 				{id: "1", createdAt: now.Add(-48 * time.Hour)},
@@ -11268,19 +11268,35 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			},
 		},
 		{
-			// A deployment that has published successfully before gets no
+			// An event with at least one failed publish attempt gets no
 			// license_start grace: a license renewal advancing license_start
 			// must not clear an active failure warning for events that are
 			// still stuck from before the renewal.
 			name: "RenewalDoesNotResetStuckDetection",
 			events: []seedEvent{
 				{id: "1", createdAt: now.Add(-10 * 24 * time.Hour), publishedAt: now.Add(-9 * 24 * time.Hour)},
-				{id: "2", createdAt: now.Add(-48 * time.Hour)},
+				{id: "2", createdAt: now.Add(-48 * time.Hour), failureMessage: "temporary failure"},
 			},
 			licenseStartOverride: now.Add(-1 * time.Hour),
 			want: database.GetUsagePublishStatusRow{
 				LastPublishedAt: now.Add(-9 * 24 * time.Hour),
 				OldestStuckAt:   now.Add(-48 * time.Hour),
+			},
+		},
+		{
+			// A backlog accumulated while publishing was disabled has never
+			// been attempted, so re-enabling publishing (license_start
+			// advances) grants the full grace period even though the
+			// deployment published successfully in the past.
+			name: "ReEnablingGrantsGraceToUnattemptedBacklog",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-10 * 24 * time.Hour), publishedAt: now.Add(-9 * 24 * time.Hour)},
+				{id: "2", createdAt: now.Add(-5 * 24 * time.Hour)},
+				{id: "3", createdAt: now.Add(-48 * time.Hour)},
+			},
+			licenseStartOverride: now.Add(-1 * time.Hour),
+			want: database.GetUsagePublishStatusRow{
+				LastPublishedAt: now.Add(-9 * 24 * time.Hour),
 			},
 		},
 		{
