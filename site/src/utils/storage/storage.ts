@@ -505,14 +505,7 @@ export function clearEntityStorage(
 	// Collect first: removing keys while enumerating by index skips
 	// entries. Overlay-only keys (failed writes with nothing persisted)
 	// exist solely in memory, so include them alongside localStorage.
-	const candidateKeys = new Set<string>();
-	try {
-		for (const key of listLocalKeys()) {
-			candidateKeys.add(key);
-		}
-	} catch {
-		// Enumeration failed; stale keys will be caught by the sweep.
-	}
+	const candidateKeys = new Set<string>(listLocalKeys());
 	for (const cacheKey of overlayKeys) {
 		if (cacheKey.startsWith("local:")) {
 			candidateKeys.add(cacheKey.slice("local:".length));
@@ -545,16 +538,22 @@ export function clearEntityStorage(
 
 /** Snapshot of localStorage key names; safe to mutate storage afterwards. */
 const listLocalKeys = (): string[] => {
-	const storage = getAreaStorage("local");
-	if (!storage) {
-		return [];
-	}
 	const keys: string[] = [];
-	for (let index = 0; index < storage.length; index++) {
-		const key = storage.key(index);
-		if (key !== null) {
-			keys.push(key);
+	// Enumeration itself can throw under restricted storage access, so
+	// this never throws and returns what was collected.
+	try {
+		const storage = getAreaStorage("local");
+		if (!storage) {
+			return keys;
 		}
+		for (let index = 0; index < storage.length; index++) {
+			const key = storage.key(index);
+			if (key !== null) {
+				keys.push(key);
+			}
+		}
+	} catch {
+		// Partial or empty list; the next sweep retries.
 	}
 	return keys;
 };
