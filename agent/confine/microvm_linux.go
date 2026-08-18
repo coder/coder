@@ -94,13 +94,16 @@ func newEmbeddedMicroVMConfig(options MicroVMOptions) (embeddedMicroVMConfig, er
 			Proxy:     server,
 			Subject:   subject,
 			Mounts: []hostvm.Mount{{
-				Source: binaryPath, Target: embeddedCoderGuestPath,
+				Source: filepath.Dir(binaryPath), Target: embeddedCoderGuestDir,
 				ReadOnly: true, Nosuid: true, Nodev: true,
 			}},
 		},
-		agentCommand: embeddedAgentCommand(agentURL.String(), options.AgentToken, options.SessionToken),
-		evaluator:    evaluator,
-		recorder:     recorder,
+		agentCommand: embeddedAgentCommand(
+			embeddedCoderGuestDir+"/"+filepath.Base(binaryPath),
+			agentURL.String(), options.AgentToken, options.SessionToken,
+		),
+		evaluator: evaluator,
+		recorder:  recorder,
 	}, nil
 }
 
@@ -161,7 +164,7 @@ func validateMicroVMOptions(options MicroVMOptions) (string, *url.URL, error) {
 	return binaryPath, agentURL, nil
 }
 
-func embeddedAgentCommand(agentURL, agentToken, sessionToken string) string {
+func embeddedAgentCommand(guestBinaryPath, agentURL, agentToken, sessionToken string) string {
 	environment := "CODER_AGENT_URL=" + shellQuote(agentURL) +
 		" CODER_AGENT_TOKEN=" + shellQuote(agentToken)
 	if sessionToken != "" {
@@ -174,7 +177,7 @@ func embeddedAgentCommand(agentURL, agentToken, sessionToken string) string {
 	for _, key := range slices.Sorted(maps.Keys(proxyEnv)) {
 		environment += " " + key + "=" + shellQuote(proxyEnv[key])
 	}
-	command := environment + " exec " + embeddedCoderGuestPath + " agent"
+	command := environment + " exec " + shellQuote(guestBinaryPath) + " agent"
 	return "setsid sh -c " + shellQuote(command) +
 		" </dev/null >" + embeddedAgentLogPath + " 2>&1 &"
 }

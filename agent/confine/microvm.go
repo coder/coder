@@ -7,7 +7,11 @@ import (
 	"golang.org/x/xerrors"
 )
 
-const embeddedCoderGuestPath = "/opt/coder"
+// embeddedCoderGuestDir is the guest mountpoint for the directory containing
+// the Coder binary. virtio-fs shares directories, not single files, so the
+// binary's parent directory is shared and the binary executed by name inside
+// it.
+const embeddedCoderGuestDir = "/opt/coder-bin"
 
 var embeddedMicroVMNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,62}$`)
 

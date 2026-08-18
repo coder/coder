@@ -109,8 +109,8 @@ func TestEmbeddedMicroVMConfigWiresEvaluatorRecorderAndAgent(t *testing.T) {
 	require.Same(t, config.evaluator, config.hostOptions.Subject.Policy)
 	require.Equal(t, "embedded-test", config.hostOptions.Subject.ID)
 	require.Len(t, config.hostOptions.Mounts, 1)
-	require.Equal(t, binaryPath, config.hostOptions.Mounts[0].Source)
-	require.Equal(t, embeddedCoderGuestPath, config.hostOptions.Mounts[0].Target)
+	require.Equal(t, filepath.Dir(binaryPath), config.hostOptions.Mounts[0].Source)
+	require.Equal(t, embeddedCoderGuestDir, config.hostOptions.Mounts[0].Target)
 	require.True(t, config.hostOptions.Mounts[0].ReadOnly)
 	require.True(t, config.hostOptions.Mounts[0].Nosuid)
 	require.True(t, config.hostOptions.Mounts[0].Nodev)
@@ -119,7 +119,7 @@ func TestEmbeddedMicroVMConfigWiresEvaluatorRecorderAndAgent(t *testing.T) {
 	require.Contains(t, config.agentCommand, "CODER_AGENT_URL=")
 	require.Contains(t, config.agentCommand, "CODER_AGENT_TOKEN=")
 	require.Contains(t, config.agentCommand, "CODER_SESSION_TOKEN=")
-	require.Contains(t, config.agentCommand, "exec /opt/coder agent")
+	require.Contains(t, config.agentCommand, "exec '\\''/opt/coder-bin/coder-real'\\'' agent")
 	//nolint:gosec // The generated command is the value under test.
 	require.NoError(t, exec.Command("sh", "-n", "-c", config.agentCommand).Run())
 
@@ -153,7 +153,7 @@ func TestEmbeddedMicroVMConfigWiresEvaluatorRecorderAndAgent(t *testing.T) {
 func TestEmbeddedAgentCommandWithoutSessionToken(t *testing.T) {
 	t.Parallel()
 
-	command := embeddedAgentCommand("https://coder.example.com", "agent-token", "")
+	command := embeddedAgentCommand(embeddedCoderGuestDir+"/coder", "https://coder.example.com", "agent-token", "")
 	require.NotContains(t, command, "CODER_SESSION_TOKEN=")
 	//nolint:gosec // The generated command is the value under test.
 	require.NoError(t, exec.Command("sh", "-n", "-c", command).Run())
@@ -171,7 +171,7 @@ func TestEmbeddedAgentCommandShellQuoting(t *testing.T) {
 	require.Equal(t, value, string(output))
 
 	command := embeddedAgentCommand(
-		"https://coder.example.com/a path", "agent'token", "session'token",
+		embeddedCoderGuestDir+"/coder name", "https://coder.example.com/a path", "agent'token", "session'token",
 	)
 	//nolint:gosec // The generated command is the value under test.
 	require.NoError(t, exec.Command("sh", "-n", "-c", command).Run())
