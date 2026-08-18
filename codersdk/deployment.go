@@ -380,32 +380,42 @@ func (set FeatureSet) Features() []FeatureName {
 type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`
 	Enabled     bool        `json:"enabled"`
-	Limit       *int64      `json:"limit,omitempty"`
+	// Limit is the maximum value the license grants for the feature, in the
+	// feature's own unit. For FeatureAgentRuntimeHours, an enabled feature
+	// with Limit omitted means the license grants unlimited runtime hours.
+	Limit *int64 `json:"limit,omitempty"`
 	// SoftLimit is the advisory warning threshold that accompanies Limit for
 	// features whose license carries it. For these features, Limit carries
-	// the purchased allocation.
-	//
-	// Only certain features set this field:
-	// - FeatureAgentRuntimeHours
+	// the purchased allocation; an unlimited allocation has no thresholds,
+	// so SoftLimit is omitted alongside the omitted Limit. Only
+	// FeatureAgentRuntimeHours sets this field.
 	SoftLimit *int64 `json:"soft_limit,omitempty"`
 	// HardLimit is the enforcement threshold that accompanies Limit for
 	// features whose license carries it. See SoftLimit for the set of
 	// features that use these thresholds.
 	HardLimit *int64 `json:"hard_limit,omitempty"`
-	Actual    *int64 `json:"actual,omitempty"`
+	// Actual is the usage measured against Limit, when known: a
+	// point-in-time count for most features, or usage accumulated over
+	// UsagePeriod for features that set one. Its unit matches Limit's;
+	// FeatureAgentRuntimeHours reports whole hours floored from the
+	// recorded milliseconds, with the precise value available in
+	// ActualMs. FeatureAgentRuntimeHours usage can trail by roughly one
+	// hour because the current hour is not emitted, plus the entitlement
+	// refresh interval.
+	Actual *int64 `json:"actual,omitempty"`
+	// ActualMs is the precise usage backing Actual, in milliseconds, for
+	// features measured in time. It has the same freshness as Actual.
+	// Only FeatureAgentRuntimeHours sets this field.
+	ActualMs *int64 `json:"actual_ms,omitempty"`
 
 	// Below is only for features that use usage periods.
 
 	// UsagePeriod denotes that the usage is a counter that accumulates over
 	// this period (and most likely resets with the issuance of the next
-	// license).
-	//
-	// These dates are determined from the license that this entitlement comes
-	// from, see enterprise/coderd/license/license.go.
-	//
-	// Only certain features set these fields:
-	// - FeatureManagedAgentLimit
-	// - FeatureAgentRuntimeHours
+	// license). These dates are determined from the license that this
+	// entitlement comes from, see enterprise/coderd/license/license.go.
+	// Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this
+	// field.
 	UsagePeriod *UsagePeriod `json:"usage_period,omitempty"`
 }
 
@@ -425,7 +435,7 @@ type UsagePeriod struct {
 // 2. The usage period has a greater end date (note: only certain features use usage periods)
 // 3. Graceful & capable > Entitled & not capable (only if both have "Actual" values)
 // 4. The entitlement is greater
-// 5. The limit is greater
+// 5. The limit is greater (except a nil limit on a usage period feature means unlimited, outranking any set limit)
 // 6. Enabled is greater than disabled
 // 7. The actual is greater
 //
@@ -469,11 +479,19 @@ func (f Feature) Compare(b Feature) int {
 		return entitlementDifference
 	}
 
-	// If the entitlement is the same, then we can compare the limits.
+	// If the entitlement is the same, then we can compare the limits. A nil
+	// limit on a usage period feature means unlimited, so it outranks any set
+	// limit; on other features a nil limit loses to a set one.
 	if f.Limit == nil && b.Limit != nil {
+		if bothHaveUsagePeriod {
+			return 1
+		}
 		return -1
 	}
 	if f.Limit != nil && b.Limit == nil {
+		if bothHaveUsagePeriod {
+			return -1
+		}
 		return 1
 	}
 	if f.Limit != nil && b.Limit != nil {
@@ -1016,7 +1034,7 @@ type OIDCConfig struct {
 
 	// RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
 	// situations where the OIDC callback domain is different from the ACCESS_URL
-	// domain.
+	// domain. The path component is ignored.
 	RedirectURL serpent.URL `json:"redirect_url" typescript:",notnull"`
 
 	AutoRepairLinks serpent.Bool `json:"auto_repair_links" typescript:",notnull"`
@@ -1170,10 +1188,14 @@ type ExternalAuthConfig struct {
 	ClientSecret string `json:"-" yaml:"client_secret"`
 	// ID is a unique identifier for the auth config.
 	// It defaults to `type` when not provided.
-	ID                  string   `json:"id" yaml:"id"`
-	AuthURL             string   `json:"auth_url" yaml:"auth_url"`
-	TokenURL            string   `json:"token_url" yaml:"token_url"`
-	ValidateURL         string   `json:"validate_url" yaml:"validate_url"`
+	ID          string `json:"id" yaml:"id"`
+	AuthURL     string `json:"auth_url" yaml:"auth_url"`
+	TokenURL    string `json:"token_url" yaml:"token_url"`
+	ValidateURL string `json:"validate_url" yaml:"validate_url"`
+	// RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
+	// situations where the OAuth callback domain is different from the ACCESS_URL
+	// domain. The path component is ignored.
+	RedirectURL         string   `json:"redirect_url" yaml:"redirect_url"`
 	RevokeURL           string   `json:"revoke_url" yaml:"revoke_url"`
 	AppInstallURL       string   `json:"app_install_url" yaml:"app_install_url"`
 	AppInstallationsURL string   `json:"app_installations_url" yaml:"app_installations_url"`

@@ -6013,6 +6013,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppCodes() {
 		check.Args(database.InsertOAuth2ProviderAppCodeParams{
 			AppID:  app.ID,
 			UserID: user.ID,
+			Scope:  string(database.ApiKeyScopeCoderAll),
 		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionCreate)
 	}))
 	s.Run("DeleteOAuth2ProviderAppCodeByID", s.Subtest(func(db database.Store, check *expects) {
@@ -6057,6 +6058,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 			AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 			APIKeyID:    key.ID,
 			UserID:      user.ID,
+			Scope:       string(database.ApiKeyScopeCoderAll),
 		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionCreate)
 	}))
 	s.Run("GetOAuth2ProviderAppTokenByPrefix", s.Subtest(func(db database.Store, check *expects) {
@@ -6527,6 +6529,14 @@ func (s *MethodTestSuite) TestUsageEvents() {
 		check.Args(database.GetTotalUsageDCManagedAgentsV1Params{
 			StartDate: time.Time{},
 			EndDate:   time.Time{},
+		}).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
+	}))
+
+	s.Run("GetTotalUsageHBAgentRuntimeV1", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().GetTotalUsageHBAgentRuntimeV1(gomock.Any(), gomock.Any()).Return(int64(1), nil)
+		check.Args(database.GetTotalUsageHBAgentRuntimeV1Params{
+			StartTime: time.Time{},
+			EndTime:   time.Time{},
 		}).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
 	}))
 

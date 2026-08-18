@@ -20,6 +20,7 @@ const ALLOWED_EXTERNAL_APP_PROTOCOLS = [
 	"vscode:",
 	"vscode-insiders:",
 	"windsurf:",
+	"devin:",
 	"cursor:",
 	"jetbrains-gateway:",
 	"jetbrains:",

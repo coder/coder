@@ -8,7 +8,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
-import { BlockList } from "../../ChatConversation/ConversationTimeline";
+import { BlockList } from "../../ChatConversation/MessageBlocks";
 import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool, toolRendererNames } from "./Tool";
 

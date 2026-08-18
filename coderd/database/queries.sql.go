@@ -14657,74 +14657,86 @@ WHERE
 			user_name ILIKE concat('%', $4, '%')
 		ELSE true
 	END
+	-- Filter by exact username
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			lower(user_username) = lower($5)
+		ELSE true
+	END
+	-- Filter by exact email
+	AND CASE
+		WHEN $6 :: text != '' THEN
+			lower(user_email) = lower($6)
+		ELSE true
+	END
 	-- Filter by status
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
 		-- user_status enum, it would not.
-		WHEN cardinality($5 :: user_status[]) > 0 THEN
-			user_status = ANY($5 :: user_status[])
+		WHEN cardinality($7 :: user_status[]) > 0 THEN
+			user_status = ANY($7 :: user_status[])
 		ELSE true
 	END
 	-- Filter by rbac_roles
 	AND CASE
 		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
 		-- everyone is a member.
-		WHEN cardinality($6 :: text[]) > 0 AND 'member' != ANY($6 :: text[]) THEN
-			user_rbac_roles && $6 :: text[]
+		WHEN cardinality($8 :: text[]) > 0 AND 'member' != ANY($8 :: text[]) THEN
+			user_rbac_roles && $8 :: text[]
 		ELSE true
 	END
 	-- Filter by last_seen
 	AND CASE
-		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			user_last_seen_at <= $7
-		ELSE true
-	END
-	AND CASE
-		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			user_last_seen_at >= $8
-		ELSE true
-	END
-	-- Filter by created_at
-	AND CASE
 		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			user_created_at <= $9
+			user_last_seen_at <= $9
 		ELSE true
 	END
 	AND CASE
 		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			user_created_at >= $10
+			user_last_seen_at >= $10
+		ELSE true
+	END
+	-- Filter by created_at
+	AND CASE
+		WHEN $11 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			user_created_at <= $11
+		ELSE true
+	END
+	AND CASE
+		WHEN $12 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			user_created_at >= $12
 		ELSE true
 	END
 	-- Filter by system type
 	AND CASE
-		WHEN $11::bool THEN TRUE
+		WHEN $13::bool THEN TRUE
 		ELSE user_is_system = false
 	END
 	-- Filter by github.com user ID
 	AND CASE
-		WHEN $12 :: bigint != 0 THEN
-			user_github_com_user_id = $12
+		WHEN $14 :: bigint != 0 THEN
+			user_github_com_user_id = $14
 		ELSE true
 	END
 	-- Filter by login_type
 	AND CASE
-		WHEN cardinality($13 :: login_type[]) > 0 THEN
-			user_login_type = ANY($13 :: login_type[])
+		WHEN cardinality($15 :: login_type[]) > 0 THEN
+			user_login_type = ANY($15 :: login_type[])
 		ELSE true
 	END
 	-- Filter by service account.
 	AND CASE
-		WHEN $14 :: boolean IS NOT NULL THEN
-			user_is_service_account = $14 :: boolean
+		WHEN $16 :: boolean IS NOT NULL THEN
+			user_is_service_account = $16 :: boolean
 		ELSE true
 	END
 	-- End of filters
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(user_username) ASC OFFSET $15
+	LOWER(user_username) ASC OFFSET $17
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($16 :: int, 0)
+	NULLIF($18 :: int, 0)
 `
 
 type GetGroupMembersByGroupIDPaginatedParams struct {
@@ -14732,6 +14744,8 @@ type GetGroupMembersByGroupIDPaginatedParams struct {
 	AfterID          uuid.UUID    `db:"after_id" json:"after_id"`
 	Search           string       `db:"search" json:"search"`
 	Name             string       `db:"name" json:"name"`
+	ExactUsername    string       `db:"exact_username" json:"exact_username"`
+	ExactEmail       string       `db:"exact_email" json:"exact_email"`
 	Status           []UserStatus `db:"status" json:"status"`
 	RbacRole         []string     `db:"rbac_role" json:"rbac_role"`
 	LastSeenBefore   time.Time    `db:"last_seen_before" json:"last_seen_before"`
@@ -14776,6 +14790,8 @@ func (q *sqlQuerier) GetGroupMembersByGroupIDPaginated(ctx context.Context, arg 
 		arg.AfterID,
 		arg.Search,
 		arg.Name,
+		arg.ExactUsername,
+		arg.ExactEmail,
 		pq.Array(arg.Status),
 		pq.Array(arg.RbacRole),
 		arg.LastSeenBefore,
@@ -19055,7 +19071,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 }
 
 const getOAuth2ProviderAppCodeByID = `-- name: GetOAuth2ProviderAppCodeByID :one
-SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri FROM oauth2_provider_app_codes WHERE id = $1
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri, scope FROM oauth2_provider_app_codes WHERE id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
@@ -19074,12 +19090,13 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.U
 		&i.CodeChallengeMethod,
 		&i.StateHash,
 		&i.RedirectUri,
+		&i.Scope,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppCodeByPrefix = `-- name: GetOAuth2ProviderAppCodeByPrefix :one
-SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri FROM oauth2_provider_app_codes WHERE secret_prefix = $1
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri, scope FROM oauth2_provider_app_codes WHERE secret_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error) {
@@ -19098,6 +19115,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secre
 		&i.CodeChallengeMethod,
 		&i.StateHash,
 		&i.RedirectUri,
+		&i.Scope,
 	)
 	return i, err
 }
@@ -19176,7 +19194,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, app
 }
 
 const getOAuth2ProviderAppTokenByAPIKeyID = `-- name: GetOAuth2ProviderAppTokenByAPIKeyID :one
-SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id FROM oauth2_provider_app_tokens WHERE api_key_id = $1
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id, scope FROM oauth2_provider_app_tokens WHERE api_key_id = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (OAuth2ProviderAppToken, error) {
@@ -19193,12 +19211,13 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, ap
 		&i.Audience,
 		&i.UserID,
 		&i.AppID,
+		&i.Scope,
 	)
 	return i, err
 }
 
 const getOAuth2ProviderAppTokenByPrefix = `-- name: GetOAuth2ProviderAppTokenByPrefix :one
-SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
+SELECT id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id, scope FROM oauth2_provider_app_tokens WHERE hash_prefix = $1
 `
 
 func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error) {
@@ -19215,6 +19234,7 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hash
 		&i.Audience,
 		&i.UserID,
 		&i.AppID,
+		&i.Scope,
 	)
 	return i, err
 }
@@ -19506,7 +19526,8 @@ INSERT INTO oauth2_provider_app_codes (
     code_challenge,
     code_challenge_method,
     state_hash,
-    redirect_uri
+    redirect_uri,
+    scope
 ) VALUES(
     $1,
     $2,
@@ -19519,8 +19540,9 @@ INSERT INTO oauth2_provider_app_codes (
     $9,
     $10,
     $11,
-    $12
-) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri
+    $12,
+    $13
+) RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri, scope
 `
 
 type InsertOAuth2ProviderAppCodeParams struct {
@@ -19536,6 +19558,7 @@ type InsertOAuth2ProviderAppCodeParams struct {
 	CodeChallengeMethod sql.NullString `db:"code_challenge_method" json:"code_challenge_method"`
 	StateHash           sql.NullString `db:"state_hash" json:"state_hash"`
 	RedirectUri         sql.NullString `db:"redirect_uri" json:"redirect_uri"`
+	Scope               string         `db:"scope" json:"scope"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg InsertOAuth2ProviderAppCodeParams) (OAuth2ProviderAppCode, error) {
@@ -19552,6 +19575,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		arg.CodeChallengeMethod,
 		arg.StateHash,
 		arg.RedirectUri,
+		arg.Scope,
 	)
 	var i OAuth2ProviderAppCode
 	err := row.Scan(
@@ -19567,6 +19591,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppCode(ctx context.Context, arg Insert
 		&i.CodeChallengeMethod,
 		&i.StateHash,
 		&i.RedirectUri,
+		&i.Scope,
 	)
 	return i, err
 }
@@ -19631,7 +19656,8 @@ INSERT INTO oauth2_provider_app_tokens (
     app_secret_id,
     api_key_id,
     user_id,
-    audience
+    audience,
+    scope
 ) VALUES(
     $1,
     $2,
@@ -19642,8 +19668,9 @@ INSERT INTO oauth2_provider_app_tokens (
     $7,
     $8,
     $9,
-    $10
-) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id
+    $10,
+    $11
+) RETURNING id, created_at, expires_at, hash_prefix, refresh_hash, app_secret_id, api_key_id, audience, user_id, app_id, scope
 `
 
 type InsertOAuth2ProviderAppTokenParams struct {
@@ -19657,6 +19684,7 @@ type InsertOAuth2ProviderAppTokenParams struct {
 	APIKeyID    string         `db:"api_key_id" json:"api_key_id"`
 	UserID      uuid.UUID      `db:"user_id" json:"user_id"`
 	Audience    sql.NullString `db:"audience" json:"audience"`
+	Scope       string         `db:"scope" json:"scope"`
 }
 
 func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg InsertOAuth2ProviderAppTokenParams) (OAuth2ProviderAppToken, error) {
@@ -19671,6 +19699,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		arg.APIKeyID,
 		arg.UserID,
 		arg.Audience,
+		arg.Scope,
 	)
 	var i OAuth2ProviderAppToken
 	err := row.Scan(
@@ -19684,6 +19713,7 @@ func (q *sqlQuerier) InsertOAuth2ProviderAppToken(ctx context.Context, arg Inser
 		&i.Audience,
 		&i.UserID,
 		&i.AppID,
+		&i.Scope,
 	)
 	return i, err
 }
@@ -20162,74 +20192,86 @@ WHERE
 			users.name ILIKE concat('%', $4, '%')
 		ELSE true
 	END
+	-- Filter by exact username
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			lower(users.username) = lower($5)
+		ELSE true
+	END
+	-- Filter by exact email
+	AND CASE
+		WHEN $6 :: text != '' THEN
+			lower(users.email) = lower($6)
+		ELSE true
+	END
 	-- Filter by status
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
 		-- user_status enum, it would not.
-		WHEN cardinality($5 :: user_status[]) > 0 THEN
-			users.status = ANY($5 :: user_status[])
+		WHEN cardinality($7 :: user_status[]) > 0 THEN
+			users.status = ANY($7 :: user_status[])
 		ELSE true
 	END
 	-- Filter by global rbac_roles
 	AND CASE
 		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
 		-- everyone is a member.
-		WHEN cardinality($6 :: text[]) > 0 AND 'member' != ANY($6 :: text[]) THEN
-			users.rbac_roles && $6 :: text[]
+		WHEN cardinality($8 :: text[]) > 0 AND 'member' != ANY($8 :: text[]) THEN
+			users.rbac_roles && $8 :: text[]
 		ELSE true
 	END
 	-- Filter by last_seen
 	AND CASE
-		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			users.last_seen_at <= $7
-		ELSE true
-	END
-	AND CASE
-		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			users.last_seen_at >= $8
-		ELSE true
-	END
-	-- Filter by created_at (user creation date, not date added to org)
-	AND CASE
 		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			users.created_at <= $9
+			users.last_seen_at <= $9
 		ELSE true
 	END
 	AND CASE
 		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			users.created_at >= $10
+			users.last_seen_at >= $10
+		ELSE true
+	END
+	-- Filter by created_at (user creation date, not date added to org)
+	AND CASE
+		WHEN $11 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			users.created_at <= $11
+		ELSE true
+	END
+	AND CASE
+		WHEN $12 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			users.created_at >= $12
 		ELSE true
 	END
 	 -- Filter by system type
 	AND CASE
-		WHEN $11::bool THEN TRUE
+		WHEN $13::bool THEN TRUE
 		ELSE users.is_system = false
 	END
 	 -- Filter by github.com user ID
 	AND CASE
-		WHEN $12 :: bigint != 0 THEN
-			users.github_com_user_id = $12
+		WHEN $14 :: bigint != 0 THEN
+			users.github_com_user_id = $14
 		ELSE true
 	END
 	-- Filter by login_type
 	AND CASE
-		WHEN cardinality($13 :: login_type[]) > 0 THEN
-			users.login_type = ANY($13 :: login_type[])
+		WHEN cardinality($15 :: login_type[]) > 0 THEN
+			users.login_type = ANY($15 :: login_type[])
 		ELSE true
 	END
 	-- Filter by service account.
 	AND CASE
-		WHEN $14 :: boolean IS NOT NULL THEN
-			users.is_service_account = $14 :: boolean
+		WHEN $16 :: boolean IS NOT NULL THEN
+			users.is_service_account = $16 :: boolean
 		ELSE true
 	END
 	-- End of filters
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(users.username) ASC OFFSET $15
+	LOWER(users.username) ASC OFFSET $17
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($16 :: int, 0)
+	NULLIF($18 :: int, 0)
 `
 
 type PaginatedOrganizationMembersParams struct {
@@ -20237,6 +20279,8 @@ type PaginatedOrganizationMembersParams struct {
 	OrganizationID   uuid.UUID    `db:"organization_id" json:"organization_id"`
 	Search           string       `db:"search" json:"search"`
 	Name             string       `db:"name" json:"name"`
+	ExactUsername    string       `db:"exact_username" json:"exact_username"`
+	ExactEmail       string       `db:"exact_email" json:"exact_email"`
 	Status           []UserStatus `db:"status" json:"status"`
 	RbacRole         []string     `db:"rbac_role" json:"rbac_role"`
 	LastSeenBefore   time.Time    `db:"last_seen_before" json:"last_seen_before"`
@@ -20273,6 +20317,8 @@ func (q *sqlQuerier) PaginatedOrganizationMembers(ctx context.Context, arg Pagin
 		arg.OrganizationID,
 		arg.Search,
 		arg.Name,
+		arg.ExactUsername,
+		arg.ExactEmail,
 		pq.Array(arg.Status),
 		pq.Array(arg.RbacRole),
 		arg.LastSeenBefore,
@@ -28639,6 +28685,44 @@ func (q *sqlQuerier) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg Get
 	return total_count, err
 }
 
+const getTotalUsageHBAgentRuntimeV1 = `-- name: GetTotalUsageHBAgentRuntimeV1 :one
+SELECT
+    -- The first cast is necessary since you can't sum strings, and the second
+    -- cast is necessary to make sqlc happy.
+    COALESCE(SUM((event_data->>'runtime_ms')::bigint), 0)::bigint AS total_runtime_ms
+FROM
+    usage_events
+WHERE
+    event_type = 'hb_agent_runtime_v1'
+    AND created_at >= $1::timestamptz
+    AND created_at < $2::timestamptz
+`
+
+type GetTotalUsageHBAgentRuntimeV1Params struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+// Gets the total Coder Agent runtime in milliseconds between two timestamps.
+// The start bound is inclusive and the end bound is exclusive.
+//
+// Unlike GetTotalUsageDCManagedAgentsV1 this reads usage_events directly
+// rather than the usage_events_daily rollup: hb_agent_runtime_v1 is exactly
+// one row per hourly bucket deployment-wide, with created_at at the bucket
+// start, enforced by the unique partial index
+// idx_usage_events_agent_runtime (which also keeps SUM from counting a
+// bucket twice and serves this query). The result is bucket-granular: a
+// bucket counts entirely against the period containing its start. See
+// enterprise/coderd/usage/generator.go for what a bucket holds. If a
+// usage_events retention policy ever lands, this must move to the daily
+// rollup and accept day-granularity bounds.
+func (q *sqlQuerier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalUsageHBAgentRuntimeV1, arg.StartTime, arg.EndTime)
+	var total_runtime_ms int64
+	err := row.Scan(&total_runtime_ms)
+	return total_runtime_ms, err
+}
+
 const insertUsageEvent = `-- name: InsertUsageEvent :exec
 INSERT INTO
     usage_events (
@@ -34014,6 +34098,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Co
 const getWorkspaceAgentsInLatestBuildByWorkspaceIDs = `-- name: GetWorkspaceAgentsInLatestBuildByWorkspaceIDs :many
 SELECT
 	workspace_builds.workspace_id,
+	workspace_builds.id AS build_id,
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted
 FROM
 	workspace_agents
@@ -34040,6 +34125,7 @@ WHERE
 
 type GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow struct {
 	WorkspaceID    uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	BuildID        uuid.UUID      `db:"build_id" json:"build_id"`
 	WorkspaceAgent WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
 }
 
@@ -34054,6 +34140,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(ctx context.C
 		var i GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow
 		if err := rows.Scan(
 			&i.WorkspaceID,
+			&i.BuildID,
 			&i.WorkspaceAgent.ID,
 			&i.WorkspaceAgent.CreatedAt,
 			&i.WorkspaceAgent.UpdatedAt,
