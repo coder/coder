@@ -2,12 +2,14 @@ package toolsdk_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"io"
 	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -36,6 +38,14 @@ func (t *failPathTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		return nil, xerrors.New("transport down")
 	}
 	return http.DefaultTransport.RoundTrip(req)
+}
+
+// stallTransport hangs every request until its context is canceled.
+type stallTransport struct{}
+
+func (stallTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	<-req.Context().Done()
+	return nil, req.Context().Err()
 }
 
 type signalPathTransport struct {
@@ -632,6 +642,23 @@ func TestChatTools(t *testing.T) {
 		require.Equal(t, codersdk.ChatStatusRunning, timedOut.Chat.Status)
 		releaseTimeout()
 		coderdtest.WaitForChatSettled(ctx, t, api, busy.ID)
+
+		// An initial status request that outlives the wait window
+		// errors within the wait_secs bound; the old post-deadline
+		// fallback fetch added up to 15 extra seconds.
+		stallClient := codersdk.New(client.URL)
+		stallClient.SetSessionToken(client.SessionToken())
+		stallClient.HTTPClient = &http.Client{Transport: stallTransport{}}
+		t.Cleanup(stallClient.HTTPClient.CloseIdleConnections)
+		stallDeps, err := toolsdk.NewDeps(stallClient)
+		require.NoError(t, err)
+		stallStart := time.Now()
+		_, err = toolsdk.AwaitChat.Handler(ctx, stallDeps, toolsdk.AwaitChatArgs{
+			ChatID:   busy.ID.String(),
+			WaitSecs: 1,
+		})
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.Less(t, time.Since(stallStart), 10*time.Second)
 	})
 
 	t.Run("ListChatModelConfigsSkipsDisabledProviders", func(t *testing.T) {

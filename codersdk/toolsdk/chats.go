@@ -359,26 +359,15 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 		// the wait window; non-busy states return immediately instead.
 		var lastBusy *codersdk.Chat
 
-		// finalStatus reports the chat state once the wait window closes.
-		// A state observed inside the window is returned directly so
-		// wait_secs stays a hard upper bound on the tool's duration. Only
-		// when no state was observed at all (the initial status request
-		// outlived the window) does one short bounded fetch run, so the
-		// tool reports where things stand instead of failing.
+		// finalStatus reports the last busy state observed inside the
+		// wait window once it closes. Every caller runs after lastBusy
+		// is set, and no request runs after the window ends, so
+		// wait_secs stays a hard upper bound on the tool's duration.
 		finalStatus := func() (AwaitChatResponse, error) {
 			if ctx.Err() != nil {
 				return AwaitChatResponse{}, ctx.Err()
 			}
-			if lastBusy != nil {
-				return AwaitChatResponse{TimedOut: true, Chat: chatToolStatus(deps, *lastBusy)}, nil
-			}
-			finalCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-			defer cancel()
-			chat, err := expClient.GetChat(finalCtx, chatID)
-			if err != nil {
-				return AwaitChatResponse{}, xerrors.Errorf("get chat after wait: %w", err)
-			}
-			return AwaitChatResponse{TimedOut: chatStatusBusy(chat.Status), Chat: chatToolStatus(deps, chat)}, nil
+			return AwaitChatResponse{TimedOut: true, Chat: chatToolStatus(deps, *lastBusy)}, nil
 		}
 
 		// Dial asynchronously: a slow or failed watch dial (e.g. a proxy
@@ -415,11 +404,11 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 			}
 		}()
 
+		// The initial status request errors when it outlives the wait
+		// window: no state was observed, and a post-deadline fetch would
+		// break the wait_secs bound.
 		chat, err := expClient.GetChat(waitCtx, chatID)
 		if err != nil {
-			if waitCtx.Err() != nil {
-				return finalStatus()
-			}
 			return AwaitChatResponse{}, xerrors.Errorf("get chat: %w", err)
 		}
 		if !chatStatusBusy(chat.Status) {
