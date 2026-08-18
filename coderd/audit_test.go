@@ -152,6 +152,7 @@ func TestAuditLogs(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 		user := coderdtest.CreateFirstUser(t, client)
 		auditor, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleAuditor())
+		orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.ScopedRoleOrgAdmin(user.OrganizationID))
 
 		config := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: user.OrganizationID,
@@ -172,6 +173,17 @@ func TestAuditLogs(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, auditorLogs.AuditLogs, 1)
 		require.Empty(t, auditorLogs.AuditLogs[0].ResourceLink)
+
+		// Organization admins hold MCP permissions but not the
+		// deployment-config access the settings page requires.
+		orgAdminLogs, err := orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
+			Pagination: codersdk.Pagination{
+				Limit: 1,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, orgAdminLogs.AuditLogs, 1)
+		require.Empty(t, orgAdminLogs.AuditLogs[0].ResourceLink)
 
 		ownerLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			Pagination: codersdk.Pagination{
