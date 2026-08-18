@@ -2412,11 +2412,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		}
 		userIDs = append(userIDs, id)
 	}
-	// ACL users are returned as MinimalUser. We resolve only the user IDs
-	// already on this workspace's ACL, so the System context is scoped to
-	// people the workspace is already shared with. The response omits roles and
-	// org memberships.
-	// nolint:gocritic
+	// nolint:gocritic // Scoped to the user IDs already on this workspace's ACL, per the comment above.
 	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)

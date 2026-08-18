@@ -5972,6 +5972,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, workspaceACL.Users, 1)
 		require.Equal(t, workspaceACL.Users[0].ID, friend.ID)
+		require.Equal(t, friend.Email, workspaceACL.Users[0].Email)
 		require.Equal(t, workspaceACL.Users[0].Role, codersdk.WorkspaceRoleAdmin)
 	})
 
