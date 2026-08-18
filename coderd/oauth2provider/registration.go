@@ -548,10 +548,14 @@ func readOAuth2ClientRegistrationRequest(ctx context.Context, rw http.ResponseWr
 
 	r.Body = http.MaxBytesReader(rw, r.Body, httpapi.DefaultMaxRequestBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-			httpapi.RecordRequestBodyLimit(ctx, httpapi.DefaultMaxRequestBodyBytes)
+		if mbe, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			// Report the limit the error carries, not the one installed above.
+			// Nested readers compose as tightest-wins and the error carries the
+			// winner, so an outer wrap tighter than this one would otherwise be
+			// reported as the looser limit that rejected nothing.
+			httpapi.RecordRequestBodyLimit(ctx, mbe.Limit)
 			writeOAuth2RegistrationError(ctx, rw, http.StatusRequestEntityTooLarge, "invalid_request",
-				fmt.Sprintf("Maximum request body size is %d bytes.", httpapi.DefaultMaxRequestBodyBytes))
+				fmt.Sprintf("Maximum request body size is %d bytes.", mbe.Limit))
 			return req, false
 		}
 		// The decoder's own text is the diagnosis a client integrator needs: it
