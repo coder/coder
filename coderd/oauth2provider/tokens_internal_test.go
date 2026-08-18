@@ -60,20 +60,21 @@ func TestScopeStringToAPIKeyScopes(t *testing.T) {
 		// The valid name alongside it must not be minted on its own: a
 		// partial grant is still a grant nobody negotiated.
 		_, err := scopeStringToAPIKeyScopes("workspace:ssh not_a_real_scope")
-		require.ErrorIs(t, err, errUnstorableScope)
+		require.ErrorIs(t, err, errUnmintableScope)
 		require.Contains(t, err.Error(), "not_a_real_scope")
 	})
 
-	// Unreachable through the column, which is NOT NULL with CHECK (scope <>
-	// ''), and pinned anyway: an empty list is what apikey.Generate reads as
-	// unrestricted, so treating it as anything but an error here would widen
-	// the grant rather than fail it.
+	// Unreachable through the column, which is NOT NULL and written only by
+	// authorization and the backfill, both of which emit at least one
+	// non-whitespace name. Pinned anyway: an empty list is what apikey.Generate
+	// reads as unrestricted, so treating it as anything but an error here would
+	// widen the grant rather than fail it.
 	t.Run("EmptyRejected", func(t *testing.T) {
 		t.Parallel()
 
 		for _, scope := range []string{"", "   "} {
 			_, err := scopeStringToAPIKeyScopes(scope)
-			require.ErrorIs(t, err, errUnstorableScope, "scope %q", scope)
+			require.ErrorIs(t, err, errUnmintableScope, "scope %q", scope)
 		}
 	})
 }
