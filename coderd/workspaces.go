@@ -3180,9 +3180,8 @@ func (api *API) workspaceAvailableUsers(rw http.ResponseWriter, r *http.Request)
 	// candidate list is this organization's roster, not every user on the
 	// deployment. We look members up under the caller's own context via
 	// PaginatedOrganizationMembers, which enforces organization_member read, so
-	// member identity (including email, for disambiguation) is only returned to
-	// callers authorized to read this organization's members. This also keeps
-	// the listing scoped to a single organization in multi-org deployments.
+	// the listing is scoped to a single organization in multi-org deployments and
+	// is only returned to callers authorized to read this organization's members.
 	members, err := api.Database.PaginatedOrganizationMembers(ctx, database.PaginatedOrganizationMembersParams{
 		AfterID:          paginationParams.AfterID,
 		OrganizationID:   organization.ID,
