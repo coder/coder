@@ -67,9 +67,7 @@ export const AIBudgetUncapped: Story = {
 			canvas.getByText("This group doesn't have a budget set."),
 		).toBeInTheDocument();
 		await expect(
-			canvas.getByText(
-				/Members without a budget from another group won't have AI access/,
-			),
+			canvas.getByText(/Members will fall back to another group's limit/),
 		).toBeInTheDocument();
 		await expect(
 			canvas.getByRole("link", {
@@ -100,7 +98,9 @@ export const AIBudgetDisabled: Story = {
 			"This group's limit has been set to $0.",
 		);
 		await expect(
-			canvas.getByText(/A \$0 limit disables AI access for this group/),
+			canvas.getByText(
+				/A \$0 limit blocks AI access for members that aren't in another group/,
+			),
 		).toBeInTheDocument();
 	},
 };

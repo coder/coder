@@ -92,7 +92,7 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 				? {
 						summary: "This group doesn't have a budget set.",
 						message:
-							"Members without a budget from another group won't have AI access.",
+							"Members will fall back to another group's limit, or if no budgets have been set, they will have no spend limit.",
 					}
 				: {
 						summary: (
@@ -101,7 +101,8 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 								<span className="font-medium text-content-primary">$0</span>.
 							</>
 						),
-						message: "A $0 limit disables AI access for this group.",
+						message:
+							"A $0 limit blocks AI access for members that aren't in another group with a budget set.",
 					};
 		return (
 			<>
