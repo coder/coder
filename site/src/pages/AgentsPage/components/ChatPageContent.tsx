@@ -583,8 +583,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}
-			// Once an interrupt lands, the backend rejects another with 409;
-			// hold Stop disabled for the whole interrupting status.
 			isInterruptPending={isInterruptPending || chatStatus === "interrupting"}
 			contextUsage={latestContextUsage}
 			onRefreshContext={handleRefreshContext}
