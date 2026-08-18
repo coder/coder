@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { QueuedMessagesList } from "./QueuedMessagesList";
@@ -157,6 +157,46 @@ export const ActionsExcludeEdit: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "Edit" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+let rejectQueuedDelete: ((error: Error) => void) | undefined;
+
+// Deleting hides the row optimistically and disables sibling actions while
+// pending; a rejected delete restores the row and re-enables actions.
+export const DeleteRejectionRestoresRow: Story = {
+	args: {
+		messages: [
+			buildMessage(1, textContent("First queued")),
+			buildMessage(2, textContent("Second queued")),
+		],
+		onDelete: () =>
+			new Promise<void>((_, reject) => {
+				rejectQueuedDelete = reject;
+			}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const removeButtons = canvas.getAllByRole("button", {
+			name: "Remove from queue",
+		});
+		await userEvent.click(removeButtons[0]);
+
+		expect(canvas.queryByText("First queued")).not.toBeInTheDocument();
+		expect(canvas.getByText("Second queued")).toBeVisible();
+		expect(canvas.getByRole("button", { name: "Send now" })).toBeDisabled();
+
+		if (!rejectQueuedDelete) {
+			throw new Error("onDelete was not invoked");
+		}
+		rejectQueuedDelete(new Error("delete failed"));
+
+		await waitFor(() => expect(canvas.getByText("First queued")).toBeVisible());
+		for (const button of canvas.getAllByRole("button", {
+			name: "Send now",
+		})) {
+			expect(button).toBeEnabled();
+		}
 	},
 };
 
