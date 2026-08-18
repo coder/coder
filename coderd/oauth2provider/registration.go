@@ -563,7 +563,7 @@ func readOAuth2ClientRegistrationRequest(ctx context.Context, rw http.ResponseWr
 		// caller's own bytes, so it discloses nothing, and httpapi.Read has
 		// exposed it on every other endpoint for as long as it has existed.
 		writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest, "invalid_request",
-			fmt.Sprintf("Request body must be valid JSON: %s", err))
+			fmt.Sprintf("Request body must be valid JSON. %s", err))
 		return req, false
 	}
 	return req, true
