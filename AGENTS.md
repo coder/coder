@@ -1,6 +1,6 @@
 # Coder Development Guidelines
 
-Make the smallest correct change, follow existing patterns, and verify the result. Ask only when the request is unclear, a meaningful design choice remains, or the action is destructive.
+Make the smallest correct change, follow existing patterns, and verify the result. Ask only when the request is unclear, a meaningful design choice remains, or the action is destructive. If you want an exception to any rule in these documents, stop and get explicit permission first.
 
 ## Task-specific guidance
 
@@ -21,14 +21,17 @@ Load only the guidance relevant to the task:
 | PR descriptions                                     | [PR_STYLE_GUIDE.md](.claude/docs/PR_STYLE_GUIDE.md)     |
 | Existing docs prose                                 | [docs style guide](docs/.style/style-guide/README.md)   |
 | Docs scope and routing                              | [content guidelines](docs/.style/content-guidelines.md) |
+| Docs structure and research                         | [DOCS_STYLE_GUIDE.md](.claude/docs/DOCS_STYLE_GUIDE.md) |
 | New, moved, or restructured docs                    | [write-docs skill](.claude/skills/write-docs/SKILL.md)  |
 | Frontend                                            | [site/AGENTS.md](site/AGENTS.md)                        |
 
-For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRONTEND_PATTERNS.md). For chatd work, read [coderd/x/chatd/ARCHITECTURE.md](coderd/x/chatd/ARCHITECTURE.md).
+For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRONTEND_PATTERNS.md). For chatd work, read [coderd/x/chatd/ARCHITECTURE.md](coderd/x/chatd/ARCHITECTURE.md). When the docs style guide and the content guidelines conflict, the content guidelines govern scope and routing.
 
 ## Workflow
 
 - Inspect the working tree before editing. For an existing PR, check out its branch first.
+- Discuss architectural decisions such as framework changes, major refactoring, and system design before implementing them. Routine fixes and clear implementations do not need discussion.
+- When asked a question, answer the question instead of jumping to implementation.
 - Install and use the repository Git hooks. Never bypass them with `--no-verify`. Wait for slow first runs while caches warm.
 - Prefer targeted tests and checks while iterating. Run the broader checks required by the affected area before handoff.
 - Do not force-push unless explicitly requested.
