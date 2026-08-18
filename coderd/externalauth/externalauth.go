@@ -367,6 +367,11 @@ func (c *Config) refreshAndValidateWithLease(ctx context.Context, db database.St
 			ProviderID:            externalAuthLink.ProviderID,
 			UserID:                externalAuthLink.UserID,
 			RefreshLeaseExpiresAt: sql.NullTime{},
+			// The row will only update if we hold the current lease.  This is
+			// somewhat redundant since if we lost the lease our context would be
+			// expired anyway, so it is not actually possible to get the sql.ErrNoRows
+			// that would result from this.
+			OldRefreshLeaseExpiresAt: sql.NullTime{Time: lease, Valid: true},
 		}))
 	}()
 

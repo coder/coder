@@ -1333,6 +1333,8 @@ type sqlcQuerier interface {
 	// refresh endpoint. Does not bump updated_at: context pinning is
 	// background state and must not reorder chat lists.
 	SetChatContextSnapshot(ctx context.Context, arg SetChatContextSnapshotParams) error
+	// If an old lease is set, the row will be only updated if it matches the
+	// current lease.
 	SetExternalAuthLinkRefreshLease(ctx context.Context, arg SetExternalAuthLinkRefreshLeaseParams) error
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error

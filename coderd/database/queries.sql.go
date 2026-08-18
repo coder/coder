@@ -14117,16 +14117,25 @@ SET
 WHERE
 	provider_id = $2
 	AND user_id = $3
+	AND (refresh_lease_expires_at = $4 OR $4 IS NULL)
 `
 
 type SetExternalAuthLinkRefreshLeaseParams struct {
-	RefreshLeaseExpiresAt sql.NullTime `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
-	ProviderID            string       `db:"provider_id" json:"provider_id"`
-	UserID                uuid.UUID    `db:"user_id" json:"user_id"`
+	RefreshLeaseExpiresAt    sql.NullTime `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
+	ProviderID               string       `db:"provider_id" json:"provider_id"`
+	UserID                   uuid.UUID    `db:"user_id" json:"user_id"`
+	OldRefreshLeaseExpiresAt sql.NullTime `db:"old_refresh_lease_expires_at" json:"old_refresh_lease_expires_at"`
 }
 
+// If an old lease is set, the row will be only updated if it matches the
+// current lease.
 func (q *sqlQuerier) SetExternalAuthLinkRefreshLease(ctx context.Context, arg SetExternalAuthLinkRefreshLeaseParams) error {
-	_, err := q.db.ExecContext(ctx, setExternalAuthLinkRefreshLease, arg.RefreshLeaseExpiresAt, arg.ProviderID, arg.UserID)
+	_, err := q.db.ExecContext(ctx, setExternalAuthLinkRefreshLease,
+		arg.RefreshLeaseExpiresAt,
+		arg.ProviderID,
+		arg.UserID,
+		arg.OldRefreshLeaseExpiresAt,
+	)
 	return err
 }
 

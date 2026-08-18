@@ -2257,11 +2257,13 @@ func withLeaseErrors(link database.ExternalAuthLink, times int, acquireErr, rele
 		})).Return(acquireErr).Times(times)
 		if acquireErr == nil {
 			// Releasing the lease.
-			mDB.EXPECT().SetExternalAuthLinkRefreshLease(gomock.Any(), database.SetExternalAuthLinkRefreshLeaseParams{
-				ProviderID:            link.ProviderID,
-				UserID:                link.UserID,
-				RefreshLeaseExpiresAt: sql.NullTime{},
-			}).Return(releaseErr).Times(times)
+			mDB.EXPECT().SetExternalAuthLinkRefreshLease(gomock.Any(), gomock.Cond(func(params database.SetExternalAuthLinkRefreshLeaseParams) bool {
+				return params.ProviderID == link.ProviderID &&
+					params.UserID == link.UserID &&
+					!params.RefreshLeaseExpiresAt.Valid &&
+					params.OldRefreshLeaseExpiresAt.Valid &&
+					params.OldRefreshLeaseExpiresAt.Time.After(dbtime.Now())
+			})).Return(releaseErr).Times(times)
 		}
 	}
 }

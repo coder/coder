@@ -50,10 +50,13 @@ WHERE
 RETURNING *;
 
 -- name: SetExternalAuthLinkRefreshLease :exec
+-- If an old lease is set, the row will be only updated if it matches the
+-- current lease.
 UPDATE
 	external_auth_links
 SET
 	refresh_lease_expires_at = @refresh_lease_expires_at
 WHERE
 	provider_id = @provider_id
-	AND user_id = @user_id;
+	AND user_id = @user_id
+	AND (refresh_lease_expires_at = @old_refresh_lease_expires_at OR @old_refresh_lease_expires_at IS NULL);
