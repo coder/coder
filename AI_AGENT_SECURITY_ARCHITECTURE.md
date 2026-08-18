@@ -13,6 +13,14 @@ implementation plan:
 All plans assume AGPL placement and PoC-level depth. Coder Tasks are out of
 scope.
 
+The MCP gateway is a cross-cutting boundary between identity and isolation.
+A sandbox uses its scoped AI identity session token to reach a governed MCP
+endpoint under the Coder access URL. The gateway applies the sponsor's live
+authorization ceiling, resolves external-auth credentials through a
+least-privilege token broker, enforces tool policy, and injects upstream
+credentials outside the guest. `AI_AGENT_MCP_GATEWAY_SPEC.md` defines the full
+contract.
+
 ---
 
 ## Vertical 1: AI Agent Identity
@@ -102,20 +110,23 @@ and open items are detailed in the sections and invariants below.
 
 **Containment, what an identity's credentials cannot reach:**
 
-| #  | Property                                                                                                               | Status                                                                       |
-|----|------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
-| 16 | **Cascade suspend.** Sponsor suspension or identity revocation ends agent authentication                               | partial: per connection, not per message, see invariant 7                    |
-| 17 | **Fail-closed resolution.** An unresolvable agent identity is an authentication error                                  | partial: chatd fails open for chats that predate identities, see invariant 6 |
-| 18 | **Soft revocation.** Revocation preserves attribution history                                                          | partial: boolean with no timestamp or reason                                 |
-| 19 | **Credential starvation.** An environment an agent controls never receives the sponsor's ambient credentials           | open: defeated by one agent-creation path, see the sub-agent binding gap     |
-| 20 | **One-way designation.** Nothing un-designates a workspace; the stored marker dominates template and parameter changes | holds                                                                        |
+| #  | Property                                                                                                                          | Status                                                                       |
+|----|-----------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| 16 | **Cascade suspend.** Sponsor suspension or identity revocation ends agent authentication                                          | partial: per connection, not per message, see invariant 7                    |
+| 17 | **Fail-closed resolution.** An unresolvable agent identity is an authentication error                                             | partial: chatd fails open for chats that predate identities, see invariant 6 |
+| 18 | **Soft revocation.** Revocation preserves attribution history                                                                     | partial: boolean with no timestamp or reason                                 |
+| 19 | **Credential starvation.** An environment an agent controls never receives the sponsor's ambient credentials                      | open: defeated by one agent-creation path, see the sub-agent binding gap     |
+| 20 | **One-way designation.** Nothing un-designates a workspace; the stored marker dominates template and parameter changes            | holds                                                                        |
+| 21 | **MCP credential non-materialization.** Sponsor OAuth credentials are injected outside the sandbox guest and never returned to it | holds for MCP gateway requests                                               |
 
 Two properties are worth reading together because they answer the same
 question from opposite directions. Property 9 says an agent cannot gain
 privilege by *creating* something, and property 10 says it cannot gain
 persistence by *relocating* a credential it already holds. Neither is
 enforced yet, which is why both appear as invariants below rather than as
-settled guarantees.
+settled guarantees. Property 21 applies the same non-materialization rule to
+third-party credentials: the AI identity token reaches the gateway, but the
+sponsor's OAuth credential remains outside the guest.
 
 Accepted risks, stated so they are not mistaken for oversights:
 
@@ -1829,10 +1840,13 @@ inside platform confinement.
 Principle: **the credential holder always sits across an isolation boundary
 from the AI process.** Rules:
 
-1. **MCP-first.** Agent actions needing third-party authentication go
-   through the MCP gateway in AI Gateway. The human authorizes once at the
-   gateway, the agent makes MCP tool calls, and the gateway injects
-   credentials upstream. Credentials never transit the workspace.
+1. **MCP-first.** Agent actions needing third-party authentication use
+   `<accessURL>/api/v2/ai-gateway/mcp/{server-slug}` with the scoped AI
+   identity session token. The gateway authorizes `mcp_gateway:use` against
+   the canonical sponsor-bounded subject, resolves external-auth credentials
+   through the MCP token-broker actor, applies administrator tool policy,
+   strips Coder credentials, and injects the upstream credential outside the
+   guest. See `AI_AGENT_MCP_GATEWAY_SPEC.md`.
 2. **One `ai_credential_mode` per workspace agent, default `none`.** Declare
    it in Terraform on `coder_agent`, following the `api_key_scope`
    precedent; extract it through the provisioner; store it on the
@@ -1840,6 +1854,20 @@ from the AI process.** Rules:
 3. **External auth stays simple.** It is denied by default or passed through
    as-is only after explicit opt-in. Reduced-scope token minting and refresh
    adapters remain future work.
+
+The managed `SandboxController` embedded path already passes its server-issued
+sandbox session token into the guest as `CODER_SESSION_TOKEN`
+(`agent/confine/sandbox.go:569-585`,
+`agent/confine/microvm_linux.go:289-306`). The declared two-agent template does
+not yet have a Terraform-visible scoped token to pass. Its runtime seam is the
+optional `coder agent sandbox --session-token` flag or
+`CODER_SANDBOX_SESSION_TOKEN` environment variable
+(`cli/agent_sandbox.go:240-246`).
+
+MCP server configuration create, update, and delete operations use standard
+`audit_logs` records. Dedicated accepted and denied gateway `tools/call`
+recording is not implemented, and AI provider creation does not yet reserve the
+name `mcp`. These remain known gaps rather than implied guarantees.
 
 | Enforcement point                     | `none` (default)     | `injected`                         | `brokered`                                                                 |
 |---------------------------------------|----------------------|------------------------------------|----------------------------------------------------------------------------|
@@ -2031,6 +2059,10 @@ Follow `.claude/docs/DATABASE.md` end-to-end for implementation: queries,
     marker as dominant over the current build's parameters. The
     authorization boundary built on the marker is Vertical 1's
     designation boundary invariant.
+12. **MCP credential non-materialization**: sponsor OAuth access and refresh
+    tokens never enter the sandbox guest. The gateway resolves and injects
+    upstream access tokens outside the guest, while the sandbox sends only its
+    scoped AI identity session token to the Coder access URL.
 
 ### Implementation order
 
