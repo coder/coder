@@ -152,9 +152,7 @@ export const HardLimitExceeded: Story = {
 		const concurrentChats = getMetricValue(canvas, "Concurrent chats");
 		await expect(concurrentChats).toHaveTextContent("5");
 		await expect(concurrentChats).toHaveClass("text-content-destructive");
-		await expect(
-			canvas.getByRole("status", { name: "Limit reached" }),
-		).toBeInTheDocument();
+		await expect(canvas.getByRole("status")).toHaveTextContent("Limit reached");
 		await userEvent.hover(
 			canvas.getByRole("button", { name: "Concurrent chats information" }),
 		);

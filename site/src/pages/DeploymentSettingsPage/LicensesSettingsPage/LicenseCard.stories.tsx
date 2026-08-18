@@ -320,9 +320,7 @@ export const PremiumWithAgentHoursHardLimitExceeded: Story = {
 		const concurrentChats = getMetricValue(canvas, "Concurrent chats");
 		await expect(concurrentChats).toHaveTextContent("5");
 		await expect(concurrentChats).toHaveClass("text-content-destructive");
-		await expect(
-			canvas.getByRole("status", { name: "Limit reached" }),
-		).toBeInTheDocument();
+		await expect(canvas.getByRole("status")).toHaveTextContent("Limit reached");
 	},
 };
 
@@ -539,7 +537,8 @@ export const PremiumWithAIGovernance: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText(/add-ons/i)).toBeInTheDocument();
-		await expect(canvas.getByText(/ai governance/i)).toBeInTheDocument();
+		// Matches both the included-products line and the add-on card title.
+		await expect(canvas.getAllByText(/ai governance/i)).toHaveLength(2);
 		await expect(
 			getIncludedProducts(canvas, "Workspaces + AI Governance"),
 		).toBeInTheDocument();
