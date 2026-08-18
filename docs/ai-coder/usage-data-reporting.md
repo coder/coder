@@ -58,38 +58,23 @@ Example of a failed request (e.g. Tallyman Server is blocked by your network):
 
 ## Agent runtime measurement
 
-Total Coder Agent runtime is summed from per-message runtime
-(`runtime_ms` on chat messages).
+Total Coder Agent runtime is summed from per-message runtime (`runtime_ms` on chat messages).
 
-An assistant message's runtime is the wall-clock duration of the model
-invocation that produced its content, measured from just before the request
-to the model provider opens until the response is fully consumed. A tool
-message's runtime is the wall-clock duration of the local tool batch that
-produced it, measured from the start of the batch until the last counted
-tool finishes. Tools in a batch run in parallel, so each batch records one
-window on one tool message rather than a per-tool sum.
+An assistant message's runtime is the wall-clock duration of the model invocation that produced its content, measured from just before the request to the model provider opens until the response is fully consumed.
+A tool message's runtime is the wall-clock duration of the local tool batch that produced it, measured from the start of the batch until the last counted tool finishes.
+Tools in a batch run in parallel, so each batch records one window on one tool message rather than a per-tool sum.
 
 What counts:
 
 - Assistant generation steps, in both top-level chats and sub-agent chats.
 - Context compaction (summarization) model calls.
-- Local tool execution: file, terminal, and process tools, workspace
-  lifecycle operations, MCP tools, and other server-executed tools.
-- Interrupted generation: the time streamed or spent executing tools before
-  the interrupt is kept on the partial messages.
+- Local tool execution: file, terminal, and process tools, workspace lifecycle operations, MCP tools, and other server-executed tools.
+- Interrupted generation: the time streamed or spent executing tools before the interrupt is kept on the partial messages.
 
 What does not count:
 
-- Sub-agent orchestration tools, such as spawning and waiting on
-  sub-agents. A sub-agent is its own chat and records its own runtime, so
-  counting the parent's wait would double count. Waiting on a sub-agent
-  never extends a tool batch's window, even when other tools in the batch
-  do count.
-- Client-executed (dynamic) tools and external agents: the server cannot
-  measure work it does not execute.
+- Sub-agent orchestration tools, such as spawning and waiting on sub-agents. A sub-agent is its own chat and records its own runtime, so counting the parent's wait would double count. Waiting on a sub-agent never extends a tool batch's window, even when other tools in the batch do count.
+- Client-executed (dynamic) tools and external agents: the server cannot measure work it does not execute.
 - Idle time: chats waiting for user input or external tool results.
-- Failed model calls whose output was discarded, and the backoff between
-  retried attempts. Retried and errored attempts persist no content, so
-  they record no runtime.
-- Ancillary model calls that produce no chat messages, such as title
-  generation.
+- Failed model calls whose output was discarded, and the backoff between retried attempts. Retried and errored attempts persist no content, so they record no runtime.
+- Ancillary model calls that produce no chat messages, such as title generation.
