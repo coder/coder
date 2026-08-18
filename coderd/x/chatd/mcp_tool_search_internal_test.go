@@ -108,6 +108,32 @@ func TestDeriveDeferredMCPActivations(t *testing.T) {
 		"the newest activation survives a budget smaller than its own schema")
 }
 
+func TestDeriveDeferredMCPActivationsSameStepDirectCallPriority(t *testing.T) {
+	t.Parallel()
+	candidates := []deferredMCPTool{
+		testDeferredTool("server__direct", "direct", nil),
+		testDeferredTool("server__searched", "searched", nil),
+	}
+	assistantStep, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall("call-search", chattool.FindToolsName, []byte(`{"queries":["direct"]}`)),
+		codersdk.ChatMessageToolCall("call-direct", "server__direct", []byte(`{}`)),
+	})
+	require.NoError(t, err)
+	searchResult, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolResult("call-search", chattool.FindToolsName, []byte(`{"activated":["server__searched"]}`), false, false),
+	})
+	require.NoError(t, err)
+	rows := []database.ChatMessage{
+		{Role: database.ChatMessageRoleAssistant, Content: assistantStep, ContentVersion: chatprompt.CurrentContentVersion},
+		{Role: database.ChatMessageRoleTool, Content: searchResult, ContentVersion: chatprompt.CurrentContentVersion},
+	}
+	require.Equal(t, []string{"server__direct", "server__searched"}, deriveDeferredMCPActivations(rows, candidates, 0),
+		"a step's direct calls outrank its own search activations")
+	directWeight := estimateDeferredMCPToolTokens(candidates[:1])
+	require.Equal(t, []string{"server__direct"}, deriveDeferredMCPActivations(rows, candidates, directWeight),
+		"same-step search activations cannot shed a directly invoked tool's schema")
+}
+
 func TestFlattenMCPParameterText(t *testing.T) {
 	t.Parallel()
 	text := flattenMCPParameterText(map[string]any{

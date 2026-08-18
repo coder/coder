@@ -158,6 +158,13 @@ func TestFindTools(t *testing.T) {
 	require.True(t, resp.IsError)
 }
 
+func TestFindToolsSerialToolCalls(t *testing.T) {
+	t.Parallel()
+	serial, ok := FindTools(FindToolsOptions{}).(interface{ SerialToolCalls() bool })
+	require.True(t, ok, "find_tools must opt into serial execution so shared-budget admission follows tool-call order")
+	require.True(t, serial.SerialToolCalls())
+}
+
 func TestFindToolsSharedSchemaBudget(t *testing.T) {
 	t.Parallel()
 	tool := FindTools(FindToolsOptions{

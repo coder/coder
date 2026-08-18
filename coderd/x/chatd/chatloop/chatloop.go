@@ -1114,42 +1114,63 @@ func executeTools(
 
 	results := make([]fantasy.ToolResultContent, len(localToolCalls))
 	completedAt := make([]time.Time, len(localToolCalls))
+	runCall := func(i int, tc fantasy.ToolCallContent) {
+		defer func() {
+			if r := recover(); r != nil {
+				results[i] = fantasy.ToolResultContent{
+					ToolCallID: tc.ToolCallID,
+					ToolName:   tc.ToolName,
+					Result: fantasy.ToolResultOutputContentError{
+						Error: xerrors.Errorf("tool panicked: %v", r),
+					},
+				}
+			}
+			// Record when this tool completed (or panicked).
+			// Captured per call so parallel tools get
+			// accurate individual completion times.
+			completedAt[i] = clockNow(clock)
+		}()
+		results[i] = executeSingleTool(
+			ctx,
+			toolMap,
+			tc,
+			metrics,
+			logger,
+			provider,
+			model,
+			builtinToolNames,
+			activeTools,
+			allowInactiveTools,
+			providerRunnerNames,
+			resultProviderMetadata,
+			maxResultBytes,
+			toolNameAliases,
+		)
+	}
+	// Calls to tools that opt in via SerialToolCalls run on one
+	// goroutine in tool-call order, so order-sensitive shared state
+	// (for example the find_tools activation budget) is claimed
+	// deterministically. All other calls stay concurrent.
+	var serialIndexes []int
 	var wg sync.WaitGroup
-	wg.Add(len(localToolCalls))
 	for i, tc := range localToolCalls {
+		if isSerialToolCall(toolMap, toolNameAliases, tc.ToolName) {
+			serialIndexes = append(serialIndexes, i)
+			continue
+		}
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer func() {
-				if r := recover(); r != nil {
-					results[i] = fantasy.ToolResultContent{
-						ToolCallID: tc.ToolCallID,
-						ToolName:   tc.ToolName,
-						Result: fantasy.ToolResultOutputContentError{
-							Error: xerrors.Errorf("tool panicked: %v", r),
-						},
-					}
-				}
-				// Record when this tool completed (or panicked).
-				// Captured per-goroutine so parallel tools get
-				// accurate individual completion times.
-				completedAt[i] = clockNow(clock)
-			}()
-			results[i] = executeSingleTool(
-				ctx,
-				toolMap,
-				tc,
-				metrics,
-				logger,
-				provider,
-				model,
-				builtinToolNames,
-				activeTools,
-				allowInactiveTools,
-				providerRunnerNames,
-				resultProviderMetadata,
-				maxResultBytes,
-				toolNameAliases,
-			)
+			runCall(i, tc)
+		}()
+	}
+	if len(serialIndexes) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for _, i := range serialIndexes {
+				runCall(i, localToolCalls[i])
+			}
 		}()
 	}
 	wg.Wait()
@@ -1458,6 +1479,22 @@ func flushActiveState(
 
 func isToolActive(name string, activeTools []string) bool {
 	return len(activeTools) == 0 || slices.Contains(activeTools, name)
+}
+
+// serialToolCaller is implemented by tools whose calls within one step
+// must execute in tool-call order because they claim from shared state.
+type serialToolCaller interface{ SerialToolCalls() bool }
+
+func isSerialToolCall(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, name string) bool {
+	if alias, ok := toolNameAliases[name]; ok {
+		name = alias
+	}
+	tool, ok := toolMap[name]
+	if !ok {
+		return false
+	}
+	serial, ok := tool.(serialToolCaller)
+	return ok && serial.SerialToolCalls()
 }
 
 // buildToolDefinitions converts AgentTool definitions into the

@@ -76,6 +76,13 @@ type FindToolsResult struct {
 	TotalDeferred int              `json:"total_deferred"`
 }
 
+// serialCallsTool opts find_tools into in-order execution when one step
+// contains several calls, so the shared schema budget is claimed in
+// tool-call order rather than scheduler order.
+type serialCallsTool struct{ fantasy.AgentTool }
+
+func (serialCallsTool) SerialToolCalls() bool { return true }
+
 // FindTools returns the built-in used to discover deferred MCP tool schemas.
 func FindTools(options FindToolsOptions) fantasy.AgentTool {
 	entries := slices.Clone(options.Entries)
@@ -85,7 +92,7 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 	}
 	var budgetMu sync.Mutex
 	remainingBudget := options.SchemaTokenBudget
-	return fantasy.NewAgentTool(
+	return serialCallsTool{AgentTool: fantasy.NewAgentTool(
 		FindToolsName,
 		buildFindToolsDescription(entries, options.CatalogTokenBudget),
 		func(ctx context.Context, args FindToolsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -126,7 +133,7 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 			}
 			return marshalToolResponse(result), nil
 		},
-	)
+	)}
 }
 
 // SearchTools includes exact name activations first, then fills the

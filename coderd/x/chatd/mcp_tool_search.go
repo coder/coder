@@ -202,6 +202,11 @@ func flattenMCPParameterText(value any) string {
 // budget, so the tool the model just requested stays usable. Shed tools
 // stay in the catalog and remain directly callable, which reactivates
 // them as most recent. A tokenBudget <= 0 means unbounded.
+//
+// find_tools results are admitted at their tool-call row, after that
+// row's direct tool calls, so a step's own search activations cannot
+// shed the schema of a tool the model invoked directly. Results whose
+// call row was compacted away are admitted at the result row.
 func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []deferredMCPTool, tokenBudget float64) []string {
 	candidateByName := make(map[string]deferredMCPTool, len(candidates))
 	for _, candidate := range candidates {
@@ -226,23 +231,46 @@ func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []defe
 		usedTokens += weight
 		activated = append(activated, name)
 	}
-	for i := len(rows) - 1; i >= 0; i-- {
+	parsedParts := make([][]codersdk.ChatMessagePart, len(rows))
+	findToolsCallIDs := make(map[string]struct{})
+	for i := range rows {
 		parts, err := chatprompt.ParseContent(rows[i])
 		if err != nil {
 			continue
 		}
+		parsedParts[i] = parts
 		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolName == chattool.FindToolsName && part.ToolCallID != "" {
+				findToolsCallIDs[part.ToolCallID] = struct{}{}
+			}
+		}
+	}
+	pendingSearch := make(map[string][]string)
+	for i := len(rows) - 1; i >= 0; i-- {
+		for _, part := range parsedParts[i] {
+			if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolName != chattool.FindToolsName {
+				appendName(part.ToolName)
+			}
+		}
+		for _, part := range parsedParts[i] {
 			switch {
 			case part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolName == chattool.FindToolsName:
 				var result chattool.FindToolsResult
 				if err := json.Unmarshal(part.Result, &result); err != nil {
 					continue
 				}
+				if _, paired := findToolsCallIDs[part.ToolCallID]; paired {
+					pendingSearch[part.ToolCallID] = result.Activated
+					continue
+				}
 				for _, name := range result.Activated {
 					appendName(name)
 				}
-			case part.Type == codersdk.ChatMessagePartTypeToolCall:
-				appendName(part.ToolName)
+			case part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolName == chattool.FindToolsName:
+				for _, name := range pendingSearch[part.ToolCallID] {
+					appendName(name)
+				}
+				delete(pendingSearch, part.ToolCallID)
 			}
 		}
 	}

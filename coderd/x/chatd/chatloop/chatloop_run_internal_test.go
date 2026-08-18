@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"iter"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -869,6 +870,83 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 				assertProviderHistoryValid(t, sanitized)
 			}
 		})
+	}
+}
+
+type serialMarkerTool struct{ fantasy.AgentTool }
+
+func (serialMarkerTool) SerialToolCalls() bool { return true }
+
+func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var events []string
+	inFlight := 0
+	maxInFlight := 0
+	record := func(event string, delta int) {
+		mu.Lock()
+		defer mu.Unlock()
+		inFlight += delta
+		if inFlight > maxInFlight {
+			maxInFlight = inFlight
+		}
+		events = append(events, event)
+	}
+	serial := serialMarkerTool{AgentTool: fantasy.NewAgentTool(
+		"serial_tool",
+		"records call order",
+		func(_ context.Context, _ struct{}, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			record(call.ID+":start", 1)
+			runtime.Gosched()
+			record(call.ID+":end", -1)
+			return fantasy.NewTextResponse("ok"), nil
+		},
+	)}
+	parallelRan := make(chan struct{})
+	parallel := fantasy.NewAgentTool(
+		"parallel_tool",
+		"plain tool",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			close(parallelRan)
+			return fantasy.NewTextResponse("ok"), nil
+		},
+	)
+
+	calls := []fantasy.ToolCallContent{
+		{ToolCallID: "a", ToolName: "serial_tool", Input: "{}"},
+		{ToolCallID: "p", ToolName: "parallel_tool", Input: "{}"},
+		{ToolCallID: "b", ToolName: "serial_tool", Input: "{}"},
+		{ToolCallID: "c", ToolName: "serial_tool", Input: "{}"},
+	}
+	results := executeTools(
+		context.Background(),
+		quartz.NewReal(),
+		[]fantasy.AgentTool{serial, parallel},
+		nil,
+		nil,
+		nil,
+		calls,
+		NewMetrics(prometheus.NewRegistry()),
+		slog.Make(),
+		"fake", "fake-model",
+		map[string]bool{},
+		defaultToolResultBytes,
+		nil,
+		nil,
+	)
+
+	require.Equal(t, []string{"a:start", "a:end", "b:start", "b:end", "c:start", "c:end"}, events,
+		"serial tool calls must run one at a time in tool-call order")
+	require.Equal(t, 1, maxInFlight)
+	select {
+	case <-parallelRan:
+	default:
+		t.Fatal("parallel tool call did not run")
+	}
+	require.Len(t, results, len(calls))
+	for i, tc := range calls {
+		require.Equal(t, tc.ToolCallID, results[i].ToolCallID, "results keep original call order")
 	}
 }
 
