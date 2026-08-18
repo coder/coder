@@ -1,10 +1,10 @@
 import {
-	AppWindowMacIcon,
 	CircleUserIcon,
 	CopyIcon,
-	DownloadIcon,
 	LogOutIcon,
+	MonitorIcon,
 	SquareArrowOutUpRightIcon,
+	TerminalIcon,
 } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { Link } from "react-router";
@@ -59,14 +59,14 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			{supportsCoderDesktop() && (
 				<DropdownMenuItem asChild>
 					<a href={CODER_DESKTOP_DOCS_URL} target="_blank" rel="noreferrer">
-						<AppWindowMacIcon />
+						<MonitorIcon />
 						<span>Install Coder Desktop</span>
 					</a>
 				</DropdownMenuItem>
 			)}
 			<DropdownMenuItem asChild>
 				<Link to="/install">
-					<DownloadIcon />
+					<TerminalIcon />
 					<span>Install CLI</span>
 				</Link>
 			</DropdownMenuItem>
