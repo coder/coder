@@ -335,6 +335,46 @@ produces an entry and no request at all, so on that side there is nothing to be
 duplicated. And where both do exist, neither can be folded into the other, for
 the reason given above: neither is derivable from the other.
 
+### Why not use triggers, as the user history tables do?
+
+A trigger is subordinate by construction. It fires because something else
+happened, and that something else has already been written. Whatever the trigger
+records is therefore not the original entry. The row change that fired it was.
+
+That inverts the relation this design rests on. Arranged correctly the journal
+is the origin and current state is derived from it. Trigger-written, the state
+comes first and the entry is derived from the state, which puts the entry in the
+ledger's position rather than the journal's. What results is a change-log
+belonging to a table, and a table's change-log cannot be an account of the
+world, because it knows only what that table knows.
+
+The subordination is narrower still: a trigger fires on a database action
+specifically, an insert, an update, or a delete, and on nothing else. A change
+made outside the database, a process started or an external call completed,
+cannot be recorded this way at all. The reach of a trigger-written journal is
+exactly the set of changes already representable as rows, which is smaller than
+the set an account has to cover.
+
+The familiar objection, that a trigger cannot see the actor, turns out to be a
+consequence of the same thing rather than a separate complaint. A trigger was
+not present at the act. It sees `NEW` and `OLD`, the residue the act left in a
+table, and not who performed it. Mitigations exist, such as carrying the actor
+in transaction local state, and they trade away the simplicity that made a
+trigger attractive to begin with. The tradeoff is set out in
+`poc_audit/audit_approach.md` under the unbypassability and actor tension.
+
+None of which makes a trigger the wrong tool. It makes this direction the wrong
+one. Fired **on** the insertion of an entry, to drive whatever should follow
+from it, a trigger is doing something the vocabulary already has a word for.
+That is posting. It is also the one position where the unbypassability a trigger
+offers is worth having, since what it guards there is the derivation rather than
+the origin.
+
+`user_status_changes` and `user_deleted` are the local example. Both are written
+by `record_user_status_change`, a trigger on the `users` table, which is why
+they are a change-log of that table rather than a journal of events, and why the
+actor is missing from them.
+
 ### Sources for the etymology
 
 The dates and the practices above are checkable, and are recorded here so that

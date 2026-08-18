@@ -207,7 +207,12 @@ The core of this section is expected to be a table over these axes.
    record cannot serve both well", as the strongest form of that claim: keep one
    and derive the other. No in both directions, since each is missing precisely
    what the other exists for.
-5. **open.** Why not triggers, as with the user history tables?
+5. **done.** Why not triggers, as with the user history tables? The root reason
+   is that a trigger is subordinate by construction, so what it writes is not the
+   original entry and the arrangement inverts into a change-log derived from a
+   table. The actor objection is a consequence of that rather than a separate
+   complaint. Triggers are not ruled out, only redirected: fired on the insertion
+   of an entry they are doing posting.
 6. **drop.** Why not a transaction manager? Answered in `audit_approach.md`
    under Reconciliation: given one, coherence could be complete on commit, and
    the approach must not presume one. A statement about the approach rather than
@@ -279,6 +284,15 @@ rather than against the table originally imagined for section 5.
 **Licensing is out of scope for the proof of concept.** Whether the existing
 table is gated behind a licence has no bearing on anything being built, so 4.4's
 clause, 5.3, and 10.1 are all disposed of on that basis.
+
+**Triggers fail on ordering, not on attribution.** The answer to 7.5 was going
+to argue that a trigger cannot see the actor. The deeper reason is that a
+journal is the book of original entry and a trigger is subordinate to a prior
+database write, so a trigger-written entry is derived from state rather than
+being its origin. That inverts the journal and ledger relation, which is the
+same inversion as the write ahead log hazard running the other way. The actor
+problem then follows: a trigger was not present at the act and sees only the
+residue.
 
 **`audit_logs` is not special, and the first finding says so.** There are at
 least four logs in this codebase, none behaving like a journal, and one of them
