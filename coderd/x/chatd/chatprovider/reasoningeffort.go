@@ -7,6 +7,7 @@ import (
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyazure "charm.land/fantasy/providers/azure"
 	fantasybedrock "charm.land/fantasy/providers/bedrock"
+	fantasygoogle "charm.land/fantasy/providers/google"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
@@ -122,6 +123,17 @@ func applyReasoningEffort(
 		providerEffort := fantasyanthropic.Effort(*effort)
 		providerOptions := ensureProviderOptions[fantasyanthropic.ProviderOptions](options, fantasyanthropic.Name)
 		providerOptions.Effort = &providerEffort
+	case fantasygoogle.Name:
+		providerOptions := ensureProviderOptions[fantasygoogle.ProviderOptions](options, fantasygoogle.Name)
+		if providerOptions.ThinkingConfig == nil {
+			providerOptions.ThinkingConfig = &fantasygoogle.ThinkingConfig{}
+		}
+		// A configured thinking budget wins: fantasy rejects requests that
+		// set both thinking_budget and thinking_level.
+		if providerOptions.ThinkingConfig.ThinkingBudget == nil {
+			level := googleThinkingLevel(*effort)
+			providerOptions.ThinkingConfig.ThinkingLevel = &level
+		}
 	case fantasyopenaicompat.Name:
 		providerEffort := fantasyopenai.ReasoningEffort(*effort)
 		providerOptions := ensureProviderOptions[fantasyopenaicompat.ProviderOptions](options, fantasyopenaicompat.Name)
@@ -142,6 +154,22 @@ func applyReasoningEffort(
 		providerOptions.Reasoning.Effort = &providerEffort
 	}
 	return options
+}
+
+// googleThinkingLevel maps the global reasoning effort scale to Google
+// thinking levels. Google offers no way to disable thinking on Gemini 3+
+// models and no levels above HIGH, so the scale clamps at both ends.
+func googleThinkingLevel(effort string) fantasygoogle.ThinkingLevel {
+	switch effort {
+	case codersdk.ChatModelReasoningEffortNone, codersdk.ChatModelReasoningEffortMinimal:
+		return fantasygoogle.ThinkingLevelMinimal
+	case codersdk.ChatModelReasoningEffortLow:
+		return fantasygoogle.ThinkingLevelLow
+	case codersdk.ChatModelReasoningEffortMedium:
+		return fantasygoogle.ThinkingLevelMedium
+	default:
+		return fantasygoogle.ThinkingLevelHigh
+	}
 }
 
 func ensureProviderOptions[T any, PT interface {

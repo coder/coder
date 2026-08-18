@@ -6,6 +6,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasygoogle "charm.land/fantasy/providers/google"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
@@ -93,6 +94,38 @@ func TestApplyReasoningEffort(t *testing.T) {
 			},
 		},
 		{
+			name:     "CreatesGoogleEntry",
+			provider: fantasygoogle.Name,
+			assert: func(t *testing.T, got fantasy.ProviderOptions) {
+				providerOptions, ok := got[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+				require.True(t, ok, "%T", got[fantasygoogle.Name])
+				require.NotNil(t, providerOptions.ThinkingConfig)
+				require.NotNil(t, providerOptions.ThinkingConfig.ThinkingLevel)
+				require.Equal(t, fantasygoogle.ThinkingLevelHigh, *providerOptions.ThinkingConfig.ThinkingLevel)
+			},
+		},
+		{
+			name:     "PreservesGoogleEntry",
+			provider: fantasygoogle.Name,
+			options:  fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{IncludeThoughts: ptr.Ref(true)}}},
+			assert: func(t *testing.T, got fantasy.ProviderOptions) {
+				providerOptions := got[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+				require.True(t, *providerOptions.ThinkingConfig.IncludeThoughts)
+				require.NotNil(t, providerOptions.ThinkingConfig.ThinkingLevel)
+				require.Equal(t, fantasygoogle.ThinkingLevelHigh, *providerOptions.ThinkingConfig.ThinkingLevel)
+			},
+		},
+		{
+			name:     "GoogleExplicitBudgetWins",
+			provider: fantasygoogle.Name,
+			options:  fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{ThinkingBudget: ptr.Ref(int64(1024))}}},
+			assert: func(t *testing.T, got fantasy.ProviderOptions) {
+				providerOptions := got[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+				require.Equal(t, int64(1024), *providerOptions.ThinkingConfig.ThinkingBudget)
+				require.Nil(t, providerOptions.ThinkingConfig.ThinkingLevel)
+			},
+		},
+		{
 			name:     "CreatesOpenAICompatEntry",
 			provider: fantasyopenaicompat.Name,
 			assert: func(t *testing.T, got fantasy.ProviderOptions) {
@@ -166,5 +199,23 @@ func TestApplyReasoningEffort(t *testing.T) {
 			got := applyReasoningEffort(NewModel(&chattest.FakeModel{ProviderName: tt.provider}, nil), tt.options, new(codersdk.ChatModelReasoningEffortHigh))
 			tt.assert(t, got)
 		})
+	}
+}
+
+func TestGoogleThinkingLevel(t *testing.T) {
+	t.Parallel()
+
+	want := map[string]fantasygoogle.ThinkingLevel{
+		codersdk.ChatModelReasoningEffortNone:    fantasygoogle.ThinkingLevelMinimal,
+		codersdk.ChatModelReasoningEffortMinimal: fantasygoogle.ThinkingLevelMinimal,
+		codersdk.ChatModelReasoningEffortLow:     fantasygoogle.ThinkingLevelLow,
+		codersdk.ChatModelReasoningEffortMedium:  fantasygoogle.ThinkingLevelMedium,
+		codersdk.ChatModelReasoningEffortHigh:    fantasygoogle.ThinkingLevelHigh,
+		codersdk.ChatModelReasoningEffortXHigh:   fantasygoogle.ThinkingLevelHigh,
+		codersdk.ChatModelReasoningEffortMax:     fantasygoogle.ThinkingLevelHigh,
+	}
+	for _, effort := range codersdk.ChatModelReasoningEffortValues() {
+		require.Contains(t, want, effort, "effort %q missing an expected Google thinking level", effort)
+		require.Equal(t, want[effort], googleThinkingLevel(effort), "effort %q", effort)
 	}
 }
