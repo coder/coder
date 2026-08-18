@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/otel"
@@ -94,11 +95,7 @@ func sessionIDFromRequest(r *http.Request) string {
 	if id := sessionIDFromHeaders(r.Header); id != "" {
 		return id
 	}
-	id := r.URL.Query().Get(SessionIDBaggageKey)
-	if !validSessionID(id) {
-		return ""
-	}
-	return id
+	return sessionIDFromQueryString(r.URL.Query())
 }
 
 // sessionIDFromHeaders extracts and validates the client_session_id baggage member
@@ -108,6 +105,19 @@ func sessionIDFromRequest(r *http.Request) string {
 func sessionIDFromHeaders(h http.Header) string {
 	ctx := propagation.Baggage{}.Extract(context.Background(), propagation.HeaderCarrier(h))
 	id := baggage.FromContext(ctx).Member(SessionIDBaggageKey).Value()
+	if !validSessionID(id) {
+		return ""
+	}
+	return id
+}
+
+// sessionIDFromQueryString extracts and validates the client_session_id query
+// parameter. It returns an empty string when the parameter is absent or
+// malformed. It mirrors sessionIDFromHeaders for the query-parameter fallback
+// used by browser WebSocket clients (such as the web terminal PTY) that cannot
+// set arbitrary baggage headers.
+func sessionIDFromQueryString(q url.Values) string {
+	id := q.Get(SessionIDBaggageKey)
 	if !validSessionID(id) {
 		return ""
 	}

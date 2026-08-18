@@ -2,6 +2,7 @@ package tracing
 
 import (
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -59,6 +60,31 @@ func TestSessionIDFromHeaders(t *testing.T) {
 				h.Set("baggage", c.baggage)
 			}
 			require.Equal(t, c.want, sessionIDFromHeaders(h))
+		})
+	}
+}
+
+func TestSessionIDFromQueryString(t *testing.T) {
+	t.Parallel()
+
+	const validID = "0123456789abcdef0123456789abcdef"
+
+	cases := []struct {
+		name  string
+		query url.Values
+		want  string
+	}{
+		{"Valid", url.Values{SessionIDBaggageKey: {validID}}, validID},
+		{"Missing", url.Values{"foo": {"bar"}}, ""},
+		{"Empty", url.Values{}, ""},
+		{"Malformed", url.Values{SessionIDBaggageKey: {"not-a-hex-value"}}, ""},
+		{"Uppercase", url.Values{SessionIDBaggageKey: {"0123456789ABCDEF0123456789ABCDEF"}}, ""},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, c.want, sessionIDFromQueryString(c.query))
 		})
 	}
 }
