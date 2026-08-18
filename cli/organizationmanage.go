@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -63,7 +64,7 @@ func (r *RootCmd) createOrganization() *serpent.Command {
 const defaultOrgMemberRolesFlag = "default-org-member-roles"
 
 func (r *RootCmd) editOrganization(orgContext *OrganizationContext) *serpent.Command {
-	var defaultOrgMemberRoles []string
+	var defaultOrgMemberRoles roleList
 	cmd := &serpent.Command{
 		Use:   "edit",
 		Short: "Edit organization settings.",
@@ -86,9 +87,9 @@ func (r *RootCmd) editOrganization(orgContext *OrganizationContext) *serpent.Com
 				Flag: defaultOrgMemberRolesFlag,
 				Description: "Replaces the roles every member of the organization holds. " +
 					"Accepts a comma-separated list and may be repeated. " +
-					"An empty value removes every role. " +
+					"Passing only empty values removes every role. " +
 					"New organizations start with organization-workspace-access, which grants members access to their own workspaces.",
-				Value: serpent.StringArrayOf(&defaultOrgMemberRoles),
+				Value: &defaultOrgMemberRoles,
 			},
 			cliui.SkipPromptOption(),
 		},
@@ -97,9 +98,11 @@ func (r *RootCmd) editOrganization(orgContext *OrganizationContext) *serpent.Com
 				return xerrors.Errorf("no changes requested; pass --%s", defaultOrgMemberRolesFlag)
 			}
 
-			roles, err := parseDefaultOrgMemberRoles(defaultOrgMemberRoles)
-			if err != nil {
-				return err
+			// The slice is always allocated so the request carries [] rather
+			// than null, which the server reads as "unspecified".
+			roles := defaultOrgMemberRoles.GetSlice()
+			if roles == nil {
+				roles = []string{}
 			}
 
 			client, err := r.InitClient(inv)
@@ -147,24 +150,55 @@ func (r *RootCmd) editOrganization(orgContext *OrganizationContext) *serpent.Com
 	return cmd
 }
 
-// parseDefaultOrgMemberRoles trims and de-duplicates the flag values,
-// preserving the order they were given in. An empty set of values means
-// "no roles": serpent resets the slice to nil when any flag value is
-// empty, so `--flag a --flag ""` also lands here. The returned slice is
-// always allocated so the request carries [] rather than null, which the
-// server reads as "unspecified".
-func parseDefaultOrgMemberRoles(values []string) ([]string, error) {
-	roles := make([]string, 0, len(values))
-	for _, role := range values {
+// roleList collects role names from repeated flag occurrences, splitting
+// each occurrence on commas. Empty and whitespace-only entries are
+// ignored, so a flag whose value expands to nothing leaves the list
+// unchanged rather than discarding entries collected from other
+// occurrences. Duplicates are dropped, preserving first-seen order.
+type roleList []string
+
+var (
+	_ pflag.Value      = &roleList{}
+	_ pflag.SliceValue = &roleList{}
+)
+
+func (l *roleList) Set(value string) error {
+	for _, role := range strings.Split(value, ",") {
 		role = strings.TrimSpace(role)
 		if role == "" {
-			return nil, xerrors.Errorf("--%s contains an empty role name", defaultOrgMemberRolesFlag)
+			continue
 		}
-		if !slices.Contains(roles, role) {
-			roles = append(roles, role)
+		if !slices.Contains(*l, role) {
+			*l = append(*l, role)
 		}
 	}
-	return roles, nil
+	return nil
+}
+
+func (l roleList) String() string {
+	return strings.Join(l, ",")
+}
+
+func (roleList) Type() string {
+	return "string-array"
+}
+
+func (l *roleList) Append(value string) error {
+	return l.Set(value)
+}
+
+func (l *roleList) Replace(values []string) error {
+	*l = nil
+	for _, value := range values {
+		if err := l.Set(value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (l roleList) GetSlice() []string {
+	return l
 }
 
 func formatOrgMemberRoles(roles []string) string {

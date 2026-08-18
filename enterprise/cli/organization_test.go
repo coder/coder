@@ -455,16 +455,18 @@ func TestEditOrganization(t *testing.T) {
 		require.Equal(t, roles, org.DefaultOrgMemberRoles)
 	})
 
-	t.Run("EmptyValueDiscardsEarlierRoles", func(t *testing.T) {
+	t.Run("IgnoresEmptyValues", func(t *testing.T) {
 		t.Parallel()
 
 		client, first := setup(t)
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		// serpent resets the slice on an empty value, so the earlier role
-		// is discarded and the list ends up empty.
+		// Empty occurrences and empty list entries are dropped without
+		// discarding the roles given elsewhere.
 		inv, root := clitest.New(t, "organizations", "edit", "-y",
-			"--default-org-member-roles", codersdk.RoleOrganizationAuditor,
-			"--default-org-member-roles", "")
+			"--default-org-member-roles", codersdk.RoleOrganizationAuditor+",",
+			"--default-org-member-roles", "",
+			"--default-org-member-roles", " ",
+			"--default-org-member-roles", codersdk.RoleOrganizationWorkspaceAccess)
 		//nolint:gocritic // only owners can update orgs
 		clitest.SetupConfig(t, client, root)
 		inv.Stdout = new(bytes.Buffer)
@@ -475,7 +477,10 @@ func TestEditOrganization(t *testing.T) {
 		//nolint:gocritic // only owners can read all orgs
 		org, err := client.Organization(ctx, first.OrganizationID)
 		require.NoError(t, err)
-		require.Empty(t, org.DefaultOrgMemberRoles)
+		require.Equal(t, []string{
+			codersdk.RoleOrganizationAuditor,
+			codersdk.RoleOrganizationWorkspaceAccess,
+		}, org.DefaultOrgMemberRoles)
 	})
 
 	t.Run("InvalidFlags", func(t *testing.T) {
@@ -490,16 +495,6 @@ func TestEditOrganization(t *testing.T) {
 				name:          "NoFlags",
 				args:          []string{},
 				errorContains: "no changes requested",
-			},
-			{
-				name:          "EmptyRoleName",
-				args:          []string{"--default-org-member-roles", codersdk.RoleOrganizationAuditor + ","},
-				errorContains: "empty role name",
-			},
-			{
-				name:          "WhitespaceRoleName",
-				args:          []string{"--default-org-member-roles", " "},
-				errorContains: "empty role name",
 			},
 			{
 				name:          "NonBuiltInRole",
