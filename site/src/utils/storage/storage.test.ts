@@ -86,14 +86,34 @@ defineEntityStorageKey<string | null>({
 	codec: stringCodec,
 	defaultValue: null,
 	ttlMs: 30 * dayMs,
-	envelope: false,
+	timestamped: false,
 	sweepValue: (raw) => (raw === "stale" ? "remove" : "keep"),
 });
 
 registerLegacyStorageKeys(["test.legacy-one", "test.legacy-two"]);
 
+const timestampKeyFor = (key: string): string =>
+	`coder.storage.timestamps.${key}`;
+
 const envelopeFor = (data: string, atMs: number): string =>
 	JSON.stringify({ v: 1, t: atMs, d: data });
+
+const stampFor = (key: string, atMs: number): void => {
+	const raw = localStorage.getItem(key);
+	if (raw === null) {
+		throw new Error(`no value stored at ${key}`);
+	}
+	// Mirrors the module's FNV-1a fingerprint.
+	let hash = 0x811c9dc5;
+	for (let index = 0; index < raw.length; index++) {
+		hash ^= raw.charCodeAt(index);
+		hash = Math.imul(hash, 0x01000193);
+	}
+	localStorage.setItem(
+		timestampKeyFor(key),
+		JSON.stringify({ t: atMs, h: (hash >>> 0).toString(16) }),
+	);
+};
 
 describe("storage core", () => {
 	beforeEach(() => {
@@ -247,16 +267,21 @@ describe("entity-scoped keys", () => {
 		expect(chatNote.forId("chat-1")).not.toBe(chatNote.forId("chat-2"));
 	});
 
-	it("writes values inside a timestamped envelope", () => {
+	it("writes the raw value plus a companion timestamp", () => {
 		vi.spyOn(Date, "now").mockReturnValue(1000);
 		chatNote.forId("chat-1").set("draft");
-		expect(localStorage.getItem("test.chat-note.chat-1")).toBe(
-			envelopeFor("draft", 1000),
+		// The value bytes stay in the legacy raw format so older
+		// clients can still read them.
+		expect(localStorage.getItem("test.chat-note.chat-1")).toBe("draft");
+		const stamp = JSON.parse(
+			localStorage.getItem(timestampKeyFor("test.chat-note.chat-1")) ?? "null",
 		);
+		expect(stamp.t).toBe(1000);
+		expect(typeof stamp.h).toBe("string");
 		expect(chatNote.forId("chat-1").get()).toBe("draft");
 	});
 
-	it("reads legacy bare values written before the envelope existed", () => {
+	it("reads values written before companions existed", () => {
 		localStorage.setItem("test.chat-note.chat-1", "old draft");
 		expect(chatNote.forId("chat-1").get()).toBe("old draft");
 
@@ -264,12 +289,17 @@ describe("entity-scoped keys", () => {
 		expect(chatTabs.forId("chat-1").get()).toEqual(["files"]);
 	});
 
-	it("falls back to the default for corrupt envelope payloads", () => {
-		localStorage.setItem(
-			"test.chat-tabs.chat-1",
-			envelopeFor("{not json", 1000),
-		);
-		expect(chatTabs.forId("chat-1").get()).toEqual([]);
+	it("removes the companion timestamp along with the value", () => {
+		const handle = chatNote.forId("chat-1");
+		handle.set("draft");
+		expect(
+			localStorage.getItem(timestampKeyFor("test.chat-note.chat-1")),
+		).not.toBeNull();
+		handle.remove();
+		expect(localStorage.getItem("test.chat-note.chat-1")).toBeNull();
+		expect(
+			localStorage.getItem(timestampKeyFor("test.chat-note.chat-1")),
+		).toBeNull();
 	});
 
 	it("clears every key owned by an entity across families", () => {
@@ -313,39 +343,92 @@ describe("sweepExpiredStorage", () => {
 		_resetStorageForTesting();
 	});
 
-	it("removes expired envelopes and keeps fresh ones", () => {
+	it("removes values with expired companions and keeps fresh ones", () => {
 		const now = 100 * dayMs;
-		localStorage.setItem(
-			"test.chat-note.old",
-			envelopeFor("stale draft", now - 31 * dayMs),
-		);
-		localStorage.setItem(
-			"test.chat-note.new",
-			envelopeFor("fresh draft", now - dayMs),
-		);
-		localStorage.setItem(
-			"test.chat-tabs.old",
-			envelopeFor(JSON.stringify(["files"]), now - 89 * dayMs),
-		);
+		localStorage.setItem("test.chat-note.old", "stale draft");
+		stampFor("test.chat-note.old", now - 31 * dayMs);
+		localStorage.setItem("test.chat-note.new", "fresh draft");
+		stampFor("test.chat-note.new", now - dayMs);
+		localStorage.setItem("test.chat-tabs.old", JSON.stringify(["files"]));
+		stampFor("test.chat-tabs.old", now - 89 * dayMs);
 
 		sweepExpiredStorage(now);
 
 		expect(localStorage.getItem("test.chat-note.old")).toBeNull();
-		expect(localStorage.getItem("test.chat-note.new")).not.toBeNull();
+		expect(
+			localStorage.getItem(timestampKeyFor("test.chat-note.old")),
+		).toBeNull();
+		expect(localStorage.getItem("test.chat-note.new")).toBe("fresh draft");
 		// 89 days is within the 90 day preference TTL.
 		expect(localStorage.getItem("test.chat-tabs.old")).not.toBeNull();
 	});
 
-	it("stamps legacy bare values so their TTL clock starts", () => {
+	it("stamps unstamped values so their TTL clock starts", () => {
 		const now = 100 * dayMs;
 		localStorage.setItem("test.chat-note.legacy", "legacy draft");
 
 		sweepExpiredStorage(now);
 
-		expect(localStorage.getItem("test.chat-note.legacy")).toBe(
-			envelopeFor("legacy draft", now),
+		// The value bytes are untouched; only a companion appears.
+		expect(localStorage.getItem("test.chat-note.legacy")).toBe("legacy draft");
+		const stamp = JSON.parse(
+			localStorage.getItem(timestampKeyFor("test.chat-note.legacy")) ?? "null",
 		);
+		expect(stamp.t).toBe(now);
 		expect(chatNote.forId("legacy").get()).toBe("legacy draft");
+	});
+
+	it("re-stamps values changed by clients that do not write companions", () => {
+		const now = 100 * dayMs;
+		localStorage.setItem("test.chat-note.shared", "first");
+		stampFor("test.chat-note.shared", now - 60 * dayMs);
+		// An old client overwrites the value without updating the stamp.
+		localStorage.setItem("test.chat-note.shared", "updated by old client");
+
+		sweepExpiredStorage(now);
+
+		// The stale stamp must not expire the freshly updated value.
+		expect(localStorage.getItem("test.chat-note.shared")).toBe(
+			"updated by old client",
+		);
+		const stamp = JSON.parse(
+			localStorage.getItem(timestampKeyFor("test.chat-note.shared")) ?? "null",
+		);
+		expect(stamp.t).toBe(now);
+	});
+
+	it("migrates pre-release envelope values back to raw values", () => {
+		const now = 100 * dayMs;
+		localStorage.setItem(
+			"test.chat-note.wrapped",
+			envelopeFor("wrapped draft", now - dayMs),
+		);
+		localStorage.setItem(
+			"test.chat-note.expired-wrap",
+			envelopeFor("stale draft", now - 31 * dayMs),
+		);
+
+		sweepExpiredStorage(now);
+
+		expect(localStorage.getItem("test.chat-note.wrapped")).toBe(
+			"wrapped draft",
+		);
+		const stamp = JSON.parse(
+			localStorage.getItem(timestampKeyFor("test.chat-note.wrapped")) ?? "null",
+		);
+		// The original write time is preserved through the migration.
+		expect(stamp.t).toBe(now - dayMs);
+		expect(localStorage.getItem("test.chat-note.expired-wrap")).toBeNull();
+	});
+
+	it("removes orphaned companion timestamps", () => {
+		localStorage.setItem(timestampKeyFor("test.chat-note.gone"), "{}");
+
+		sweepExpiredStorage(Date.now());
+
+		expect(
+			localStorage.getItem(timestampKeyFor("test.chat-note.gone")),
+		).toBeNull();
 	});
 
 	it("applies custom family sweep logic", () => {
