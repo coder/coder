@@ -20501,6 +20501,12 @@ const docTemplate = `{
                 "logging": {
                     "$ref": "#/definitions/codersdk.LoggingConfig"
                 },
+                "mcp_allowed_private_cidrs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "metrics_cache_refresh_interval": {
                     "type": "integer"
                 },

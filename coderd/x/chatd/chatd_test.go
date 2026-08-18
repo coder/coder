@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"slices"
@@ -45,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/mcpssrf"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -71,6 +73,13 @@ type recordedOpenAIRequest struct {
 	Tools         []string
 	Store         *bool
 	ContentLength int64
+}
+
+func testMCPHTTPClient() *http.Client {
+	return mcpssrf.NewHTTPClient(nil, []netip.Prefix{
+		netip.MustParsePrefix("127.0.0.0/8"),
+		netip.MustParsePrefix("::1/128"),
+	})
 }
 
 func chatAIGatewayTransportFactoryPointer(factory aibridge.TransportFactory) *atomic.Pointer[aibridge.TransportFactory] {
@@ -4996,6 +5005,7 @@ func newTestServer(
 		ReplicaID:                  replicaID,
 		PendingChatAcquireInterval: testutil.WaitLong,
 		Experiments:                codersdk.ExperimentsKnown,
+		MCPHTTPClient:              testMCPHTTPClient(),
 	}
 	for _, o := range overrides {
 		o(&cfg)
@@ -8534,6 +8544,7 @@ func newActiveTestServer(
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 		Experiments:                codersdk.ExperimentsKnown,
+		MCPHTTPClient:              testMCPHTTPClient(),
 	}
 	for _, o := range overrides {
 		o(&cfg)

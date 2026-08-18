@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/mcpssrf"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -370,8 +371,11 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			// advertises), so all discovery traffic goes through an
 			// SSRF-guarded client that refuses private/internal
 			// destinations (CDM-02-002).
-			httpClient := newMCPDiscoveryHTTPClient(api.HTTPClient, api.MCPOAuth2DiscoveryAllowedIPRanges)
-			result, err := discoverAndRegisterMCPOAuth2(ctx, httpClient, strings.TrimSpace(req.URL), callbackURL)
+			httpClient := *api.mcpHTTPClient
+			if httpClient.Timeout == 0 {
+				httpClient.Timeout = 30 * time.Second
+			}
+			result, err := discoverAndRegisterMCPOAuth2(ctx, &httpClient, strings.TrimSpace(req.URL), callbackURL)
 			if err != nil {
 				api.Logger.Warn(ctx, "mcp oauth2 auto-discovery failed",
 					slog.F("url", req.URL),
@@ -1244,14 +1248,12 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	}
 	oauth2Config.Scopes = scopes
 
-	// Use the deployment's HTTP client for the token exchange to
-	// respect proxy settings and avoid using http.DefaultClient.
-	// Guard against nil so the oauth2 library falls back to the
-	// default client instead of panicking.
-	exchangeCtx := ctx
-	if api.HTTPClient != nil {
-		exchangeCtx = context.WithValue(ctx, oauth2.HTTPClient, api.HTTPClient)
+	exchangeClient := *api.mcpHTTPClient
+	exchangeClient.CheckRedirect = mcpssrf.CheckSameOriginRedirect
+	if exchangeClient.Timeout == 0 {
+		exchangeClient.Timeout = 30 * time.Second
 	}
+	exchangeCtx := context.WithValue(ctx, oauth2.HTTPClient, &exchangeClient)
 	token, err := oauth2Config.Exchange(exchangeCtx, code, exchangeOpts...)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
@@ -1408,7 +1410,7 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 	if config.AuthType == "oauth2" {
 		// The local token is already deleted, so a client abort must
 		// not cancel the provider revocation; it has its own timeout.
-		revoked, err := mcpclient.RevokeOAuth2Token(context.WithoutCancel(ctx), api.HTTPClient, config, token)
+		revoked, err := mcpclient.RevokeOAuth2Token(context.WithoutCancel(ctx), api.mcpHTTPClient, config, token)
 		resp.TokenRevoked = revoked
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to revoke MCP oauth2 token at provider",
@@ -1447,7 +1449,7 @@ func (api *API) refreshMCPUserToken(
 		return !tok.Expiry.Valid || tok.Expiry.Time.After(time.Now())
 	}
 
-	result, err := mcpclient.RefreshOAuth2Token(ctx, cfg, tok)
+	result, err := mcpclient.RefreshOAuth2Token(ctx, api.mcpHTTPClient, cfg, tok)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to refresh MCP oauth2 token",
 			slog.F("server_slug", cfg.Slug),

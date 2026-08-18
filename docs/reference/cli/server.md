@@ -26,6 +26,16 @@ coder server [flags]
 
 ## Options
 
+### --mcp-allowed-private-cidrs
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>string-array</code>                     |
+| Environment | <code>$CODER_MCP_ALLOWED_PRIVATE_CIDRS</code> |
+| YAML        | <code>mcp.allowed_private_cidrs</code>        |
+
+MCP server destinations in private or reserved IP ranges are blocked by default for SSRF protection. This applies to OAuth2 discovery, OAuth2 token and revocation exchanges, and runtime MCP connections from coderd. This option exempts specific CIDRs.
+
 ### --access-url
 
 |             |                                   |
