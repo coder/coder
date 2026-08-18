@@ -211,5 +211,6 @@ export const buildUpdateMCPServerConfigRequest = (
 		}),
 		tool_allow_list: [...(base.tool_allow_list ?? [])],
 		tool_deny_list: [...(base.tool_deny_list ?? [])],
+		tool_rules: [...(base.tool_rules ?? [])],
 	};
 };

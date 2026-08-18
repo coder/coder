@@ -104,6 +104,8 @@ export const MockMCPServerConfig: MCPServerConfig = {
 	has_custom_headers: false,
 	tool_allow_list: [],
 	tool_deny_list: [],
+	tool_rules: [],
+	tool_default: "enabled",
 	availability: "default_on",
 	enabled: true,
 	model_intent: false,

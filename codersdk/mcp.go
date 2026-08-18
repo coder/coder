@@ -61,7 +61,8 @@ type MCPServerConfig struct {
 	Transport string `json:"transport"` // "streamable_http" or "sse"
 	URL       string `json:"url"`
 
-	AuthType string `json:"auth_type"` // "none", "oauth2", "api_key", "custom_headers", "user_oidc"
+	AuthType               string `json:"auth_type"` // "none", "oauth2", "api_key", "custom_headers", "user_oidc", "external_auth"
+	ExternalAuthProviderID string `json:"external_auth_provider_id,omitempty"`
 
 	// OAuth2 fields (only populated for admins).
 	OAuth2ClientID      string `json:"oauth2_client_id,omitempty"`
@@ -78,8 +79,10 @@ type MCPServerConfig struct {
 	HasCustomHeaders bool `json:"has_custom_headers"`
 
 	// Tool governance.
-	ToolAllowList []string `json:"tool_allow_list"`
-	ToolDenyList  []string `json:"tool_deny_list"`
+	ToolAllowList []string            `json:"tool_allow_list"`
+	ToolDenyList  []string            `json:"tool_deny_list"`
+	ToolRules     []MCPServerToolRule `json:"tool_rules"`
+	ToolDefault   string              `json:"tool_default"` // "enabled" or "disabled"
 
 	// Availability policy set by admin.
 	Availability string `json:"availability"` // "force_on", "default_on", "default_off"
@@ -101,6 +104,12 @@ type MCPServerConfig struct {
 	AuthConnected bool `json:"auth_connected"`
 }
 
+// MCPServerToolRule explicitly enables or disables one upstream tool.
+type MCPServerToolRule struct {
+	Tool    string `json:"tool" validate:"required"`
+	Enabled bool   `json:"enabled"`
+}
+
 // CreateMCPServerConfigRequest is the request to create a new MCP server config.
 type CreateMCPServerConfigRequest struct {
 	DisplayName string `json:"display_name" validate:"required"`
@@ -111,11 +120,12 @@ type CreateMCPServerConfigRequest struct {
 	Transport string `json:"transport" validate:"required,oneof=streamable_http sse"`
 	URL       string `json:"url" validate:"required,url"`
 
-	AuthType           string `json:"auth_type" validate:"required,oneof=none oauth2 api_key custom_headers user_oidc"`
-	OAuth2ClientID     string `json:"oauth2_client_id,omitempty"`
-	OAuth2ClientSecret string `json:"oauth2_client_secret,omitempty"`
-	OAuth2AuthURL      string `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
-	OAuth2TokenURL     string `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
+	AuthType               string `json:"auth_type" validate:"required,oneof=none oauth2 api_key custom_headers user_oidc external_auth"`
+	ExternalAuthProviderID string `json:"external_auth_provider_id,omitempty"`
+	OAuth2ClientID         string `json:"oauth2_client_id,omitempty"`
+	OAuth2ClientSecret     string `json:"oauth2_client_secret,omitempty"`
+	OAuth2AuthURL          string `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
+	OAuth2TokenURL         string `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
 	// OAuth2RevocationURL is the provider's RFC 7009 revocation
 	// endpoint; auto-populated by OAuth2 discovery when omitted.
 	OAuth2RevocationURL string            `json:"oauth2_revocation_url,omitempty" validate:"omitempty,url"`
@@ -124,8 +134,10 @@ type CreateMCPServerConfigRequest struct {
 	APIKeyValue         string            `json:"api_key_value,omitempty"`
 	CustomHeaders       map[string]string `json:"custom_headers,omitempty"`
 
-	ToolAllowList []string `json:"tool_allow_list,omitempty"`
-	ToolDenyList  []string `json:"tool_deny_list,omitempty"`
+	ToolAllowList []string            `json:"tool_allow_list,omitempty"`
+	ToolDenyList  []string            `json:"tool_deny_list,omitempty"`
+	ToolRules     []MCPServerToolRule `json:"tool_rules,omitempty" validate:"dive"`
+	ToolDefault   string              `json:"tool_default,omitempty" validate:"omitempty,oneof=enabled disabled"`
 
 	Availability    string `json:"availability" validate:"required,oneof=force_on default_on default_off"`
 	Enabled         bool   `json:"enabled"`
@@ -147,11 +159,12 @@ type UpdateMCPServerConfigRequest struct {
 	Transport *string `json:"transport,omitempty" validate:"omitempty,oneof=streamable_http sse"`
 	URL       *string `json:"url,omitempty" validate:"omitempty,url"`
 
-	AuthType           *string `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers user_oidc"`
-	OAuth2ClientID     *string `json:"oauth2_client_id,omitempty"`
-	OAuth2ClientSecret *string `json:"oauth2_client_secret,omitempty"`
-	OAuth2AuthURL      *string `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
-	OAuth2TokenURL     *string `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
+	AuthType               *string `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers user_oidc external_auth"`
+	ExternalAuthProviderID *string `json:"external_auth_provider_id,omitempty"`
+	OAuth2ClientID         *string `json:"oauth2_client_id,omitempty"`
+	OAuth2ClientSecret     *string `json:"oauth2_client_secret,omitempty"`
+	OAuth2AuthURL          *string `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
+	OAuth2TokenURL         *string `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
 	// OAuth2RevocationURL is validated in the handler because a
 	// validate tag would reject the pointer to "" that clears it.
 	OAuth2RevocationURL *string            `json:"oauth2_revocation_url,omitempty"`
@@ -160,8 +173,10 @@ type UpdateMCPServerConfigRequest struct {
 	APIKeyValue         *string            `json:"api_key_value,omitempty"`
 	CustomHeaders       *map[string]string `json:"custom_headers,omitempty"`
 
-	ToolAllowList *[]string `json:"tool_allow_list,omitempty"`
-	ToolDenyList  *[]string `json:"tool_deny_list,omitempty"`
+	ToolAllowList *[]string            `json:"tool_allow_list,omitempty"`
+	ToolDenyList  *[]string            `json:"tool_deny_list,omitempty"`
+	ToolRules     *[]MCPServerToolRule `json:"tool_rules,omitempty" validate:"omitempty,dive"`
+	ToolDefault   *string              `json:"tool_default,omitempty" validate:"omitempty,oneof=enabled disabled"`
 
 	Availability    *string `json:"availability,omitempty" validate:"omitempty,oneof=force_on default_on default_off"`
 	Enabled         *bool   `json:"enabled,omitempty"`

@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -169,6 +170,107 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	configs, err = client.MCPServerConfigs(ctx)
 	require.NoError(t, err)
 	require.Empty(t, configs)
+}
+
+func TestMCPServerConfigsExternalAuthAndToolRules(t *testing.T) {
+	t.Parallel()
+
+	const providerID = "test-provider"
+	ctx := testutil.Context(t, testutil.WaitLong)
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+		ExternalAuthConfigs: []*externalauth.Config{{ID: providerID}},
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:            "External Auth Server",
+		Slug:                   "external-auth-server",
+		Transport:              "streamable_http",
+		URL:                    "https://mcp.example.com/external-auth",
+		AuthType:               "external_auth",
+		ExternalAuthProviderID: providerID,
+		OAuth2ClientSecret:     "must-not-be-stored",
+		APIKeyValue:            "must-not-be-stored",
+		CustomHeaders:          map[string]string{"X-Secret": "must-not-be-stored"},
+		ToolRules: []codersdk.MCPServerToolRule{
+			{Tool: " read ", Enabled: true},
+			{Tool: "delete", Enabled: false},
+		},
+		ToolDefault:  "disabled",
+		Availability: "default_on",
+		Enabled:      true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "external_auth", created.AuthType)
+	require.Equal(t, providerID, created.ExternalAuthProviderID)
+	require.Equal(t, "disabled", created.ToolDefault)
+	require.Equal(t, []codersdk.MCPServerToolRule{
+		{Tool: "read", Enabled: true},
+		{Tool: "delete", Enabled: false},
+	}, created.ToolRules)
+	require.False(t, created.HasOAuth2Secret)
+	require.False(t, created.HasAPIKey)
+	require.False(t, created.HasCustomHeaders)
+
+	newRules := []codersdk.MCPServerToolRule{{Tool: "write", Enabled: true}}
+	newDefault := "enabled"
+	updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		ToolRules:   &newRules,
+		ToolDefault: &newDefault,
+	})
+	require.NoError(t, err)
+	require.Equal(t, newRules, updated.ToolRules)
+	require.Equal(t, newDefault, updated.ToolDefault)
+	require.Equal(t, providerID, updated.ExternalAuthProviderID)
+
+	unknownProvider := "unknown-provider"
+	_, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		ExternalAuthProviderID: &unknownProvider,
+	})
+	requireSDKErrorStatus(t, err, http.StatusBadRequest)
+
+	_, err = client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:            "Unknown Provider",
+		Slug:                   "unknown-provider",
+		Transport:              "streamable_http",
+		URL:                    "https://mcp.example.com/unknown-provider",
+		AuthType:               "external_auth",
+		ExternalAuthProviderID: unknownProvider,
+		Availability:           "default_on",
+	})
+	requireSDKErrorStatus(t, err, http.StatusBadRequest)
+
+	_, err = client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:  "Missing Provider",
+		Slug:         "missing-provider",
+		Transport:    "streamable_http",
+		URL:          "https://mcp.example.com/missing-provider",
+		AuthType:     "external_auth",
+		Availability: "default_on",
+	})
+	requireSDKErrorStatus(t, err, http.StatusBadRequest)
+
+	_, err = client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:  "Unknown Auth Type",
+		Slug:         "unknown-auth-type",
+		Transport:    "streamable_http",
+		URL:          "https://mcp.example.com/unknown-auth-type",
+		AuthType:     "unknown",
+		Availability: "default_on",
+	})
+	requireSDKErrorStatus(t, err, http.StatusBadRequest)
+
+	duplicateRules := []codersdk.MCPServerToolRule{
+		{Tool: "read", Enabled: true},
+		{Tool: " read ", Enabled: false},
+	}
+	_, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		ToolRules: &duplicateRules,
+	})
+	requireSDKErrorStatus(t, err, http.StatusBadRequest)
 }
 
 func TestMCPServerConfigsNonAdmin(t *testing.T) {
