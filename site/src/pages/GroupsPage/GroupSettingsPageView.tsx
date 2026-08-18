@@ -248,7 +248,9 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 									placeholder="unlimited"
 									aria-invalid={budgetField.error}
 								/>
-								<InputGroupAddon align="inline-end">USD</InputGroupAddon>
+								<InputGroupAddon align="inline-end" className="pr-3">
+									USD
+								</InputGroupAddon>
 							</InputGroup>
 							<AIBudgetFeedback
 								error={budgetField.error}
