@@ -136,13 +136,22 @@ test("OSTab seeds the detected OS on a first visit with empty storage", async ()
 	// The other render tests preseed storage; this one exercises the first-visit
 	// detection branch. jsdom's UA is Linux, so a set that offers Linux must seed
 	// it (detectOS -> sessionStorage) and activate the Linux panel, never the empty
-	// box. The set lists Linux precisely so the detected OS is offered and the
-	// seeding path actually runs (a macOS/Windows-only set would fall through).
-	await renderOSTab(["Linux", "macOS", "Windows"]);
+	// box. Linux is listed second on purpose: the active tab defaults to the first
+	// item (macOS here), so a Linux panel can only win via the seed. If Linux led
+	// the set, the panel assertion below would pass on the default alone even if
+	// seeding never ran, so we also assert the sessionStorage write directly.
+	await renderOSTab(["macOS", "Linux", "Windows"]);
+	// The detected OS is written to the shared group store...
+	assert.equal(
+		window.sessionStorage.getItem("os"),
+		"linux",
+		"expected detectOS to seed the shared group store on a first visit",
+	);
+	// ...and that seed, not the macOS default, is what activates the panel.
 	assert.equal(
 		activePanelText(),
 		"Linux panel",
-		`expected the detected OS panel to be active, got: ${JSON.stringify(
+		`expected the seeded OS panel to be active, got: ${JSON.stringify(
 			panelStates(),
 		)}`,
 	);
