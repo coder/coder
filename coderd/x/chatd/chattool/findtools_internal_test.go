@@ -268,13 +268,18 @@ func TestFindToolsDirectCallReservation(t *testing.T) {
 		resp, err = tool.Run(context.Background(), fantasy.ToolCall{Input: `{}`})
 		require.NoError(t, err)
 		require.True(t, resp.IsError)
-		require.Len(t, calls, 3, "rejected calls count toward call totals")
+		resp, err = tool.Run(context.Background(), fantasy.ToolCall{Input: `{"queries":"github"}`})
+		require.NoError(t, err)
+		require.True(t, resp.IsError, "a type mismatch is rejected by the argument decoder")
+		require.Len(t, calls, 4, "rejected calls count toward call totals")
 		require.Empty(t, calls[0].Rejection)
 		require.Equal(t, "budget", calls[1].Rejection)
 		require.Equal(t, []string{"server__b"}, calls[1].Names)
 		require.Empty(t, calls[1].Activated, "a rejected call reports no activations")
 		require.Equal(t, "arguments", calls[2].Rejection, "empty-argument calls are counted as rejected")
 		require.Empty(t, calls[2].Activated)
+		require.Equal(t, "arguments", calls[3].Rejection,
+			"calls rejected during argument decoding are counted before the handler is reached")
 	})
 
 	t.Run("a touched budget skips oversized matches and admits later fits", func(t *testing.T) {

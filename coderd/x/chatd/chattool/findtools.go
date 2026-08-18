@@ -2,6 +2,7 @@ package chattool
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"slices"
@@ -98,6 +99,7 @@ type findToolsTool struct {
 	fantasy.AgentTool
 	reserveStepCalls  func(names []string)
 	settleStepResults func(names []string, errored []bool)
+	onDecodeRejected  func(ctx context.Context)
 }
 
 func (findToolsTool) SerialToolCalls() bool { return true }
@@ -106,6 +108,18 @@ func (t findToolsTool) ObserveStepToolCalls(names []string) { t.reserveStepCalls
 
 func (t findToolsTool) ObserveStepToolResults(names []string, errored []bool) {
 	t.settleStepResults(names, errored)
+}
+
+// Run counts calls the typed wrapper rejects during argument decoding,
+// which never reach the handler and would otherwise be missing from
+// call metrics. The response itself still comes from the wrapper's own
+// decode so its wording stays canonical.
+func (t findToolsTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+	var args FindToolsArgs
+	if err := json.Unmarshal([]byte(call.Input), &args); err != nil && t.onDecodeRejected != nil {
+		t.onDecodeRejected(ctx)
+	}
+	return t.AgentTool.Run(ctx, call)
 }
 
 // FindTools returns the built-in used to discover deferred MCP tool schemas.
@@ -191,7 +205,15 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 		defer budgetMu.Unlock()
 		rebuild(names, errored)
 	}
-	return findToolsTool{reserveStepCalls: reserve, settleStepResults: settle, AgentTool: fantasy.NewAgentTool(
+	onDecodeRejected := func(ctx context.Context) {
+		if options.OnCall != nil {
+			options.OnCall(ctx, FindToolsCall{
+				TotalDeferred: len(entries),
+				Rejection:     findToolsRejectionArguments,
+			})
+		}
+	}
+	return findToolsTool{reserveStepCalls: reserve, settleStepResults: settle, onDecodeRejected: onDecodeRejected, AgentTool: fantasy.NewAgentTool(
 		FindToolsName,
 		buildFindToolsDescription(entries, options.CatalogTokenBudget),
 		func(ctx context.Context, args FindToolsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
