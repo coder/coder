@@ -7,9 +7,9 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
+import type { TimeRange } from "#/pages/AIBridgePage/ListSessionsPage/timeRange";
 import { formatDateTime } from "#/utils/time";
 import { DateTimeRangeFilter } from "./DateTimeRangeFilter";
-import type { TimeRange } from "./timeRange";
 
 const fixedNow = new Date(2026, 7, 13, 15, 0, 0);
 
@@ -24,7 +24,7 @@ const singleDayValue: TimeRange = {
 };
 
 const meta: Meta<typeof DateTimeRangeFilter> = {
-	title: "pages/AIBridgePage/DateTimeRangeFilter",
+	title: "components/DateTimeRangeFilter",
 	component: DateTimeRangeFilter,
 	args: {
 		now: fixedNow,

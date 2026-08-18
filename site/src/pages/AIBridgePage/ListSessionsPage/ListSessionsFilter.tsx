@@ -1,4 +1,5 @@
 import type { FC } from "react";
+import { DateTimeRangeFilter } from "#/components/DateTimeRangeFilter/DateTimeRangeFilter";
 import {
 	Filter,
 	MenuSkeleton,
@@ -11,7 +12,6 @@ import {
 	ProviderFilter,
 	type ProviderFilterMenu,
 } from "../filters/ProviderFilter";
-import { DateTimeRangeFilter } from "./DateTimeRangeFilter";
 import type { TimeRange } from "./timeRange";
 
 // Narrower than the SelectFilter default so the search input keeps most
