@@ -362,6 +362,31 @@ Reconciliation in accounting does not stop at identifying a discrepancy; it
 produces adjusting entries. An audit approach therefore needs a resolution
 policy as well as a detection mechanism, and the two are separable decisions.
 
+### A restricted grant of agency
+
+An entity may not write entries about itself. That looks at first like removing
+the agent's duty to account, and it is not. The duty stands. What is narrowed is
+the grant.
+
+The authority delegated is not authority to act by any available means. It is
+authority to act **through the services provided**. The agent discharges its
+duty to account by confining its activity to those services, because the
+recording they make is the account. The agent is not excused from reporting. It
+is required to make itself reportable, and the only way to do that is to act
+where recording happens.
+
+That has a consequence worth stating. An act performed outside those services is
+not merely an unrecorded act. It is an act outside the authority granted, which
+is a different and worse failure, and one the doctrines under apparent authority
+below bear on directly.
+
+This is the same shape as sandboxing at the network level. A sandbox does not
+ask a process to report its own traffic honestly. It arranges that traffic can
+leave only through something that records it. The arrangement here is social and
+legal rather than technical, and the reason is identical: an account produced by
+the party being accounted for is worth less than one produced by a service that
+party was obliged to use.
+
 ### Separating the party who acts from the party who records
 
 Accounting has a control for this and calls it **segregation of duties**: the

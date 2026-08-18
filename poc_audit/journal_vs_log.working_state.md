@@ -44,36 +44,59 @@ Each item carries one of four states:
    behind it is recorded under "Coupling, and where this belongs" below, and is
    owed to `audit_approach.md` rather than to this document.
 3. **done.** A journal is not a ledger.
-4. **open.** Entry versus record.
-5. **part.** Log defined. The historical sense landed. The modern computing
-   sense, a record of activity including attempts and requests, is owed with
-   section 4.
+4. **drop.** Entry versus record. The distinction is defined in
+   `audit_approach.md` under Terminology, and this document has no need of it.
+   A single sentence remains available if the comparison section turns out to
+   want one.
+5. **done.** Log defined, in both senses. The historical one, and the modern
+   one under "The word outgrew the measurements".
 6. **drop.** "Audit journal" names a category, not one particular journal. Moot:
    the phrase is retired. `audit_approach.md` now records that "audit" is an
    action and is never used to modify another noun, so there is no compound left
    to explain.
-7. **open.** The word "audit" is currently claimed by `audit_logs`, and the
-   rename recommendation stands. Held back for the same reason as 2.6.
+7. **drop.** The word "audit" is currently claimed by `audit_logs`, and the
+   rename recommendation stands. Landed in `audit_approach.md` instead: the
+   Terminology entry states that "audit" never refers to that table, and the
+   attributive rule explains how "audit log" came to name a log nobody audits.
+   The rename recommendation continues to live under the relationship section
+   there.
 
 ### 3. What a journal is for
 
-1. **open.** Audit is an integrity property, not a feature.
-2. **open.** The auditable event is the persistent state change; the entry is a
-   reflection and recording of it. Candidate for drop for the same reason as 3.7
-   through 3.11, but held open because a reader may need it to follow section 5.
+1. **open.** Recordkeeping is an integrity property, not a feature. Reworded
+   from "audit" to follow the renaming in `audit_approach.md`, where the
+   section is now "Recordkeeping as an integrity property". **Summarize here;
+   the definitive text stays there.**
+2. **drop.** The auditable event is the persistent state change; the entry is a
+   reflection and recording of it. It was held open in case section 5 needed it.
+   It does not: section 5 is illustrative rather than persuasive, so a precise
+   understanding of "event" is not required to read it.
 3. **done.** The obligation comes from delegated authority: the duty to account.
-4. **part.** Double entry bookkeeping named. Its shared origin with the law of
-   agency, in the same mercantile tradition, is not yet said here.
-5. **open.** The ideal is one entry per state change; reality diverges.
+4. **done.** Double entry bookkeeping named. Resolved where the item arose, by
+   removing the claim from `entity_model.md` rather than by repeating it here.
+   Checking it found the causal claim contested: recent work dates the method to
+   Florentine moneychanger-bankers and attributes the catalyst to cash shortage
+   and defence against disputes, not to agents accounting to principals. What
+   survives there does not depend on the history: the duty to account is an
+   agency duty, so the account exists because authority was delegated. Double
+   entry is still named in `journal_vs_log.md`, where the use is definitional
+   and makes no claim about origins.
+5. **drop.** The ideal is one entry per state change; reality diverges. Not a
+   point about how the two kinds of record are used, which is this document's
+   subject, and the full story is already in `audit_approach.md`.
 6. **open.** Reconciliation in the accounting sense.
 7. **drop.** Three exhaustive divergence classes.
 8. **drop.** Correspondence keys.
 9. **drop.** Ordering of entry and effect.
 10. **drop.** One transaction collapses the ordering problem.
 11. **drop.** Detection is not resolution.
-12. **open.** Its consumers are reconciliation and whoever renders the account,
-    not an operator debugging. Keep: this one is about the distinction rather
-    than about the approach.
+12. **open.** Who reads each, and why. A log is read by someone trying to work
+    something out. A journal is read to discharge an obligation or to test
+    whether it was discharged: by the recordkeeper when reconciling or
+    rendering, and by the auditor when examining. Nobody reads a journal out of
+    curiosity. Reworded: the original made a process into a reader, and named
+    rendering before rendering had been placed on the audit side. Probably an
+    axis for section 5 rather than a point about what a journal is for.
 
 ### 4. What a log is for
 
@@ -195,6 +218,12 @@ weighed and rejected: it is readable alone as an account of the distinction,
 which is its subject, and a reader who needs the mechanics of reconciliation is
 already being sent to the approach document.
 
+**Section 5 is illustrative, not persuasive.** The table of properties shows
+where the two kinds of record differ. It is not required to argue for each
+difference or to rest on definitions established elsewhere. Several items were
+dropped on that basis, including 3.2, since a reader does not need a precise
+account of "event" to follow an illustration.
+
 **"Audit journal" is retired, not merely deprecated.** The defect is the
 attributive use of an action word, which turns the action into a kind of thing.
 Accounting qualifies a journal by its contents and never by its purpose or its
@@ -252,6 +281,11 @@ against the world. It is wrong. Taking a star sight replaces an estimate with a
 better observation; reconciling an account compares a record of what was done
 against what is there. The draft keeps only the part that carries, which is that
 a series of measurements never established position.
+
+**Kept: the paragraph answering the ships objection.** The modern-sense section
+ends by conceding that `audit_logs` records requests rather than measurements,
+and answering that the framing never rested on content. Without it the document
+invites a one-line rebuttal that the analogy simply does not apply.
 
 **Kept: "book of original entry".** It is the bookkeeping term of art, and it
 says exactly what the design does, that current state is derived by folding the
