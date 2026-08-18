@@ -42,8 +42,11 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 			}
 
 			// Start span with default span name. Span name will be updated to
-			// "method route" format once request finishes.
-			r, span := StartHTTPSpan(tracer, rw, r, fmt.Sprintf("%s %s", r.Method, r.RequestURI))
+			// "method route" format once request finishes. The initial name
+			// excludes the query string because span names are exported to
+			// tracing backends at span start and some endpoints accept
+			// bearer credentials as query parameters.
+			r, span := StartHTTPSpan(tracer, rw, r, fmt.Sprintf("%s %s", r.Method, r.URL.Path))
 			defer span.End()
 
 			sw, ok := rw.(*StatusWriter)

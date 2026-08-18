@@ -374,6 +374,91 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/files/{file}/download": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/gif",
+                    "image/webp",
+                    "text/plain",
+                    "text/markdown",
+                    "text/csv",
+                    "application/json",
+                    "application/pdf"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Download chat file with signed token",
+                "operationId": "download-chat-file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "File ID",
+                        "name": "file",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Signed download token",
+                        "name": "token",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/chats/files/{file}/download-url": {
+            "post": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat file download URL",
+                "operationId": "create-chat-file-download-url",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "File ID",
+                        "name": "file",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatFileDownloadURLResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/models": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -17906,6 +17991,31 @@ const docTemplate = `{
                 "ChatErrorKindHookDenied"
             ]
         },
+        "codersdk.ChatFileDownloadURLResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sha256": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string",
+                    "format": "uri"
+                }
+            }
+        },
         "codersdk.ChatFileMetadata": {
             "type": "object",
             "properties": {
@@ -17930,6 +18040,9 @@ const docTemplate = `{
                 "owner_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "size_bytes": {
+                    "type": "integer"
                 }
             }
         },
@@ -19858,6 +19971,7 @@ const docTemplate = `{
                 "workspace_apps_api_key",
                 "workspace_apps_token",
                 "oidc_convert",
+                "chat_files_token",
                 "tailnet_resume",
                 "nats_ca"
             ],
@@ -19865,6 +19979,7 @@ const docTemplate = `{
                 "CryptoKeyFeatureWorkspaceAppsAPIKey",
                 "CryptoKeyFeatureWorkspaceAppsToken",
                 "CryptoKeyFeatureOIDCConvert",
+                "CryptoKeyFeatureChatFilesToken",
                 "CryptoKeyFeatureTailnetResume",
                 "CryptoKeyFeatureNATSCA"
             ]

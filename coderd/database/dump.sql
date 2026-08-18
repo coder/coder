@@ -398,7 +398,8 @@ CREATE TYPE crypto_key_feature AS ENUM (
     'workspace_apps_api_key',
     'oidc_convert',
     'tailnet_resume',
-    'nats_ca'
+    'nats_ca',
+    'chat_files_token'
 );
 
 CREATE TYPE display_app AS ENUM (

@@ -2043,6 +2043,7 @@ const (
 	CryptoKeyFeatureOIDCConvert         CryptoKeyFeature = "oidc_convert"
 	CryptoKeyFeatureTailnetResume       CryptoKeyFeature = "tailnet_resume"
 	CryptoKeyFeatureNATSCA              CryptoKeyFeature = "nats_ca"
+	CryptoKeyFeatureChatFilesToken      CryptoKeyFeature = "chat_files_token"
 )
 
 func (e *CryptoKeyFeature) Scan(src interface{}) error {
@@ -2086,7 +2087,8 @@ func (e CryptoKeyFeature) Valid() bool {
 		CryptoKeyFeatureWorkspaceAppsAPIKey,
 		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume,
-		CryptoKeyFeatureNATSCA:
+		CryptoKeyFeatureNATSCA,
+		CryptoKeyFeatureChatFilesToken:
 		return true
 	}
 	return false
@@ -2099,6 +2101,7 @@ func AllCryptoKeyFeatureValues() []CryptoKeyFeature {
 		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume,
 		CryptoKeyFeatureNATSCA,
+		CryptoKeyFeatureChatFilesToken,
 	}
 }
 

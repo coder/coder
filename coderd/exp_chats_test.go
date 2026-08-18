@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	stderrors "errors"
@@ -10,6 +11,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"regexp"
 	"slices"
 	"strconv"
@@ -18,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/sqlc-dev/pqtype"
@@ -41,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -8071,6 +8075,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.Equal(t, firstUser.UserID, f.OwnerID)
 		require.NotEqual(t, uuid.Nil, f.OrganizationID)
 		require.Equal(t, "image/png", f.MimeType)
+		require.Equal(t, int64(len(pngData)), f.SizeBytes)
 		require.Equal(t, "test.png", f.Name)
 		require.NotZero(t, f.CreatedAt)
 	})
@@ -11269,6 +11274,214 @@ func TestGetChatFile(t *testing.T) {
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, _, err = otherClient.GetChatFile(ctx, uploaded.ID)
 		requireSDKError(t, err, http.StatusNotFound)
+	})
+}
+
+func TestChatFileDownloadURL(t *testing.T) {
+	t.Parallel()
+
+	newClient := func(t *testing.T) (*codersdk.ExperimentalClient, jwtutils.StaticKey) {
+		t.Helper()
+		key := jwtutils.StaticKey{ID: "1", Key: []byte(strings.Repeat("k", 64))}
+		client := newChatClient(t, func(options *coderdtest.Options) {
+			options.ChatFileTokenKeyCache = key
+		})
+		return client, key
+	}
+	uploadPNG := func(t *testing.T, ctx context.Context, client *codersdk.ExperimentalClient, organizationID uuid.UUID, name string) (codersdk.UploadChatFileResponse, []byte) {
+		t.Helper()
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploaded, err := client.UploadChatFile(ctx, organizationID, "image/png", name, bytes.NewReader(data))
+		require.NoError(t, err)
+		return uploaded, data
+	}
+	get := func(t *testing.T, ctx context.Context, rawURL string) *http.Response {
+		t.Helper()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+		require.NoError(t, err)
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		return res
+	}
+
+	t.Run("MintAndRedeem", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		uploaded, data := uploadPNG(t, ctx, client, firstUser.OrganizationID, "evidence.png")
+
+		download, err := client.ChatFileDownloadURL(ctx, uploaded.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(len(data)), download.SizeBytes)
+		require.Equal(t, fmt.Sprintf("%x", sha256.Sum256(data)), download.SHA256)
+		require.Equal(t, "evidence.png", download.Name)
+		require.Equal(t, "image/png", download.MimeType)
+		require.True(t, download.ExpiresAt.After(time.Now()))
+		// expires_at must match the JWT exp claim, which is stored at
+		// second precision; sub-second drift would overstate validity.
+		require.True(t, download.ExpiresAt.Equal(download.ExpiresAt.Truncate(time.Second)))
+
+		res := get(t, ctx, download.URL)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, "image/png", res.Header.Get("Content-Type"))
+		require.Equal(t, "no-store", res.Header.Get("Cache-Control"))
+		got, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, data, got)
+	})
+
+	t.Run("ExpiredToken", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, key := newClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		uploaded, _ := uploadPNG(t, ctx, client, firstUser.OrganizationID, "expired.png")
+		token, err := jwtutils.Sign(ctx, key, coderd.ChatFileDownloadClaims{
+			RegisteredClaims: jwtutils.RegisteredClaims{
+				Expiry:   jwt.NewNumericDate(time.Now().Add(-time.Minute)),
+				IssuedAt: jwt.NewNumericDate(time.Now().Add(-2 * time.Minute)),
+			},
+			FileID: uploaded.ID,
+			UserID: firstUser.UserID,
+		})
+		require.NoError(t, err)
+		downloadURL := client.URL.JoinPath("api", "experimental", "chats", "files", uploaded.ID.String(), "download")
+		query := downloadURL.Query()
+		query.Set("token", token)
+		downloadURL.RawQuery = query.Encode()
+
+		res := get(t, ctx, downloadURL.String())
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("TamperedToken", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		uploaded, _ := uploadPNG(t, ctx, client, firstUser.OrganizationID, "tampered.png")
+		download, err := client.ChatFileDownloadURL(ctx, uploaded.ID)
+		require.NoError(t, err)
+		downloadURL, err := url.Parse(download.URL)
+		require.NoError(t, err)
+		token := downloadURL.Query().Get("token")
+		require.NotEmpty(t, token)
+		first := byte('A')
+		if token[0] == first {
+			first = 'B'
+		}
+		query := downloadURL.Query()
+		query.Set("token", string(first)+token[1:])
+		downloadURL.RawQuery = query.Encode()
+
+		res := get(t, ctx, downloadURL.String())
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("TokenFileMismatch", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		fileA, _ := uploadPNG(t, ctx, client, firstUser.OrganizationID, "a.png")
+		fileB, _ := uploadPNG(t, ctx, client, firstUser.OrganizationID, "b.png")
+		download, err := client.ChatFileDownloadURL(ctx, fileA.ID)
+		require.NoError(t, err)
+		downloadURL, err := url.Parse(download.URL)
+		require.NoError(t, err)
+		downloadURL.Path = fmt.Sprintf("/api/experimental/chats/files/%s/download", fileB.ID)
+
+		res := get(t, ctx, downloadURL.String())
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("PlainGetRequiresAuthentication", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newClient(t)
+		anonymous := codersdk.NewExperimentalClient(codersdk.New(client.URL))
+
+		_, _, err := anonymous.GetChatFile(ctx, uuid.New())
+		requireSDKError(t, err, http.StatusUnauthorized)
+	})
+
+	t.Run("NonOwnerCannotMint", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		uploaded, _ := uploadPNG(t, ctx, client, firstUser.OrganizationID, "owner.png")
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
+
+		_, err := otherClient.ChatFileDownloadURL(ctx, uploaded.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("RevokedShareCannotRedeem", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+		uploaded, _ := uploadPNG(t, ctx, client, firstUser.OrganizationID, "shared.png")
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "shared evidence"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: uploaded.ID},
+			},
+		})
+		require.NoError(t, err)
+
+		memberRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClient := codersdk.NewExperimentalClient(memberRaw)
+		err = client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+			UserRoles: map[string]codersdk.ChatRole{member.ID.String(): codersdk.ChatRoleRead},
+		})
+		require.NoError(t, err)
+
+		// The member can mint while the share is active.
+		download, err := memberClient.ChatFileDownloadURL(ctx, uploaded.ID)
+		require.NoError(t, err)
+
+		// Revoking the share invalidates the already-minted URL because
+		// redemption rechecks the minting user's access live.
+		err = client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+			UserRoles: map[string]codersdk.ChatRole{member.ID.String(): codersdk.ChatRoleDeleted},
+		})
+		require.NoError(t, err)
+
+		res := get(t, ctx, download.URL)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("SuspendedUserCannotRedeem", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		memberRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClient := codersdk.NewExperimentalClient(memberRaw)
+		uploaded, _ := uploadPNG(t, ctx, memberClient, firstUser.OrganizationID, "suspended.png")
+
+		download, err := memberClient.ChatFileDownloadURL(ctx, uploaded.ID)
+		require.NoError(t, err)
+
+		// Suspending the minting user invalidates the URL because
+		// redemption requires the token's user to still be active.
+		_, err = client.Client.UpdateUserStatus(ctx, member.ID.String(), codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+
+		res := get(t, ctx, download.URL)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 }
 

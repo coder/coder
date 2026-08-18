@@ -5694,6 +5694,7 @@ const (
 	//nolint:gosec // This denotes a type of key, not a literal.
 	CryptoKeyFeatureWorkspaceAppsToken CryptoKeyFeature = "workspace_apps_token"
 	CryptoKeyFeatureOIDCConvert        CryptoKeyFeature = "oidc_convert"
+	CryptoKeyFeatureChatFilesToken     CryptoKeyFeature = "chat_files_token"
 	CryptoKeyFeatureTailnetResume      CryptoKeyFeature = "tailnet_resume"
 	// CryptoKeyFeatureNATSCA is the CA that signs NATS cluster mTLS leaf
 	// certificates. Its secret is a PEM cert+key bundle (not a hex secret like

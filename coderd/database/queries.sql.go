@@ -5930,7 +5930,8 @@ func (q *sqlQuerier) GetChatFileDataPrefixesByIDs(ctx context.Context, arg GetCh
 }
 
 const getChatFileMetadataByChatID = `-- name: GetChatFileMetadataByChatID :many
-SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, cf.created_at
+SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, cf.created_at,
+	octet_length(cf.data)::bigint AS size_bytes
 FROM chat_files cf
 JOIN chat_file_links cfl ON cfl.file_id = cf.id
 WHERE cfl.chat_id = $1::uuid
@@ -5944,6 +5945,7 @@ type GetChatFileMetadataByChatIDRow struct {
 	Name           string    `db:"name" json:"name"`
 	Mimetype       string    `db:"mimetype" json:"mimetype"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	SizeBytes      int64     `db:"size_bytes" json:"size_bytes"`
 }
 
 // GetChatFileMetadataByChatID returns lightweight file metadata for
@@ -5965,6 +5967,7 @@ func (q *sqlQuerier) GetChatFileMetadataByChatID(ctx context.Context, chatID uui
 			&i.Name,
 			&i.Mimetype,
 			&i.CreatedAt,
+			&i.SizeBytes,
 		); err != nil {
 			return nil, err
 		}
