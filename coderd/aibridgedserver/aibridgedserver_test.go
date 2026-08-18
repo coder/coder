@@ -53,6 +53,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -241,6 +242,117 @@ func TestAuthorization(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, &expected, resp)
 			}
+		})
+	}
+}
+
+func TestAuthorizeMCPGateway(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	owner := dbgen.User(t, db, database.User{RBACRoles: []string{rbac.RoleOwner().String()}})
+	organization := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: organization.ID,
+		UserID:         owner.ID,
+	})
+
+	agentUser, agent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+		OwnerID:        owner.ID,
+		OrganizationID: organization.ID,
+		OriginType:     database.AIAgentOriginChat,
+		OriginID:       uuid.New(),
+	})
+	require.NoError(t, err)
+	aiKey, aiToken, err := aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.ChatAgentProfile(agent.OriginID))
+	require.NoError(t, err)
+
+	ordinaryKey, ordinaryToken := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    owner.ID,
+		LoginType: database.LoginTypeToken,
+		Scopes:    database.APIKeyScopes{database.ApiKeyScopeWorkspaceRead},
+		AllowList: database.AllowList{rbac.AllowListAll()},
+		TokenName: testutil.GetRandomName(t),
+	})
+	missingAllowListKey, missingAllowListToken := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    owner.ID,
+		LoginType: database.LoginTypeToken,
+		Scopes:    database.APIKeyScopes{database.ApiKeyScopeMcpGatewayUse},
+		AllowList: database.AllowList{{
+			Type: rbac.ResourceWorkspace.Type,
+			ID:   policy.WildcardSymbol,
+		}},
+		TokenName: testutil.GetRandomName(t),
+	})
+
+	mcpServerConfigID := uuid.NewString()
+	tests := []struct {
+		name           string
+		token          string
+		key            database.APIKey
+		user           database.User
+		wantAuthorized bool
+		wantSubjectID  string
+	}{
+		{
+			name:           "AI identity key",
+			token:          aiToken,
+			key:            aiKey,
+			user:           agentUser,
+			wantAuthorized: true,
+			wantSubjectID:  owner.ID.String(),
+		},
+		{
+			name:          "ordinary token without scope",
+			token:         ordinaryToken,
+			key:           ordinaryKey,
+			user:          owner,
+			wantSubjectID: owner.ID.String(),
+		},
+		{
+			name:          "scope without allow-list entry",
+			token:         missingAllowListToken,
+			key:           missingAllowListKey,
+			user:          owner,
+			wantSubjectID: owner.ID.String(),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			authorizer := &coderdtest.RecordingAuthorizer{
+				Wrapped: rbac.NewAuthorizer(prometheus.NewRegistry()),
+			}
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         db,
+				Authorizer:    authorizer,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Logger:        testutil.Logger(t),
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			resp, err := srv.AuthorizeMCPGateway(ctx, &proto.AuthorizeMCPGatewayRequest{
+				Key:               tt.token,
+				McpServerConfigId: mcpServerConfigID,
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.wantAuthorized, resp.GetAuthorized())
+			require.Equal(t, tt.user.ID.String(), resp.GetInitiatorId())
+			require.Equal(t, tt.key.ID, resp.GetApiKeyId())
+			require.Equal(t, tt.user.Username, resp.GetUsername())
+
+			require.Len(t, authorizer.Called, 1)
+			call := authorizer.Called[0]
+			require.Equal(t, tt.wantSubjectID, call.Actor.ID)
+			require.Equal(t, policy.ActionUse, call.Action)
+			require.Equal(t, rbac.ResourceMcpGateway.WithIDString(mcpServerConfigID), call.Object)
 		})
 	}
 }

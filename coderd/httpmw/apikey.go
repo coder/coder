@@ -492,20 +492,38 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 		}
 	}
 
+	actor, userStatus, agentActor, valErr := APIKeyRBACSubject(ctx, cfg.DB, *key, user)
+	if valErr != nil {
+		return nil, valErr
+	}
+
+	return &ValidateAPIKeyResult{
+		Key:          *key,
+		Subject:      actor,
+		UserStatus:   userStatus,
+		AIAgentActor: agentActor,
+	}, nil
+}
+
+// APIKeyRBACSubject builds the canonical authorization subject for an API key.
+// AI agent keys use the sponsoring human's live roles, narrowed by the key's
+// scope and allow-list, while preserving the agent as the acting identity.
+func APIKeyRBACSubject(ctx context.Context, db database.Store, key database.APIKey, user database.User) (rbac.Subject, database.UserStatus, *aiagentidentity.AIAgentActor, *ValidateAPIKeyError) {
 	var (
 		actor      rbac.Subject
 		userStatus database.UserStatus
 		agentActor *aiagentidentity.AIAgentActor
+		err        error
 	)
 	if user.Kind == database.UserKindAIAgent {
-		identity, resolveErr := aiagentidentity.Resolve(ctx, cfg.DB, user.ID)
+		identity, resolveErr := aiagentidentity.Resolve(ctx, db, user.ID)
 		if resolveErr != nil {
 			if errors.Is(resolveErr, aiagentidentity.ErrNotAIAgent) ||
 				errors.Is(resolveErr, aiagentidentity.ErrAIAgentDeleted) ||
 				errors.Is(resolveErr, sql.ErrNoRows) {
-				return nil, invalidAIAgentError("AI agent identity is invalid or has been revoked.")
+				return rbac.Subject{}, "", nil, invalidAIAgentError("AI agent identity is invalid or has been revoked.")
 			}
-			return nil, &ValidateAPIKeyError{
+			return rbac.Subject{}, "", nil, &ValidateAPIKeyError{
 				Code: http.StatusInternalServerError,
 				Response: codersdk.Response{
 					Message: internalErrorMessage,
@@ -515,13 +533,13 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 			}
 		}
 		if identity.AgentUser.Deleted || identity.AgentUser.Status != database.UserStatusActive {
-			return nil, invalidAIAgentError("AI agent user is not active.")
+			return rbac.Subject{}, "", nil, invalidAIAgentError("AI agent user is not active.")
 		}
 		if identity.OwnerUser.Kind != database.UserKindHuman || identity.OwnerUser.Deleted || identity.OwnerUser.Status != database.UserStatusActive {
-			return nil, invalidAIAgentError("AI agent owner is not active.")
+			return rbac.Subject{}, "", nil, invalidAIAgentError("AI agent owner is not active.")
 		}
 
-		actor, userStatus, err = UserRBACSubject(ctx, cfg.DB, identity.OwnerUser.ID, key.ScopeSet())
+		actor, userStatus, err = UserRBACSubject(ctx, db, identity.OwnerUser.ID, key.ScopeSet())
 		if err == nil {
 			actor.Type = rbac.SubjectTypeAIAgent
 			actor.FriendlyName = identity.AgentUser.Username
@@ -529,10 +547,10 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 			agentActor = &resolvedActor
 		}
 	} else {
-		actor, userStatus, err = UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
+		actor, userStatus, err = UserRBACSubject(ctx, db, key.UserID, key.ScopeSet())
 	}
 	if err != nil {
-		return nil, &ValidateAPIKeyError{
+		return rbac.Subject{}, "", nil, &ValidateAPIKeyError{
 			Code: http.StatusInternalServerError,
 			Response: codersdk.Response{
 				Message: internalErrorMessage,
@@ -542,12 +560,7 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 		}
 	}
 
-	return &ValidateAPIKeyResult{
-		Key:          *key,
-		Subject:      actor,
-		UserStatus:   userStatus,
-		AIAgentActor: agentActor,
-	}, nil
+	return actor, userStatus, agentActor, nil
 }
 
 func invalidAIAgentError(detail string) *ValidateAPIKeyError {

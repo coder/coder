@@ -136,6 +136,7 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 	mux := drpcmux.New()
 	srv, err := aibridgedserver.NewServer(connCtx, aibridgedserver.Options{
 		Store:               api.Database,
+		Authorizer:          api.AGPL.Authorizer,
 		Pubsub:              api.AGPL.Pubsub,
 		AISeatTracker:       api.AGPL.AISeatTracker,
 		Enqueuer:            api.AGPL.NotificationsEnqueuer,
