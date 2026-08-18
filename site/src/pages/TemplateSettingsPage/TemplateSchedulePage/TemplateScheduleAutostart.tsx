@@ -1,4 +1,3 @@
-import FormHelperText from "@mui/material/FormHelperText";
 import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
 import {
@@ -54,9 +53,9 @@ export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
 					</Button>
 				))}
 			</div>
-			<FormHelperText>
+			<div className="text-xs text-content-secondary">
 				<AutostartHelperText allowed={enabled} days={value} />
-			</FormHelperText>
+			</div>
 		</div>
 	);
 };

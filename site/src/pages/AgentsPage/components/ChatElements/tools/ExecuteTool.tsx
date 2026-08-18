@@ -1,14 +1,6 @@
-import {
-	CheckIcon,
-	CircleAlertIcon,
-	ExternalLinkIcon,
-	LayersIcon,
-	LoaderIcon,
-	OctagonXIcon,
-} from "lucide-react";
+import { LayersIcon, OctagonXIcon } from "lucide-react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
@@ -36,6 +28,7 @@ type ExecuteToolProps = {
 	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	status: ToolStatus;
 	isError: boolean;
+	errorText?: string;
 	durationMs?: number;
 	isBackgrounded?: boolean;
 	killedBySignal?: "kill" | "terminate";
@@ -49,6 +42,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	transcriptBlocks,
 	status,
 	isError,
+	errorText,
 	durationMs,
 	isBackgrounded = false,
 	killedBySignal,
@@ -71,6 +65,8 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 		modelIntent,
 		parsedCommands,
 		durationLabel,
+		isRunning,
+		isError,
 	});
 	const defaultView = resolveAgentDisplayState(
 		shellToolDisplayMode,
@@ -83,7 +79,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5"
 			status={status}
 			isError={isError}
-			errorMessage="Command failed"
+			errorMessage={errorText || "Command failed"}
 			hasContent
 			defaultView={defaultView}
 			ariaLabel={(expanded) =>
@@ -152,6 +148,8 @@ type ShellCommandLineInput = {
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	durationLabel: string;
+	isRunning: boolean;
+	isError: boolean;
 };
 
 const getShellCommandLine = ({
@@ -159,6 +157,8 @@ const getShellCommandLine = ({
 	modelIntent,
 	parsedCommands,
 	durationLabel,
+	isRunning,
+	isError,
 }: ShellCommandLineInput): { commandLabel: string; durationSuffix: string } => {
 	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
 	const summary =
@@ -166,9 +166,12 @@ const getShellCommandLine = ({
 			? summarizeParsedCommands(parsedCommands)
 			: "";
 	const commandDisplay = summary || command;
-	const commandLabel = intentLabel
+	let commandLabel = intentLabel
 		? `${intentLabel} using ${commandDisplay}`
 		: `Ran ${commandDisplay}`;
+	if (!isRunning && isError) {
+		commandLabel = `Failed to run ${commandDisplay}`;
+	}
 
 	return {
 		commandLabel,
@@ -209,144 +212,5 @@ const ShellTranscriptBody: React.FC<{
 				))}
 			</div>
 		</ScrollArea>
-	);
-};
-
-export const ExecuteAuthRequiredTool: React.FC<{
-	command: string;
-	output: string;
-	authenticateURL: string;
-	providerLabel: string;
-}> = ({ command, output, authenticateURL, providerLabel }) => {
-	const hasCommand = command.trim().length > 0;
-	const hasOutput = output.trim().length > 0;
-
-	return (
-		<div className="w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
-			<div className="flex flex-wrap items-center gap-2 px-3 py-2">
-				<CircleAlertIcon className="size-4 shrink-0 text-content-warning" />
-				<span className="text-[13px] text-content-primary">
-					Authenticate with {providerLabel} to continue this command.
-				</span>
-			</div>
-			<div className="flex flex-wrap items-center gap-2 px-3 pb-2">
-				<Button
-					variant="outline"
-					size="sm"
-					onClick={() =>
-						window.open(authenticateURL, "_blank", "width=900,height=600")
-					}
-					className="inline-flex cursor-pointer items-center gap-1 text-xs"
-				>
-					<ExternalLinkIcon className="size-3.5 shrink-0" />
-					Authenticate with {providerLabel}
-				</Button>
-				<a
-					href={authenticateURL}
-					target="_blank"
-					rel="noreferrer"
-					className="inline-flex items-center gap-1 text-xs text-content-link no-underline hover:underline"
-				>
-					<ExternalLinkIcon className="size-3.5 shrink-0" />
-					Open authentication link
-				</a>
-			</div>
-			{hasCommand && (
-				<div className="px-3 pb-1">
-					<code className="font-mono text-xs text-content-secondary">
-						$ {command}
-					</code>
-				</div>
-			)}
-			{hasOutput && (
-				<ScrollArea
-					className="rounded-b-md border-t border-solid border-border-default text-2xs"
-					viewportClassName="max-h-48"
-					scrollBarClassName="w-1.5"
-				>
-					<pre className="m-0 whitespace-pre-wrap break-all border-0 bg-transparent px-3 py-2 font-mono text-xs text-content-secondary">
-						{output}
-					</pre>
-				</ScrollArea>
-			)}
-		</div>
-	);
-};
-
-export const WaitForExternalAuthTool: React.FC<{
-	providerLabel: string;
-	status: ToolStatus;
-	authenticated: boolean;
-	timedOut: boolean;
-	isError: boolean;
-	errorMessage?: string;
-}> = ({
-	providerLabel,
-	status,
-	authenticated,
-	timedOut,
-	isError,
-	errorMessage,
-}) => {
-	const isRunning = status === "running";
-	let label = `Waiting for ${providerLabel} authentication...`;
-	let statusIcon: React.ReactNode = isRunning ? (
-		<LoaderIcon
-			aria-label="Authentication in progress"
-			role="img"
-			className="size-3.5 shrink-0 animate-spin text-content-link motion-reduce:animate-none"
-		/>
-	) : null;
-	if (isError) {
-		label =
-			errorMessage ||
-			`Failed while waiting for ${providerLabel} authentication`;
-		statusIcon = (
-			<OctagonXIcon
-				aria-label="Authentication failed"
-				role="img"
-				className="size-3.5 shrink-0 text-content-destructive"
-			/>
-		);
-	} else if (timedOut) {
-		label = `Timed out waiting for ${providerLabel} authentication`;
-		statusIcon = (
-			<CircleAlertIcon
-				aria-label="Authentication timed out"
-				role="img"
-				className="size-3.5 shrink-0 text-content-warning"
-			/>
-		);
-	} else if (authenticated && !isRunning) {
-		label = `Authenticated with ${providerLabel}`;
-		statusIcon = (
-			<CheckIcon
-				aria-label="Authentication completed"
-				role="img"
-				className="size-3.5 shrink-0 text-content-success"
-			/>
-		);
-	}
-
-	return (
-		<ToolCall.Root
-			className="w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary px-3 py-2"
-			status={status}
-			isError={isError}
-			errorMessage={
-				errorMessage ||
-				`Failed while waiting for ${providerLabel} authentication`
-			}
-			hasContent={false}
-		>
-			<ToolCall.HeaderLayout>
-				<ToolCall.HeaderButton className="min-w-0 flex-1 font-normal text-content-secondary">
-					<ToolCall.LeadingIcon>{statusIcon}</ToolCall.LeadingIcon>
-					<ToolCall.Label className="text-content-primary">
-						{label}
-					</ToolCall.Label>
-				</ToolCall.HeaderButton>
-			</ToolCall.HeaderLayout>
-		</ToolCall.Root>
 	);
 };

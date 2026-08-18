@@ -29,6 +29,7 @@ type templateMetaUpdate struct {
 	allowUserAutostart                   bool
 	allowUserAutostop                    bool
 	allowUserCancelWorkspaceJobs         bool
+	agentsAllowed                        bool
 	requireActiveVersion                 bool
 	deprecationMessage                   string
 	useClassicTemplateFlow               bool
@@ -82,6 +83,7 @@ func resolveTemplateMetaUpdate(
 		allowUserAutostart:             ptr.NilToDefault(req.AllowUserAutostart, template.AllowUserAutostart),
 		allowUserAutostop:              ptr.NilToDefault(req.AllowUserAutostop, template.AllowUserAutostop),
 		allowUserCancelWorkspaceJobs:   ptr.NilToDefault(req.AllowUserCancelWorkspaceJobs, template.AllowUserCancelWorkspaceJobs),
+		agentsAllowed:                  ptr.NilToDefault(req.AgentsAllowed, template.AgentsAllowed),
 		requireActiveVersion:           ptr.NilToDefault(req.RequireActiveVersion, template.RequireActiveVersion),
 		deprecationMessage:             ptr.NilToDefault(req.DeprecationMessage, template.Deprecated),
 		useClassicTemplateFlow:         ptr.NilToDefault(req.UseClassicParameterFlow, template.UseClassicParameterFlow),

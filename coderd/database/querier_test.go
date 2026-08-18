@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
@@ -888,6 +889,94 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 		require.Equal(t, int64(0), stats[0].SessionCountReconnectingPTY)
 		require.Equal(t, int64(0), stats[0].SessionCountJetBrains)
 	})
+}
+
+//nolint:tparallel,paralleltest // Subtests share one database seeded by the parent test.
+func TestGetTemplatesWithAgentsAllowedFilter(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	allowed := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		AgentsAllowed:  true,
+	})
+	require.True(t, allowed.AgentsAllowed)
+	blocked := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		AgentsAllowed:  false,
+	})
+
+	tests := []struct {
+		name  string
+		value sql.NullBool
+		want  []uuid.UUID
+	}{
+		{
+			name: "unset",
+			want: []uuid.UUID{allowed.ID, blocked.ID},
+		},
+		{
+			name:  "allowed",
+			value: sql.NullBool{Bool: true, Valid: true},
+			want:  []uuid.UUID{allowed.ID},
+		},
+		{
+			name:  "blocked",
+			value: sql.NullBool{Bool: false, Valid: true},
+			want:  []uuid.UUID{blocked.ID},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := db.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+				Deleted:        false,
+				OrganizationID: org.ID,
+				AgentsAllowed:  tt.value,
+			})
+			require.NoError(t, err)
+			gotIDs := make([]uuid.UUID, 0, len(got))
+			for _, template := range got {
+				gotIDs = append(gotIDs, template.ID)
+			}
+			require.ElementsMatch(t, tt.want, gotIDs)
+		})
+	}
+
+	byID, err := db.GetTemplateByID(ctx, blocked.ID)
+	require.NoError(t, err)
+	require.False(t, byID.AgentsAllowed)
+
+	all, err := db.GetTemplates(ctx)
+	require.NoError(t, err)
+	require.Len(t, all, 2)
+	for _, template := range all {
+		if template.ID == blocked.ID {
+			require.False(t, template.AgentsAllowed)
+		}
+	}
+
+	prepared, err := (&coderdtest.FakeAuthorizer{}).Prepare(
+		ctx,
+		rbac.Subject{},
+		policy.ActionRead,
+		rbac.ResourceTemplate.Type,
+	)
+	require.NoError(t, err)
+	authorized, err := db.GetAuthorizedTemplates(ctx, database.GetTemplatesWithFilterParams{
+		Deleted:        false,
+		OrganizationID: org.ID,
+		AgentsAllowed:  sql.NullBool{Bool: false, Valid: true},
+	}, prepared)
+	require.NoError(t, err)
+	require.Len(t, authorized, 1)
+	require.Equal(t, blocked.ID, authorized[0].ID)
+	require.False(t, authorized[0].AgentsAllowed)
 }
 
 func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
@@ -1923,6 +2012,49 @@ func TestGetAuthorizedChatsByChatFileIDACLSharing(t *testing.T) {
 	require.Empty(t, rows[0].GroupACL)
 }
 
+func TestLinkChatFilesDeduplicatesInput(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		Name:           "duplicate.txt",
+		Mimetype:       "text/plain",
+		Data:           []byte("duplicate"),
+	})
+	require.NoError(t, err)
+
+	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      []uuid.UUID{file.ID, file.ID},
+		MaxFileLinks: 1,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+
+	files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+	require.Equal(t, file.ID, files[0].ID)
+}
+
 func TestGetChatFileDataPrefixesByIDs(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2480,6 +2612,27 @@ func TestAcquireProvisionerJob(t *testing.T) {
 			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
 			ProvisionerTags: json.RawMessage(`{}`),
 		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("ProvisionerKeyLock", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _ = dbtestutil.NewDB(t)
+			ctx   = testutil.Context(t, testutil.WaitMedium)
+			org   = dbgen.Organization(t, db, database.Organization{})
+			key   = dbgen.ProvisionerKey(t, db, database.ProvisionerKey{OrganizationID: org.ID})
+		)
+
+		// While the key exists, the lock returns its ID.
+		id, err := db.LockProvisionerKeyByIDForShare(ctx, key.ID)
+		require.NoError(t, err)
+		require.Equal(t, key.ID, id)
+
+		// Once the key is deleted, the lock reports no rows.
+		err = db.DeleteProvisionerKey(ctx, key.ID)
+		require.NoError(t, err)
+		_, err = db.LockProvisionerKeyByIDForShare(ctx, key.ID)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 }
@@ -10663,7 +10816,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.Equal(t, "hb_ai_seats_v1", rows[0].EventType)
 		require.JSONEq(t, `{"count": 10}`, string(rows[0].UsageData))
 
-		// Insert a higher count on the same day — should take the max.
+		// Insert a higher count on the same day. It should take the max.
 		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        "hb-2",
 			EventType: "hb_ai_seats_v1",
@@ -10676,7 +10829,7 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.Len(t, rows, 1)
 		require.JSONEq(t, `{"count": 50}`, string(rows[0].UsageData))
 
-		// Insert a lower count on the same day — should keep the max (50).
+		// Insert a lower count on the same day. It should keep the max (50).
 		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        "hb-3",
 			EventType: "hb_ai_seats_v1",
@@ -10717,6 +10870,93 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.Len(t, rows, 3)
 	})
 
+	t.Run("HeartbeatAgentRuntime", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+		insert := func(id, eventType, eventData string, createdAt time.Time) {
+			t.Helper()
+			err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+				ID:        id,
+				EventType: eventType,
+				EventData: []byte(eventData),
+				CreatedAt: createdAt,
+			})
+			require.NoError(t, err)
+		}
+		requireDaily := func(wantUsageData ...string) {
+			t.Helper()
+			rows := getDailyRows(ctx, sqlDB)
+			require.Len(t, rows, len(wantUsageData))
+			for i, want := range wantUsageData {
+				require.JSONEq(t, want, string(rows[i].UsageData))
+			}
+		}
+
+		day1 := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+		day2 := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+
+		insert("hb_agent_runtime_v1:2025-01-01_00:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 1000}`, day1)
+		requireDaily(`{"runtime_ms": 1000}`)
+
+		// Unlike hb_ai_seats_v1, hourly runtime events are summed per day.
+		insert("hb_agent_runtime_v1:2025-01-01_12:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 500}`, day1.Add(12*time.Hour))
+		requireDaily(`{"runtime_ms": 1500}`)
+
+		// Zero-valued events (idle hours) do not change the sum.
+		insert("hb_agent_runtime_v1:2025-01-01_18:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 0}`, day1.Add(18*time.Hour))
+		requireDaily(`{"runtime_ms": 1500}`)
+
+		insert("hb_agent_runtime_v1:2025-01-02_00:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 250}`, day2)
+		requireDaily(`{"runtime_ms": 1500}`, `{"runtime_ms": 250}`)
+
+		// Re-inserting a bucket under its deterministic id must not
+		// double-count it: the daily rollup's AFTER INSERT trigger does not
+		// fire for rows suppressed by the insert's ON CONFLICT (id)
+		// arbiter.
+		insert("hb_agent_runtime_v1:2025-01-01_00:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 1000}`, day1)
+		requireDaily(`{"runtime_ms": 1500}`, `{"runtime_ms": 250}`)
+
+		// A different event type on the same day gets its own daily row.
+		insert("hb-seats-1", "hb_ai_seats_v1", `{"count": 3}`, day2)
+		rows := getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 3)
+
+		// The same bucket under a different id is not an idempotent
+		// re-insert but a duplicate that would double the SUM in
+		// GetTotalUsageHBAgentRuntimeV1; the unique partial index
+		// idx_usage_events_agent_runtime rejects it loudly instead of the
+		// (id) arbiter silently dropping it.
+		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "different-id-same-bucket",
+			EventType: "hb_agent_runtime_v1",
+			EventData: []byte(`{"runtime_ms": 9999}`),
+			CreatedAt: day1,
+		})
+		require.True(t, database.IsUniqueViolation(err, database.UniqueIndexUsageEventsAgentRuntime),
+			"expected unique violation on idx_usage_events_agent_runtime, got %v", err)
+		// The rejected row must not have reached the daily rollup either.
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 3)
+		require.JSONEq(t, `{"runtime_ms": 1500}`, string(rows[0].UsageData))
+
+		// created_at must be the exact UTC hourly bucket start;
+		// usage_events_agent_runtime_hour_aligned rejects a misaligned row
+		// so it cannot skew the period a bucket is attributed to.
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "hb_agent_runtime_v1:misaligned",
+			EventType: "hb_agent_runtime_v1",
+			EventData: []byte(`{"runtime_ms": 100}`),
+			CreatedAt: day1.Add(30 * time.Minute),
+		})
+		require.ErrorContains(t, err, string(database.CheckUsageEventsAgentRuntimeHourAligned))
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 3)
+		require.JSONEq(t, `{"runtime_ms": 1500}`, string(rows[0].UsageData))
+	})
+
 	t.Run("UnknownEventType", func(t *testing.T) {
 		t.Parallel()
 
@@ -10748,6 +10988,198 @@ func TestUsageEventsTrigger(t *testing.T) {
 		rows := getDailyRows(ctx, sqlDB)
 		require.Len(t, rows, 0)
 	})
+}
+
+func TestGetTotalUsageHBAgentRuntimeV1(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+
+	// hb_agent_runtime_v1 events are one row per hourly bucket, created_at
+	// set to the bucket start.
+	hour := func(d, h int) time.Time {
+		return time.Date(2025, 1, d, h, 0, 0, 0, time.UTC)
+	}
+	// The event type and payload are built from the producer's types rather
+	// than hand-written literals, so a rename in usagetypes fails this test
+	// instead of leaving the query silently summing a key nothing writes.
+	insert := func(id string, runtimeMs int64, createdAt time.Time) {
+		t.Helper()
+		event := usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs}
+		eventData, err := json.Marshal(event.Fields())
+		require.NoError(t, err)
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        id,
+			EventType: string(event.EventType()),
+			EventData: eventData,
+			CreatedAt: createdAt,
+		})
+		require.NoError(t, err)
+	}
+	total := func(start, end time.Time) int64 {
+		t.Helper()
+		got, err := db.GetTotalUsageHBAgentRuntimeV1(ctx, database.GetTotalUsageHBAgentRuntimeV1Params{
+			StartTime: start,
+			EndTime:   end,
+		})
+		require.NoError(t, err)
+		return got
+	}
+
+	// No events at all sums to zero rather than NULL.
+	require.EqualValues(t, 0, total(hour(1, 0), hour(5, 0)))
+
+	insert("rt-d1h0", 1000, hour(1, 0))
+	insert("rt-d1h12", 500, hour(1, 12))
+	insert("rt-d1h18", 0, hour(1, 18))
+	insert("rt-d2h0", 250, hour(2, 0))
+	insert("rt-d4h0", 7, hour(4, 0))
+
+	// A multi-day range sums every bucket it covers.
+	require.EqualValues(t, 1757, total(hour(1, 0), hour(5, 0)))
+
+	// The start bound is inclusive and the end bound is exclusive: a bucket
+	// starting exactly at the end timestamp belongs to the next period.
+	require.EqualValues(t, 1500, total(hour(1, 0), hour(2, 0)))
+	require.EqualValues(t, 1750, total(hour(1, 0), hour(2, 1)))
+	require.EqualValues(t, 250, total(hour(2, 0), hour(4, 0)))
+	require.EqualValues(t, 0, total(hour(3, 0), hour(4, 0)))
+
+	// Bounds are exact timestamps rather than whole days: a period starting
+	// mid-day excludes that day's earlier buckets.
+	require.EqualValues(t, 757, total(hour(1, 12), hour(5, 0)))
+
+	// A non-UTC timestamp addresses the same instant. Sydney is UTC+11 in
+	// January, so 23:00 on Jan 1 in Sydney is 12:00 on Jan 1 in UTC.
+	locSydney, err := time.LoadLocation("Australia/Sydney")
+	require.NoError(t, err)
+	require.EqualValues(t, 750, total(
+		time.Date(2025, 1, 1, 23, 0, 0, 0, locSydney),
+		time.Date(2025, 1, 2, 12, 0, 0, 0, locSydney),
+	))
+
+	// Other event types are never mixed in, even when they carry a
+	// runtime_ms key: without the event_type filter this would add 9999.
+	err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		ID:        "seats-1",
+		EventType: "hb_ai_seats_v1",
+		EventData: []byte(`{"count": 1, "runtime_ms": 9999}`),
+		CreatedAt: hour(1, 0),
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1757, total(hour(1, 0), hour(5, 0)))
+}
+
+func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+	rangeStart := time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC)
+	rangeEnd := rangeStart.Add(time.Hour)
+
+	total, err := db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
+		StartTime: rangeStart,
+		EndTime:   rangeEnd,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 0, total)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+	})
+	mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:        "test-model",
+		ContextLimit: 8192,
+	})
+	chat1 := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: mc.ID,
+	})
+	chat2 := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: mc.ID,
+	})
+
+	insertMessage := func(chatID uuid.UUID, runtimeMs int64, createdAt time.Time, deleted bool) {
+		t.Helper()
+		msg := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chatID,
+			CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: mc.ID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			RuntimeMs:     sql.NullInt64{Int64: runtimeMs, Valid: true},
+		})
+		_, err := sqlDB.ExecContext(ctx, "UPDATE chat_messages SET created_at = $1, deleted = $2 WHERE id = $3", createdAt, deleted, msg.ID)
+		require.NoError(t, err)
+	}
+
+	// Counted: on the inclusive start boundary, in the middle (across two
+	// chats), soft-deleted, and just before the exclusive end boundary.
+	insertMessage(chat1.ID, 1, rangeStart, false)
+	insertMessage(chat2.ID, 2, rangeStart.Add(30*time.Minute), false)
+	insertMessage(chat1.ID, 4, rangeStart.Add(45*time.Minute), true)
+	insertMessage(chat1.ID, 8, rangeEnd.Add(-time.Second), false)
+	// Not counted: before the range, on the exclusive end boundary, and a
+	// NULL runtime (runtime 0 is stored as NULL).
+	insertMessage(chat1.ID, 16, rangeStart.Add(-time.Second), false)
+	insertMessage(chat1.ID, 32, rangeEnd, false)
+	insertMessage(chat1.ID, 0, rangeStart.Add(10*time.Minute), false)
+
+	total, err = db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
+		StartTime: rangeStart,
+		EndTime:   rangeEnd,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 15, total)
+}
+
+func TestListUsageEventCreatedAtsByTypeSince(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+
+	since := time.Date(2025, 3, 10, 0, 0, 0, 0, time.UTC)
+
+	insertEvent := func(id, eventType string, eventData string, createdAt time.Time) {
+		t.Helper()
+		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        id,
+			EventType: eventType,
+			EventData: []byte(eventData),
+			CreatedAt: createdAt,
+		})
+		require.NoError(t, err)
+	}
+
+	// Matching type: one before since (excluded), one exactly at since
+	// (included), one after (included).
+	insertEvent("rt-old", "hb_agent_runtime_v1", `{"runtime_ms": 1}`, since.Add(-time.Hour))
+	insertEvent("rt-at", "hb_agent_runtime_v1", `{"runtime_ms": 2}`, since)
+	insertEvent("rt-new", "hb_agent_runtime_v1", `{"runtime_ms": 3}`, since.Add(time.Hour))
+	// Different type after since: excluded.
+	insertEvent("seats-new", "hb_ai_seats_v1", `{"count": 1}`, since.Add(time.Hour))
+
+	createdAts, err := db.ListUsageEventCreatedAtsByTypeSince(ctx, database.ListUsageEventCreatedAtsByTypeSinceParams{
+		EventType: "hb_agent_runtime_v1",
+		Since:     since,
+	})
+	require.NoError(t, err)
+	require.Len(t, createdAts, 2)
+	normalized := make([]time.Time, len(createdAts))
+	for i, ts := range createdAts {
+		normalized[i] = ts.UTC()
+	}
+	require.ElementsMatch(t, []time.Time{since, since.Add(time.Hour)}, normalized)
 }
 
 func TestListTasks(t *testing.T) {
@@ -12109,7 +12541,6 @@ func TestInsertChatMessages(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
@@ -12170,7 +12601,6 @@ func TestInsertChatMessages(t *testing.T) {
 			CacheReadTokens:     []int64{0, 0, 0},
 			ContextLimit:        []int64{0, 0, 0},
 			Compressed:          []bool{false, false, false},
-			TotalCostMicros:     []int64{0, 100, 0},
 			RuntimeMs:           []int64{0, 500, 0},
 		})
 		require.NoError(t, err)
@@ -12200,10 +12630,6 @@ func TestInsertChatMessages(t *testing.T) {
 		require.Equal(t, int64(20), msgs[1].OutputTokens.Int64)
 
 		// Verify cost: assistant has cost, others NULL.
-		require.True(t, msgs[1].TotalCostMicros.Valid)
-		require.Equal(t, int64(100), msgs[1].TotalCostMicros.Int64)
-		require.False(t, msgs[0].TotalCostMicros.Valid)
-		require.False(t, msgs[2].TotalCostMicros.Valid)
 
 		// Verify runtime_ms on assistant message.
 		require.True(t, msgs[1].RuntimeMs.Valid)
@@ -12212,12 +12638,140 @@ func TestInsertChatMessages(t *testing.T) {
 	})
 }
 
+// The returned ids are in insert order, which the inverted created_at values
+// deliberately contradict.
+func insertChatMessagesInvertedTimestamps(t *testing.T, db database.Store, sqlDB *sql.DB, roles []database.ChatMessageRole) (database.Chat, []int64) {
+	t.Helper()
+
+	ctx := context.Background()
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
+	})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+	})
+
+	count := len(roles)
+	inserted, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           slices.Repeat([]uuid.UUID{owner.ID}, count),
+		ModelConfigID:       slices.Repeat([]uuid.UUID{modelCfg.ID}, count),
+		Role:                roles,
+		ContentVersion:      slices.Repeat([]int16{chatprompt.CurrentContentVersion}, count),
+		Visibility:          slices.Repeat([]database.ChatMessageVisibility{database.ChatMessageVisibilityBoth}, count),
+		Content:             slices.Repeat([]string{`"message"`}, count),
+		InputTokens:         make([]int64, count),
+		OutputTokens:        make([]int64, count),
+		TotalTokens:         make([]int64, count),
+		ReasoningTokens:     make([]int64, count),
+		CacheCreationTokens: make([]int64, count),
+		CacheReadTokens:     make([]int64, count),
+		ContextLimit:        make([]int64, count),
+		Compressed:          make([]bool, count),
+		RuntimeMs:           make([]int64, count),
+	})
+	require.NoError(t, err)
+	require.Len(t, inserted, count)
+
+	insertedIDs := make([]int64, count)
+	for i, message := range inserted {
+		insertedIDs[i] = message.ID
+		_, err := sqlDB.ExecContext(ctx,
+			"UPDATE chat_messages SET created_at = $1 WHERE id = $2",
+			message.CreatedAt.Add(time.Duration(count-i)*time.Minute), message.ID)
+		require.NoError(t, err)
+	}
+
+	return chat, insertedIDs
+}
+
+func chatMessageIDs(messages []database.ChatMessage) []int64 {
+	ids := make([]int64, len(messages))
+	for i, message := range messages {
+		ids[i] = message.ID
+	}
+	return ids
+}
+
+func TestGetChatMessagesByChatIDOrdersByID(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := context.Background()
+
+	chat, insertedIDs := insertChatMessagesInvertedTimestamps(t, db, sqlDB,
+		slices.Repeat([]database.ChatMessageRole{database.ChatMessageRoleUser}, 3))
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Equal(t, insertedIDs, chatMessageIDs(messages))
+}
+
+func TestGetChatMessagesByRevisionForStreamOrdersByID(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := context.Background()
+
+	chat, insertedIDs := insertChatMessagesInvertedTimestamps(t, db, sqlDB,
+		slices.Repeat([]database.ChatMessageRole{database.ChatMessageRoleUser}, 3))
+
+	messages, err := db.GetChatMessagesByRevisionForStream(ctx, database.GetChatMessagesByRevisionForStreamParams{
+		ChatID:        chat.ID,
+		AfterRevision: 0,
+	})
+	require.NoError(t, err)
+	require.Equal(t, insertedIDs, chatMessageIDs(messages))
+}
+
+func TestGetLastChatMessageByRoleOrdersByID(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := context.Background()
+
+	chat, insertedIDs := insertChatMessagesInvertedTimestamps(t, db, sqlDB,
+		slices.Repeat([]database.ChatMessageRole{database.ChatMessageRoleAssistant}, 3))
+
+	last, err := db.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+		ChatID: chat.ID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+	require.NoError(t, err)
+	require.Equal(t, insertedIDs[len(insertedIDs)-1], last.ID)
+}
+
+// Sequence cache blocks are handed out per session, so above cache 1 a backend
+// holding stale cached values can take the chat row lock second and still commit
+// lower ids. Bumping a sequence cache is an ordinary throughput tweak.
+func TestChatMessagesSequenceCacheIsOne(t *testing.T) {
+	t.Parallel()
+
+	_, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := context.Background()
+
+	var cacheSize int64
+	err := sqlDB.QueryRowContext(ctx,
+		"SELECT cache_size FROM pg_sequences WHERE sequencename = 'chat_messages_id_seq'").
+		Scan(&cacheSize)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), cacheSize, "chat_messages_id_seq must use cache 1")
+}
+
 func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	t.Parallel()
 
 	// This test exercises a complex CTE query for prompt
 	// reconstruction after compaction. It requires Postgres.
-	db, _ := dbtestutil.NewDB(t)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	ctx := context.Background()
 
 	// Helper: create a chat model config (required FK for chats).
@@ -12290,20 +12844,54 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 			CacheCreationTokens: []int64{0},
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
-			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
-		return results[0]
+		return database.ChatMessage(results[0])
 	}
 
-	msgIDs := func(msgs []database.ChatMessage) []int64 {
-		ids := make([]int64, len(msgs))
-		for i, m := range msgs {
-			ids[i] = m.ID
-		}
-		return ids
+	invertCreatedAt := func(t *testing.T, chatID uuid.UUID) {
+		t.Helper()
+		_, err := sqlDB.ExecContext(ctx,
+			"UPDATE chat_messages SET created_at = now() - (id || ' seconds')::interval WHERE chat_id = $1",
+			chatID)
+		require.NoError(t, err)
 	}
+
+	t.Run("OrdersByIDWhenTimestampsDisagree", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		sys := insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		usr := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "question")
+		ast := insertMsg(t, chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false, "tool call")
+		tool := insertMsg(t, chat.ID, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, false, "tool result")
+		invertCreatedAt(t, chat.ID)
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, []int64{sys.ID, usr.ID, ast.ID, tool.ID}, chatMessageIDs(got),
+			"the prompt must keep append order so a tool result follows its assistant call")
+	})
+
+	t.Run("CompactionBoundaryUsesID", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		sys := insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "before first summary")
+		staleSummary := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "first summary")
+		insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "between summaries")
+		latestSummary := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "second summary")
+		afterLatest := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "after second summary")
+		invertCreatedAt(t, chat.ID)
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, []int64{sys.ID, latestSummary.ID, afterLatest.ID}, chatMessageIDs(got),
+			"the boundary is compared with id, so it must also be selected by id")
+		require.NotContains(t, chatMessageIDs(got), staleSummary.ID)
+	})
 
 	t.Run("NoCompaction", func(t *testing.T) {
 		t.Parallel()
@@ -12315,7 +12903,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 
 		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		require.NoError(t, err)
-		require.Equal(t, []int64{sys.ID, usr.ID, ast.ID}, msgIDs(got))
+		require.Equal(t, []int64{sys.ID, usr.ID, ast.ID}, chatMessageIDs(got))
 	})
 
 	t.Run("UserOnlyVisibilityExcluded", func(t *testing.T) {
@@ -12334,7 +12922,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 			require.NotEqual(t, database.ChatMessageVisibilityUser, m.Visibility,
 				"visibility=user messages should not appear in the prompt")
 		}
-		require.Contains(t, msgIDs(got), usr.ID)
+		require.Contains(t, chatMessageIDs(got), usr.ID)
 	})
 
 	t.Run("AfterCompaction", func(t *testing.T) {
@@ -12361,7 +12949,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		require.NoError(t, err)
 
-		gotIDs := msgIDs(got)
+		gotIDs := chatMessageIDs(got)
 
 		// Must include: system prompt, summary, post-compaction.
 		require.Contains(t, gotIDs, sys.ID, "system prompt must be included")
@@ -12400,8 +12988,8 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		}
 		require.True(t, hasNonSystem,
 			"prompt must contain at least one non-system message after compaction")
-		require.Contains(t, msgIDs(got), summary.ID)
-		require.Contains(t, msgIDs(got), newUsr.ID)
+		require.Contains(t, chatMessageIDs(got), summary.ID)
+		require.Contains(t, chatMessageIDs(got), newUsr.ID)
 	})
 
 	t.Run("CompressedToolResultNotPickedAsSummary", func(t *testing.T) {
@@ -12420,7 +13008,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		require.NoError(t, err)
 
-		gotIDs := msgIDs(got)
+		gotIDs := chatMessageIDs(got)
 		require.Contains(t, gotIDs, summary.ID, "real summary must be included")
 		require.NotContains(t, gotIDs, compressedTool.ID,
 			"compressed tool result must not be included")
@@ -12956,45 +13544,174 @@ func TestGetOrganizationGroupsAISpend(t *testing.T) {
 	now := monthStart.AddDate(0, 0, 14)              // 2024-06-15
 	prevMonthLastDay := monthStart.AddDate(0, 0, -1) // 2024-05-31
 
-	type seedRow struct {
+	// nullInt64 keeps the expectations below readable.
+	nullInt64 := func(v int64) sql.NullInt64 {
+		return sql.NullInt64{Int64: v, Valid: true}
+	}
+
+	type groupBudget struct {
+		group string
+		limit int64
+	}
+	type membership struct {
+		user  string
+		group string
+	}
+	type override struct {
+		user  string
+		group string
+		limit int64
+	}
+	type spendRow struct {
+		user  string
+		group string
 		day   time.Time
 		spend int64
 	}
+	type wantGroup struct {
+		spendLimit sql.NullInt64
+		totalLimit sql.NullInt64
+		spend      int64
+	}
 
+	// A case declares its groups, members, overrides and spend by name. Every
+	// named group is created in one org and queried, and every named user is an
+	// org member.
 	tests := []struct {
-		name             string
-		setBudget        bool
-		spendLimit       int64
-		rows             []seedRow
-		wantCurrentSpend int64
+		name      string
+		budgets   []groupBudget
+		members   []membership
+		overrides []override
+		spend     []spendRow
+		want      map[string]wantGroup
 	}{
 		{
-			name:             "NoBudgetNoSpend",
-			wantCurrentSpend: 0,
+			name: "NoBudgetNoSpend",
+			want: map[string]wantGroup{
+				"eng": {spendLimit: sql.NullInt64{}, totalLimit: sql.NullInt64{}},
+			},
 		},
 		{
-			name:             "ZeroLimitBudget",
-			setBudget:        true,
-			spendLimit:       0,
-			wantCurrentSpend: 0,
+			name:    "ZeroLimitBudget",
+			budgets: []groupBudget{{group: "eng", limit: 0}},
+			want: map[string]wantGroup{
+				"eng": {spendLimit: nullInt64(0), totalLimit: nullInt64(0)},
+			},
 		},
 		{
-			name:             "BudgetZeroSpend",
-			setBudget:        true,
-			spendLimit:       1_000_000,
-			wantCurrentSpend: 0,
+			// The group has no members, so nothing is attributed to it and the
+			// total is zero despite the budget.
+			name:    "BudgetZeroSpend",
+			budgets: []groupBudget{{group: "eng", limit: 1_000_000}},
+			want: map[string]wantGroup{
+				"eng": {spendLimit: nullInt64(1_000_000), totalLimit: nullInt64(0)},
+			},
 		},
 		{
-			name:             "BudgetWithSpend",
-			setBudget:        true,
-			spendLimit:       1_000_000,
-			rows:             []seedRow{{now, 250}},
-			wantCurrentSpend: 250,
+			// alice has spend attributed to the group but is currently not a member, so the
+			// total stays zero while the spend counts.
+			name:    "BudgetWithSpend",
+			budgets: []groupBudget{{group: "eng", limit: 1_000_000}},
+			spend:   []spendRow{{user: "alice", group: "eng", day: now, spend: 250}},
+			want: map[string]wantGroup{
+				"eng": {spendLimit: nullInt64(1_000_000), totalLimit: nullInt64(0), spend: 250},
+			},
 		},
 		{
-			name:             "NoBudgetWithSpend",
-			rows:             []seedRow{{now, 100}},
-			wantCurrentSpend: 100,
+			name:  "NoBudgetWithSpend",
+			spend: []spendRow{{user: "alice", group: "eng", day: now, spend: 100}},
+			want: map[string]wantGroup{
+				"eng": {spendLimit: sql.NullInt64{}, totalLimit: sql.NullInt64{}, spend: 100},
+			},
+		},
+		{
+			name:    "BudgetedTwoPlainMembers",
+			budgets: []groupBudget{{group: "eng", limit: 100}},
+			members: []membership{{user: "alice", group: "eng"}, {user: "bob", group: "eng"}},
+			want: map[string]wantGroup{
+				"eng": {spendLimit: nullInt64(100), totalLimit: nullInt64(200)},
+			},
+		},
+		{
+			name:      "BudgetedPlainMemberPlusOverride",
+			budgets:   []groupBudget{{group: "eng", limit: 100}},
+			members:   []membership{{user: "alice", group: "eng"}, {user: "bob", group: "eng"}},
+			overrides: []override{{user: "alice", group: "eng", limit: 1000}},
+			// The override replaces its holder's share of the group limit.
+			want: map[string]wantGroup{
+				"eng": {spendLimit: nullInt64(100), totalLimit: nullInt64(1100)},
+			},
+		},
+		{
+			name:      "BudgetedOnlyOverrideMember",
+			budgets:   []groupBudget{{group: "eng", limit: 100}},
+			members:   []membership{{user: "alice", group: "eng"}},
+			overrides: []override{{user: "alice", group: "eng", limit: 1000}},
+			want: map[string]wantGroup{
+				"eng": {spendLimit: nullInt64(100), totalLimit: nullInt64(1000)},
+			},
+		},
+		{
+			name:    "BudgetedZeroLimitWithMembers",
+			budgets: []groupBudget{{group: "eng", limit: 0}},
+			members: []membership{{user: "alice", group: "eng"}, {user: "bob", group: "eng"}},
+			want: map[string]wantGroup{
+				"eng": {spendLimit: nullInt64(0), totalLimit: nullInt64(0)},
+			},
+		},
+		{
+			name:    "UnbudgetedWithMembers",
+			members: []membership{{user: "alice", group: "eng"}, {user: "bob", group: "eng"}},
+			want: map[string]wantGroup{
+				"eng": {spendLimit: sql.NullInt64{}, totalLimit: sql.NullInt64{}},
+			},
+		},
+		{
+			name:      "UnbudgetedWithOverride",
+			members:   []membership{{user: "alice", group: "eng"}},
+			overrides: []override{{user: "alice", group: "eng", limit: 1000}},
+			// Members of a group with no budget spend without a cap, so the
+			// override does not make the group's total finite.
+			want: map[string]wantGroup{
+				"eng": {spendLimit: sql.NullInt64{}, totalLimit: sql.NullInt64{}},
+			},
+		},
+		{
+			name: "MemberResolvesToHigherBudgetGroup",
+			budgets: []groupBudget{
+				{group: "eng", limit: 100},
+				{group: "platform", limit: 500},
+			},
+			members: []membership{
+				{user: "alice", group: "eng"},
+				{user: "bob", group: "eng"},
+				{user: "alice", group: "platform"},
+			},
+			// alice is attributed to the higher-limit group, so only bob counts
+			// toward eng.
+			want: map[string]wantGroup{
+				"eng":      {spendLimit: nullInt64(100), totalLimit: nullInt64(100)},
+				"platform": {spendLimit: nullInt64(500), totalLimit: nullInt64(500)},
+			},
+		},
+		{
+			name: "OverrideChargedToOtherGroup",
+			budgets: []groupBudget{
+				{group: "eng", limit: 100},
+				{group: "platform", limit: 50},
+			},
+			members: []membership{
+				{user: "alice", group: "eng"},
+				{user: "bob", group: "eng"},
+				{user: "alice", group: "platform"},
+			},
+			overrides: []override{{user: "alice", group: "platform", limit: 1000}},
+			// The override attributes alice to platform even though eng carries
+			// the higher group limit.
+			want: map[string]wantGroup{
+				"eng":      {spendLimit: nullInt64(100), totalLimit: nullInt64(100)},
+				"platform": {spendLimit: nullInt64(50), totalLimit: nullInt64(1000)},
+			},
 		},
 	}
 
@@ -13004,46 +13721,92 @@ func TestGetOrganizationGroupsAISpend(t *testing.T) {
 			db, _ := dbtestutil.NewDB(t)
 			ctx := testutil.Context(t, testutil.WaitShort)
 
-			// Given: an org with a single group, optionally with a budget and seeded spend.
-			user := dbgen.User(t, db, database.User{})
+			// Given: the groups, members, overrides and spend the case declares.
 			org := dbgen.Organization(t, db, database.Organization{})
-			group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-			if tt.setBudget {
+			groupIDs := make(map[string]uuid.UUID)
+			groupID := func(name string) uuid.UUID {
+				if id, ok := groupIDs[name]; ok {
+					return id
+				}
+				group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				groupIDs[name] = group.ID
+				return group.ID
+			}
+			userIDs := make(map[string]uuid.UUID)
+			userID := func(name string) uuid.UUID {
+				if id, ok := userIDs[name]; ok {
+					return id
+				}
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{
+					UserID:         user.ID,
+					OrganizationID: org.ID,
+				})
+				userIDs[name] = user.ID
+				return user.ID
+			}
+
+			for name := range tt.want {
+				groupID(name)
+			}
+			for _, b := range tt.budgets {
 				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
-					GroupID:          group.ID,
-					SpendLimitMicros: tt.spendLimit,
+					GroupID:          groupID(b.group),
+					SpendLimitMicros: b.limit,
 				})
 				require.NoError(t, err)
 			}
-			for _, r := range tt.rows {
+			for _, m := range tt.members {
+				dbgen.GroupMember(t, db, database.GroupMemberTable{
+					GroupID: groupID(m.group),
+					UserID:  userID(m.user),
+				})
+			}
+			for _, o := range tt.overrides {
+				_, err := db.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{
+					UserID:           userID(o.user),
+					GroupID:          groupID(o.group),
+					SpendLimitMicros: o.limit,
+				})
+				require.NoError(t, err)
+			}
+			for _, s := range tt.spend {
 				_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
-					UserID:           user.ID,
-					EffectiveGroupID: group.ID,
-					Day:              r.day,
-					CostMicros:       r.spend,
+					UserID:           userID(s.user),
+					EffectiveGroupID: groupID(s.group),
+					Day:              s.day,
+					CostMicros:       s.spend,
 				})
 				require.NoError(t, err)
 			}
 
-			// When: querying spend for the group since monthStart.
+			// When: querying every group the case declares.
+			queried := make([]uuid.UUID, 0, len(groupIDs))
+			for _, id := range groupIDs {
+				queried = append(queried, id)
+			}
 			got, err := db.GetOrganizationGroupsAISpend(ctx, database.GetOrganizationGroupsAISpendParams{
 				OrganizationID: org.ID,
-				GroupIds:       []uuid.UUID{group.ID},
+				GroupIds:       queried,
 				PeriodStart:    monthStart,
 			})
 			require.NoError(t, err)
 
-			// Then: one row is returned with the group's limit and spend.
-			require.Len(t, got, 1)
-			require.Equal(t, group.ID, got[0].GroupID)
-			require.Equal(t, org.ID, got[0].OrganizationID)
-			if tt.setBudget {
-				require.True(t, got[0].SpendLimitMicros.Valid, "expected configured budget")
-				require.Equal(t, tt.spendLimit, got[0].SpendLimitMicros.Int64, "spend_limit_micros")
-			} else {
-				require.False(t, got[0].SpendLimitMicros.Valid, "expected no configured budget")
+			// Then: each group reports its own limit, spend, and the combined
+			// limit of the members attributed to it.
+			require.Len(t, got, len(groupIDs))
+			byID := make(map[uuid.UUID]database.GetOrganizationGroupsAISpendRow, len(got))
+			for _, r := range got {
+				byID[r.GroupID] = r
 			}
-			require.Equal(t, tt.wantCurrentSpend, got[0].CurrentSpendMicros)
+			for name, want := range tt.want {
+				row, ok := byID[groupIDs[name]]
+				require.True(t, ok, "group %q missing from response", name)
+				require.Equal(t, org.ID, row.OrganizationID)
+				require.Equal(t, want.spendLimit, row.SpendLimitMicros, "%s spend_limit_micros", name)
+				require.Equal(t, want.totalLimit, row.TotalSpendLimitMicros, "%s total_spend_limit_micros", name)
+				require.Equal(t, want.spend, row.CurrentSpendMicros, "%s current_spend_micros", name)
+			}
 		})
 	}
 
@@ -13088,10 +13851,14 @@ func TestGetOrganizationGroupsAISpend(t *testing.T) {
 		rowA, ok := byID[groupA.ID]
 		require.True(t, ok, "groupA missing from response")
 		require.Equal(t, sql.NullInt64{Int64: 1_000_000, Valid: true}, rowA.SpendLimitMicros)
+		// Neither group has members, so the budgeted group totals zero and the
+		// unbudgeted one is null.
+		require.Equal(t, sql.NullInt64{Int64: 0, Valid: true}, rowA.TotalSpendLimitMicros)
 		require.Equal(t, int64(250), rowA.CurrentSpendMicros)
 		rowB, ok := byID[groupB.ID]
 		require.True(t, ok, "groupB missing from response")
 		require.Equal(t, sql.NullInt64{}, rowB.SpendLimitMicros)
+		require.Equal(t, sql.NullInt64{}, rowB.TotalSpendLimitMicros)
 		require.Equal(t, int64(500), rowB.CurrentSpendMicros)
 	})
 
@@ -13251,6 +14018,81 @@ func TestGetOrganizationGroupsAISpend(t *testing.T) {
 		require.Len(t, got, 1)
 		require.Equal(t, int64(25), got[0].CurrentSpendMicros,
 			"sum must exclude prevMonthLastDay row after normalization")
+	})
+
+	t.Run("EveryoneGroupCountsOrgMembers", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: an org with two members whose implicit Everyone group carries the
+		// only budget.
+		org := dbgen.Organization(t, db, database.Organization{})
+		for range 2 {
+			user := dbgen.User(t, db, database.User{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+			})
+		}
+		// The Everyone group has ID equal to the organization ID and must be
+		// inserted explicitly for the group_ai_budgets FK constraint.
+		//nolint:gocritic // Requires system context.
+		_, err := db.InsertAllUsersGroup(dbauthz.AsSystemRestricted(ctx), org.ID)
+		require.NoError(t, err)
+		_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+			GroupID:          org.ID,
+			SpendLimitMicros: 100,
+		})
+		require.NoError(t, err)
+
+		// When: querying the Everyone group.
+		got, err := db.GetOrganizationGroupsAISpend(ctx, database.GetOrganizationGroupsAISpendParams{
+			OrganizationID: org.ID,
+			GroupIds:       []uuid.UUID{org.ID},
+			PeriodStart:    monthStart,
+		})
+		require.NoError(t, err)
+
+		// Then: every org member counts toward the total.
+		require.Len(t, got, 1)
+		require.Equal(t, sql.NullInt64{Int64: 100, Valid: true}, got[0].SpendLimitMicros, "spend_limit_micros")
+		require.Equal(t, sql.NullInt64{Int64: 200, Valid: true}, got[0].TotalSpendLimitMicros, "total_spend_limit_micros")
+		require.Equal(t, int64(0), got[0].CurrentSpendMicros, "current_spend_micros")
+	})
+
+	t.Run("EveryoneGroupWithoutBudgetIsUnlimited", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: an org with two members and no budget anywhere, which is where
+		// uncapped users are attributed.
+		org := dbgen.Organization(t, db, database.Organization{})
+		for range 2 {
+			user := dbgen.User(t, db, database.User{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+			})
+		}
+		//nolint:gocritic // Requires system context.
+		_, err := db.InsertAllUsersGroup(dbauthz.AsSystemRestricted(ctx), org.ID)
+		require.NoError(t, err)
+
+		// When: querying the Everyone group.
+		got, err := db.GetOrganizationGroupsAISpend(ctx, database.GetOrganizationGroupsAISpendParams{
+			OrganizationID: org.ID,
+			GroupIds:       []uuid.UUID{org.ID},
+			PeriodStart:    monthStart,
+		})
+		require.NoError(t, err)
+
+		// Then: the total is null, so the group reads as unlimited.
+		require.Len(t, got, 1)
+		require.Equal(t, sql.NullInt64{}, got[0].SpendLimitMicros, "spend_limit_micros")
+		require.Equal(t, sql.NullInt64{}, got[0].TotalSpendLimitMicros, "total_spend_limit_micros")
+		require.Equal(t, int64(0), got[0].CurrentSpendMicros, "current_spend_micros")
 	})
 }
 
@@ -15025,7 +15867,6 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 		CacheReadTokens:     []int64{0},
 		ContextLimit:        []int64{0},
 		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{0},
 		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
@@ -15147,7 +15988,6 @@ func TestUpdateChatSummary(t *testing.T) {
 		CacheReadTokens:     []int64{0},
 		ContextLimit:        []int64{0},
 		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{0},
 		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
@@ -16926,7 +17766,6 @@ func TestGetChatsFilter(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
@@ -17168,12 +18007,11 @@ func TestGetChatsSearch(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
 		require.Len(t, msgs, 1)
-		return msgs[0]
+		return database.ChatMessage(msgs[0])
 	}
 
 	linkPR := func(chatID uuid.UUID, url, state, prTitle string, prNumber int32, gitRemoteOrigin string) {
@@ -17401,7 +18239,6 @@ func TestChatHasUnread(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
@@ -18155,5 +18992,140 @@ func TestGetActiveUsersAuthorizationRolesParity(t *testing.T) {
 		require.NoError(t, err)
 		require.ElementsMatch(t, single.Roles, row.Roles, "roles diverged for user %s", row.ID)
 		require.ElementsMatch(t, single.Groups, row.Groups, "groups diverged for user %s", row.ID)
+	}
+}
+
+func TestOAuth2ProviderScopeNotEmpty(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	// An unrestricted grant is recorded as an explicit sentinel rather than as
+	// an absent value, so an insert that fails to carry the negotiated scope
+	// forward is rejected instead of silently issuing full access.
+	t.Run("Code", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
+
+		_, err := db.InsertOAuth2ProviderAppCode(ctx, database.InsertOAuth2ProviderAppCodeParams{
+			ID:                  uuid.New(),
+			CreatedAt:           dbtime.Now(),
+			ExpiresAt:           dbtime.Now().Add(time.Minute),
+			SecretPrefix:        []byte("prefix"),
+			HashedSecret:        []byte("hashed-secret"),
+			AppID:               app.ID,
+			UserID:              user.ID,
+			ResourceUri:         sql.NullString{},
+			CodeChallenge:       sql.NullString{},
+			CodeChallengeMethod: sql.NullString{},
+			StateHash:           sql.NullString{},
+			RedirectUri:         sql.NullString{},
+			Scope:               "",
+		})
+		require.True(t, database.IsCheckViolation(err, database.CheckOauth2ProviderAppCodesScopeNotEmpty),
+			"empty scope must be rejected, got %v", err)
+	})
+
+	t.Run("Token", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{})
+		secret := dbgen.OAuth2ProviderAppSecret(t, db, database.OAuth2ProviderAppSecret{AppID: app.ID})
+		key, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+
+		_, err := db.InsertOAuth2ProviderAppToken(ctx, database.InsertOAuth2ProviderAppTokenParams{
+			ID:          uuid.New(),
+			CreatedAt:   dbtime.Now(),
+			ExpiresAt:   dbtime.Now().Add(time.Minute),
+			HashPrefix:  []byte("prefix"),
+			RefreshHash: []byte("hashed-secret"),
+			AppID:       app.ID,
+			AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
+			APIKeyID:    key.ID,
+			UserID:      user.ID,
+			Audience:    sql.NullString{},
+			Scope:       "",
+		})
+		require.True(t, database.IsCheckViolation(err, database.CheckOauth2ProviderAppTokensScopeNotEmpty),
+			"empty scope must be rejected, got %v", err)
+	})
+}
+
+func TestGetAIModelPrices(t *testing.T) {
+	t.Parallel()
+
+	// Two anthropic models, and an openai model sharing a name with one of
+	// them, so provider and model can be told apart.
+	const seed = `[
+		{"provider":"anthropic","model":"model-a","input_price":1,"output_price":null,"cache_read_price":null,"cache_write_price":null},
+		{"provider":"anthropic","model":"model-b","input_price":2,"output_price":null,"cache_read_price":null,"cache_write_price":null},
+		{"provider":"openai","model":"model-a","input_price":3,"output_price":null,"cache_read_price":null,"cache_write_price":null}
+	]`
+
+	tests := []struct {
+		name   string
+		params database.GetAIModelPricesParams
+		want   []string
+	}{
+		{
+			name:   "NoFilterReturnsEveryPrice",
+			params: database.GetAIModelPricesParams{},
+			want:   []string{"anthropic/model-a", "anthropic/model-b", "openai/model-a"},
+		},
+		{
+			name:   "ByProvider",
+			params: database.GetAIModelPricesParams{Provider: "anthropic"},
+			want:   []string{"anthropic/model-a", "anthropic/model-b"},
+		},
+		{
+			name:   "ByModelSpansProviders",
+			params: database.GetAIModelPricesParams{Model: "model-a"},
+			want:   []string{"anthropic/model-a", "openai/model-a"},
+		},
+		{
+			name:   "ByProviderAndModel",
+			params: database.GetAIModelPricesParams{Provider: "anthropic", Model: "model-a"},
+			want:   []string{"anthropic/model-a"},
+		},
+		{
+			name:   "UnknownProviderMatchesNothing",
+			params: database.GetAIModelPricesParams{Provider: "unknown-provider"},
+			want:   nil,
+		},
+		{
+			name:   "MismatchedProviderAndModel",
+			params: database.GetAIModelPricesParams{Provider: "openai", Model: "model-b"},
+			want:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			db, _ := dbtestutil.NewDB(t)
+			require.NoError(t, db.UpsertAIModelPrices(ctx, []byte(seed)))
+
+			prices, err := db.GetAIModelPrices(ctx, tt.params)
+			require.NoError(t, err)
+
+			got := make([]string, 0, len(prices))
+			for _, price := range prices {
+				got = append(got, price.Provider+"/"+price.Model)
+			}
+			if len(tt.want) == 0 {
+				require.Empty(t, got)
+				return
+			}
+			require.Equal(t, tt.want, got)
+		})
 	}
 }

@@ -2,10 +2,15 @@ import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
-const appsKey = ["oauth2-provider", "apps"];
-const userAppsKey = (userId: string) => appsKey.concat(userId);
-const appKey = (appId: string) => appsKey.concat(appId);
-const appSecretsKey = (appId: string) => appKey(appId).concat("secrets");
+const oauth2ProviderKey = ["oauth2-provider"];
+export const oauth2ProviderAppsKey = oauth2ProviderKey.concat("apps");
+export const oauth2ProviderAppKey = (appId: string) =>
+	oauth2ProviderAppsKey.concat(appId);
+export const oauth2ProviderAppSecretsKey = (appId: string) =>
+	oauth2ProviderAppKey(appId).concat("secrets");
+
+const userAppsKey = (userId: string) => oauth2ProviderAppsKey.concat(userId);
+export const oauth2ProviderSettingsKey = oauth2ProviderKey.concat("settings");
 
 export const getGitHubDevice = () => {
 	return {
@@ -23,14 +28,14 @@ export const getGitHubDeviceFlowCallback = (code: string, state: string) => {
 
 export const getApps = (userId?: string) => {
 	return {
-		queryKey: userId ? appsKey.concat(userId) : appsKey,
+		queryKey: userId ? userAppsKey(userId) : oauth2ProviderAppsKey,
 		queryFn: () => API.getOAuth2ProviderApps({ user_id: userId }),
 	};
 };
 
 export const getApp = (id: string) => {
 	return {
-		queryKey: appKey(id),
+		queryKey: oauth2ProviderAppKey(id),
 		queryFn: () => API.getOAuth2ProviderApp(id),
 	};
 };
@@ -40,7 +45,7 @@ export const postApp = (queryClient: QueryClient) => {
 		mutationFn: API.postOAuth2ProviderApp,
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({
-				queryKey: appsKey,
+				queryKey: oauth2ProviderAppsKey,
 			});
 		},
 	};
@@ -56,8 +61,9 @@ export const putApp = (queryClient: QueryClient) => {
 			req: TypesGen.PutOAuth2ProviderAppRequest;
 		}) => API.putOAuth2ProviderApp(id, req),
 		onSuccess: async (app: TypesGen.OAuth2ProviderApp) => {
+			queryClient.setQueryData(oauth2ProviderAppKey(app.id), app);
 			await queryClient.invalidateQueries({
-				queryKey: appKey(app.id),
+				queryKey: oauth2ProviderAppsKey,
 			});
 		},
 	};
@@ -68,7 +74,7 @@ export const deleteApp = (queryClient: QueryClient) => {
 		mutationFn: API.deleteOAuth2ProviderApp,
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({
-				queryKey: appsKey,
+				queryKey: oauth2ProviderAppsKey,
 			});
 		},
 	};
@@ -76,7 +82,7 @@ export const deleteApp = (queryClient: QueryClient) => {
 
 export const getAppSecrets = (id: string) => {
 	return {
-		queryKey: appSecretsKey(id),
+		queryKey: oauth2ProviderAppSecretsKey(id),
 		queryFn: () => API.getOAuth2ProviderAppSecrets(id),
 	};
 };
@@ -89,7 +95,7 @@ export const postAppSecret = (queryClient: QueryClient) => {
 			appId: string,
 		) => {
 			await queryClient.invalidateQueries({
-				queryKey: appSecretsKey(appId),
+				queryKey: oauth2ProviderAppSecretsKey(appId),
 			});
 		},
 	};
@@ -101,7 +107,7 @@ export const deleteAppSecret = (queryClient: QueryClient) => {
 			API.deleteOAuth2ProviderAppSecret(appId, secretId),
 		onSuccess: async (_: unknown, { appId }: { appId: string }) => {
 			await queryClient.invalidateQueries({
-				queryKey: appSecretsKey(appId),
+				queryKey: oauth2ProviderAppSecretsKey(appId),
 			});
 		},
 	};
@@ -113,6 +119,29 @@ export const revokeApp = (queryClient: QueryClient, userId: string) => {
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({
 				queryKey: userAppsKey(userId),
+			});
+		},
+	};
+};
+
+export const getSettings = () => {
+	return {
+		queryKey: oauth2ProviderSettingsKey,
+		queryFn: () => API.getOAuth2ProviderSettings(),
+	};
+};
+
+export const putSettings = (queryClient: QueryClient) => {
+	return {
+		mutationFn: API.putOAuth2ProviderSettings,
+		// Seed from the response before invalidating. Invalidating resolves
+		// whether or not the refetch succeeds, and a failed refetch keeps the
+		// last successful data, which would render the pre-save value under an
+		// error alert for a save that worked.
+		onSuccess: async (settings: TypesGen.OAuth2ProviderSettings) => {
+			queryClient.setQueryData(oauth2ProviderSettingsKey, settings);
+			await queryClient.invalidateQueries({
+				queryKey: oauth2ProviderSettingsKey,
 			});
 		},
 	};

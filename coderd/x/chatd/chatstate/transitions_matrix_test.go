@@ -788,9 +788,10 @@ func matrixCases() []transitionCaseSpec {
 		editMessageCase(chatstate.StateA0),
 		editMessageCase(chatstate.StateA1),
 
-		// RequestCompaction: only from idle (W), lands in R0 with
-		// the one-shot marker set and no history/queue mutation.
-		requestCompactionCase(),
+		// RequestCompaction cases.
+		requestCompactionCase(chatstate.StateW, chatstate.StateR0),
+		requestCompactionCase(chatstate.StateE0, chatstate.StateR0),
+		requestCompactionCase(chatstate.StateE1, chatstate.StateR1),
 
 		// DeleteQueuedMessage cases. Empty-tail want collapses the
 		// classified state (E1->E0, R1->R0, I1->I0, A1->A0). The
@@ -868,6 +869,7 @@ func matrixCases() []transitionCaseSpec {
 		// FinishError cases.
 		finishErrorCase(chatstate.StateR0, chatstate.StateE0),
 		finishErrorCase(chatstate.StateR1, chatstate.StateE1),
+		finishErrorCase(chatstate.StateW, chatstate.StateE0),
 
 		// ReconcileInvalidState cases: Invalid with empty queue
 		// lands in E0; Invalid with non-empty queue lands in E1.
@@ -1431,11 +1433,11 @@ func promoteQueuedCase(from, want chatstate.ExecutionState, shape queueShape, ta
 	return spec
 }
 
-func requestCompactionCase() transitionCaseSpec {
+func requestCompactionCase(from, want chatstate.ExecutionState) transitionCaseSpec {
 	return transitionCaseSpec{
 		transition: chatstate.TransitionRequestCompaction,
-		from:       chatstate.StateW,
-		want:       chatstate.StateR0,
+		from:       from,
+		want:       want,
 		apply:      applyRequestCompaction,
 		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
 			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
@@ -1444,6 +1446,14 @@ func requestCompactionCase() transitionCaseSpec {
 				"RequestCompaction sets status running")
 			require.True(t, after.CompactionRequestedAt.Valid,
 				"RequestCompaction sets compaction_requested_at")
+			require.False(t, after.LastError.Valid,
+				"RequestCompaction clears last_error")
+			require.Greater(t, after.HistoryVersion, base.historyVersion,
+				"RequestCompaction starts a fresh history epoch")
+			require.Equal(t, after.SnapshotVersion, after.HistoryVersion,
+				"RequestCompaction advances history_version to snapshot_version")
+			require.Zero(t, after.GenerationAttempt,
+				"RequestCompaction grants a fresh retry budget")
 			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID),
 				"RequestCompaction inserts no history messages")
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),

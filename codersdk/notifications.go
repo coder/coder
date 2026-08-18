@@ -52,7 +52,7 @@ func (c *Client) GetNotificationsSettings(ctx context.Context) (NotificationsSet
 		return NotificationsSettings{}, ReadBodyAsError(res)
 	}
 	var settings NotificationsSettings
-	return settings, json.NewDecoder(res.Body).Decode(&settings)
+	return settings, ReadBodyAsJSON(res, &settings)
 }
 
 // PutNotificationsSettings modifies the notifications settings, which currently just controls whether all

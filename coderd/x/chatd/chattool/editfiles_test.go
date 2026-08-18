@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 )
@@ -50,12 +51,91 @@ func TestEditFiles(t *testing.T) {
 		assert.NotContains(t, editProps, "search", "schema should not expose deprecated search")
 		assert.NotContains(t, editProps, "replace", "schema should not expose deprecated replace")
 
+		// Requiredness alone did not stop models from omitting path,
+		// so the schema must also describe it.
+		pathSchema, ok := props["path"].(map[string]any)
+		require.True(t, ok)
+		pathDesc, _ := pathSchema["description"].(string)
+		assert.Contains(t, pathDesc, "absolute path")
+
 		// Verify required fields.
 		editRequired, ok := editItems["required"].([]string)
 		require.True(t, ok)
 		assert.Contains(t, editRequired, "old_text")
 		assert.Contains(t, editRequired, "new_text")
 		assert.NotContains(t, editRequired, "replace_all", "replace_all should be optional")
+	})
+
+	t.Run("MalformedEntriesReturnEntryIndexedErrors", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name    string
+			input   string
+			wantErr string
+		}{
+			{
+				name: "MissingPath",
+				input: `{"files":[` +
+					`{"path":"/home/coder/a.txt","edits":[{"old_text":"old","new_text":"new"}]},` +
+					`{"edits":[{"old_text":"old","new_text":"new"}]}` +
+					`]}`,
+				wantErr: "files[1].path is required; provide the absolute path of the file to edit; no files in this batch were applied",
+			},
+			{
+				name:    "EmptyEdits",
+				input:   `{"files":[{"path":"/home/coder/a.txt","edits":[]}]}`,
+				wantErr: "files[0].edits must contain at least one edit; no files in this batch were applied",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctrl := gomock.NewController(t)
+				mockConn := agentconnmock.NewMockAgentConn(ctrl)
+				tool := chattool.EditFiles(chattool.EditFilesOptions{
+					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+						return mockConn, nil
+					},
+				})
+
+				resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+					ID:    "call-1",
+					Name:  "edit_files",
+					Input: tc.input,
+				})
+				require.NoError(t, err)
+				assert.True(t, resp.IsError)
+				assert.Equal(t, tc.wantErr, resp.Content)
+			})
+		}
+	})
+
+	t.Run("AgentAPIErrorOmitsTransportNoise", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		sdkErr := codersdk.NewTestError(http.StatusBadRequest, "POST", "http://[fd7a::1]:4/api/v0/edit-files")
+		sdkErr.Message = `file path must be absolute: "a.txt"`
+		sdkErr.Helper = "Use an absolute path."
+		sdkErr.Detail = "some detail"
+		sdkErr.Validations = []codersdk.ValidationError{{Field: "path", Detail: "must be absolute"}}
+		mockConn.EXPECT().EditFiles(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.FileEditResponse{}, xerrors.Errorf("do request: %w", sdkErr))
+
+		tool := chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "edit_files",
+			Input: `{"files":[{"path":"a.txt","edits":[{"old_text":"old","new_text":"new"}]}]}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, "file path must be absolute: \"a.txt\": Use an absolute path.: some detail\n- path: must be absolute", resp.Content)
 	})
 
 	t.Run("PlanTurnRejectsNonPlanPath", func(t *testing.T) {
@@ -577,6 +657,37 @@ func TestEditFiles_DeprecatedSearchReplaceFieldsStillWork(t *testing.T) {
 		ID:    "call-1",
 		Name:  "edit_files",
 		Input: `{"files":[{"path":"` + targetPath + `","edits":[{"search":"old","replace":"replacement","replace_all":true}]}]}`,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+}
+
+func TestEditFiles_DeprecatedFieldsAreCaseSensitive(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	targetPath := "/home/coder/main.go"
+	mockConn.EXPECT().
+		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path:  targetPath,
+				Edits: []workspacesdk.FileEdit{{}},
+			}},
+			IncludeDiff: true,
+		}).
+		Return(workspacesdk.FileEditResponse{}, nil)
+
+	tool := chattool.EditFiles(chattool.EditFilesOptions{
+		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+			return mockConn, nil
+		},
+	})
+
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "edit_files",
+		Input: `{"files":[{"path":"` + targetPath + `","edits":[{"SEARCH":"old","REPLACE":"replacement"}]}]}`,
 	})
 	require.NoError(t, err)
 	assert.False(t, resp.IsError)

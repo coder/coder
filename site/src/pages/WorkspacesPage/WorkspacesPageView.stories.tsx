@@ -172,6 +172,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
 		checkedWorkspaces: [],
 		templates: mockTemplates,
 		templatesFetchStatus: "success",
+		canCreateWorkspace: true,
 		count: 13,
 		page: 1,
 	},
@@ -189,6 +190,55 @@ const meta: Meta<typeof WorkspacesPageView> = {
 
 export default meta;
 type Story = StoryObj<typeof WorkspacesPageView>;
+
+export const CannotCreateWorkspace: Story = {
+	args: {
+		workspaces: [],
+		count: 0,
+		canCreateWorkspace: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByRole("button", { name: /new workspace/i })).toBeNull();
+		await canvas.findByText(/don't have permission to create workspaces/i);
+	},
+};
+
+export const CannotCreateWorkspaceWithWorkspaces: Story = {
+	args: {
+		workspaces: allWorkspaces,
+		count: allWorkspaces.length,
+		canCreateWorkspace: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(allWorkspaces[0].name);
+		expect(canvas.queryByRole("button", { name: /new workspace/i })).toBeNull();
+	},
+};
+
+export const CannotCreateWorkspaceWithFilter: Story = {
+	args: {
+		workspaces: [],
+		count: 0,
+		canCreateWorkspace: false,
+		filterState: {
+			...defaultFilterProps,
+			filter: { ...defaultFilterProps.filter, used: true },
+		},
+	},
+	// The filter empty state takes priority: an active filter that matched
+	// nothing shows "no results" regardless of create permission, since the
+	// user may own workspaces the filter excluded.
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(/no results matched your search/i);
+		expect(
+			canvas.queryByText(/don't have permission to create workspaces/i),
+		).toBeNull();
+		expect(canvas.queryByRole("button", { name: /new workspace/i })).toBeNull();
+	},
+};
 
 export const AllStates: Story = {
 	args: {
@@ -247,6 +297,7 @@ export const OwnerHasNoWorkspaces: Story = {
 		workspaces: [],
 		count: 0,
 		canCreateTemplate: true,
+		canCreateWorkspace: true,
 	},
 };
 
@@ -256,6 +307,7 @@ export const OwnerHasNoWorkspacesAndNoTemplates: Story = {
 		templates: [],
 		count: 0,
 		canCreateTemplate: true,
+		canCreateWorkspace: true,
 	},
 };
 
@@ -264,6 +316,7 @@ export const UserHasNoWorkspaces: Story = {
 		workspaces: [],
 		count: 0,
 		canCreateTemplate: false,
+		canCreateWorkspace: true,
 	},
 };
 
@@ -273,6 +326,7 @@ export const UserHasNoWorkspacesAndNoTemplates: Story = {
 		templates: [],
 		count: 0,
 		canCreateTemplate: false,
+		canCreateWorkspace: true,
 	},
 };
 
@@ -420,6 +474,58 @@ export const ParentAgentApps: Story = {
 		await canvas.findByRole("link", { name: /Open Parent Agent App/i });
 		expect(
 			canvas.queryByRole("link", { name: /Open Sub Agent App/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+// An external app with an unparsable URL must not crash the table. Its icon
+// renders as a non-navigating button with an explanatory label instead of a
+// broken link.
+export const InvalidAppUrl: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				name: "invalid-app-url",
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{
+							...MockWorkspace.latest_build.resources[0],
+							agents: [
+								{
+									...MockWorkspaceAgent,
+									display_apps: [],
+									apps: [
+										{
+											...MockWorkspaceApp,
+											id: "invalid-app",
+											slug: "invalid-app",
+											display_name: "Broken App",
+											health: "healthy",
+											external: true,
+											// A bare string with no scheme is unparsable
+											// by the URL constructor.
+											url: "my-repo",
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			},
+		],
+		count: allWorkspaces.length,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The invalid app renders a non-navigating button, not a link.
+		await canvas.findByRole("button", {
+			name: /Broken App has an invalid URL/i,
+		});
+		expect(
+			canvas.queryByRole("link", { name: /Broken App/i }),
 		).not.toBeInTheDocument();
 	},
 };

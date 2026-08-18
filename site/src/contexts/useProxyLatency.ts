@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useState } from "react";
 import { API } from "#/api/api";
 import type { Region } from "#/api/typesGenerated";
-import { generateRandomString } from "#/utils/random";
+import { generateRandomBase64String } from "#/utils/random";
 
 const proxyIntervalSeconds = 30; // seconds
 
@@ -133,7 +133,7 @@ export const useProxyLatency = (
 				// Add a random query param to the url to make sure we don't get a cached response.
 				// This is important in case there is some caching layer between us and the proxy.
 				const url = new URL(
-					`/latency-check?cache_bust=${generateRandomString(6)}`,
+					`/latency-check?cache_bust=${generateRandomBase64String(6)}`,
 					proxy.path_app_url,
 				);
 				acc[url.toString()] = proxy;

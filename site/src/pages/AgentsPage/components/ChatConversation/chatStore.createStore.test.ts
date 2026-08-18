@@ -6,8 +6,6 @@ import { createChatStore, selectIsAwaitingFirstStreamChunk } from "./chatStore";
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Minimal ChatMessage factory. `created_at` is derived from `id` to make
- *  ordering deterministic in tests that care about sort order. */
 const makeMessage = (
 	id: number,
 	role: string,
@@ -34,6 +32,8 @@ const makeQueuedMessage = (
 		content: [{ type: "text", text }],
 	}) as TypesGen.ChatQueuedMessage;
 
+const testChatID = "chat-1";
+
 // ---------------------------------------------------------------------------
 // replaceMessages
 // ---------------------------------------------------------------------------
@@ -53,19 +53,19 @@ describe("replaceMessages", () => {
 		expect(state.orderedMessageIDs).toEqual([1, 2]);
 	});
 
-	it("sorts messages by created_at", () => {
+	it("sorts messages by id when created_at disagrees with append order", () => {
 		const store = createChatStore();
-		const older = {
+		const first = {
 			...makeMessage(1, "user", "first"),
-			created_at: "2025-01-01T00:00:01.000Z",
-		} as TypesGen.ChatMessage;
-		const newer = {
-			...makeMessage(2, "assistant", "second"),
 			created_at: "2025-01-01T00:00:05.000Z",
+		} as TypesGen.ChatMessage;
+		const second = {
+			...makeMessage(2, "assistant", "second"),
+			created_at: "2025-01-01T00:00:01.000Z",
 		} as TypesGen.ChatMessage;
 
 		// Insert in reverse order.
-		store.replaceMessages([newer, older]);
+		store.replaceMessages([second, first]);
 
 		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2]);
 	});
@@ -95,6 +95,31 @@ describe("replaceMessages", () => {
 		store.replaceMessages([msg]);
 
 		expect(notified).toBe(false);
+	});
+});
+
+describe("upsertDurableMessages", () => {
+	it("orders merged messages by id rather than by arrival", () => {
+		const store = createChatStore();
+		const sharedCreatedAt = "2025-01-01T00:00:00.000Z";
+		const withSharedCreatedAt = (
+			id: number,
+			role: string,
+		): TypesGen.ChatMessage => ({
+			...makeMessage(id, role, `message-${id}`),
+			created_at: sharedCreatedAt,
+		});
+
+		store.replaceMessages([
+			withSharedCreatedAt(3, "assistant"),
+			withSharedCreatedAt(4, "tool"),
+		]);
+		store.upsertDurableMessages([
+			withSharedCreatedAt(1, "user"),
+			withSharedCreatedAt(2, "assistant"),
+		]);
+
+		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2, 3, 4]);
 	});
 });
 
@@ -437,8 +462,7 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.suppressQueuedMessageID(b.id);
 		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
 
-		// Transient reordered queue from the running-case backend
-		// must not surface the suppressed message.
+		// Running-case promotion only reorders the queue; the backend still reports the row.
 		store.applyAuthoritativeQueuedMessages([b, a, c]);
 		expect(
 			store.getSnapshot().queuedMessages.map((message) => message.id),
@@ -466,6 +490,272 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		expect(
 			store.getSnapshot().queuedMessages.map((message) => message.id),
 		).toEqual([a.id, c.id]);
+	});
+
+	it("still applies newly queued messages while a suppressed message stays queued", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const d = makeQueuedMessage(4, "D");
+
+		store.setQueuedMessages([b]);
+		store.suppressQueuedMessageID(a.id);
+
+		store.applyAuthoritativeQueuedMessages([a, b, d]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id, d.id]);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(a.id)).toBe(true);
+	});
+
+	it("ignores stale snapshots that still list a promoted message", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.setQueuedMessages([b, c]);
+		store.markQueuedMessagePromoted(a.id);
+
+		store.applyAuthoritativeQueuedMessages([a, b]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id, c.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
+
+		store.applyAuthoritativeQueuedMessages([b, c]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id, c.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("records queued IDs the server has reported", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
+		store.applyAuthoritativeQueuedMessages([a, b]);
+		expect(store.hasObservedQueuedMessageID(a.id)).toBe(true);
+		expect(store.hasObservedQueuedMessageID(b.id)).toBe(true);
+
+		store.applyAuthoritativeQueuedMessages([b]);
+		expect(store.hasObservedQueuedMessageID(a.id)).toBe(true);
+
+		store.setQueuedMessages([b, c]);
+		expect(store.hasObservedQueuedMessageID(c.id)).toBe(false);
+
+		store.clearSuppressedQueuedMessageIDs();
+		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
+	});
+
+	it("counts every server status report, including repeats", () => {
+		const store = createChatStore();
+
+		expect(store.getServerChatStatusVersion()).toBe(0);
+
+		store.setChatStatus("running");
+		expect(store.getServerChatStatusVersion()).toBe(0);
+
+		store.applyServerChatStatus("error");
+		expect(store.getServerChatStatusVersion()).toBe(1);
+		expect(store.getSnapshot().chatStatus).toBe("error");
+
+		store.applyServerChatStatus("error");
+		expect(store.getServerChatStatusVersion()).toBe(2);
+		expect(store.getSnapshot().chatStatus).toBe("error");
+	});
+
+	it("restores a promoted head that a fresh snapshot still queues", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		expect(
+			store
+				.applyPromoteRefetchQueuedMessages(testChatID, a.id, [a, b], baseline)
+				?.map((message) => message.id),
+		).toEqual([a.id, b.id]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([a.id, b.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("ignores a promote refetch that a newer snapshot already superseded", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		store.applyAuthoritativeQueuedMessages([b, c]);
+
+		expect(
+			store.applyPromoteRefetchQueuedMessages(
+				testChatID,
+				a.id,
+				[a, b],
+				baseline,
+			),
+		).toBeUndefined();
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id, c.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("still applies a promote refetch after a stale snapshot was discarded", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		store.applyAuthoritativeQueuedMessages([a, b, c]);
+
+		expect(
+			store.applyPromoteRefetchQueuedMessages(
+				testChatID,
+				a.id,
+				[b, c],
+				baseline,
+			),
+		).toEqual([b, c]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id, c.id]);
+	});
+
+	it("ignores a promote refetch that resolves after switching chats", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		store.setActiveChatID("chat-other");
+		store.setQueuedMessages([]);
+
+		expect(
+			store.applyPromoteRefetchQueuedMessages(
+				testChatID,
+				a.id,
+				[a, b],
+				baseline,
+			),
+		).toBeUndefined();
+		expect(store.getSnapshot().queuedMessages).toEqual([]);
+	});
+
+	it("ignores a promote refetch spanning a round trip back to the same chat", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		store.setActiveChatID("chat-other");
+		store.setActiveChatID(testChatID);
+
+		expect(
+			store.applyPromoteRefetchQueuedMessages(
+				testChatID,
+				a.id,
+				[a, b],
+				baseline,
+			),
+		).toBeUndefined();
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id]);
+	});
+
+	it("ignores a promote refetch naming another chat even at a matching fence", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		expect(
+			store.applyPromoteRefetchQueuedMessages(
+				"chat-other",
+				a.id,
+				[a, b],
+				store.getQueueConvergenceFence(),
+			),
+		).toBeUndefined();
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id]);
+	});
+
+	it("returns the queue it applied, not the raw snapshot", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		store.suppressQueuedMessageID(c.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		expect(
+			store
+				.applyPromoteRefetchQueuedMessages(
+					testChatID,
+					a.id,
+					[a, b, c],
+					baseline,
+				)
+				?.map((message) => message.id),
+		).toEqual([a.id, b.id]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([a.id, b.id]);
+	});
+
+	it("unsuppressQueuedMessageID clears a promoted marker after a failed promotion", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.markQueuedMessagePromoted(a.id);
+		store.unsuppressQueuedMessageID(a.id);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+
+		store.applyAuthoritativeQueuedMessages([a, b]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([a.id, b.id]);
 	});
 
 	it("unsuppressQueuedMessageID removes IDs from the suppression set", () => {

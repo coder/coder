@@ -212,6 +212,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 	// Default is false as dynamic parameters are now the preferred approach.
 	useClassicParameterFlow := ptr.NilToDefault(createTemplate.UseClassicParameterFlow, false)
+	agentsAllowed := ptr.NilToDefault(createTemplate.AgentsAllowed, true)
 
 	// Make a temporary struct to represent the template. This is used for
 	// auditing if any of the following checks fail. It will be overwritten when
@@ -224,6 +225,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		Icon:                    createTemplate.Icon,
 		DisplayName:             createTemplate.DisplayName,
 		UseClassicParameterFlow: useClassicParameterFlow,
+		AgentsAllowed:           agentsAllowed,
 	}
 
 	_, err := api.Database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
@@ -448,6 +450,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			MaxPortSharingLevel:          maxPortShareLevel,
 			UseClassicParameterFlow:      useClassicParameterFlow,
 			CorsBehavior:                 corsBehavior,
+			AgentsAllowed:                agentsAllowed,
 			AllowWorkspaceRenames:        allowWorkspaceRenames,
 		})
 		if err != nil {
@@ -780,6 +783,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			UseClassicParameterFlow:      resolved.useClassicTemplateFlow,
 			CorsBehavior:                 resolved.corsBehavior,
 			DisableModuleCache:           resolved.disableModuleCache,
+			AgentsAllowed:                resolved.agentsAllowed,
 			AllowWorkspaceRenames:        resolved.allowWorkspaceRenames,
 		})
 		if err != nil {
@@ -1057,6 +1061,7 @@ func (api *API) convertTemplate(
 		UseClassicParameterFlow: template.UseClassicParameterFlow,
 		CORSBehavior:            codersdk.CORSBehavior(template.CorsBehavior),
 		DisableModuleCache:      template.DisableModuleCache,
+		AgentsAllowed:           template.AgentsAllowed,
 		AllowWorkspaceRenames:   template.AllowWorkspaceRenames,
 	}
 }

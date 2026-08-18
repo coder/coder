@@ -201,3 +201,24 @@ export const MixedQueueWithAttachments: Story = {
 		],
 	},
 };
+
+export const HookNotice: Story = {
+	args: {
+		messages: [
+			buildMessage(1, [
+				{ type: "text", text: "Deploy to production" },
+				{ type: "hook-notice", text: "Deployment prompts are audited." },
+			]),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("button", {
+			name: "Lifecycle hook notice: Deployment prompts are audited.",
+		});
+		await userEvent.tab();
+		expect(trigger).toHaveFocus();
+		const tooltip = await within(document.body).findByRole("tooltip");
+		expect(tooltip).toHaveTextContent("Deployment prompts are audited.");
+	},
+};

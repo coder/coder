@@ -55,6 +55,10 @@ injected until the agent manifest is refetched, which happens on workspace
 restart. Disabling does not remove a file that was already written; the same
 "Coder never deletes secret files" rule below applies.
 
+Coder controls where a secret is delivered, not whether it is still valid.
+Changing or deleting a secret in Coder does not revoke a credential that a workspace has already received.
+If a credential is exposed, rotate or revoke it in the system that issued it.
+
 ### Environment variable secrets
 
 Coder injects environment variable secrets into every new shell, terminal,
@@ -95,9 +99,10 @@ the existing permissions alone.
 > a terminal in your workspace and run `rm <path>`. Rebuilding the workspace
 > may clear stale files when your template recreates the filesystem.
 
-If you set two file secrets that resolve to the same absolute path (for
-example `~/config` and `/home/coder/config`), only one of them ends up on
-disk; the workspace agent logs a warning to help spot this. Use
+Coder rejects a second secret that uses a file path you already use. Two
+different paths can still resolve to the same absolute path (for example
+`~/config` and `/home/coder/config`). Coder accepts both, but only one of them
+ends up on disk; the workspace agent logs a warning to help spot this. Use
 distinct paths to avoid the collision.
 
 ## Limits
@@ -217,6 +222,23 @@ want to store a trailing newline:
 echo -n "$API_KEY" | coder secret create api-key --env API_KEY
 ```
 
+### Import multiple secrets from a file
+
+Use `coder secret import <file>` to create a secret for every key in a dotenv,
+JSON, or YAML file. The format is inferred from the file extension. Pass `-`
+to read from non-interactive stdin, which requires `--input-format`:
+
+```sh
+coder secret import ./secrets.env
+
+coder secret import - --input-format yaml < ./secrets.yaml
+```
+
+The import is all or nothing and never overwrites existing secrets. Keys that
+are valid environment variable names are injected under the same name; other
+keys are imported without an environment variable target. For details, see
+[`coder secret import`](../reference/cli/secret_import.md).
+
 ### Create a disabled secret
 
 An enabled secret must set `--env`, `--file`, or both. To store a secret
@@ -245,6 +267,12 @@ coder secret update api-key --env NEW_API_KEY
 # request that clears the last target of an enabled secret is rejected.
 coder secret update api-key --file ""
 ```
+
+Environment variable names and file paths are unique among your own secrets.
+Coder rejects an update that uses an environment variable name or file path that another of your secrets already uses.
+
+Clearing a target frees it for your other secrets to use.
+If another secret takes it, setting the original target back is rejected until you free it again.
 
 ### Enable and disable a secret
 
@@ -281,6 +309,42 @@ can see which secrets are currently injected.
 
 See [How your secrets reach a workspace](#how-your-secrets-reach-a-workspace)
 for what happens to running workspaces when you delete a secret.
+
+## Import secrets from a file
+
+If you keep secrets in a dotenv file, a flat JSON object, or a flat YAML
+mapping, you can import the whole file instead of creating each secret
+individually:
+
+1. Go to the [**Secrets** page](#manage-secrets-from-the-dashboard) and select
+   **Add secret**.
+1. Drop or select a `.env`, `.json`, `.yaml`, or `.yml` file in the upload
+   area. Coder imports the file as soon as you choose it.
+
+Every key in the file becomes a secret. For example, this dotenv file creates
+two secrets, `API_KEY` and `DATABASE_URL`, each injected as an environment
+variable of the same name:
+
+```sh
+API_KEY=abc123
+DATABASE_URL=postgres://user:pass@db.internal/app
+```
+
+In JSON and YAML files, every value must be a string. Quote numeric and
+boolean values, for example `"PORT": "8080"`.
+
+The import is all or nothing. If any entry fails validation, conflicts with
+an existing secret, or exceeds a [limit](#limits), Coder cancels the import
+and creates no secrets. The file must also be 1 MiB or smaller and contain no
+more than 50 keys.
+
+Keys that are not valid environment variable names, such as `MY-TOKEN` or the
+reserved name `PATH`, are imported without an environment variable target.
+They are not injected into workspaces until you add a valid environment
+variable or file target.
+
+To import secrets programmatically, use the
+[Secrets API](../reference/api/secrets.md#import-user-secrets-from-a-file).
 
 For full command details, see [`coder secret`](../reference/cli/secret.md) and
 the [Secrets API reference](../reference/api/secrets.md).

@@ -162,7 +162,7 @@ AI GATEWAY OPTIONS:
           this option seeds provider configuration at startup only exactly once.
           It will not be used in service runtime. The AWS Bedrock API region to
           use. Constructs a base URL to use for the AWS Bedrock API in the form
-          of 'https://bedrock-runtime.<region>.amazonaws.com'.
+          of `https://bedrock-runtime.<region>.amazonaws.com`.
 
       --ai-gateway-bedrock-small-fastmodel string, $CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL (default: global.anthropic.claude-haiku-4-5-20251001-v1:0)
           Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
@@ -800,6 +800,12 @@ OIDC OPTIONS:
 
       --oidc-name-field string, $CODER_OIDC_NAME_FIELD (default: name)
           OIDC claim field to use as the name.
+
+      --oidc-redirect-url url, $CODER_OIDC_REDIRECT_URL
+          Optional override of the default redirect url which uses the
+          deployment's access url. Useful in situations where a deployment has
+          more than 1 domain. Using this setting can also break OIDC, so use
+          with caution.
 
       --oidc-group-regex-filter regexp, $CODER_OIDC_GROUP_REGEX_FILTER (default: .*)
           If provided any group name not matching the regex is ignored. This

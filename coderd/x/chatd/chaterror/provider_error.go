@@ -1,9 +1,12 @@
 package chaterror
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
+	"mime"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -53,13 +56,24 @@ func providerErrorDetail(providerErr *fantasy.ProviderError) string {
 // and headers. It understands both the top-level `{"message":...}` shape
 // used by many providers and the nested `{"error":{"message":...}}`
 // envelope. When the extracted message is itself an SDK-formatted transport
-// error wrapper, the clean inner provider message is returned.
+// error wrapper, the clean inner provider message is returned. For
+// non-JSON text/plain bodies (e.g. aibridge's budget errors) it returns
+// the trimmed first line of the body; the result surfaces in the
+// user-facing detail, so other content types (proxy HTML, opaque bodies)
+// and valid JSON without an extractable message yield nothing.
 func providerErrorResponseMessage(responseDump []byte) string {
 	if len(responseDump) == 0 || len(responseDump) > 64*1024 {
 		return ""
 	}
-	body := providerErrorResponseBody(responseDump)
-	return unwrapTransportErrorMessage(jsonErrorMessage(body))
+	body, textPlain := readResponseDump(responseDump)
+	if msg := unwrapTransportErrorMessage(jsonErrorMessage(body)); msg != "" {
+		return msg
+	}
+	if !textPlain || json.Valid(body) {
+		return ""
+	}
+	line, _, _ := strings.Cut(strings.TrimSpace(string(body)), "\n")
+	return strings.TrimSpace(line)
 }
 
 // unwrapTransportErrorMessage extracts the clean provider message from an
@@ -115,14 +129,25 @@ func jsonErrorMessage(body []byte) string {
 	return strings.TrimSpace(env.Message)
 }
 
-func providerErrorResponseBody(responseDump []byte) []byte {
-	if _, body, ok := bytes.Cut(responseDump, []byte("\r\n\r\n")); ok {
-		return body
+// readResponseDump parses a dumped HTTP response into its body, removing
+// the status line, headers, and any chunk framing, and reports whether the
+// response declares Content-Type text/plain (ignoring media-type
+// parameters such as charset). Payloads that do not parse as an HTTP
+// response, such as the raw message fantasy's Google adapter stores in
+// ResponseBody, are returned whole.
+func readResponseDump(responseDump []byte) (body []byte, textPlain bool) {
+	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(responseDump)), nil)
+	if err != nil {
+		return responseDump, false
 	}
-	if _, body, ok := bytes.Cut(responseDump, []byte("\n\n")); ok {
-		return body
+	defer resp.Body.Close()
+	// The caller already bounds dumps at 64KB.
+	body, err = io.ReadAll(resp.Body)
+	if err != nil {
+		return responseDump, false
 	}
-	return responseDump
+	mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	return body, err == nil && mediaType == "text/plain"
 }
 
 func retryAfterFromHeaders(headers map[string]string) time.Duration {

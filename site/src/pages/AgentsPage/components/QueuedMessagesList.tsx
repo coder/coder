@@ -2,6 +2,7 @@ import {
 	ArrowUpIcon,
 	CornerDownLeftIcon,
 	ImageIcon,
+	InfoIcon,
 	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
@@ -34,34 +35,32 @@ interface QueuedMessageInfo {
 	rawText: string;
 	attachmentCount: number;
 	fileBlocks: readonly ChatMessagePart[];
+	hookNotices: string[];
 }
 
 export const getQueuedMessageInfo = (
 	message: ChatQueuedMessage,
 ): QueuedMessageInfo => {
-	const { content } = message;
-	const fileBlocks = content.filter((p) => p.type === "file");
+	const fileBlocks: ChatMessagePart[] = [];
 	const textParts: string[] = [];
-	for (const part of content) {
-		if (part.type === "text" && part.text.trim()) {
+	const hookNotices: string[] = [];
+	for (const part of message.content) {
+		if (part.type === "file") {
+			fileBlocks.push(part);
+		} else if (part.type === "text" && part.text?.trim()) {
 			textParts.push(part.text);
+		} else if (part.type === "hook-notice" && part.text?.trim()) {
+			hookNotices.push(part.text);
 		}
 	}
 	const rawText = textParts.join(" ").trim();
 
-	if (rawText) {
-		return {
-			displayText: rawText,
-			rawText,
-			attachmentCount: fileBlocks.length,
-			fileBlocks,
-		};
-	}
 	return {
-		displayText: "[Queued message]",
-		rawText: "",
+		displayText: rawText || "[Queued message]",
+		rawText,
 		attachmentCount: fileBlocks.length,
 		fileBlocks,
+		hookNotices,
 	};
 };
 
@@ -74,7 +73,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	className,
 }) => {
 	const items = messages.map((message) => {
-		const { displayText, rawText, attachmentCount, fileBlocks } =
+		const { displayText, rawText, attachmentCount, fileBlocks, hookNotices } =
 			getQueuedMessageInfo(message);
 		return {
 			id: message.id,
@@ -82,6 +81,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 			rawText,
 			attachmentCount,
 			fileBlocks,
+			hookNotices,
 		};
 	});
 
@@ -213,6 +213,22 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 									<ImageIcon className="size-3" aria-hidden="true" />
 									<span aria-hidden="true">{item.attachmentCount}</span>
 								</span>
+							)}
+							{item.hookNotices.length > 0 && (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<button
+											type="button"
+											aria-label={`Lifecycle hook notice: ${item.hookNotices.join(" ")}`}
+											className="flex shrink-0 cursor-default items-center border-none bg-transparent p-0 text-highlight-sky"
+										>
+											<InfoIcon className="size-3" aria-hidden="true" />
+										</button>
+									</TooltipTrigger>
+									<TooltipContent side="top">
+										{item.hookNotices.join(" ")}
+									</TooltipContent>
+								</Tooltip>
 							)}
 							{isFirst && (
 								<span

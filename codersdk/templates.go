@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -69,14 +68,15 @@ type Template struct {
 	CORSBehavior         CORSBehavior                 `json:"cors_behavior"`
 
 	UseClassicParameterFlow bool `json:"use_classic_parameter_flow"`
+	AgentsAllowed           bool `json:"agents_allowed"`
 
 	// DisableModuleCache disables the use of cached Terraform modules during
 	// provisioning.
 	DisableModuleCache bool `json:"disable_module_cache"`
 
 	// AllowWorkspaceRenames permits users to rename workspaces built from this
-	// template. Renaming is destructive for templates whose Terraform
-	// references the workspace name in a resource identifier.
+	// template. Renaming can be destructive for templates whose Terraform
+	// references the workspace name.
 	AllowWorkspaceRenames bool `json:"allow_workspace_renames"`
 }
 
@@ -288,9 +288,12 @@ type UpdateTemplateMeta struct {
 	// DisableModuleCache disables the using of cached Terraform modules during
 	// provisioning. It is recommended not to disable this.
 	DisableModuleCache *bool `json:"disable_module_cache,omitempty"`
+	// AgentsAllowed controls whether Coder Agents can create workspaces using
+	// this template. If omitted, the current value is preserved.
+	AgentsAllowed *bool `json:"agents_allowed,omitempty"`
 	// AllowWorkspaceRenames permits users to rename workspaces built from this
-	// template. Renaming is destructive for templates whose Terraform
-	// references the workspace name in a resource identifier.
+	// template. Renaming can be destructive for templates whose Terraform
+	// references the workspace name.
 	AllowWorkspaceRenames *bool `json:"allow_workspace_renames,omitempty"`
 }
 
@@ -315,7 +318,7 @@ func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, er
 		return Template{}, ReadBodyAsError(res)
 	}
 	var resp Template
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) ArchiveTemplateVersions(ctx context.Context, template uuid.UUID, all bool) (ArchiveTemplateVersionsResponse, error) {
@@ -333,7 +336,7 @@ func (c *Client) ArchiveTemplateVersions(ctx context.Context, template uuid.UUID
 		return ArchiveTemplateVersionsResponse{}, ReadBodyAsError(res)
 	}
 	var resp ArchiveTemplateVersionsResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 //nolint:revive
@@ -378,7 +381,7 @@ func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, r
 		return Template{}, ReadBodyAsError(res)
 	}
 	var updated Template
-	return updated, json.NewDecoder(res.Body).Decode(&updated)
+	return updated, ReadBodyAsJSON(res, &updated)
 }
 
 func (c *Client) UpdateTemplateACL(ctx context.Context, templateID uuid.UUID, req UpdateTemplateACL) error {
@@ -414,7 +417,7 @@ func (c *Client) TemplateACLAvailable(ctx context.Context, templateID uuid.UUID,
 		return ACLAvailable{}, ReadBodyAsError(res)
 	}
 	var acl ACLAvailable
-	return acl, json.NewDecoder(res.Body).Decode(&acl)
+	return acl, ReadBodyAsJSON(res, &acl)
 }
 
 func (c *Client) TemplateACL(ctx context.Context, templateID uuid.UUID) (TemplateACL, error) {
@@ -427,7 +430,7 @@ func (c *Client) TemplateACL(ctx context.Context, templateID uuid.UUID) (Templat
 		return TemplateACL{}, ReadBodyAsError(res)
 	}
 	var acl TemplateACL
-	return acl, json.NewDecoder(res.Body).Decode(&acl)
+	return acl, ReadBodyAsJSON(res, &acl)
 }
 
 // UpdateActiveTemplateVersion updates the active template version to the ID provided.
@@ -467,7 +470,7 @@ func (c *Client) TemplateVersionsByTemplate(ctx context.Context, req TemplateVer
 		return nil, ReadBodyAsError(res)
 	}
 	var templateVersion []TemplateVersion
-	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
+	return templateVersion, ReadBodyAsJSON(res, &templateVersion)
 }
 
 // TemplateVersionByName returns a template version by it's friendly name.
@@ -482,7 +485,7 @@ func (c *Client) TemplateVersionByName(ctx context.Context, template uuid.UUID, 
 		return TemplateVersion{}, ReadBodyAsError(res)
 	}
 	var templateVersion TemplateVersion
-	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
+	return templateVersion, ReadBodyAsJSON(res, &templateVersion)
 }
 
 func (c *Client) TemplateDAUsLocalTZ(ctx context.Context, templateID uuid.UUID) (*DAUsResponse, error) {
@@ -505,7 +508,7 @@ func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID, tzOffse
 	}
 
 	var resp DAUsResponse
-	return &resp, json.NewDecoder(res.Body).Decode(&resp)
+	return &resp, ReadBodyAsJSON(res, &resp)
 }
 
 // AgentStatsReportRequest is a WebSocket request by coderd
@@ -541,7 +544,7 @@ func (c *Client) StarterTemplates(ctx context.Context) ([]TemplateExample, error
 		return nil, ReadBodyAsError(res)
 	}
 	var templateExamples []TemplateExample
-	return templateExamples, json.NewDecoder(res.Body).Decode(&templateExamples)
+	return templateExamples, ReadBodyAsJSON(res, &templateExamples)
 }
 
 type InvalidatePresetsResponse struct {
@@ -572,5 +575,5 @@ func (c *Client) InvalidateTemplatePresets(ctx context.Context, template uuid.UU
 	}
 
 	var response InvalidatePresetsResponse
-	return response, json.NewDecoder(res.Body).Decode(&response)
+	return response, ReadBodyAsJSON(res, &response)
 }

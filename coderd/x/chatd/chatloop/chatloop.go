@@ -73,10 +73,10 @@ type PersistedStep struct {
 	Content      []fantasy.Content
 	Usage        fantasy.Usage
 	ContextLimit sql.NullInt64
-	// Runtime is the wall-clock duration of this step,
-	// covering LLM streaming, tool execution, and retries.
-	// Zero indicates the duration was not measured (e.g.
-	// interrupted steps).
+	// Runtime is the wall-clock duration of the model invocation
+	// that produced this step's content, measured from just before
+	// the provider stream is opened until the stream is fully
+	// consumed.
 	Runtime time.Duration
 	// PendingDynamicToolCalls lists tool calls that target
 	// dynamic tools. When non-empty the chatloop exits with
@@ -219,6 +219,11 @@ type GenerateAssistantOptions struct {
 	ProviderOptions      fantasy.ProviderOptions
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+	// OnModelStreamStart runs immediately before the provider stream is
+	// opened, at the instant PersistedStep.Runtime starts measuring. It
+	// lets callers record the billable window's start out of band, so an
+	// interrupted attempt bills the same window a completed step reports.
+	OnModelStreamStart func()
 	Logger             slog.Logger
 	Metrics            *Metrics
 }
@@ -274,6 +279,7 @@ type GenerateCompactionOptions struct {
 	ContextLimit         int64
 	ContextLimitFallback int64
 	SummaryPrompt        string
+	SummaryHint          string
 	SystemSummaryPrefix  string
 	StepUsage            fantasy.Usage
 	StepMetadata         fantasy.ProviderMetadata
@@ -304,6 +310,13 @@ type GenerateCompactionOptions struct {
 	ProviderOptions fantasy.ProviderOptions
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+
+	// Clock measures the summary call duration. Required.
+	Clock quartz.Clock
+
+	// OnModelStreamStart runs immediately before the summary model call,
+	// at the instant CompactionResult.Runtime starts measuring.
+	OnModelStreamStart func()
 }
 
 // ProviderTool pairs a provider-native tool definition with an
@@ -399,6 +412,9 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	}
 
 	stepStart := opts.Clock.Now()
+	if opts.OnModelStreamStart != nil {
+		opts.OnModelStreamStart()
+	}
 	stepCtx := chatdebug.ReuseStep(ctx)
 	attempt, streamErr := guardedStream(
 		stepCtx,

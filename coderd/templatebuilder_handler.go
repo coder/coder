@@ -555,6 +555,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 			MaxPortSharingLevel:          database.AppSharingLevelOwner,
 			UseClassicParameterFlow:      false,
 			CorsBehavior:                 database.CorsBehaviorSimple,
+			AgentsAllowed:                true,
 			AllowWorkspaceRenames:        false,
 		})
 		if err != nil {

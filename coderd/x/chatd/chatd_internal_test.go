@@ -187,7 +187,7 @@ func TestStoreSubagentReportSummary(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db}
+		server := &Server{db: db, pubsub: dbpubsub.NewInMemory()}
 		chat := database.Chat{
 			ID:             uuid.New(),
 			OwnerID:        uuid.New(),
@@ -216,7 +216,7 @@ func TestStoreSubagentReportSummary(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db}
+		server := &Server{db: db, pubsub: dbpubsub.NewInMemory()}
 		chat := database.Chat{
 			ID:             uuid.New(),
 			OwnerID:        uuid.New(),
@@ -237,7 +237,7 @@ func TestStoreSubagentReportSummary(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db}
+		server := &Server{db: db, pubsub: dbpubsub.NewInMemory()}
 		chat := database.Chat{
 			ID:             uuid.New(),
 			OwnerID:        uuid.New(),
@@ -268,7 +268,7 @@ func TestStoreSubagentReportSummary(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db}
+		server := &Server{db: db, pubsub: dbpubsub.NewInMemory()}
 		chat := database.Chat{
 			ID:             uuid.New(),
 			OwnerID:        uuid.New(),
@@ -3709,7 +3709,7 @@ func TestPrepareManualTitleDebugRun_RouteFailureDerivesProviderFromConfig(t *tes
 		allowBYOK: true,
 	}
 	debugSvc := chatdebug.NewService(db, logger, nil)
-	fallbackModel := &chattest.FakeModel{ProviderName: "stub", ModelName: "stub"}
+	fallbackModel := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "stub", ModelName: "stub"}, nil)
 
 	server.prepareManualTitleDebugRun(
 		ctx,

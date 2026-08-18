@@ -131,6 +131,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"cors_behavior":                     ActionTrack,
 		"disable_module_cache":              ActionTrack,
 		"time_til_autostop_notify":          ActionTrack,
+		"agents_allowed":                    ActionTrack,
 		"allow_workspace_renames":           ActionTrack,
 	},
 	&database.TemplateVersion{}: {
@@ -279,6 +280,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.PrebuildsSettings{}: {
 		"id":                    ActionIgnore,
 		"reconciliation_paused": ActionTrack,
+	},
+	&database.OAuth2ProviderSettings{}: {
+		"id":                                  ActionIgnore,
+		"dynamic_client_registration_enabled": ActionTrack,
 	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012

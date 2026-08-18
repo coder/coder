@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { useRef } from "react";
-import { Outlet } from "react-router";
+import { hashKey } from "react-query";
+import { Outlet, useNavigate } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
@@ -11,19 +11,22 @@ import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import {
 	chatDiffContentsKey,
-	chatKey,
+	chatEntityKey,
+	chatListKey,
 	chatMessagesKey,
 	chatModelConfigs,
 	chatModelsKey,
 	chatPromptsKey,
-	chatsKey,
-	mcpServerConfigsKey,
+	mcpServersKey,
+	toChatListParams,
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	MockChat,
 	MockChatMessage,
 	MockChatQueuedMessage,
+	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
@@ -32,6 +35,8 @@ import {
 	MockOrganizationMember2,
 	MockUserOwner,
 	MockWorkspace,
+	MockWorkspaceAgent,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -46,7 +51,6 @@ import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 // Layout wrapper: provides outlet context for the child route.
 // ---------------------------------------------------------------------------
 const AgentChatPageLayout: FC = () => {
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	return (
 		<div className="flex h-full">
 			<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -70,7 +74,6 @@ const AgentChatPageLayout: FC = () => {
 							onToggleSidebarCollapsed: () => {},
 							onExpandSidebar: () => {},
 							onChatReady: () => {},
-							scrollContainerRef,
 						} satisfies AgentsPageOutletContext
 					}
 				/>
@@ -83,7 +86,24 @@ const AgentChatPageLayout: FC = () => {
 // Shared mock data
 // ---------------------------------------------------------------------------
 const CHAT_ID = "chat-1";
+const SWITCHED_CHAT_ID = "chat-2";
 const MODEL_CONFIG_ID = "model-config-1";
+
+const AgentChatSwitchHarness: FC = () => {
+	const navigate = useNavigate();
+	return (
+		<>
+			<button
+				type="button"
+				className="sr-only"
+				onClick={() => navigate(`/agents/${SWITCHED_CHAT_ID}`)}
+			>
+				Switch chat
+			</button>
+			<AgentChatPageLayout />
+		</>
+	);
+};
 
 const mockWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
@@ -236,7 +256,10 @@ const buildChatAuthorizationQuery = (
 const buildQueries = (
 	chat: TypesGen.Chat,
 	messagesData: TypesGen.ChatMessagesResponse,
-	opts?: { diffUrl?: string },
+	opts?: {
+		diffUrl?: string;
+		mcpServers?: readonly TypesGen.MCPServerConfig[];
+	},
 ) => {
 	const diffStatus: TypesGen.ChatDiffStatus = {
 		chat_id: CHAT_ID,
@@ -253,7 +276,7 @@ const buildQueries = (
 		diff_status: diffStatus,
 	};
 	return [
-		{ key: chatKey(CHAT_ID), data: chatWithDiffStatus },
+		{ key: chatEntityKey(CHAT_ID), data: chatWithDiffStatus },
 		{
 			key: chatMessagesKey(CHAT_ID),
 			data: { pages: [messagesData], pageParams: [undefined] },
@@ -264,7 +287,10 @@ const buildQueries = (
 				prompts: extractPromptsFromMessages(messagesData.messages),
 			} satisfies TypesGen.ChatPromptsResponse,
 		},
-		{ key: chatsKey, data: [chatWithDiffStatus] },
+		{
+			key: chatListKey(toChatListParams()),
+			data: { pages: [[chatWithDiffStatus]], pageParams: [0] },
+		},
 		{
 			key: chatDiffContentsKey(CHAT_ID),
 			data: {
@@ -279,7 +305,7 @@ const buildQueries = (
 		},
 		{ key: chatModelsKey, data: mockModelCatalog },
 		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
-		{ key: mcpServerConfigsKey, data: [] },
+		{ key: mcpServersKey, data: opts?.mcpServers ?? [] },
 		buildChatAuthorizationQuery(chat, {
 			canShareChat: {
 				action: "share",
@@ -288,6 +314,11 @@ const buildQueries = (
 		}),
 	];
 };
+
+const withoutQuery = (
+	queries: ReturnType<typeof buildQueries>,
+	queryKey: readonly unknown[],
+) => queries.filter(({ key }) => hashKey(key) !== hashKey(queryKey));
 
 // ---------------------------------------------------------------------------
 // Every-tool showcase: a single completed assistant turn that exercises
@@ -1328,6 +1359,49 @@ export const Loading: Story = {
 	},
 };
 
+const capacityPollingChat: TypesGen.Chat = {
+	id: CHAT_ID,
+	...baseChatFields,
+	title: "Capacity polling",
+	status: "running",
+	queued_for_capacity: false,
+};
+
+export const QueuedForCapacityAfterPolling: Story = {
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(CHAT_ID), data: capacityPollingChat },
+			{
+				key: chatMessagesKey(CHAT_ID),
+				data: {
+					pages: [{ messages: [], queued_messages: [], has_more: false }],
+					pageParams: [undefined],
+				},
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue({
+			...capacityPollingChat,
+			queued_for_capacity: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByText(/This agent is queued and will start automatically/),
+		).not.toBeInTheDocument();
+
+		const callout = await canvas.findByRole("alert", undefined, {
+			timeout: 7_000,
+		});
+		expect(API.experimental.getChat).toHaveBeenCalledWith(CHAT_ID);
+		expect(callout).toHaveTextContent(
+			"This agent is queued and will start automatically when capacity is available.",
+		);
+	},
+};
+
 export const OtherUserChatReadOnly: Story = {
 	parameters: {
 		queries: buildQueries(
@@ -2179,6 +2253,76 @@ export const SidebarWithSingleRepo: Story = {
 		},
 	},
 };
+
+const rebuiltWorkspaceAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	id: "rebuilt-agent-1",
+};
+const rebuiltWorkspace: TypesGen.Workspace = {
+	...mockWorkspace,
+	latest_build: {
+		...mockWorkspace.latest_build,
+		id: "rebuilt-build-1",
+		resources: [
+			{
+				...mockWorkspace.latest_build.resources[0],
+				agents: [rebuiltWorkspaceAgent],
+			},
+		],
+	},
+};
+const rebuildRecoveryChat: TypesGen.Chat = {
+	id: CHAT_ID,
+	...baseChatFields,
+	agent_id: "stale-agent-1",
+	title: "Rebuild recovery",
+	status: "waiting",
+};
+
+export const RecoversSidebarAfterWorkspaceRebuild: Story = {
+	beforeEach: () => {
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		spyOn(API.experimental, "getChat").mockResolvedValue({
+			...rebuildRecoveryChat,
+			agent_id: rebuiltWorkspaceAgent.id,
+		});
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	},
+	parameters: {
+		queries: [
+			...withoutQuery(
+				buildQueries(
+					rebuildRecoveryChat,
+					{ messages: [], queued_messages: [], has_more: false },
+					{ diffUrl: undefined },
+				),
+				workspaceByIdKey(mockWorkspace.id),
+			),
+			{ key: workspaceByIdKey(mockWorkspace.id), data: rebuiltWorkspace },
+		],
+		webSocket: {
+			"watch-ws": [
+				{
+					event: "message",
+					data: JSON.stringify({
+						type: "data",
+						data: rebuiltWorkspace,
+					} satisfies TypesGen.ServerSentEvent),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const terminalTab = await canvas.findByRole(
+			"tab",
+			{ name: "Terminal" },
+			{ timeout: 5000 },
+		);
+		expect(terminalTab).toBeVisible();
+	},
+};
+
 /**
  * Streaming reasoning part via WebSocket, renders inline text.
  */
@@ -2222,6 +2366,143 @@ export const StreamedReasoning: Story = {
 // setTimeout(0) which resolves before the chat store subscribes.
 // This made the stories render empty chats and fail interaction
 // tests in both local and CI environments.
+
+const mockNewestMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 30,
+	role: "assistant",
+	content: [{ type: "text", text: "Newest message" }],
+};
+
+const mockOlderRevision: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 20,
+	role: "assistant",
+	content: [{ type: "text", text: "Old revision" }],
+};
+
+const mockFreshRevision: TypesGen.ChatMessage = {
+	...mockOlderRevision,
+	content: [{ type: "text", text: "Fresh revision" }],
+};
+
+export const DurableUpdateFansOutToOlderPage: Story = {
+	parameters: {
+		queries: [
+			...withoutQuery(
+				buildQueries(
+					{
+						id: CHAT_ID,
+						...baseChatFields,
+						title: "Fan-out chat",
+						status: "waiting",
+					},
+					{ messages: [], queued_messages: [], has_more: false },
+				),
+				chatMessagesKey(CHAT_ID),
+			),
+			{
+				key: chatMessagesKey(CHAT_ID),
+				data: {
+					pages: [
+						{
+							messages: [mockNewestMessage],
+							queued_messages: [],
+							has_more: true,
+						},
+						{
+							messages: [mockOlderRevision],
+							queued_messages: [],
+							has_more: false,
+						},
+					],
+					pageParams: [undefined, 30],
+				},
+			},
+		],
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: JSON.stringify([
+						{
+							type: "message",
+							chat_id: CHAT_ID,
+							message: mockFreshRevision,
+						},
+					] satisfies TypesGen.ChatStreamEvent[]),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Fresh revision")).toBeVisible();
+		await waitFor(() => {
+			expect(canvas.getAllByText("Fresh revision")).toHaveLength(1);
+		});
+		expect(canvas.queryByText("Old revision")).not.toBeInTheDocument();
+	},
+};
+
+/**
+ * The streamed thinking block is asserted via its disclosure header
+ * because smoothed body text never reveals in the test iframe
+ * (requestAnimationFrame is suspended).
+ */
+export const StreamedPartWhileStatusWaiting: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Stale status stream",
+				status: "waiting",
+			},
+			{
+				messages: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:05:00.000Z",
+						role: "user",
+						content: [{ type: "text", text: "Start the next turn" }],
+					},
+				],
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: JSON.stringify([
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "reasoning",
+									text: "Streaming while the chat still reads waiting",
+								},
+							},
+						},
+					] satisfies TypesGen.ChatStreamEvent[]),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Start the next turn");
+		// The disclosure header is the only "Thinking" text in the DOM
+		// at this point: the generic indicator is suppressed at status
+		// "waiting".
+		expect(await canvas.findByText("Thinking")).toBeVisible();
+	},
+};
 
 /**
  * Live agent turn with streaming reasoning and a back-to-back flurry of
@@ -2836,10 +3117,14 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 		await userEvent.click(editor);
 		await userEvent.keyboard("/compact");
 		// The menu offers only the personal skill (the built-in command
-		// yields); first Enter accepts it, second Enter submits.
-		expect(
-			await within(document.body).findByText("Personal compact skill"),
-		).toBeVisible();
+		// yields); first Enter accepts it, second Enter submits. The menu item
+		// exists before the popover finishes positioning, so wait for
+		// visibility rather than asserting it once.
+		await waitFor(() => {
+			expect(
+				within(document.body).getByText("Personal compact skill"),
+			).toBeVisible();
+		});
 		await userEvent.keyboard("{Enter}");
 		await userEvent.keyboard("{Enter}");
 
@@ -2847,5 +3132,471 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 			expect(sendSpy).toHaveBeenCalledTimes(1);
 		});
 		expect(compactSpy).not.toHaveBeenCalled();
+	},
+};
+
+const promotedQueueHeadChat: TypesGen.Chat = {
+	id: CHAT_ID,
+	...baseChatFields,
+	title: "Promoted queue head",
+	status: "error",
+};
+
+const promotedQueueHeadMessages: TypesGen.ChatMessagesResponse = {
+	messages: compactCommandMessages.messages,
+	queued_messages: [
+		{
+			...MockChatQueuedMessage,
+			id: 41,
+			chat_id: CHAT_ID,
+			content: [{ type: "text", text: "Queued head prompt" }],
+		},
+	],
+	has_more: false,
+};
+
+export const QueuedSendPromotesPreviousHead: Story = {
+	parameters: {
+		queries: buildQueries(promotedQueueHeadChat, promotedQueueHeadMessages, {
+			diffUrl: undefined,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const promotedHead: TypesGen.ChatMessage = {
+			...MockChatMessage,
+			id: 42,
+			chat_id: CHAT_ID,
+			role: "user",
+			created_at: "2024-01-01T00:01:00Z",
+			content: [{ type: "text", text: "Queued head prompt" }],
+		};
+		const followUp: TypesGen.ChatQueuedMessage = {
+			...MockChatQueuedMessage,
+			id: 43,
+			chat_id: CHAT_ID,
+			content: [{ type: "text", text: "Follow-up prompt" }],
+		};
+		const otherTabPrompt: TypesGen.ChatQueuedMessage = {
+			...MockChatQueuedMessage,
+			id: 44,
+			chat_id: CHAT_ID,
+			content: [{ type: "text", text: "Other tab prompt" }],
+		};
+		spyOn(API.experimental, "getChatMessages").mockResolvedValue({
+			...promotedQueueHeadMessages,
+			queued_messages: [followUp, otherTabPrompt],
+		});
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({
+			queued: true,
+			messages: [promotedHead],
+			queued_message: followUp,
+		});
+
+		expect(await canvas.findByText("Queued head prompt")).toBeVisible();
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Follow-up prompt");
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+
+		const timeline = within(await canvas.findByTestId("conversation-timeline"));
+		await waitFor(() => {
+			expect(timeline.getByText("Queued head prompt")).toBeVisible();
+			expect(canvas.getAllByText("Queued head prompt")).toHaveLength(1);
+			expect(canvas.getAllByText("Follow-up prompt")).toHaveLength(1);
+			expect(timeline.queryByText("Follow-up prompt")).not.toBeInTheDocument();
+			expect(canvas.getByText("Other tab prompt")).toBeVisible();
+			expect(timeline.queryByText("Other tab prompt")).not.toBeInTheDocument();
+		});
+		expect(await canvas.findByTestId("live-activity-slot")).toBeVisible();
+	},
+};
+
+const switchedChat: TypesGen.Chat = {
+	id: SWITCHED_CHAT_ID,
+	...baseChatFields,
+	title: "Switched chat",
+	status: "waiting",
+};
+
+const switchedChatMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 50,
+	chat_id: SWITCHED_CHAT_ID,
+	role: "assistant",
+	content: [{ type: "text", text: "Current chat message" }],
+};
+
+export const SendResponseAfterChatSwitch: Story = {
+	render: () => <AgentChatSwitchHarness />,
+	parameters: {
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Original chat",
+					status: "waiting",
+				},
+				{ messages: [], queued_messages: [], has_more: false },
+				{ diffUrl: undefined },
+			),
+			{ key: chatEntityKey(SWITCHED_CHAT_ID), data: switchedChat },
+			{
+				key: chatMessagesKey(SWITCHED_CHAT_ID),
+				data: {
+					pages: [
+						{
+							messages: [switchedChatMessage],
+							queued_messages: [],
+							has_more: false,
+						},
+					],
+					pageParams: [undefined],
+				},
+			},
+			{
+				key: chatPromptsKey(SWITCHED_CHAT_ID),
+				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
+			},
+			{
+				key: chatDiffContentsKey(SWITCHED_CHAT_ID),
+				data: { chat_id: SWITCHED_CHAT_ID } satisfies TypesGen.ChatDiffContents,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		let releaseSend: (() => void) | undefined;
+		const sendGate = new Promise<void>((resolve) => {
+			releaseSend = resolve;
+		});
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockImplementation(async () => {
+			await sendGate;
+			return {
+				queued: false,
+				message: {
+					...MockChatMessage,
+					id: 51,
+					chat_id: CHAT_ID,
+					role: "user",
+					content: [
+						{ type: "text", text: "Stale response from previous chat" },
+					],
+				},
+			};
+		});
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Send before switching");
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+
+		await userEvent.click(canvas.getByRole("button", { name: "Switch chat" }));
+		const timeline = within(await canvas.findByTestId("conversation-timeline"));
+		// The switched chat's messages render slowly under pixel's parallel
+		// load, so extend the default 1s lookup timeout.
+		expect(
+			await timeline.findByText("Current chat message", undefined, {
+				timeout: 10_000,
+			}),
+		).toBeVisible();
+
+		releaseSend?.();
+		await waitFor(() => {
+			expect(
+				timeline.queryByText("Stale response from previous chat"),
+			).not.toBeInTheDocument();
+			expect(
+				canvas.queryByTestId("live-activity-slot"),
+			).not.toBeInTheDocument();
+		});
+	},
+};
+
+export const RemoveLastMCPServer: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Remove last MCP server",
+				status: "waiting",
+				mcp_server_ids: [MockMCPServerConfig.id],
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{
+				diffUrl: undefined,
+				mcpServers: [MockMCPServerConfig],
+			},
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({ queued: false });
+
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Remove MCP Server" }),
+		);
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Send without MCP tools");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(sendSpy).toHaveBeenCalledWith(
+			CHAT_ID,
+			expect.objectContaining({
+				mcp_server_ids: [],
+			}),
+		);
+	},
+};
+
+/**
+ * The send flow renders the durable user row once the server accepts the
+ * prompt, before the assistant turn produces any output.
+ */
+export const SendRendersDurableUserRowBeforeAssistantOutput: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Durable send",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		let releaseSend: (() => void) | undefined;
+		const sendGate = new Promise<void>((resolve) => {
+			releaseSend = resolve;
+		});
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockImplementation(async () => {
+			await sendGate;
+			return {
+				queued: false,
+				message: {
+					...MockChatMessage,
+					id: 60,
+					chat_id: CHAT_ID,
+					role: "user",
+					content: [{ type: "text", text: "Durable prompt" }],
+				},
+			};
+		});
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Durable prompt");
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+
+		const timeline = within(await canvas.findByTestId("conversation-timeline"));
+		expect(
+			timeline.queryByTestId("chat-message-message:60"),
+		).not.toBeInTheDocument();
+
+		releaseSend?.();
+		expect(
+			await timeline.findByTestId("chat-message-message:60"),
+		).toHaveTextContent("Durable prompt");
+		// The turn is still waiting on its first chunk, so the durable row is in
+		// place before any assistant output exists.
+		expect(canvas.getByTestId("live-activity-slot")).toBeVisible();
+	},
+};
+
+const mockErrorChat: TypesGen.Chat = {
+	...MockChat,
+	id: CHAT_ID,
+	...baseChatFields,
+	title: "Failing chat",
+};
+
+const mockServerError = {
+	...mockApiError({ message: "Internal server error." }),
+	status: 500,
+};
+
+export const DetailQueryError: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
+			chatEntityKey(CHAT_ID),
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockRejectedValue(mockServerError);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Failed to load chat")).toBeVisible();
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+		expect(
+			canvas.getByRole("button", { name: "Try again" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const InitialMessagesError: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
+			chatMessagesKey(CHAT_ID),
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatMessages").mockRejectedValue(
+			mockServerError,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Failed to load chat")).toBeVisible();
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+	},
+};
+
+export const ErrorRetryRecovers: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
+			chatEntityKey(CHAT_ID),
+		),
+	},
+	beforeEach: ({ parameters }) => {
+		const getChatSpy = spyOn(API.experimental, "getChat")
+			.mockRejectedValueOnce(mockServerError)
+			.mockResolvedValue(mockErrorChat);
+		parameters.getChatCallsForChat = () =>
+			getChatSpy.mock.calls.filter(([chatId]) => chatId === CHAT_ID).length;
+	},
+	play: async ({ canvasElement, parameters }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Failed to load chat")).toBeVisible();
+		await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
+		await waitFor(() => {
+			expect(canvas.queryByText("Failed to load chat")).not.toBeInTheDocument();
+		});
+		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+		expect(parameters.getChatCallsForChat()).toBeGreaterThanOrEqual(2);
+	},
+};
+
+export const ChatNotFound: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(mockErrorChat, {
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			}),
+			chatEntityKey(CHAT_ID),
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockRejectedValue({
+			...mockApiError({ message: "Chat not found." }),
+			status: 404,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Chat not found")).toBeVisible();
+		expect(canvas.queryByText("Failed to load chat")).not.toBeInTheDocument();
+	},
+};
+
+export const SendRejectedByHookDispatchFailure: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Hook failure",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "createChatMessage").mockRejectedValue({
+			isAxiosError: true,
+			response: {
+				status: 502,
+				data: {
+					message: "Lifecycle hook dispatch failed.",
+					detail: "Dispatch 0f2c1f3e timed out after 1.5s.",
+					kind: "hook_dispatch_failed",
+				},
+			},
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Trigger the hook failure");
+		await userEvent.keyboard("{Enter}");
+
+		expect(await canvas.findByText("Lifecycle hook failed")).toBeVisible();
+		expect(
+			await canvas.findByText("Dispatch 0f2c1f3e timed out after 1.5s."),
+		).toBeVisible();
+		expect(canvas.queryByText("Request failed")).not.toBeInTheDocument();
 	},
 };

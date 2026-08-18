@@ -93,6 +93,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	}
 
 	chat, err := db.InsertChat(genCtx, database.InsertChatParams{
+		ID:                uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
 		OrganizationID:    takeFirst(seed.OrganizationID, uuid.New()),
 		OwnerID:           takeFirst(seed.OwnerID, uuid.New()),
 		WorkspaceID:       seed.WorkspaceID,
@@ -140,12 +141,11 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		CacheReadTokens:     []int64{seed.CacheReadTokens.Int64},
 		ContextLimit:        []int64{seed.ContextLimit.Int64},
 		Compressed:          []bool{seed.Compressed},
-		TotalCostMicros:     []int64{seed.TotalCostMicros.Int64},
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
-	return msgs[0]
+	return database.ChatMessage(msgs[0])
 }
 
 const (
@@ -555,6 +555,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, database.AppSharingLevelOwner),
 		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, false),
 		CorsBehavior:                 takeFirst(seed.CorsBehavior, database.CorsBehaviorSimple),
+		AgentsAllowed:                seed.AgentsAllowed,
 		AllowWorkspaceRenames:        seed.AllowWorkspaceRenames,
 	})
 	require.NoError(t, err, "insert template")
@@ -1733,7 +1734,7 @@ func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2Prov
 		Icon:                    takeFirst(seed.Icon, ""),
 		CallbackURL:             takeFirst(seed.CallbackURL, "http://localhost"),
 		RedirectUris:            takeFirstSlice(seed.RedirectUris, []string{}),
-		ClientType:              takeFirst(seed.ClientType, sql.NullString{String: "confidential", Valid: true}),
+		ClientType:              takeFirst(seed.ClientType, "confidential"),
 		DynamicallyRegistered:   takeFirst(seed.DynamicallyRegistered, sql.NullBool{Bool: false, Valid: true}),
 		ClientIDIssuedAt:        takeFirst(seed.ClientIDIssuedAt, sql.NullTime{}),
 		ClientSecretExpiresAt:   takeFirst(seed.ClientSecretExpiresAt, sql.NullTime{}),
@@ -1784,22 +1785,29 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 		CodeChallengeMethod: seed.CodeChallengeMethod,
 		StateHash:           seed.StateHash,
 		RedirectUri:         seed.RedirectUri,
+		Scope:               takeFirst(seed.Scope, string(database.ApiKeyScopeCoderAll)),
 	})
 	require.NoError(t, err, "insert oauth2 app code")
 	return code
 }
 
 func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth2ProviderAppToken) database.OAuth2ProviderAppToken {
+	require.NotEqual(t, uuid.Nil, seed.AppID, "An app id is required to use 'dbgen.OAuth2ProviderAppToken', use 'dbgen.OAuth2ProviderApp'.")
 	token, err := db.InsertOAuth2ProviderAppToken(genCtx, database.InsertOAuth2ProviderAppTokenParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
 		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
 		ExpiresAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
 		HashPrefix:  takeFirstSlice(seed.HashPrefix, []byte("prefix")),
 		RefreshHash: takeFirstSlice(seed.RefreshHash, []byte("hashed-secret")),
-		AppSecretID: takeFirst(seed.AppSecretID, uuid.New()),
+		AppID:       seed.AppID,
+		// Public (secretless) clients reference no secret, so a zero-value
+		// NullUUID is passed through as NULL rather than defaulted. takeFirst
+		// cannot express that, since NULL is its "unset" sentinel.
+		AppSecretID: seed.AppSecretID,
 		APIKeyID:    takeFirst(seed.APIKeyID, uuid.New().String()),
 		UserID:      takeFirst(seed.UserID, uuid.New()),
 		Audience:    seed.Audience,
+		Scope:       takeFirst(seed.Scope, string(database.ApiKeyScopeCoderAll)),
 	})
 	require.NoError(t, err, "insert oauth2 app token")
 	return token

@@ -28,6 +28,7 @@ func baselineTemplate() database.Template {
 		AllowUserAutostart:            false,
 		AllowUserAutostop:             false,
 		AllowUserCancelWorkspaceJobs:  false,
+		AgentsAllowed:                 true,
 		RequireActiveVersion:          true,
 		DefaultTTL:                    int64(60 * 60 * 1000 * 1000 * 1000),  // 1 hour in ns
 		ActivityBump:                  int64(30 * 60 * 1000 * 1000 * 1000),  // 30 minutes in ns
@@ -82,6 +83,7 @@ func baselineResolved() templateMetaUpdate {
 		allowUserAutostart:                   tpl.AllowUserAutostart,
 		allowUserAutostop:                    tpl.AllowUserAutostop,
 		allowUserCancelWorkspaceJobs:         tpl.AllowUserCancelWorkspaceJobs,
+		agentsAllowed:                        tpl.AgentsAllowed,
 		requireActiveVersion:                 tpl.RequireActiveVersion,
 		deprecationMessage:                   tpl.Deprecated,
 		useClassicTemplateFlow:               tpl.UseClassicParameterFlow,
@@ -225,6 +227,13 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			req:  codersdk.UpdateTemplateMeta{AllowUserCancelWorkspaceJobs: ptr.Ref(true)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.allowUserCancelWorkspaceJobs = true
+			}},
+		},
+		{
+			name: "AgentsAllowed",
+			req:  codersdk.UpdateTemplateMeta{AgentsAllowed: ptr.Ref(false)},
+			expected: expected{override: func(r *templateMetaUpdate) {
+				r.agentsAllowed = false
 			}},
 		},
 		{
