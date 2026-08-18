@@ -2,7 +2,6 @@ import { useFormik } from "formik";
 import type { FC, ReactNode } from "react";
 import * as Yup from "yup";
 import type { Group } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { IconField } from "#/components/IconField/IconField";
@@ -93,7 +92,12 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 							"Members without a budget from another group won't have AI access.",
 					}
 				: {
-						summary: "This group's limit has been set to $0.",
+						summary: (
+							<>
+								This group's limit has been set to{" "}
+								<span className="font-medium text-content-primary">$0</span>.
+							</>
+						),
 						message: "A $0 limit disables AI access for this group.",
 					};
 		return (
@@ -101,9 +105,9 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 				<span className="text-left text-xs text-content-secondary">
 					{summary}
 				</span>
-				<Alert severity="info">
+				<span className="text-left text-xs text-content-secondary">
 					{message} <BudgetDocsLink />
-				</Alert>
+				</span>
 			</>
 		);
 	}

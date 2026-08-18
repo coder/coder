@@ -95,9 +95,10 @@ export const AIBudgetDisabled: Story = {
 		await expect(canvas.getByLabelText("Monthly limit per member")).toHaveValue(
 			0,
 		);
-		await expect(
-			canvas.getByText("This group's limit has been set to $0."),
-		).toBeInTheDocument();
+		const summary = canvas.getByText(/This group's limit has been set to/);
+		await expect(summary).toHaveTextContent(
+			"This group's limit has been set to $0.",
+		);
 		await expect(
 			canvas.getByText(/A \$0 limit disables AI access for this group/),
 		).toBeInTheDocument();
