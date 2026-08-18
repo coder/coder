@@ -462,6 +462,48 @@ automatically set `forced`; it records the administrator's declared value. A
 boot failure reports degraded and starts no guest, rather than falling back to
 an unenforced path.
 
+### The `coder agent sandbox` subcommand
+
+Templates may declare the sandbox topology in Terraform instead of relying on
+the managed reconciliation modes. Two agents are declared: a host agent for
+the human workspace, and an `ai_bound` agent with `egress_enforcement` set by
+the administrator. A `coder_script` on the host agent daemonizes
+`coder agent sandbox`, which boots the embedded microVM and launches the AI
+agent inside it with the declared agent's token. Both agents exist and are
+visible from build completion, independent of sandbox runtime success.
+
+Inputs, each flag with an environment fallback:
+
+| Flag             | Environment                 | Default                            |
+|------------------|-----------------------------|------------------------------------|
+| `--agent-token`  | `CODER_SANDBOX_AGENT_TOKEN` | required; the AI agent's token     |
+| `--agent-url`    | `CODER_AGENT_URL`           | required                           |
+| `--policy-token` | `CODER_AGENT_TOKEN`         | required; host credential          |
+| `--image`        | `CODER_SANDBOX_IMAGE`       | `ubuntu:24.04`                     |
+| `--name`         | `CODER_SANDBOX_NAME`        | `sandbox`                          |
+| `--cpus`         | `CODER_SANDBOX_CPUS`        | `1`                                |
+| `--memory-mib`   | `CODER_SANDBOX_MEMORY_MIB`  | `1024`                             |
+| `--cache-dir`    | `CODER_SANDBOX_CACHE_DIR`   | `~/.config/coder-ai/microvm/cache` |
+| `--state-dir`    | `CODER_SANDBOX_STATE_DIR`   | `~/.config/coder-ai/microvm/state` |
+
+The policy credential is the host agent's session token, which the script
+runner already exports as `CODER_AGENT_TOKEN` to startup scripts. The command
+fetches the initial egress policy and subscribes to SSE revisions with that
+credential, feeding the shared policy engine that the in-process proxy
+evaluates. Policy fetch failure fails closed: the engine starts deny-default
+and the boot proceeds with loud logging.
+
+Lifecycle: the command runs in the foreground until SIGINT or SIGTERM, then
+closes the microVM with a bounded sixty-second timeout. Boot failure exits
+non-zero with a specific error; unsupported platforms fail at command start.
+Egress decisions are logged locally in structured form. This flow has no
+server-side event retention path; retained sandbox network events remain
+exclusive to the managed modes.
+
+The managed create-script, embedded managed, and proxy-only modes remain
+supported unchanged. Template guidance prefers the declared two-agent model
+because agent visibility does not depend on runtime reconciliation.
+
 ### Proxy access control
 
 This is a requirement the shape reduction introduces, and it is easy to
