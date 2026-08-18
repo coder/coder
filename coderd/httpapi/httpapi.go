@@ -259,11 +259,15 @@ func ReadLimit(ctx context.Context, rw http.ResponseWriter, r *http.Request, lim
 
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
-		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-			RecordRequestBodyLimit(r.Context(), limit)
+		// Report the limit the error carries, not the one this call installed.
+		// Nested readers compose as tightest-wins and the error carries the
+		// winner, so a caller that wrapped r.Body tighter would otherwise be
+		// told a limit far looser than the one that rejected it.
+		if mbe, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			RecordRequestBodyLimit(r.Context(), mbe.Limit)
 			Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "Request body too large.",
-				Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", limit),
+				Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", mbe.Limit),
 			})
 			return false
 		}

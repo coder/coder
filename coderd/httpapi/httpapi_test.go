@@ -312,6 +312,53 @@ func TestReadLimit(t *testing.T) {
 		require.False(t, httpapi.ReadLimit(ctx, rw, r, limit, &v))
 		require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
 	})
+
+	// A caller that installs its own reader is doing what the docstring
+	// forbids, but the number reported must still be the one that rejected the
+	// request. Nested readers compose as tightest-wins, so reporting the limit
+	// this call installed would tell the client and the log a cap that is not
+	// the one it hit.
+	t.Run("ReportsLimitThatTripped", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			tight = 1024
+			loose = 1 << 20
+		)
+
+		for _, tc := range []struct {
+			name       string
+			callerWrap int64
+			readLimit  int64
+		}{
+			{name: "CallerWrapsTighter", callerWrap: tight, readLimit: loose},
+			{name: "CallerWrapsLooser", callerWrap: loose, readLimit: tight},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctrl := gomock.NewController(t)
+				requestLogger := loggermock.NewMockRequestLogger(ctrl)
+				requestLogger.EXPECT().
+					WithFields(slog.F("max_request_body_bytes", int64(tight))).
+					Times(1)
+
+				ctx := loggermw.WithRequestLogger(context.Background(), requestLogger)
+				rw := httptest.NewRecorder()
+				r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(jsonBodyOfSize(tight+1))).WithContext(ctx)
+				r.Body = http.MaxBytesReader(rw, r.Body, tc.callerWrap)
+
+				var v readBody
+				require.False(t, httpapi.ReadLimit(ctx, rw, r, tc.readLimit, &v))
+				require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+
+				var resp codersdk.Response
+				require.NoError(t, json.NewDecoder(rw.Body).Decode(&resp))
+				require.Contains(t, resp.Detail, strconv.Itoa(tight))
+				require.NotContains(t, resp.Detail, strconv.Itoa(loose))
+			})
+		}
+	})
 }
 
 // TestMaxBytesReaderNesting pins how http.MaxBytesReader composes: nesting two
