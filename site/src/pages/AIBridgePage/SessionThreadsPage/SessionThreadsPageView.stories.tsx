@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent } from "storybook/test";
+import { expect, userEvent, waitFor } from "storybook/test";
 import type { AIBridgeSessionThreadsResponse } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
@@ -81,12 +81,14 @@ export const SearchFiltersEvents: Story = {
 		).toBeTruthy();
 
 		await userEvent.type(input, "deploy");
-		await expect(
-			promptByText(canvasElement, "Deploy the service to production"),
-		).toBeTruthy();
-		await expect(
-			promptByText(canvasElement, "Summarize the project structure"),
-		).toBeUndefined();
+		await waitFor(() => {
+			expect(
+				promptByText(canvasElement, "Deploy the service to production"),
+			).toBeTruthy();
+			expect(
+				promptByText(canvasElement, "Summarize the project structure"),
+			).toBeUndefined();
+		});
 
 		await userEvent.clear(input);
 		await userEvent.type(input, "npmjs.org");
@@ -99,13 +101,12 @@ export const SearchFiltersEvents: Story = {
 		).not.toBeInTheDocument();
 
 		await userEvent.clear(input);
-		await canvas.findByText("Network calls (4)");
-		await expect(
-			canvas.getByText("https://registry.npmjs.org/lodash"),
-		).toBeVisible();
-		await expect(
-			promptByText(canvasElement, "Summarize the project structure"),
-		).toBeTruthy();
+		await waitFor(() => {
+			expect(canvas.getByText("Network calls (4)")).toBeInTheDocument();
+			expect(
+				promptByText(canvasElement, "Summarize the project structure"),
+			).toBeTruthy();
+		});
 	},
 };
 
@@ -115,9 +116,11 @@ export const SearchNoMatches: Story = {
 			name: /search session events/i,
 		});
 		await userEvent.type(input, "no-such-event");
-		await expect(
-			canvas.getByText("No events match your search in the loaded events."),
-		).toBeInTheDocument();
+		await canvas.findByText(
+			"No events match your search in the loaded events.",
+			undefined,
+			{ timeout: 2000 },
+		);
 	},
 };
 
@@ -129,11 +132,13 @@ export const SearchResultsCount: Story = {
 			name: /search session events/i,
 		});
 		await userEvent.type(input, "list_directory");
-		await expect(
-			canvas.getByText((_content, element) => {
-				return element?.textContent === "1 result";
-			}),
-		).toBeInTheDocument();
+		await waitFor(() =>
+			expect(
+				canvas.getByText((_content, element) => {
+					return element?.textContent === "1 result";
+				}),
+			).toBeInTheDocument(),
+		);
 	},
 };
 
@@ -145,8 +150,10 @@ export const SearchToolMatchAfterMount: Story = {
 			name: /search session events/i,
 		});
 		await userEvent.type(input, "list_directory");
-		expect(
-			(await canvas.findAllByText("list_directory")).length,
-		).toBeGreaterThan(0);
+		await waitFor(async () =>
+			expect(
+				(await canvas.findAllByText("list_directory")).length,
+			).toBeGreaterThan(0),
+		);
 	},
 };

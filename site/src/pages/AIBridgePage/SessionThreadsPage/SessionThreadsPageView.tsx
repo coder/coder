@@ -14,6 +14,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useDebouncedValue } from "#/hooks/debounce";
 import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
@@ -64,6 +65,8 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	onBackClicked,
 }) => {
 	const [searchQuery, setSearchQuery] = useState("");
+	// Debounce so typing does not refilter the timeline on every keystroke.
+	const debouncedQuery = useDebouncedValue(searchQuery, 500);
 
 	if (!isAISessionsEntitled) {
 		return <PaywallAIGovernance />;
@@ -85,12 +88,12 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 
 	const networkCalls = session?.network_call_logs ?? [];
 
-	const isSearching = searchQuery.trim() !== "";
+	const isSearching = debouncedQuery.trim() !== "";
 
 	const searchResults = countSessionSearchResults(
 		threads,
 		networkCalls,
-		searchQuery,
+		debouncedQuery,
 	);
 
 	return (
@@ -109,7 +112,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 					</span>
 				</Button>
 				{session && (
-					<div className="flex flex-col items-stretch md:items-end gap-1 md:w-96">
+					<div className="flex flex-col items-stretch md:items-end gap-1 md:w-[28rem]">
 						<SearchField
 							value={searchQuery}
 							onChange={setSearchQuery}
@@ -169,7 +172,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 							threads={threads}
 							networkCallSummary={session.network_calls}
 							networkCalls={networkCalls}
-							searchQuery={searchQuery}
+							searchQuery={debouncedQuery}
 							hasNextPage={hasNextPage}
 							isFetchingNextPage={isFetchingNextPage}
 							onFetchNextPage={onFetchNextPage}
