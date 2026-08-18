@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -155,6 +156,22 @@ func TestPostLicense(t *testing.T) {
 		require.NotNil(t, feature.HardLimit)
 		require.EqualValues(t, 120, *feature.HardLimit)
 		require.NotNil(t, feature.UsagePeriod)
+		// Actual is read from usage_events, which has no runtime events in
+		// this deployment. It is reported in whole hours, matching the unit
+		// of the claims above, with the precise milliseconds in ActualMs.
+		require.NotNil(t, feature.Actual)
+		require.EqualValues(t, 0, *feature.Actual)
+		require.NotNil(t, feature.ActualMs)
+		require.EqualValues(t, 0, *feature.ActualMs)
+		require.Empty(t, entitlements.Errors)
+		// Zero usage is below both thresholds, so no runtime warning
+		// fires. Unrelated warnings from this bare license are ignored.
+		// The negatives are built from the exported constants so a reword
+		// cannot silently disarm this guard.
+		require.NotContains(t, entitlements.Warnings,
+			fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText, 0, 100, 80))
+		require.NotContains(t, entitlements.Warnings,
+			fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursAllocationReachedWarningText, 0, 100))
 	})
 
 	t.Run("Unauthorized", func(t *testing.T) {

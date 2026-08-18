@@ -75,13 +75,15 @@ const getBannerVariant = (
 };
 
 // The muted "warning" variant means every message is an advisory or
-// diagnostic, so the heading must not assert exceedance.
+// diagnostic, so the heading must not assert a limit was hit. The prominent
+// heading says "reached" rather than "exceeded" because some limit warnings
+// fire at exact equality, which "reached" covers in both cases.
 const bannerTitle = (variant: LicenseBannerVariant): string => {
 	switch (variant) {
 		case "error":
 			return "License errors require attention";
 		case "warningProminent":
-			return "Your license limits have been exceeded";
+			return "Your license limits have been reached";
 		case "warning":
 			return "License notices";
 	}
