@@ -106,7 +106,7 @@ shown below when adding new failures.
 - How to diagnose: Search the test diff for `time.Sleep`. Inspect whether the
   code under test can use `quartz` or another explicit synchronization point.
 - Existing docs or tools: `AGENTS.md`, [Testing Patterns and Best Practices](TESTING.md),
-  and the quartz README referenced from `AGENTS.md`.
+  and the quartz README linked from `TESTING.md`.
 - Missing harness piece: Agents need a failure entry that labels sleep-based
   waiting as a flake risk before review.
 - Proposed prevention: Replace `time.Sleep` with a fake clock, trapped ticker,

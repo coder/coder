@@ -2,6 +2,8 @@
 
 Make the smallest correct change, follow existing patterns, and verify the result. Ask only when the request is unclear, a meaningful design choice remains, or the action is destructive. If you want an exception to any rule in these documents, stop and get explicit permission first.
 
+Prioritize correctness over agreement. State uncertainty instead of guessing, and push back on technically unsound requests with evidence.
+
 ## Task-specific guidance
 
 Load only the guidance relevant to the task:
@@ -9,6 +11,7 @@ Load only the guidance relevant to the task:
 | Scope                                               | Guidance                                                |
 |-----------------------------------------------------|---------------------------------------------------------|
 | Development servers, Git, hooks, and routine checks | [WORKFLOWS.md](.claude/docs/WORKFLOWS.md)               |
+| API endpoints and Swagger                           | [WORKFLOWS.md](.claude/docs/WORKFLOWS.md)               |
 | Go                                                  | [GO.md](.claude/docs/GO.md)                             |
 | Tests and concurrency                               | [TESTING.md](.claude/docs/TESTING.md)                   |
 | Database and SQLC                                   | [DATABASE.md](.claude/docs/DATABASE.md)                 |
@@ -62,7 +65,7 @@ Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live
 - **Chatd:** when a change affects the documented architecture, do not edit the architecture document yourself. Leave TODO items in the affected sections; the human PR author writes the actual updates.
 - **Public API:** add the required Swagger annotations for new public HTTP endpoints.
 - **Transactions:** keep `InTx` work on the transaction handle. Prefer explicit database-to-SDK converters.
-- **Concurrent tests:** use unique identifiers. Do not use `time.Sleep` to mask timing problems.
+- **Concurrent tests:** call `t.Parallel()`, use unique identifiers, and do not use `time.Sleep` to mask timing problems.
 - **Frontend:** reuse shared UI primitives and test components or pages through Storybook stories. Plain Vitest files are for pure logic only.
 - **GitHub Actions:** set top-level `permissions: {}` and grant only required permissions per job.
 
@@ -70,6 +73,8 @@ Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live
 
 - Follow the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md) for Go code.
 - Use language-server navigation when available.
+- Name code for what it does, not its implementation or history. Wrap errors with context.
+- Document exported symbols with idiomatic Go doc comments or JSDoc.
 - Avoid unrelated edits. Preserve comments that explain non-obvious behavior.
 - Comments must be concise and substantive. Explain behavior, constraints, or rationale, not the history of the edit.
 - Do not use em dashes, en dashes, or spaced double hyphens as punctuation in code, comments, strings, or documentation.

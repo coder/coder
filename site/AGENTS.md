@@ -85,5 +85,6 @@ Some end-to-end tests require a license. The Storybook MCP at `http://localhost:
 ## Completion
 
 - Run targeted story or unit tests during iteration.
+- Visually inspect affected component stories before handoff.
 - Before handoff, run `pnpm check`, `pnpm lint`, and `pnpm format`, plus affected tests.
 - For changes under `site/src/`, run the repository `frontend-review` skill at `.claude/skills/frontend-review/SKILL.md` and fix each applicable FE1 through FE10 failure.
