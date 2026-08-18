@@ -149,6 +149,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		streamError,
 		persistedError: persistedError ?? null,
 		isAwaitingFirstStreamChunk,
+		chatStatus,
 	});
 	const streamTools = buildStreamTools(
 		streamState?.toolCalls,
@@ -505,7 +506,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		wasEditingRef.current = isEditing;
 	}, [isEditing, resetEditAttachments]);
 
-	const isStreaming = hasStreamState || chatStatus === "running";
+	const isStreaming =
+		hasStreamState || chatStatus === "running" || chatStatus === "interrupting";
 
 	const inputElement = (
 		<AgentChatInput
@@ -581,7 +583,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}
-			isInterruptPending={isInterruptPending}
+			isInterruptPending={isInterruptPending || chatStatus === "interrupting"}
 			contextUsage={latestContextUsage}
 			onRefreshContext={handleRefreshContext}
 			isRefreshingContext={refreshContextMutation.isPending}

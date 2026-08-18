@@ -1644,16 +1644,31 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							/>
 						)}
 						{isStreaming && onInterrupt && (
-							<Button
-								size="icon"
-								variant="default"
-								className="size-7 rounded-full transition-colors [&>svg]:!size-3 [&>svg]:p-0"
-								onClick={onInterrupt}
-								disabled={isInterruptPending}
-							>
-								<SquareIcon className="fill-current" />
-								<span className="sr-only">Stop</span>
-							</Button>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										size="icon"
+										variant="default"
+										className="size-7 rounded-full transition-colors [&>svg]:!size-3 [&>svg]:p-0"
+										onClick={onInterrupt}
+										disabled={isInterruptPending}
+									>
+										<SquareIcon className="fill-current" />
+										<span className="sr-only">Stop</span>
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent side="top">
+									{isInterruptPending ? "Interrupting…" : "Stop"}
+								</TooltipContent>
+							</Tooltip>
+						)}
+						{isInterruptPending && isStreaming && (
+							// The disabled Stop button is skipped by Tab order, so the
+							// pending interruption is also announced through a live
+							// region and a tooltip.
+							<span role="status" className="sr-only">
+								Interrupting. Waiting for the agent to stop.
+							</span>
 						)}
 						{!(isStreaming && editingQueuedMessageID === null) && (
 							<Tooltip>
