@@ -1,13 +1,15 @@
 /*
- * Pure, dependency-free string transforms used by sync-docs.mjs.
+ * Pure string transforms used by sync-docs.mjs.
  *
  * These are kept in their own module (with no filesystem or network access and
  * no top-level side effects) so they can be unit-tested without running the
- * sync script. Environment specifics (the resolved image base, the file->route
- * map, image copying, source-tree links) are injected into the rewrite helpers
- * via a `ctx` object.
+ * sync script. The lone dependency is fumadocs-core's frontmatter helper (a
+ * pure YAML parser), used by parseFrontmatter. Environment specifics (the
+ * resolved image base, the file->route map, image copying, source-tree links)
+ * are injected into the rewrite helpers via a `ctx` object.
  */
 import { posix } from "node:path";
+import { frontmatter as parseYamlFrontmatter } from "fumadocs-core/content/md/frontmatter";
 
 const IMAGE_EXT = new Set([
 	".png",
@@ -399,48 +401,45 @@ export function selfCloseVoidElements(content) {
 // `# ...`), so the whole REST API and CLI reference would take that comment as
 // their title and leak the original `---` delimiters into the body.
 //
-// Returns `{ title, description, endLine }`: the block's `title`/`description`
-// scalar values (or null), and `endLine`, the line index just past the closing
-// `---` (0 when there is no frontmatter, so callers treat the whole file as
-// body). This is not a general YAML parser: top-level `key: value` scalars are
-// read, while comment (`#`), blank, and indented continuation lines (e.g. a
-// `state:` YAML list on an early-access page) are skipped. A block whose
-// top-level lines are not all `key: value` is treated as ordinary content (a
-// `---` thematic rule), not frontmatter, so real content is never stripped.
+// The block is parsed with fumadocs-core's frontmatter helper (js-yaml under
+// the hood), so YAML quoting and escapes are decoded properly: a make gen
+// description such as `"... \"ssh workspace.coder\""` yields real inner quotes
+// rather than the literal backslash-quotes a hand-rolled slice would leave in
+// `<meta name="description">` and the search index. Only a block whose YAML
+// body is a mapping counts as frontmatter; a bare scalar or list (for example
+// a `---` thematic rule at the top of a file) is left as ordinary content so
+// real content is never stripped.
+//
+// Returns `{ title, description, endLine }`: the mapping's `title`/`description`
+// values when present as non-empty strings (else null), and `endLine`, the line
+// index just past the closing `---` (0 when there is no frontmatter, so callers
+// treat the whole file as body). A non-string scalar (which the corpus never
+// uses for these keys) is treated as absent so the result is always a plain
+// string or null for every downstream consumer.
 export function parseFrontmatter(content) {
 	const none = { title: null, description: null, endLine: 0 };
-	const lines = content.split("\n");
-	if (!/^---\s*$/.test(lines[0] ?? "")) return none;
-	let end = -1;
-	for (let i = 1; i < lines.length; i++) {
-		if (/^---\s*$/.test(lines[i])) {
-			end = i;
-			break;
-		}
+	const { matter, data } = parseYamlFrontmatter(content);
+	if (
+		!matter ||
+		data === null ||
+		typeof data !== "object" ||
+		Array.isArray(data)
+	) {
+		return none;
 	}
-	if (end === -1) return none;
-	const data = { title: null, description: null };
-	for (let i = 1; i < end; i++) {
-		const line = lines[i];
-		if (line.trim() === "" || /^\s*#/.test(line)) continue;
-		// An indented line continues a multi-line value (e.g. a `state:` YAML
-		// list), so it is part of the block, not a top-level entry to validate.
-		if (/^\s/.test(line)) continue;
-		const m = /^([A-Za-z][\w-]*)\s*:\s*(.*)$/.exec(line);
-		if (!m) return none;
-		const key = m[1].toLowerCase();
-		if (key !== "title" && key !== "description") continue;
-		let value = m[2].trim();
-		if (
-			value.length >= 2 &&
-			((value[0] === '"' && value[value.length - 1] === '"') ||
-				(value[0] === "'" && value[value.length - 1] === "'"))
-		) {
-			value = value.slice(1, -1);
-		}
-		if (value) data[key] = value;
-	}
-	return { title: data.title, description: data.description, endLine: end + 1 };
+	const pick = (v) => (typeof v === "string" && v.trim() !== "" ? v : null);
+	// `matter` spans the block including both `---` delimiters and (when the file
+	// has a body) the trailing newline. endLine is the first body line in the
+	// original line coordinates: the number of lines `matter` occupies, minus one
+	// when it ends in a newline (the common case) so the empty split tail is not
+	// counted as a body line.
+	const lineCount = matter.split("\n").length;
+	const endLine = matter.endsWith("\n") ? lineCount - 1 : lineCount;
+	return {
+		title: pick(data.title),
+		description: pick(data.description),
+		endLine,
+	};
 }
 
 // Resolve the page title and locate the lines to strip from the emitted body.

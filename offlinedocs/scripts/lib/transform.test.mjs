@@ -240,6 +240,32 @@ test("parseFrontmatter reads a flat block and ignores non-frontmatter", () => {
 	});
 });
 
+test("parseFrontmatter decodes YAML escapes and only treats mappings as frontmatter", () => {
+	// A quoted description with YAML escapes (make gen emits these for CLI pages
+	// that mention `"ssh ..."`) decodes to real inner quotes, not a literal
+	// backslash-quote leaking into <meta> and the search index.
+	assert.deepEqual(
+		parseFrontmatter(
+			'---\ntitle: ssh\ndescription: "Add a host \\"ssh x\\""\n---\nbody',
+		),
+		{ title: "ssh", description: 'Add a host "ssh x"', endLine: 4 },
+	);
+	// Extra, unrecognized keys are fine: the block is still a YAML mapping, so it
+	// is frontmatter and the title/description are read from it.
+	assert.deepEqual(parseFrontmatter("---\nfoo: bar\ntitle: T\n---\nbody"), {
+		title: "T",
+		description: null,
+		endLine: 4,
+	});
+	// A non-string scalar for title/description (never in the corpus) is treated
+	// as absent so the result stays a plain string or null.
+	assert.deepEqual(parseFrontmatter("---\ntitle: 123\n---\nbody"), {
+		title: null,
+		description: null,
+		endLine: 3,
+	});
+});
+
 test("rewriteTarget resolves .md links and images through ctx", () => {
 	const ctx = {
 		imageRemote: "",
