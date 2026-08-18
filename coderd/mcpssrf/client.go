@@ -40,6 +40,7 @@ var extraBlockedPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("2620:4f:8000::/48"), // RFC 7534 direct delegation AS112 service.
 	netip.MustParsePrefix("3fff::/20"),         // RFC 9637 documentation.
 	netip.MustParsePrefix("5f00::/16"),         // RFC 9602 segment routing SIDs.
+	netip.MustParsePrefix("fec0::/10"),         // RFC 3879 deprecated site-local addresses.
 }
 
 // ParseAllowedPrefix parses an allowed CIDR and converts IPv4-mapped IPv6

@@ -1,6 +1,7 @@
 package mcpssrf
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -60,6 +61,13 @@ func TestIsBlockedAddr(t *testing.T) {
 		{addr: "3fff::1", blocked: true},
 		{addr: "5f00::1", blocked: true},
 		{addr: "64:ff9b:1::1", blocked: true},
+		{addr: "fec0::1", blocked: true},
+		{
+			name:    "AllowlistedDeprecatedSiteLocalIPv6",
+			addr:    "fec0::1",
+			allowed: []netip.Prefix{netip.MustParsePrefix("fec0::/10")},
+			blocked: false,
+		},
 		{addr: "::ffff:169.254.169.254", blocked: true},
 		{addr: "::ffff:127.0.0.1", blocked: true},
 		{addr: "8.8.8.8", blocked: false},
@@ -256,6 +264,46 @@ func TestHTTPClientSSRF(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "not permitted for MCP traffic")
 		require.Zero(t, hits.Load())
+	})
+
+	t.Run("DeprecatedSiteLocalIPv6", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name        string
+			allowed     []netip.Prefix
+			wantBlocked bool
+		}{
+			{name: "Blocked", wantBlocked: true},
+			{
+				name:    "AllowedPrefixOverride",
+				allowed: []netip.Prefix{netip.MustParsePrefix("fec0::/10")},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				if !tc.wantBlocked {
+					var cancel context.CancelFunc
+					ctx, cancel = context.WithCancel(ctx)
+					cancel()
+				}
+				transport, ok := NewHTTPClient(nil, tc.allowed).Transport.(*http.Transport)
+				require.True(t, ok)
+				conn, err := transport.DialContext(ctx, "tcp6", "[fec0::1]:80")
+				if conn != nil {
+					require.NoError(t, conn.Close())
+				}
+				if tc.wantBlocked {
+					require.ErrorContains(t, err, "not permitted for MCP traffic")
+					return
+				}
+				require.ErrorIs(t, err, context.Canceled)
+				require.NotContains(t, err.Error(), "not permitted for MCP traffic")
+			})
+		}
 	})
 
 	t.Run("BlocksHostnameResolvingToLoopback", func(t *testing.T) {
