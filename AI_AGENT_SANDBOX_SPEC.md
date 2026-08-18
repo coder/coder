@@ -271,6 +271,84 @@ which channel a shape uses for bootstrap.
 Fetch failure must produce deny-all plus a degraded report. It must never
 produce an unconfined sandbox.
 
+### Host-side policy export contract
+
+Some sandbox runtimes cannot route the confined guest through the Coder
+confine proxy. A host-side runtime such as `coder/sandbox` may enforce the
+same template policy in its own proxy instead. This mode does not deliver
+policy to the confined agent or guest. The unbound host agent exports policy
+to a host-only file consumed by the sandbox daemon.
+
+The contract is opt-in through two agent process environment variables:
+
+| Variable                                | Purpose                                                                                        |
+|-----------------------------------------|------------------------------------------------------------------------------------------------|
+| `CODER_AI_SANDBOX_POLICY_FILE`          | Enables export and names the host-side file that receives a `runtime.network` YAML document.   |
+| `CODER_AI_SANDBOX_POLICY_RELOAD_SCRIPT` | Optional command run after each successful file replacement so an external runtime can reload. |
+
+When `CODER_AI_SANDBOX_POLICY_FILE` is set, the sandbox controller must:
+
+1. Translate and atomically replace the file after the initial policy fetch.
+   A fetch failure still writes the deny-all bootstrap policy and reports
+   degraded.
+2. Complete the initial replacement before invoking
+   `CODER_AI_SANDBOX_CREATE_SCRIPT`, so the sandbox cannot boot without its
+   first policy document.
+3. Repeat the translation and replacement for every complete policy revision
+   received from the SSE watch.
+4. Use a temporary file in the destination directory followed by rename.
+   Equivalent policies must produce byte-identical output.
+5. After each successful replacement, run
+   `CODER_AI_SANDBOX_POLICY_RELOAD_SCRIPT` when declared. The hook has a
+   30-second timeout and receives `CODER_SANDBOX_ID` and
+   `CODER_AI_SANDBOX_POLICY_FILE` in its environment. Hook failure is logged
+   and reported as degraded, but is not fatal and must not disable later
+   updates.
+
+The exported file is the mapping used at `runtime.network`, not a complete
+sandbox descriptor:
+
+```yaml
+reload: watch
+default: deny
+mode: enforce
+rules:
+  - host: api.example.com
+    ports: [443]
+    action: allow
+    tls: passthrough
+```
+
+The translation is deterministic and has these semantics:
+
+| Coder policy input                    | Exported `runtime.network` rule                                                                                               |
+|---------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|
+| Any policy                            | `default: deny`, `mode: enforce`, and `reload: watch`                                                                         |
+| Host with an empty port list          | Explicit `ports: [80, 443]`; an omitted list in `coder/sandbox` would mean any port                                           |
+| Exact hostname                        | Allow rule for that hostname and the declared ports                                                                           |
+| Leading `*.` wildcard                 | Pattern is passed through unchanged. `coder/sandbox` matches arbitrary subdomain depth, which is wider than Coder's one label |
+| IPv4 or IPv6 literal                  | Exact `/32` or `/128` CIDR allow rule                                                                                         |
+| Every translated allow                | `tls: passthrough`, preserving end-to-end TLS without the sandbox runtime's interception CA                                   |
+| Coder access URL                      | Allow the hostname on its effective port                                                                                      |
+| Private or loopback access URL result | Also allow each resolved address as an exact `/32` or `/128` CIDR on the access URL port                                      |
+
+Access URL resolution must have a context deadline. Resolution failure logs a
+warning but does not prevent the hostname rule or file replacement. The exact
+CIDRs are required because the external proxy performs a second CIDR decision
+when a permitted hostname resolves to a private or loopback address.
+
+The Coder proxy, SSE watcher, and event batcher continue running in this mode.
+They remain the control path for policy revisions, even when the guest's
+network cannot reach the Coder proxy.
+
+For `coder/sandbox`, `reload: watch` watches the descriptor path registered by
+`coder-sandbox up NAME -f descriptor.yaml`, not a separate policy file. The
+daemon polls that descriptor every 500 milliseconds, projects only its
+`runtime` section, and atomically reloads the shared network and MCP policy.
+The descriptor schema has no external-file include for `runtime.network`, so
+the reload hook must re-render the descriptor with the exported mapping.
+Changes under `sandbox` do not alter a running VM.
+
 ### Policy content
 
 Two layers:
@@ -439,6 +517,22 @@ Step 5 depends on step 4's policy object but not on step 6.
 
 ## Known gaps and decisions still open
 
+- **MicroVM event retention.** In host-side policy export mode, the guest
+  uses the external runtime's proxy rather than the Coder confine proxy.
+  The external runtime may record requests locally, but those flows are not
+  yet retained as Coder AI sandbox network events.
+- **MicroVM IPv6 enforcement.** The current `coder/sandbox` VM firewall
+  parses and restricts IPv4 guest egress, but forwards IPv6 and other
+  non-IPv4 EtherTypes without equivalent policy enforcement. A template
+  using this backend must not attest `forced` until that gap is closed.
+- **Wildcard widening.** Coder egress policy gives `*.example.com`
+  single-label semantics. `coder/sandbox` treats the same syntax as an
+  arbitrary-depth suffix. Policy export preserves the pattern, so this
+  backend knowingly widens wildcard matches.
+- **External policy inclusion.** The `coder/sandbox` descriptor cannot
+  include the exported `runtime.network` mapping from another file. The
+  reload hook must re-render a complete descriptor, adding integration
+  complexity and another file replacement step.
 - **Proxy client authentication** is specified above but is the single
   largest gap between this document and a sound implementation of the
   container backend.
