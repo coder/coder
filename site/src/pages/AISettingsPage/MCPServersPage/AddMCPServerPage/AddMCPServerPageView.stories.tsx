@@ -12,6 +12,7 @@ const meta: Meta<typeof AddMCPServerPageView> = {
 	args: {
 		isSaving: false,
 		canCreate: true,
+		canViewServerList: true,
 		organizations: [MockDefaultOrganization],
 		organization: MockDefaultOrganization,
 		onSelectOrganization: fn(),

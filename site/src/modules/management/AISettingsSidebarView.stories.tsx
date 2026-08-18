@@ -112,6 +112,21 @@ export const MCPServersForOrgAdmin: Story = {
 	},
 };
 
+export const MCPServersForCreateOnlyAdmin: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			createAnyMCPServerConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toHaveAttribute("href", "/ai/settings/mcp-servers/add");
+	},
+};
+
 export const MCPServersHiddenWithoutPermission: Story = {
 	args: {
 		permissions: {

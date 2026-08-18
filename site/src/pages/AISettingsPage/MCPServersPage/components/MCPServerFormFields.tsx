@@ -30,7 +30,7 @@ interface MCPServerFormFieldsProps {
 	isDisabled: boolean;
 	canSubmit: boolean;
 	isEditing: boolean;
-	onCancel: () => void;
+	onCancel?: () => void;
 	showDetails: boolean;
 	setShowDetails: (open: boolean) => void;
 	showAuth: boolean;
@@ -198,14 +198,16 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 				</div>
 
 				<div className="flex justify-end gap-4">
-					<Button
-						variant="outline"
-						type="button"
-						onClick={onCancel}
-						disabled={isDisabled}
-					>
-						Cancel
-					</Button>
+					{onCancel && (
+						<Button
+							variant="outline"
+							type="button"
+							onClick={onCancel}
+							disabled={isDisabled}
+						>
+							Cancel
+						</Button>
+					)}
 					<Button disabled={!canSubmit} type="submit">
 						<Spinner loading={isSaving} />
 						{isEditing ? "Update server" : "Add server"}

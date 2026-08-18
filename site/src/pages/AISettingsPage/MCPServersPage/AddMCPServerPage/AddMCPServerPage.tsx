@@ -71,6 +71,10 @@ const AddMCPServerPage: FC = () => {
 				organizationPermissions?.updateMCPServerConfig ||
 					organizationPermissions?.deleteMCPServerConfig,
 			));
+	// The list page rejects callers without a site-wide view grant, so exit
+	// controls pointing at it are only offered when it is reachable.
+	const canViewServerList =
+		permissions.editDeploymentConfig || permissions.viewAnyMCPServerConfigs;
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const createMutation = useMutation(
@@ -101,6 +105,7 @@ const AddMCPServerPage: FC = () => {
 						<AddMCPServerPageView
 							isSaving={createMutation.isPending}
 							canCreate={canCreate}
+							canViewServerList={canViewServerList}
 							organizations={creatableOrganizations}
 							organization={organization}
 							onSelectOrganization={(org) => {

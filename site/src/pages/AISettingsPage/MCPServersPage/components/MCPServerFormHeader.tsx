@@ -35,7 +35,7 @@ interface MCPServerFormHeaderProps {
 	server?: TypesGen.MCPServerConfig;
 	title: string;
 	iconUrl: string;
-	listPath: string;
+	listPath?: string;
 	isEditing: boolean;
 	isDisabled: boolean;
 	onRequestDelete?: () => void;
@@ -55,7 +55,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	return (
 		<>
 			<div className="flex items-center justify-between">
-				<MCPServerFormBackLink to={listPath} />
+				{listPath && <MCPServerFormBackLink to={listPath} />}
 				{isEditing && server && onRequestDelete && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>

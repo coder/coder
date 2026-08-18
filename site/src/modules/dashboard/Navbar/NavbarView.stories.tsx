@@ -155,6 +155,56 @@ export const ForMCPOrgAdmin: Story = {
 	},
 };
 
+export const ForMCPCreateOnlyAdmin: Story = {
+	decorators: [withAuthProvider],
+	parameters: {
+		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
+		user: MockUserMember,
+		permissions: {
+			...MockNoPermissions,
+			createAnyMCPServerConfig: true,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/" },
+			routing: [
+				{ path: "/", useStoryElement: true },
+				{
+					path: "/ai/settings",
+					// Route elements render outside story decorators, so the
+					// redirect needs its own AuthProvider; it reads the query
+					// data seeded by withAuthProvider.
+					element: (
+						<AuthProvider>
+							<AISettingsIndexRedirect />
+						</AuthProvider>
+					),
+				},
+				{
+					path: "/ai/settings/mcp-servers/add",
+					element: <h1>Add MCP server</h1>,
+				},
+			],
+		}),
+	},
+	args: {
+		user: MockUserMember,
+		adminPermissions: {
+			canViewAISettings: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Admin settings" }),
+		);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(body.getByRole("menuitem", { name: "AI" }));
+		await expect(
+			await canvas.findByRole("heading", { name: "Add MCP server" }),
+		).toBeInTheDocument();
+	},
+};
+
 export const ForSingleOrgOSSAdmin: Story = {
 	parameters: { pixel: { matrix: pixelWithDesktop } },
 	args: {

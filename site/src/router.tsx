@@ -483,6 +483,10 @@ export const AISettingsIndexRedirect = () => {
 		return <Navigate to="/ai/settings/mcp-servers" replace />;
 	}
 
+	if (permissions.createAnyMCPServerConfig) {
+		return <Navigate to="/ai/settings/mcp-servers/add" replace />;
+	}
+
 	return <Navigate to="/ai/settings/providers" replace />;
 };
 

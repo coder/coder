@@ -457,6 +457,12 @@ export const CreateOnlyOrgAdminCanAddMCPServer: Story = {
 			}),
 		);
 		await expect(await canvas.findByLabelText(/display name/i)).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: /back to mcp servers/i }),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("button", { name: "Cancel" }),
+		).not.toBeInTheDocument();
 		await userEvent.type(canvas.getByLabelText(/display name/i), "GitHub");
 		await userEvent.type(
 			canvas.getByLabelText(/server url/i),

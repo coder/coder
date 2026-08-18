@@ -73,9 +73,16 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 					</>
 				)}
 				{!permissions.editDeploymentConfig &&
-					permissions.viewAnyMCPServerConfigs && (
+					(permissions.viewAnyMCPServerConfigs ||
+						permissions.createAnyMCPServerConfig) && (
 						<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
-							<SubNavItem href="/ai/settings/mcp-servers">
+							<SubNavItem
+								href={
+									permissions.viewAnyMCPServerConfigs
+										? "/ai/settings/mcp-servers"
+										: "/ai/settings/mcp-servers/add"
+								}
+							>
 								MCP servers
 							</SubNavItem>
 						</div>

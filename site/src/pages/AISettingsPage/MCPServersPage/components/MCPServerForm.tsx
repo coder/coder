@@ -15,7 +15,9 @@ import {
 
 type MCPServerFormCreateProps = {
 	server?: undefined;
-	listPath: string;
+	// Create-only callers cannot open the server list, so the back link and
+	// cancel action are omitted rather than pointing at a denied page.
+	listPath?: string;
 	isSaving: boolean;
 	isDeleting?: false;
 	onCreateServer: (
@@ -24,7 +26,7 @@ type MCPServerFormCreateProps = {
 	onUpdateServer?: undefined;
 	onDeleteServer?: undefined;
 	onToggleEnabled?: undefined;
-	onCancel: () => void;
+	onCancel?: () => void;
 };
 
 type MCPServerFormEditProps = {

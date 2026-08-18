@@ -9,6 +9,7 @@ import { mcpServersPath } from "../organizationParam";
 interface AddMCPServerPageViewProps {
 	isSaving: boolean;
 	canCreate: boolean;
+	canViewServerList: boolean;
 	organizations: readonly TypesGen.Organization[];
 	organization: TypesGen.Organization;
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
@@ -21,6 +22,7 @@ interface AddMCPServerPageViewProps {
 const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 	isSaving,
 	canCreate,
+	canViewServerList,
 	organizations,
 	organization,
 	onSelectOrganization,
@@ -40,10 +42,12 @@ const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 			/>
 			{canCreate ? (
 				<MCPServerForm
-					listPath={mcpServersPath(organization)}
+					listPath={
+						canViewServerList ? mcpServersPath(organization) : undefined
+					}
 					isSaving={isSaving}
 					onCreateServer={onCreateServer}
-					onCancel={onCancel}
+					onCancel={canViewServerList ? onCancel : undefined}
 				/>
 			) : (
 				<Alert severity="error" prominent>
