@@ -225,7 +225,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												role="button"
 												tabIndex={0}
 												data-testid={`agents-tree-toggle-${chat.id}`}
-												className="inline-flex shrink-0 cursor-pointer items-center gap-0.5 rounded-sm text-[13px] leading-4 tabular-nums text-content-secondary hover:text-content-primary"
+												className="inline-flex shrink-0 cursor-pointer items-center gap-0.5 rounded-sm text-content-secondary hover:text-content-primary"
 												aria-expanded={isExpanded}
 												aria-label={`${
 													isExpanded ? "Hide" : "Show"
@@ -233,7 +233,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 													childIDs.length === 1 ? "subagent" : "subagents"
 												}`}
 											>
-												{childIDs.length}
 												<BotIcon className="size-3.5" aria-hidden="true" />
 												<ChevronDownIcon
 													aria-hidden="true"
