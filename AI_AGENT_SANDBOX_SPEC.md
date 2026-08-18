@@ -493,6 +493,18 @@ credential, feeding the shared policy engine that the in-process proxy
 evaluates. Policy fetch failure fails closed: the engine starts deny-default
 and the boot proceeds with loud logging.
 
+#### Platform control-channel allowance
+
+The platform injects an allowance for the exact hostname from `--agent-url` at
+its effective port: the explicit URL port, `443` for HTTPS, or `80` for HTTP.
+The evaluator checks this destination before the template policy and uses the
+same normalized hostname for the private-address exemption, so an on-premises
+coderd endpoint can resolve to private or loopback addresses without widening
+access to any other host or port. SSE revisions replace the administrator rule
+set but cannot remove this allowance. Severing the agent from coderd is done by
+stopping the workspace, not by changing egress policy. Managed embedded mode
+uses the same evaluator allowance.
+
 Lifecycle: the command runs in the foreground until SIGINT or SIGTERM, then
 closes the microVM with a bounded sixty-second timeout. Boot failure exits
 non-zero with a specific error; unsupported platforms fail at command start.

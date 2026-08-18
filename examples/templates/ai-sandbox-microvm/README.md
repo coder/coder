@@ -114,6 +114,12 @@ resource. The container starts `coder_agent.main`. Its startup script inherits:
 and watch policy revisions over SSE. It uses the sandbox token only for the
 agent launched inside the guest.
 
+The command automatically allows the exact `CODER_AGENT_URL` hostname at its
+effective port, including private or loopback resolutions for on-premises
+installations. Operators do not need to add the Coder access URL to the template
+egress policy. Policy edits cannot remove this platform control-channel
+allowance.
+
 The startup script first resolves `/proc/$PPID/exe`. Agent scripts with a
 shebang are executed as a direct child shell of the host agent, so this path
 selects the exact version-matched binary already running the workspace. If that
@@ -136,9 +142,10 @@ ps -fp "$(cat /tmp/coder-agent-sandbox.pid)"
 tail -f /tmp/coder-agent-sandbox.log
 ```
 
-Expected startup messages include the initial policy rule count, runtime and
-image provisioning, microVM boot, and guest-agent launch. A missing KVM device,
-unsupported platform, or guest boot failure appears directly in this log.
+Expected startup messages include the injected platform control-channel
+allowance, initial policy rule count, runtime and image provisioning, microVM
+boot, and guest-agent launch. A missing KVM device, unsupported platform, or
+guest boot failure appears directly in this log.
 
 ## What appears in the workspace UI
 
@@ -188,9 +195,10 @@ Coder UI or API policy edit
 ```
 
 The policy engine starts deny-default. If the initial fetch fails, the command
-logs the error loudly and still boots the guest with only the implicit
-control-plane destination allowed. A later successful SSE revision atomically
-replaces the active policy.
+logs the error loudly and still boots the guest with only the platform
+control-channel destination allowed. A later successful SSE revision atomically
+replaces the active administrator policy. The evaluator-level control-channel
+allowance remains in place across every revision.
 
 There is no exported policy file, daemon reload hook, or polling loop. The
 embedded gateway reads the same `PolicyEngine` updated by the SSE watcher.
