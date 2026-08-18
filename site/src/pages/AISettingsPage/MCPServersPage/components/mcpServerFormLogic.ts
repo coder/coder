@@ -13,6 +13,7 @@ export const AUTH_TYPE_OPTIONS = [
 	{ value: "api_key", label: "API key" },
 	{ value: "custom_headers", label: "Custom headers" },
 	{ value: "user_oidc", label: "User OIDC identity" },
+	{ value: "external_auth", label: "External auth provider" },
 ] as const;
 
 export const AUTH_TYPE_LABELS = Object.fromEntries(
@@ -50,6 +51,7 @@ export interface MCPServerFormValues {
 	url: string;
 	transport: string;
 	authType: string;
+	externalAuthProviderID: string;
 	oauth2ClientID: string;
 	oauth2ClientSecret: string;
 	oauth2SecretTouched: boolean;
@@ -89,6 +91,7 @@ export const buildInitialMCPServerFormValues = (
 	url: server?.url ?? "",
 	transport: server?.transport ?? "streamable_http",
 	authType: server?.auth_type ?? "none",
+	externalAuthProviderID: server?.external_auth_provider_id ?? "",
 	oauth2ClientID: server?.oauth2_client_id ?? "",
 	oauth2ClientSecret: server?.has_oauth2_secret ? SECRET_PLACEHOLDER : "",
 	oauth2SecretTouched: false,
@@ -117,7 +120,9 @@ export const canSubmitMCPServerForm = (
 	!isDisabled &&
 	values.displayName.trim() !== "" &&
 	values.slug.trim() !== "" &&
-	values.url.trim() !== "";
+	values.url.trim() !== "" &&
+	(values.authType !== "external_auth" ||
+		values.externalAuthProviderID.trim() !== "");
 
 export const buildCreateMCPServerConfigRequest = (
 	values: MCPServerFormValues,
@@ -147,6 +152,13 @@ export const buildCreateMCPServerConfigRequest = (
 		tool_allow_list: toolAllowList,
 		tool_deny_list: toolDenyList,
 	};
+
+	if (values.authType === "external_auth") {
+		return {
+			...request,
+			external_auth_provider_id: values.externalAuthProviderID.trim(),
+		};
+	}
 
 	if (values.authType === "oauth2") {
 		const oauth2ClientSecret =

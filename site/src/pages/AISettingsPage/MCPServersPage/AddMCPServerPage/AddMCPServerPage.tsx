@@ -1,9 +1,10 @@
 import type { FC } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { createMCPServerConfig } from "#/api/queries/chats";
+import { externalAuths } from "#/api/queries/externalAuth";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import AddMCPServerPageView from "./AddMCPServerPageView";
@@ -13,11 +14,16 @@ const AddMCPServerPage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const createMutation = useMutation(createMCPServerConfig(queryClient));
+	const externalAuthsQuery = useQuery(externalAuths());
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
 			<AddMCPServerPageView
 				isSaving={createMutation.isPending}
+				externalAuthProviders={externalAuthsQuery.data?.providers ?? []}
+				isLoadingExternalAuthProviders={externalAuthsQuery.isLoading}
+				externalAuthProvidersError={externalAuthsQuery.error}
+				accessURL={location.origin}
 				onCancel={() => void navigate("/ai/settings/mcp-servers")}
 				onCreateServer={async (req) => {
 					try {

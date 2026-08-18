@@ -39,7 +39,51 @@ describe("mcpServerFormLogic", () => {
 			false,
 		);
 		expect(canSubmitMCPServerForm(validValues({ url: "" }), false)).toBe(false);
+		expect(
+			canSubmitMCPServerForm(
+				validValues({
+					authType: "external_auth",
+					externalAuthProviderID: "",
+				}),
+				false,
+			),
+		).toBe(false);
+		expect(
+			canSubmitMCPServerForm(
+				validValues({
+					authType: "external_auth",
+					externalAuthProviderID: "github",
+				}),
+				false,
+			),
+		).toBe(true);
 		expect(canSubmitMCPServerForm(validValues(), true)).toBe(false);
+	});
+
+	it("initializes and sends the external auth provider", () => {
+		const values = buildInitialMCPServerFormValues({
+			...MockCoderMCPServer,
+			auth_type: "external_auth",
+			external_auth_provider_id: "github",
+		});
+
+		expect(values.externalAuthProviderID).toBe("github");
+		expect(
+			buildCreateMCPServerConfigRequest(
+				validValues({
+					authType: "external_auth",
+					externalAuthProviderID: "github",
+				}),
+			).external_auth_provider_id,
+		).toBe("github");
+		expect(
+			buildUpdateMCPServerConfigRequest(
+				validValues({
+					authType: "external_auth",
+					externalAuthProviderID: "github",
+				}),
+			).external_auth_provider_id,
+		).toBe("github");
 	});
 
 	it("does not send placeholder OAuth2 secrets unless the value changes", () => {

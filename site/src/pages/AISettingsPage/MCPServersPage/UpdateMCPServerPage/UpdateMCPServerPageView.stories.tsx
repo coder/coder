@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockGithubExternalProvider } from "#/testHelpers/entities";
 import { MockCoderMCPServer } from "../testFixtures";
 import UpdateMCPServerPageView from "./UpdateMCPServerPageView";
 
@@ -17,6 +18,9 @@ const meta: Meta<typeof UpdateMCPServerPageView> = {
 	component: UpdateMCPServerPageView,
 	args: {
 		server: MockCoderMCPServer,
+		externalAuthProviders: [MockGithubExternalProvider],
+		isLoadingExternalAuthProviders: false,
+		accessURL: "https://coder.example.com",
 		isSaving: false,
 		isDeleting: false,
 		onUpdateServer,
@@ -40,6 +44,9 @@ export const Default: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(canvas.getByLabelText(/display name/i)).toHaveValue("Coder");
+		await expect(canvas.getByLabelText("Gateway URL")).toHaveValue(
+			"https://coder.example.com/api/v2/ai-gateway/mcp/coder",
+		);
 		await userEvent.click(
 			canvas.getByRole("button", { name: /authentication/i }),
 		);

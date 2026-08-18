@@ -1,10 +1,13 @@
 import type { FormikContextType } from "formik";
 import { type FC, useId } from "react";
+import type { ExternalAuthLinkProvider } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
 import {
 	InputGroup,
+	InputGroupAddon,
 	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
 import {
@@ -30,6 +33,10 @@ interface MCPServerFormFieldsProps {
 	isDisabled: boolean;
 	canSubmit: boolean;
 	isEditing: boolean;
+	externalAuthProviders: readonly ExternalAuthLinkProvider[];
+	isLoadingExternalAuthProviders: boolean;
+	externalAuthProvidersError?: unknown;
+	accessURL: string;
 	onCancel: () => void;
 	showDetails: boolean;
 	setShowDetails: (open: boolean) => void;
@@ -45,6 +52,10 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 	isDisabled,
 	canSubmit,
 	isEditing,
+	externalAuthProviders,
+	isLoadingExternalAuthProviders,
+	externalAuthProvidersError,
+	accessURL,
 	onCancel,
 	showDetails,
 	setShowDetails,
@@ -54,6 +65,10 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 	setShowBehavior,
 }) => {
 	const formId = useId();
+	const slug = form.values.slug.trim();
+	const gatewayURL = slug
+		? `${accessURL.replace(/\/$/, "")}/api/v2/ai-gateway/mcp/${slug}`
+		: "";
 
 	return (
 		<div className="border border-solid p-6 rounded-lg">
@@ -131,6 +146,29 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 							</Select>
 						</Field>
 					</div>
+					<Field
+						label="Gateway URL"
+						htmlFor={`${formId}-gateway-url`}
+						description="Use this URL to connect MCP clients through the Coder gateway."
+						className="sm:col-span-2"
+					>
+						<InputGroup>
+							<InputGroupInput
+								id={`${formId}-gateway-url`}
+								value={gatewayURL}
+								placeholder="Enter a slug to generate the gateway URL."
+								readOnly
+							/>
+							<InputGroupAddon align="inline-end">
+								<CopyButton
+									type="button"
+									text={gatewayURL}
+									label="Copy gateway URL"
+									disabled={gatewayURL === ""}
+								/>
+							</InputGroupAddon>
+						</InputGroup>
+					</Field>
 				</div>
 
 				<div className="overflow-hidden rounded-lg border border-solid border-border">
@@ -178,6 +216,9 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 							form={form}
 							formId={formId}
 							disabled={isDisabled}
+							externalAuthProviders={externalAuthProviders}
+							isLoadingExternalAuthProviders={isLoadingExternalAuthProviders}
+							externalAuthProvidersError={externalAuthProvidersError}
 						/>
 					</CollapsibleSection>
 

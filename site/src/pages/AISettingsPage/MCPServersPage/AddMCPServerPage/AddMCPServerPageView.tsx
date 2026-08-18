@@ -5,6 +5,10 @@ import { MCPServerForm } from "../components/MCPServerForm";
 
 interface AddMCPServerPageViewProps {
 	isSaving: boolean;
+	externalAuthProviders: readonly TypesGen.ExternalAuthLinkProvider[];
+	isLoadingExternalAuthProviders: boolean;
+	externalAuthProvidersError?: unknown;
+	accessURL: string;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,
 	) => Promise<unknown>;
@@ -13,6 +17,10 @@ interface AddMCPServerPageViewProps {
 
 const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 	isSaving,
+	externalAuthProviders,
+	isLoadingExternalAuthProviders,
+	externalAuthProvidersError,
+	accessURL,
 	onCreateServer,
 	onCancel,
 }) => {
@@ -21,6 +29,10 @@ const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 			<title>{pageTitle("Add server", "AI Settings")}</title>
 			<MCPServerForm
 				isSaving={isSaving}
+				externalAuthProviders={externalAuthProviders}
+				isLoadingExternalAuthProviders={isLoadingExternalAuthProviders}
+				externalAuthProvidersError={externalAuthProvidersError}
+				accessURL={accessURL}
 				onCreateServer={onCreateServer}
 				onCancel={onCancel}
 			/>

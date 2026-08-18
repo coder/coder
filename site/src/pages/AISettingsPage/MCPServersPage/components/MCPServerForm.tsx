@@ -16,6 +16,10 @@ import {
 type MCPServerFormCreateProps = {
 	server?: undefined;
 	isSaving: boolean;
+	externalAuthProviders: readonly TypesGen.ExternalAuthLinkProvider[];
+	isLoadingExternalAuthProviders: boolean;
+	externalAuthProvidersError?: unknown;
+	accessURL: string;
 	isDeleting?: false;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,
@@ -29,6 +33,10 @@ type MCPServerFormCreateProps = {
 type MCPServerFormEditProps = {
 	server: TypesGen.MCPServerConfig;
 	isSaving: boolean;
+	externalAuthProviders: readonly TypesGen.ExternalAuthLinkProvider[];
+	isLoadingExternalAuthProviders: boolean;
+	externalAuthProvidersError?: unknown;
+	accessURL: string;
 	isDeleting: boolean;
 	onCreateServer?: undefined;
 	onUpdateServer: (
@@ -45,6 +53,10 @@ type MCPServerFormProps = MCPServerFormCreateProps | MCPServerFormEditProps;
 export const MCPServerForm: FC<MCPServerFormProps> = ({
 	server,
 	isSaving,
+	externalAuthProviders,
+	isLoadingExternalAuthProviders,
+	externalAuthProvidersError,
+	accessURL,
 	isDeleting = false,
 	onCreateServer,
 	onUpdateServer,
@@ -101,6 +113,10 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 					isDisabled={isDisabled}
 					canSubmit={canSubmit}
 					isEditing={isEditing}
+					externalAuthProviders={externalAuthProviders}
+					isLoadingExternalAuthProviders={isLoadingExternalAuthProviders}
+					externalAuthProvidersError={externalAuthProvidersError}
+					accessURL={accessURL}
 					onCancel={onCancel}
 					showDetails={showDetails}
 					setShowDetails={setShowDetails}
