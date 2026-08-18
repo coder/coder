@@ -14,10 +14,11 @@ on top of them, which is offered for challenge rather than settled.
 **Findings** records verifiable facts about the existing codebase. **Open**
 records questions not yet answered.
 
-**This document is a draft.** The comparison with the existing mechanism, the
-evidence for it, and the answers to the obvious objections are not written yet.
-What remains, and what has been deliberately left out, is tracked in
-`poc_audit/journal_vs_log.working_state.md`.
+**This document is a draft.** The distinctions are drawn and the central
+objection is answered. Several further objections are not yet addressed, this
+work's own journal is not yet used as an illustration, and what it deliberately
+leaves out is not yet named. What remains, and what has been dropped on purpose,
+is tracked in `poc_audit/journal_vs_log.working_state.md`.
 
 ## Established
 
@@ -204,6 +205,72 @@ datastore is built from its journal by construction, so the two cannot disagree.
 The journal described here and the world it accounts for can disagree, and
 noticing when they do is the reason it exists.
 
+### Why not extend `audit_logs`?
+
+**`audit_logs` is a log. This work needs a journal. One record cannot serve both
+well, because the properties that make a log useful are the same ones that
+disqualify a journal.**
+
+That is the answer. The question is a fair one and the burden is on the new
+thing, since two mechanisms covering adjacent ground is a cost paid by everyone
+who later has to work out which of them answers a question. The rest of this
+section is why each of the three claims holds.
+
+#### `audit_logs` is a log
+
+This is not a complaint about it. It records activity rather than state changes.
+It can be filtered before anything is stored, trimmed by age, and replaced by an
+implementation that writes nothing at all. Its required columns describe an HTTP
+request made by a person, down to an icon for displaying the result.
+
+Every one of those is right for what it does. A mechanism answering "who did
+what through the API, and when" should be cheap to write, cheap to keep, and
+easy to leave out of a hot path. See Findings below for each of these.
+
+#### This work needs a journal
+
+The distinctions above say what that requires: authority, completeness,
+unbypassability, permanence, reconcilability. The demanding one is evidentiary
+standing. The account has to satisfy a party who produced none of it and who
+accepts nothing yet, and a record with permitted gaps cannot do that, because
+every absence in it has an innocent explanation available.
+
+#### One record cannot serve both well
+
+The obligations contradict each other pairwise. Deletable against permanent.
+Droppable against complete. Bypassable against unbypassable. Shaped for a
+request against shaped for a state change. A single record would have to honour
+both halves of each pair at once.
+
+Whatever "extend" is taken to mean, it meets that wall. Writing journal entries
+into the table means filling required request columns with placeholders chosen to
+satisfy the schema, and then watching retention remove the rows anyway. Changing
+the table means making those columns nullable and breaking the contract every
+existing reader relies on, teaching retention an exemption so that completeness
+comes to depend on a boolean the purge must respect forever, taking away the
+filter's ability to drop a record, and making writes transactional with the state
+change they account for. At the end of that there are two tables sharing one
+name. Replacing it outright is the honest reading and much the largest, and it
+would take away a feature people use for reasons unconnected to this work.
+
+Nor is extending the cheaper path. Registering one new audited resource already
+touches eight places and a documentation generator, and none of that goes away if
+the properties have to change as well.
+
+#### What this is not saying
+
+The existing table is not defective, and nothing here should be read as arguing
+that it be removed or rebuilt. That an unused value already sits in its enum
+shows the enum was never the obstacle. The properties are.
+
+Both records contribute to an audit trail, which is a collection assembled from
+whatever sources exist rather than a single table. Neither supersedes the other.
+
+The last argument is about risk rather than design. Building beside the existing
+table is reversible: if the two should later merge, they can. Changing what the
+existing table guarantees is not reversible in the same way, and a mistake there
+breaks something already in use by people who never asked for any of this.
+
 ### Sources for the etymology
 
 The dates and the practices above are checkable, and are recorded here so that
@@ -218,3 +285,56 @@ nobody has to take them on trust.
   fifteenth century accounting sense: <https://www.etymonline.com/word/journal>
 - Day-book, for contrast, being a separate and later English compound:
   <https://www.etymonline.com/word/day-book>
+
+## Findings
+
+Verifiable facts about this codebase, recorded so that the positions above can
+be checked rather than taken on trust.
+
+### The shape of `audit_logs`
+
+Fifteen columns, thirteen of them `NOT NULL`. Only `ip` and `user_agent` are
+nullable. Among the required ones are `user_id`, `organization_id`,
+`request_id`, and `status_code`, each of which presumes an HTTP request made by
+a person, and `resource_icon`, which is a presentation detail.
+
+`id` is a uuid, and ordering comes from an index on `"time" DESC`. Two rows
+written in one transaction share a time and have no defined order between them.
+
+`resource_type` is a Postgres enum of 36 values. It already contains
+`workspace_agent`, which has no mention in `coderd/audit/diff.go` or
+`enterprise/audit/table.go`.
+
+See the `audit_logs` table in `coderd/database/dump.sql`.
+
+### What removes rows from `audit_logs`
+
+`DeleteOldAuditLogs`, in `coderd/database/queries/auditlogs.sql`, deletes every
+row older than a cutoff. Nothing exempts a row: no column marks one as spared
+and no branch of the query skips one. The cutoff comes from the deployment's
+audit log retention setting, and `coderd/database/dbpurge/dbpurge.go` runs the
+purge on a ten minute ticker.
+
+The deprecated connection actions are excluded from that query and removed by
+their own, with their own maximum age.
+
+### What writes to `audit_logs`
+
+`InsertAuditLog` has two callers. The production one is
+`enterprise/audit/backends/postgres.go`, whose `Export` runs after a `Filter`
+has returned a decision. `FilterDecisionDrop` is documented as meaning the
+record "should not be stored or exported anywhere". The default filter stores
+and exports everything, but the ability to drop is part of the design rather
+than an oversight.
+
+The `Auditor` interface also has a no-op implementation whose `Export` returns
+without writing anything.
+
+The other caller, in `coderd/audit.go`, is a handler that generates fake entries
+for development.
+
+### What registering a new resource in `audit_logs` costs
+
+Eight places, plus a documentation generator. The enumeration is in
+`poc_audit/audit_approach.md` under the cost of registering with the existing
+machinery, and is not repeated here.
