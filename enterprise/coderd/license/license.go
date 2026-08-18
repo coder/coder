@@ -277,15 +277,18 @@ func resolveUsagePublishingEnabledSince(ctx context.Context, db database.Store, 
 		}
 		if !locked {
 			// Another replica is updating the marker right now; its write
-			// serves as this refresh's observation.
+			// serves as this refresh's observation, but it is not committed
+			// yet, so the read below can only see the previous marker.
 			if err := readMarker(); err != nil {
 				return err
 			}
 			enabledSince = marker.EnabledSince
-			if enabledSince.IsZero() {
-				// The concurrent writer has not committed yet; treat the
-				// period as starting now. The writer's marker wins on the
-				// next refresh.
+			if enabledSince.IsZero() || now.Sub(marker.LastSeen) > usagePublishingEnabledMarkerStaleAfter {
+				// Missing or stale: the winner is starting a new enabled
+				// period, so treat it as starting now rather than reporting
+				// the previous period and surfacing pre-interruption
+				// failures without the re-enablement grace. The winner's
+				// committed marker takes over on the next refresh.
 				enabledSince = now
 			}
 			return nil
