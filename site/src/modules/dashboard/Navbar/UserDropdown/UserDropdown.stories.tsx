@@ -325,4 +325,17 @@ export const AISpendHiddenOnNegativeLimit: Story = {
 	},
 };
 
+export const NoEmailSubtitle: Story = {
+	args: {
+		user: { ...MockUserOwner, email: "" },
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("omits the subtitle when the email is empty", async () => {
+			const menu = await openDropdown(canvasElement);
+			expect(menu.getByText(MockUserOwner.username)).toBeInTheDocument();
+			expect(menu.queryByText(MockUserOwner.email)).not.toBeInTheDocument();
+		});
+	},
+};
+
 export { Example as UserDropdown };
