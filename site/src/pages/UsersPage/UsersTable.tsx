@@ -6,6 +6,7 @@ import type { GroupsByUserId } from "#/api/queries/groups";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
+import { userIdentity } from "#/components/Avatar/userIdentity";
 import { PremiumBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
 import {
@@ -144,13 +145,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 			{users?.map((user) => (
 				<TableRow key={user.id} data-testid={`user-${user.id}`}>
 					<TableCell>
-						<AvatarData
-							title={user.username}
-							subtitle={
-								user.is_service_account ? "Service Account" : user.email
-							}
-							src={user.avatar_url}
-						/>
+						<AvatarData {...userIdentity(user)} />
 					</TableCell>
 
 					<UserRoleCell roles={user.roles} />

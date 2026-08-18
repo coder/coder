@@ -9,6 +9,7 @@ import type { FC, ReactNode } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
+import { userIdentity } from "#/components/Avatar/userIdentity";
 import {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
@@ -39,14 +40,17 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	onSignOut,
 }) => {
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
+	const { title, subtitle } = userIdentity(user);
 
 	return (
 		<>
 			<DropdownMenuItem className="flex items-center gap-3" asChild>
 				<Link to="/settings/account">
 					<div className="flex flex-col">
-						<span className="text-content-primary">{user.username}</span>
-						<span className="text-xs font-semibold">{user.email}</span>
+						<span className="text-content-primary">{title}</span>
+						{subtitle && (
+							<span className="text-xs font-semibold">{subtitle}</span>
+						)}
 					</div>
 				</Link>
 			</DropdownMenuItem>

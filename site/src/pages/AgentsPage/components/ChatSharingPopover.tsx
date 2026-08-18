@@ -11,6 +11,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { userIdentity } from "#/components/Avatar/userIdentity";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -137,13 +138,7 @@ const MemberIdentity: FC<MemberIdentityProps> = (props) => {
 	}
 
 	const { user } = props;
-	return (
-		<AvatarData
-			title={user.username}
-			subtitle={user.name}
-			src={user.avatar_url}
-		/>
-	);
+	return <AvatarData {...userIdentity(user)} />;
 };
 
 type MobileMemberRowProps = {

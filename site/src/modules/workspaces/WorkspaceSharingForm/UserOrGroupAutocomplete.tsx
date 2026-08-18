@@ -9,6 +9,7 @@ import type {
 } from "#/api/typesGenerated";
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { userIdentity } from "#/components/Avatar/userIdentity";
 import { getGroupSubtitle, isGroup } from "#/modules/groups";
 
 type OrganizationMember = OrganizationMemberWithUserData & { id: string };
@@ -115,15 +116,15 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 			}
 			renderOption={(option, isSelected) => (
 				<div className="flex items-center justify-between w-full">
-					<AvatarData
-						title={
-							isGroup(option)
-								? option.display_name || option.name
-								: option.username
-						}
-						subtitle={isGroup(option) ? getGroupSubtitle(option) : option.email}
-						src={option.avatar_url}
-					/>
+					{isGroup(option) ? (
+						<AvatarData
+							title={option.display_name || option.name}
+							subtitle={getGroupSubtitle(option)}
+							src={option.avatar_url}
+						/>
+					) : (
+						<AvatarData {...userIdentity(option)} />
+					)}
 					{isSelected && <CheckIcon className="size-4 shrink-0" />}
 				</div>
 			)}

@@ -11,6 +11,7 @@ import type {
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { userIdentity } from "#/components/Avatar/userIdentity";
 import { Button } from "#/components/Button/Button";
 import {
 	Combobox,
@@ -241,11 +242,7 @@ const InnerAutocomplete = <T extends SelectedUser>({
 									]}
 									className="m-1"
 								>
-									<AvatarData
-										title={option.username}
-										subtitle={option.email}
-										src={option.avatar_url}
-									/>
+									<AvatarData {...userIdentity(option)} />
 								</ComboboxItem>
 							))}
 					</ComboboxList>
