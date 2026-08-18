@@ -96,7 +96,7 @@ const UpdateMCPServerPage: FC = () => {
 				permissions.viewAnyMCPServerConfigs
 			}
 		>
-			{organizationPermissionsQuery.isError ? (
+			{organizationPermissionsQuery.isLoadingError ? (
 				<ErrorAlert error={organizationPermissionsQuery.error} />
 			) : !permissions.editDeploymentConfig &&
 				!organizationPermissionsQuery.data ? (
@@ -105,6 +105,11 @@ const UpdateMCPServerPage: FC = () => {
 				<RequirePermission
 					isFeatureVisible={canManage && Boolean(organization)}
 				>
+					{organizationPermissionsQuery.isRefetchError && (
+						<div className="mb-4">
+							<ErrorAlert error={organizationPermissionsQuery.error} />
+						</div>
+					)}
 					{!serverId ? (
 						<Navigate to={listPath} replace />
 					) : serverQuery.isLoading ? (

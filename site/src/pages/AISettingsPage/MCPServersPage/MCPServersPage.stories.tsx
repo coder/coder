@@ -6,6 +6,7 @@ import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { mcpServerConfigKey } from "#/api/queries/chats";
+import { organizationsPermissions } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
@@ -92,6 +93,31 @@ const RefetchServerDetailProbe: FC = () => {
 const withRefetchServerDetailProbe: Decorator = (Story) => (
 	<>
 		<RefetchServerDetailProbe />
+		<Story />
+	</>
+);
+
+const RefetchPermissionsProbe: FC = () => {
+	const queryClient = useQueryClient();
+	return (
+		<button
+			type="button"
+			onClick={() =>
+				void queryClient.refetchQueries({
+					queryKey: organizationsPermissions([MockDefaultOrganization.id])
+						.queryKey,
+					exact: true,
+				})
+			}
+		>
+			Refetch permissions
+		</button>
+	);
+};
+
+const withRefetchPermissionsProbe: Decorator = (Story) => (
+	<>
+		<RefetchPermissionsProbe />
 		<Story />
 	</>
 );
@@ -390,6 +416,48 @@ export const OrgAdminCanAddMCPServer: Story = {
 		await expect(
 			canvas.getByRole("button", { name: "Add server" }),
 		).toBeVisible();
+	},
+};
+
+export const AddPermissionsRefetchErrorKeepsForm: Story = {
+	render: () => <AddMCPServerPage />,
+	decorators: [withRefetchPermissionsProbe],
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: true,
+			createAnyMCPServerConfig: true,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers/add" },
+			routing: { path: "/ai/settings/mcp-servers/add" },
+		}),
+	},
+	beforeEach: () => {
+		const checkAuthorization = spyOn(API, "checkAuthorization");
+		checkAuthorization.mockImplementationOnce(async ({ checks }) =>
+			Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+		);
+		checkAuthorization.mockRejectedValue(
+			mockApiError({ message: "failed to refresh permissions" }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const displayName = await canvas.findByLabelText(/display name/i);
+		await userEvent.type(displayName, "Draft server");
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Refetch permissions" }),
+		);
+		const alert = await canvas.findByRole("alert");
+		await expect(
+			within(alert).getByRole("heading", {
+				name: /failed to refresh permissions/i,
+			}),
+		).toBeVisible();
+		await expect(canvas.getByLabelText(/display name/i)).toHaveValue(
+			"Draft server",
+		);
 	},
 };
 

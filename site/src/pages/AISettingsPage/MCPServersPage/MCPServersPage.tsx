@@ -66,13 +66,18 @@ const MCPServersPage: FC = () => {
 			}
 		>
 			<title>{pageTitle("MCP servers", "AI Settings")}</title>
-			{organizationPermissionsQuery.isError ? (
+			{organizationPermissionsQuery.isLoadingError ? (
 				<ErrorAlert error={organizationPermissionsQuery.error} />
 			) : !permissions.editDeploymentConfig &&
 				!organizationPermissionsQuery.data ? (
 				<Loader />
 			) : (
 				<RequirePermission isFeatureVisible={canView && Boolean(organization)}>
+					{organizationPermissionsQuery.isRefetchError && (
+						<div className="mb-4">
+							<ErrorAlert error={organizationPermissionsQuery.error} />
+						</div>
+					)}
 					{organization && (
 						<MCPServersPageView
 							isLoading={serversQuery.isLoading}

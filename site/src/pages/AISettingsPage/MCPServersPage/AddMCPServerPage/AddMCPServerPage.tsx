@@ -72,7 +72,7 @@ const AddMCPServerPage: FC = () => {
 				permissions.editDeploymentConfig || permissions.createAnyMCPServerConfig
 			}
 		>
-			{organizationPermissionsQuery.isError ? (
+			{organizationPermissionsQuery.isLoadingError ? (
 				<ErrorAlert error={organizationPermissionsQuery.error} />
 			) : !permissions.editDeploymentConfig &&
 				!organizationPermissionsQuery.data ? (
@@ -81,31 +81,38 @@ const AddMCPServerPage: FC = () => {
 				<RequirePermission isFeatureVisible={false} />
 			) : (
 				organization && (
-					<AddMCPServerPageView
-						isSaving={createMutation.isPending}
-						canCreate={canCreate}
-						organizations={creatableOrganizations}
-						organization={organization}
-						onSelectOrganization={(org) => {
-							setSearchParams((params) => {
-								const next = new URLSearchParams(params);
-								next.set(orgSearchParam, org.name);
-								return next;
-							});
-						}}
-						onCancel={() => void navigate(mcpServersPath(organization))}
-						onCreateServer={async (req) => {
-							try {
-								const server = await createMutation.mutateAsync(req);
-								toast.success(`MCP server "${server.display_name}" added.`);
-								await navigate(updateMCPServerPath(server.id, organization));
-							} catch (error) {
-								toast.error(
-									getErrorMessage(error, "Failed to add MCP server."),
-								);
-							}
-						}}
-					/>
+					<>
+						{organizationPermissionsQuery.isRefetchError && (
+							<div className="mb-4">
+								<ErrorAlert error={organizationPermissionsQuery.error} />
+							</div>
+						)}
+						<AddMCPServerPageView
+							isSaving={createMutation.isPending}
+							canCreate={canCreate}
+							organizations={creatableOrganizations}
+							organization={organization}
+							onSelectOrganization={(org) => {
+								setSearchParams((params) => {
+									const next = new URLSearchParams(params);
+									next.set(orgSearchParam, org.name);
+									return next;
+								});
+							}}
+							onCancel={() => void navigate(mcpServersPath(organization))}
+							onCreateServer={async (req) => {
+								try {
+									const server = await createMutation.mutateAsync(req);
+									toast.success(`MCP server "${server.display_name}" added.`);
+									await navigate(updateMCPServerPath(server.id, organization));
+								} catch (error) {
+									toast.error(
+										getErrorMessage(error, "Failed to add MCP server."),
+									);
+								}
+							}}
+						/>
+					</>
 				)
 			)}
 		</RequirePermission>
