@@ -336,23 +336,45 @@ func ScopesCover(allowed []ScopeName, requested ScopeName) (bool, error) {
 	if err != nil {
 		return false, xerrors.Errorf("expand requested scope: %w", err)
 	}
-	if err := checkCoverable(want, coverageSideRequested, requested); err != nil {
-		return false, err
-	}
 
-	granted := make([]Permission, 0, len(allowed)*4)
+	grants := make([]namedScope, 0, len(allowed))
 	for _, name := range allowed {
 		expanded, err := ExpandScope(name)
 		if err != nil {
 			return false, xerrors.Errorf("expand allowed scope %q: %w", name, err)
 		}
-		if err := checkCoverable(expanded, coverageSideAllowed, name); err != nil {
-			return false, err
-		}
-		granted = append(granted, expanded.Site...)
+		grants = append(grants, namedScope{name: name, scope: expanded})
 	}
 
-	for _, needed := range want.Site {
+	return scopesCoverExpanded(grants, namedScope{name: requested, scope: want})
+}
+
+// namedScope pairs an expanded scope with the name the caller spelled, so a
+// guard error can name the scope as it was requested rather than as it expanded.
+type namedScope struct {
+	name  ScopeName
+	scope Scope
+}
+
+// scopesCoverExpanded is the comparison ScopesCover runs once both sides are
+// expanded. It is separate because every Scope ExpandScope builds satisfies
+// the guards below, so driving synthetic Scope values through this function is
+// the only way to reach them. Testing checkCoverable alone would leave
+// unverified the part that matters most: that both sides are actually checked.
+func scopesCoverExpanded(allowed []namedScope, requested namedScope) (bool, error) {
+	if err := checkCoverable(requested.scope, coverageSideRequested, requested.name); err != nil {
+		return false, err
+	}
+
+	granted := make([]Permission, 0, len(allowed)*4)
+	for _, entry := range allowed {
+		if err := checkCoverable(entry.scope, coverageSideAllowed, entry.name); err != nil {
+			return false, err
+		}
+		granted = append(granted, entry.scope.Site...)
+	}
+
+	for _, needed := range requested.scope.Site {
 		if !permissionCovered(needed, granted) {
 			return false, nil
 		}

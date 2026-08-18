@@ -8,13 +8,29 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
-// TestCheckCoverable drives Scope values that no catalog entry produces. The
-// guards exist for authority ScopeName inputs cannot express today, so the
-// public function cannot reach them and they would otherwise ship unverified.
-func TestCheckCoverable(t *testing.T) {
-	t.Parallel()
+var (
+	siteRead     = Permission{ResourceType: "workspace", Action: policy.ActionRead}
+	siteWildcard = Permission{ResourceType: "workspace", Action: policy.WildcardSymbol}
+	siteDeleteNo = Permission{ResourceType: "workspace", Action: policy.ActionDelete, Negate: true}
+)
 
-	siteRead := Permission{ResourceType: "workspace", Action: policy.ActionRead}
+// coverableScope is the shape every ExpandScope result has: site permissions
+// only, wildcard allow list, no negatives.
+func coverableScope(perms ...Permission) Scope {
+	return Scope{
+		Role:        Role{Site: perms},
+		AllowIDList: []AllowListElement{AllowListAll()},
+	}
+}
+
+// TestScopesCoverGuards drives Scope values that no catalog entry produces.
+// The guards exist for authority ScopeName inputs cannot express today, so
+// ScopesCover cannot reach them and they would otherwise ship unverified.
+//
+// Each shape runs on both sides of the comparison, with the opposite side
+// coverable, so a guard consulted on only one side fails here.
+func TestScopesCoverGuards(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
 		name    string
@@ -22,11 +38,8 @@ func TestCheckCoverable(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "SitePermissionsOnly",
-			scope: Scope{
-				Role:        Role{Site: []Permission{siteRead}},
-				AllowIDList: []AllowListElement{AllowListAll()},
-			},
+			name:  "SitePermissionsOnly",
+			scope: coverableScope(siteRead),
 		},
 		{
 			name: "UserPermission",
@@ -46,8 +59,8 @@ func TestCheckCoverable(t *testing.T) {
 			name: "NegativeUserPermission",
 			scope: Scope{
 				Role: Role{
-					Site: []Permission{{ResourceType: "workspace", Action: policy.WildcardSymbol}},
-					User: []Permission{{ResourceType: "workspace", Action: policy.ActionDelete, Negate: true}},
+					Site: []Permission{siteWildcard},
+					User: []Permission{siteDeleteNo},
 				},
 				AllowIDList: []AllowListElement{AllowListAll()},
 			},
@@ -65,14 +78,8 @@ func TestCheckCoverable(t *testing.T) {
 			wantErr: "grants org or user permissions",
 		},
 		{
-			name: "NegativeSitePermission",
-			scope: Scope{
-				Role: Role{Site: []Permission{
-					{ResourceType: "workspace", Action: policy.WildcardSymbol},
-					{ResourceType: "workspace", Action: policy.ActionDelete, Negate: true},
-				}},
-				AllowIDList: []AllowListElement{AllowListAll()},
-			},
+			name:    "NegativeSitePermission",
+			scope:   coverableScope(siteWildcard, siteDeleteNo),
 			wantErr: "carries a negative permission",
 		},
 		{
@@ -89,17 +96,65 @@ func TestCheckCoverable(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			for _, side := range []string{coverageSideRequested, coverageSideAllowed} {
-				err := checkCoverable(test.scope, side, "test_scope")
+			// The opposite side is chosen so that a coverable scope under test
+			// reaches the comparison and answers true: a wildcard grant covers
+			// any request, and a workspace:read request is covered by any
+			// grant here. That keeps a guard error distinguishable from an
+			// ordinary uncovered result.
+			cleanGrant := namedScope{name: "clean_scope", scope: coverableScope(siteWildcard)}
+			cleanRequest := namedScope{name: "clean_scope", scope: coverableScope(siteRead)}
+			under := namedScope{name: "test_scope", scope: test.scope}
+
+			sides := []struct {
+				side      string
+				allowed   []namedScope
+				requested namedScope
+			}{
+				{side: coverageSideRequested, allowed: []namedScope{cleanGrant}, requested: under},
+				{side: coverageSideAllowed, allowed: []namedScope{under}, requested: cleanRequest},
+			}
+
+			for _, args := range sides {
+				side := args.side
+				got, err := scopesCoverExpanded(args.allowed, args.requested)
 				if test.wantErr == "" {
 					require.NoErrorf(t, err, "side %q", side)
+					require.Truef(t, got, "side %q", side)
 					continue
 				}
 				require.ErrorContainsf(t, err, test.wantErr, "side %q", side)
 				// The side names itself, so an operator reading the error can
 				// tell which half of the comparison was undecidable.
 				require.ErrorContainsf(t, err, side+` scope "test_scope"`, "side %q", side)
+				require.Falsef(t, got, "an undecided comparison must not report coverage, side %q", side)
 			}
 		})
 	}
+}
+
+// TestScopesCoverAllowedNegativeDoesNotWiden is the case the guards were added
+// for. An allowed scope granting every workspace action except delete must not
+// answer a request for delete. Reading its Site permissions alone would, since
+// the wildcard matches and the anti-grant sits in a field coverage never reads.
+func TestScopesCoverAllowedNegativeDoesNotWiden(t *testing.T) {
+	t.Parallel()
+
+	everythingExceptDelete := namedScope{
+		name: "workspace_except_delete",
+		scope: Scope{
+			Role: Role{
+				Site: []Permission{siteWildcard},
+				User: []Permission{siteDeleteNo},
+			},
+			AllowIDList: []AllowListElement{AllowListAll()},
+		},
+	}
+	wantDelete := namedScope{
+		name:  "workspace:delete",
+		scope: coverableScope(Permission{ResourceType: "workspace", Action: policy.ActionDelete}),
+	}
+
+	got, err := scopesCoverExpanded([]namedScope{everythingExceptDelete}, wantDelete)
+	require.Error(t, err)
+	require.False(t, got)
 }
