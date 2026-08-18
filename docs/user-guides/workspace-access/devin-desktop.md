@@ -9,8 +9,7 @@ Desktop automatically, your plan, extensions, and settings carried over.
 Follow this guide to use Devin Desktop to access your Coder workspaces.
 
 If your team uses Devin Desktop regularly, ask your Coder administrator to add Devin Desktop as a workspace application in your template.
-You can also use the [Windsurf module](https://registry.coder.com/modules/coder/windsurf) to easily add Devin Desktop to your Coder templates.
-The module and app are still named `windsurf` for backwards compatibility with existing templates.
+You can also use the [devin-desktop module](https://registry.coder.com/modules/coder/devin-desktop) to easily add Devin Desktop to your Coder templates.
 
 ## Install Devin Desktop
 
