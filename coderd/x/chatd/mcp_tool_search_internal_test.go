@@ -134,6 +134,33 @@ func TestDeriveDeferredMCPActivationsSameStepDirectCallPriority(t *testing.T) {
 		"same-step search activations cannot shed a directly invoked tool's schema")
 }
 
+func TestDeriveDeferredMCPActivationsExcludesDeniedDirectCalls(t *testing.T) {
+	t.Parallel()
+	candidates := []deferredMCPTool{
+		testDeferredTool("server__denied", "denied", nil),
+		testDeferredTool("server__searched", "searched", nil),
+	}
+	assistantStep, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall("call-search", chattool.FindToolsName, []byte(`{"queries":["x"]}`)),
+		codersdk.ChatMessageToolCall("call-denied", "server__denied", []byte(`{}`)),
+	})
+	require.NoError(t, err)
+	toolRow, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolResult("call-denied", "server__denied", []byte(`"blocked by policy"`), true, false),
+		codersdk.ChatMessageToolResult("call-search", chattool.FindToolsName, []byte(`{"activated":["server__searched"]}`), false, false),
+	})
+	require.NoError(t, err)
+	rows := []database.ChatMessage{
+		{Role: database.ChatMessageRoleAssistant, Content: assistantStep, ContentVersion: chatprompt.CurrentContentVersion},
+		{Role: database.ChatMessageRoleTool, Content: toolRow, ContentVersion: chatprompt.CurrentContentVersion},
+	}
+	require.Equal(t, []string{"server__searched"}, deriveDeferredMCPActivations(rows, candidates, 0),
+		"a direct call with an error result does not activate its schema")
+	searchedWeight := estimateDeferredMCPToolTokens(candidates[1:])
+	require.Equal(t, []string{"server__searched"}, deriveDeferredMCPActivations(rows, candidates, searchedWeight),
+		"a denied direct call cannot consume budget promised to the search's reported activations")
+}
+
 func TestFlattenMCPParameterText(t *testing.T) {
 	t.Parallel()
 	text := flattenMCPParameterText(map[string]any{

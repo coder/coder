@@ -207,6 +207,12 @@ func flattenMCPParameterText(value any) string {
 // row's direct tool calls, so a step's own search activations cannot
 // shed the schema of a tool the model invoked directly. Results whose
 // call row was compacted away are admitted at the result row.
+//
+// Direct calls whose tool result is an error do not activate: the call
+// was denied before execution (hook policy, input validation) or
+// failed, so inlining its schema would spend budget that surviving
+// find_tools results have already promised elsewhere. Execution-time
+// reservation may still charge such calls, which only under-claims.
 func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []deferredMCPTool, tokenBudget float64) []string {
 	candidateByName := make(map[string]deferredMCPTool, len(candidates))
 	for _, candidate := range candidates {
@@ -233,6 +239,7 @@ func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []defe
 	}
 	parsedParts := make([][]codersdk.ChatMessagePart, len(rows))
 	findToolsCallIDs := make(map[string]struct{})
+	erroredCallIDs := make(map[string]struct{})
 	for i := range rows {
 		parts, err := chatprompt.ParseContent(rows[i])
 		if err != nil {
@@ -243,12 +250,18 @@ func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []defe
 			if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolName == chattool.FindToolsName && part.ToolCallID != "" {
 				findToolsCallIDs[part.ToolCallID] = struct{}{}
 			}
+			if part.Type == codersdk.ChatMessagePartTypeToolResult && part.IsError && part.ToolCallID != "" {
+				erroredCallIDs[part.ToolCallID] = struct{}{}
+			}
 		}
 	}
 	pendingSearch := make(map[string][]string)
 	for i := len(rows) - 1; i >= 0; i-- {
 		for _, part := range parsedParts[i] {
 			if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolName != chattool.FindToolsName {
+				if _, errored := erroredCallIDs[part.ToolCallID]; errored {
+					continue
+				}
 				appendName(part.ToolName)
 			}
 		}
