@@ -3432,7 +3432,7 @@ CREATE VIEW template_version_with_user AS
    FROM (template_versions
      LEFT JOIN visible_users ON ((template_versions.created_by = visible_users.id)));
 
-COMMENT ON VIEW template_version_with_user IS 'Joins in the username + avatar url of the created by user.';
+COMMENT ON VIEW template_version_with_user IS 'Joins in the username, name, avatar url, and email of the created by user.';
 
 CREATE TABLE template_version_workspace_tags (
     template_version_id uuid NOT NULL,

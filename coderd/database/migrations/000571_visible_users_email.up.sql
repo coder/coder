@@ -1,4 +1,6 @@
--- Add email to visible_users so identity joins can disambiguate users.
+-- MinimalUser now requires an email (#28240), but the visible_users view has
+-- no email column to source it from. Add email to the view so identity joins
+-- can populate MinimalUser.email.
 -- CREATE OR REPLACE may append columns; dependent views keep working.
 
 CREATE OR REPLACE VIEW visible_users AS
@@ -39,4 +41,4 @@ FROM (
 	LEFT JOIN visible_users ON (template_versions.created_by = visible_users.id)
 );
 
-COMMENT ON VIEW template_version_with_user IS 'Joins in the username + avatar url of the created by user.';
+COMMENT ON VIEW template_version_with_user IS 'Joins in the username, name, avatar url, and email of the created by user.';

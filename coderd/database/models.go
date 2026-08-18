@@ -5999,7 +5999,7 @@ type TemplateUsageStat struct {
 	AppUsageMins StringMapOfInt `db:"app_usage_mins" json:"app_usage_mins"`
 }
 
-// Joins in the username + avatar url of the created by user.
+// Joins in the username, name, avatar url, and email of the created by user.
 type TemplateVersion struct {
 	ID                    uuid.UUID       `db:"id" json:"id"`
 	TemplateID            uuid.NullUUID   `db:"template_id" json:"template_id"`
