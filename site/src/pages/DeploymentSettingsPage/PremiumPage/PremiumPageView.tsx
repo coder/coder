@@ -43,7 +43,7 @@ export const PremiumPageView: FC<PremiumPageViewProps> = ({
 	return (
 		<div className="rounded-lg border border-solid border-border-default bg-surface-primary overflow-hidden">
 			<div className="grid grid-cols-1 lg:grid-cols-2 min-h-[640px]">
-				<div className="relative isolate overflow-hidden hidden lg:flex flex-col p-12 bg-surface-secondary">
+				<div className="relative isolate overflow-hidden hidden lg:flex flex-col p-12 mt-12 bg-surface-secondary">
 					<Supergraphic className="bg-[length:100%_130%] bg-[position:0_100%] -scale-x-100" />
 					<h2 className="self-end m-0 max-w-md text-3xl font-semibold text-content-primary text-balance">
 						{hasLicense
@@ -51,7 +51,7 @@ export const PremiumPageView: FC<PremiumPageViewProps> = ({
 							: "Start a 30-day trial of Coder Premium"}
 					</h2>
 					{!hasLicense && (
-						<p className="self-start m-0 max-w-sm pt-6 text-sm text-content-secondary">
+						<p className="self-start m-0 max-w-sm pt-6 text-sm text-content-primary">
 							Control what agents can access, who can use which templates, and
 							how your infrastructure scales. No credit card required.
 						</p>

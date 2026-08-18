@@ -153,15 +153,6 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 			noValidate
 		>
 			<div className="flex flex-col gap-4">
-				<FormField
-					label="Business email"
-					type="email"
-					placeholder="you@company.com"
-					field={getFieldHelpers("email", { maxLength: MAX_EMAIL_LENGTH })}
-					onChange={onChangeTrimmed(form)}
-					disabled={isSubmitting}
-				/>
-
 				<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 					<FormField
 						label="First name"
@@ -178,6 +169,15 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 						disabled={isSubmitting}
 					/>
 				</div>
+
+				<FormField
+					label="Business email"
+					type="email"
+					placeholder="you@company.com"
+					field={getFieldHelpers("email", { maxLength: MAX_EMAIL_LENGTH })}
+					onChange={onChangeTrimmed(form)}
+					disabled={isSubmitting}
+				/>
 
 				<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 					<FormField
@@ -238,7 +238,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 					))}
 				</SelectField>
 			</div>
-			<div className="flex gap-2 items-start text-sm text-content-secondary">
+			<div className="flex gap-2 items-start text-sm text-content-primary">
 				<Checkbox
 					id={acknowledgementId}
 					checked={form.values.acknowledged}
@@ -274,11 +274,6 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 					<Spinner loading={isSubmitting} />
 					Start a trial
 				</Button>
-				{!form.values.acknowledged && (
-					<p className="m-0 text-xs text-content-secondary">
-						Acknowledge the database requirements to start your trial.
-					</p>
-				)}
 				<DisclaimerText />
 			</div>
 		</form>

@@ -149,13 +149,12 @@ const LicensesSettingsPageView: FC<Props> = ({
 										sales
 									</Link>{" "}
 									or{" "}
-									<Link
-										href="https://coder.com/trial"
-										className="m-0 p-0 text-base"
-										showExternalIcon={false}
+									<RouterLink
+										to="/deployment/premium"
+										className="m-0 p-0 text-content-link"
 									>
 										request a trial license
-									</Link>{" "}
+									</RouterLink>{" "}
 									to get started.
 								</span>
 							</div>

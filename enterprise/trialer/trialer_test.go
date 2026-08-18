@@ -93,7 +93,7 @@ func TestNewLicenseRequester(t *testing.T) {
 		require.Equal(t, "application/json", got.contentType)
 		require.Equal(t, map[string]any{
 			"deployment_id": "test-deployment",
-			"source":        "premium_page",
+			"source":        "Product",
 			"email":         req.Email,
 			"first_name":    req.FirstName,
 			"last_name":     req.LastName,

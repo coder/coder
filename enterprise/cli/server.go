@@ -79,7 +79,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			backends.NewSlog(options.Logger),
 		)
 
-		options.TrialGenerator = trialer.New(options.Database, "https://v2-licensor.coder.com/trial", coderd.Keys)
+		options.TrialGenerator = trialer.New(options.Database, trialer.LicenseRequestURL, coderd.Keys)
 
 		o := &coderd.Options{
 			Options:                   options,

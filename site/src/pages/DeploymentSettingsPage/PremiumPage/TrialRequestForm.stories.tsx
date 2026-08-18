@@ -52,12 +52,6 @@ export const Default: Story = {
 		await userEvent.click(canvas.getByRole("checkbox"));
 
 		await waitFor(() => expect(submit).toBeEnabled());
-		// The gating hint disappears once the box is checked.
-		await expect(
-			canvas.queryByText(
-				"Acknowledge the database requirements to start your trial.",
-			),
-		).not.toBeInTheDocument();
 	},
 };
 

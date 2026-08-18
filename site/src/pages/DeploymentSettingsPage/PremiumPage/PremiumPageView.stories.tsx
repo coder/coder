@@ -36,11 +36,6 @@ export const NoLicense: Story = {
 		await expect(
 			canvas.getByRole("button", { name: "Start a trial" }),
 		).toBeDisabled();
-		await expect(
-			canvas.getByText(
-				"Acknowledge the database requirements to start your trial.",
-			),
-		).toBeVisible();
 		// Requesting a trial replaces the old contact-sales upsell.
 		await expect(
 			canvas.queryByRole("link", { name: /contact sales/i }),

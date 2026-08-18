@@ -19,7 +19,9 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 )
 
-// New creates a handler that can issue trial licenses!
+// Many structures here mimic those from https://github.com/coder/license/blob/main/server/server.go
+
+// Creates a handler that can issue trial licenses
 func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(ctx context.Context, body codersdk.LicensorTrialRequest) error {
 	return func(ctx context.Context, body codersdk.LicensorTrialRequest) error {
 		deploymentID, err := db.GetDeploymentID(ctx)
@@ -45,8 +47,7 @@ func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(
 			if err != nil {
 				return xerrors.Errorf("read license response: %w", err)
 			}
-			// This is the format of the error response from
-			// the license server.
+			// This is the format of the error response from the license server.
 			var msg struct {
 				Error string `json:"error"`
 			}
@@ -96,15 +97,11 @@ const LicenseRequestURL = "https://v2-licensor.coder.com/trial"
 
 const (
 	// licenseRequestSource tells the licensor where a trial request originated.
-	licenseRequestSource = "premium_page"
+	licenseRequestSource = "Product"
 	// licenseRequestTimeout bounds a single request to the licensor.
 	licenseRequestTimeout = 30 * time.Second
 )
 
-// LicensorError is a rejection from the licensor for a business reason, such as
-// a deployment that has already used its trial. Its message comes from the
-// licensor and is intended to be shown to the requesting user. Transport and
-// protocol failures are returned as ordinary errors instead.
 type LicensorError struct {
 	Message string
 }
@@ -113,10 +110,7 @@ func (e *LicensorError) Error() string {
 	return e.Message
 }
 
-// licenseRequest is the licensor's wire format for a trial request. It is kept
-// separate from codersdk.LicensorTrialRequest, which postFirstUser marshals to
-// the licensor during setup, so that fields can be added here without altering
-// that payload.
+// licenseRequest is the licensor's wire format for a trial request.
 type licenseRequest struct {
 	DeploymentID string `json:"deployment_id"`
 	Email        string `json:"email"`
