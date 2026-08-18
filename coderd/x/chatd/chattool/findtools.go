@@ -24,6 +24,9 @@ const (
 	// carry arbitrarily many tokens scored against every entry.
 	findToolsMaxQueries     = 10
 	findToolsMaxQueryTokens = 16
+	// findToolsMaxNames bounds exact-name lookups the same way. Twice
+	// the match cap leaves room for unknown or duplicate names.
+	findToolsMaxNames = 2 * findToolsMaxMatches
 	// findToolsSpentBudgetFloor replaces a spent or over-reserved budget
 	// for searches so zero-cost reserved names remain activatable while
 	// any real schema weight still exceeds it.
@@ -414,7 +417,11 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget Sear
 		})
 		activatedSet[entry.Name] = struct{}{}
 	}
-	for _, name := range args.Names {
+	nameArgs := args.Names
+	if len(nameArgs) > findToolsMaxNames {
+		nameArgs = nameArgs[:findToolsMaxNames]
+	}
+	for _, name := range nameArgs {
 		if entry, ok := byName[name]; ok {
 			appendMatch(entry)
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -68,6 +69,23 @@ func TestSearchTools(t *testing.T) {
 		capped, _ := SearchTools(many, FindToolsArgs{Names: names}, SearchBudget{})
 		require.Len(t, capped.Matches, findToolsMaxMatches)
 		require.Len(t, capped.Activated, findToolsMaxMatches)
+	})
+	t.Run("names list is bounded", func(t *testing.T) {
+		t.Parallel()
+		entries := []FindToolCatalogEntry{
+			{Name: "server__target", Description: "does things"},
+		}
+		unknown := make([]string, findToolsMaxNames)
+		for i := range unknown {
+			unknown[i] = fmt.Sprintf("missing_%02d", i)
+		}
+		result, _ := SearchTools(entries, FindToolsArgs{Names: append(slices.Clone(unknown), "server__target")}, SearchBudget{})
+		require.Empty(t, result.Activated,
+			"a name past the inspection cap is not looked up")
+
+		result, _ = SearchTools(entries, FindToolsArgs{Names: append(unknown[:findToolsMaxNames-1], "server__target")}, SearchBudget{})
+		require.Equal(t, []string{"server__target"}, result.Activated,
+			"a name within the inspection cap still activates")
 	})
 	t.Run("server metadata", func(t *testing.T) {
 		t.Parallel()

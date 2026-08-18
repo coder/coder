@@ -986,9 +986,6 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-// parseArray narrows a value (or its JSON-encoded string form) to an
-// array and maps every element with parseItem, returning null when the
-// value is not an array or any element fails to parse.
 const parseArray = <T,>(
 	value: unknown,
 	parseItem: (item: unknown) => T | null,
