@@ -1,6 +1,8 @@
+import {
+	chatDefaultTerminalHiddenStorage,
+	chatRightPanelTabsStorage,
+} from "#/utils/storage/keys";
 import { isUserRightPanelTab, type UserRightPanelTab } from "./rightPanelTabs";
-
-export const rightPanelTabStorageKeyPrefix = "agents.right-panel-tabs.";
 
 export function getPersistedRightPanelTabs(
 	chatID: string | undefined,
@@ -8,23 +10,12 @@ export function getPersistedRightPanelTabs(
 	if (!chatID) {
 		return [];
 	}
-
-	const value = localStorage.getItem(
-		`${rightPanelTabStorageKeyPrefix}${chatID}`,
-	);
-	if (!value) {
-		return [];
-	}
-
-	try {
-		const parsed: unknown = JSON.parse(value);
-		if (!Array.isArray(parsed)) {
-			return [];
-		}
-		return parsed.filter(isUserRightPanelTab);
-	} catch {
-		return [];
-	}
+	// Stored values are raw strings; narrow so stale tab IDs from
+	// older builds are dropped on read.
+	return chatRightPanelTabsStorage
+		.forId(chatID)
+		.get()
+		.filter(isUserRightPanelTab);
 }
 
 export function savePersistedRightPanelTabs(
@@ -34,13 +25,8 @@ export function savePersistedRightPanelTabs(
 	if (!chatID) {
 		return;
 	}
-	localStorage.setItem(
-		`${rightPanelTabStorageKeyPrefix}${chatID}`,
-		JSON.stringify(tabs),
-	);
+	chatRightPanelTabsStorage.forId(chatID).set(tabs);
 }
-
-const defaultTerminalHiddenStorageKeyPrefix = "agents.default-terminal-hidden.";
 
 export function getPersistedDefaultTerminalHidden(
 	chatID: string | undefined,
@@ -48,11 +34,7 @@ export function getPersistedDefaultTerminalHidden(
 	if (!chatID) {
 		return false;
 	}
-	return (
-		localStorage.getItem(
-			`${defaultTerminalHiddenStorageKeyPrefix}${chatID}`,
-		) === "true"
-	);
+	return chatDefaultTerminalHiddenStorage.forId(chatID).get();
 }
 
 export function savePersistedDefaultTerminalHidden(
@@ -62,20 +44,10 @@ export function savePersistedDefaultTerminalHidden(
 	if (!chatID) {
 		return;
 	}
-	const key = `${defaultTerminalHiddenStorageKeyPrefix}${chatID}`;
+	const handle = chatDefaultTerminalHiddenStorage.forId(chatID);
 	if (hidden) {
-		localStorage.setItem(key, "true");
+		handle.set(true);
 	} else {
-		localStorage.removeItem(key);
+		handle.remove();
 	}
-}
-
-export function clearPersistedRightPanelState(
-	chatID: string | undefined,
-): void {
-	if (!chatID) {
-		return;
-	}
-	localStorage.removeItem(`${rightPanelTabStorageKeyPrefix}${chatID}`);
-	localStorage.removeItem(`${defaultTerminalHiddenStorageKeyPrefix}${chatID}`);
 }

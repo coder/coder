@@ -1,4 +1,4 @@
-export const lastActiveSidebarTabStorageKeyPrefix = "agents.last-active-tab.";
+import { chatSidebarTabStorage } from "#/utils/storage/keys";
 
 export function getPersistedSidebarTabId(
 	chatID: string | undefined,
@@ -6,9 +6,7 @@ export function getPersistedSidebarTabId(
 	if (!chatID) {
 		return null;
 	}
-	return localStorage.getItem(
-		`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`,
-	);
+	return chatSidebarTabStorage.forId(chatID).get();
 }
 
 export function savePersistedSidebarTabId(
@@ -18,15 +16,5 @@ export function savePersistedSidebarTabId(
 	if (!chatID) {
 		return;
 	}
-	localStorage.setItem(
-		`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`,
-		tabID,
-	);
-}
-
-export function clearPersistedSidebarTabId(chatID: string | undefined): void {
-	if (!chatID) {
-		return;
-	}
-	localStorage.removeItem(`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`);
+	chatSidebarTabStorage.forId(chatID).set(tabID);
 }

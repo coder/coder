@@ -10,6 +10,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
+import { lastModelConfigIdStorage } from "#/utils/storage/keys";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
@@ -20,8 +21,6 @@ import { WebPushButton } from "./components/WebPushButton";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import { buildAgentChatPath } from "./utils/navigation";
-
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
@@ -68,7 +67,7 @@ const AgentCreatePage: FC = () => {
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
 		if (model) {
-			localStorage.setItem(lastModelConfigIDStorageKey, model);
+			lastModelConfigIdStorage.set(model);
 		}
 		navigate({
 			pathname: buildAgentChatPath({ chatId: createdChat.id }),

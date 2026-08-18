@@ -33,16 +33,16 @@ import {
 	MockWorkspace,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
-import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
+import {
+	emptyInputDraftStorage,
+	persistedAttachmentsStorage,
+	selectedOrganizationIdStorage,
+} from "#/utils/storage/keys";
 import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import {
-	AgentCreateForm,
-	emptyInputStorageKey,
-	selectedOrganizationIdStorageKey,
-} from "./AgentCreateForm";
+import { AgentCreateForm } from "./AgentCreateForm";
 
 let pendingOrganizationAuthorization: Deferred<
 	Awaited<ReturnType<typeof API.checkAuthorization>>
@@ -1653,7 +1653,7 @@ export const OrganizationAuthorizationFailure: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		localStorage.setItem(emptyInputStorageKey, "draft message");
+		localStorage.setItem(emptyInputDraftStorage.key, "draft message");
 		spyOn(API, "getOrganizations").mockResolvedValue([
 			MockDefaultOrganization,
 			MockOrganization2,
@@ -1688,7 +1688,7 @@ export const LoadingWorkspacesBlocksSendUntilValidated: Story = {
 		isWorkspacesLoading: true,
 	},
 	beforeEach: () => {
-		localStorage.setItem(emptyInputStorageKey, "draft message");
+		localStorage.setItem(emptyInputDraftStorage.key, "draft message");
 		localStorage.setItem("agents.selected-workspace-id", "ws-default-org");
 		mockPermittedOrganizations({
 			[MockDefaultOrganization.id]: true,
@@ -1712,7 +1712,7 @@ export const DelayedOrganizationAuthorization: Story = {
 		queries: [],
 	},
 	beforeEach: () => {
-		localStorage.setItem(emptyInputStorageKey, "draft message");
+		localStorage.setItem(emptyInputDraftStorage.key, "draft message");
 		pendingOrganizationAuthorization = createDeferred();
 		spyOn(API, "getOrganizations").mockResolvedValue([
 			MockDefaultOrganization,
@@ -1836,7 +1836,7 @@ export const SelectedOrganizationSurvivesRemount: Story = {
 			}),
 		);
 		await waitFor(() => {
-			expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBe(
+			expect(localStorage.getItem(selectedOrganizationIdStorage.key)).toBe(
 				MockOrganization2.id,
 			);
 		});
@@ -2060,7 +2060,7 @@ export const RevokedPendingOrgClosesConfirmDialog: Story = {
 	beforeEach: () => {
 		localStorage.clear();
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify([
 				{
 					fileId: "file-default-org",
@@ -2271,7 +2271,7 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		// Another org's persisted attachment must survive a visit while
 		// the user has no chat permission anywhere.
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify([
 				{
 					fileId: "file-other-org",
@@ -2300,7 +2300,7 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 		expect(args.onCreateChat).not.toHaveBeenCalled();
 		expect(
-			localStorage.getItem(persistedAttachmentsStorageKey) ?? "",
+			localStorage.getItem(persistedAttachmentsStorage.key) ?? "",
 		).toContain("file-other-org");
 	},
 };

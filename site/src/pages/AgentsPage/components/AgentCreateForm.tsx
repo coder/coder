@@ -15,6 +15,12 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	emptyInputDraftStorage,
+	lastModelConfigIdStorage,
+	selectedOrganizationIdStorage,
+	selectedWorkspaceIdStorage,
+} from "#/utils/storage/keys";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
@@ -46,14 +52,6 @@ import {
 } from "./MCPServerPicker";
 import { getModelSelectorHelp } from "./ModelSelectorHelp";
 
-/** @internal Exported for testing. */
-export const emptyInputStorageKey = "agents.empty-input";
-/** @internal Exported for testing. */
-export const selectedOrganizationIdStorageKey =
-	"agents.selected-organization-id";
-const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-
 export type CreateChatOptions = {
 	message: string;
 	fileIDs?: string[];
@@ -78,7 +76,7 @@ export type CreateChatOptions = {
  */
 export function useEmptyStateDraft() {
 	const [{ initialInputValue, initialEditorState }] = useState(() => {
-		const draft = parseStoredDraft(localStorage.getItem(emptyInputStorageKey));
+		const draft = parseStoredDraft(emptyInputDraftStorage.get());
 		return {
 			initialInputValue: draft.text,
 			initialEditorState: draft.editorState,
@@ -96,13 +94,10 @@ export function useEmptyStateDraft() {
 		if (!sentRef.current) {
 			const shouldPersist = content.trim() || hasFileReferences;
 			if (shouldPersist) {
-				try {
-					localStorage.setItem(emptyInputStorageKey, serializedEditorState);
-				} catch {
-					// QuotaExceededError, silently discard the draft.
-				}
+				// A quota failure silently discards the draft.
+				emptyInputDraftStorage.set(serializedEditorState);
 			} else {
-				localStorage.removeItem(emptyInputStorageKey);
+				emptyInputDraftStorage.remove();
 			}
 		}
 	};
@@ -111,7 +106,7 @@ export function useEmptyStateDraft() {
 		// Mark as sent so that editor change events firing during
 		// the async gap cannot re-persist the draft.
 		sentRef.current = true;
-		localStorage.removeItem(emptyInputStorageKey);
+		emptyInputDraftStorage.remove();
 	};
 
 	const resetDraft = () => {
@@ -166,20 +161,18 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		resetDraft,
 	} = useEmptyStateDraft();
 	const [initialLastModelConfigID] = useState(() => {
-		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
+		return lastModelConfigIdStorage.get() ?? "";
 	});
 	// effectiveWorkspaceId nulls a stored selection outside the effective org's
 	// filtered workspace list without deleting it. Preserve the stored value
 	// because the permitted-organizations query may resolve after mount and
 	// change the effective org.
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
-		() => localStorage.getItem(selectedWorkspaceIdStorageKey),
+		() => selectedWorkspaceIdStorage.get(),
 	);
 	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
 		() => {
-			const storedOrganizationId = localStorage.getItem(
-				selectedOrganizationIdStorageKey,
-			);
+			const storedOrganizationId = selectedOrganizationIdStorage.get();
 			return (
 				organizations.find(
 					(organization) => organization.id === storedOrganizationId,
@@ -278,14 +271,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			return;
 		}
 		if (selectedOrg) {
-			localStorage.setItem(selectedOrganizationIdStorageKey, selectedOrg.id);
+			selectedOrganizationIdStorage.set(selectedOrg.id);
 		} else {
-			localStorage.removeItem(selectedOrganizationIdStorageKey);
+			selectedOrganizationIdStorage.remove();
 		}
 	}, [orgSelectionSettled, selectedOrg]);
 	useEffect(() => {
 		if (selectedWorkspaceId === null) {
-			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+			selectedWorkspaceIdStorage.remove();
 		}
 	}, [selectedWorkspaceId]);
 	const modelsQuery = useQuery(chatModels(organizationId));
@@ -425,6 +418,23 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const unsupportedProviderNames = getUnsupportedProviderNames(
 		modelsQuery.data,
 	);
+	useEffect(() => {
+		if (!initialLastModelConfigID) {
+			return;
+		}
+		if (isModelCatalogLoading || modelsQuery.isLoading) {
+			return;
+		}
+		if (lastUsedModelID) {
+			return;
+		}
+		lastModelConfigIdStorage.remove();
+	}, [
+		initialLastModelConfigID,
+		isModelCatalogLoading,
+		modelsQuery.isLoading,
+		lastUsedModelID,
+	]);
 
 	const effectiveMCPServerIds = (() => {
 		if (userMCPServerIds !== null) {
@@ -443,11 +453,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
 			setSelectedWorkspaceId(null);
-			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+			selectedWorkspaceIdStorage.remove();
 			return;
 		}
 		setSelectedWorkspaceId(value);
-		localStorage.setItem(selectedWorkspaceIdStorageKey, value);
+		selectedWorkspaceIdStorage.set(value);
 	};
 
 	const selectOrganization = (organization: TypesGen.Organization) => {

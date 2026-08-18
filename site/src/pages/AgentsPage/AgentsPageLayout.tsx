@@ -62,7 +62,10 @@ import {
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
-import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import {
+	clearEntityStorage,
+	emptyInputDraftStorage,
+} from "#/utils/storage/keys";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -87,8 +90,6 @@ import {
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
-import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
-import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 
 export interface AgentsPageOutletContext {
 	chatErrorReasons: Record<string, ChatDetailError>;
@@ -282,8 +283,6 @@ const AgentsPageLayout: FC = () => {
 		onSuccess: (data, chatId) => {
 			archiveChatBase.onSuccess(data, chatId);
 			clearChatErrorReason(chatId);
-			clearPersistedSidebarTabId(chatId);
-			clearPersistedRightPanelState(chatId);
 		},
 		onError: (error, chatId, context) => {
 			archiveChatBase.onError(error, chatId, context);
@@ -308,8 +307,8 @@ const AgentsPageLayout: FC = () => {
 			applyChatArchiveStateToCaches(queryClient, chatId, true);
 			removeChatFromChatsByWorkspace(queryClient, chatId);
 			clearChatErrorReason(chatId);
-			clearPersistedSidebarTabId(chatId);
-			clearPersistedRightPanelState(chatId);
+			clearEntityStorage("chat", chatId);
+			clearEntityStorage("workspace", workspaceId);
 			void invalidateChatListQueries(queryClient);
 			void invalidateChatEntity(queryClient, chatId);
 			void invalidateChatsByWorkspace(queryClient);
@@ -523,7 +522,7 @@ const AgentsPageLayout: FC = () => {
 		// state and explicitly requests a blank slate.  When navigating
 		// back from a conversation the existing draft is preserved.
 		if (!agentId) {
-			localStorage.removeItem(emptyInputStorageKey);
+			emptyInputDraftStorage.remove();
 		}
 		navigate({ pathname: "/agents", search: location.search });
 	};

@@ -19,8 +19,12 @@ import {
 	MockWorkspaceApp,
 } from "#/testHelpers/entities";
 import {
+	chatDraftInputStorage,
+	chatSidebarTabStorage,
+	clearEntityStorage,
+} from "#/utils/storage/keys";
+import {
 	buildInactiveChatQueueReconciliation,
-	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
 	getWorkspaceOptionsWithLinkedWorkspace,
 	isChatAgentBindingUnresolved,
@@ -37,9 +41,7 @@ import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import {
-	clearPersistedSidebarTabId,
 	getPersistedSidebarTabId,
-	lastActiveSidebarTabStorageKeyPrefix,
 	savePersistedSidebarTabId,
 } from "./utils/sidebarTabStorage";
 
@@ -174,7 +176,7 @@ describe("waitForPendingChatSettingsSyncs", () => {
 
 describe("getPersistedDraftInputValue", () => {
 	const chatID = "chat-abc-123";
-	const expectedKey = `${draftInputStorageKeyPrefix}${chatID}`;
+	const expectedKey = `${chatDraftInputStorage.prefix}${chatID}`;
 
 	beforeEach(() => {
 		localStorage.clear();
@@ -576,7 +578,7 @@ describe("settlePromotedQueueHead", () => {
 
 describe("useConversationEditingState", () => {
 	const chatID = "chat-abc-123";
-	const expectedKey = `${draftInputStorageKeyPrefix}${chatID}`;
+	const expectedKey = `${chatDraftInputStorage.prefix}${chatID}`;
 
 	beforeEach(() => {
 		localStorage.clear();
@@ -615,7 +617,7 @@ describe("useConversationEditingState", () => {
 				false,
 			);
 		});
-		expect(localStorage.getItem(expectedKey)).toBe("work in progress");
+		expect(chatDraftInputStorage.forId(chatID).get()).toBe("work in progress");
 		// handleContentChange persists only; it must not advance the seed.
 		expect(result.current.editorInitialValue).toBe("");
 		expect(result.current.initialEditorState).toBeUndefined();
@@ -645,7 +647,7 @@ describe("useConversationEditingState", () => {
 			);
 		});
 
-		expect(localStorage.getItem(expectedKey)).toBe(editorState);
+		expect(chatDraftInputStorage.forId(chatID).get()).toBe(editorState);
 		expect(result.current.editorInitialValue).toBe("typed while loading");
 		expect(result.current.initialEditorState).toBe(editorState);
 
@@ -856,7 +858,7 @@ describe("useConversationEditingState", () => {
 		expect(mockInput.clear).not.toHaveBeenCalled();
 		expect(mockInput.focus).not.toHaveBeenCalled();
 		expect(result.current.inputValueRef.current).toBe("hello");
-		expect(localStorage.getItem(expectedKey)).toBe("hello");
+		expect(chatDraftInputStorage.forId(chatID).get()).toBe("hello");
 		unmount();
 	});
 
@@ -888,7 +890,7 @@ describe("useConversationEditingState", () => {
 		expect(result.current.inputValueRef.current).toBe("should not persist");
 		// No draft for "undefined" chatID should appear.
 		expect(
-			localStorage.getItem(`${draftInputStorageKeyPrefix}undefined`),
+			localStorage.getItem(`${chatDraftInputStorage.prefix}undefined`),
 		).toBeNull();
 		unmount();
 	});
@@ -925,8 +927,8 @@ describe("useConversationEditingState", () => {
 	it("initializes with the correct draft for each chatID", () => {
 		const chatA = "chat-aaa";
 		const chatB = "chat-bbb";
-		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatA}`, "draft A");
-		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatB}`, "draft B");
+		localStorage.setItem(`${chatDraftInputStorage.prefix}${chatA}`, "draft A");
+		localStorage.setItem(`${chatDraftInputStorage.prefix}${chatB}`, "draft B");
 
 		// Each chatID should initialize with its own draft — this is
 		// what the key={agentId} wrapper guarantees at the component
@@ -945,7 +947,7 @@ describe("useConversationEditingState", () => {
 
 		const { result, unmount } = renderEditing();
 
-		expect(localStorage.getItem(expectedKey)).toBe("draft to clear");
+		expect(chatDraftInputStorage.forId(chatID).get()).toBe("draft to clear");
 
 		await act(async () => {
 			result.current.handleSendFromInput("hello");
@@ -985,7 +987,7 @@ describe("useConversationEditingState", () => {
 		});
 
 		// The serialized editor state should be stored, not the plain text.
-		expect(localStorage.getItem(expectedKey)).toBe(editorState);
+		expect(chatDraftInputStorage.forId(chatID).get()).toBe(editorState);
 		expect(result.current.inputValueRef.current).toBe("review this");
 		unmount();
 	});
@@ -1049,7 +1051,7 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("", editorState, true);
 		});
 
-		expect(localStorage.getItem(expectedKey)).toBe(editorState);
+		expect(chatDraftInputStorage.forId(chatID).get()).toBe(editorState);
 		unmount();
 	});
 
@@ -1195,10 +1197,7 @@ describe("sidebar tab persistence", () => {
 		});
 
 		it("returns the stored string when one is present", () => {
-			localStorage.setItem(
-				`${lastActiveSidebarTabStorageKeyPrefix}chat-1`,
-				"terminal",
-			);
+			localStorage.setItem(`${chatSidebarTabStorage.prefix}chat-1`, "terminal");
 			expect(getPersistedSidebarTabId("chat-1")).toBe("terminal");
 		});
 
@@ -1218,11 +1217,12 @@ describe("sidebar tab persistence", () => {
 	});
 
 	describe("savePersistedSidebarTabId", () => {
-		it("writes tabID to agents.last-active-tab.<chatID>", () => {
+		it("writes the tab under agents.last-active-tab.<chatID>", () => {
 			savePersistedSidebarTabId("chat-1", "desktop");
 			expect(
-				localStorage.getItem(`${lastActiveSidebarTabStorageKeyPrefix}chat-1`),
-			).toBe("desktop");
+				localStorage.getItem(`${chatSidebarTabStorage.prefix}chat-1`),
+			).not.toBeNull();
+			expect(getPersistedSidebarTabId("chat-1")).toBe("desktop");
 		});
 
 		it("is a no-op when chatID is undefined", () => {
@@ -1248,36 +1248,30 @@ describe("sidebar tab persistence", () => {
 		});
 	});
 
-	describe("clearPersistedSidebarTabId", () => {
+	describe("clearEntityStorage for chats", () => {
 		it("removes agents.last-active-tab.<chatID> from storage", () => {
 			savePersistedSidebarTabId("chat-1", "terminal");
-			clearPersistedSidebarTabId("chat-1");
+			clearEntityStorage("chat", "chat-1");
 			expect(getPersistedSidebarTabId("chat-1")).toBeNull();
 		});
 
 		it("is a no-op when nothing is stored", () => {
 			// Calling twice should not throw.
-			clearPersistedSidebarTabId("chat-1");
-			clearPersistedSidebarTabId("chat-1");
+			clearEntityStorage("chat", "chat-1");
+			clearEntityStorage("chat", "chat-1");
 			expect(getPersistedSidebarTabId("chat-1")).toBeNull();
-		});
-
-		it("is a no-op when chatID is undefined", () => {
-			savePersistedSidebarTabId("chat-1", "git");
-			clearPersistedSidebarTabId(undefined);
-			expect(getPersistedSidebarTabId("chat-1")).toBe("git");
 		});
 
 		it("is a no-op when chatID is empty string", () => {
 			savePersistedSidebarTabId("chat-1", "git");
-			clearPersistedSidebarTabId("");
+			clearEntityStorage("chat", "");
 			expect(getPersistedSidebarTabId("chat-1")).toBe("git");
 		});
 
 		it("only affects the target chat's entry", () => {
 			savePersistedSidebarTabId("chat-a", "git");
 			savePersistedSidebarTabId("chat-b", "desktop");
-			clearPersistedSidebarTabId("chat-a");
+			clearEntityStorage("chat", "chat-a");
 			expect(getPersistedSidebarTabId("chat-a")).toBeNull();
 			expect(getPersistedSidebarTabId("chat-b")).toBe("desktop");
 		});

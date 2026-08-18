@@ -1,3 +1,4 @@
+import { chatDraftAttachmentsStorage } from "#/utils/storage/keys";
 import { decodeDataURL } from "./dataUrls";
 
 type ChatDraftAttachmentRecord = {
@@ -29,13 +30,10 @@ type ChatDraftAttachmentPersistResult =
 	| { ok: true }
 	| { ok: false; reason: "quota" | "unavailable" };
 
-const storageKeyPrefix = "agents.chat-draft-attachments";
-const maxStoredDraftAgeMs = 30 * 24 * 60 * 60 * 1000;
-
 export const chatDraftAttachmentStorageKey = (
 	organizationId: string,
 	chatId: string,
-) => `${storageKeyPrefix}.${organizationId}.${chatId}`;
+) => chatDraftAttachmentsStorage.forId(organizationId, chatId).key;
 
 const isRecordObject = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null;
@@ -44,36 +42,6 @@ const isString = (value: unknown): value is string => typeof value === "string";
 
 const isFiniteNumber = (value: unknown): value is number =>
 	typeof value === "number" && Number.isFinite(value);
-
-const isQuotaError = (error: unknown): boolean => {
-	if (!(error instanceof DOMException)) {
-		return false;
-	}
-	return (
-		error.name === "QuotaExceededError" ||
-		error.name === "NS_ERROR_DOM_QUOTA_REACHED"
-	);
-};
-
-const safeSetItem = (
-	key: string,
-	value: string,
-): ChatDraftAttachmentPersistResult => {
-	try {
-		localStorage.setItem(key, value);
-		return { ok: true };
-	} catch (error) {
-		return { ok: false, reason: isQuotaError(error) ? "quota" : "unavailable" };
-	}
-};
-
-const safeRemoveItem = (key: string) => {
-	try {
-		localStorage.removeItem(key);
-	} catch {
-		// Ignore storage cleanup failures. The in-memory draft remains usable.
-	}
-};
 
 const validateRecord = (
 	value: unknown,
@@ -173,64 +141,21 @@ const writeRecords = (
 	chatId: string,
 	records: readonly ChatDraftAttachmentRecord[],
 ): ChatDraftAttachmentPersistResult => {
-	const key = chatDraftAttachmentStorageKey(organizationId, chatId);
+	const handle = chatDraftAttachmentsStorage.forId(organizationId, chatId);
 	const deduped = dedupeRecords(records);
 	if (deduped.length === 0) {
-		safeRemoveItem(key);
+		handle.remove();
 		return { ok: true };
 	}
-	return safeSetItem(key, JSON.stringify(deduped));
-};
-
-const pruneExpiredChatDraftAttachmentStorageKeys = () => {
-	const now = Date.now();
-	try {
-		for (let index = localStorage.length - 1; index >= 0; index--) {
-			const key = localStorage.key(index);
-			if (!key?.startsWith(`${storageKeyPrefix}.`)) {
-				continue;
-			}
-			const stored = localStorage.getItem(key);
-			if (!stored) {
-				continue;
-			}
-			let parsed: unknown;
-			try {
-				parsed = JSON.parse(stored);
-			} catch {
-				continue;
-			}
-			if (!Array.isArray(parsed)) {
-				continue;
-			}
-			const activeRecords = parsed.filter((entry) => {
-				if (!isRecordObject(entry) || !isFiniteNumber(entry.updatedAt)) {
-					return true;
-				}
-				return now - entry.updatedAt <= maxStoredDraftAgeMs;
-			});
-			if (activeRecords.length === 0) {
-				safeRemoveItem(key);
-			} else if (activeRecords.length !== parsed.length) {
-				safeSetItem(key, JSON.stringify(activeRecords));
-			}
-		}
-	} catch {
-		// Ignore storage sweep failures. The active chat restore still runs below.
-	}
+	return handle.set(JSON.stringify(deduped));
 };
 
 const readRecords = (
 	organizationId: string,
 	chatId: string,
 ): ChatDraftAttachmentRecord[] => {
-	const key = chatDraftAttachmentStorageKey(organizationId, chatId);
-	let stored: string | null = null;
-	try {
-		stored = localStorage.getItem(key);
-	} catch {
-		return [];
-	}
+	const handle = chatDraftAttachmentsStorage.forId(organizationId, chatId);
+	const stored = handle.get();
 	if (!stored) {
 		return [];
 	}
@@ -238,11 +163,11 @@ const readRecords = (
 	try {
 		parsed = JSON.parse(stored);
 	} catch {
-		safeRemoveItem(key);
+		handle.remove();
 		return [];
 	}
 	if (!Array.isArray(parsed)) {
-		safeRemoveItem(key);
+		handle.remove();
 		return [];
 	}
 	const records = parsed.flatMap((entry) => {
@@ -316,7 +241,6 @@ export const restoreChatDraftAttachments = (
 	if (!organizationId || !chatId) {
 		return [];
 	}
-	pruneExpiredChatDraftAttachmentStorageKeys();
 	const restored: RestoredChatDraftAttachment[] = [];
 	const validRecords: ChatDraftAttachmentRecord[] = [];
 	for (const record of readRecords(organizationId, chatId)) {

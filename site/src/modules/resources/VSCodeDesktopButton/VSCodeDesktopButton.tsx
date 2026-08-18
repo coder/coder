@@ -10,7 +10,9 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
+import { useStorage } from "#/hooks/useStorage";
 import { getVSCodeHref } from "#/modules/apps/apps";
+import { type VSCodeVariant, vscodeVariantStorage } from "#/utils/storage/keys";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
@@ -22,25 +24,13 @@ interface VSCodeDesktopButtonProps {
 	displayApps: readonly DisplayApp[];
 }
 
-type VSCodeVariant = "vscode" | "vscode-insiders";
-
-const VARIANT_KEY = "vscode-variant";
-
-const isVSCodeVariant = (value: string | null): value is VSCodeVariant => {
-	return value === "vscode" || value === "vscode-insiders";
-};
-
 export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
 	const [isVariantMenuOpen, setIsVariantMenuOpen] = useState(false);
-	const [variant, setVariant] = useState<VSCodeVariant>(() => {
-		const previousVariant = localStorage.getItem(VARIANT_KEY);
-		return isVSCodeVariant(previousVariant) ? previousVariant : "vscode";
-	});
+	const [variant, setVariant] = useStorage(vscodeVariantStorage);
 	const menuAnchorRef = useRef<HTMLDivElement>(null);
 	const menuContentId = useId();
 
 	const selectVariant = (nextVariant: VSCodeVariant) => {
-		localStorage.setItem(VARIANT_KEY, nextVariant);
 		setVariant(nextVariant);
 	};
 

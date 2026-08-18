@@ -11,10 +11,12 @@ import {
 	MockWorkspaceApp,
 } from "#/testHelpers/entities";
 import {
-	clearPersistedRightPanelState,
+	chatRightPanelTabsStorage,
+	clearEntityStorage,
+} from "#/utils/storage/keys";
+import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
-	rightPanelTabStorageKeyPrefix,
 	savePersistedDefaultTerminalHidden,
 	savePersistedRightPanelTabs,
 } from "./rightPanelTabStorage";
@@ -232,7 +234,7 @@ describe("right-panel tab storage", () => {
 		savePersistedRightPanelTabs("chat-2", tabs);
 		savePersistedDefaultTerminalHidden("chat-2", true);
 
-		clearPersistedRightPanelState("chat-1");
+		clearEntityStorage("chat", "chat-1");
 
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);
 		expect(getPersistedDefaultTerminalHidden("chat-1")).toBe(false);
@@ -275,7 +277,7 @@ describe("right-panel tab storage", () => {
 
 	it("ignores invalid stored values", () => {
 		localStorage.setItem(
-			`${rightPanelTabStorageKeyPrefix}chat-1`,
+			`${chatRightPanelTabsStorage.prefix}chat-1`,
 			JSON.stringify([{ id: "bad-tab", kind: "port" }]),
 		);
 
@@ -284,7 +286,7 @@ describe("right-panel tab storage", () => {
 
 	it("ignores port tabs with out-of-range ports", () => {
 		localStorage.setItem(
-			`${rightPanelTabStorageKeyPrefix}chat-1`,
+			`${chatRightPanelTabsStorage.prefix}chat-1`,
 			JSON.stringify([
 				{
 					id: "port-70000",
@@ -303,7 +305,7 @@ describe("right-panel tab storage", () => {
 	it("restores stored terminal tabs with string reconnect tokens", () => {
 		const tabs = [terminalTab({ reconnectionToken: "opaque-token" })];
 		localStorage.setItem(
-			`${rightPanelTabStorageKeyPrefix}chat-1`,
+			`${chatRightPanelTabsStorage.prefix}chat-1`,
 			JSON.stringify(tabs),
 		);
 

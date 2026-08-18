@@ -1,12 +1,6 @@
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 
-import {
-	type FC,
-	type ReactNode,
-	type RefObject,
-	useEffect,
-	useState,
-} from "react";
+import { type FC, type ReactNode, type RefObject, useState } from "react";
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { invalidateChatDiffContents } from "#/api/queries/chats";
@@ -459,17 +453,21 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		}
 	};
 
-	useEffect(() => {
+	// Write-through setters keep persistence in event handlers, so the
+	// defaults are never written to storage on mount.
+	const updateUserRightPanelTabs = (next: UserRightPanelTab[]) => {
+		setUserRightPanelTabsState(next);
 		if (!isArchived) {
-			savePersistedRightPanelTabs(agentId, userRightPanelTabs);
+			savePersistedRightPanelTabs(agentId, next);
 		}
-	}, [agentId, isArchived, userRightPanelTabs]);
+	};
 
-	useEffect(() => {
+	const updateDefaultTerminalHidden = (hidden: boolean) => {
+		setDefaultTerminalHiddenState(hidden);
 		if (!isArchived) {
-			savePersistedDefaultTerminalHidden(agentId, defaultTerminalHidden);
+			savePersistedDefaultTerminalHidden(agentId, hidden);
 		}
-	}, [agentId, defaultTerminalHidden, isArchived]);
+	};
 
 	const handleOpenDesktop = () => {
 		onSetShowSidebarPanel(true);
@@ -612,13 +610,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		}
 		// Reopen the built-in Terminal instead of creating Terminal 2 with no Terminal 1.
 		if (defaultTerminalHidden) {
-			setDefaultTerminalHiddenState(false);
+			updateDefaultTerminalHidden(false);
 			startPendingTab("terminal");
 			return;
 		}
 		const tabId = createUserRightPanelTabId("terminal");
-		setUserRightPanelTabsState((currentTabs) => [
-			...currentTabs,
+		updateUserRightPanelTabs([
+			...userRightPanelTabs,
 			{
 				id: tabId,
 				kind: "terminal",
@@ -649,7 +647,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			agentId: workspaceAgent.id,
 			appId: app.id,
 		};
-		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		updateUserRightPanelTabs([...userRightPanelTabs, tab]);
 		activateRightPanelTab(tab.id);
 	};
 
@@ -672,7 +670,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			initialCommand: app.command,
 			sourceAppId: app.id,
 		};
-		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		updateUserRightPanelTabs([...userRightPanelTabs, tab]);
 		startPendingTab(tab.id);
 	};
 
@@ -699,7 +697,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			port: selection.port,
 			protocol: selection.protocol,
 		};
-		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
+		updateUserRightPanelTabs([...userRightPanelTabs, tab]);
 		activateRightPanelTab(tab.id);
 	};
 
@@ -799,10 +797,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		const closedTabIndex = sidebarTabIds.indexOf(tabId);
 
 		if (tabId === "terminal") {
-			setDefaultTerminalHiddenState(true);
+			updateDefaultTerminalHidden(true);
 		} else {
-			setUserRightPanelTabsState((currentTabs) =>
-				currentTabs.filter((tab) => tab.id !== tabId),
+			updateUserRightPanelTabs(
+				userRightPanelTabs.filter((tab) => tab.id !== tabId),
 			);
 		}
 

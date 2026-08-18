@@ -30,6 +30,7 @@ import {
 	type WorkspacePermissions,
 	workspaceChecks,
 } from "#/modules/workspaces/permissions";
+import { clearEntityStorage } from "#/utils/storage/keys";
 import { checkAuthorization } from "./authCheck";
 import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
@@ -332,6 +333,7 @@ export const deleteWorkspace = (
 			return API.deleteWorkspace(workspace.id, options);
 		},
 		onSuccess: async (build: WorkspaceBuild) => {
+			clearEntityStorage("workspace", workspace.id);
 			await updateWorkspaceBuild(build, queryClient);
 		},
 	};
