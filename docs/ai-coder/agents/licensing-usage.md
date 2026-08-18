@@ -44,7 +44,7 @@ Coder handles concurrency and usage limits differently, depending on the license
 ### Community concurrency limit
 
 When a Community license deployment reaches its limit of five concurrently active agents, any additional agents are placed in a queue.
-Queued agents are picked up automatically as soon as capacity frees up, so no work is lost and no action is required from the user.
+As soon as an active agent completes its task, the next queued agent begins its work, so no work is lost and no action is required from the user.
 
 ### AI Premium Agent Time exhaustion
 
