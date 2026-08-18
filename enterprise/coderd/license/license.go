@@ -213,14 +213,11 @@ func Entitlements(
 		// nolint:gocritic // Maintaining the usage publishing marker is a system function.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
 		err := db.InTx(func(tx database.Store) error {
-			locked, err := tx.TryAcquireLock(sysCtx, database.LockIDUsagePublishingEnabledMarker)
+			// Block as in resolveUsagePublishingEnabledSince so the
+			// marker-freshness check below runs against committed state.
+			err := tx.AcquireLock(sysCtx, database.LockIDUsagePublishingEnabledMarker)
 			if err != nil {
 				return xerrors.Errorf("acquire usage publishing marker lock: %w", err)
-			}
-			if !locked {
-				// Another replica is updating the marker right now; leave
-				// it alone and let the next refresh reconcile.
-				return nil
 			}
 			raw, err := tx.GetRuntimeConfig(sysCtx, UsagePublishingEnabledSinceKey)
 			if xerrors.Is(err, sql.ErrNoRows) {
@@ -271,27 +268,14 @@ func resolveUsagePublishingEnabledSince(ctx context.Context, db database.Store, 
 			}
 			return nil
 		}
-		locked, err := tx.TryAcquireLock(ctx, database.LockIDUsagePublishingEnabledMarker)
-		if err != nil {
+		// Block until any concurrent marker update or deletion commits; the
+		// critical section is a single-row read plus at most one write, so
+		// contention is brief. Under READ COMMITTED, the read below then
+		// sees the committed result, so no lock-loser heuristics are needed
+		// (guessing at an uncommitted winner's intent previously misread
+		// concurrent deletions as ongoing periods and vice versa).
+		if err := tx.AcquireLock(ctx, database.LockIDUsagePublishingEnabledMarker); err != nil {
 			return xerrors.Errorf("acquire usage publishing marker lock: %w", err)
-		}
-		if !locked {
-			// Another replica is updating the marker right now; its write
-			// serves as this refresh's observation, but it is not committed
-			// yet, so the read below can only see the previous marker.
-			if err := readMarker(); err != nil {
-				return err
-			}
-			enabledSince = marker.EnabledSince
-			if enabledSince.IsZero() || now.Sub(marker.LastSeen) > usagePublishingEnabledMarkerStaleAfter {
-				// Missing or stale: the winner is starting a new enabled
-				// period, so treat it as starting now rather than reporting
-				// the previous period and surfacing pre-interruption
-				// failures without the re-enablement grace. The winner's
-				// committed marker takes over on the next refresh.
-				enabledSince = now
-			}
-			return nil
 		}
 		if err := readMarker(); err != nil {
 			return err

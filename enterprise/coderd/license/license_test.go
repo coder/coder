@@ -57,7 +57,7 @@ func premiumRuntimeHoursFixture(t *testing.T) (*dbmock.MockStore, *coderdenttest
 			return fn(mDB)
 		},
 	).AnyTimes()
-	mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(true, nil).AnyTimes()
+	mDB.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
 	mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 	licenseOpts := (&coderdenttest.LicenseOptions{
@@ -926,7 +926,7 @@ func TestEntitlements(t *testing.T) {
 				return fn(mDB)
 			},
 		).AnyTimes()
-		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(true, nil).AnyTimes()
+		mDB.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
 		mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 		licenseOpts := (&coderdenttest.LicenseOptions{
@@ -1072,7 +1072,7 @@ func TestEntitlements(t *testing.T) {
 				return fn(mDB)
 			},
 		).AnyTimes()
-		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(true, nil).AnyTimes()
+		mDB.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
 		mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 		licenseOpts := (&coderdenttest.LicenseOptions{
@@ -1245,7 +1245,7 @@ func TestEntitlements(t *testing.T) {
 						return fn(mDB)
 					},
 				).AnyTimes()
-				mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(true, nil).AnyTimes()
+				mDB.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
 				mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 				licenseOpts := (&coderdenttest.LicenseOptions{
@@ -1331,7 +1331,7 @@ func TestEntitlements(t *testing.T) {
 					return fn(mDB)
 				},
 			).AnyTimes()
-			mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(true, nil).AnyTimes()
+			mDB.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
 			mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 			licenseOpts := &coderdenttest.LicenseOptions{
@@ -1403,7 +1403,7 @@ func TestEntitlements(t *testing.T) {
 					return fn(mDB)
 				},
 			).AnyTimes()
-			mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(true, nil).AnyTimes()
+			mDB.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
 			mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 			licenseOpts := &coderdenttest.LicenseOptions{
@@ -1474,7 +1474,7 @@ func TestEntitlements(t *testing.T) {
 					return fn(mDB)
 				},
 			).AnyTimes()
-			mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(true, nil).AnyTimes()
+			mDB.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
 			mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 			// Premium license without the AI Governance addon.
