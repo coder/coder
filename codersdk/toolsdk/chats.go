@@ -319,7 +319,7 @@ func chatStatusBusy(status codersdk.ChatStatus) bool {
 var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameAwaitChat,
-		Description: `Block until a Coder Agents chat stops generating or the wait times out. Waiting, error, and requires_action all end the wait. If timed_out is true, call this tool again to continue waiting.`,
+		Description: `Block until a Coder Agents chat stops generating or the wait times out. Waiting, error, and requires_action all end the wait. If timed_out is true, chat holds the last status observed inside the wait window; call this tool again to continue waiting.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"chat_id": map[string]any{
@@ -340,11 +340,13 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 		if err != nil {
 			return AwaitChatResponse{}, err
 		}
+		if args.WaitSecs < 0 || args.WaitSecs > 120 {
+			return AwaitChatResponse{}, xerrors.New("wait_secs must be between 1 and 120")
+		}
 		waitSecs := args.WaitSecs
 		if waitSecs == 0 {
 			waitSecs = 60
 		}
-		waitSecs = min(max(waitSecs, 1), 120)
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 		// Every request in the wait window runs under this deadline so a
@@ -353,12 +355,22 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 		waitCtx, cancelWait := context.WithTimeout(ctx, time.Duration(waitSecs)*time.Second)
 		defer cancelWait()
 
+		// lastBusy is the most recent (busy) chat state observed inside
+		// the wait window; non-busy states return immediately instead.
+		var lastBusy *codersdk.Chat
+
 		// finalStatus reports the chat state once the wait window closes.
-		// It gets a short independent timeout so the closing status fetch
-		// itself cannot hang the tool.
+		// A state observed inside the window is returned directly so
+		// wait_secs stays a hard upper bound on the tool's duration. Only
+		// when no state was observed at all (the initial status request
+		// outlived the window) does one short bounded fetch run, so the
+		// tool reports where things stand instead of failing.
 		finalStatus := func() (AwaitChatResponse, error) {
 			if ctx.Err() != nil {
 				return AwaitChatResponse{}, ctx.Err()
+			}
+			if lastBusy != nil {
+				return AwaitChatResponse{TimedOut: true, Chat: chatToolStatus(deps, *lastBusy)}, nil
 			}
 			finalCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 			defer cancel()
@@ -413,6 +425,7 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 		if !chatStatusBusy(chat.Status) {
 			return AwaitChatResponse{Chat: chatToolStatus(deps, chat)}, nil
 		}
+		lastBusy = &chat
 		// Chat status events are published only on the owner's channel, so
 		// shared-chat callers need polling to observe transitions.
 		poller := time.NewTicker(5 * time.Second)
@@ -432,6 +445,7 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 				if !chatStatusBusy(chat.Status) {
 					return AwaitChatResponse{Chat: chatToolStatus(deps, chat)}, nil
 				}
+				lastBusy = &chat
 			case dial := <-dialed:
 				events = dial.events
 				watchCloser = dial.closer
@@ -456,6 +470,7 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 					if !chatStatusBusy(chat.Status) {
 						return AwaitChatResponse{Chat: chatToolStatus(deps, chat)}, nil
 					}
+					lastBusy = &chat
 				}
 			}
 		}
@@ -497,11 +512,13 @@ var ListChats = Tool[ListChatsArgs, ListChatsResponse]{
 	},
 	MCPAnnotations: mcpReadOnlyAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args ListChatsArgs) (ListChatsResponse, error) {
+		if args.Limit < 0 || args.Limit > 100 {
+			return ListChatsResponse{}, xerrors.New("limit must be between 1 and 100")
+		}
 		limit := args.Limit
 		if limit == 0 {
 			limit = 25
 		}
-		limit = min(max(limit, 1), 100)
 		chats, err := codersdk.NewExperimentalClient(deps.coderClient).ListChats(ctx, &codersdk.ListChatsOptions{
 			Query:  args.Query,
 			Labels: args.Labels,
@@ -600,7 +617,7 @@ Only user-facing text content is returned (including lifecycle hook notices); to
 				},
 				"limit": map[string]any{
 					"type":        "integer",
-					"description": "Maximum number of messages to fetch, from newest to oldest (1-200, default 50).",
+					"description": "Maximum number of messages per page (1-200, default 50). Pages are newest-first unless after_id is set, which pages forward in chronological order.",
 				},
 				"before_id": map[string]any{
 					"type":        "integer",
@@ -660,7 +677,25 @@ Only user-facing text content is returned (including lifecycle hook notices); to
 		}
 		var queued []string
 		for _, msg := range resp.QueuedMessages {
-			if text := userFacingText(msg.Content); text != "" {
+			text := userFacingText(msg.Content)
+			if text == "" {
+				// A queued prompt can carry only file parts; represent it
+				// by its attachments instead of dropping it.
+				var names []string
+				for _, part := range msg.Content {
+					if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID.Valid {
+						name := part.Name
+						if name == "" {
+							name = part.FileID.UUID.String()
+						}
+						names = append(names, name)
+					}
+				}
+				if len(names) > 0 {
+					text = "(attached files: " + strings.Join(names, ", ") + ")"
+				}
+			}
+			if text != "" {
 				queued = append(queued, text)
 			}
 		}

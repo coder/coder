@@ -11318,6 +11318,9 @@ func TestChatFileDownloadURL(t *testing.T) {
 		require.Equal(t, "evidence.png", download.Name)
 		require.Equal(t, "image/png", download.MimeType)
 		require.True(t, download.ExpiresAt.After(time.Now()))
+		// expires_at must match the JWT exp claim, which is stored at
+		// second precision; sub-second drift would overstate validity.
+		require.True(t, download.ExpiresAt.Equal(download.ExpiresAt.Truncate(time.Second)))
 
 		res := get(t, ctx, download.URL)
 		defer res.Body.Close()
@@ -11418,6 +11421,67 @@ func TestChatFileDownloadURL(t *testing.T) {
 
 		_, err := otherClient.ChatFileDownloadURL(ctx, uploaded.ID)
 		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("RevokedShareCannotRedeem", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+		uploaded, _ := uploadPNG(t, ctx, client, firstUser.OrganizationID, "shared.png")
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "shared evidence"},
+				{Type: codersdk.ChatInputPartTypeFile, FileID: uploaded.ID},
+			},
+		})
+		require.NoError(t, err)
+
+		memberRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClient := codersdk.NewExperimentalClient(memberRaw)
+		err = client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+			UserRoles: map[string]codersdk.ChatRole{member.ID.String(): codersdk.ChatRoleRead},
+		})
+		require.NoError(t, err)
+
+		// The member can mint while the share is active.
+		download, err := memberClient.ChatFileDownloadURL(ctx, uploaded.ID)
+		require.NoError(t, err)
+
+		// Revoking the share invalidates the already-minted URL because
+		// redemption rechecks the minting user's access live.
+		err = client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+			UserRoles: map[string]codersdk.ChatRole{member.ID.String(): codersdk.ChatRoleDeleted},
+		})
+		require.NoError(t, err)
+
+		res := get(t, ctx, download.URL)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
+
+	t.Run("SuspendedUserCannotRedeem", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		memberRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClient := codersdk.NewExperimentalClient(memberRaw)
+		uploaded, _ := uploadPNG(t, ctx, memberClient, firstUser.OrganizationID, "suspended.png")
+
+		download, err := memberClient.ChatFileDownloadURL(ctx, uploaded.ID)
+		require.NoError(t, err)
+
+		// Suspending the minting user invalidates the URL because
+		// redemption requires the token's user to still be active.
+		_, err = client.Client.UpdateUserStatus(ctx, member.ID.String(), codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+
+		res := get(t, ctx, download.URL)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 }
 

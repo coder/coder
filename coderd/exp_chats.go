@@ -5992,7 +5992,9 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 	}
 
 	now := time.Now()
-	expiresAt := now.Add(cryptokeys.ChatFilesTokenDuration)
+	// Truncate to whole seconds so the advertised expiry matches the JWT
+	// exp claim, which jwt.NewNumericDate stores at second precision.
+	expiresAt := now.Add(cryptokeys.ChatFilesTokenDuration).Truncate(time.Second)
 	claims := ChatFileDownloadClaims{
 		RegisteredClaims: jwtutils.RegisteredClaims{
 			Expiry:   jwt.NewNumericDate(expiresAt),
@@ -6061,9 +6063,11 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
+		// This endpoint is reachable without a session token, so internal
+		// error details stay in the logs rather than the response body.
+		api.Logger.Error(ctx, "failed to get chat file for signed download", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chat file.",
-			Detail:  err.Error(),
 		})
 		return
 	}

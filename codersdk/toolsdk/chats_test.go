@@ -701,9 +701,19 @@ func TestChatTools(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.True(t, sent.Queued)
+		// A queued prompt carrying only a file must surface in
+		// queued_messages rather than being dropped.
+		queuedFile, err := expClient.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "queued-only.txt", bytes.NewReader([]byte("queued file")))
+		require.NoError(t, err)
+		_, err = expClient.CreateChatMessage(ctx, uuid.MustParse(created.ID), codersdk.CreateChatMessageRequest{
+			Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeFile, FileID: queuedFile.ID}},
+			BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
 		transcript, err := testTool(t, toolsdk.GetChatMessages, tb, toolsdk.GetChatMessagesArgs{ChatID: created.ID})
 		require.NoError(t, err)
 		require.Contains(t, transcript.QueuedMessages, "Queued while busy.")
+		require.Contains(t, transcript.QueuedMessages, "(attached files: queued-only.txt)")
 
 		interrupted, err := testTool(t, toolsdk.InterruptChat, tb, toolsdk.InterruptChatArgs{ChatID: created.ID})
 		require.NoError(t, err)
