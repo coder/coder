@@ -12,7 +12,7 @@ import type {
 	StreamState,
 } from "./types";
 
-type StoryStreamRenderState = {
+export type StoryStreamRenderState = {
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
 	liveStatus: LiveStatusModel;
@@ -25,6 +25,7 @@ const DEFAULT_LIVE_STATUS_PARAMS: DeriveLiveStatusParams = {
 	streamError: null,
 	persistedError: null,
 	isAwaitingFirstStreamChunk: false,
+	chatStatus: null,
 };
 
 export const buildLiveStatus = (
@@ -56,7 +57,7 @@ export const buildStreamRenderState = (
 /**
  * Pinned clock for stories that render countdown timers. Stories
  * should mock `Date.now` to return this value so the countdowns
- * are deterministic across Chromatic snapshots.
+ * are deterministic across snapshot tests.
  *
  * Set to midnight UTC on the same day as the fixture deadlines,
  * giving reconnect a 1s countdown and retry a 2s countdown.
@@ -82,13 +83,6 @@ export const buildRetryState = (
 	retryingAt: "2026-03-10T00:00:02.000Z",
 	...overrides,
 });
-
-export const textResponseStreamParts = [
-	{
-		type: "text",
-		text: "Storybook streamed answer.",
-	},
-] satisfies readonly TypesGen.ChatMessagePart[];
 
 export const pinFixtureClock = () => {
 	const real = Date.now;

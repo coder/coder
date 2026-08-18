@@ -1,3 +1,4 @@
+import { RadioIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -19,6 +20,7 @@ import { Latency } from "#/components/Latency/Latency";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { getLatencyColor } from "#/utils/latency";
 import { sortProxiesByLatency } from "./proxyUtils";
 
 interface ProxyMenuProps {
@@ -80,14 +82,21 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 
 					{selectedProxy ? (
 						<>
-							<ExternalImage
-								// Empty alt text used because we don't want to double up on
-								// screen reader announcements from visually-hidden span
-								alt=""
-								src={selectedProxy.icon_url}
+							<RadioIcon
+								aria-hidden="true"
+								className={getLatencyColor(
+									proxyLatencyLoading(selectedProxy)
+										? undefined
+										: latencies?.[selectedProxy.id]?.latencyMS,
+								)}
 							/>
 
 							<Latency
+								className={
+									latencies?.[selectedProxy.id]?.latencyMS
+										? "text-content-primary"
+										: undefined
+								}
 								latency={latencies?.[selectedProxy.id]?.latencyMS}
 								isLoading={proxyLatencyLoading(selectedProxy)}
 							/>

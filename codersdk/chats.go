@@ -141,9 +141,12 @@ type Chat struct {
 	// Context reports the chat's pinned workspace-context state and
 	// whether it has drifted from the agent's latest pushed snapshot.
 	// Nil when the chat has no pinned context yet.
-	Context    *ChatContext   `json:"context,omitempty"`
-	Warnings   []string       `json:"warnings,omitempty"`
-	ClientType ChatClientType `json:"client_type"`
+	Context *ChatContext `json:"context,omitempty"`
+	// QueuedForCapacity reports that the chat is waiting for a concurrent
+	// agent slot. Single-chat reads derive it; list responses leave it false.
+	QueuedForCapacity bool           `json:"queued_for_capacity,omitempty"`
+	Warnings          []string       `json:"warnings,omitempty"`
+	ClientType        ChatClientType `json:"client_type"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
 	// is present as []. Child chats cannot create their own
@@ -3064,10 +3067,10 @@ func (c *ExperimentalClient) InterruptChat(ctx context.Context, chatID uuid.UUID
 	return chat, ReadBodyAsJSON(res, &chat)
 }
 
-// CompactChat requests a manual context compaction on an idle chat.
-// The compaction runs asynchronously through the chat worker and
-// bypasses the automatic usage threshold; the chat returns to waiting
-// once the summary is committed.
+// CompactChat requests a manual context compaction on an idle or
+// errored chat, clearing any stored error. The compaction runs
+// asynchronously through the chat worker and bypasses the automatic
+// usage threshold.
 func (c *ExperimentalClient) CompactChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/compact", chatID), nil)
 	if err != nil {

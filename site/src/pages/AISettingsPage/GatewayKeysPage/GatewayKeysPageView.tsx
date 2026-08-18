@@ -67,7 +67,6 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 				<PaywallPremium
 					message="AI Gateway"
 					description="Authenticate standalone AI Gateway replicas to your deployment. You need a Premium license with AI Gateway enabled to use this feature."
-					documentationLink={docs("/ai-coder/ai-gateway")}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}

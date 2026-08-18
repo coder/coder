@@ -29,18 +29,29 @@ import {
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
+	selectReconnectState,
+	selectRetryState,
+	selectStreamError,
+	selectStreamState,
+	selectSubagentStatusOverrides,
 	useChatSelector,
 	type useChatStore,
 } from "./ChatConversation/chatStore";
-import { LiveStreamTail } from "./ChatConversation/LiveStreamTail";
+import {
+	LiveStreamTailContent,
+	TerminalStatusRow,
+} from "./ChatConversation/LiveStreamTail";
+import { deriveLiveStatus } from "./ChatConversation/liveStatusModel";
 import {
 	buildSubagentMaps,
 	getPendingToolCallIDs,
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
+import { buildStreamTools } from "./ChatConversation/streamState";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { ModelSelectorOption } from "./ChatElements";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
+import { ChatMessageScroller } from "./ChatMessageScroller";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -78,6 +89,12 @@ export const workspaceSkillsFromChat = (
 interface ChatPageTimelineProps {
 	store: ChatStoreHandle;
 	persistedError: ChatDetailError | undefined;
+	initialActiveTurnMaxMessageId?: number;
+	hasMoreMessages: boolean;
+	isFetchingMoreMessages: boolean;
+	isHydratingMessages: boolean;
+	hasFetchMoreError: boolean;
+	onFetchMoreMessages: () => Promise<unknown>;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -88,17 +105,25 @@ interface ChatPageTimelineProps {
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	footer?: ReactNode;
 }
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	store,
 	persistedError,
+	initialActiveTurnMaxMessageId,
+	hasMoreMessages,
+	isFetchingMoreMessages,
+	isHydratingMessages,
+	hasFetchMoreError,
+	onFetchMoreMessages,
 	onEditUserMessage,
 	editingMessageId,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
 	urlTransform,
 	mcpServers,
+	footer,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
@@ -109,7 +134,29 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		store,
 		selectIsAwaitingFirstStreamChunk,
 	);
+	const streamState = useChatSelector(store, selectStreamState);
+	const streamError = useChatSelector(store, selectStreamError);
+	const retryState = useChatSelector(store, selectRetryState);
+	const reconnectState = useChatSelector(store, selectReconnectState);
+	const subagentStatusOverrides = useChatSelector(
+		store,
+		selectSubagentStatusOverrides,
+	);
 	const isChatCompleted = !hasStream;
+
+	const liveStatus = deriveLiveStatus({
+		streamState,
+		retryState,
+		reconnectState,
+		streamError,
+		persistedError: persistedError ?? null,
+		isAwaitingFirstStreamChunk,
+		chatStatus,
+	});
+	const streamTools = buildStreamTools(
+		streamState?.toolCalls,
+		streamState?.toolResults,
+	);
 
 	const messages = orderedMessageIDs
 		.map((messageID) => {
@@ -134,12 +181,13 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 
 	return (
 		<Profiler id="AgentChat" onRender={onRenderProfiler}>
-			<div
-				data-testid="chat-timeline-wrapper"
-				className={cn(
-					"mx-auto flex w-full flex-col py-6",
-					chatWidthClass(chatFullWidth),
-				)}
+			<ChatMessageScroller
+				hasMoreMessages={hasMoreMessages}
+				isFetchingMoreMessages={isFetchingMoreMessages}
+				isHydratingMessages={isHydratingMessages}
+				hasFetchMoreError={hasFetchMoreError}
+				hasTranscriptRows={parsedMessages.length > 0}
+				onFetchMoreMessages={onFetchMoreMessages}
 			>
 				{/* VNC sessions for completed agents may already be
 					   terminated, so inline desktop previews are disabled
@@ -148,6 +196,11 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					   renders correctly. */}
 				<ConversationTimeline
 					parsedMessages={parsedMessages}
+					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+					streamState={streamState}
+					streamTools={streamTools}
+					liveStatus={liveStatus}
+					subagentStatusOverrides={subagentStatusOverrides}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
 					onEditUserMessage={onEditUserMessage}
@@ -161,15 +214,16 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
 				/>
-				<LiveStreamTail
-					store={store}
-					persistedError={persistedError}
+				<TerminalStatusRow liveStatus={liveStatus} />
+			</ChatMessageScroller>
+			{/* The empty state sits outside the scroller content, which holds
+			    transcript rows only. */}
+			<div className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}>
+				<LiveStreamTailContent
 					isTranscriptEmpty={parsedMessages.length === 0}
-					subagentTitles={subagentTitles}
-					subagentVariants={subagentVariants}
-					urlTransform={urlTransform}
-					mcpServers={mcpServers}
+					liveStatus={liveStatus}
 				/>
+				{footer}
 			</div>
 		</Profiler>
 	);
@@ -455,7 +509,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		wasEditingRef.current = isEditing;
 	}, [isEditing, resetEditAttachments]);
 
-	const isStreaming = hasStreamState || chatStatus === "running";
+	const isStreaming =
+		hasStreamState || chatStatus === "running" || chatStatus === "interrupting";
 
 	const inputElement = (
 		<AgentChatInput
@@ -531,7 +586,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}
-			isInterruptPending={isInterruptPending}
+			isInterruptPending={isInterruptPending || chatStatus === "interrupting"}
 			contextUsage={latestContextUsage}
 			onRefreshContext={handleRefreshContext}
 			isRefreshingContext={refreshContextMutation.isPending}

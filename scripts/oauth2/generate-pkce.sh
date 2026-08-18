@@ -4,7 +4,7 @@
 # Usage: ./generate-pkce.sh
 
 # Generate code verifier (43-128 characters, URL-safe)
-CODE_VERIFIER=$(openssl rand -base64 32 | tr -d "=+/" | cut -c -43)
+CODE_VERIFIER=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')
 
 # Generate code challenge (S256 method)
 CODE_CHALLENGE=$(echo -n "$CODE_VERIFIER" | openssl dgst -sha256 -binary | base64 | tr -d "=" | tr '+/' '-_')

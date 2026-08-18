@@ -15,12 +15,13 @@ import { StarterTemplates } from "./StarterTemplates";
 
 interface CreateTemplateGalleryPageViewProps {
 	starterTemplatesByTag?: StarterTemplatesByTag;
+	templateBuilderEnabled: boolean;
 	error?: unknown;
 }
 
 export const CreateTemplateGalleryPageView: FC<
 	CreateTemplateGalleryPageViewProps
-> = ({ starterTemplatesByTag, error }) => {
+> = ({ starterTemplatesByTag, templateBuilderEnabled, error }) => {
 	return (
 		<Margins className="pb-12">
 			<PageHeader
@@ -75,7 +76,7 @@ export const CreateTemplateGalleryPageView: FC<
 								<h4 className="m-0 mb-1 text-sm font-semibold text-content-secondary">
 									Upload Template
 								</h4>
-								<span className="block text-[13px] leading-[1.6] text-content-secondary">
+								<span className="block text-xs font-normal leading-[1.6] text-content-secondary">
 									Get started by uploading an existing template
 								</span>
 							</div>
@@ -87,7 +88,10 @@ export const CreateTemplateGalleryPageView: FC<
 
 				{Boolean(!starterTemplatesByTag) && <Loader />}
 
-				<StarterTemplates starterTemplatesByTag={starterTemplatesByTag} />
+				<StarterTemplates
+					starterTemplatesByTag={starterTemplatesByTag}
+					templateBuilderEnabled={templateBuilderEnabled}
+				/>
 			</div>
 		</Margins>
 	);

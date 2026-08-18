@@ -76,7 +76,7 @@ Below is a minimal illustrative example of a Coder Tasks template pre-2.28.0.
 terraform {
   required_providers {
     coder = {
-      source = "coder/coder
+      source = "coder/coder"
     }
   }
 }
@@ -132,8 +132,8 @@ Example (**not** a full template):
 terraform {
   required_providers {
     coder = {
-      source = "coder/coder
-      version = ">= 2.13.0
+      source = "coder/coder"
+      version = ">= 2.13.0"
     }
   }
 }

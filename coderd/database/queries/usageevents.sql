@@ -117,3 +117,28 @@ WHERE
     -- Parentheses are necessary to avoid sqlc from generating an extra
     -- argument.
     AND day BETWEEN date_trunc('day', (@start_date::timestamptz) AT TIME ZONE 'UTC')::date AND date_trunc('day', (@end_date::timestamptz) AT TIME ZONE 'UTC')::date;
+
+-- name: GetTotalUsageHBAgentRuntimeV1 :one
+-- Gets the total Coder Agent runtime in milliseconds between two timestamps.
+-- The start bound is inclusive and the end bound is exclusive.
+--
+-- Unlike GetTotalUsageDCManagedAgentsV1 this reads usage_events directly
+-- rather than the usage_events_daily rollup: hb_agent_runtime_v1 is exactly
+-- one row per hourly bucket deployment-wide, with created_at at the bucket
+-- start, enforced by the unique partial index
+-- idx_usage_events_agent_runtime (which also keeps SUM from counting a
+-- bucket twice and serves this query). The result is bucket-granular: a
+-- bucket counts entirely against the period containing its start. See
+-- enterprise/coderd/usage/generator.go for what a bucket holds. If a
+-- usage_events retention policy ever lands, this must move to the daily
+-- rollup and accept day-granularity bounds.
+SELECT
+    -- The first cast is necessary since you can't sum strings, and the second
+    -- cast is necessary to make sqlc happy.
+    COALESCE(SUM((event_data->>'runtime_ms')::bigint), 0)::bigint AS total_runtime_ms
+FROM
+    usage_events
+WHERE
+    event_type = 'hb_agent_runtime_v1'
+    AND created_at >= @start_time::timestamptz
+    AND created_at < @end_time::timestamptz;
