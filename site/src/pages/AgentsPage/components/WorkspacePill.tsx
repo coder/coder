@@ -1,6 +1,5 @@
 import {
 	ChevronDownIcon,
-	CircleDotIcon,
 	CopyIcon,
 	LayoutGridIcon,
 	MonitorIcon,
@@ -29,6 +28,11 @@ import {
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
+import {
+	StatusIndicator,
+	StatusIndicatorDot,
+	type StatusIndicatorProps,
+} from "#/components/StatusIndicator/StatusIndicator";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useIsBelowMdViewport } from "#/hooks/useIsBelowMdViewport";
@@ -236,15 +240,14 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								<MonitorIcon className="mt-px size-3.5 shrink-0" />
 								<span className="flex min-w-0 flex-col">
 									<span className="truncate">View Workspace</span>
-									<span
-										className={cn(
-											"flex min-w-0 items-center gap-1 font-normal",
-											statusColorMap[effectiveType],
-										)}
+									<StatusIndicator
+										size="sm"
+										variant={statusDotVariant[effectiveType]}
+										className="min-w-0 font-normal"
 									>
-										<CircleDotIcon className="size-3 shrink-0" />
+										<StatusIndicatorDot />
 										<span className="truncate">{statusText}</span>
-									</span>
+									</StatusIndicator>
 								</span>
 							</Link>
 						</DropdownMenuItem>
@@ -267,13 +270,16 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	);
 };
 
-const statusColorMap: Record<DisplayWorkspaceStatusType, string> = {
-	success: "text-content-success",
-	active: "text-content-link",
-	inactive: "text-content-secondary",
-	error: "text-content-destructive",
-	danger: "text-content-destructive",
-	warning: "text-content-warning",
+const statusDotVariant: Record<
+	DisplayWorkspaceStatusType,
+	StatusIndicatorProps["variant"]
+> = {
+	success: "success",
+	active: "pending",
+	inactive: "inactive",
+	error: "failed",
+	danger: "failed",
+	warning: "warning",
 };
 
 const VSCodeMenuItem: FC<{
