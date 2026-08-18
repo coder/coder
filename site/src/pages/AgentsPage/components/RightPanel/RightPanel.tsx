@@ -93,10 +93,6 @@ function useResizableDrag({
 	const isDragging = useRef(false);
 	const startX = useRef(0);
 	const startWidth = useRef(0);
-	// Latest width set during this drag. The `width` prop can lag the
-	// final pointermove at pointerup because moves render at lower
-	// priority, so persistence reads the ref instead.
-	const lastDragWidth = useRef<number | null>(null);
 	const sidebarCollapsedByDrag = useRef(false);
 	// Track snap state during a drag. This is state (not a ref) so
 	// the panel visually updates as the user drags across thresholds.
@@ -108,7 +104,6 @@ function useResizableDrag({
 		e.preventDefault();
 		isDragging.current = true;
 		setDragSnap(null);
-		lastDragWidth.current = null;
 		sidebarCollapsedByDrag.current = false;
 		startX.current = e.clientX;
 		const panel = (e.target as HTMLElement).closest(
@@ -147,9 +142,7 @@ function useResizableDrag({
 			nextSnap = "closed";
 		} else {
 			nextSnap = "normal";
-			const clamped = Math.min(maxWidth, Math.max(MIN_WIDTH, raw));
-			setWidth(clamped);
-			lastDragWidth.current = clamped;
+			setWidth(Math.min(maxWidth, Math.max(MIN_WIDTH, raw)));
 		}
 		setDragSnap(nextSnap);
 
@@ -173,9 +166,6 @@ function useResizableDrag({
 		// Clear the drag override so parent falls back to its
 		// own committed expanded state.
 		onVisualExpandedChange?.(null);
-
-		// Persist once per drag instead of on every width change.
-		rightPanelWidthStorage.set(lastDragWidth.current ?? width);
 
 		if (snap) {
 			onSnapCommit(snap);
@@ -213,6 +203,18 @@ export const RightPanel = ({
 	const [width, setWidth] = useState(loadPersistedWidth);
 	const panelRef = useRef<HTMLDivElement>(null);
 
+	// Persist every committed width change (drags, resize clamps, snap
+	// resets) from one place. Comparing against the last-persisted
+	// value skips the initial state, so mounting never writes.
+	const lastPersistedWidthRef = useRef(width);
+	useEffect(() => {
+		if (lastPersistedWidthRef.current === width) {
+			return;
+		}
+		lastPersistedWidthRef.current = width;
+		rightPanelWidthStorage.set(width);
+	}, [width]);
+
 	// Clamp width when the viewport or parent panel shrinks so the
 	// persisted width matches the rendered side-by-side panel width.
 	useEffect(() => {
@@ -239,7 +241,6 @@ export const RightPanel = ({
 			onToggleExpanded();
 		} else if (snap === "closed") {
 			setWidth(DEFAULT_WIDTH);
-			rightPanelWidthStorage.set(DEFAULT_WIDTH);
 			if (isExpanded) {
 				onToggleExpanded();
 			}
