@@ -62,13 +62,15 @@ const openDropdown = async (canvasElement: HTMLElement) => {
 // Overrides platform detection so the Coder Desktop gating can be exercised in
 // a story. Returns a cleanup that restores the spied getters.
 const mockPlatform = (platform: string, maxTouchPoints = 0) => {
-	const navigatorSpy = spyOn(window, "navigator", "get").mockReturnValue({
-		...window.navigator,
+	const platformSpy = spyOn(navigator, "platform", "get").mockReturnValue(
 		platform,
+	);
+	const touchSpy = spyOn(navigator, "maxTouchPoints", "get").mockReturnValue(
 		maxTouchPoints,
-	} as Navigator);
+	);
 	return () => {
-		navigatorSpy.mockRestore();
+		platformSpy.mockRestore();
+		touchSpy.mockRestore();
 	};
 };
 
