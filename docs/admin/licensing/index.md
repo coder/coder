@@ -20,8 +20,9 @@ additional configuration.
 
 Some licenses include a `publish_usage_data` claim. When it is `true`, your
 deployment periodically publishes usage events (such as managed agent counts)
-to Coder's servers, and Coder warns administrators if publishing fails for an
-extended period.
+to Coder's servers. Coder warns administrators when usage events have been
+waiting to publish for more than 24 hours, or immediately when Coder's
+servers permanently reject an event.
 
 When the claim is `false` or absent, which is the case for licenses issued for
 [air-gapped deployments](../../install/airgap.md):

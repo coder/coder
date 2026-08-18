@@ -28693,41 +28693,57 @@ WITH last_success AS (
     FROM usage_events
     WHERE published_at IS NOT NULL
         AND failure_message IS NULL
+), never_attempted AS (
+    -- The oldest insertion time among unpublished events with no publish
+    -- attempt yet. Bounded by idx_usage_events_unpublished_no_attempt.
+    SELECT MIN(inserted_at) AS min_inserted_at
+    FROM usage_events
+    WHERE published_at IS NULL
+        AND failure_message IS NULL
+        AND created_at > $3::timestamptz
+), attempted AS (
+    -- The oldest insertion time among unpublished events with at least one
+    -- failed attempt. Bounded by idx_usage_events_unpublished_attempted.
+    SELECT MIN(inserted_at) AS min_inserted_at
+    FROM usage_events
+    WHERE published_at IS NULL
+        AND failure_message IS NOT NULL
+        AND created_at > $3::timestamptz
 ), stuck AS (
     -- The effective stuck time of the oldest event that should have been
-    -- published by now but wasn't.
-    SELECT MIN(effective_stuck_at) AS oldest_stuck_at
-    FROM (
-        SELECT
-            CASE
-                WHEN potential_event.failure_message IS NULL
-                    THEN GREATEST(potential_event.inserted_at, $2::timestamptz)
-                ELSE potential_event.inserted_at
-            END AS effective_stuck_at
-        FROM usage_events potential_event
-        WHERE potential_event.published_at IS NULL
-            AND potential_event.created_at > $3::timestamptz
-    ) candidates
-    WHERE effective_stuck_at < $4::timestamptz
+    -- published by now but wasn't. GREATEST is monotonic in inserted_at, so
+    -- applying it to each branch's MIN is equivalent to taking MIN over
+    -- per-event effective stuck times, without scanning the whole backlog.
+    -- The CASE guards the never-attempted branch because GREATEST ignores
+    -- NULL arguments: no rows must yield NULL, not license_start. LEAST
+    -- likewise ignores a NULL branch.
+    SELECT LEAST(
+        CASE
+            WHEN never_attempted.min_inserted_at IS NOT NULL
+                THEN GREATEST(never_attempted.min_inserted_at, $4::timestamptz)
+        END,
+        attempted.min_inserted_at
+    ) AS oldest_stuck_at
+    FROM never_attempted, attempted
 )
 SELECT
     COALESCE((SELECT last_published_at FROM last_success), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS last_published_at,
-    COALESCE((SELECT oldest_stuck_at FROM stuck), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_at,
+    COALESCE((SELECT oldest_stuck_at FROM stuck WHERE oldest_stuck_at < $1::timestamptz), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_at,
     -- The earliest recent permanent rejection.
     COALESCE((
         SELECT MIN(published_at)
         FROM usage_events
         WHERE published_at IS NOT NULL
             AND failure_message IS NOT NULL
-            AND published_at > $1::timestamptz
+            AND published_at > $2::timestamptz
     ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS earliest_recent_rejection_at
 `
 
 type GetUsagePublishStatusParams struct {
-	RejectedAfter time.Time `db:"rejected_after" json:"rejected_after"`
-	LicenseStart  time.Time `db:"license_start" json:"license_start"`
-	WindowStart   time.Time `db:"window_start" json:"window_start"`
 	StuckCutoff   time.Time `db:"stuck_cutoff" json:"stuck_cutoff"`
+	RejectedAfter time.Time `db:"rejected_after" json:"rejected_after"`
+	WindowStart   time.Time `db:"window_start" json:"window_start"`
+	LicenseStart  time.Time `db:"license_start" json:"license_start"`
 }
 
 type GetUsagePublishStatusRow struct {
@@ -28762,10 +28778,10 @@ type GetUsagePublishStatusRow struct {
 //     that happened after this are considered recent failures.
 func (q *sqlQuerier) GetUsagePublishStatus(ctx context.Context, arg GetUsagePublishStatusParams) (GetUsagePublishStatusRow, error) {
 	row := q.db.QueryRowContext(ctx, getUsagePublishStatus,
-		arg.RejectedAfter,
-		arg.LicenseStart,
-		arg.WindowStart,
 		arg.StuckCutoff,
+		arg.RejectedAfter,
+		arg.WindowStart,
+		arg.LicenseStart,
 	)
 	var i GetUsagePublishStatusRow
 	err := row.Scan(&i.LastPublishedAt, &i.OldestStuckAt, &i.EarliestRecentRejectionAt)

@@ -1,0 +1,2 @@
+DROP INDEX idx_usage_events_unpublished_no_attempt;
+DROP INDEX idx_usage_events_unpublished_attempted;

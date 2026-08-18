@@ -130,26 +130,42 @@ WITH last_success AS (
     FROM usage_events
     WHERE published_at IS NOT NULL
         AND failure_message IS NULL
+), never_attempted AS (
+    -- The oldest insertion time among unpublished events with no publish
+    -- attempt yet. Bounded by idx_usage_events_unpublished_no_attempt.
+    SELECT MIN(inserted_at) AS min_inserted_at
+    FROM usage_events
+    WHERE published_at IS NULL
+        AND failure_message IS NULL
+        AND created_at > @window_start::timestamptz
+), attempted AS (
+    -- The oldest insertion time among unpublished events with at least one
+    -- failed attempt. Bounded by idx_usage_events_unpublished_attempted.
+    SELECT MIN(inserted_at) AS min_inserted_at
+    FROM usage_events
+    WHERE published_at IS NULL
+        AND failure_message IS NOT NULL
+        AND created_at > @window_start::timestamptz
 ), stuck AS (
     -- The effective stuck time of the oldest event that should have been
-    -- published by now but wasn't.
-    SELECT MIN(effective_stuck_at) AS oldest_stuck_at
-    FROM (
-        SELECT
-            CASE
-                WHEN potential_event.failure_message IS NULL
-                    THEN GREATEST(potential_event.inserted_at, @license_start::timestamptz)
-                ELSE potential_event.inserted_at
-            END AS effective_stuck_at
-        FROM usage_events potential_event
-        WHERE potential_event.published_at IS NULL
-            AND potential_event.created_at > @window_start::timestamptz
-    ) candidates
-    WHERE effective_stuck_at < @stuck_cutoff::timestamptz
+    -- published by now but wasn't. GREATEST is monotonic in inserted_at, so
+    -- applying it to each branch's MIN is equivalent to taking MIN over
+    -- per-event effective stuck times, without scanning the whole backlog.
+    -- The CASE guards the never-attempted branch because GREATEST ignores
+    -- NULL arguments: no rows must yield NULL, not license_start. LEAST
+    -- likewise ignores a NULL branch.
+    SELECT LEAST(
+        CASE
+            WHEN never_attempted.min_inserted_at IS NOT NULL
+                THEN GREATEST(never_attempted.min_inserted_at, @license_start::timestamptz)
+        END,
+        attempted.min_inserted_at
+    ) AS oldest_stuck_at
+    FROM never_attempted, attempted
 )
 SELECT
     COALESCE((SELECT last_published_at FROM last_success), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS last_published_at,
-    COALESCE((SELECT oldest_stuck_at FROM stuck), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_at,
+    COALESCE((SELECT oldest_stuck_at FROM stuck WHERE oldest_stuck_at < @stuck_cutoff::timestamptz), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_at,
     -- The earliest recent permanent rejection.
     COALESCE((
         SELECT MIN(published_at)
