@@ -24584,7 +24584,7 @@
 			"type": "object",
 			"properties": {
 				"failing_since": {
-					"description": "FailingSince is set when usage event publishing is considered failing.\nIt is the earliest known time associated with the current failure:\nthe creation time of the oldest unpublished event past the failure\nthreshold, or the time of the earliest recent permanent rejection,\nwhichever is older.",
+					"description": "FailingSince is set when usage event publishing is considered failing.\nIt is the effective start of the current failure: the first failed\npublish attempt of the oldest stuck event (its insertion time for\nevents that failed before attempt tracking existed, and never earlier\nthan when publishing was most recently enabled), or the earliest\nrecent permanent rejection, whichever is older.",
 					"type": "string",
 					"format": "date-time"
 				},

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"math"
 	"slices"
@@ -44,7 +45,33 @@ const (
 	// this belong to replicas that exited mid-publish; the publisher retries
 	// such rows, so failure detection must consider them too.
 	usagePublishAttemptExpiry = time.Hour
+	// UsagePublishingEnabledSinceKey is the runtime config key recording the
+	// current usage publishing enabled period as a JSON
+	// usagePublishingEnabledMarker. Every entitlements refresh that observes
+	// publishing enabled stamps last_seen; a refresh that finds last_seen
+	// older than usagePublishingEnabledMarkerStaleAfter concludes publishing
+	// was disabled (or coderd was down) in between and starts a new period.
+	// Publish failure detection clamps failure ages to enabled_since,
+	// granting a fresh failure threshold after every (re-)enablement, while
+	// continuous license renewals never interrupt the refresh cadence and so
+	// cannot reset an active warning. Refreshes never touch the marker while
+	// publishing is disabled, so air-gapped deployments incur no writes.
+	UsagePublishingEnabledSinceKey = "usage_publishing_enabled_since"
+	// usagePublishingEnabledMarkerStaleAfter is how old the marker's
+	// last_seen may be before the current enabled period is considered
+	// interrupted. Entitlements refresh every 10 minutes, so an hour
+	// tolerates slow refreshes while still catching real disablement.
+	// Disabled intervals shorter than this may go unobserved and count as
+	// continuous.
+	usagePublishingEnabledMarkerStaleAfter = time.Hour
 )
+
+// usagePublishingEnabledMarker is the JSON value stored under
+// UsagePublishingEnabledSinceKey.
+type usagePublishingEnabledMarker struct {
+	EnabledSince time.Time `json:"enabled_since"`
+	LastSeen     time.Time `json:"last_seen"`
+}
 
 // Entitlements processes licenses to return whether features are enabled or not.
 // TODO(@deansheather): This function and the related LicensesEntitlements
@@ -150,10 +177,15 @@ func Entitlements(
 				EndTime:   endTime,
 			})
 		},
-		UsagePublishStatusFn: func(ctx context.Context, licenseStart time.Time) (database.GetUsagePublishStatusRow, error) {
+		UsagePublishStatusFn: func(ctx context.Context) (database.GetUsagePublishStatusRow, error) {
 			// nolint:gocritic // Reading the usage publish status is a system function.
-			return db.GetUsagePublishStatus(dbauthz.AsSystemRestricted(ctx), database.GetUsagePublishStatusParams{
-				LicenseStart:         licenseStart,
+			ctx = dbauthz.AsSystemRestricted(ctx)
+			enabledSince, err := resolveUsagePublishingEnabledSince(ctx, db, now)
+			if err != nil {
+				return database.GetUsagePublishStatusRow{}, err
+			}
+			return db.GetUsagePublishStatus(ctx, database.GetUsagePublishStatusParams{
+				EnabledSince:         enabledSince,
 				WindowStart:          now.Add(-usagePublishingWindow),
 				StuckCutoff:          now.Add(-UsagePublishingFailureThreshold),
 				AttemptExpiredBefore: now.Add(-usagePublishAttemptExpiry),
@@ -166,6 +198,40 @@ func Entitlements(
 	}
 
 	return entitlements, nil
+}
+
+// resolveUsagePublishingEnabledSince returns when usage publishing most
+// recently became enabled and stamps the marker's last_seen, starting a new
+// enabled period when the marker is missing, corrupted, or stale. See
+// UsagePublishingEnabledSinceKey. The caller must pass a system-authorized
+// context.
+func resolveUsagePublishingEnabledSince(ctx context.Context, db database.Store, now time.Time) (time.Time, error) {
+	var marker usagePublishingEnabledMarker
+	raw, err := db.GetRuntimeConfig(ctx, UsagePublishingEnabledSinceKey)
+	if err == nil {
+		if jsonErr := json.Unmarshal([]byte(raw), &marker); jsonErr != nil {
+			// A corrupted value is unrecoverable; start a new period below.
+			marker = usagePublishingEnabledMarker{}
+		}
+	} else if !xerrors.Is(err, sql.ErrNoRows) {
+		return time.Time{}, xerrors.Errorf("get usage publishing enabled-since marker: %w", err)
+	}
+	if marker.EnabledSince.IsZero() || now.Sub(marker.LastSeen) > usagePublishingEnabledMarkerStaleAfter {
+		marker.EnabledSince = now
+	}
+	marker.LastSeen = now
+	value, err := json.Marshal(marker)
+	if err != nil {
+		return time.Time{}, xerrors.Errorf("marshal usage publishing enabled-since marker: %w", err)
+	}
+	err = db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+		Key:   UsagePublishingEnabledSinceKey,
+		Value: string(value),
+	})
+	if err != nil {
+		return time.Time{}, xerrors.Errorf("update usage publishing enabled-since marker: %w", err)
+	}
+	return marker.EnabledSince, nil
 }
 
 type FeatureArguments struct {
@@ -200,12 +266,11 @@ type FeatureArguments struct {
 	WorkspaceCapableUserCountFn WorkspaceCapableUserCountFn
 	// UsagePublishStatusFn fetches the usage event publishing status from the
 	// database. It is only called when a currently-valid license enables
-	// usage publishing. licenseStart is the earliest nbf among such licenses;
-	// events that have never had a publish attempt count as stuck only from
-	// licenseStart, and attempted events count from the first failure of
-	// their current failure streak, so a backlog accumulated while
-	// publishing was disabled (or before it was first enabled) gets the full
-	// failure threshold as a grace period after (re-)enablement.
+	// usage publishing. Failure ages are clamped to when publishing most
+	// recently became enabled (see UsagePublishingEnabledSinceKey), so a
+	// backlog accumulated while publishing was disabled (or before it was
+	// first enabled) gets the full failure threshold as a grace period
+	// after (re-)enablement.
 	UsagePublishStatusFn UsagePublishStatusFn
 }
 
@@ -228,7 +293,7 @@ type ManagedAgentCountFn func(ctx context.Context, from time.Time, to time.Time)
 // recorded between from (inclusive) and to (exclusive).
 type AgentRuntimeMsFn = ManagedAgentCountFn
 
-type UsagePublishStatusFn func(ctx context.Context, licenseStart time.Time) (database.GetUsagePublishStatusRow, error)
+type UsagePublishStatusFn func(ctx context.Context) (database.GetUsagePublishStatusRow, error)
 
 type WorkspaceCapableUserCountFn func(ctx context.Context) (int64, error)
 
@@ -401,14 +466,10 @@ func LicensesEntitlements(
 	// processed.
 	var userLimitCandidates []userLimitCandidate
 
-	// Track whether any currently-valid license enables usage publishing and
-	// the earliest nbf among such licenses. The criteria mirror the usage
-	// publisher's getBestLicenseJWT so the reported status never disagrees
-	// with actual publisher behavior.
-	var (
-		usagePublishingEnabled      bool
-		usagePublishingLicenseStart time.Time
-	)
+	// Track whether any currently-valid license enables usage publishing.
+	// The criteria mirror the usage publisher's getBestLicenseJWT so the
+	// reported status never disagrees with actual publisher behavior.
+	var usagePublishingEnabled bool
 
 	// Default all entitlements to be disabled.
 	entitlements := codersdk.Entitlements{
@@ -490,9 +551,6 @@ func LicensesEntitlements(
 		// encoded in the license.
 		if claims.AccountType == AccountTypeSalesforce && claims.PublishUsageData {
 			usagePublishingEnabled = true
-			if usagePublishingLicenseStart.IsZero() || usagePeriodStart.Before(usagePublishingLicenseStart) {
-				usagePublishingLicenseStart = usagePeriodStart
-			}
 		}
 
 		// If any license requires telemetry, the deployment should require telemetry.
@@ -889,16 +947,22 @@ func LicensesEntitlements(
 		PublishingEnabled: usagePublishingEnabled,
 	}
 	if usagePublishingEnabled && featureArguments.UsagePublishStatusFn != nil {
-		status, err := featureArguments.UsagePublishStatusFn(ctx, usagePublishingLicenseStart)
-		if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
-			// If the context is canceled, we want to bail the entire
-			// LicensesEntitlements call.
+		status, err := featureArguments.UsagePublishStatusFn(ctx)
+		switch {
+		case err != nil && ctx.Err() != nil:
+			// Bail the entire LicensesEntitlements call. Classified by
+			// ctx.Err() rather than error shape: Postgres raises SQLSTATE
+			// 57014 for statement_timeout kills as well as client cancels,
+			// and aborting on those would fail every refresh on a
+			// deployment whose statement_timeout is shorter than the query.
 			return entitlements, xerrors.Errorf("get usage publish status: %w", err)
-		}
-		if err != nil {
-			entitlements.Errors = append(entitlements.Errors, fmt.Sprintf("Error getting usage publish status: %s", err.Error()))
-			// no return
-		} else {
+		case err != nil:
+			// The raw error stays out of the payload: /api/v2/entitlements
+			// is reachable without authentication, so database details must
+			// only go to the logs.
+			featureArguments.Logger.Error(ctx, "get usage publish status for entitlements", slog.Error(err))
+			entitlements.Errors = append(entitlements.Errors, codersdk.LicenseUsagePublishingStatusUnavailableErrorText)
+		default:
 			// The query encodes NULL results as the zero timestamp.
 			if !status.LastPublishedAt.IsZero() {
 				lastPublishedAt := status.LastPublishedAt

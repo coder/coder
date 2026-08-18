@@ -25,6 +25,11 @@ const (
 	LicenseAgentRuntimeHoursAllocationReachedWarningText = "Your deployment has used %d of the %d Coder Agent runtime hours included in the current license term."
 	LicenseAgentRuntimeUsageUnavailableErrorText         = "Unable to determine Coder Agent runtime usage. Reported runtime hours are unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details."
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText     = "A license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of that license is unaffected. Check the coderd logs for the affected license and claims, and contact support to have the license re-issued."
+	// LicenseUsagePublishingStatusUnavailableErrorText is appended to
+	// entitlements errors when the usage publishing status cannot be read.
+	// The text is static because /api/v2/entitlements is reachable without
+	// authentication, so the underlying error only goes to the coderd logs.
+	LicenseUsagePublishingStatusUnavailableErrorText = "Unable to determine usage publishing status. Check the coderd logs for details."
 	// LicenseUsagePublishingFailingWarningText is appended to entitlements
 	// warnings when usage event publishing is considered failing: events
 	// stuck for longer than the failure threshold, or a permanent rejection

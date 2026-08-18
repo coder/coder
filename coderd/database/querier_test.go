@@ -11203,7 +11203,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 	var (
 		now                  = time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
 		threshold            = 24 * time.Hour
-		licenseStart         = now.Add(-90 * 24 * time.Hour)
+		enabledSince         = now.Add(-90 * 24 * time.Hour)
 		windowStart          = now.Add(-30 * 24 * time.Hour)
 		stuckCutoff          = now.Add(-threshold)
 		attemptExpiredBefore = now.Add(-time.Hour)
@@ -11211,7 +11211,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 	)
 
 	params := database.GetUsagePublishStatusParams{
-		LicenseStart:         licenseStart,
+		EnabledSince:         enabledSince,
 		WindowStart:          windowStart,
 		StuckCutoff:          stuckCutoff,
 		AttemptExpiredBefore: attemptExpiredBefore,
@@ -11278,8 +11278,8 @@ func TestGetUsagePublishStatus(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		events []seedEvent
-		// licenseStartOverride overrides params.LicenseStart when non-zero.
-		licenseStartOverride time.Time
+		// enabledSinceOverride overrides params.EnabledSince when non-zero.
+		enabledSinceOverride time.Time
 		// markInFlightAt, when non-zero, runs SelectUsageEventsForPublishing
 		// at that time after seeding so eligible events get
 		// publish_started_at set, as if a replica had started publishing
@@ -11372,34 +11372,33 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			},
 		},
 		{
-			// A never-attempted pre-enablement backlog counts as stuck only
-			// from license_start, which is too recent to breach the
-			// threshold.
+			// A pre-enablement backlog counts as stuck only from
+			// enabled_since, which is too recent to breach the threshold.
 			name: "FirstEnablementBacklogWithinGrace",
 			events: []seedEvent{
 				{id: "1", createdAt: now.Add(-48 * time.Hour)},
 			},
-			licenseStartOverride: now.Add(-1 * time.Hour),
+			enabledSinceOverride: now.Add(-1 * time.Hour),
 			want:                 database.GetUsagePublishStatusRow{},
 		},
 		{
-			// Once the grace from license_start elapses with the backlog
-			// still unattempted and unpublished, it warns with license_start
-			// as the effective stuck time.
+			// Once the grace from enabled_since elapses with the backlog
+			// still unpublished, it warns with enabled_since as the
+			// effective stuck time.
 			name: "FirstEnablementBacklogWarnsAfterGrace",
 			events: []seedEvent{
 				{id: "1", createdAt: now.Add(-48 * time.Hour)},
 			},
-			licenseStartOverride: now.Add(-30 * time.Hour),
+			enabledSinceOverride: now.Add(-30 * time.Hour),
 			want: database.GetUsagePublishStatusRow{
 				OldestStuckAt: now.Add(-30 * time.Hour),
 			},
 		},
 		{
-			// An event in an ongoing failure streak (the publisher keeps
-			// retrying, so attempts are frequent) gets no license_start
-			// grace: a license renewal advancing license_start must not
-			// clear an active failure warning.
+			// Continuous license renewals never advance enabled_since (the
+			// entitlements refresh only sets it when publishing transitions
+			// from disabled to enabled), so an ongoing outage keeps warning
+			// from its first failure across renewals.
 			name: "RenewalDoesNotResetStuckDetection",
 			events: []seedEvent{
 				{id: "1", createdAt: now.Add(-10 * 24 * time.Hour), publishedAt: now.Add(-9 * 24 * time.Hour)},
@@ -11410,51 +11409,51 @@ func TestGetUsagePublishStatus(t *testing.T) {
 					now.Add(-10 * time.Minute),
 				}},
 			},
-			licenseStartOverride: now.Add(-1 * time.Hour),
 			want: database.GetUsagePublishStatusRow{
 				LastPublishedAt: now.Add(-9 * 24 * time.Hour),
 				OldestStuckAt:   now.Add(-48 * time.Hour),
 			},
 		},
 		{
-			// A failure whose last attempt predates license_start is stale:
-			// publishing was disabled in between, so re-enabling grants the
-			// license_start grace instead of warning immediately off the old
-			// failure.
+			// A failure predating a disabled interval is clamped to
+			// enabled_since on re-enablement, granting the full grace
+			// instead of warning immediately off the old failure.
 			name: "StaleFailureGetsGraceAfterReEnable",
 			events: []seedEvent{
 				{id: "1", createdAt: now.Add(-20 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-15 * 24 * time.Hour)}},
 			},
-			licenseStartOverride: now.Add(-1 * time.Hour),
+			enabledSinceOverride: now.Add(-1 * time.Hour),
 			want:                 database.GetUsagePublishStatusRow{},
 		},
 		{
-			// The stale-failure grace still expires: if the re-enabled
-			// publisher never retries the event, it warns once the threshold
-			// elapses from license_start.
+			// The re-enablement grace still expires: if the event stays
+			// unpublished, it warns once the threshold elapses from
+			// enabled_since.
 			name: "StaleFailureWarnsAfterReEnableGrace",
 			events: []seedEvent{
 				{id: "1", createdAt: now.Add(-20 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-15 * 24 * time.Hour)}},
 			},
-			licenseStartOverride: now.Add(-30 * time.Hour),
+			enabledSinceOverride: now.Add(-30 * time.Hour),
 			want: database.GetUsagePublishStatusRow{
 				OldestStuckAt: now.Add(-30 * time.Hour),
 			},
 		},
 		{
-			// A failed attempt more than 24 hours after the previous one
-			// starts a new failure streak, so failure age is measured from
-			// the new attempt rather than the stale one.
-			name: "FailureStreakGapResetsThreshold",
+			// A gap between failed attempts (e.g. coderd down for a day
+			// mid-outage) does not reset failure age: publishing has been
+			// failing the whole time.
+			name: "AttemptGapDoesNotResetFailureAge",
 			events: []seedEvent{
 				{id: "1", createdAt: now.Add(-20 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour), now.Add(-10 * time.Minute)}},
 			},
-			want: database.GetUsagePublishStatusRow{},
+			want: database.GetUsagePublishStatusRow{
+				OldestStuckAt: now.Add(-30 * time.Hour),
+			},
 		},
 		{
-			// Attempts within 24 hours of each other keep the streak, so
-			// failure age is measured from the streak's first failure.
-			name: "FailureStreakIntactKeepsFirstFailure",
+			// Repeated failures keep the first failure as the effective
+			// stuck time.
+			name: "RepeatedFailuresKeepFirstFailure",
 			events: []seedEvent{
 				{id: "1", createdAt: now.Add(-20 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour), now.Add(-20 * time.Hour), now.Add(-1 * time.Hour)}},
 			},
@@ -11463,17 +11462,17 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			},
 		},
 		{
-			// A backlog accumulated while publishing was disabled has never
-			// been attempted, so re-enabling publishing (license_start
-			// advances) grants the full grace period even though the
-			// deployment published successfully in the past.
+			// A backlog accumulated while publishing was disabled is
+			// clamped to enabled_since on re-enablement, granting the full
+			// grace period even though the deployment published
+			// successfully in the past.
 			name: "ReEnablingGrantsGraceToUnattemptedBacklog",
 			events: []seedEvent{
 				{id: "1", createdAt: now.Add(-10 * 24 * time.Hour), publishedAt: now.Add(-9 * 24 * time.Hour)},
 				{id: "2", createdAt: now.Add(-5 * 24 * time.Hour)},
 				{id: "3", createdAt: now.Add(-48 * time.Hour)},
 			},
-			licenseStartOverride: now.Add(-1 * time.Hour),
+			enabledSinceOverride: now.Add(-1 * time.Hour),
 			want: database.GetUsagePublishStatusRow{
 				LastPublishedAt: now.Add(-9 * 24 * time.Hour),
 			},
@@ -11487,7 +11486,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 				{id: "1", createdAt: now.Add(-10 * 24 * time.Hour), publishedAt: now.Add(-9 * 24 * time.Hour)},
 				{id: "2", createdAt: now.Add(-5 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-1 * time.Hour)}},
 			},
-			licenseStartOverride: now.Add(-2 * time.Hour),
+			enabledSinceOverride: now.Add(-2 * time.Hour),
 			want: database.GetUsagePublishStatusRow{
 				LastPublishedAt: now.Add(-9 * 24 * time.Hour),
 			},
@@ -11570,8 +11569,8 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			}
 
 			callParams := params
-			if !tc.licenseStartOverride.IsZero() {
-				callParams.LicenseStart = tc.licenseStartOverride
+			if !tc.enabledSinceOverride.IsZero() {
+				callParams.EnabledSince = tc.enabledSinceOverride
 			}
 
 			//nolint:gocritic // Unit test.

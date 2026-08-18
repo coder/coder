@@ -5830,6 +5830,16 @@ export const LicenseTelemetryRequiredErrorText =
 export const LicenseUsagePublishingFailingWarningText =
 	"Coder has been unable to publish usage data to Coder's servers. Please check the deployment's connectivity and contact support if the issue persists.";
 
+// From codersdk/licenses.go
+/**
+ * LicenseUsagePublishingStatusUnavailableErrorText is appended to
+ * entitlements errors when the usage publishing status cannot be read.
+ * The text is static because /api/v2/entitlements is reachable without
+ * authentication, so the underlying error only goes to the coderd logs.
+ */
+export const LicenseUsagePublishingStatusUnavailableErrorText =
+	"Unable to determine usage publishing status. Check the coderd logs for details.";
+
 // From codersdk/deployment.go
 export interface LinkConfig {
 	readonly name: string;
@@ -10274,10 +10284,11 @@ export interface UsagePublishingStatus {
 	readonly last_published_at?: string;
 	/**
 	 * FailingSince is set when usage event publishing is considered failing.
-	 * It is the earliest known time associated with the current failure:
-	 * the creation time of the oldest unpublished event past the failure
-	 * threshold, or the time of the earliest recent permanent rejection,
-	 * whichever is older.
+	 * It is the effective start of the current failure: the first failed
+	 * publish attempt of the oldest stuck event (its insertion time for
+	 * events that failed before attempt tracking existed, and never earlier
+	 * than when publishing was most recently enabled), or the earliest
+	 * recent permanent rejection, whichever is older.
 	 */
 	readonly failing_since?: string;
 }

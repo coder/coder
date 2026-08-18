@@ -560,10 +560,11 @@ type UsagePublishingStatus struct {
 	// event. It is null if no event has ever been published successfully.
 	LastPublishedAt *time.Time `json:"last_published_at,omitempty" format:"date-time"`
 	// FailingSince is set when usage event publishing is considered failing.
-	// It is the earliest known time associated with the current failure:
-	// the creation time of the oldest unpublished event past the failure
-	// threshold, or the time of the earliest recent permanent rejection,
-	// whichever is older.
+	// It is the effective start of the current failure: the first failed
+	// publish attempt of the oldest stuck event (its insertion time for
+	// events that failed before attempt tracking existed, and never earlier
+	// than when publishing was most recently enabled), or the earliest
+	// recent permanent rejection, whichever is older.
 	FailingSince *time.Time `json:"failing_since,omitempty" format:"date-time"`
 }
 

@@ -28734,45 +28734,61 @@ WITH last_success AS (
 ), stuck AS (
     -- The earliest effective stuck time among events at the front of the
     -- publisher's queue. This deliberately inspects at most one publisher
-    -- batch (100 rows, matching SelectUsageEventsForPublishing) in the
-    -- publisher's own selection order, which
-    -- idx_usage_events_select_for_publishing supports, instead of computing
-    -- an exact minimum over a potentially unbounded unpublished backlog
-    -- (e.g. after publishing was disabled for weeks). A stuck event behind
-    -- the first batch surfaces once the queue ahead of it drains or is
-    -- attempted; the publisher cannot reach it any earlier either. Rows with
-    -- a live in-flight attempt are skipped; they either resolve or become
-    -- retryable when the attempt expires, mirroring the publisher's
-    -- expired-attempt predicate so a replica that exited mid-publish cannot
-    -- hide a stuck event forever.
+    -- batch per branch (100 rows, matching SelectUsageEventsForPublishing)
+    -- instead of computing an exact minimum over a potentially unbounded
+    -- unpublished backlog (e.g. after publishing was disabled for weeks). A
+    -- stuck event behind the first batch surfaces once the queue ahead of
+    -- it drains or is attempted; the publisher cannot reach it any earlier
+    -- either. The two branches exist so each is separately index-served by
+    -- idx_usage_events_select_for_publishing (published_at,
+    -- publish_started_at, created_at): the never/not-in-flight branch pins
+    -- both leading columns, letting the index deliver created_at order and
+    -- stop at the LIMIT, while the expired-attempt branch (replicas that
+    -- exited mid-publish, which the publisher considers retryable, so the
+    -- status scan must too) ranges over publish_started_at and sorts its
+    -- naturally tiny row set. A single OR'd scan could not use the index
+    -- for the global created_at order and would top-N sort the whole
+    -- backlog.
     SELECT MIN(
-        CASE
-            WHEN queued.failure_message IS NULL
-                THEN GREATEST(queued.inserted_at, $3::timestamptz)
-            WHEN queued.last_failed_at >= $3::timestamptz
-                THEN COALESCE(queued.first_failed_at, queued.inserted_at)
-            ELSE GREATEST(COALESCE(queued.first_failed_at, queued.inserted_at), $3::timestamptz)
-        END
+        -- The clamp to enabled_since grants the post-(re-)enablement grace
+        -- period; see the enabled_since parameter doc.
+        GREATEST(
+            COALESCE(queued.first_failed_at, queued.inserted_at),
+            $3::timestamptz
+        )
     ) AS oldest_stuck_at
     FROM (
-        SELECT inserted_at, failure_message, first_failed_at, last_failed_at
-        FROM usage_events
-        WHERE published_at IS NULL
-            AND (
-                publish_started_at IS NULL
-                OR publish_started_at < $4::timestamptz
-            )
-            AND created_at > $5::timestamptz
-        ORDER BY created_at ASC
-        LIMIT 100
+        (
+            SELECT inserted_at, first_failed_at
+            FROM usage_events
+            WHERE published_at IS NULL
+                AND publish_started_at IS NULL
+                AND created_at > $4::timestamptz
+            ORDER BY created_at ASC
+            LIMIT 100
+        )
+        UNION ALL
+        (
+            SELECT inserted_at, first_failed_at
+            FROM usage_events
+            WHERE published_at IS NULL
+                AND publish_started_at IS NOT NULL
+                AND publish_started_at < $5::timestamptz
+                AND created_at > $4::timestamptz
+            ORDER BY created_at ASC
+            LIMIT 100
+        )
     ) queued
 )
 SELECT
     COALESCE((SELECT last_published_at FROM last_success), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS last_published_at,
     COALESCE((SELECT oldest_stuck_at FROM stuck WHERE oldest_stuck_at < $1::timestamptz), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_at,
-    -- The earliest recent permanent rejection. Bounded by
-    -- idx_usage_events_permanent_rejections, whose predicate this WHERE
-    -- clause implies, so the probe never scans successful publishes.
+    -- The earliest recent permanent rejection. The probe walks
+    -- idx_usage_events_select_for_publishing's leading published_at column
+    -- from rejected_after forward, so its cost is bounded by the events
+    -- published within the failure threshold, which is set by the publish
+    -- rate (hourly heartbeats plus one discrete event per workspace build)
+    -- rather than by table size or backlog.
     COALESCE((
         SELECT MIN(published_at)
         FROM usage_events
@@ -28785,9 +28801,9 @@ SELECT
 type GetUsagePublishStatusParams struct {
 	StuckCutoff          time.Time `db:"stuck_cutoff" json:"stuck_cutoff"`
 	RejectedAfter        time.Time `db:"rejected_after" json:"rejected_after"`
-	LicenseStart         time.Time `db:"license_start" json:"license_start"`
-	AttemptExpiredBefore time.Time `db:"attempt_expired_before" json:"attempt_expired_before"`
+	EnabledSince         time.Time `db:"enabled_since" json:"enabled_since"`
 	WindowStart          time.Time `db:"window_start" json:"window_start"`
+	AttemptExpiredBefore time.Time `db:"attempt_expired_before" json:"attempt_expired_before"`
 }
 
 type GetUsagePublishStatusRow struct {
@@ -28800,30 +28816,25 @@ type GetUsagePublishStatusRow struct {
 // failures. NULL results are encoded as the zero timestamp because sqlc
 // cannot reliably infer the nullability of aggregate expressions. All cutoff
 // parameters are computed by the caller so tests can control time:
-//   - license_start: the nbf of the earliest currently-valid license with
-//     usage publishing enabled. Events that have never had a publish attempt
-//     count as stuck only from license_start, giving the publisher a grace
-//     period to work through a backlog accumulated while publishing was
-//     disabled or before it was first enabled (e.g. after switching from an
-//     air-gapped license). Events whose failure streak is current (last
-//     failed attempt at or after license_start) count from the streak's
-//     start instead, so an ongoing outage keeps warning even though a
-//     license renewal advances license_start. Events whose last failed
-//     attempt predates license_start are stale: publishing was disabled in
-//     between, so they also get the license_start grace until the re-enabled
-//     publisher retries them (at which point the streak-gap reset in
-//     UpdateUsageEventsPostPublish starts a fresh threshold). Rows whose
-//     failures predate the failure-timestamp columns fall back to their
-//     insertion time.
+//   - enabled_since: when usage publishing most recently became enabled, as
+//     tracked by the entitlements refresh in a runtime config key. An
+//     event's effective stuck time is clamped to this, so a backlog
+//     accumulated while publishing was disabled (or before it was first
+//     enabled, e.g. on an air-gapped deployment that switches licenses)
+//     gets the full failure threshold as a grace period after
+//     (re-)enablement. Continuous license renewals do not advance it, so an
+//     ongoing outage keeps warning across renewals.
 //   - window_start: the start of the publisher's selection window (now minus
 //     30 days, matching SelectUsageEventsForPublishing). Events older than
 //     this are never published, so they must not trigger a failure forever.
 //   - stuck_cutoff: now minus the failure threshold. Events at the front of
 //     the publisher's queue whose effective stuck time is before this are
-//     considered stuck. Stuckness is measured against inserted_at rather
-//     than created_at because heartbeat events backfilled after downtime
-//     carry a historical created_at; measuring event age would flag them as
-//     failing before publishing was ever attempted.
+//     considered stuck. Stuckness is measured against the first failed
+//     attempt (falling back to inserted_at for rows that failed before the
+//     column existed) rather than created_at because heartbeat events
+//     backfilled after downtime carry a historical created_at; measuring
+//     event age would flag them as failing before publishing was ever
+//     attempted.
 //   - attempt_expired_before: now minus the publisher's 1-hour attempt
 //     expiry (matching SelectUsageEventsForPublishing). In-flight attempts
 //     newer than this are skipped; older markers are from replicas that
@@ -28835,9 +28846,9 @@ func (q *sqlQuerier) GetUsagePublishStatus(ctx context.Context, arg GetUsagePubl
 	row := q.db.QueryRowContext(ctx, getUsagePublishStatus,
 		arg.StuckCutoff,
 		arg.RejectedAfter,
-		arg.LicenseStart,
-		arg.AttemptExpiredBefore,
+		arg.EnabledSince,
 		arg.WindowStart,
+		arg.AttemptExpiredBefore,
 	)
 	var i GetUsagePublishStatusRow
 	err := row.Scan(&i.LastPublishedAt, &i.OldestStuckAt, &i.EarliestRecentRejectionAt)
@@ -28956,9 +28967,9 @@ WITH usage_events AS (
             FOR UPDATE SKIP LOCKED
             LIMIT 100
         )
-    RETURNING id, event_type, event_data, created_at, publish_started_at, published_at, failure_message, inserted_at, first_failed_at, last_failed_at
+    RETURNING id, event_type, event_data, created_at, publish_started_at, published_at, failure_message, inserted_at, first_failed_at
 )
-SELECT id, event_type, event_data, created_at, publish_started_at, published_at, failure_message, inserted_at, first_failed_at, last_failed_at
+SELECT id, event_type, event_data, created_at, publish_started_at, published_at, failure_message, inserted_at, first_failed_at
 FROM usage_events
 ORDER BY created_at ASC
 `
@@ -28986,7 +28997,6 @@ func (q *sqlQuerier) SelectUsageEventsForPublishing(ctx context.Context, now tim
 			&i.FailureMessage,
 			&i.InsertedAt,
 			&i.FirstFailedAt,
-			&i.LastFailedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -29008,22 +29018,11 @@ SET
     publish_started_at = NULL,
     published_at = CASE WHEN input.set_published_at THEN $1::timestamptz ELSE NULL END,
     failure_message = NULLIF(input.failure_message, ''),
-    -- An update that leaves the row unpublished is a failed attempt. Track
-    -- the row's current failure streak: a failed attempt more than 24 hours
-    -- after the previous one starts a new streak (a running publisher
-    -- retries pending events far more often, so such a gap means publishing
-    -- was disabled or coderd was down). Publish failure detection measures
-    -- failure age from first_failed_at, the streak's start; the gap matches
-    -- license.UsagePublishingFailureThreshold.
+    -- An update that leaves the row unpublished is a failed attempt; record
+    -- the first one so publish failure detection can measure failure age.
     first_failed_at = CASE
         WHEN input.set_published_at THEN usage_events.first_failed_at
-        WHEN usage_events.last_failed_at >= ($1::timestamptz) - INTERVAL '24 hours'
-            THEN COALESCE(usage_events.first_failed_at, $1::timestamptz)
-        ELSE $1::timestamptz
-    END,
-    last_failed_at = CASE
-        WHEN input.set_published_at THEN usage_events.last_failed_at
-        ELSE $1::timestamptz
+        ELSE COALESCE(usage_events.first_failed_at, $1::timestamptz)
     END
 FROM (
     SELECT

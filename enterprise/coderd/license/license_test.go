@@ -22,6 +22,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -3964,13 +3965,25 @@ func TestUsagePublishingStatus(t *testing.T) {
 		t.Helper()
 		opts.PublishUsageData = true
 		if opts.NotBefore.IsZero() {
-			// The default nbf of "1 minute ago" would cause seeded events
-			// older than that to be ignored as pre-license events.
 			opts.NotBefore = time.Now().Add(-90 * 24 * time.Hour)
 		}
 		_, err := db.InsertLicense(ctx, database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, opts),
 			Exp: dbtime.Now().Add(time.Hour),
+		})
+		require.NoError(t, err)
+		// Backdate the enabled-since marker so seeded failures are not
+		// clamped into the post-enablement grace period, as if publishing
+		// had been enabled and observed for the whole license term.
+		marker, err := json.Marshal(map[string]time.Time{
+			"enabled_since": opts.NotBefore.UTC(),
+			"last_seen":     time.Now().UTC(),
+		})
+		require.NoError(t, err)
+		//nolint:gocritic // Unit test.
+		err = db.UpsertRuntimeConfig(dbauthz.AsSystemRestricted(ctx), database.UpsertRuntimeConfigParams{
+			Key:   license.UsagePublishingEnabledSinceKey,
+			Value: string(marker),
 		})
 		require.NoError(t, err)
 	}

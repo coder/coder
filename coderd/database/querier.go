@@ -889,30 +889,25 @@ type sqlcQuerier interface {
 	// failures. NULL results are encoded as the zero timestamp because sqlc
 	// cannot reliably infer the nullability of aggregate expressions. All cutoff
 	// parameters are computed by the caller so tests can control time:
-	//   - license_start: the nbf of the earliest currently-valid license with
-	//     usage publishing enabled. Events that have never had a publish attempt
-	//     count as stuck only from license_start, giving the publisher a grace
-	//     period to work through a backlog accumulated while publishing was
-	//     disabled or before it was first enabled (e.g. after switching from an
-	//     air-gapped license). Events whose failure streak is current (last
-	//     failed attempt at or after license_start) count from the streak's
-	//     start instead, so an ongoing outage keeps warning even though a
-	//     license renewal advances license_start. Events whose last failed
-	//     attempt predates license_start are stale: publishing was disabled in
-	//     between, so they also get the license_start grace until the re-enabled
-	//     publisher retries them (at which point the streak-gap reset in
-	//     UpdateUsageEventsPostPublish starts a fresh threshold). Rows whose
-	//     failures predate the failure-timestamp columns fall back to their
-	//     insertion time.
+	//   - enabled_since: when usage publishing most recently became enabled, as
+	//     tracked by the entitlements refresh in a runtime config key. An
+	//     event's effective stuck time is clamped to this, so a backlog
+	//     accumulated while publishing was disabled (or before it was first
+	//     enabled, e.g. on an air-gapped deployment that switches licenses)
+	//     gets the full failure threshold as a grace period after
+	//     (re-)enablement. Continuous license renewals do not advance it, so an
+	//     ongoing outage keeps warning across renewals.
 	//   - window_start: the start of the publisher's selection window (now minus
 	//     30 days, matching SelectUsageEventsForPublishing). Events older than
 	//     this are never published, so they must not trigger a failure forever.
 	//   - stuck_cutoff: now minus the failure threshold. Events at the front of
 	//     the publisher's queue whose effective stuck time is before this are
-	//     considered stuck. Stuckness is measured against inserted_at rather
-	//     than created_at because heartbeat events backfilled after downtime
-	//     carry a historical created_at; measuring event age would flag them as
-	//     failing before publishing was ever attempted.
+	//     considered stuck. Stuckness is measured against the first failed
+	//     attempt (falling back to inserted_at for rows that failed before the
+	//     column existed) rather than created_at because heartbeat events
+	//     backfilled after downtime carry a historical created_at; measuring
+	//     event age would flag them as failing before publishing was ever
+	//     attempted.
 	//   - attempt_expired_before: now minus the publisher's 1-hour attempt
 	//     expiry (matching SelectUsageEventsForPublishing). In-flight attempts
 	//     newer than this are skipped; older markers are from replicas that
