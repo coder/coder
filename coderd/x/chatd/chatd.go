@@ -3048,8 +3048,7 @@ type Config struct {
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
-
-	PrometheusRegistry prometheus.Registerer
+	PrometheusRegistry             prometheus.Registerer
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
