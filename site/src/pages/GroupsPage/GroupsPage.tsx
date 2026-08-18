@@ -32,9 +32,6 @@ const GroupsPage: FC = () => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const groupsQuery = usePaginatedQuery({
 		...paginatedGroupsByOrganization(organization?.name ?? "", searchParams),
-		// Skip the request when unentitled; the paywall covers it. Boolean() is
-		// required since groupsEnabled is undefined (not false) when unlicensed,
-		// and React Query treats enabled: undefined as enabled.
 		enabled: Boolean(groupsEnabled && organization),
 	});
 	const filter = useFilter({
