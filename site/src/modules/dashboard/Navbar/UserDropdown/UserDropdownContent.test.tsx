@@ -9,13 +9,6 @@ import { MockUserOwner } from "#/testHelpers/entities";
 import { render, waitForLoaderToBeRemoved } from "#/testHelpers/renderHelpers";
 import { UserDropdownContent } from "./UserDropdownContent";
 
-const setPlatform = (value: string) => {
-	Object.defineProperty(window.navigator, "platform", {
-		value,
-		configurable: true,
-	});
-};
-
 const renderUserDropdownContent = (props: {
 	onSignOut: () => void;
 	profileExtra?: ReactNode;
@@ -36,12 +29,6 @@ const renderUserDropdownContent = (props: {
 };
 
 describe("UserDropdownContent", () => {
-	const originalPlatform = navigator.platform;
-
-	afterEach(() => {
-		setPlatform(originalPlatform);
-	});
-
 	it("has the correct link for the account item", async () => {
 		renderUserDropdownContent({ onSignOut: vi.fn() });
 		await waitForLoaderToBeRemoved();
@@ -72,32 +59,5 @@ describe("UserDropdownContent", () => {
 		expect(
 			screen.getByText("AI spend - $819 / $1,200 USD"),
 		).toBeInTheDocument();
-	});
-
-	it("shows Install Coder Desktop linking to the docs on macOS", async () => {
-		setPlatform("MacIntel");
-		renderUserDropdownContent({ onSignOut: vi.fn() });
-		await waitForLoaderToBeRemoved();
-
-		const link = screen.getByText("Install Coder Desktop").closest("a");
-		expect(link?.getAttribute("href")).toBe(
-			"https://coder.com/docs/user-guides/desktop",
-		);
-	});
-
-	it("shows Install Coder Desktop on Windows", async () => {
-		setPlatform("Win32");
-		renderUserDropdownContent({ onSignOut: vi.fn() });
-		await waitForLoaderToBeRemoved();
-
-		expect(screen.getByText("Install Coder Desktop")).toBeInTheDocument();
-	});
-
-	it("hides Install Coder Desktop on unsupported platforms", async () => {
-		setPlatform("Linux x86_64");
-		renderUserDropdownContent({ onSignOut: vi.fn() });
-		await waitForLoaderToBeRemoved();
-
-		expect(screen.queryByText("Install Coder Desktop")).not.toBeInTheDocument();
 	});
 });
