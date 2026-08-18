@@ -918,7 +918,10 @@ type sqlcQuerier interface {
 	//     refresh racing a slow retry cannot clear an active warning that the
 	//     retry's failure would immediately re-raise.
 	//   - rejected_after: now minus the failure threshold. Permanent rejections
-	//     that happened after this are considered recent failures.
+	//     that happened after this and within the current enabled period are
+	//     considered recent failures; rejections from a prior enabled period
+	//     must not raise a warning before the re-enabled publisher has attempted
+	//     anything.
 	GetUsagePublishStatus(ctx context.Context, arg GetUsagePublishStatusParams) (GetUsagePublishStatusRow, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAIProviderKey, error)

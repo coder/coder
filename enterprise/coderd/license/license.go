@@ -203,19 +203,43 @@ func Entitlements(
 	if !entitlements.UsagePublishing.PublishingEnabled {
 		// This refresh observed publishing disabled; forget the marker so
 		// the next enablement starts a fresh grace period even when the
-		// disabled interval is shorter than the staleness window.
-		// Best-effort: on failure the staleness fallback still catches
-		// longer intervals, and the next refresh retries.
+		// disabled interval is shorter than the staleness window. The
+		// delete runs under the same advisory lock as marker updates and
+		// only when the marker is not newer than this refresh's license
+		// observation, so a stalled disabled refresh cannot erase the
+		// marker a concurrent replica just wrote for a newly enabled
+		// license. Best-effort: on failure the staleness fallback still
+		// catches longer intervals, and the next refresh retries.
 		// nolint:gocritic // Maintaining the usage publishing marker is a system function.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
-		_, err := db.GetRuntimeConfig(sysCtx, UsagePublishingEnabledSinceKey)
-		if err == nil {
-			err = db.DeleteRuntimeConfig(sysCtx, UsagePublishingEnabledSinceKey)
+		err := db.InTx(func(tx database.Store) error {
+			locked, err := tx.TryAcquireLock(sysCtx, database.LockIDUsagePublishingEnabledMarker)
 			if err != nil {
-				logger.Warn(ctx, "delete usage publishing enabled-since marker", slog.Error(err))
+				return xerrors.Errorf("acquire usage publishing marker lock: %w", err)
 			}
-		} else if !xerrors.Is(err, sql.ErrNoRows) {
-			logger.Warn(ctx, "get usage publishing enabled-since marker", slog.Error(err))
+			if !locked {
+				// Another replica is updating the marker right now; leave
+				// it alone and let the next refresh reconcile.
+				return nil
+			}
+			raw, err := tx.GetRuntimeConfig(sysCtx, UsagePublishingEnabledSinceKey)
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return nil
+			}
+			if err != nil {
+				return xerrors.Errorf("get usage publishing enabled-since marker: %w", err)
+			}
+			var marker usagePublishingEnabledMarker
+			if jsonErr := json.Unmarshal([]byte(raw), &marker); jsonErr == nil && marker.LastSeen.After(now) {
+				// A concurrent replica observed publishing enabled after
+				// this refresh captured its license state; its fresher
+				// observation wins.
+				return nil
+			}
+			return tx.DeleteRuntimeConfig(sysCtx, UsagePublishingEnabledSinceKey)
+		}, nil)
+		if err != nil {
+			logger.Warn(ctx, "delete usage publishing enabled-since marker", slog.Error(err))
 		}
 	}
 

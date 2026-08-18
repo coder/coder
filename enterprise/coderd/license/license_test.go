@@ -52,6 +52,12 @@ func premiumRuntimeHoursFixture(t *testing.T) (*dbmock.MockStore, *coderdenttest
 	mDB := dbmock.NewMockStore(ctrl)
 	// Refreshes that observe publishing disabled read the enabled-since
 	// marker to clear it if present.
+	mDB.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(mDB)
+		},
+	).AnyTimes()
+	mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(true, nil).AnyTimes()
 	mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 	licenseOpts := (&coderdenttest.LicenseOptions{
@@ -913,8 +919,14 @@ func TestEntitlements(t *testing.T) {
 		// workspace builds.
 		ctrl := gomock.NewController(t)
 		mDB := dbmock.NewMockStore(ctrl)
-		// Refreshes that observe publishing disabled read the enabled-since
-		// marker to clear it if present.
+		// Refreshes that observe publishing disabled clear the enabled-since
+		// marker in a locked transaction.
+		mDB.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(fn func(database.Store) error, _ *database.TxOptions) error {
+				return fn(mDB)
+			},
+		).AnyTimes()
+		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(true, nil).AnyTimes()
 		mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 		licenseOpts := (&coderdenttest.LicenseOptions{
@@ -1053,8 +1065,14 @@ func TestEntitlements(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		mDB := dbmock.NewMockStore(ctrl)
-		// Refreshes that observe publishing disabled read the enabled-since
-		// marker to clear it if present.
+		// Refreshes that observe publishing disabled clear the enabled-since
+		// marker in a locked transaction.
+		mDB.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(fn func(database.Store) error, _ *database.TxOptions) error {
+				return fn(mDB)
+			},
+		).AnyTimes()
+		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(true, nil).AnyTimes()
 		mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 		licenseOpts := (&coderdenttest.LicenseOptions{
@@ -1222,6 +1240,12 @@ func TestEntitlements(t *testing.T) {
 				mDB := dbmock.NewMockStore(ctrl)
 				// Refreshes that observe publishing disabled read the enabled-since
 				// marker to clear it if present.
+				mDB.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(fn func(database.Store) error, _ *database.TxOptions) error {
+						return fn(mDB)
+					},
+				).AnyTimes()
+				mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(true, nil).AnyTimes()
 				mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 				licenseOpts := (&coderdenttest.LicenseOptions{
@@ -1302,6 +1326,12 @@ func TestEntitlements(t *testing.T) {
 			mDB := dbmock.NewMockStore(ctrl)
 			// Refreshes that observe publishing disabled read the enabled-since
 			// marker to clear it if present.
+			mDB.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error {
+					return fn(mDB)
+				},
+			).AnyTimes()
+			mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(true, nil).AnyTimes()
 			mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 			licenseOpts := &coderdenttest.LicenseOptions{
@@ -1368,6 +1398,12 @@ func TestEntitlements(t *testing.T) {
 			mDB := dbmock.NewMockStore(ctrl)
 			// Refreshes that observe publishing disabled read the enabled-since
 			// marker to clear it if present.
+			mDB.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error {
+					return fn(mDB)
+				},
+			).AnyTimes()
+			mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(true, nil).AnyTimes()
 			mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 			licenseOpts := &coderdenttest.LicenseOptions{
@@ -1433,6 +1469,12 @@ func TestEntitlements(t *testing.T) {
 			mDB := dbmock.NewMockStore(ctrl)
 			// Refreshes that observe publishing disabled read the enabled-since
 			// marker to clear it if present.
+			mDB.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error {
+					return fn(mDB)
+				},
+			).AnyTimes()
+			mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(true, nil).AnyTimes()
 			mDB.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingEnabledSinceKey).Return("", sql.ErrNoRows).AnyTimes()
 
 			// Premium license without the AI Governance addon.

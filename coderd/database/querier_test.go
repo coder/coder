@@ -11560,6 +11560,17 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			want: database.GetUsagePublishStatusRow{},
 		},
 		{
+			// A rejection from a prior enabled period must not raise a
+			// warning in a new period before the re-enabled publisher has
+			// attempted anything.
+			name: "RejectionFromPriorEnabledPeriodIgnored",
+			events: []usagePublishSeedEvent{
+				{id: "1", createdAt: now.Add(-21 * time.Hour), publishedAt: now.Add(-20 * time.Hour), failureMessage: "permanently rejected"},
+			},
+			enabledSinceOverride: now.Add(-1 * time.Hour),
+			want:                 database.GetUsagePublishStatusRow{},
+		},
+		{
 			name: "PermanentRejectionIsNotSuccessfulPublish",
 			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-3 * time.Hour), publishedAt: now.Add(-2 * time.Hour), failureMessage: "permanently rejected"},

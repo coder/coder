@@ -138,7 +138,10 @@ WHERE
 --     refresh racing a slow retry cannot clear an active warning that the
 --     retry's failure would immediately re-raise.
 --   - rejected_after: now minus the failure threshold. Permanent rejections
---     that happened after this are considered recent failures.
+--     that happened after this and within the current enabled period are
+--     considered recent failures; rejections from a prior enabled period
+--     must not raise a warning before the re-enabled publisher has attempted
+--     anything.
 WITH last_success AS (
     -- The latest successful publish among the most recent publish outcomes.
     -- Rows with a failure_message and a published_at are permanent
@@ -225,6 +228,7 @@ SELECT
         WHERE published_at IS NOT NULL
             AND failure_message IS NOT NULL
             AND published_at > @rejected_after::timestamptz
+            AND published_at >= @enabled_since::timestamptz
     ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS earliest_recent_rejection_at;
 
 -- name: GetTotalUsageDCManagedAgentsV1 :one

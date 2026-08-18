@@ -34,7 +34,9 @@ const Example: Story = {
 		await expect(await canvas.findByText("Publishing enabled")).toBeVisible();
 		await expect(canvas.getByText("No")).toBeVisible();
 		await expect(canvas.getByText("Last published")).toBeVisible();
-		await expect(canvas.getByText("Never")).toBeVisible();
+		await expect(
+			canvas.getByText("No recent successful publish"),
+		).toBeVisible();
 		await expect(canvas.queryByText("Failing since")).not.toBeInTheDocument();
 		await expect(
 			canvas.queryByText(/usage events have failed to publish/),
@@ -72,7 +74,9 @@ export const PublishingEnabled: Story = {
 		await expect(canvas.getByText("Yes")).toBeVisible();
 		await expect(canvas.getByText("Last published")).toBeVisible();
 		await expect(canvas.getByText("2 days ago")).toBeVisible();
-		await expect(canvas.queryByText("Never")).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText("No recent successful publish"),
+		).not.toBeInTheDocument();
 		await expect(canvas.queryByText("Failing since")).not.toBeInTheDocument();
 	},
 };
