@@ -2445,3 +2445,47 @@ func TestInvalidateTemplatePrebuilds_LicenseFeatureDisabled(t *testing.T) {
 	require.ErrorAs(t, err, &sdkError)
 	require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
 }
+
+// TestTemplateACLAvailableMultiOrg verifies that the template ACL
+// available-users list is scoped to the template's organization and does not
+// leak members of other organizations in a multi-org deployment.
+func TestTemplateACLAvailableMultiOrg(t *testing.T) {
+	t.Parallel()
+
+	client, first := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+				codersdk.FeatureTemplateRBAC:          1,
+			},
+		},
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// A second organization with a member who does not belong to the first org.
+	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+	_, otherOrgUser := coderdtest.CreateAnotherUser(t, client, secondOrg.ID)
+
+	// A member of the first organization, to confirm same-org users are listed.
+	_, firstOrgUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+	// A template that lives in the first organization.
+	version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+	template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+
+	// The owner listing available ACL users for the first organization's
+	// template must only see members of that organization, never the second
+	// organization's member.
+	//nolint:gocritic // The test verifies the owner's org-scoped available-users view.
+	available, err := client.TemplateACLAvailable(ctx, template.ID, codersdk.UsersRequest{})
+	require.NoError(t, err)
+
+	usernames := make([]string, 0, len(available.Users))
+	for _, u := range available.Users {
+		usernames = append(usernames, u.Username)
+	}
+	require.Contains(t, usernames, firstOrgUser.Username)
+	require.NotContains(t, usernames, otherOrgUser.Username,
+		"template ACL available-users must not leak members of another organization")
+}

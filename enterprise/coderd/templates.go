@@ -97,6 +97,8 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// This returns ReducedUser rather than MinimalUser because the frontend
+	// requires the email field. Switching to MinimalUser needs a UI change first.
 	reducedUsers := make([]codersdk.ReducedUser, 0, len(members))
 	for _, member := range members {
 		reducedUsers = append(reducedUsers, db2sdk.ReducedUser(database.User{

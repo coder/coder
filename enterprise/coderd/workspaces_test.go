@@ -5077,10 +5077,7 @@ func TestWorkspaceAvailableUsersMultiOrg(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// A second organization with a member who does not belong to the first org.
-	secondOrg, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-		Name: "second",
-	})
-	require.NoError(t, err)
+	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 	_, otherOrgUser := coderdtest.CreateAnotherUser(t, client, secondOrg.ID)
 
 	// A member of the first organization, to confirm same-org users are listed.
@@ -5088,6 +5085,7 @@ func TestWorkspaceAvailableUsersMultiOrg(t *testing.T) {
 
 	// The owner listing available users for the first organization must only see
 	// members of that organization, never the second organization's member.
+	//nolint:gocritic // The test verifies the owner's org-scoped available-users view.
 	users, err := client.WorkspaceAvailableUsers(ctx, first.OrganizationID, "me")
 	require.NoError(t, err)
 

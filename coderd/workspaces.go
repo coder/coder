@@ -3220,7 +3220,6 @@ func (api *API) workspaceAvailableUsers(rw http.ResponseWriter, r *http.Request)
 			ID:        member.OrganizationMember.UserID,
 			Username:  member.Username,
 			Name:      member.Name,
-			Email:     member.Email,
 			AvatarURL: member.AvatarURL,
 		}))
 	}
