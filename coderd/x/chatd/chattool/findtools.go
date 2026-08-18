@@ -613,10 +613,11 @@ type findToolsGroup struct {
 func groupFindToolsEntries(entries []FindToolCatalogEntry) []findToolsGroup {
 	grouped := make(map[string]*findToolsGroup)
 	for _, entry := range entries {
+		// Callers assign every entry a non-empty Server so display,
+		// scope matching, and scoring share one identity; an empty
+		// value groups as-is rather than under a label scopes cannot
+		// reach.
 		server := entry.Server
-		if server == "" {
-			server = "workspace"
-		}
 		group := grouped[server]
 		if group == nil {
 			group = &findToolsGroup{server: server, description: entry.ServerDescription}

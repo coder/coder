@@ -3,6 +3,7 @@ package chatd
 import (
 	"encoding/json"
 	"slices"
+	"strconv"
 	"strings"
 
 	"charm.land/fantasy"
@@ -179,13 +180,36 @@ func estimateDeferredMCPToolTokens(candidates []deferredMCPTool) float64 {
 }
 
 func deferredMCPToolEntries(candidates []deferredMCPTool) []chattool.FindToolCatalogEntry {
+	// Workspace config validation permits an empty server key, and
+	// candidates whose config lookup failed also carry no server, so
+	// empty identities get a real label here. The label is the entry's
+	// Server for grouping, scope matching, and scoring alike, and it is
+	// collision-safe: a literal server with the same name keeps its own
+	// group and scope.
+	fallback := "workspace"
+	taken := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.server != "" {
+			taken[candidate.server] = struct{}{}
+		}
+	}
+	for suffix := 2; ; suffix++ {
+		if _, collides := taken[fallback]; !collides {
+			break
+		}
+		fallback = "workspace-" + strconv.Itoa(suffix)
+	}
 	entries := make([]chattool.FindToolCatalogEntry, 0, len(candidates))
 	for _, candidate := range candidates {
 		info := candidate.tool.Info()
+		server := candidate.server
+		if server == "" {
+			server = fallback
+		}
 		entries = append(entries, chattool.FindToolCatalogEntry{
 			Name:              info.Name,
 			Description:       info.Description,
-			Server:            candidate.server,
+			Server:            server,
 			ServerDescription: candidate.serverDescription,
 			ParameterText:     flattenMCPParameterText(info.Parameters),
 			SchemaTokens:      estimateDeferredMCPToolTokens([]deferredMCPTool{candidate}),

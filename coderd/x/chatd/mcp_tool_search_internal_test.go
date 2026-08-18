@@ -169,6 +169,33 @@ func TestDeriveDeferredMCPActivationsErroredDirectCallsActivateLast(t *testing.T
 		"the newest errored call keeps the first-activation allowance when nothing else activates")
 }
 
+func TestDeferredMCPToolEntriesEmptyServerLabel(t *testing.T) {
+	t.Parallel()
+	empty := deferredMCPTool{tool: deferredTestAgentTool{info: fantasy.ToolInfo{Name: "_orphan__echo"}}}
+
+	entries := deferredMCPToolEntries([]deferredMCPTool{empty})
+	require.Equal(t, "workspace", entries[0].Server,
+		"an empty server identity gets the workspace label at construction, so scopes and grouping agree")
+	result, _ := chattool.SearchTools(entries, chattool.FindToolsArgs{Queries: []string{"workspace:"}}, chattool.SearchBudget{})
+	require.Equal(t, []string{"_orphan__echo"}, result.Activated,
+		"the advertised workspace scope reaches the relabeled entries")
+
+	literal := deferredMCPTool{
+		tool:   deferredTestAgentTool{info: fantasy.ToolInfo{Name: "workspace__run"}},
+		server: "workspace",
+	}
+	colliding := deferredMCPToolEntries([]deferredMCPTool{empty, literal})
+	require.Equal(t, "workspace-2", colliding[0].Server,
+		"a literal workspace server keeps its own identity; the fallback label steps aside")
+	require.Equal(t, "workspace", colliding[1].Server)
+	result, _ = chattool.SearchTools(colliding, chattool.FindToolsArgs{Queries: []string{"workspace:"}}, chattool.SearchBudget{})
+	require.Equal(t, []string{"workspace__run"}, result.Activated,
+		"the workspace scope matches only the literal server")
+	result, _ = chattool.SearchTools(colliding, chattool.FindToolsArgs{Queries: []string{"workspace-2:"}}, chattool.SearchBudget{})
+	require.Equal(t, []string{"_orphan__echo"}, result.Activated,
+		"the suffixed label scopes the empty-identity server")
+}
+
 func TestDeriveDeferredMCPActivationsReusedCallIDs(t *testing.T) {
 	t.Parallel()
 	candidates := []deferredMCPTool{
