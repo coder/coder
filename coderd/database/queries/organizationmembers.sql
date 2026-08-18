@@ -101,12 +101,12 @@ WHERE
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the username field, so select all
 			-- rows after the cursor.
-			-- TODO: if @after_id belongs to a user who is a member of multiple
-			-- organizations, this subquery returns one row per membership and
-			-- Postgres errors on the multi-row scalar. The username is identical
-			-- across those rows, so a LIMIT 1 (or DISTINCT) would fix it. Left as
-			-- a known limitation for now; this is shared pagination SQL used by
-			-- other endpoints too.
+			-- TODO(DEVEX-790): if @after_id belongs to a user who is a member of
+			-- multiple organizations, this subquery returns one row per membership
+			-- and Postgres errors on the multi-row scalar. The username is
+			-- identical across those rows, so a LIMIT 1 (or DISTINCT) would fix it.
+			-- Left as a known limitation for now; this is shared pagination SQL
+			-- used by other endpoints too.
 			(LOWER(users.username)) > (
 				SELECT
 					LOWER(users.username)
