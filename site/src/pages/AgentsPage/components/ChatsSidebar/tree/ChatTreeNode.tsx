@@ -24,6 +24,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { useClickable } from "#/hooks/useClickable";
 import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import {
@@ -140,6 +141,12 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
+	const subagentToggleProps = useClickable<HTMLSpanElement>((event) => {
+		// Prevent the surrounding NavLink from navigating; just toggle the row.
+		event.preventDefault();
+		event.stopPropagation();
+		toggleExpanded(chatID);
+	});
 
 	const hasMenuActions = chatHasMenuActions({
 		isArchived: chat.archived,
@@ -242,17 +249,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										)}
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
-										{hasChildren && (
-											<span
-												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums text-content-secondary"
-												title={`${childIDs.length} ${
-													childIDs.length === 1 ? "subagent" : "subagents"
-												}`}
-											>
-												{childIDs.length}
-												<BotIcon className="size-3.5" aria-hidden="true" />
-											</span>
-										)}
 										{hasLinkedDiffStatus && hasLineStats && (
 											<span
 												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
@@ -264,6 +260,23 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												<span className="text-git-deleted-bright">
 													&minus;{deletions}
 												</span>
+											</span>
+										)}
+										{hasChildren && (
+											<span
+												{...subagentToggleProps}
+												role="button"
+												tabIndex={0}
+												className="inline-flex shrink-0 cursor-pointer items-center gap-0.5 rounded-sm text-[13px] leading-4 tabular-nums text-content-secondary hover:text-content-primary"
+												aria-expanded={isExpanded}
+												aria-label={`${
+													isExpanded ? "Hide" : "Show"
+												} ${childIDs.length} ${
+													childIDs.length === 1 ? "subagent" : "subagents"
+												}`}
+											>
+												{childIDs.length}
+												<BotIcon className="size-3.5" aria-hidden="true" />
 											</span>
 										)}
 										<div

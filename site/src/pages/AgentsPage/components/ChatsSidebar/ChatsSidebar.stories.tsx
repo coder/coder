@@ -2087,6 +2087,68 @@ export const SubagentsMenuToggle: Story = {
 	},
 };
 
+// The on-row subagent count (`N` + bot icon) is a button: clicking it expands
+// the collapsed parent without navigating away, and its accessible label flips
+// from "Show N subagents" to "Hide N subagents".
+export const SubagentsCountToggle: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "root-subagents",
+				title: "Parent with subagents",
+				workspace_id: "workspace-1",
+				updated_at: recentTimestamp,
+				children: [
+					buildChat({
+						id: "subagent-1",
+						title: "Subagent one",
+						parent_chat_id: "root-subagents",
+						root_chat_id: "root-subagents",
+					}),
+					buildChat({
+						id: "subagent-2",
+						title: "Subagent two",
+						parent_chat_id: "root-subagents",
+						root_chat_id: "root-subagents",
+					}),
+				],
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			// Route to the parent so the tree starts collapsed and the count reads
+			// "Show 2 subagents".
+			location: {
+				path: "/agents/root-subagents",
+				pathParams: { agentId: "root-subagents" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Parent with subagents")).toBeInTheDocument();
+		});
+		// Collapsed by default: children are not rendered yet.
+		expect(canvas.queryByText("Subagent one")).not.toBeInTheDocument();
+
+		const countToggle = canvas.getByRole("button", {
+			name: "Show 2 subagents",
+		});
+		await userEvent.click(countToggle);
+
+		// Clicking the count expands the children without navigating away.
+		await waitFor(() => {
+			expect(canvas.getByText("Subagent one")).toBeInTheDocument();
+		});
+		expect(
+			canvas.getByRole("button", { name: "Hide 2 subagents" }),
+		).toBeInTheDocument();
+	},
+};
+
 export const ArchivedChildChatRowHasNoActionsMenu: Story = {
 	args: {
 		chats: [
