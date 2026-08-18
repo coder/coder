@@ -249,19 +249,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										)}
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
-										{hasLinkedDiffStatus && hasLineStats && (
-											<span
-												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
-												title={`${filesChangedLabel}, +${additions} -${deletions}`}
-											>
-												<span className="text-git-added-bright">
-													+{additions}
-												</span>
-												<span className="text-git-deleted-bright">
-													&minus;{deletions}
-												</span>
-											</span>
-										)}
 										{hasChildren && (
 											<span
 												{...subagentToggleProps}
@@ -277,6 +264,19 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											>
 												{childIDs.length}
 												<BotIcon className="size-3.5" aria-hidden="true" />
+											</span>
+										)}
+										{hasLinkedDiffStatus && hasLineStats && (
+											<span
+												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
+												title={`${filesChangedLabel}, +${additions} -${deletions}`}
+											>
+												<span className="text-git-added-bright">
+													+{additions}
+												</span>
+												<span className="text-git-deleted-bright">
+													&minus;{deletions}
+												</span>
 											</span>
 										)}
 										<div
