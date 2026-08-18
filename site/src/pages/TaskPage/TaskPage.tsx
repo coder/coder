@@ -11,14 +11,12 @@ import {
 	type ReactNode,
 	useCallback,
 	useEffect,
-	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Link as RouterLink, useParams } from "react-router";
-import type { FixedSizeList } from "react-window";
 import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage, isApiError } from "#/api/errors";
@@ -46,6 +44,7 @@ import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
 import { getAllAppsWithAgent } from "#/modules/apps/workspaceApps";
 import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";
+import { useAutoScrollToBottom } from "#/modules/resources/AgentLogs/useAutoScrollToBottom";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
 import { TasksSidebar } from "#/modules/tasks/TasksSidebar/TasksSidebar";
 import { isPauseDisabled } from "#/modules/tasks/taskActions";
@@ -830,7 +829,7 @@ type TaskStartingAgentProps = {
 
 const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ task, agent }) => {
 	const logs = useAgentLogs({ agentId: agent.id });
-	const listRef = useRef<FixedSizeList>(null);
+	const logsOuterRef = useRef<HTMLDivElement>(null);
 	const queryClient = useQueryClient();
 	const pauseMutation = useMutation({
 		...pauseTask(task, queryClient),
@@ -842,11 +841,8 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ task, agent }) => {
 	});
 	const pauseDisabled = isPauseDisabled(task.status);
 
-	useLayoutEffect(() => {
-		if (listRef.current) {
-			listRef.current.scrollToItem(logs.length - 1, "end");
-		}
-	}, [logs]);
+	// Keep the startup logs pinned to the bottom as new lines stream in.
+	useAutoScrollToBottom(logsOuterRef, true, [logs]);
 
 	return (
 		<section className="p-16 overflow-y-auto">
@@ -877,7 +873,7 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ task, agent }) => {
 					<div className="w-full max-w-screen-lg flex flex-col gap-4 overflow-hidden">
 						<div className="h-96 border border-solid border-border rounded-lg">
 							<AgentLogs
-								ref={listRef}
+								outerRef={logsOuterRef}
 								sources={agent.log_sources}
 								height={96 * 4}
 								width="100%"

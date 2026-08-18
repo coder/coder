@@ -7,17 +7,10 @@ import {
 	SquareCheckBigIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import {
-	type FC,
-	type ReactNode,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import AutoSizer from "react-virtualized-auto-sizer";
-import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
+import type { ListOnScrollProps } from "react-window";
 import type {
 	AgentScriptTiming,
 	Template,
@@ -75,6 +68,7 @@ import { AgentExternal } from "./AgentExternal";
 import { AgentLatency } from "./AgentLatency";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
 import { AgentLogs } from "./AgentLogs/AgentLogs";
+import { useAutoScrollToBottom } from "./AgentLogs/useAutoScrollToBottom";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
@@ -189,8 +183,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 			hasStartupFeatures,
 	);
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
-	const logListRef = useRef<List>(null);
-	const logListDivRef = useRef<HTMLDivElement>(null);
+	const logListOuterRef = useRef<HTMLDivElement>(null);
 	const [bottomOfLogs, setBottomOfLogs] = useState(true);
 
 	useEffect(() => {
@@ -207,36 +200,23 @@ export const AgentRow: FC<AgentRowProps> = ({
 		hasStartupFeatures,
 	]);
 
-	// This is a layout effect to remove flicker when we're scrolling to the bottom.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
-	useLayoutEffect(() => {
-		// If we're currently watching the bottom, we always want to stay at the bottom.
-		if (bottomOfLogs && logListRef.current) {
-			logListRef.current.scrollToItem(agentLogs.length - 1, "end");
-		}
-	}, [showLogs, agentLogs, bottomOfLogs]);
+	// While the user is watching the bottom, keep the list pinned there as new
+	// logs stream in. Scrolling the container itself (rather than react-window's
+	// scrollToItem) reaches the true bottom even with padding on the container.
+	useAutoScrollToBottom(logListOuterRef, bottomOfLogs, [showLogs, agentLogs]);
 
 	// This is a bit of a hack on the react-window API to get the scroll position.
 	// If we're scrolled to the bottom, we want to keep the list scrolled to the bottom.
 	// This makes it feel similar to a terminal that auto-scrolls downwards!
 	const handleLogScroll = (props: ListOnScrollProps) => {
-		if (
-			props.scrollOffset === 0 ||
-			props.scrollUpdateWasRequested ||
-			!logListDivRef.current
-		) {
+		const outer = logListOuterRef.current;
+		if (props.scrollOffset === 0 || props.scrollUpdateWasRequested || !outer) {
 			return;
 		}
-		// The parent holds the height of the list!
-		const parent = logListDivRef.current.parentElement;
-		if (!parent) {
-			return;
-		}
-		// Use the parent's scrollHeight (not the inner div's) so that
-		// any padding on the scroll container is included in the
-		// calculation and doesn't inflate the "at bottom" zone.
+		// Read scrollHeight from the scroll container so any padding on it is
+		// included in the calculation and doesn't inflate the "at bottom" zone.
 		const distanceFromBottom =
-			parent.scrollHeight - (props.scrollOffset + parent.clientHeight);
+			outer.scrollHeight - (props.scrollOffset + outer.clientHeight);
 		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
 	};
 
@@ -763,8 +743,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 											<AutoSizer disableHeight>
 												{({ width }) => (
 													<AgentLogs
-														ref={logListRef}
-														innerRef={logListDivRef}
+														outerRef={logListOuterRef}
 														height={256}
 														width={width}
 														onScroll={handleLogScroll}
