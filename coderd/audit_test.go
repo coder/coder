@@ -178,8 +178,8 @@ func TestAuditLogs(t *testing.T) {
 		require.Len(t, auditorLogs.AuditLogs, 1)
 		require.Empty(t, auditorLogs.AuditLogs[0].ResourceLink)
 
-		// Organization admins hold MCP permissions but not the
-		// deployment-config access the settings page requires.
+		// Organization admins hold MCP management permissions, and the
+		// settings page now admits them.
 		orgAdminLogs, err := orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			Pagination: codersdk.Pagination{
 				Limit: 1,
@@ -187,7 +187,7 @@ func TestAuditLogs(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, orgAdminLogs.AuditLogs, 1)
-		require.Empty(t, orgAdminLogs.AuditLogs[0].ResourceLink)
+		require.Equal(t, fmt.Sprintf("/ai/settings/mcp-servers/%s?org=mcp-audit-link-org", config.ID), orgAdminLogs.AuditLogs[0].ResourceLink)
 
 		ownerLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			Pagination: codersdk.Pagination{
