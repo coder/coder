@@ -3323,6 +3323,85 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 	},
 };
 
+/**
+ * A queued send on a running chat appends no durable prompt row, so nothing
+ * anchors the scroller. The live-edge fallback must scroll a reader from
+ * older history to the bottom even though a prior turn is still awaiting its
+ * first chunk.
+ */
+export const QueuedSendFromHistoryScrollsToLiveEdge: Story = {
+	parameters: {
+		pixel: { exclude: true },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Running chat",
+				status: "running",
+			},
+			{
+				// Odd count ends the history on a user message, so the chat is
+				// running and awaiting its first stream chunk.
+				messages: buildLongConversationForPage(39),
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	decorators: [
+		(Story) => (
+			<div
+				style={{ height: "600px", display: "flex", flexDirection: "column" }}
+			>
+				<Story />
+			</div>
+		),
+	],
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({
+			queued: true,
+			queued_message: {
+				...MockChatQueuedMessage,
+				id: 40,
+				chat_id: CHAT_ID,
+				content: [{ type: "text", text: "Follow-up prompt" }],
+			},
+		});
+		const scrollToMock = spyOn(Element.prototype, "scrollTo");
+		try {
+			const viewport = canvas.getByRole("region", { name: "Messages" });
+			// Position the reader in older history, the repro starting point.
+			viewport.scrollTop = 0;
+
+			const editor = await canvas.findByTestId("chat-message-input");
+			await userEvent.click(editor);
+			await userEvent.type(editor, "Follow-up prompt");
+			await userEvent.keyboard("{Enter}");
+			await waitFor(() => {
+				expect(sendSpy).toHaveBeenCalledTimes(1);
+			});
+
+			// The queued send produced no anchor row, so the live-edge scroll
+			// must fire even though a prior turn is still awaiting its first chunk.
+			await waitFor(() => {
+				expect(scrollToMock).toHaveBeenCalledWith(
+					expect.objectContaining({ behavior: "smooth" }),
+				);
+			});
+		} finally {
+			scrollToMock.mockRestore();
+		}
+	},
+};
+
 export const SendResponseAfterChatSwitch: Story = {
 	render: () => <AgentChatSwitchHarness />,
 	parameters: {
