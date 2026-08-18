@@ -250,7 +250,7 @@ func TestConfigureDeferredMCPToolSearchGenerationFlows(t *testing.T) {
 		second.tool.Info().Name: true,
 	}, allowInactive)
 
-	result := chattool.SearchTools(deferredMCPToolEntries(candidates), chattool.FindToolsArgs{Names: []string{second.tool.Info().Name}}, 0)
+	result, _ := chattool.SearchTools(deferredMCPToolEntries(candidates), chattool.FindToolsArgs{Names: []string{second.tool.Info().Name}}, chattool.SearchBudget{})
 	resultJSON, err := json.Marshal(result)
 	require.NoError(t, err)
 	resultContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{

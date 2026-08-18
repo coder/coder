@@ -164,8 +164,24 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 				// so search with a floor instead of failing outright.
 				searchBudget = findToolsSpentBudgetFloor
 			}
-			result := SearchTools(searchEntries, args, searchBudget)
+			budgetTouched := options.SchemaTokenBudget > 0 && remainingBudget < options.SchemaTokenBudget
+			result, budgetSkipped := SearchTools(searchEntries, args, SearchBudget{
+				SchemaTokens:         searchBudget,
+				AllowFirstOverBudget: !budgetTouched,
+			})
 			if options.SchemaTokenBudget > 0 {
+				if len(result.Activated) == 0 && budgetSkipped > 0 {
+					budgetMu.Unlock()
+					if options.OnCall != nil {
+						options.OnCall(ctx, FindToolsCall{
+							Queries:       args.Queries,
+							Names:         args.Names,
+							TotalDeferred: len(entries),
+							Rejection:     findToolsRejectionBudget,
+						})
+					}
+					return fantasy.NewTextErrorResponse(findToolsBudgetExhausted), nil
+				}
 				admitted := 0.0
 				for _, name := range result.Activated {
 					if _, ok := reserved[name]; ok {
@@ -173,14 +189,11 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 					}
 					admitted += schemaTokensByName[name]
 				}
-				// Derivation retains a single over-budget claim via its
-				// newest-keep rule, but only when it is the turn's sole
-				// claim, which is exactly when the budget is untouched.
-				// Any other over-claim would be silently shed on the
-				// next request, so fail it loudly instead. A zero new
-				// claim always succeeds: reserved names are already
-				// retained by derivation, whatever the budget holds.
-				if admitted > 0 && admitted > remainingBudget && remainingBudget < options.SchemaTokenBudget {
+				// Defensive invariant: with allowFirstOverBudget off,
+				// a touched budget can never admit an over-claim. If
+				// bookkeeping ever drifts, fail loudly rather than
+				// report activations derivation would shed.
+				if admitted > 0 && admitted > remainingBudget && budgetTouched {
 					budgetMu.Unlock()
 					if options.OnCall != nil {
 						options.OnCall(ctx, FindToolsCall{
@@ -209,14 +222,27 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 	)}
 }
 
+// SearchBudget bounds the schema weight one search may activate.
+type SearchBudget struct {
+	// SchemaTokens is the remaining activation budget. <= 0 means
+	// unbounded.
+	SchemaTokens float64
+	// AllowFirstOverBudget admits the first match even over budget.
+	// Callers set it only while the shared budget is untouched, where
+	// derivation's newest-keep rule retains a sole over-budget claim.
+	AllowFirstOverBudget bool
+}
+
 // SearchTools includes exact name activations first, then fills the
 // remaining match slots with the top-scored keyword matches. The shared
 // cap and summary-length descriptions keep the persisted result small
 // enough that generic tool-result truncation can never corrupt the
 // activation JSON that later steps re-derive activations from. A
-// positive schemaTokenBudget additionally stops admitting matches once
-// their aggregate schema weight would exceed it, keeping at least one.
-func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, schemaTokenBudget float64) FindToolsResult {
+// positive budget additionally skips matches whose schema weight would
+// push the aggregate past it, admitting later matches that still fit.
+// The second result counts matches skipped for budget, so callers can
+// tell an exhausted budget from no matches.
+func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget SearchBudget) (FindToolsResult, int) {
 	byName := make(map[string]FindToolCatalogEntry, len(entries))
 	for _, entry := range entries {
 		byName[entry.Name] = entry
@@ -256,6 +282,7 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, schemaToken
 	matches := make([]FindToolsMatch, 0, findToolsMaxMatches)
 	activatedSet := make(map[string]struct{}, findToolsMaxMatches)
 	usedSchemaTokens := 0.0
+	budgetSkipped := 0
 	appendMatch := func(entry FindToolCatalogEntry) {
 		if _, exists := activatedSet[entry.Name]; exists {
 			return
@@ -263,7 +290,9 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, schemaToken
 		if len(matches) >= findToolsMaxMatches {
 			return
 		}
-		if len(matches) > 0 && schemaTokenBudget > 0 && usedSchemaTokens+entry.SchemaTokens > schemaTokenBudget {
+		overBudget := budget.SchemaTokens > 0 && usedSchemaTokens+entry.SchemaTokens > budget.SchemaTokens
+		if overBudget && (len(matches) > 0 || !budget.AllowFirstOverBudget) {
+			budgetSkipped++
 			return
 		}
 		usedSchemaTokens += entry.SchemaTokens
@@ -286,7 +315,7 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, schemaToken
 		activated = append(activated, name)
 	}
 	slices.Sort(activated)
-	return FindToolsResult{Matches: matches, Activated: activated, TotalDeferred: len(entries)}
+	return FindToolsResult{Matches: matches, Activated: activated, TotalDeferred: len(entries)}, budgetSkipped
 }
 
 type scopedFindToolsQuery struct {
