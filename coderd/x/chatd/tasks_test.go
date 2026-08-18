@@ -572,8 +572,8 @@ func findToolResultMessage(t *testing.T, messages []database.ChatMessage, toolCa
 }
 
 // An interrupt mid tool batch bills the partial window on the cancellation
-// row of the billed tool that defines it. A billed tool that buffered a
-// result before the interrupt ends the window at its completion, so a
+// row of the billed tool that defines it. A billed tool that recorded its
+// completion before the interrupt ends the window there, so a
 // still-running unbilled wait_agent does not stretch the bill to the
 // interrupt instant.
 func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T) {
@@ -593,13 +593,12 @@ func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T
 	// Attempt setup happens before the tools start and is not billable.
 	batch.clock.Advance(2 * time.Second)
 	require.NoError(t, buffer.StartToolBatch(batch.key))
-	// execute completes 3 seconds into the batch and buffers its
-	// durable result.
+	// execute completes 3 seconds into the batch and records its
+	// completion, the way the tool goroutine's completion callback
+	// does. Its result is not published: results publish only after
+	// the whole batch finishes.
 	batch.clock.Advance(3 * time.Second)
-	execCompletedAt := batch.clock.Now()
-	execResult := codersdk.ChatMessageToolResult(execCallID, "execute", json.RawMessage(`{"stdout":"/tmp"}`), false, false)
-	execResult.CreatedAt = &execCompletedAt
-	require.NoError(t, buffer.AddPart(batch.key, codersdk.ChatMessageRoleTool, execResult))
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, execCallID, batch.clock.Now()))
 	// wait_agent is still blocked on its child when the interrupt lands
 	// 5 seconds later.
 	batch.clock.Advance(5 * time.Second)

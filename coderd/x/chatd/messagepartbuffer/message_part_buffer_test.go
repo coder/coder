@@ -185,6 +185,44 @@ func TestBuffer_ToolBatchStartedAt(t *testing.T) {
 	require.Zero(t, buffer.ToolBatchStartedAt(modelOnly))
 }
 
+func TestBuffer_ToolCompletionsAt(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
+	defer buffer.Close()
+
+	key := testEpisodeKey()
+	require.Nil(t, buffer.ToolCompletionsAt(key), "unknown episode has no completions")
+	require.ErrorIs(t, buffer.RecordToolCompletion(key, "call-1", clock.Now()), messagepartbuffer.ErrEpisodeNotFound)
+
+	require.NoError(t, buffer.CreateEpisode(key))
+	require.Empty(t, buffer.ToolCompletionsAt(key), "episode without recorded completions has none")
+	// Tools complete at different instants; each keeps its own stamp.
+	clock.Advance(time.Second)
+	firstCompletedAt := clock.Now()
+	require.NoError(t, buffer.RecordToolCompletion(key, "call-1", firstCompletedAt))
+	clock.Advance(2 * time.Second)
+	secondCompletedAt := clock.Now()
+	require.NoError(t, buffer.RecordToolCompletion(key, "call-2", secondCompletedAt))
+	completions := buffer.ToolCompletionsAt(key)
+	require.Equal(t, map[string]time.Time{
+		"call-1": firstCompletedAt,
+		"call-2": secondCompletedAt,
+	}, completions)
+
+	// The returned map is a copy: mutating it must not corrupt the
+	// episode's recorded completions.
+	completions["call-3"] = clock.Now()
+	require.Len(t, buffer.ToolCompletionsAt(key), 2)
+
+	// A closed episode keeps its recorded completions but accepts no
+	// more, matching the batch-start stamp's lifecycle.
+	require.NoError(t, buffer.CloseEpisode(key))
+	require.ErrorIs(t, buffer.RecordToolCompletion(key, "call-3", clock.Now()), messagepartbuffer.ErrEpisodeClosed)
+	require.Len(t, buffer.ToolCompletionsAt(key), 2)
+}
+
 func TestBuffer_SubscribeExistingReplaysThenStreamsLiveParts(t *testing.T) {
 	t.Parallel()
 

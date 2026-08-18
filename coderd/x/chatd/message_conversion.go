@@ -61,6 +61,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		messages = append(messages, assistantMessage(input.modelConfigID, contentVersion, assistantContent, input.step))
 	}
 
+	batchRuntimeAssigned := false
 	for _, toolResult := range toolResults {
 		part := chatprompt.PartFromContentWithLogger(context.Background(), input.logger, toolResult)
 		applyToolMetadata(&part, input.toolNameToConfigID)
@@ -77,10 +78,14 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		// The batch's billable window lands on the single tool row whose
 		// completion ended it; every other row in the batch stays NULL so
 		// usage reporting, which sums runtime_ms across rows, bills the
-		// batch exactly once. Zero maps to NULL, so a sub-millisecond
-		// window persists the same way an unmeasured one does.
-		if toolResult.ToolCallID != "" && toolResult.ToolCallID == input.step.BatchRuntimeToolCallID {
+		// batch exactly once. Only the first row with the window-defining
+		// ID carries it, because providers can emit duplicate tool call
+		// IDs and billing every duplicate would multiply the sum. Zero
+		// maps to NULL, so a sub-millisecond window persists the same
+		// way an unmeasured one does.
+		if !batchRuntimeAssigned && toolResult.ToolCallID != "" && toolResult.ToolCallID == input.step.BatchRuntimeToolCallID {
 			msg.RuntimeMs = nullInt64IfNonZero(input.step.BatchRuntime.Milliseconds())
+			batchRuntimeAssigned = true
 		}
 		messages = append(messages, msg)
 	}

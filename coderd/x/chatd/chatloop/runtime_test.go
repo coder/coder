@@ -391,3 +391,63 @@ func TestExecuteLocalTools_AliasNamesClassifyAsCalled(t *testing.T) {
 	require.Equal(t, 10*time.Second, outcome.BatchRuntime)
 	require.Equal(t, "call-execute", outcome.BatchRuntimeToolCallID)
 }
+
+// OnToolComplete reports each tool's completion the instant it finishes,
+// while slower siblings are still running, with the same instants the
+// outcome's ToolResultCreatedAt later carries. The interrupt path
+// depends on this live signal: results publish only after the whole
+// batch finishes, so without it an interrupt could not tell finished
+// tools from still-running ones.
+func TestExecuteLocalTools_OnToolCompleteReportsLiveCompletions(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	trap := clock.Trap().Now()
+	defer trap.Close()
+
+	type completion struct {
+		toolCallID  string
+		completedAt time.Time
+	}
+	completionCh := make(chan completion, 2)
+	fastGo := make(chan struct{})
+	slowGo := make(chan struct{})
+	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
+		Tools: []fantasy.AgentTool{
+			blockingTool("fast_tool", fastGo, fantasy.NewTextResponse("done")),
+			blockingTool("slow_tool", slowGo, fantasy.NewTextResponse("done")),
+		},
+		ActiveTools: []string{"fast_tool", "slow_tool"},
+		OnToolComplete: func(toolCallID string, completedAt time.Time) {
+			completionCh <- completion{toolCallID: toolCallID, completedAt: completedAt}
+		},
+		ToolCalls: []fantasy.ToolCallContent{
+			{ToolCallID: "call-fast", ToolName: "fast_tool", Input: "{}"},
+			{ToolCallID: "call-slow", ToolName: "slow_tool", Input: "{}"},
+		},
+	})
+
+	// Batch start.
+	trap.MustWait(ctx).MustRelease(ctx)
+	// The fast tool completes 10 seconds in. Its completion arrives
+	// while the slow tool is still parked on its release channel.
+	clock.Advance(10 * time.Second)
+	close(fastGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+	fast := testutil.RequireReceive(ctx, t, completionCh)
+	require.Equal(t, "call-fast", fast.toolCallID)
+	// The slow tool completes at 60 seconds.
+	clock.Advance(50 * time.Second)
+	close(slowGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+	slow := testutil.RequireReceive(ctx, t, completionCh)
+	require.Equal(t, "call-slow", slow.toolCallID)
+	require.Equal(t, 50*time.Second, slow.completedAt.Sub(fast.completedAt))
+
+	outcome := testutil.RequireReceive(ctx, t, resultCh)
+	require.Equal(t, map[string]time.Time{
+		"call-fast": fast.completedAt,
+		"call-slow": slow.completedAt,
+	}, outcome.Step.ToolResultCreatedAt)
+}

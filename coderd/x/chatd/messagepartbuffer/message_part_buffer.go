@@ -19,6 +19,7 @@ import (
 	"container/heap"
 	"context"
 	"encoding/json"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -107,12 +108,18 @@ type episodeState struct {
 	// episodes that never execute local tools, such as model
 	// invocations that finish without tool calls.
 	toolBatchStartedAt time.Time
-	closed             bool
-	closedAt           time.Time
-	closedHeapItem     *closedEpisodeItem
-	parts              []Part
-	bytes              int64
-	subscribers        map[*episodeSubscriber]struct{}
+	// toolCompletedAt maps tool call IDs to the completion instants
+	// recorded by RecordToolCompletion as the batch's tools finish.
+	// Tool results are published only after the whole batch
+	// completes, so these per-tool stamps are the only live view of
+	// which tools already finished when an interrupt lands.
+	toolCompletedAt map[string]time.Time
+	closed          bool
+	closedAt        time.Time
+	closedHeapItem  *closedEpisodeItem
+	parts           []Part
+	bytes           int64
+	subscribers     map[*episodeSubscriber]struct{}
 }
 
 type closedEpisodeItem struct {
@@ -242,6 +249,31 @@ func (b *Buffer) StartToolBatch(key Key) error {
 	return nil
 }
 
+// RecordToolCompletion records the instant a local tool call in the
+// episode's tool batch finished. Tool goroutines report completions as
+// they happen, so an interrupt can bill tools that already finished up
+// to their real completion instead of treating every canceled call as
+// still running.
+func (b *Buffer) RecordToolCompletion(key Key, toolCallID string, completedAt time.Time) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return ErrMessagePartBufferClosed
+	}
+	episode, err := b.getEpisodeLocked(key)
+	if err != nil {
+		return err
+	}
+	if episode.closed {
+		return ErrEpisodeClosed
+	}
+	if episode.toolCompletedAt == nil {
+		episode.toolCompletedAt = make(map[string]time.Time)
+	}
+	episode.toolCompletedAt[toolCallID] = completedAt
+	return nil
+}
+
 // AddPart appends a part to an existing episode.
 //
 // Parts receive contiguous sequence numbers so stream endpoints can detect
@@ -338,6 +370,21 @@ func (b *Buffer) ToolBatchStartedAt(key Key) time.Time {
 		return time.Time{}
 	}
 	return episode.toolBatchStartedAt
+}
+
+// ToolCompletionsAt returns a copy of the completion instants recorded
+// by RecordToolCompletion, keyed by tool call ID, or nil when the
+// episode is unknown or recorded none. Read it before CloseEpisode:
+// closed episodes are garbage collected, so reading afterwards races
+// the cleanup loop.
+func (b *Buffer) ToolCompletionsAt(key Key) map[string]time.Time {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	episode := b.episodes[key]
+	if episode == nil {
+		return nil
+	}
+	return maps.Clone(episode.toolCompletedAt)
 }
 
 // SubscribeToEpisode replays existing parts and streams new parts.

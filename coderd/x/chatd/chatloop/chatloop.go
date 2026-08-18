@@ -265,6 +265,16 @@ type ExecuteLocalToolsOptions struct {
 	// name as called, so deprecated aliases must be listed alongside
 	// their canonical names.
 	UnbilledToolNames map[string]bool
+	// OnToolComplete, when set, is invoked with each local tool call's
+	// completion instant as the tool finishes, the same instant
+	// PersistedStep.ToolResultCreatedAt later carries. Tool results are
+	// published only after the whole batch completes, to keep event
+	// ordering deterministic, so this callback is the only live signal
+	// that a tool already finished while siblings are still running;
+	// the interrupt path uses it to bill an interrupted batch's
+	// partial window. It is called concurrently from tool goroutines
+	// and must be safe for concurrent use.
+	OnToolComplete func(toolCallID string, completedAt time.Time)
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	Logger             slog.Logger
@@ -592,6 +602,9 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		now := clockNow(opts.Clock)
 		for _, tr := range policyResults {
 			recordToolResultTimestamp(&result, tr.ToolCallID, now)
+			if opts.OnToolComplete != nil {
+				opts.OnToolComplete(tr.ToolCallID, now)
+			}
 			publishToolAttachments(ctx, opts.Logger, tr, now, publishMessagePart)
 			ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
 			ssePart.CreatedAt = &now
@@ -623,6 +636,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		opts.BuiltinToolNames,
 		maxResultBytes,
 		opts.ToolNameAliases,
+		opts.OnToolComplete,
 		func(tr fantasy.ToolResultContent, completedAt time.Time) {
 			recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
 			publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
@@ -1120,7 +1134,9 @@ func processStepStream(
 // executeTools runs all tool calls concurrently after the stream
 // completes. Results are published via onResult in the original
 // tool-call order after all tools finish, preserving deterministic
-// event ordering for SSE subscribers.
+// event ordering for SSE subscribers. onComplete, in contrast, fires
+// from each tool's goroutine the instant that tool finishes, so
+// callers can observe completions while slower siblings still run.
 func executeTools(
 	ctx context.Context,
 	clock quartz.Clock,
@@ -1134,6 +1150,7 @@ func executeTools(
 	builtinToolNames map[string]bool,
 	maxResultBytes int,
 	toolNameAliases map[string]string,
+	onComplete func(toolCallID string, completedAt time.Time),
 	onResult func(fantasy.ToolResultContent, time.Time),
 ) []fantasy.ToolResultContent {
 	if len(toolCalls) == 0 {
@@ -1199,6 +1216,9 @@ func executeTools(
 				// Captured per-goroutine so parallel tools get
 				// accurate individual completion times.
 				completedAt[i] = clockNow(clock)
+				if onComplete != nil {
+					onComplete(tc.ToolCallID, completedAt[i])
+				}
 			}()
 			results[i] = executeSingleTool(
 				ctx,

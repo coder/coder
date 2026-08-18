@@ -262,6 +262,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	}
 	modelInvokedAt := s.opts.MessagePartBuffer.ModelInvokedAt(key)
 	toolBatchStartedAt := s.opts.MessagePartBuffer.ToolBatchStartedAt(key)
+	toolCompletions := s.opts.MessagePartBuffer.ToolCompletionsAt(key)
 	if err := s.opts.MessagePartBuffer.CloseEpisode(key); err != nil {
 		if ctx.Err() != nil {
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("close message part episode: %w", err), ctx.Err())
@@ -304,8 +305,8 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		}
 		messages := partialMessages
 		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, s.opts.Clock.Now("chatworker", "interrupt"), interruptedToolBatchBilling{
-			batchStartedAt: toolBatchStartedAt,
-			bufferedParts:  parts,
+			batchStartedAt:  toolBatchStartedAt,
+			toolCompletions: toolCompletions,
 		})
 		if err != nil {
 			return xerrors.Errorf("committed pending local tool cancellation messages: %w", err)
@@ -691,12 +692,13 @@ type interruptedToolBatchBilling struct {
 	// interrupt (crash recovery, state promotion), in which case the
 	// cancellation rows carry no runtime.
 	batchStartedAt time.Time
-	// bufferedParts are the interrupted episode's buffered parts. Tool
-	// results buffered before the interrupt carry the completion times
-	// of tools that finished early, so a batch whose billed tools all
-	// completed does not bill the longer window of a still-running
-	// unbilled tool such as wait_agent.
-	bufferedParts []messagepartbuffer.Part
+	// toolCompletions maps tool call IDs to the completion instants the
+	// live batch recorded as each tool finished. Tools with a recorded
+	// completion end their billable window there, so a batch whose
+	// billed tools all finished early does not bill the longer window
+	// of a still-running unbilled tool such as wait_agent. Tools
+	// without one were still running when the interrupt landed.
+	toolCompletions map[string]time.Time
 }
 
 func committedPendingLocalToolCancellationMessages(
@@ -720,7 +722,6 @@ func committedPendingLocalToolCancellationMessages(
 	if len(localCalls) == 0 {
 		return nil, nil
 	}
-	completions := bufferedToolResultCompletions(billing.bufferedParts)
 	var (
 		windowEnd    time.Time
 		windowRowIdx = -1
@@ -749,11 +750,11 @@ func committedPendingLocalToolCancellationMessages(
 		if billing.batchStartedAt.IsZero() || unbilledSubagentToolNames[call.ToolName] {
 			continue
 		}
-		// A billed tool that buffered a durable result completed at that
-		// instant; one without a buffered result was still running, so
-		// its window ends at the interrupt. Strictly-after keeps the
-		// earliest call on ties, matching billableBatchWindow.
-		end, ok := completions[call.ToolCallID]
+		// A billed tool with a recorded completion finished at that
+		// instant; one without was still running, so its window ends
+		// at the interrupt. Strictly-after keeps the earliest call on
+		// ties, matching billableBatchWindow.
+		end, ok := billing.toolCompletions[call.ToolCallID]
 		if !ok {
 			end = interruptedAt
 		}
@@ -768,33 +769,4 @@ func committedPendingLocalToolCancellationMessages(
 		result[windowRowIdx].RuntimeMs = nullInt64IfNonZero(windowEnd.Sub(billing.batchStartedAt).Milliseconds())
 	}
 	return result, nil
-}
-
-// bufferedToolResultCompletions maps tool call IDs to the completion
-// instants of durable tool results buffered before an interrupt.
-// Streaming deltas and resets are not completions, and only the first
-// durable result per call counts, matching the buffered-part conversion
-// rules in bufferedPartsToPartialMessages.
-func bufferedToolResultCompletions(parts []messagepartbuffer.Part) map[string]time.Time {
-	completions := make(map[string]time.Time)
-	for _, buffered := range parts {
-		if buffered.Role != codersdk.ChatMessageRoleTool {
-			continue
-		}
-		part := buffered.MessagePart
-		if part.Type != codersdk.ChatMessagePartTypeToolResult || part.ToolCallID == "" {
-			continue
-		}
-		if part.ResultDelta != "" || part.ResultReset || len(part.Result) == 0 {
-			continue
-		}
-		if part.CreatedAt == nil {
-			continue
-		}
-		if _, ok := completions[part.ToolCallID]; ok {
-			continue
-		}
-		completions[part.ToolCallID] = *part.CreatedAt
-	}
-	return completions
 }

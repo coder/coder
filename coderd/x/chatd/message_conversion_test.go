@@ -135,6 +135,39 @@ func TestBuildCommitStepMessages_BatchRuntimeLandsOnWindowDefiningToolRow(t *tes
 	require.Equal(t, sql.NullInt64{Int64: 10000, Valid: true}, got.Messages[1].RuntimeMs)
 }
 
+// Duplicate tool call IDs, which providers can emit and which admission
+// does not always reject, must not multiply the bill: only the first row
+// with the window-defining ID carries the batch runtime.
+func TestBuildCommitStepMessages_DuplicateToolCallIDsBillOnce(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		step: stepData{
+			Content: []fantasy.Content{
+				fantasy.ToolResultContent{
+					ToolCallID: "call-1",
+					ToolName:   "execute",
+					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"first"}`},
+				},
+				fantasy.ToolResultContent{
+					ToolCallID: "call-1",
+					ToolName:   "execute",
+					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"second"}`},
+				},
+			},
+			BatchRuntime:           10 * time.Second,
+			BatchRuntimeToolCallID: "call-1",
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 2)
+	require.Equal(t, sql.NullInt64{Int64: 10000, Valid: true}, got.Messages[0].RuntimeMs)
+	require.False(t, got.Messages[1].RuntimeMs.Valid)
+}
+
 // Assistant rows synthesized from a tool batch (attachment file parts)
 // never carry the batch runtime: it belongs to the tool row alone.
 func TestBuildCommitStepMessages_BatchAttachmentAssistantRowStaysNull(t *testing.T) {
