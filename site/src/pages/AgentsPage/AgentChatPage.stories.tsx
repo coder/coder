@@ -26,6 +26,7 @@ import {
 	MockChat,
 	MockChatMessage,
 	MockChatQueuedMessage,
+	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
@@ -255,7 +256,10 @@ const buildChatAuthorizationQuery = (
 const buildQueries = (
 	chat: TypesGen.Chat,
 	messagesData: TypesGen.ChatMessagesResponse,
-	opts?: { diffUrl?: string },
+	opts?: {
+		diffUrl?: string;
+		mcpServers?: readonly TypesGen.MCPServerConfig[];
+	},
 ) => {
 	const diffStatus: TypesGen.ChatDiffStatus = {
 		chat_id: CHAT_ID,
@@ -301,7 +305,7 @@ const buildQueries = (
 		},
 		{ key: chatModelsKey, data: mockModelCatalog },
 		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
-		{ key: mcpServersKey, data: [] },
+		{ key: mcpServersKey, data: opts?.mcpServers ?? [] },
 		buildChatAuthorizationQuery(chat, {
 			canShareChat: {
 				action: "share",
@@ -2399,6 +2403,65 @@ export const DurableUpdateFansOutToOlderPage: Story = {
 };
 
 /**
+ * The streamed thinking block is asserted via its disclosure header
+ * because smoothed body text never reveals in the test iframe
+ * (requestAnimationFrame is suspended).
+ */
+export const StreamedPartWhileStatusWaiting: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Stale status stream",
+				status: "waiting",
+			},
+			{
+				messages: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:05:00.000Z",
+						role: "user",
+						content: [{ type: "text", text: "Start the next turn" }],
+					},
+				],
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: JSON.stringify([
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "reasoning",
+									text: "Streaming while the chat still reads waiting",
+								},
+							},
+						},
+					] satisfies TypesGen.ChatStreamEvent[]),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Start the next turn");
+		// The disclosure header is the only "Thinking" text in the DOM
+		// at this point: the generic indicator is suppressed at status
+		// "waiting".
+		expect(await canvas.findByText("Thinking")).toBeVisible();
+	},
+};
+
+/**
  * Live agent turn with streaming reasoning and a back-to-back flurry of
  * in-progress file tool calls. The persisted history establishes context
  * (an earlier completed read+write pair); the WebSocket then streams an
@@ -3214,6 +3277,53 @@ export const SendResponseAfterChatSwitch: Story = {
 				canvas.queryByTestId("live-activity-slot"),
 			).not.toBeInTheDocument();
 		});
+	},
+};
+
+export const RemoveLastMCPServer: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Remove last MCP server",
+				status: "waiting",
+				mcp_server_ids: [MockMCPServerConfig.id],
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{
+				diffUrl: undefined,
+				mcpServers: [MockMCPServerConfig],
+			},
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({ queued: false });
+
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Remove MCP Server" }),
+		);
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Send without MCP tools");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(sendSpy).toHaveBeenCalledWith(
+			CHAT_ID,
+			expect.objectContaining({
+				mcp_server_ids: [],
+			}),
+		);
 	},
 };
 

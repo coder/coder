@@ -4949,6 +4949,13 @@ func (q *querier) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg databa
 	return q.db.GetTotalUsageDCManagedAgentsV1(ctx, arg)
 }
 
+func (q *querier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg database.GetTotalUsageHBAgentRuntimeV1Params) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
+		return 0, err
+	}
+	return q.db.GetTotalUsageHBAgentRuntimeV1(ctx, arg)
+}
+
 func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceLicense); err != nil {
 		return nil, err

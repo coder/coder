@@ -28685,6 +28685,44 @@ func (q *sqlQuerier) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg Get
 	return total_count, err
 }
 
+const getTotalUsageHBAgentRuntimeV1 = `-- name: GetTotalUsageHBAgentRuntimeV1 :one
+SELECT
+    -- The first cast is necessary since you can't sum strings, and the second
+    -- cast is necessary to make sqlc happy.
+    COALESCE(SUM((event_data->>'runtime_ms')::bigint), 0)::bigint AS total_runtime_ms
+FROM
+    usage_events
+WHERE
+    event_type = 'hb_agent_runtime_v1'
+    AND created_at >= $1::timestamptz
+    AND created_at < $2::timestamptz
+`
+
+type GetTotalUsageHBAgentRuntimeV1Params struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+// Gets the total Coder Agent runtime in milliseconds between two timestamps.
+// The start bound is inclusive and the end bound is exclusive.
+//
+// Unlike GetTotalUsageDCManagedAgentsV1 this reads usage_events directly
+// rather than the usage_events_daily rollup: hb_agent_runtime_v1 is exactly
+// one row per hourly bucket deployment-wide, with created_at at the bucket
+// start, enforced by the unique partial index
+// idx_usage_events_agent_runtime (which also keeps SUM from counting a
+// bucket twice and serves this query). The result is bucket-granular: a
+// bucket counts entirely against the period containing its start. See
+// enterprise/coderd/usage/generator.go for what a bucket holds. If a
+// usage_events retention policy ever lands, this must move to the daily
+// rollup and accept day-granularity bounds.
+func (q *sqlQuerier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalUsageHBAgentRuntimeV1, arg.StartTime, arg.EndTime)
+	var total_runtime_ms int64
+	err := row.Scan(&total_runtime_ms)
+	return total_runtime_ms, err
+}
+
 const insertUsageEvent = `-- name: InsertUsageEvent :exec
 INSERT INTO
     usage_events (
