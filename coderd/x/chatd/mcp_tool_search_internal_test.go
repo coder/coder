@@ -253,6 +253,28 @@ func TestCollectDeferredMCPCandidates(t *testing.T) {
 	}
 	require.Equal(t, "everything", collectDeferredMCPCandidates(paddedInput)[0].server,
 		"surrounding whitespace is trimmed so scope matching and catalog display see the canonical name")
+
+	unpadded := chattool.NewWorkspaceMCPTool(workspacesdk.MCPToolInfo{Name: "everything__ping"}, nil, nil)
+	collidingInput := deferredMCPCandidateInput{
+		workspaceMCPTools:     []fantasy.AgentTool{padded, unpadded},
+		includeWorkspaceTools: true,
+	}
+	colliding := collectDeferredMCPCandidates(collidingInput)
+	require.Equal(t, " everything ", colliding[0].server,
+		"trimming must not collapse distinct servers into one catalog identity")
+	require.Equal(t, "everything", colliding[1].server)
+
+	slugColliding := deferredMCPCandidateInput{
+		mcpTools:              []fantasy.AgentTool{external},
+		mcpConfigByID:         map[uuid.UUID]database.MCPServerConfig{approvedID: {Slug: "everything"}},
+		approvedMCPConfigIDs:  map[uuid.UUID]struct{}{approvedID: {}},
+		workspaceMCPTools:     []fantasy.AgentTool{padded},
+		includeWorkspaceTools: true,
+	}
+	slugCands := collectDeferredMCPCandidates(slugColliding)
+	require.Equal(t, "everything", slugCands[0].server)
+	require.Equal(t, " everything ", slugCands[1].server,
+		"a workspace server whose trimmed name collides with an external slug keeps its raw name")
 }
 
 func TestConfigureDeferredMCPToolSearchGenerationFlows(t *testing.T) {

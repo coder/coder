@@ -54,25 +54,52 @@ func collectDeferredMCPCandidates(input deferredMCPCandidateInput) []deferredMCP
 	if !input.includeWorkspaceTools {
 		return candidates
 	}
+	wsStart := len(candidates)
 	for _, tool := range input.workspaceMCPTools {
 		if !toolAllowedForTurn(tool, input.planMode, input.parentChatID, input.approvedMCPConfigIDs) {
 			continue
 		}
 		candidates = append(candidates, deferredMCPTool{tool: tool, server: workspaceMCPServerName(tool)})
 	}
+	trimWorkspaceServerNames(candidates, wsStart)
 	return candidates
+}
+
+// trimWorkspaceServerNames trims surrounding whitespace from workspace
+// server names, which config validation permits but find_tools strips
+// from queries, so a padded server stays reachable by scope. Trimming
+// is skipped when it would collapse distinct servers into one catalog
+// identity (a padded and an unpadded sibling, or a collision with an
+// external slug): those keep their raw names, so each server keeps its
+// own catalog group and an exact-form scope matches only its own
+// server.
+func trimWorkspaceServerNames(candidates []deferredMCPTool, wsStart int) {
+	sources := make(map[string]map[string]struct{}, len(candidates))
+	for i, candidate := range candidates {
+		key := candidate.server
+		if i >= wsStart {
+			key = strings.TrimSpace(key)
+		}
+		if sources[key] == nil {
+			sources[key] = make(map[string]struct{}, 1)
+		}
+		sources[key][candidate.server] = struct{}{}
+	}
+	for i := wsStart; i < len(candidates); i++ {
+		trimmed := strings.TrimSpace(candidates[i].server)
+		if len(sources[trimmed]) == 1 {
+			candidates[i].server = trimmed
+		}
+	}
 }
 
 // workspaceMCPServerName prefers the wrapper's unsanitized routing name
 // because sanitization can truncate the model-facing name before the
 // "__" separator, which would otherwise catalog each such tool under a
 // fake single-tool server that prefix scoping cannot reach.
-// Workspace config validation allows surrounding whitespace in server
-// names, which find_tools trims from queries, so the catalog name is
-// trimmed too; routing keeps the raw name.
 func workspaceMCPServerName(tool fantasy.AgentTool) string {
 	if namer, ok := tool.(interface{ ServerName() string }); ok {
-		return strings.TrimSpace(namer.ServerName())
+		return namer.ServerName()
 	}
 	if server, _, ok := strings.Cut(tool.Info().Name, "__"); ok {
 		return server

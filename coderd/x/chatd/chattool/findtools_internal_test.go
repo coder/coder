@@ -123,6 +123,16 @@ func TestSearchTools(t *testing.T) {
 		require.Len(t, result.Activated, 2,
 			"a prefix matching no exact-case name falls back to spanning the case-colliding servers")
 	})
+	t.Run("whitespace-colliding server names", func(t *testing.T) {
+		t.Parallel()
+		paddedEntries := []FindToolCatalogEntry{
+			{Name: "_everything___ping", Description: "Ping status", Server: " everything "},
+			{Name: "everything__status", Description: "Get status", Server: "everything"},
+		}
+		result, _ := SearchTools(paddedEntries, FindToolsArgs{Queries: []string{"everything: status"}}, SearchBudget{})
+		require.Equal(t, []string{"everything__status"}, result.Activated,
+			"the exact-form scope matches only its own server, not a whitespace-padded sibling")
+	})
 	t.Run("server names containing colons", func(t *testing.T) {
 		t.Parallel()
 		colonEntries := []FindToolCatalogEntry{
