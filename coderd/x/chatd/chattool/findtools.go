@@ -96,12 +96,17 @@ type FindToolsResult struct {
 // charged against the budget before any search admits activations.
 type findToolsTool struct {
 	fantasy.AgentTool
-	reserveStepCalls func(names []string)
+	reserveStepCalls  func(names []string)
+	settleStepResults func(succeeded, errored []string)
 }
 
 func (findToolsTool) SerialToolCalls() bool { return true }
 
 func (t findToolsTool) ObserveStepToolCalls(names []string) { t.reserveStepCalls(names) }
+
+func (t findToolsTool) ObserveStepToolResults(succeeded, errored []string) {
+	t.settleStepResults(succeeded, errored)
+}
 
 // FindTools returns the built-in used to discover deferred MCP tool schemas.
 func FindTools(options FindToolsOptions) fantasy.AgentTool {
@@ -117,6 +122,7 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 	// is reserved out of the budget before searches run. Reserved names
 	// stay free to activate because derivation already retains them.
 	reserved := make(map[string]struct{})
+	executedOK := make(map[string]struct{})
 	reserve := func(names []string) {
 		if options.SchemaTokenBudget <= 0 {
 			return
@@ -135,7 +141,35 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 			remainingBudget -= weight
 		}
 	}
-	return findToolsTool{reserveStepCalls: reserve, AgentTool: fantasy.NewAgentTool(
+	// Derivation admits errored direct calls only with leftover budget,
+	// so once a step ends their pre-execution reservation is refunded
+	// and later searches regain the weight. Names that ever executed
+	// successfully keep their reservation: derivation admits them at
+	// full priority. Denied calls never produce step results here and
+	// stay charged, which only under-claims.
+	settle := func(succeeded, errored []string) {
+		if options.SchemaTokenBudget <= 0 {
+			return
+		}
+		budgetMu.Lock()
+		defer budgetMu.Unlock()
+		for _, name := range succeeded {
+			if _, ok := schemaTokensByName[name]; ok {
+				executedOK[name] = struct{}{}
+			}
+		}
+		for _, name := range errored {
+			if _, ok := executedOK[name]; ok {
+				continue
+			}
+			if _, ok := reserved[name]; !ok {
+				continue
+			}
+			delete(reserved, name)
+			remainingBudget += schemaTokensByName[name]
+		}
+	}
+	return findToolsTool{reserveStepCalls: reserve, settleStepResults: settle, AgentTool: fantasy.NewAgentTool(
 		FindToolsName,
 		buildFindToolsDescription(entries, options.CatalogTokenBudget),
 		func(ctx context.Context, args FindToolsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {

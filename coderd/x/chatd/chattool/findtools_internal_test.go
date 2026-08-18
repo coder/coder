@@ -263,6 +263,41 @@ func TestFindToolsDirectCallReservation(t *testing.T) {
 			"the oversized first match is skipped and the fitting later match admitted")
 	})
 
+	t.Run("an errored direct call refunds its reservation", func(t *testing.T) {
+		t.Parallel()
+		tool, observer := newTool(100)
+		settler, ok := tool.(interface {
+			ObserveStepToolResults(succeeded, errored []string)
+		})
+		require.True(t, ok, "find_tools must observe step results to refund errored reservations")
+		observer.ObserveStepToolCalls([]string{"server__a"})
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__b"]}`})
+		require.NoError(t, err)
+		require.True(t, resp.IsError, "the pre-execution reservation holds while the outcome is unknown")
+
+		settler.ObserveStepToolResults(nil, []string{"server__a", "unknown"})
+		resp, err = tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__b"]}`})
+		require.NoError(t, err)
+		require.False(t, resp.IsError, "the refunded reservation admits later searches")
+		var result FindToolsResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, []string{"server__b"}, result.Activated)
+	})
+
+	t.Run("a name that executed successfully keeps its reservation", func(t *testing.T) {
+		t.Parallel()
+		tool, observer := newTool(100)
+		settler, ok := tool.(interface {
+			ObserveStepToolResults(succeeded, errored []string)
+		})
+		require.True(t, ok)
+		observer.ObserveStepToolCalls([]string{"server__a"})
+		settler.ObserveStepToolResults([]string{"server__a"}, []string{"server__a"})
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__b"]}`})
+		require.NoError(t, err)
+		require.True(t, resp.IsError, "a successful execution pins the reservation even when a later call errors")
+	})
+
 	t.Run("reserved names stay activatable after the budget is spent", func(t *testing.T) {
 		t.Parallel()
 		tool, observer := newTool(50)

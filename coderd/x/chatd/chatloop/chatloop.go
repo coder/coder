@@ -1188,6 +1188,8 @@ func executeTools(
 	}
 	wg.Wait()
 
+	notifyStepToolResultObservers(toolMap, toolNameAliases, results)
+
 	// Publish results in the original tool-call order so SSE
 	// subscribers see a deterministic event sequence.
 	if onResult != nil {
@@ -1526,6 +1528,46 @@ func notifyStepToolCallObservers(toolMap map[string]fantasy.AgentTool, toolNameA
 		}
 		if observer, ok := tool.(stepToolCallObserver); ok {
 			observer.ObserveStepToolCalls(names)
+		}
+	}
+}
+
+// stepToolResultObserver is implemented by tools that need the step's
+// execution outcomes, for example so find_tools can refund budget it
+// reserved for a direct call whose execution errored.
+type stepToolResultObserver interface {
+	ObserveStepToolResults(succeeded, errored []string)
+}
+
+// notifyStepToolResultObservers passes the step's resolved result
+// outcomes to each distinct called tool that observes them, after
+// every call in the step has settled.
+func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, results []fantasy.ToolResultContent) {
+	succeeded := make([]string, 0, len(results))
+	errored := make([]string, 0, len(results))
+	for _, tr := range results {
+		name := tr.ToolName
+		if alias, ok := toolNameAliases[name]; ok {
+			name = alias
+		}
+		if _, isErr := tr.Result.(fantasy.ToolResultOutputContentError); isErr {
+			errored = append(errored, name)
+		} else {
+			succeeded = append(succeeded, name)
+		}
+	}
+	notified := make(map[string]struct{}, len(results))
+	for _, name := range append(append([]string{}, succeeded...), errored...) {
+		if _, dup := notified[name]; dup {
+			continue
+		}
+		notified[name] = struct{}{}
+		tool, ok := toolMap[name]
+		if !ok {
+			continue
+		}
+		if observer, ok := tool.(stepToolResultObserver); ok {
+			observer.ObserveStepToolResults(succeeded, errored)
 		}
 	}
 }
