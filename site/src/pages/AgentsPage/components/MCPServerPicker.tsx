@@ -103,14 +103,21 @@ export const mcpSelectionStorageKey = (organizationId: string) =>
  * Read the persisted MCP selection from localStorage, filtered to only
  * include IDs that still exist in the current server list.
  * Returns `null` when nothing is stored (caller should fall back to defaults).
+ *
+ * When `readLegacy` is set (the default organization inherits selections
+ * that predate organization scoping), a selection found under the legacy
+ * unscoped key is rewritten under the organization-scoped key, so the
+ * storage schema heals itself on first successful read.
  */ export const getSavedMCPSelection = (
 	organizationId: string,
 	servers: readonly TypesGen.MCPServerConfig[],
 	readLegacy = false,
 ): string[] | null => {
 	let raw = localStorage.getItem(mcpSelectionStorageKey(organizationId));
+	let fromLegacy = false;
 	if (raw === null && readLegacy) {
 		raw = localStorage.getItem(legacyMCPSelectionStorageKey);
+		fromLegacy = raw !== null;
 	}
 	if (raw === null) {
 		return null;
@@ -145,6 +152,10 @@ export const mcpSelectionStorageKey = (organizationId: string) =>
 				restored.push(id);
 			}
 		}
+		if (fromLegacy) {
+			saveMCPSelection(organizationId, restored);
+			localStorage.removeItem(legacyMCPSelectionStorageKey);
+		}
 		return restored;
 	} catch {
 		return null;
@@ -159,41 +170,6 @@ export const saveMCPSelection = (
 		mcpSelectionStorageKey(organizationId),
 		JSON.stringify(ids),
 	);
-};
-
-export const migrateLegacyMCPSelection = (
-	organizationId: string,
-	servers: readonly TypesGen.MCPServerConfig[],
-): void => {
-	const storageKey = mcpSelectionStorageKey(organizationId);
-	if (
-		localStorage.getItem(storageKey) !== null ||
-		localStorage.getItem(legacyMCPSelectionStorageKey) === null
-	) {
-		return;
-	}
-	const selection = getSavedMCPSelection(organizationId, servers, true);
-	if (selection === null) {
-		return;
-	}
-	saveMCPSelection(organizationId, selection);
-	localStorage.removeItem(legacyMCPSelectionStorageKey);
-};
-
-/**
- * Legacy selections predate organization scoping, so only the default
- * organization inherits them.
- */
-export const useLegacyMCPSelectionMigration = (
-	organizationId: string,
-	servers: readonly TypesGen.MCPServerConfig[] | undefined,
-	isDefaultOrganization: boolean,
-) => {
-	useEffect(() => {
-		if (isDefaultOrganization && servers) {
-			migrateLegacyMCPSelection(organizationId, servers);
-		}
-	}, [organizationId, servers, isDefaultOrganization]);
 };
 
 // ── Overlapping icon stack for the trigger ─────────────────────

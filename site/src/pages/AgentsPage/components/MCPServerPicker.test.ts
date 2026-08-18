@@ -5,7 +5,6 @@ import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
 	mcpSelectionStorageKey,
-	migrateLegacyMCPSelection,
 	saveMCPSelection,
 } from "./MCPServerPicker";
 
@@ -84,7 +83,7 @@ describe("MCP selection persistence", () => {
 			expect(getSavedMCPSelection(organizationId, servers)).toBeNull();
 		});
 
-		it("migrates a legacy selection for the default organization", () => {
+		it("heals a legacy selection into the organization-scoped key on read", () => {
 			localStorage.setItem(
 				"agents.selected-mcp-server-ids",
 				JSON.stringify(["s3"]),
@@ -94,29 +93,75 @@ describe("MCP selection persistence", () => {
 				"s3",
 				"s1",
 			]);
-			expect(
-				localStorage.getItem(mcpSelectionStorageKey(organizationId)),
-			).toBeNull();
-
-			migrateLegacyMCPSelection(organizationId, servers);
-
 			expect(localStorage.getItem(mcpSelectionStorageKey(organizationId))).toBe(
 				JSON.stringify(["s3", "s1"]),
 			);
 			expect(localStorage.getItem("agents.selected-mcp-server-ids")).toBeNull();
+			// Subsequent reads come from the scoped key.
+			expect(getSavedMCPSelection(organizationId, servers)).toEqual([
+				"s3",
+				"s1",
+			]);
 		});
 
-		it("migrates an empty legacy selection without enabling default-on servers", () => {
+		it("heals an empty legacy selection without enabling default-on servers", () => {
 			localStorage.setItem("agents.selected-mcp-server-ids", "[]");
 
 			expect(getSavedMCPSelection(organizationId, servers, true)).toEqual([
 				"s1",
 			]);
 
-			migrateLegacyMCPSelection(organizationId, servers);
-
 			expect(localStorage.getItem(mcpSelectionStorageKey(organizationId))).toBe(
 				JSON.stringify(["s1"]),
+			);
+			expect(localStorage.getItem("agents.selected-mcp-server-ids")).toBeNull();
+		});
+
+		it("leaves the legacy selection alone while the server list is empty", () => {
+			localStorage.setItem(
+				"agents.selected-mcp-server-ids",
+				JSON.stringify(["s3"]),
+			);
+
+			expect(getSavedMCPSelection(organizationId, [], true)).toBeNull();
+
+			expect(
+				localStorage.getItem(mcpSelectionStorageKey(organizationId)),
+			).toBeNull();
+			expect(localStorage.getItem("agents.selected-mcp-server-ids")).toBe(
+				JSON.stringify(["s3"]),
+			);
+		});
+
+		it("does not read or heal the legacy selection for non-default organizations", () => {
+			localStorage.setItem(
+				"agents.selected-mcp-server-ids",
+				JSON.stringify(["s3"]),
+			);
+
+			expect(getSavedMCPSelection(organizationId, servers)).toBeNull();
+
+			expect(
+				localStorage.getItem(mcpSelectionStorageKey(organizationId)),
+			).toBeNull();
+			expect(localStorage.getItem("agents.selected-mcp-server-ids")).toBe(
+				JSON.stringify(["s3"]),
+			);
+		});
+
+		it("prefers the scoped key over a lingering legacy selection", () => {
+			saveMCPSelection(organizationId, ["s2"]);
+			localStorage.setItem(
+				"agents.selected-mcp-server-ids",
+				JSON.stringify(["s3"]),
+			);
+
+			expect(getSavedMCPSelection(organizationId, servers, true)).toEqual([
+				"s2",
+				"s1",
+			]);
+			expect(localStorage.getItem("agents.selected-mcp-server-ids")).toBe(
+				JSON.stringify(["s3"]),
 			);
 		});
 

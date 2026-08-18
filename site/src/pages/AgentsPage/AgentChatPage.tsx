@@ -108,7 +108,6 @@ import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
 	saveMCPSelection,
-	useLegacyMCPSelectionMigration,
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
@@ -931,11 +930,6 @@ const AgentChatPage: FC = () => {
 	const isDefaultChatOrganization = organizations.some(
 		(organization) =>
 			organization.id === chatOrganizationId && organization.is_default,
-	);
-	useLegacyMCPSelectionMigration(
-		chatOrganizationId,
-		mcpServersQuery.data,
-		isDefaultChatOrganization,
 	);
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(

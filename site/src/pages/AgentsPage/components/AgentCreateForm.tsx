@@ -36,7 +36,6 @@ import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
 	saveMCPSelection,
-	useLegacyMCPSelectionMigration,
 } from "./MCPServerPicker";
 import { getModelSelectorHelp } from "./ModelSelectorHelp";
 
@@ -421,11 +420,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		return getDefaultMCPSelection(mcpServers);
 	})();
-	useLegacyMCPSelectionMigration(
-		organizationId,
-		mcpServers,
-		effectiveOrg?.is_default ?? false,
-	);
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
 			setSelectedWorkspaceId(null);
