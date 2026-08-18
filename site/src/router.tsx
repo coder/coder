@@ -25,7 +25,6 @@ import { TemplateRedirectController } from "./pages/TemplatePage/TemplateRedirec
 import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
 import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
-import { RequireWorkspaceAccess } from "./pages/UserSettingsPage/RequireWorkspaceAccess";
 import UsersPage from "./pages/UsersPage/UsersPage";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
@@ -683,10 +682,8 @@ export const router = createBrowserRouter(
 					<Route path="/settings" element={<UserSettingsLayout />}>
 						<Route path="account" element={<AccountPage />} />
 						<Route path="appearance" element={<AppearancePage />} />
-						<Route element={<RequireWorkspaceAccess />}>
-							<Route path="schedule" element={<SchedulePage />} />
-							<Route path="ssh-keys" element={<SSHKeysPage />} />
-						</Route>
+						<Route path="schedule" element={<SchedulePage />} />
+						<Route path="ssh-keys" element={<SSHKeysPage />} />
 						<Route path="security" element={<SecurityPage />} />
 						<Route
 							path="external-auth"
