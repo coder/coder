@@ -247,7 +247,7 @@ coderd_api_request_latencies_seconds{method="",path=""} 0
 # HELP coderd_api_requests_processed_total The total number of processed API requests
 # TYPE coderd_api_requests_processed_total counter
 coderd_api_requests_processed_total{code="",method="",path=""} 0
-# HELP coderd_api_requests_too_large_total The total number of API requests answered 413, by the reason they were rejected. A sustained rate of reason=\"request_body\" on one route is more often a limit set too tight for a legitimate payload than an attempt to exhaust memory.
+# HELP coderd_api_requests_too_large_total The total number of API requests answered 413, by the reason they were rejected. A sustained rate of reason=\"request_body\" on one route is more often a limit set too tight for a legitimate payload than an attempt to exhaust memory. reason=\"other\" counts 413s raised for reasons unrelated to the size of the request body, such as agent log storage overflow or an archive that is too large once expanded.
 # TYPE coderd_api_requests_too_large_total counter
 coderd_api_requests_too_large_total{method="",path="",reason=""} 0
 # HELP coderd_api_total_user_count The total number of registered users, partitioned by status.

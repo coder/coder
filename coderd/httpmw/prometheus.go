@@ -100,7 +100,10 @@ func Prometheus(register prometheus.Registerer, ws *WSMetrics) func(http.Handler
 		Help: "The total number of API requests answered 413, by the reason " +
 			"they were rejected. A sustained rate of reason=\"request_body\" " +
 			"on one route is more often a limit set too tight for a " +
-			"legitimate payload than an attempt to exhaust memory.",
+			"legitimate payload than an attempt to exhaust memory. " +
+			"reason=\"other\" counts 413s raised for reasons unrelated to " +
+			"the size of the request body, such as agent log storage " +
+			"overflow or an archive that is too large once expanded.",
 	}, []string{"method", "path", "reason"})
 
 	return func(next http.Handler) http.Handler {
@@ -136,8 +139,8 @@ func Prometheus(register prometheus.Registerer, ws *WSMetrics) func(http.Handler
 			}
 
 			// Counting by status rather than at the point of rejection reaches
-			// the SCIM and OAuth2 endpoints, which bound their bodies themselves
-			// to keep their own error shapes. It also reaches the 413s that have
+			// handlers that bound their bodies themselves to keep their own
+			// error shapes, such as aibridge. It also reaches the 413s that have
 			// nothing to do with body size, such as agent log storage overflow,
 			// so the tracker separates the two.
 			bodyLimit := &httpapi.RequestBodyLimitTracker{}
