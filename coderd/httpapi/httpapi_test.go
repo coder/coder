@@ -813,10 +813,8 @@ func TestServerSentEventSender(t *testing.T) {
 	})
 }
 
-// TestRecordRequestBodyLimit covers the one call every 413-for-an-oversized-body
-// site shares, since the sites answer in their own error shapes rather than
-// through a common response writer. The log field names the limit that tripped;
-// the tracker stops the metric attributing a 413 to body size when it was not.
+// TestRecordRequestBodyLimit pins both halves of the call every oversized-body
+// 413 site shares: the log field naming the limit, and the metric tracker.
 func TestRecordRequestBodyLimit(t *testing.T) {
 	t.Parallel()
 
