@@ -662,6 +662,58 @@ func TestInterruptTask_RetrySnapshotOutlivesEpisodeEviction(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 7_000, Valid: true}, execRow.RuntimeMs)
 }
 
+// The interrupt task captures its episode snapshot before its first
+// database read: an attempt whose chat read fails (or stalls past the
+// buffer's retention, evicting the episode) has already stored the
+// billing state, so a later attempt bills the original window even
+// after the buffer forgets the episode.
+func TestInterruptTask_SnapshotCapturedBeforeChatRead(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	execCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+	})
+	buffer := batch.starter.opts.MessagePartBuffer
+
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, buffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 0, ToolCallID: execCallID}}))
+	batch.clock.Advance(3 * time.Second)
+
+	// The first attempt's chat read fails: the chat is still running,
+	// so the interrupting fence rejects it. The snapshot must already
+	// be captured by then, with the interrupt instant at this failed
+	// attempt's episode close.
+	snapshot := &interruptEpisodeSnapshot{}
+	err := batch.starter.StartInterrupt(testutil.Context(t, testutil.WaitShort), chatWorkerTaskStartInput{
+		ChatID:            batch.chat.ID,
+		WorkerID:          batch.workerID,
+		RunnerID:          batch.runnerID,
+		HistoryVersion:    batch.key.HistoryVersion,
+		GenerationAttempt: batch.key.GenerationAttempt,
+		Status:            database.ChatStatusInterrupting,
+		InterruptSnapshot: snapshot,
+	})
+	require.Error(t, err)
+	require.True(t, snapshot.loaded, "the snapshot must be captured before the chat read")
+	require.Equal(t, batch.key, snapshot.key)
+
+	// The attempt outlives the buffer retention: cleanup ticks evict
+	// the closed episode, so only the carried snapshot remains.
+	ctx := testutil.Context(t, testutil.WaitShort)
+	batch.clock.Advance(10 * time.Second).MustWait(ctx)
+	batch.clock.Advance(15 * time.Second).MustWait(ctx)
+	_, err = buffer.GetParts(batch.key)
+	require.ErrorIs(t, err, messagepartbuffer.ErrEpisodeNotFound)
+
+	// The retry bills the pre-read window: batch start at 2s to the
+	// first attempt's close at 5s.
+	messages := batch.interruptWithSnapshot(t, f, snapshot)
+	execRow := findToolResultMessage(t, messages, execCallID)
+	require.Equal(t, sql.NullInt64{Int64: 3_000, Valid: true}, execRow.RuntimeMs)
+}
+
 // A billed tool still running at the interrupt bills up to the interrupt
 // instant.
 func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {

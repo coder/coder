@@ -241,13 +241,13 @@ func (o chatWorkerOptions) retryOptions() retryWrapperOptions {
 }
 
 // interruptEpisodeSnapshot carries the interrupt task's one-time episode
-// snapshot across retry attempts of the same task instance. One attempt
-// can outlive the buffer's closed-episode retention (a machine.Update
-// stalled on a database outage runs up to the task timeout), so
-// re-reading the buffer on a later attempt could find a blank recreated
-// episode and underbill the interrupted work or drop the partial
-// messages. Attempts of one task run sequentially, so no locking is
-// needed.
+// snapshot across retry attempts of the same task instance. It is
+// captured before the task's first database read: one stalled read (a
+// database outage holds an attempt up to the task timeout) can outlive
+// the buffer's closed-episode retention, after which the buffer only
+// offers a blank recreated episode that would underbill the interrupted
+// work and drop the partial messages. Attempts of one task run
+// sequentially, so no locking is needed.
 type interruptEpisodeSnapshot struct {
 	loaded  bool
 	key     messagepartbuffer.Key
@@ -255,7 +255,59 @@ type interruptEpisodeSnapshot struct {
 	parts   []messagepartbuffer.Part
 }
 
+// closeInterruptEpisode closes the interrupted attempt's buffer episode
+// and returns its billing snapshot and buffered parts. Closing and
+// snapshotting billing state must be one atomic step: the generation
+// goroutine records batch starts and tool completions concurrently, so
+// a read-then-close would let stamps land in the gap and go missing
+// from the snapshot. Unknown episodes close blank, so interruption
+// converges even when the worker exited before publishing parts.
+func (s *taskStarter) closeInterruptEpisode(ctx context.Context, key messagepartbuffer.Key) (messagepartbuffer.EpisodeBilling, []messagepartbuffer.Part, error) {
+	billing, err := s.opts.MessagePartBuffer.CloseEpisodeForBilling(key)
+	if err != nil {
+		if ctx.Err() != nil {
+			return messagepartbuffer.EpisodeBilling{}, nil, errors.Join(errTaskExpectedExit, xerrors.Errorf("close message part episode: %w", err), ctx.Err())
+		}
+		return messagepartbuffer.EpisodeBilling{}, nil, taskRetryableError{err: xerrors.Errorf("close message part episode: %w", err)}
+	}
+	parts, err := s.opts.MessagePartBuffer.GetParts(key)
+	if errors.Is(err, messagepartbuffer.ErrEpisodeNotFound) {
+		parts = nil
+		err = nil
+	}
+	if err != nil {
+		if ctx.Err() != nil {
+			return messagepartbuffer.EpisodeBilling{}, nil, errors.Join(errTaskExpectedExit, xerrors.Errorf("get message part episode: %w", err), ctx.Err())
+		}
+		return messagepartbuffer.EpisodeBilling{}, nil, taskRetryableError{err: xerrors.Errorf("get message part episode: %w", err)}
+	}
+	return billing, parts, nil
+}
+
 func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskStartInput) error {
+	snapshot := input.InterruptSnapshot
+	// Capture the episode before the chat read below, which can stall
+	// on a database outage past the buffer's retention and let the
+	// cleanup loop evict the episode before a post-read capture. The
+	// input carries the interrupted attempt number, and generation
+	// attempts only advance while the chat is running, so the pre-read
+	// key matches the row while it stays interrupting; if the read
+	// below disagrees, the snapshot is retaken with the row's key.
+	if snapshot != nil && !snapshot.loaded {
+		earlyKey := messagepartbuffer.Key{
+			ChatID:            input.ChatID,
+			HistoryVersion:    input.HistoryVersion,
+			GenerationAttempt: input.GenerationAttempt,
+		}
+		billing, parts, err := s.closeInterruptEpisode(ctx, earlyKey)
+		if err != nil {
+			return err
+		}
+		snapshot.loaded = true
+		snapshot.key = earlyKey
+		snapshot.billing = billing
+		snapshot.parts = parts
+	}
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
 	var chat database.Chat
 	err := machine.ReadLock(ctx, func(store database.Store) error {
@@ -277,36 +329,21 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	}
 	var episodeBilling messagepartbuffer.EpisodeBilling
 	var parts []messagepartbuffer.Part
-	snapshot := input.InterruptSnapshot
 	if snapshot != nil && snapshot.loaded && snapshot.key == key {
-		// A previous attempt of this task already snapshotted the
-		// episode. Reuse it: the episode may have been evicted from
-		// the buffer while that attempt stalled, and re-reading would
-		// find a blank recreated episode.
+		// This task already snapshotted the episode, before its first
+		// chat read or on a previous attempt. Reuse it: the episode
+		// may have been evicted from the buffer while an attempt
+		// stalled, and re-reading would find a blank recreated
+		// episode.
 		episodeBilling = snapshot.billing
 		parts = snapshot.parts
 	} else {
-		// Closing and snapshotting billing state must be one atomic
-		// step: the generation goroutine records batch starts and tool
-		// completions concurrently, so a read-then-close would let
-		// stamps land in the gap and go missing from the snapshot.
-		episodeBilling, err = s.opts.MessagePartBuffer.CloseEpisodeForBilling(key)
+		// No usable snapshot: either the caller passed none (tests) or
+		// the row's attempt number disagrees with the pre-read key, so
+		// the pre-read snapshot describes the wrong episode.
+		episodeBilling, parts, err = s.closeInterruptEpisode(ctx, key)
 		if err != nil {
-			if ctx.Err() != nil {
-				return errors.Join(errTaskExpectedExit, xerrors.Errorf("close message part episode: %w", err), ctx.Err())
-			}
-			return taskRetryableError{err: xerrors.Errorf("close message part episode: %w", err)}
-		}
-		parts, err = s.opts.MessagePartBuffer.GetParts(key)
-		if errors.Is(err, messagepartbuffer.ErrEpisodeNotFound) {
-			parts = nil
-			err = nil
-		}
-		if err != nil {
-			if ctx.Err() != nil {
-				return errors.Join(errTaskExpectedExit, xerrors.Errorf("get message part episode: %w", err), ctx.Err())
-			}
-			return taskRetryableError{err: xerrors.Errorf("get message part episode: %w", err)}
+			return err
 		}
 		if snapshot != nil {
 			snapshot.loaded = true
