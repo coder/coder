@@ -4856,11 +4856,14 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 			})
 			return
 		}
-		if oldReadErr != nil {
-			// The write landed through the direct path with no baseline,
-			// so no entry: warn and finish with the success response.
-			api.Logger.Warn(ctx, "audit old capture failed, writing plan mode instructions without an audit entry",
-				slog.Error(oldReadErr))
+		if !oldCaptured {
+			// The lock wait or Old capture failed, so the write landed
+			// through the direct path with no baseline: no entry, warn,
+			// and finish with the success response. A commit failure
+			// keeps oldCaptured true and deliberately falls through so
+			// the attempt row with its real diff survives.
+			api.Logger.Warn(ctx, "audit change detection failed, writing plan mode instructions without an audit entry",
+				slog.Error(err))
 			commitAudit(false)
 			rw.WriteHeader(http.StatusNoContent)
 			return

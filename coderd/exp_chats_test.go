@@ -13655,6 +13655,50 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		require.Empty(t, mAudit.AuditLogs())
 	})
 
+	// A lock wait that times out falls back to the unaudited write path:
+	// the write succeeds, and because no baseline was captured, no entry
+	// is emitted (not even an empty-diff success entry).
+	t.Run("AuditLockFailureFallsBackWithoutEntry", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextAcquireLockStore(rawDB, database.LockIDChatInstructionPlanMode)
+		mAudit := audit.NewMock()
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		store.failNextAcquireLock.Store(true)
+		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: "Written despite lock timeout.",
+		})
+		require.NoError(t, err)
+		require.Empty(t, mAudit.AuditLogs())
+
+		resp, err := client.GetChatPlanModeInstructions(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "Written despite lock timeout.", resp.PlanModeInstructions)
+
+		// The next PUT reacquires the lock normally and audits the change
+		// against the fallback-written value.
+		mAudit.ResetLogs()
+		err = client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: "Written after lock recovery.",
+		})
+		require.NoError(t, err)
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+	})
+
 	// Two concurrent identical PUTs both succeed, but the per-setting lock
 	// serializes the Old capture with the write, so the second
 	// transaction's comparison sees the first's committed state and only
