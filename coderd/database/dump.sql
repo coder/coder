@@ -3553,6 +3553,7 @@ CREATE TABLE usage_events (
     published_at timestamp with time zone,
     failure_message text,
     inserted_at timestamp with time zone DEFAULT now() NOT NULL,
+    first_failed_at timestamp with time zone,
     CONSTRAINT usage_event_type_check CHECK ((event_type = ANY (ARRAY['dc_managed_agents_v1'::text, 'hb_ai_seats_v1'::text, 'hb_agent_runtime_v1'::text]))),
     CONSTRAINT usage_events_agent_runtime_hour_aligned CHECK (((event_type <> 'hb_agent_runtime_v1'::text) OR (date_trunc('hour'::text, timezone('UTC'::text, created_at)) = timezone('UTC'::text, created_at))))
 );
@@ -3574,6 +3575,8 @@ COMMENT ON COLUMN usage_events.published_at IS 'Set to a timestamp when the even
 COMMENT ON COLUMN usage_events.failure_message IS 'Set to an error message when the event is temporarily or permanently unsuccessfully published to the usage collector service.';
 
 COMMENT ON COLUMN usage_events.inserted_at IS 'The time the row was inserted into the database. Unlike created_at, this is always the wall-clock insertion time, so backfilled heartbeat events (whose created_at is the historical bucket start) are not misdetected as stuck by publish failure detection.';
+
+COMMENT ON COLUMN usage_events.first_failed_at IS 'The time of the first failed publish attempt that left the row unpublished. Publish failure detection measures failure age from this timestamp, so a backlog accumulated while publishing was disabled warns only after the failure threshold elapses from the first post-(re-)enablement failure rather than from insertion.';
 
 CREATE TABLE usage_events_daily (
     day date NOT NULL,

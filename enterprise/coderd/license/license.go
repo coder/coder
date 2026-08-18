@@ -184,8 +184,9 @@ type FeatureArguments struct {
 	// database. It is only called when a currently-valid license enables
 	// usage publishing. licenseStart is the earliest nbf among such licenses;
 	// events that have never had a publish attempt count as stuck only from
-	// licenseStart, so a backlog accumulated while publishing was disabled
-	// (or before it was first enabled) gets the full failure threshold as a
+	// licenseStart, and attempted events count from their first failed
+	// attempt, so a backlog accumulated while publishing was disabled (or
+	// before it was first enabled) gets the full failure threshold as a
 	// grace period after (re-)enablement.
 	UsagePublishStatusFn UsagePublishStatusFn
 }
