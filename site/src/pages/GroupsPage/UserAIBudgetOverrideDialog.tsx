@@ -159,16 +159,7 @@ export const UserAIBudgetOverrideDialog: FC<
 					<DialogTitle className="font-semibold text-content-primary">
 						AI Budget
 					</DialogTitle>
-					<AvatarData
-						avatar={
-							<Avatar
-								size="lg"
-								fallback={user.username}
-								src={user.avatar_url}
-							/>
-						}
-						{...userIdentity(user)}
-					/>
+					<AvatarData {...userIdentity(user)} />
 				</div>
 
 				{body}

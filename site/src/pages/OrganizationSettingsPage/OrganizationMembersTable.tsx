@@ -4,7 +4,6 @@ import type {
 	Group,
 	OrganizationMemberWithUserData,
 } from "#/api/typesGenerated";
-import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { userIdentity } from "#/components/Avatar/userIdentity";
 import { PremiumBadge } from "#/components/Badges/Badges";
@@ -125,16 +124,7 @@ const OrganizationMembersTableBody: React.FC<OrganizationMembersTableProps> = ({
 			{members.map((member) => (
 				<TableRow key={member.user_id} className="align-baseline">
 					<TableCell>
-						<AvatarData
-							avatar={
-								<Avatar
-									fallback={member.username}
-									src={member.avatar_url}
-									size="lg"
-								/>
-							}
-							{...userIdentity(member)}
-						/>
+						<AvatarData {...userIdentity(member)} />
 					</TableCell>
 					<UserRoleCell
 						globalRoles={member.global_roles}

@@ -16,7 +16,6 @@ import type {
 	GroupMemberAISpend,
 	ReducedUser,
 } from "#/api/typesGenerated";
-import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { userIdentity } from "#/components/Avatar/userIdentity";
 import { Button } from "#/components/Button/Button";
@@ -245,16 +244,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	return (
 		<TableRow key={member.id}>
 			<TableCell width={showAIBudget ? undefined : "59%"}>
-				<AvatarData
-					avatar={
-						<Avatar
-							size="lg"
-							fallback={member.username}
-							src={member.avatar_url}
-						/>
-					}
-					{...userIdentity(member)}
-				/>
+				<AvatarData {...userIdentity(member)} />
 			</TableCell>
 			<TableCell
 				width={showAIBudget ? undefined : "40%"}

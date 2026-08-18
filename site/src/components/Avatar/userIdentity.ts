@@ -11,8 +11,9 @@ type UserIdentity = {
 	src: string | undefined;
 };
 
-// Username is primary; email disambiguates. Service accounts have no login
-// email, so they get a fixed subtitle instead.
+// Builds the title, subtitle, and avatar src for a user. Service accounts get
+// the fixed "Service Account" subtitle; otherwise the email is used, falling
+// back to undefined when empty.
 export function userIdentity(user: UserIdentityInput): UserIdentity {
 	return {
 		title: user.username,

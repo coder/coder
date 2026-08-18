@@ -30,6 +30,16 @@ describe("userIdentity", () => {
 		});
 	});
 
+	it("prefers Service Account subtitle over a populated email", () => {
+		expect(
+			userIdentity({
+				username: "bot",
+				email: "bot@coder.com",
+				is_service_account: true,
+			}).subtitle,
+		).toBe("Service Account");
+	});
+
 	it("omits subtitle and src when empty", () => {
 		expect(
 			userIdentity({ username: "bob", email: "", avatar_url: "" }),
