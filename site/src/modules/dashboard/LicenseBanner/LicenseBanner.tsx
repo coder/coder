@@ -1,5 +1,6 @@
 import type { FC } from "react";
 import {
+	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
 	LicenseAIGovernance90PercentWarningText,
 	LicenseAIGovernanceOverLimitWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
@@ -24,7 +25,27 @@ const isAIGovernanceWarning = (message: string): boolean =>
 	message.startsWith(aiGovernanceNearLimitWarningPrefix) ||
 	message.startsWith(aiGovernanceOverLimitWarningPrefix);
 
-const isAIGovernanceNearLimitWarning = (message: string): boolean =>
+// Substitutes the given values into the template's %d placeholders in order.
+// No other fmt verb, width, or flag is implemented.
+const formatLicenseMessage = (template: string, ...values: number[]): string =>
+	values.reduce(
+		(message, value) => message.replace("%d", `${value}`),
+		template,
+	);
+
+// Diagnostics about the license or the usage measurement rather than about
+// usage itself. They render muted, without the exceedance heading or a sales
+// link, even when they arrive via entitlements.errors.
+const diagnosticMessages: readonly string[] = [
+	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
+];
+
+const isDiagnosticMessage = (message: string): boolean =>
+	diagnosticMessages.includes(message);
+
+// Advisories render muted to stay visually distinct from warnings that
+// demand action, such as exceeding a license limit.
+const isAdvisoryMessage = (message: string): boolean =>
 	message.startsWith(aiGovernanceNearLimitWarningPrefix);
 
 const aiGovernanceOverLimitMessage = (
@@ -48,9 +69,12 @@ const aiGovernanceOverLimitMessage = (
 	}
 
 	const overLimitSeats = actual - limit;
-	return LicenseAIGovernanceOverLimitWarningText.replace("%d", `${actual}`)
-		.replace("%d", `${limit}`)
-		.replace("%d", `${overLimitSeats}`);
+	return formatLicenseMessage(
+		LicenseAIGovernanceOverLimitWarningText,
+		actual,
+		limit,
+		overLimitSeats,
+	);
 };
 
 const aiGovernanceNearLimitMessage = (
@@ -99,7 +123,7 @@ const normalizeAIGovernanceWarning = (
 	);
 };
 
-const messageLink = (message: string): LicenseBannerLink => {
+const messageLink = (message: string): LicenseBannerLink | undefined => {
 	if (message === LicenseManagedAgentLimitExceededWarningText) {
 		return {
 			href: docs("/ai-coder/ai-governance"),
@@ -119,6 +143,29 @@ const messageLink = (message: string): LicenseBannerLink => {
 		href: "mailto:sales@coder.com",
 		label: "Contact sales@coder.com.",
 		showExternalIcon: false,
+	};
+};
+
+// Classifies a raw entitlements message once and carries the result as
+// structured message data, so rendering branches on the message's kind and
+// variant fields rather than re-matching display text.
+const toBannerMessage = (
+	message: string,
+	channel: "errors" | "warnings",
+): LicenseBannerMessage => {
+	// Measurement diagnostics travel in the errors channel but are not
+	// license errors. They render muted and without a sales link: they point
+	// the operator at the logs, not at sales.
+	if (isDiagnosticMessage(message)) {
+		return { message, variant: "warning", kind: "diagnostic" };
+	}
+	if (channel === "errors") {
+		return { message, variant: "error", link: messageLink(message) };
+	}
+	return {
+		message,
+		variant: isAdvisoryMessage(message) ? "warning" : "warningProminent",
+		link: messageLink(message),
 	};
 };
 
@@ -144,18 +191,10 @@ export const LicenseBanner: FC = () => {
 	);
 
 	const messages: LicenseBannerMessage[] = [
-		...errors.map((message) => ({
-			message,
-			variant: "error" as const,
-			link: messageLink(message),
-		})),
-		...normalizedWarnings.map((message) => ({
-			message,
-			variant: isAIGovernanceNearLimitWarning(message)
-				? ("warning" as const)
-				: ("warningProminent" as const),
-			link: messageLink(message),
-		})),
+		...errors.map((message) => toBannerMessage(message, "errors")),
+		...normalizedWarnings.map((message) =>
+			toBannerMessage(message, "warnings"),
+		),
 	];
 
 	if (messages.length === 0) {
