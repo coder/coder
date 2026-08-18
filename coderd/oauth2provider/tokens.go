@@ -512,6 +512,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		TokenType:    codersdk.OAuth2TokenTypeBearer,
 		RefreshToken: refreshToken.Formatted,
 		ExpiresIn:    int64(time.Until(key.ExpiresAt).Seconds()),
+		Scope:        dbCode.Scope,
 		Expiry:       &key.ExpiresAt,
 	}, nil
 }
@@ -650,6 +651,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		TokenType:    codersdk.OAuth2TokenTypeBearer,
 		RefreshToken: refreshToken.Formatted,
 		ExpiresIn:    int64(time.Until(key.ExpiresAt).Seconds()),
+		Scope:        dbToken.Scope,
 		Expiry:       &key.ExpiresAt,
 	}, nil
 }
