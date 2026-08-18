@@ -705,7 +705,7 @@ tool (
 	storj.io/drpc/cmd/protoc-gen-go-drpc
 )
 
-replace github.com/coder/coder/coder-sandbox => github.com/coder/sandbox v0.0.0-20260818034305-a3b5669fe9a6
+replace github.com/coder/coder/coder-sandbox => github.com/coder/sandbox v0.0.0-20260818164245-6135ed378871
 
 // The sandbox prototype depends on its go-microvm fork. Dependency-module
 // replacement directives are not inherited by the main module.
