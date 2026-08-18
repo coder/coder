@@ -575,6 +575,46 @@ export const CreateOnlyOrgAdminCanAddMCPServer: Story = {
 	},
 };
 
+export const AddDeniedRequestedOrganizationDoesNotFallback: Story = {
+	render: () => <AddMCPServerPage />,
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: false,
+			createAnyMCPServerConfig: true,
+			updateAnyMCPServerConfig: false,
+			deleteAnyMCPServerConfig: false,
+		},
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/ai/settings/mcp-servers/add",
+				searchParams: { [orgSearchParam]: MockDefaultOrganization.name },
+			},
+			routing: { path: "/ai/settings/mcp-servers/add" },
+		}),
+	},
+	beforeEach: () => {
+		mockOrganizationPermissions({
+			[MockDefaultOrganization.id]: {},
+			[MockOrganization2.id]: { create: true },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(
+			await body.findByText("You don't have permission to view this page"),
+		).toBeInTheDocument();
+		expect(canvas.queryByLabelText(/display name/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", {
+				name: `Organization ${MockOrganization2.display_name}`,
+			}),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const AddFailurePreservesEnteredValues: Story = {
 	render: () => <AddMCPServerPage />,
 	parameters: {
@@ -995,6 +1035,44 @@ export const UpdateOnlyOrgAdminCanUpdateMCPServer: Story = {
 		expect(
 			canvas.queryByRole("button", { name: /delete server/i }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const UpdateDeniedRequestedOrganizationDoesNotFallback: Story = {
+	render: () => <UpdateMCPServerPage />,
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: false,
+			updateAnyMCPServerConfig: true,
+			deleteAnyMCPServerConfig: false,
+		},
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/ai/settings/mcp-servers/${MockCoderMCPServer.id}`,
+				searchParams: { [orgSearchParam]: MockDefaultOrganization.name },
+			},
+			routing: { path: "/ai/settings/mcp-servers/:serverId" },
+		}),
+	},
+	beforeEach: () => {
+		mockOrganizationPermissions({
+			[MockDefaultOrganization.id]: {},
+			[MockOrganization2.id]: { update: true },
+		});
+		spyOn(API.experimental, "getMCPServerConfig").mockResolvedValue(
+			MockOrganization2MCPServer,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(
+			await body.findByText("You don't have permission to view this page"),
+		).toBeInTheDocument();
+		expect(canvas.queryByLabelText(/display name/i)).not.toBeInTheDocument();
+		expect(API.experimental.getMCPServerConfig).not.toHaveBeenCalled();
 	},
 };
 

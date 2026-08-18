@@ -54,9 +54,11 @@ const AddMCPServerPage: FC = () => {
 		creatableOrganizations.find(
 			(organization) => organization.name === requestedOrganizationName,
 		);
+	const requestedOrganizationDenied =
+		requestedOrganizationName !== null && !requestedOrganization;
 	const organization =
 		requestedOrganization ??
-		(creatableOrganizations.length > 0
+		(requestedOrganizationName === null && creatableOrganizations.length > 0
 			? selectOrganization(creatableOrganizations, null)
 			: undefined);
 	const organizationPermissions = organization
@@ -100,7 +102,7 @@ const AddMCPServerPage: FC = () => {
 			) : !permissions.editDeploymentConfig &&
 				!organizationPermissionsQuery.data ? (
 				<Loader />
-			) : creatableOrganizations.length === 0 ? (
+			) : creatableOrganizations.length === 0 || requestedOrganizationDenied ? (
 				<RequirePermission isFeatureVisible={false} />
 			) : (
 				organization && (

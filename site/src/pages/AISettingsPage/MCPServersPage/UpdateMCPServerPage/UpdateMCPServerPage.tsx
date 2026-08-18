@@ -48,13 +48,15 @@ const UpdateMCPServerPage: FC = () => {
 						organizationPermissions?.deleteMCPServerConfig,
 				);
 			});
+	const requestedOrganizationName = searchParams.get(orgSearchParam);
 	const organization =
-		manageableOrganizations.length > 0
-			? selectOrganization(
-					manageableOrganizations,
-					searchParams.get(orgSearchParam),
-				)
-			: undefined;
+		requestedOrganizationName === null
+			? manageableOrganizations.length > 0
+				? selectOrganization(manageableOrganizations, null)
+				: undefined
+			: manageableOrganizations.find(
+					(organization) => organization.name === requestedOrganizationName,
+				);
 	const organizationPermissions = organization
 		? organizationPermissionsQuery.data?.[organization.id]
 		: undefined;
