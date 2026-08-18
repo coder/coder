@@ -609,6 +609,30 @@ func Test_diff(t *testing.T) {
 			},
 		},
 		{
+			name: "CustomHeadersAdded",
+			left: database.MCPServerConfig{
+				CustomHeaders: "{}",
+			},
+			right: database.MCPServerConfig{
+				CustomHeaders: `{"Authorization":"Bearer plaintext-header"}`,
+			},
+			exp: audit.Map{
+				"custom_headers": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+		{
+			name: "CustomHeadersRemoved",
+			left: database.MCPServerConfig{
+				CustomHeaders: `{"Authorization":"Bearer plaintext-header"}`,
+			},
+			right: database.MCPServerConfig{
+				CustomHeaders: "{}",
+			},
+			exp: audit.Map{
+				"custom_headers": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+		{
 			name: "SecretRotationRedacted",
 			left: database.MCPServerConfig{
 				ID:                 uuid.UUID{1},
