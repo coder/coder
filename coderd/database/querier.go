@@ -880,14 +880,16 @@ type sqlcQuerier interface {
 	//     count as stuck only from license_start, giving the publisher a grace
 	//     period to work through a backlog accumulated while publishing was
 	//     disabled or before it was first enabled (e.g. after switching from an
-	//     air-gapped license). Events with at least one failed attempt (an
-	//     unpublished row's failure_message is set by every failed attempt)
-	//     count from their first failed attempt instead, so an ongoing outage
-	//     keeps warning even though a license renewal advances license_start,
-	//     while a backlogged event's first post-(re-)enablement failure starts a
-	//     fresh threshold rather than warning immediately off its old insertion
-	//     time. Rows whose failures predate the first_failed_at column fall back
-	//     to their insertion time.
+	//     air-gapped license). Events whose failure streak is current (last
+	//     failed attempt at or after license_start) count from the streak's
+	//     start instead, so an ongoing outage keeps warning even though a
+	//     license renewal advances license_start. Events whose last failed
+	//     attempt predates license_start are stale: publishing was disabled in
+	//     between, so they also get the license_start grace until the re-enabled
+	//     publisher retries them (at which point the streak-gap reset in
+	//     UpdateUsageEventsPostPublish starts a fresh threshold). Rows whose
+	//     failures predate the failure-timestamp columns fall back to their
+	//     insertion time.
 	//   - window_start: the start of the publisher's selection window (now minus
 	//     30 days, matching SelectUsageEventsForPublishing). Events older than
 	//     this are never published, so they must not trigger a failure forever.

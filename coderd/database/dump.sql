@@ -3554,6 +3554,7 @@ CREATE TABLE usage_events (
     failure_message text,
     inserted_at timestamp with time zone DEFAULT now() NOT NULL,
     first_failed_at timestamp with time zone,
+    last_failed_at timestamp with time zone,
     CONSTRAINT usage_event_type_check CHECK ((event_type = ANY (ARRAY['dc_managed_agents_v1'::text, 'hb_ai_seats_v1'::text, 'hb_agent_runtime_v1'::text]))),
     CONSTRAINT usage_events_agent_runtime_hour_aligned CHECK (((event_type <> 'hb_agent_runtime_v1'::text) OR (date_trunc('hour'::text, timezone('UTC'::text, created_at)) = timezone('UTC'::text, created_at))))
 );
@@ -3576,7 +3577,9 @@ COMMENT ON COLUMN usage_events.failure_message IS 'Set to an error message when 
 
 COMMENT ON COLUMN usage_events.inserted_at IS 'The time the row was inserted into the database. Unlike created_at, this is always the wall-clock insertion time, so backfilled heartbeat events (whose created_at is the historical bucket start) are not misdetected as stuck by publish failure detection.';
 
-COMMENT ON COLUMN usage_events.first_failed_at IS 'The time of the first failed publish attempt that left the row unpublished. Publish failure detection measures failure age from this timestamp, so a backlog accumulated while publishing was disabled warns only after the failure threshold elapses from the first post-(re-)enablement failure rather than from insertion.';
+COMMENT ON COLUMN usage_events.first_failed_at IS 'The time of the first failed publish attempt in the row''s current failure streak. Publish failure detection measures failure age from this timestamp, so failures start the failure threshold from the first failed attempt rather than from insertion.';
+
+COMMENT ON COLUMN usage_events.last_failed_at IS 'The time of the most recent failed publish attempt that left the row unpublished. A failed attempt more than 24 hours after the previous one starts a new failure streak (resets first_failed_at), so failures predating an interval where publishing was disabled do not count toward the failure threshold after re-enablement.';
 
 CREATE TABLE usage_events_daily (
     day date NOT NULL,

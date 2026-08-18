@@ -11149,9 +11149,10 @@ func TestGetUsagePublishStatus(t *testing.T) {
 		// no publishedAt + failureMessage = temporary failure,
 		// publishedAt set + failureMessage = permanent rejection.
 		failureMessage string
-		// failedAt is the time of a temporary failure. Zero means the
-		// attempt failed at the event's insertion time.
-		failedAt time.Time
+		// failedAts are the times of temporary failed attempts, applied in
+		// order. Empty means a single attempt failed at the event's
+		// insertion time.
+		failedAts []time.Time
 	}
 
 	seed := func(ctx context.Context, t *testing.T, db database.Store, events []seedEvent) {
@@ -11172,20 +11173,22 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			if !ev.publishedAt.IsZero() || ev.failureMessage != "" {
 				// Now is the publish time for successes and permanent
 				// rejections, and the failure time for temporary failures.
-				updateTime := ev.publishedAt
-				if updateTime.IsZero() {
-					updateTime = ev.failedAt
+				updateTimes := []time.Time{ev.publishedAt}
+				if ev.publishedAt.IsZero() {
+					updateTimes = ev.failedAts
+					if len(updateTimes) == 0 {
+						updateTimes = []time.Time{insertedAt}
+					}
 				}
-				if updateTime.IsZero() {
-					updateTime = insertedAt
+				for _, updateTime := range updateTimes {
+					err = db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
+						Now:             updateTime,
+						IDs:             []string{ev.id},
+						FailureMessages: []string{ev.failureMessage},
+						SetPublishedAts: []bool{!ev.publishedAt.IsZero()},
+					})
+					require.NoError(t, err)
 				}
-				err = db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
-					Now:             updateTime,
-					IDs:             []string{ev.id},
-					FailureMessages: []string{ev.failureMessage},
-					SetPublishedAts: []bool{!ev.publishedAt.IsZero()},
-				})
-				require.NoError(t, err)
 			}
 		}
 	}
@@ -11311,19 +11314,70 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			},
 		},
 		{
-			// An event with at least one failed publish attempt gets no
-			// license_start grace: a license renewal advancing license_start
-			// must not clear an active failure warning for events that are
-			// still stuck from before the renewal.
+			// An event in an ongoing failure streak (the publisher keeps
+			// retrying, so attempts are frequent) gets no license_start
+			// grace: a license renewal advancing license_start must not
+			// clear an active failure warning.
 			name: "RenewalDoesNotResetStuckDetection",
 			events: []seedEvent{
 				{id: "1", createdAt: now.Add(-10 * 24 * time.Hour), publishedAt: now.Add(-9 * 24 * time.Hour)},
-				{id: "2", createdAt: now.Add(-48 * time.Hour), failureMessage: "temporary failure"},
+				{id: "2", createdAt: now.Add(-48 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{
+					now.Add(-48 * time.Hour),
+					now.Add(-30 * time.Hour),
+					now.Add(-12 * time.Hour),
+					now.Add(-10 * time.Minute),
+				}},
 			},
 			licenseStartOverride: now.Add(-1 * time.Hour),
 			want: database.GetUsagePublishStatusRow{
 				LastPublishedAt: now.Add(-9 * 24 * time.Hour),
 				OldestStuckAt:   now.Add(-48 * time.Hour),
+			},
+		},
+		{
+			// A failure whose last attempt predates license_start is stale:
+			// publishing was disabled in between, so re-enabling grants the
+			// license_start grace instead of warning immediately off the old
+			// failure.
+			name: "StaleFailureGetsGraceAfterReEnable",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-20 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-15 * 24 * time.Hour)}},
+			},
+			licenseStartOverride: now.Add(-1 * time.Hour),
+			want:                 database.GetUsagePublishStatusRow{},
+		},
+		{
+			// The stale-failure grace still expires: if the re-enabled
+			// publisher never retries the event, it warns once the threshold
+			// elapses from license_start.
+			name: "StaleFailureWarnsAfterReEnableGrace",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-20 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-15 * 24 * time.Hour)}},
+			},
+			licenseStartOverride: now.Add(-30 * time.Hour),
+			want: database.GetUsagePublishStatusRow{
+				OldestStuckAt: now.Add(-30 * time.Hour),
+			},
+		},
+		{
+			// A failed attempt more than 24 hours after the previous one
+			// starts a new failure streak, so failure age is measured from
+			// the new attempt rather than the stale one.
+			name: "FailureStreakGapResetsThreshold",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-20 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour), now.Add(-10 * time.Minute)}},
+			},
+			want: database.GetUsagePublishStatusRow{},
+		},
+		{
+			// Attempts within 24 hours of each other keep the streak, so
+			// failure age is measured from the streak's first failure.
+			name: "FailureStreakIntactKeepsFirstFailure",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-20 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour), now.Add(-20 * time.Hour), now.Add(-1 * time.Hour)}},
+			},
+			want: database.GetUsagePublishStatusRow{
+				OldestStuckAt: now.Add(-30 * time.Hour),
 			},
 		},
 		{
@@ -11349,7 +11403,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			name: "ReEnableFirstFailureStartsFreshThreshold",
 			events: []seedEvent{
 				{id: "1", createdAt: now.Add(-10 * 24 * time.Hour), publishedAt: now.Add(-9 * 24 * time.Hour)},
-				{id: "2", createdAt: now.Add(-5 * 24 * time.Hour), failureMessage: "temporary failure", failedAt: now.Add(-1 * time.Hour)},
+				{id: "2", createdAt: now.Add(-5 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-1 * time.Hour)}},
 			},
 			licenseStartOverride: now.Add(-2 * time.Hour),
 			want: database.GetUsagePublishStatusRow{
@@ -11361,7 +11415,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			// failure time is the effective stuck time.
 			name: "FailingSinceFirstFailure",
 			events: []seedEvent{
-				{id: "1", createdAt: now.Add(-5 * 24 * time.Hour), failureMessage: "temporary failure", failedAt: now.Add(-25 * time.Hour)},
+				{id: "1", createdAt: now.Add(-5 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-25 * time.Hour), now.Add(-2 * time.Hour)}},
 			},
 			want: database.GetUsagePublishStatusRow{
 				OldestStuckAt: now.Add(-25 * time.Hour),
