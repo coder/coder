@@ -53,7 +53,6 @@ export function FilterCombobox({
 }: FilterComboboxProps) {
 	const {
 		open,
-		isBrowsing,
 		inputValue,
 		committedFreeText,
 		activeCategoryKey,
@@ -61,13 +60,12 @@ export function FilterCombobox({
 		activeOptions,
 		activeOptionsLoading,
 		activeOptionsError,
+		statusMessage,
 		listedCategories,
 		valueSuggestions,
-		valueSuggestionsLoading,
-		typeaheadError,
 		searchResults,
-		searchResultsLoading,
 		chipValues,
+		typeahead,
 		actions,
 	} = useFilterCombobox({
 		value,
@@ -76,30 +74,6 @@ export function FilterCombobox({
 		getSearchResults,
 		onSearchResultSelect,
 	});
-
-	const showTypeahead = activeCategoryKey === null && isBrowsing;
-	const hasTypeaheadQuery = showTypeahead && inputValue.trim().length > 0;
-	const showValueSuggestions = hasTypeaheadQuery && valueSuggestions.length > 0;
-	const showSearchSection = hasTypeaheadQuery && searchResults.length > 0;
-	const typeaheadLoading =
-		hasTypeaheadQuery &&
-		((valueSuggestionsLoading && valueSuggestions.length === 0) ||
-			(Boolean(getSearchResults) &&
-				searchResultsLoading &&
-				searchResults.length === 0));
-
-	const statusMessage = (() => {
-		if (activeCategory) {
-			if (activeOptionsLoading) {
-				return `Loading ${activeCategory.label} options`;
-			}
-			return `Filtering by ${activeCategory.label}`;
-		}
-		if (typeaheadLoading) {
-			return "Loading suggestions";
-		}
-		return "";
-	})();
 
 	return (
 		<Combobox
@@ -185,16 +159,16 @@ export function FilterCombobox({
 			<ComboboxContent>
 				{/* Keep mounted so polite status announcements stay consistent. */}
 				<ComboboxStatus>{statusMessage}</ComboboxStatus>
-				{showTypeahead ? (
+				{typeahead.active ? (
 					<TypeaheadList
 						listedCategories={listedCategories}
 						valueSuggestions={valueSuggestions}
 						searchResults={searchResults}
 						searchResultsLabel={searchResultsLabel}
-						showSearchSection={showSearchSection}
-						showValueSuggestions={showValueSuggestions}
-						typeaheadLoading={typeaheadLoading}
-						typeaheadError={typeaheadError}
+						showSearchSection={typeahead.showSearchResults}
+						showValueSuggestions={typeahead.showValueSuggestions}
+						typeaheadLoading={typeahead.loading}
+						typeaheadError={typeahead.error}
 						onSelectCategory={actions.selectCategory}
 						onSelectSuggestion={actions.selectValueSuggestion}
 						onSelectSearchResult={actions.selectSearchResult}

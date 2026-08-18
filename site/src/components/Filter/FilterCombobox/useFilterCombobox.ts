@@ -293,6 +293,27 @@ export const useFilterCombobox = ({
 		isBrowsing &&
 		(suggestionsError || (hasSearchResults && searchResultsQuery.isError));
 
+	// Derived view-model for the browsing (typeahead) popup.
+	const typeaheadActive = activeCategoryKey === null && isBrowsing;
+	const hasTypeaheadQuery = typeaheadActive && inputValue.trim().length > 0;
+	const showValueSuggestions = hasTypeaheadQuery && valueSuggestions.length > 0;
+	const showSearchResults = hasTypeaheadQuery && searchResults.length > 0;
+	// Only spin while the first page of either source is still in flight; once
+	// anything has resolved we render rows instead of the spinner.
+	const typeaheadLoading =
+		hasTypeaheadQuery &&
+		((valueSuggestionsLoading && valueSuggestions.length === 0) ||
+			(hasSearchResults && searchResultsLoading && searchResults.length === 0));
+
+	let statusMessage = "";
+	if (activeCategory) {
+		statusMessage = activeOptionsLoading
+			? `Loading ${activeCategory.label} options`
+			: `Filtering by ${activeCategory.label}`;
+	} else if (typeaheadLoading) {
+		statusMessage = "Loading suggestions";
+	}
+
 	const updateFromChips = (tokens: string[], freeText?: string) => {
 		const nextFreeText =
 			freeText === undefined ? committedFreeTextRef.current : freeText;
@@ -423,7 +444,6 @@ export const useFilterCombobox = ({
 	return {
 		// Reactive state the view renders from.
 		open,
-		isBrowsing,
 		inputValue,
 		committedFreeText,
 		activeCategoryKey,
@@ -431,13 +451,20 @@ export const useFilterCombobox = ({
 		activeOptions,
 		activeOptionsLoading,
 		activeOptionsError,
+		statusMessage,
 		listedCategories,
 		valueSuggestions,
-		valueSuggestionsLoading,
-		typeaheadError,
 		searchResults,
-		searchResultsLoading,
 		chipValues,
+		// Derived typeahead view-model, so the view renders flags instead of
+		// recomputing loading/visibility from raw query state.
+		typeahead: {
+			active: typeaheadActive,
+			loading: typeaheadLoading,
+			error: typeaheadError,
+			showValueSuggestions,
+			showSearchResults,
+		},
 		// Imperative handlers, grouped so the view wires intent, not internals.
 		actions: {
 			setInputRef: (node: HTMLInputElement | null) => {
