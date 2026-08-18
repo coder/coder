@@ -348,6 +348,9 @@ func TestDialValidatedIPs(t *testing.T) {
 func TestDialMCPAddressIPv6Zone(t *testing.T) {
 	t.Parallel()
 
+	u, err := url.Parse("http://[fe80::1%25eth0]:80")
+	require.NoError(t, err)
+	literalAddr := u.Host
 	errDial := xerrors.New("dial stopped")
 	cases := []struct {
 		name        string
@@ -359,7 +362,7 @@ func TestDialMCPAddressIPv6Zone(t *testing.T) {
 		{
 			name:     "AllowedPreservesZone",
 			allowed:  []netip.Prefix{netip.MustParsePrefix("fe80::/10")},
-			wantAddr: "[fe80::1%eth0]:80",
+			wantAddr: literalAddr,
 		},
 	}
 	for _, tc := range cases {
@@ -376,7 +379,7 @@ func TestDialMCPAddressIPv6Zone(t *testing.T) {
 				t.Context(),
 				dialer,
 				"tcp6",
-				"[fe80::1%eth0]:80",
+				literalAddr,
 				tc.allowed,
 			)
 			require.Nil(t, conn)
