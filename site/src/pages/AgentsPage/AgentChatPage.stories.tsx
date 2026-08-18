@@ -46,7 +46,8 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
-import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
+import { rightPanelOpenStorage } from "#/utils/storage/keys";
+import AgentChatPage from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
 
@@ -856,7 +857,7 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 		}),
 	},
 	beforeEach: () => {
-		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		localStorage.removeItem(rightPanelOpenStorage.key);
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
 		spyOn(API.experimental, "updateChat").mockResolvedValue();
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
@@ -876,7 +877,7 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 				byok_enabled: true,
 			},
 		]);
-		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		return () => localStorage.removeItem(rightPanelOpenStorage.key);
 	},
 };
 
@@ -1620,8 +1621,8 @@ export const PlanModeFromChatState: Story = {
  */
 export const NarrowViewportShowsChatOverOpenPanel: Story = {
 	beforeEach: () => {
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
-		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		localStorage.setItem(rightPanelOpenStorage.key, "true");
+		return () => localStorage.removeItem(rightPanelOpenStorage.key);
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
@@ -1666,12 +1667,12 @@ let narrowingMedia: ReturnType<typeof setupMatchMedia> | undefined;
  */
 export const NarrowingSuppressesExpandedPanel: Story = {
 	beforeEach: () => {
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		localStorage.setItem(rightPanelOpenStorage.key, "true");
 		narrowingMedia = setupMatchMedia({ [belowLgViewportMediaQuery]: false });
 		return () => {
 			narrowingMedia?.restore();
 			narrowingMedia = undefined;
-			localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+			localStorage.removeItem(rightPanelOpenStorage.key);
 		};
 	},
 	parameters: {
@@ -1713,8 +1714,8 @@ export const NarrowingSuppressesExpandedPanel: Story = {
 /** Full layout with actions menu and diff panel portaled to the right slot. */
 export const CompletedWithDiffPanel: Story = {
 	beforeEach: () => {
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
-		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		localStorage.setItem(rightPanelOpenStorage.key, "true");
+		return () => localStorage.removeItem(rightPanelOpenStorage.key);
 	},
 	parameters: {
 		queries: buildQueries(
@@ -2114,8 +2115,8 @@ export const StreamedSubagentTitle: Story = {
  */
 export const SidebarWithPRAndRepos: Story = {
 	beforeEach: () => {
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
-		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		localStorage.setItem(rightPanelOpenStorage.key, "true");
+		return () => localStorage.removeItem(rightPanelOpenStorage.key);
 	},
 	parameters: {
 		queries: buildQueries(
@@ -2295,8 +2296,8 @@ export const SidebarWithPRAndRepos: Story = {
  */
 export const SidebarWithSingleRepo: Story = {
 	beforeEach: () => {
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
-		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		localStorage.setItem(rightPanelOpenStorage.key, "true");
+		return () => localStorage.removeItem(rightPanelOpenStorage.key);
 	},
 	parameters: {
 		queries: buildQueries(
@@ -2383,12 +2384,12 @@ const rebuildRecoveryChat: TypesGen.Chat = {
 
 export const RecoversSidebarAfterWorkspaceRebuild: Story = {
 	beforeEach: () => {
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		localStorage.setItem(rightPanelOpenStorage.key, "true");
 		spyOn(API.experimental, "getChat").mockResolvedValue({
 			...rebuildRecoveryChat,
 			agent_id: rebuiltWorkspaceAgent.id,
 		});
-		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		return () => localStorage.removeItem(rightPanelOpenStorage.key);
 	},
 	parameters: {
 		queries: [

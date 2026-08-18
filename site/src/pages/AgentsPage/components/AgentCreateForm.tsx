@@ -10,6 +10,11 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	emptyInputDraftStorage,
+	lastModelConfigIdStorage,
+	selectedWorkspaceIdStorage,
+} from "#/utils/storage/keys";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
@@ -39,11 +44,6 @@ import {
 } from "./MCPServerPicker";
 import { getModelSelectorHelp } from "./ModelSelectorHelp";
 
-/** @internal Exported for testing. */
-export const emptyInputStorageKey = "agents.empty-input";
-const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-
 type ChatModelOption = ModelSelectorOption;
 
 export type CreateChatOptions = {
@@ -70,7 +70,7 @@ export type CreateChatOptions = {
  */
 export function useEmptyStateDraft() {
 	const [{ initialInputValue, initialEditorState }] = useState(() => {
-		const draft = parseStoredDraft(localStorage.getItem(emptyInputStorageKey));
+		const draft = parseStoredDraft(emptyInputDraftStorage.get());
 		return {
 			initialInputValue: draft.text,
 			initialEditorState: draft.editorState,
@@ -88,13 +88,10 @@ export function useEmptyStateDraft() {
 		if (!sentRef.current) {
 			const shouldPersist = content.trim() || hasFileReferences;
 			if (shouldPersist) {
-				try {
-					localStorage.setItem(emptyInputStorageKey, serializedEditorState);
-				} catch {
-					// QuotaExceededError, silently discard the draft.
-				}
+				// A quota failure silently discards the draft.
+				emptyInputDraftStorage.set(serializedEditorState);
 			} else {
-				localStorage.removeItem(emptyInputStorageKey);
+				emptyInputDraftStorage.remove();
 			}
 		}
 	};
@@ -103,7 +100,7 @@ export function useEmptyStateDraft() {
 		// Mark as sent so that editor change events firing during
 		// the async gap cannot re-persist the draft.
 		sentRef.current = true;
-		localStorage.removeItem(emptyInputStorageKey);
+		emptyInputDraftStorage.remove();
 	};
 
 	const resetDraft = () => {
@@ -178,7 +175,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		resetDraft,
 	} = useEmptyStateDraft();
 	const [initialLastModelConfigID] = useState(() => {
-		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
+		return lastModelConfigIdStorage.get() ?? "";
 	});
 	/*
 	 * Model precedence: user click > root override (specific model) > root
@@ -273,7 +270,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// because the permitted-organizations query may resolve after mount and
 	// change the effective org.
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
-		() => localStorage.getItem(selectedWorkspaceIdStorageKey),
+		() => selectedWorkspaceIdStorage.get(),
 	);
 	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
 		null,
@@ -369,7 +366,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	}
 	useEffect(() => {
 		if (selectedWorkspaceId === null) {
-			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+			selectedWorkspaceIdStorage.remove();
 		}
 	}, [selectedWorkspaceId]);
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
@@ -398,7 +395,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		if (lastUsedModelID) {
 			return;
 		}
-		localStorage.removeItem(lastModelConfigIDStorageKey);
+		lastModelConfigIdStorage.remove();
 	}, [
 		initialLastModelConfigID,
 		isModelCatalogLoading,
@@ -423,11 +420,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
 			setSelectedWorkspaceId(null);
-			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+			selectedWorkspaceIdStorage.remove();
 			return;
 		}
 		setSelectedWorkspaceId(value);
-		localStorage.setItem(selectedWorkspaceIdStorageKey, value);
+		selectedWorkspaceIdStorage.set(value);
 	};
 
 	const selectOrganization = (organization: TypesGen.Organization) => {

@@ -1,4 +1,5 @@
 import type { WorkspaceAgentPortShareProtocol } from "#/api/typesGenerated";
+import { workspaceListeningPortsProtocolStorage } from "#/utils/storage/keys";
 
 const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 
@@ -126,16 +127,11 @@ export const saveWorkspaceListeningPortsProtocol = (
 	workspaceID: string,
 	protocol: WorkspaceAgentPortShareProtocol,
 ) => {
-	localStorage.setItem(
-		`listening-ports-protocol-workspace-${workspaceID}`,
-		protocol,
-	);
+	workspaceListeningPortsProtocolStorage.forId(workspaceID).set(protocol);
 };
 
 export const getWorkspaceListeningPortsProtocol = (
 	workspaceID: string,
 ): WorkspaceAgentPortShareProtocol => {
-	return (localStorage.getItem(
-		`listening-ports-protocol-workspace-${workspaceID}`,
-	) || "http") as WorkspaceAgentPortShareProtocol;
+	return workspaceListeningPortsProtocolStorage.forId(workspaceID).get();
 };

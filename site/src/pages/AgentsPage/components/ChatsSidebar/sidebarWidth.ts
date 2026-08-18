@@ -1,4 +1,6 @@
-export const LEFT_SIDEBAR_STORAGE_KEY = "agents.left-sidebar-width";
+import { leftSidebarWidthStorage } from "#/utils/storage/keys";
+
+export const LEFT_SIDEBAR_STORAGE_KEY = leftSidebarWidthStorage.key;
 export const LEFT_SIDEBAR_MIN_WIDTH = 240;
 export const LEFT_SIDEBAR_DEFAULT_WIDTH = 320;
 export const AGENTS_MAIN_PANEL_MIN_WIDTH = 360;
@@ -34,33 +36,18 @@ export function clampLeftSidebarWidth(width: number): number {
 }
 
 export function loadPersistedLeftSidebarWidth(): number {
-	let stored: string | null;
-	try {
-		stored = localStorage.getItem(LEFT_SIDEBAR_STORAGE_KEY);
-	} catch {
-		return clampLeftSidebarWidth(LEFT_SIDEBAR_DEFAULT_WIDTH);
-	}
-
-	if (!stored) {
-		return clampLeftSidebarWidth(LEFT_SIDEBAR_DEFAULT_WIDTH);
-	}
-
-	const parsed = Number.parseInt(stored, 10);
+	const stored = leftSidebarWidthStorage.get();
 	if (
-		Number.isNaN(parsed) ||
-		parsed < LEFT_SIDEBAR_MIN_WIDTH ||
-		parsed > LEFT_SIDEBAR_MAX_WIDTH
+		stored === null ||
+		stored < LEFT_SIDEBAR_MIN_WIDTH ||
+		stored > LEFT_SIDEBAR_MAX_WIDTH
 	) {
 		return clampLeftSidebarWidth(LEFT_SIDEBAR_DEFAULT_WIDTH);
 	}
 
-	return clampLeftSidebarWidth(parsed);
+	return clampLeftSidebarWidth(stored);
 }
 
 export function persistLeftSidebarWidth(width: number): void {
-	try {
-		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, String(width));
-	} catch {
-		// Ignore storage failures because resizing still works for this session.
-	}
+	leftSidebarWidthStorage.set(width);
 }

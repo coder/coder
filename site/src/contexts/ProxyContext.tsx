@@ -14,6 +14,7 @@ import type { Region, WorkspaceProxy } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { userSelectedProxyStorage } from "#/utils/storage/keys";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
 export type Proxies = readonly Region[] | readonly WorkspaceProxy[];
@@ -302,18 +303,13 @@ const computeUsableURLS = (proxy?: Region): PreferredProxy => {
 // Local storage functions
 
 const clearUserSelectedProxy = (): void => {
-	localStorage.removeItem("user-selected-proxy");
+	userSelectedProxyStorage.remove();
 };
 
 export const saveUserSelectedProxy = (saved: Region): void => {
-	localStorage.setItem("user-selected-proxy", JSON.stringify(saved));
+	userSelectedProxyStorage.set(saved);
 };
 
 const loadUserSelectedProxy = (): Region | undefined => {
-	const str = localStorage.getItem("user-selected-proxy");
-	if (!str) {
-		return undefined;
-	}
-
-	return JSON.parse(str);
+	return userSelectedProxyStorage.get() ?? undefined;
 };
