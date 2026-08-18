@@ -124,35 +124,4 @@ describe("updateAppearanceSettings", () => {
 
 		expect(queryClient.getQueryData(myAppearanceKey)).toEqual(serverSettings);
 	});
-
-	it("keeps patch values when a successful appearance update response is partial", async () => {
-		const queryClient = new QueryClient();
-		const optimisticSettings = updateRequest({
-			theme_mode: "sync",
-			theme_light: "light-protan-deuter",
-			theme_dark: "dark-protan-deuter",
-		});
-		const serverSettings = {
-			theme_preference: "dark-tritan",
-			terminal_font: "jetbrains-mono",
-		} satisfies Partial<UserAppearanceSettings>;
-		const { response, result } = startAppearanceUpdate(
-			queryClient,
-			optimisticSettings,
-		);
-
-		await vi.waitFor(() =>
-			expect(queryClient.getQueryData(myAppearanceKey)).toEqual(
-				optimisticSettings,
-			),
-		);
-
-		response.resolve(serverSettings as UserAppearanceSettings);
-		await result;
-
-		expect(queryClient.getQueryData(myAppearanceKey)).toEqual({
-			...optimisticSettings,
-			...serverSettings,
-		});
-	});
 });

@@ -119,13 +119,16 @@ export const IconField: FC<IconFieldProps> = ({
 							onClick={(event) => event.stopPropagation()}
 						>
 							<Suspense fallback={<Loader />}>
-								<EmojiPicker
-									onEmojiSelect={(emoji) => {
-										const picked = emoji.src ?? `/emojis/${emoji.unified}.png`;
-										onPickEmoji(picked);
-										setOpen(false);
-									}}
-								/>
+								<div role="region" aria-label="Emoji picker">
+									<EmojiPicker
+										onEmojiSelect={(emoji) => {
+											const picked =
+												emoji.src ?? `/emojis/${emoji.unified}.png`;
+											onPickEmoji(picked);
+											setOpen(false);
+										}}
+									/>
+								</div>
 							</Suspense>
 						</PopoverContent>
 					</Popover>

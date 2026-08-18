@@ -1,14 +1,12 @@
 import clamp from "lodash/clamp";
 import { useEffect, useEffectEvent } from "react";
 import {
-	hashKey,
 	keepPreviousData,
 	type QueryFunctionContext,
 	type QueryKey,
 	type UseQueryOptions,
 	type UseQueryResult,
 	useQuery,
-	useQueryClient,
 } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router";
 
@@ -128,7 +126,14 @@ export function usePaginatedQuery<
 	const currentPage = parsePage(searchParams);
 	const currentPageOffset = (currentPage - 1) * limit;
 
-	type Options = UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>;
+	type Options = Pick<
+		UseQueryOptions<TQueryFnData, TError, TData, TQueryKey>,
+		"queryKey" | "staleTime"
+	> & {
+		queryFn: NonNullable<
+			UseQueryOptions<TQueryFnData, TError, TQueryFnData, TQueryKey>["queryFn"]
+		>;
+	};
 	const getQueryOptionsFromPage = (pageNumber: number): Options => {
 		const pageParams: QueryPageParams = {
 			pageNumber,
@@ -151,7 +156,6 @@ export function usePaginatedQuery<
 	// virtualization as the lists get bigger (especially for the audit logs).
 	// Keeping initial implementation simple.
 	const currentPageOptions = getQueryOptionsFromPage(currentPage);
-	const currentQueryHash = hashKey(currentPageOptions.queryKey);
 	const query = useQuery<TQueryFnData, TError, TData, TQueryKey>({
 		...extraOptions,
 		...currentPageOptions,
@@ -197,59 +201,40 @@ export function usePaginatedQuery<
 		((countIsCapped && !pageIsEmpty) ||
 			currentPageOffset - limit < totalRecords);
 
-	const queryClient = useQueryClient();
-	const prefetchPage = useEffectEvent(
-		(newPage: number, expectedQueryHash: string) => {
-			const latestQueryHash = hashKey(
-				getQueryOptionsFromPage(currentPage).queryKey,
-			);
-			if (latestQueryHash !== expectedQueryHash) {
-				return;
-			}
+	useQuery<TQueryFnData, TError, TQueryFnData, TQueryKey>({
+		...getQueryOptionsFromPage(currentPage + 1),
+		enabled:
+			prefetch && !query.isPlaceholderData && hasNextPage
+				? extraOptions.enabled
+				: false,
+	});
+	useQuery<TQueryFnData, TError, TQueryFnData, TQueryKey>({
+		...getQueryOptionsFromPage(Math.max(currentPage - 1, 1)),
+		enabled:
+			prefetch && !query.isPlaceholderData && hasPreviousPage
+				? extraOptions.enabled
+				: false,
+	});
 
-			const options = getQueryOptionsFromPage(newPage);
-			return queryClient.prefetchQuery(options);
-		},
-	);
-
-	useEffect(() => {
-		if (!prefetch || query.isPlaceholderData) {
-			return;
-		}
-		if (hasNextPage) {
-			void prefetchPage(currentPage + 1, currentQueryHash);
-		}
-		if (hasPreviousPage) {
-			void prefetchPage(currentPage - 1, currentQueryHash);
-		}
-	}, [
-		currentPage,
-		currentQueryHash,
-		hasNextPage,
-		hasPreviousPage,
-		prefetch,
-		query.isPlaceholderData,
-	]);
-
-	const getTotalPagesFromFirstPage = useEffectEvent(
-		async (expectedQueryHash: string) => {
-			const latestQueryHash = hashKey(
-				getQueryOptionsFromPage(currentPage).queryKey,
-			);
-			if (latestQueryHash !== expectedQueryHash) {
-				return;
-			}
-
-			const firstPageOptions = getQueryOptionsFromPage(1);
-			try {
-				const firstPageResult = await queryClient.fetchQuery(firstPageOptions);
-				const rounded = Math.ceil((firstPageResult?.count ?? 0) / limit);
-				return Math.max(rounded, 1);
-			} catch {
-				return 1;
-			}
-		},
-	);
+	const mustResolveUnknownPageCount =
+		!query.isFetching &&
+		!query.isPlaceholderData &&
+		totalPages === 0 &&
+		currentPage > totalPages;
+	const firstPageQuery = useQuery<
+		TQueryFnData,
+		TError,
+		TQueryFnData,
+		TQueryKey
+	>({
+		...getQueryOptionsFromPage(1),
+		enabled: mustResolveUnknownPageCount ? extraOptions.enabled : false,
+	});
+	const resolvedTotalPages = firstPageQuery.isError
+		? 1
+		: firstPageQuery.data
+			? Math.max(Math.ceil(firstPageQuery.data.count / limit), 1)
+			: undefined;
 
 	const updatePageIfInvalid = useEffectEvent((fixedTotalPages: number) => {
 		const clamped = clamp(currentPage, 1, fixedTotalPages);
@@ -290,23 +275,15 @@ export function usePaginatedQuery<
 			return;
 		}
 
-		let ignore = false;
-		void getTotalPagesFromFirstPage(currentQueryHash).then(
-			(fixedTotalPages) => {
-				if (!ignore && fixedTotalPages !== undefined) {
-					updatePageIfInvalid(fixedTotalPages);
-				}
-			},
-		);
-		return () => {
-			ignore = true;
-		};
+		if (resolvedTotalPages !== undefined) {
+			updatePageIfInvalid(resolvedTotalPages);
+		}
 	}, [
 		query.isFetching,
 		query.isPlaceholderData,
 		totalPages,
 		currentPage,
-		currentQueryHash,
+		resolvedTotalPages,
 	]);
 
 	const onPageChange = (newPage: number) => {

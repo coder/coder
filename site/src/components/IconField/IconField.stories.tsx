@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 import { IconField } from "./IconField";
 
 const meta: Meta<typeof IconField> = {
@@ -51,8 +51,8 @@ export const OpenPicker: Story = {
 		await userEvent.click(button);
 		await expect(button).toHaveAttribute("aria-expanded", "true");
 		const popover = await screen.findByRole("dialog");
-		await waitFor(() => {
-			expect(within(popover).queryByRole("status")).not.toBeInTheDocument();
-		});
+		await expect(
+			within(popover).findByRole("region", { name: "Emoji picker" }),
+		).resolves.toBeVisible();
 	},
 };
