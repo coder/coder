@@ -143,8 +143,8 @@ export const useChatStore = (
 	// source for chatStatus and the REST-fetched chatRecord.status
 	// must not overwrite it. Without this guard, a React Query
 	// refetch (e.g. on window focus) can regress chatStatus to a
-	// stale value like "waiting", causing shouldApplyMessagePart()
-	// to drop all incoming parts.
+	// stale value like "waiting", hiding live status from the user
+	// until the next server event arrives.
 	const wsStatusReceivedRef = useRef(false);
 	const [pendingStatusResync, setPendingStatusResync] = useState(false);
 	const pendingStatusResyncUpdatedAtRef = useRef<number | null>(null);
@@ -423,9 +423,13 @@ export const useChatStore = (
 		let historyResetPending = false;
 		const historyReplacementBuf: TypesGen.ChatMessage[] = [];
 
-		const shouldApplyMessagePart = (): boolean => {
-			return store.getSnapshot().chatStatus !== "waiting";
-		};
+		// Set when the stream reports "waiting", cleared by any other
+		// stream status. While set, parts are dropped: they are late
+		// leftovers from the finished turn. REST and optimistic
+		// statuses never set it, because they can lag a live turn.
+		let streamReportedWaiting = false;
+
+		const shouldKeepMessagePart = (): boolean => !streamReportedWaiting;
 
 		const schedulePartsFlush = () => {
 			if (partsFlushTimer !== null || partsBuf.length === 0) {
@@ -436,11 +440,11 @@ export const useChatStore = (
 				if (disposed || activeChatIDRef.current !== chatID) {
 					return;
 				}
-				const parts = partsBuf.splice(0);
-				if (parts.length === 0 || !shouldApplyMessagePart()) {
+				if (!shouldKeepMessagePart()) {
+					partsBuf.length = 0;
 					return;
 				}
-				store.applyMessageParts(parts);
+				store.applyMessageParts(partsBuf.splice(0));
 			}, 0);
 		};
 
@@ -455,11 +459,11 @@ export const useChatStore = (
 				clearTimeout(partsFlushTimer);
 				partsFlushTimer = null;
 			}
-			const parts = partsBuf.splice(0);
-			if (activeChatIDRef.current !== chatID || !shouldApplyMessagePart()) {
+			if (activeChatIDRef.current !== chatID || !shouldKeepMessagePart()) {
+				partsBuf.length = 0;
 				return;
 			}
-			store.applyMessageParts(parts);
+			store.applyMessageParts(partsBuf.splice(0));
 		};
 
 		// Discard buffered parts without applying them. Used when
@@ -521,7 +525,7 @@ export const useChatStore = (
 							continue;
 						}
 						commitHistoryReplacement();
-						if (!shouldApplyMessagePart()) {
+						if (!shouldKeepMessagePart()) {
 							continue;
 						}
 						const part = streamEvent.message_part?.part;
@@ -622,6 +626,7 @@ export const useChatStore = (
 								continue;
 							}
 
+							streamReportedWaiting = nextStatus === "waiting";
 							wsStatusReceivedRef.current = true;
 							store.clearRetryState();
 							store.applyServerChatStatus(nextStatus);
@@ -643,6 +648,7 @@ export const useChatStore = (
 								kind: "generic",
 								message: "Chat processing failed.",
 							};
+							streamReportedWaiting = false;
 							wsStatusReceivedRef.current = true;
 							store.applyServerChatStatus("error");
 							store.setStreamError(reason);
@@ -698,9 +704,8 @@ export const useChatStore = (
 							clearTimeout(partsFlushTimer);
 							partsFlushTimer = null;
 						}
-						const nextParts = partsBuf.splice(0);
-						if (shouldApplyMessagePart()) {
-							store.applyMessageParts(nextParts);
+						if (shouldKeepMessagePart()) {
+							store.applyMessageParts(partsBuf.splice(0));
 						}
 					}
 				}

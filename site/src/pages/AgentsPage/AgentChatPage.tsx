@@ -40,9 +40,11 @@ import {
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	getOpenChatPollInterval,
 	interruptChat,
 	invalidateChatEntity,
 	mcpServerConfigs,
+	openChat,
 	patchChatEntity,
 	promoteChatQueuedMessage,
 	updateChatPlanMode,
@@ -934,12 +936,18 @@ const AgentChatPage: FC = () => {
 	};
 
 	const chatQuery = useQuery({
-		...chat(agentId ?? ""),
+		...openChat(agentId ?? ""),
 		enabled: Boolean(agentId),
-		// Poll while the binding is unresolved: repair happens on chat reads
-		// and watch events cannot be relied on for retries because an idle
-		// workspace publishes none.
+		// Poll while the chat runs (this override replaces openChat's
+		// interval, and queued_for_capacity depends on the poll) or while
+		// the binding is unresolved: repair happens on chat reads and watch
+		// events cannot be relied on for retries because an idle workspace
+		// publishes none.
 		refetchInterval: ({ state }) => {
+			const openPollMs = getOpenChatPollInterval(state.data);
+			if (openPollMs !== false) {
+				return openPollMs;
+			}
 			const workspaceId = state.data?.workspace_id;
 			const workspace = workspaceId
 				? queryClient.getQueryData<TypesGen.Workspace>(
@@ -1799,10 +1807,7 @@ const AgentChatPage: FC = () => {
 			content,
 			model_config_id: selectedModelConfigID,
 			reasoning_effort: effectiveReasoningEffort,
-			mcp_server_ids:
-				effectiveMCPServerIds.length > 0
-					? [...effectiveMCPServerIds]
-					: undefined,
+			mcp_server_ids: [...effectiveMCPServerIds],
 			...(planModeSwitch !== undefined
 				? {
 						plan_mode:
@@ -2101,6 +2106,7 @@ const AgentChatPage: FC = () => {
 			onMCPSelectionChange={handleMCPSelectionChange}
 			onMCPAuthComplete={handleMCPAuthComplete}
 			chatContext={chatQuery.data?.context}
+			queuedForCapacity={chatQuery.data?.queued_for_capacity ?? false}
 			workspaceSkills={workspaceSkillsFromChat(chatQuery.data)}
 		/>
 	);

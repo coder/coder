@@ -20,6 +20,12 @@ ignorePatterns:
   # These real sites were blocking the linkspector action / GitHub runner IPs(?)
   - pattern: "i.imgur.com"
   - pattern: "code.visualstudio.com"
+  - pattern: "marketplace.visualstudio.com"
+  - pattern: "codeium.com"
+  # windsurf.com and devin.ai (Devin Desktop's vendor) rate-limit repeated
+  # automated requests with 429s, including from GitHub runner IPs.
+  - pattern: "windsurf.com"
+  - pattern: "devin.ai"
   - pattern: "www.emacswiki.org"
   - pattern: "linux.die.net/man"
   - pattern: "www.gnu.org"

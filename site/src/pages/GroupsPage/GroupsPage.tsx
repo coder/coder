@@ -30,9 +30,10 @@ const GroupsPage: FC = () => {
 	const { organization, showOrganizations } = useGroupsSettings();
 	const aibridgeVisible = Boolean(aibridge);
 	const [searchParams, setSearchParams] = useSearchParams();
-	const groupsQuery = usePaginatedQuery(
-		paginatedGroupsByOrganization(organization?.name ?? "", searchParams),
-	);
+	const groupsQuery = usePaginatedQuery({
+		...paginatedGroupsByOrganization(organization?.name ?? "", searchParams),
+		enabled: Boolean(groupsEnabled && organization),
+	});
 	const filter = useFilter({
 		searchParams,
 		onSearchParamsChange: setSearchParams,

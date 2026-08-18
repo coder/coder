@@ -112,6 +112,22 @@ This setting is available under **Agents** > **Settings** >
 days. When disabled, workspaces follow their template's autostop rules (or
 none, if the template does not define any).
 
+### Concurrent agents
+
+Community licenses support up to 5 concurrently active agents.
+Coder doesn't limit how long those agents can run or how many tasks they complete over time.
+Additional agents queue until an agent session becomes available.
+With concurrent agents, individuals and small teams can experiment with Coder Agents at no cost.
+
+Queued agents show a banner in the chat and start automatically when capacity frees.
+Subtasks delegated by an agent don't count toward this limit.
+Those subtasks run in a separate pool of up to 10 concurrent subtasks.
+
+Premium deployments can purchase Agent Hours with their Premium license.
+Agent Hours are shared across the deployment, and agents can run concurrently unless the Agent Hours hard limit is reached.
+If the Agent Hours allocation is exhausted without a configured hard limit, Coder warns about usage but does not impose a concurrency limit.
+When the Agent Hours hard limit is reached, additional agents queue under the concurrency limit.
+
 ### Spend management
 
 AI Gateway budgets cap each user's AI spend, including Coder Agents chats, over a monthly period.

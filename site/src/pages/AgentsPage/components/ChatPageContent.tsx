@@ -105,6 +105,7 @@ interface ChatPageTimelineProps {
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	footer?: ReactNode;
 }
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
@@ -122,6 +123,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	onSendAskUserQuestionResponse,
 	urlTransform,
 	mcpServers,
+	footer,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
@@ -149,6 +151,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		streamError,
 		persistedError: persistedError ?? null,
 		isAwaitingFirstStreamChunk,
+		chatStatus,
 	});
 	const streamTools = buildStreamTools(
 		streamState?.toolCalls,
@@ -220,6 +223,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					isTranscriptEmpty={parsedMessages.length === 0}
 					liveStatus={liveStatus}
 				/>
+				{footer}
 			</div>
 		</Profiler>
 	);
@@ -505,7 +509,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		wasEditingRef.current = isEditing;
 	}, [isEditing, resetEditAttachments]);
 
-	const isStreaming = hasStreamState || chatStatus === "running";
+	const isStreaming =
+		hasStreamState || chatStatus === "running" || chatStatus === "interrupting";
 
 	const inputElement = (
 		<AgentChatInput
@@ -581,7 +586,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}
-			isInterruptPending={isInterruptPending}
+			isInterruptPending={isInterruptPending || chatStatus === "interrupting"}
 			contextUsage={latestContextUsage}
 			onRefreshContext={handleRefreshContext}
 			isRefreshingContext={refreshContextMutation.isPending}

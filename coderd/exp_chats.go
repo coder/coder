@@ -1621,6 +1621,18 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 
 	sdkChat := db2sdk.Chat(chat, diffStatus, chatFiles)
 
+	if api.chatDaemon != nil {
+		queued, err := api.chatDaemon.ChatQueuedForCapacity(ctx, chat)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to derive chat queued-for-capacity state",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+		} else {
+			sdkChat.QueuedForCapacity = queued
+		}
+	}
+
 	// Enrich the lightweight context summary with the chat's pinned
 	// resources (metadata only). This detail is computed on read and only
 	// attached on the single-chat GET; list and watch payloads stay
@@ -4049,7 +4061,7 @@ func (api *API) resolveChatDiffReference(
 	// PR URL so the caller can still show provider/owner/repo.
 	if reference.RepositoryRef == nil && reference.PullRequestURL != "" {
 		for _, extAuth := range api.ExternalAuthConfigs {
-			gp, err := extAuth.Git(api.HTTPClient)
+			gp, err := extAuth.Git()
 			if err != nil || gp == nil {
 				continue
 			}
@@ -4156,7 +4168,7 @@ func (api *API) resolveExternalAuth(ctx context.Context, origin string) (provide
 		if extAuth.Regex == nil || !extAuth.Regex.MatchString(origin) {
 			continue
 		}
-		p, err := extAuth.Git(api.HTTPClient)
+		p, err := extAuth.Git()
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to construct git provider",
 				slog.F("provider_id", extAuth.ID),
