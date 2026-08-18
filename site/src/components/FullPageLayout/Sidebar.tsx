@@ -17,7 +17,7 @@ export const SidebarLink: FC<LinkProps> = ({ className, ...props }) => {
 	return (
 		<Link
 			className={cn(
-				"text-[13px] text-content-primary py-2 px-4 text-left bg-transparent hover:divide-surface-tertiary cursor-pointer border-0 no-underline",
+				"text-sm text-content-primary py-2 px-4 text-left bg-transparent hover:divide-surface-tertiary cursor-pointer border-0 no-underline",
 				className,
 			)}
 			{...props}
@@ -37,7 +37,7 @@ export const SidebarItem: FC<SidebarItemProps> = ({
 	return (
 		<button
 			className={cn(
-				"text-[13px] text-content-primary py-2 px-4 text-left bg-transparent hover:divide-surface-tertiary opacity-75 hover:opacity-100 cursor-pointer border-0",
+				"text-sm text-content-primary py-2 px-4 text-left bg-transparent hover:divide-surface-tertiary opacity-75 hover:opacity-100 cursor-pointer border-0",
 				isActive && "opacity-100 bg-surface-tertiary",
 				className,
 			)}

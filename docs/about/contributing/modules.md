@@ -8,7 +8,7 @@ Coder modules are Terraform modules that integrate with Coder workspaces to prov
 
 Examples of modules include:
 
-- **Desktop IDEs**: [`jetbrains-fleet`](https://registry.coder.com/modules/coder/jetbrains-fleet), [`cursor`](https://registry.coder.com/modules/coder/cursor), [`windsurf`](https://registry.coder.com/modules/coder/windsurf), [`zed`](https://registry.coder.com/modules/coder/zed)
+- **Desktop IDEs**: [`jetbrains-fleet`](https://registry.coder.com/modules/coder/jetbrains-fleet), [`cursor`](https://registry.coder.com/modules/coder/cursor), [`devin-desktop`](https://registry.coder.com/modules/coder/devin-desktop), [`zed`](https://registry.coder.com/modules/coder/zed)
 - **Web IDEs**: [`code-server`](https://registry.coder.com/modules/coder/code-server), [`vscode-web`](https://registry.coder.com/modules/coder/vscode-web), [`jupyter-notebook`](https://registry.coder.com/modules/coder/jupyter-notebook), [`jupyter-lab`](https://registry.coder.com/modules/coder/jupyterlab)
 - **Integrations**: [`devcontainers-cli`](https://registry.coder.com/modules/coder/devcontainers-cli), [`vault-github`](https://registry.coder.com/modules/coder/vault-github), [`jfrog-oauth`](https://registry.coder.com/modules/coder/jfrog-oauth), [`jfrog-token`](https://registry.coder.com/modules/coder/jfrog-token)
 - **Workspace utilities**: [`git-clone`](https://registry.coder.com/modules/coder/git-clone), [`dotfiles`](https://registry.coder.com/modules/coder/dotfiles), [`filebrowser`](https://registry.coder.com/modules/coder/filebrowser), [`coder-login`](https://registry.coder.com/modules/coder/coder-login), [`personalize`](https://registry.coder.com/modules/coder/personalize)

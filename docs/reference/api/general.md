@@ -351,6 +351,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "mcp_tool_deny_regex": "string",
           "mcp_url": "string",
           "no_refresh": true,
+          "redirect_url": "string",
           "regex": "string",
           "revoke_url": "string",
           "scopes": [
