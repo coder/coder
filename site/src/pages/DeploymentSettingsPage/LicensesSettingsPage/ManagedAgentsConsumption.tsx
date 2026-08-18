@@ -101,19 +101,19 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 							even if AI tooling is involved.
 						</p>
 						<p>
-							{aiTasksEnabled ? (
-								<>
-									Today, Coder Tasks (via UI, CLI, or API) is the only way to
-									create agentic workspaces, but additional protocols and APIs
-									may be supported as standards emerge.
-								</>
-							) : (
-								<>
-									Additional protocols and APIs may be supported as standards
-									emerge.
-								</>
-							)}{" "}
-							Learn more in{" "}
+							Today,{" "}
+							<Link
+								href={docs("/ai-coder/agents")}
+								target="_blank"
+								rel="noreferrer"
+							>
+								Coder Agents (via UI or API)
+							</Link>{" "}
+							{aiTasksEnabled
+								? "and Coder Tasks (via UI, CLI, or API) are the only ways"
+								: "is the only way"}{" "}
+							to create agentic workspaces, but additional protocols and APIs
+							may be supported as standards emerge. Learn more in{" "}
 							<Link
 								href={docs("/ai-coder/ai-governance")}
 								target="_blank"

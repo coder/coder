@@ -34,6 +34,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx              = r.Context()
@@ -411,6 +414,9 @@ func deriveTaskCurrentState(
 	return currentState
 }
 
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -512,6 +518,9 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 	return result, nil
 }
 
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -578,6 +587,9 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, taskResp)
 }
 
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -642,6 +654,9 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusAccepted)
 }
 
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx              = r.Context()
@@ -712,6 +727,9 @@ func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
@@ -795,6 +813,9 @@ func convertAgentAPIMessagesToLogEntries(messages []agentapisdk.Message) ([]code
 	return logs, nil
 }
 
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
@@ -1065,6 +1086,9 @@ type TaskLogSnapshotEnvelope struct {
 	Data   any    `json:"data"`
 }
 
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx         = r.Context()
@@ -1205,6 +1229,9 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -1273,6 +1300,9 @@ func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) resumeTask(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
