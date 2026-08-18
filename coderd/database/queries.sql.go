@@ -28732,7 +28732,9 @@ WITH last_success AS (
 SELECT
     COALESCE((SELECT last_published_at FROM last_success), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS last_published_at,
     COALESCE((SELECT oldest_stuck_at FROM stuck WHERE oldest_stuck_at < $1::timestamptz), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_at,
-    -- The earliest recent permanent rejection.
+    -- The earliest recent permanent rejection. Bounded by
+    -- idx_usage_events_permanent_rejections, whose predicate this WHERE
+    -- clause implies, so the probe never scans successful publishes.
     COALESCE((
         SELECT MIN(published_at)
         FROM usage_events

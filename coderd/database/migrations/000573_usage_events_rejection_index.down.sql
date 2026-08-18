@@ -1,0 +1,1 @@
+DROP INDEX idx_usage_events_permanent_rejections;

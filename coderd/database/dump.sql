@@ -4913,6 +4913,8 @@ CREATE UNIQUE INDEX idx_usage_events_agent_runtime ON usage_events USING btree (
 
 CREATE INDEX idx_usage_events_ai_seats ON usage_events USING btree (event_type, created_at) WHERE (event_type = 'hb_ai_seats_v1'::text);
 
+CREATE INDEX idx_usage_events_permanent_rejections ON usage_events USING btree (published_at) WHERE ((published_at IS NOT NULL) AND (failure_message IS NOT NULL));
+
 CREATE INDEX idx_usage_events_select_for_publishing ON usage_events USING btree (published_at, publish_started_at, created_at);
 
 CREATE INDEX idx_user_ai_provider_keys_ai_provider_id ON user_ai_provider_keys USING btree (ai_provider_id);
