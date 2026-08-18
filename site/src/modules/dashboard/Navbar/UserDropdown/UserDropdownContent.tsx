@@ -23,10 +23,6 @@ import { useClipboard } from "#/hooks/useClipboard";
 import { supportsCoderDesktop } from "#/utils/platform";
 import { SupportIcon } from "../SupportIcon";
 
-// Coder Desktop only ships for macOS and Windows. Rather than deep-linking to a
-// single install method (brew, winget, releases, source, ...), point users at
-// the docs page, which is the canonical hub listing every install method and
-// stays current without frontend changes.
 const CODER_DESKTOP_DOCS_URL = "https://coder.com/docs/user-guides/desktop";
 
 interface UserDropdownContentProps {
