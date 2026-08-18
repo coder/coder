@@ -102,13 +102,10 @@ export const jsonCodec = <T>(
 // -- Safe primitives --------------------------------------------------------
 
 const getAreaStorage = (area: StorageArea): Storage | null => {
-	// Accessing window.localStorage itself can throw (sandboxed iframes,
+	// Accessing localStorage itself can throw (sandboxed iframes,
 	// disabled cookies), so even the lookup is guarded.
 	try {
-		if (typeof window === "undefined") {
-			return null;
-		}
-		return area === "local" ? window.localStorage : window.sessionStorage;
+		return area === "local" ? localStorage : sessionStorage;
 	} catch {
 		return null;
 	}
@@ -183,38 +180,36 @@ const invalidateAndNotify = (area: StorageArea, key: string): void => {
 	notifyKey(cacheKey);
 };
 
-if (typeof window !== "undefined") {
-	window.addEventListener("storage", (event) => {
-		// sessionStorage is per-tab, so cross-tab events only matter for
-		// localStorage.
-		let isLocalArea = false;
-		try {
-			isLocalArea = event.storageArea === window.localStorage;
-		} catch {
-			return;
+addEventListener("storage", (event: StorageEvent) => {
+	// sessionStorage is per-tab, so cross-tab events only matter for
+	// localStorage.
+	let isLocalArea = false;
+	try {
+		isLocalArea = event.storageArea === localStorage;
+	} catch {
+		return;
+	}
+	if (!isLocalArea) {
+		return;
+	}
+	if (event.key === null) {
+		// localStorage.clear() in another tab.
+		for (const cacheKey of snapshotCache.keys()) {
+			if (cacheKey.startsWith("local:")) {
+				snapshotCache.delete(cacheKey);
+			}
 		}
-		if (!isLocalArea) {
-			return;
-		}
-		if (event.key === null) {
-			// localStorage.clear() in another tab.
-			for (const cacheKey of snapshotCache.keys()) {
-				if (cacheKey.startsWith("local:")) {
-					snapshotCache.delete(cacheKey);
+		for (const [cacheKey, listeners] of keyListeners) {
+			if (cacheKey.startsWith("local:")) {
+				for (const listener of listeners) {
+					listener();
 				}
 			}
-			for (const [cacheKey, listeners] of keyListeners) {
-				if (cacheKey.startsWith("local:")) {
-					for (const listener of listeners) {
-						listener();
-					}
-				}
-			}
-			return;
 		}
-		invalidateAndNotify("local", event.key);
-	});
-}
+		return;
+	}
+	invalidateAndNotify("local", event.key);
+});
 
 // -- Value envelope for entity-scoped keys ----------------------------------
 

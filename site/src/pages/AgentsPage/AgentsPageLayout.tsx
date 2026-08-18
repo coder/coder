@@ -331,8 +331,10 @@ const AgentsPageLayout: FC = () => {
 				(path) => navigate(path),
 			);
 			// Archive failed after the delete already ran; refresh
-			// workspace state so consumers see the deletion.
+			// workspace state and drop the deleted workspace's storage
+			// so consumers see the deletion.
 			if (error instanceof ArchiveAndDeleteError && error.step === "archive") {
+				clearEntityStorage("workspace", workspaceId);
 				void invalidateWorkspaceMutationQueries(queryClient, {
 					organizationName,
 					username: user.username,

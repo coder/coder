@@ -211,7 +211,7 @@ describe("storage core", () => {
 		localStorage.setItem("test.bool", "true");
 		const listener = vi.fn();
 		const unsubscribe = boolKey.subscribe(listener);
-		window.dispatchEvent(
+		dispatchEvent(
 			new StorageEvent("storage", {
 				key: "test.bool",
 				storageArea: localStorage,
@@ -227,7 +227,7 @@ describe("storage core", () => {
 		const listener = vi.fn();
 		const unsubscribe = boolKey.subscribe(listener);
 		localStorage.clear();
-		window.dispatchEvent(
+		dispatchEvent(
 			new StorageEvent("storage", { key: null, storageArea: localStorage }),
 		);
 		expect(listener).toHaveBeenCalledTimes(1);
@@ -411,7 +411,7 @@ describe("useStorage", () => {
 
 		act(() => {
 			localStorage.setItem("test.bool", "true");
-			window.dispatchEvent(
+			dispatchEvent(
 				new StorageEvent("storage", {
 					key: "test.bool",
 					storageArea: localStorage,
