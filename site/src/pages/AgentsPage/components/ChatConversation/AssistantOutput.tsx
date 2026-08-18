@@ -1,4 +1,5 @@
 import type { FC } from "react";
+import { cn } from "#/utils/cn";
 import { Shimmer } from "../ChatElements";
 import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { ChatStatusCallout } from "./ChatStatusCallout";
@@ -39,7 +40,17 @@ export const AssistantOutput: FC<AssistantOutputProps> = ({
 			: undefined;
 
 	return (
-		<div className="relative flex flex-col gap-2 overflow-visible">
+		<div
+			className={cn(
+				"relative flex flex-col gap-2 overflow-visible",
+				// While the turn is live, hold a one-line floor so the Thinking
+				// indicator's height survives the handoff to streaming text instead
+				// of collapsing for a frame. Once text renders it exceeds the floor,
+				// so this is a no-op after the first visible characters. Durable
+				// messages carry no liveStatus and are unaffected.
+				liveStatus && "min-h-6",
+			)}
+		>
 			<BlockList {...blockProps} />
 			{callout && <ChatStatusCallout status={callout} />}
 			{liveStatus &&
