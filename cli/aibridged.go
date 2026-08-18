@@ -36,10 +36,11 @@ import (
 //
 // SubscribeProviderReload performs a best-effort initial reload synchronously,
 // so the pool is populated before this returns whenever the fetch succeeds.
-// That reload blocks on srv.Client(), but the embedded daemon's connection is
-// an in-memory pipe that comes up immediately, and the env seed (which holds
-// the seed lock) has already completed earlier in startup, so the wait is
-// negligible.
+// That reload blocks while acquiring a client, and it passes a background
+// context, so only the daemon lifecycle bounds the wait. That is acceptable
+// here: the embedded daemon's connection is an in-memory pipe that comes up
+// immediately, and the env seed (which holds the seed lock) has already
+// completed earlier in startup, so the wait is negligible.
 func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg prometheus.Registerer, metrics *aibridge.Metrics) (*aibridged.Server, func(), error) {
 	ctx := context.Background()
 	coderAPI.Logger.Debug(ctx, "starting in-memory aibridge daemon")
@@ -61,7 +62,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg pr
 	reg.MustRegister(keypool.NewStateCollector(pool.KeyPools))
 
 	// Create daemon. Construct it before subscribing so the reloader can use
-	// srv.ClientContext to fetch providers over the in-memory RPC.
+	// srv.Client to fetch providers over the in-memory RPC.
 	srv, err := aibridged.New(ctx, pool, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return coderAPI.CreateInMemoryAIBridgeServer(dialCtx)
 	}, logger, tracer)
@@ -72,7 +73,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg pr
 	// Subscribe to ai_providers change events so the pool tracks the database
 	// without a restart, and perform the initial reload. The reload data path
 	// is the in-memory RPC.
-	reloader := NewPoolRPCReloader(pool, srv.ClientContext, cfg, logger.Named("provider-loader"), metrics, providerMetrics)
+	reloader := NewPoolRPCReloader(pool, srv.Client, cfg, logger.Named("provider-loader"), metrics, providerMetrics)
 	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, coderAPI.Pubsub, reloader, logger.Named("provider-reload"))
 	if err != nil {
 		// Without the subscription the pool can never track provider changes,
@@ -91,7 +92,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg pr
 // build, replace, and reload-metric accounting live in one place.
 type poolRPCReloader struct {
 	pool            aibridged.Pooler
-	client          aibridged.ClientFuncWithContext
+	client          aibridged.ClientFunc
 	cfg             codersdk.AIBridgeConfig
 	logger          slog.Logger
 	aibridgeMetrics *aibridge.Metrics
@@ -105,7 +106,7 @@ type poolRPCReloader struct {
 // canceled.
 func NewPoolRPCReloader(
 	pool aibridged.Pooler,
-	client aibridged.ClientFuncWithContext,
+	client aibridged.ClientFunc,
 	cfg codersdk.AIBridgeConfig,
 	logger slog.Logger,
 	aibridgeMetrics *aibridge.Metrics,

@@ -58,6 +58,13 @@ const (
 	ToolNameGetTaskStatus               = "coder_get_task_status"
 	ToolNameSendTaskInput               = "coder_send_task_input"
 	ToolNameGetTaskLogs                 = "coder_get_task_logs"
+	ToolNameCreateChat                  = "coder_create_chat"
+	ToolNameGetChat                     = "coder_get_chat"
+	ToolNameGetChatMessages             = "coder_get_chat_messages"
+	ToolNameSendChatMessage             = "coder_send_chat_message"
+	ToolNameInterruptChat               = "coder_interrupt_chat"
+	ToolNameArchiveChat                 = "coder_archive_chat"
+	ToolNameListChatModelConfigs        = "coder_list_chat_model_configs"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -338,6 +345,13 @@ var All = []GenericTool{
 	GetTaskStatus.Generic(),
 	SendTaskInput.Generic(),
 	GetTaskLogs.Generic(),
+	CreateChat.Generic(),
+	GetChat.Generic(),
+	GetChatMessages.Generic(),
+	SendChatMessage.Generic(),
+	InterruptChat.Generic(),
+	ArchiveChat.Generic(),
+	ListChatModelConfigs.Generic(),
 }
 
 type ReportTaskArgs struct {

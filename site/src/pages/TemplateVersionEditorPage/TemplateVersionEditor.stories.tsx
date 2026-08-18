@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
+import { expect, userEvent, within } from "storybook/test";
 import {
 	MockFailedProvisionerJob,
 	MockRunningProvisionerJob,
@@ -46,7 +47,17 @@ const meta: Meta<typeof TemplateVersionEditor> = {
 export default meta;
 type Story = StoryObj<typeof TemplateVersionEditor>;
 
-export const Example: Story = {};
+export const Example: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const backLink = canvas.getByRole("link", { name: "Back to the template" });
+		await expect(backLink).toBeVisible();
+		await expect(backLink).toHaveAttribute(
+			"aria-label",
+			"Back to the template",
+		);
+	},
+};
 
 export const UndefinedLogs: Story = {
 	args: {
@@ -156,9 +167,25 @@ export const WithError = {
 	},
 };
 
-export const PublishDialog = {
+export const PublishDialog: Story = {
 	args: {
 		isAskingPublishParameters: true,
+	},
+};
+
+export const PublishDialogActiveVersionHelp: Story = {
+	args: {
+		isAskingPublishParameters: true,
+	},
+	play: async ({ canvasElement }) => {
+		// The dialog and popover are portaled, so query against the document body.
+		const body = within(canvasElement.ownerDocument.body);
+		const trigger = await body.findByRole("button", { name: "More info" });
+		await userEvent.click(trigger);
+		await expect(await body.findByText("Active versions")).toBeInTheDocument();
+		await expect(
+			body.getByRole("link", { name: "Review the documentation" }),
+		).toBeInTheDocument();
 	},
 };
 

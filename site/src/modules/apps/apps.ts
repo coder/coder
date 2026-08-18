@@ -20,6 +20,7 @@ const ALLOWED_EXTERNAL_APP_PROTOCOLS = [
 	"vscode:",
 	"vscode-insiders:",
 	"windsurf:",
+	"devin:",
 	"cursor:",
 	"jetbrains-gateway:",
 	"jetbrains:",
@@ -117,9 +118,16 @@ export const getAppHref = (
 	{ path, token, workspace, agent, host }: GetAppHrefParams,
 ): string => {
 	if (isExternalApp(app)) {
-		const appProtocol = new URL(app.url).protocol;
-		const isAllowedProtocol =
-			ALLOWED_EXTERNAL_APP_PROTOCOLS.includes(appProtocol);
+		let isAllowedProtocol = false;
+		try {
+			isAllowedProtocol = ALLOWED_EXTERNAL_APP_PROTOCOLS.includes(
+				new URL(app.url).protocol,
+			);
+		} catch {
+			// The URL is unparsable. Leave isAllowedProtocol false and return
+			// the raw URL. Consumers disable the button via
+			// isAppUrlValid, so the href is never followed.
+		}
 
 		return needsSessionToken(app) && isAllowedProtocol
 			? app.url.replaceAll(SESSION_TOKEN_PLACEHOLDER, token ?? "")
@@ -177,6 +185,38 @@ export const needsSessionToken = (app: ExternalWorkspaceApp) => {
  */
 export const isWorkspaceAppEmbeddable = (app: WorkspaceApp): boolean => {
 	return !app.hidden && !isExternalApp(app) && !app.command;
+};
+
+export const AGENT_BROWSER_APP_SLUG = "agent-browser";
+
+export const getAgentBrowserApp = (
+	agent: WorkspaceAgent | undefined,
+): WorkspaceApp | undefined => {
+	const app = agent?.apps.find(
+		(agentApp) => agentApp.slug === AGENT_BROWSER_APP_SLUG,
+	);
+	// "disabled" means the template does not configure a health check.
+	if (
+		app &&
+		isWorkspaceAppEmbeddable(app) &&
+		(app.health === "healthy" || app.health === "disabled")
+	) {
+		return app;
+	}
+	return undefined;
+};
+
+/**
+ * True when an app is not an external app, or is an external app whose URL can
+ * be parsed by the URL constructor. External apps with an unparsable URL
+ * cannot be launched. Template authors sometimes set a bare string with no
+ * scheme, which would otherwise crash the page during render.
+ */
+export const isAppUrlValid = (app: WorkspaceApp): boolean => {
+	if (!isExternalApp(app)) {
+		return true;
+	}
+	return URL.canParse(app.url);
 };
 
 /**

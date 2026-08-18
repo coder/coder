@@ -5,3 +5,11 @@
 export const pixelWithTablet = {
 	viewports: ["tablet", "desktop"],
 };
+
+export const pixelWithDesktop = {
+	viewports: ["desktop"],
+};
+
+export const pixelWithPhone = {
+	viewports: ["phone"],
+};

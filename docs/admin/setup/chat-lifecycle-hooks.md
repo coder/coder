@@ -29,12 +29,13 @@ The experiment list is read at startup, so enabling or disabling it requires a `
 
 Set the following deployment options on `coder server`.
 
-| Environment variable      | CLI flag              | Default | Requirement                                                                                                                              |
-|---------------------------|-----------------------|---------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `CODER_CHAT_HOOK_URL`     | `--chat-hook-url`     | Empty   | Use an `https` URL. Hooks are inactive when this value is empty.                                                                         |
-| `CODER_CHAT_HOOK_SECRET`  | `--chat-hook-secret`  | Empty   | Required when the hook URL is set, at least 32 bytes of cryptographically random data. Coder uses this shared secret to sign HS256 JWTs. |
-| `CODER_CHAT_HOOK_TIMEOUT` | `--chat-hook-timeout` | `1.5s`  | Must be greater than `0` and no more than `5s`. The timeout applies to each request.                                                     |
-| `CODER_CHAT_HOOK_ENABLED` | `--chat-hook-enabled` | `true`  | Set to `false` to stop dispatching without removing the URL or secret.                                                                   |
+| Environment variable             | CLI flag                     | Default | Requirement                                                                                                                                                      |
+|----------------------------------|------------------------------|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `CODER_CHAT_HOOK_URL`            | `--chat-hook-url`            | Empty   | Use an `https` URL, or an `http` URL with `CODER_CHAT_HOOK_ALLOW_INSECURE`. Hooks are inactive when this value is empty.                                         |
+| `CODER_CHAT_HOOK_SECRET`         | `--chat-hook-secret`         | Empty   | Required when the hook URL is set, at least 32 bytes of cryptographically random data. Coder uses this shared secret to sign HS256 JWTs.                         |
+| `CODER_CHAT_HOOK_TIMEOUT`        | `--chat-hook-timeout`        | `1.5s`  | Must be greater than `0` and no more than `5s`. The timeout applies to each request.                                                                             |
+| `CODER_CHAT_HOOK_ENABLED`        | `--chat-hook-enabled`        | `true`  | Set to `false` to stop dispatching without removing the URL or secret.                                                                                           |
+| `CODER_CHAT_HOOK_ALLOW_INSECURE` | `--chat-hook-allow-insecure` | `false` | Set to `true` to allow a plain `http` hook URL. Plain HTTP lets an attacker on the network forge hook responses, so only enable it on a network you fully trust. |
 
 Treat `CODER_CHAT_HOOK_ENABLED=false` as the break-glass control.
 Changing deployment options requires the normal `coder server` configuration rollout for your installation.
@@ -42,7 +43,8 @@ Changing deployment options requires the normal `coder server` configuration rol
 Use a dedicated secret and rotate it through your existing secret-management process.
 Rotation is a hard cutover: Coder signs with exactly one secret, so dispatches fail until the consumer accepts the new value.
 Rotate during a maintenance window, or temporarily set `CODER_CHAT_HOOK_ENABLED=false` for the cutover if blocked chats are worse than unreviewed ones for your deployment.
-Coder requires the configured URL to use HTTPS.
+Coder requires the configured URL to use HTTPS unless `CODER_CHAT_HOOK_ALLOW_INSECURE` is set.
+Plain HTTP removes more than transport privacy: hook responses are what allow or deny tool calls and can rewrite prompts and tool inputs, so anyone on the network path can forge them. Coder logs a warning at startup when hooks run over plain HTTP.
 A TLS terminator can forward the request to a consumer over plain HTTP on a trusted local network.
 Configure the consumer with the same `CODER_CHAT_HOOK_URL` value, because that URL is the audience Coder signs into every dispatch.
 The consumer compares the `aud` claim against its configured audience and rejects a mismatch.
@@ -121,10 +123,13 @@ Permission rules depend on the event:
 
 - For `user_prompt_submit`, `allow` requires `input_override` in the exact form `{"prompt":"replacement text"}`.
   Coder stores and sends the replacement prompt instead of the original prompt.
+  The override replaces only submitted text, matching the concatenated `prompt` field the consumer receives.
+  Attachments and file references remain in `parts`, so consumers that must block them should inspect `parts` and return `deny`.
 - For `pre_tool_use`, `allow` requires `input_override` containing the replacement tool input.
   Coder persists the replacement with the tool call and executes the tool with it.
   An override for a built-in tool must not repeat a key or vary the capitalization of a schema property; an ambiguous override fails the dispatch closed because the model can't correct it.
-  Nothing marks the call as rewritten in the chat, so the model may misattribute the changed behavior; a consumer that rewrites input should also return `user_message` explaining the change.
+  The stored call is marked as rewritten, and the chat shows a "Modified by policy" badge.
+  The marker is client-facing, so return `model_context` if the model also needs an explanation of the rewrite.
 - For either event, `deny` blocks the input and must not include `input_override`.
   A denied prompt isn't persisted: Coder rejects the submission and surfaces any returned `user_message` in the rejection, ignoring `model_context`.
   A denied tool call becomes a synthetic error result, and any returned `model_context` reaches the model separately, so the model can choose another action.
@@ -163,6 +168,13 @@ Dispatch precedes persistence, so a delivered event doesn't guarantee that the o
 Coder checks admission before dispatching, but concurrent requests can still fail admission afterward, for example two sends racing for the last queue slot or duplicate submissions of the same tool results.
 The consumer then observes an event for a request that Coder rejects, and the rejected request doesn't persist a prompt or tool result.
 Treat events as attempt notifications rather than proof of a committed operation, and key idempotent tool-event processing on `tool_use_id`.
+
+Each `coderd` replica runs at most 256 dispatches at once and waits up to 250&nbsp;ms for a free slot; a dispatch that waits out that limit fails as over capacity.
+The limit is per replica rather than deployment-wide, so size the consumer for 256 concurrent requests per replica.
+Slow consumer responses hold slots for longer, so a slow consumer turns a burst of chat activity into over-capacity failures.
+Prompt admission (creating, sending, or editing a message) can hold at most 192 of a replica's slots, so at least 64 stay reachable only by dispatches for work a chat already admitted.
+That bound stops a burst of new submissions from consuming every slot, but it doesn't make the remaining slots sufficient: a saturated dispatcher can still fail a dispatch for a running chat and leave that chat in the error state.
+Watch `coderd_chatd_hook_dispatches_total{result="over_capacity"}` to see whether the consumer's latency is turning normal traffic into rejections.
 
 Delivery is best-effort and can duplicate.
 Coder never queues a failed dispatch for redelivery, so plan for duplicates without assuming every event arrives.
@@ -223,7 +235,7 @@ Agent hooks server listening on 127.0.0.1:8081 in log-only mode
 ```
 
 The reference server accepts optional TLS certificate and key paths.
-For local testing with plain HTTP, place an HTTPS reverse proxy in front of it because `CODER_CHAT_HOOK_URL` accepts only HTTPS URLs, and pass the proxy's URL as `--audience`.
+For local testing with plain HTTP, either set `CODER_CHAT_HOOK_ALLOW_INSECURE=true` and use the `http` URL directly, or place an HTTPS reverse proxy in front of the consumer and pass the proxy's URL as `--audience`.
 Run `go run ./scripts/agenthooks-server --help` for all flags and environment variable names.
 
 ## Audit dispatches

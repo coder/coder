@@ -3,10 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
+import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
 	chatModelConfigs,
 	chatModels,
-	chatProviderConfigs,
 	createChat,
 	mcpServerConfigs,
 	userChatPersonalModelOverrides,

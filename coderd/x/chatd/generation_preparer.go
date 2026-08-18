@@ -25,6 +25,53 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// effectiveMCPServerConfigs loads the MCP server configs for a turn:
+// the chat's stored selection plus every enabled Force On config.
+// Force On inclusion is enforced at generation time, not just at
+// write time, so chats persisted before enforcement existed (or
+// before an admin marked a server Force On) cannot dodge the policy
+// (Cure53 CDM-02-010). Explore chats are exempt: their spawn-time
+// snapshot is immutable by design and must never widen after spawn;
+// Force On servers reach the snapshot through the parent chat's
+// enforced ID list.
+func (server *Server) effectiveMCPServerConfigs(
+	ctx context.Context,
+	logger slog.Logger,
+	chat database.Chat,
+) ([]database.MCPServerConfig, error) {
+	var configs []database.MCPServerConfig
+	if len(chat.MCPServerIDs) > 0 {
+		var err error
+		configs, err = server.db.GetMCPServerConfigsByIDs(ctx, chat.MCPServerIDs)
+		if err != nil {
+			// Best-effort for the user-selected set, matching prior
+			// behavior: a load failure degrades the turn rather than
+			// failing it.
+			logger.Warn(ctx, "failed to load MCP server configs", slog.Error(err))
+			configs = nil
+		}
+	}
+	if isExploreSubagentMode(chat.Mode) {
+		return configs, nil
+	}
+	forced, err := server.db.GetForcedMCPServerConfigs(ctx)
+	if err != nil {
+		// Fail closed: running the turn without the forced set would
+		// silently bypass a security policy.
+		return nil, xerrors.Errorf("get forced MCP server configs: %w", err)
+	}
+	seen := make(map[uuid.UUID]struct{}, len(configs))
+	for _, cfg := range configs {
+		seen[cfg.ID] = struct{}{}
+	}
+	for _, cfg := range forced {
+		if _, ok := seen[cfg.ID]; !ok {
+			configs = append(configs, cfg)
+		}
+	}
+	return configs, nil
+}
+
 func (server *Server) prepareGeneration(
 	ctx context.Context,
 	input generationPrepareInput,
@@ -36,7 +83,7 @@ func (server *Server) prepareGeneration(
 	)
 
 	var (
-		model            fantasy.LanguageModel
+		model            chatprovider.Model
 		modelConfig      database.ChatModelConfig
 		modelRoute       aiGatewayModelRoute
 		modelOpts        modelBuildOptions
@@ -58,24 +105,11 @@ func (server *Server) prepareGeneration(
 		}
 		return nil
 	})
-	if len(chat.MCPServerIDs) > 0 {
-		g.Go(func() error {
-			var err error
-			mcpConfigs, err = server.db.GetMCPServerConfigsByIDs(ctx, chat.MCPServerIDs)
-			if err != nil {
-				logger.Warn(ctx, "failed to load MCP server configs", slog.Error(err))
-			}
-			return nil
-		})
-		g.Go(func() error {
-			var err error
-			mcpTokens, err = server.db.GetMCPServerUserTokensByUserID(ctx, chat.OwnerID)
-			if err != nil {
-				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(err))
-			}
-			return nil
-		})
-	}
+	g.Go(func() error {
+		var err error
+		mcpConfigs, err = server.effectiveMCPServerConfigs(ctx, logger, chat)
+		return err
+	})
 	if err := g.Wait(); err != nil {
 		return generationPrepared{}, err
 	}
@@ -99,6 +133,41 @@ func (server *Server) prepareGeneration(
 	if callConfig.MaxOutputTokens == nil {
 		maxOutputTokens := int64(32_000)
 		callConfig.MaxOutputTokens = &maxOutputTokens
+	}
+
+	// Computer-use turns swap in a specialized model, so the substitution
+	// must happen before anything model-sensitive runs: file-part
+	// classification, history sanitization, and provider option preparation
+	// must all agree with the client actually used for the turn.
+	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
+	var computerUseProvider codersdk.ChatComputerUseProvider
+	if isComputerUse {
+		var cuModelProvider, cuModelName string
+		computerUseProvider, cuModelProvider, cuModelName, err = server.computerUseProviderAndModelFromConfig(ctx)
+		if err != nil {
+			return generationPrepared{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
+		}
+		computerUseRoute, keyErr := server.resolveModelRouteForProviderType(ctx, chat.OwnerID, cuModelProvider)
+		if keyErr != nil {
+			return generationPrepared{}, xerrors.Errorf("resolve computer use provider route: %w", keyErr)
+		}
+		modelRoute = computerUseRoute
+		cuModel, cuDebugEnabled, cuResolvedProvider, cuResolvedModel, cuErr := server.resolveComputerUseModel(
+			ctx,
+			chat,
+			computerUseRoute,
+			computerUseProvider,
+			cuModelProvider,
+			cuModelName,
+			modelOpts,
+		)
+		if cuErr != nil {
+			return generationPrepared{}, cuErr
+		}
+		model = cuModel
+		debugEnabled = cuDebugEnabled
+		resolvedProvider = cuResolvedProvider
+		debugModel = cuResolvedModel
 	}
 
 	currentPlanMode := chat.PlanMode
@@ -258,9 +327,7 @@ func (server *Server) prepareGeneration(
 		// aibridge routing rewrites the provider (e.g. Bedrock to the
 		// Anthropic transport). The conversion that actually drops or
 		// accepts a file part is the one for model.Provider().
-		acceptsFilePart := func(mediaType string) bool {
-			return chatprovider.AcceptsFilePartMediaType(model.Provider(), model.Model(), mediaType)
-		}
+		acceptsFilePart := model.AcceptsFilePartMediaType
 		providerType := string(modelRoute.Provider.Type)
 		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows, server.chatFileResolver(providerType), logger, acceptsFilePart)
 		if err != nil {
@@ -278,6 +345,11 @@ func (server *Server) prepareGeneration(
 	})
 	if len(mcpConnectConfigs) > 0 {
 		g2.Go(func() error {
+			var tokenErr error
+			mcpTokens, tokenErr = server.db.GetMCPServerUserTokensByUserID(ctx, chat.OwnerID)
+			if tokenErr != nil {
+				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
+			}
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
 			mcpTools, mcpCleanup = mcpclient.ConnectAll(
 				ctx,
@@ -327,7 +399,7 @@ func (server *Server) prepareGeneration(
 		logger,
 		"persisted_history_replay",
 		model.Provider(),
-		model.Model(),
+		model.ModelID(),
 		sanitizeStats,
 	)
 
@@ -379,7 +451,10 @@ func (server *Server) prepareGeneration(
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 			StoreFile:        storeChatAttachment,
 		}),
-		chattool.Execute(chattool.ExecuteOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
+		chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn:    workspaceCtx.getWorkspaceConn,
+			AgentBrowserSession: chat.ID.String(),
+		}),
 		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
@@ -480,36 +555,7 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
-	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
 	if isComputerUse {
-		computerUseProvider, computerUseModelProvider, computerUseModelName, err := server.computerUseProviderAndModelFromConfig(ctx)
-		if err != nil {
-			cleanup()
-			return generationPrepared{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
-		}
-		computerUseRoute, keyErr := server.resolveModelRouteForProviderType(ctx, chat.OwnerID, computerUseModelProvider)
-		if keyErr != nil {
-			cleanup()
-			return generationPrepared{}, xerrors.Errorf("resolve computer use provider route: %w", keyErr)
-		}
-		modelRoute = computerUseRoute
-		cuModel, cuDebugEnabled, cuResolvedProvider, cuResolvedModel, cuErr := server.resolveComputerUseModel(
-			ctx,
-			chat,
-			computerUseRoute,
-			computerUseProvider,
-			computerUseModelProvider,
-			computerUseModelName,
-			modelOpts,
-		)
-		if cuErr != nil {
-			cleanup()
-			return generationPrepared{}, cuErr
-		}
-		model = cuModel
-		debugEnabled = cuDebugEnabled
-		resolvedProvider = cuResolvedProvider
-		debugModel = cuResolvedModel
 		providerTools, err = appendComputerUseProviderTool(providerTools, computerUseProviderToolOptions{
 			provider:         computerUseProvider,
 			isPlanModeTurn:   isPlanModeTurn,
@@ -538,12 +584,7 @@ func (server *Server) prepareGeneration(
 	if chat.LastReasoningEffort.Valid {
 		requestedEffort = new(string(chat.LastReasoningEffort.ChatReasoningEffort))
 	}
-	reasoningEffort := chatprovider.ResolveReasoningEffort(
-		requestedEffort,
-		callConfig.ReasoningEffort,
-	)
-	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions)
-	providerOptions = chatprovider.ApplyReasoningEffort(model, providerOptions, reasoningEffort)
+	providerOptions := chatprovider.ProviderOptionsForCall(model, callConfig, requestedEffort)
 
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
@@ -602,7 +643,7 @@ func (server *Server) prepareGeneration(
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
-		Model:                model,
+		Model:                model.LanguageModel(),
 		Messages:             prompt,
 		ThresholdPercent:     effectiveThreshold,
 		ContextLimit:         compactionContextLimit,
@@ -768,7 +809,7 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-	model, _, modelRoute, _, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelOpts)
+	model, dbConfig, modelRoute, _, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		// Return what we have; generateFinalTurnStatusLabel falls back to a
 		// generic label when StatusLabelModel is nil.
@@ -787,6 +828,7 @@ func (server *Server) deriveFinalTurnRunResult(
 		FallbackRoute:       modelRoute,
 		FallbackModel:       resolvedModel,
 		ModelBuildOptions:   modelOpts,
+		StatusLabelOptions:  dbConfig.Options,
 		TriggerMessageID:    triggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
 	}

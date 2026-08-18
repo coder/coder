@@ -36,8 +36,8 @@ CODER_EXPERIMENTS=oauth2
 
 ### Method 1: Web UI
 
-1. Navigate to **Deployment Settings** → **OAuth2 Applications**
-2. Click **Create Application**
+1. Navigate to **Deployment Settings** > **OAuth2 Applications**.
+2. On the **Applications** tab, select **Add application**.
 3. Fill in the application details:
    - **Name**: Your application name
    - **Callback URL**: `https://yourapp.example.com/callback` (web) or `myapp://callback` (native/desktop)
@@ -70,6 +70,19 @@ curl -X POST \
 ## Dynamic Client Registration
 
 Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) lets a client register itself against `/oauth2/register` instead of an admin creating the application manually. It's **disabled by default**; an owner must turn it on before any client can self-register.
+
+Change the setting in the web UI:
+
+1. Navigate to **Deployment Settings** > **OAuth2 Applications**.
+2. Select the **Settings** tab.
+3. Select **Enable** or **Disable** next to **Dynamic Client Registration**.
+
+Enabling asks you to confirm first.
+Disabling does not.
+The tab is linkable directly at `https://$CODER_ACCESS_URL/deployment/oauth2-provider/apps?tab=settings`.
+
+Viewing the tab requires permission to view deployment configuration, and changing the setting requires permission to edit it.
+Without edit permission the button is present but inactive, and the page says why.
 
 Check or change the setting with the CLI:
 
@@ -169,11 +182,18 @@ PKCE is **required** for all OAuth2 authorization code flows. Coder enforces
 PKCE in compliance with the OAuth 2.1 specification. Both public and
 confidential clients must include PKCE parameters:
 
+> [!NOTE]
+> `code_verifier` and `code_challenge` must each be 43-128 characters from
+> the unreserved character set `[A-Za-z0-9-._~]` (RFC 7636 §4.1). A value
+> outside these bounds is rejected with an `invalid_request` error, at the
+> token endpoint for `code_verifier` and at the authorization endpoint for
+> `code_challenge`.
+
 1. Generate a code verifier and challenge:
 
    ```sh
-   CODE_VERIFIER=$(openssl rand -base64 96 | tr -d "=+/" | cut -c1-128)
-   CODE_CHALLENGE=$(echo -n $CODE_VERIFIER | openssl dgst -sha256 -binary | base64 | tr -d "=+/" | cut -c1-43)
+   CODE_VERIFIER=$(openssl rand -base64 96 | tr -d '\n' | tr '+/' '-_' | tr -d '=')
+   CODE_CHALLENGE=$(echo -n $CODE_VERIFIER | openssl dgst -sha256 -binary | base64 | tr -d "=" | tr '+/' '-_')
    ```
 
 2. Include PKCE parameters in the authorization request:
@@ -248,6 +268,27 @@ curl -X DELETE \
   "$CODER_URL/oauth2/tokens?client_id=$CLIENT_ID"
 ```
 
+This ends existing sessions but leaves the application registered, so it can authorize again.
+
+### Delete an Application
+
+Deleting an application is a separate operation from revoking its tokens.
+It removes the registration itself, so the client cannot authorize again without being registered anew.
+
+In the web UI, navigate to **Deployment Settings** > **OAuth2 Applications**, select the application on the **Applications** tab, then select **Delete**.
+This requires permission to delete OAuth2 applications.
+
+Or with the management API:
+
+```sh
+curl -X DELETE \
+  -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  "$CODER_URL/api/v2/oauth2-provider/apps/$APP_ID"
+```
+
+This is also how you remove clients that registered themselves while dynamic client registration was enabled.
+Turning the setting off stops new registrations; it does not remove the ones already there.
+
 ## Testing and Development
 
 Coder provides comprehensive test scripts for OAuth2 development:
@@ -292,11 +333,24 @@ application's callback URL to a valid scheme (see
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.
 
+### "public clients may not use the mailto/tel/sms scheme"
+
+This error appears during client registration when a public client
+(`token_endpoint_auth_method: none`) registers a redirect URI using the
+`mailto:`, `tel:`, or `sms:` scheme. These schemes hand off to a mail
+client, dialer, or SMS app instead of returning control to the
+application that started the flow, so a public client registered with
+one of them could never complete authorization. Register a redirect URI
+the client can actually receive control on instead, such as a custom
+scheme (`myapp://callback`) or a loopback HTTP address.
+
 ## Callback URL schemes
 
 Custom URI schemes (`myapp://`, `vscode://`, `jetbrains://`, etc.) are fully supported for native and desktop applications. The OS routes the redirect back to the registered application without requiring a running HTTP server.
 
 The following schemes are blocked for security reasons: `javascript:`, `data:`, `file:`, `ftp:`.
+
+Public clients (`token_endpoint_auth_method: none`) additionally cannot register `mailto:`, `tel:`, or `sms:` redirect URIs, since those schemes hand off to another app rather than returning an authorization code to the client. Confidential clients are not subject to this restriction.
 
 ## Security Considerations
 
@@ -305,7 +359,8 @@ The following schemes are blocked for security reasons: `javascript:`, `data:`, 
   (public and confidential)
 - **Validate redirect URLs**: Only register trusted redirect URIs. Dangerous
   schemes (`javascript:`, `data:`, `file:`, `ftp:`) are blocked by the server,
-  but custom URI schemes for native apps (`myapp://`) are permitted
+  custom URI schemes for native apps (`myapp://`) are permitted, and public
+  clients additionally cannot use `mailto:`, `tel:`, or `sms:`
 - **Rotate secrets**: Periodically rotate client secrets using the management API
 
 ## Limitations
