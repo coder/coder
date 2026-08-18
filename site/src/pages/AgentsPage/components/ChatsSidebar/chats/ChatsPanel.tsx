@@ -361,7 +361,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		>
 			<nav
 				aria-label="Sidebar"
-				className="hidden px-2 py-1.5 sm:flex sm:flex-col sm:gap-0.5"
+				className="hidden border-b border-transparent px-2 py-1.5 sm:flex sm:flex-col sm:gap-0.5"
 			>
 				<div className="flex items-center justify-between mb-2.5 ml-2.5">
 					<div className="flex items-center gap-2">
