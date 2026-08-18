@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { type FC, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -61,6 +61,14 @@ const AddMCPServerPage: FC = () => {
 		(requestedOrganizationName === null && creatableOrganizations.length > 0
 			? selectOrganization(creatableOrganizations, null)
 			: undefined);
+	useEffect(() => {
+		if (requestedOrganizationName !== null || !organization) {
+			return;
+		}
+		const next = new URLSearchParams(searchParams);
+		next.set(orgSearchParam, organization.name);
+		setSearchParams(next, { replace: true });
+	}, [organization, requestedOrganizationName, searchParams, setSearchParams]);
 	const organizationPermissions = organization
 		? organizationPermissionsQuery.data?.[organization.id]
 		: undefined;

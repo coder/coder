@@ -133,6 +133,22 @@ const withRefetchPermissionsProbe: Decorator = (Story) => (
 	</>
 );
 
+const OrganizationSearchParamProbe: FC = () => {
+	const [searchParams] = useSearchParams();
+	return (
+		<output aria-label="Organization query parameter">
+			{searchParams.get(orgSearchParam) ?? "none"}
+		</output>
+	);
+};
+
+const withOrganizationSearchParamProbe: Decorator = (Story) => (
+	<>
+		<OrganizationSearchParamProbe />
+		<Story />
+	</>
+);
+
 const ListRedirectProbe: FC = () => {
 	const [searchParams] = useSearchParams();
 	return <div>list-org:{searchParams.get(orgSearchParam) ?? "none"}</div>;
@@ -681,6 +697,63 @@ export const AddDeniedRequestedOrganizationDoesNotFallback: Story = {
 				name: `Organization ${MockOrganization2.display_name}`,
 			}),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const AddImplicitOrganizationDeniedAfterPermissionsRefetch: Story = {
+	render: () => <AddMCPServerPage />,
+	decorators: [withRefetchPermissionsProbe, withOrganizationSearchParamProbe],
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: false,
+			createAnyMCPServerConfig: true,
+			updateAnyMCPServerConfig: false,
+			deleteAnyMCPServerConfig: false,
+		},
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers/add" },
+			routing: { path: "/ai/settings/mcp-servers/add" },
+		}),
+	},
+	beforeEach: () => {
+		const checkAuthorization = mockOrganizationPermissions({
+			[MockDefaultOrganization.id]: {},
+			[MockOrganization2.id]: { create: true },
+		});
+		checkAuthorization.mockImplementationOnce(async ({ checks }) =>
+			organizationPermissionsResponse(
+				{
+					[MockDefaultOrganization.id]: { create: true },
+					[MockOrganization2.id]: { create: true },
+				},
+				checks,
+			),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.type(
+			await canvas.findByLabelText(/display name/i),
+			"Draft server",
+		);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Refetch permissions" }),
+		);
+		await expect(
+			await body.findByText("You don't have permission to view this page"),
+		).toBeInTheDocument();
+		expect(canvas.queryByLabelText(/display name/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", {
+				name: `Organization ${MockOrganization2.display_name}`,
+			}),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.getByLabelText("Organization query parameter"),
+		).toHaveTextContent(MockDefaultOrganization.name);
 	},
 };
 
