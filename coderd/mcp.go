@@ -185,7 +185,11 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		configs, err = api.Database.GetAuthorizedMCPServerConfigs(ctx, organization.ID, prepared)
-		configs = slices.DeleteFunc(configs, func(config database.MCPServerConfig) bool { return !config.Enabled })
+		// Delete-authorized callers keep disabled configs in the redacted
+		// list so they can still reach and remove them.
+		configs = slices.DeleteFunc(configs, func(config database.MCPServerConfig) bool {
+			return !config.Enabled && !api.Authorize(r, policy.ActionDelete, config)
+		})
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -508,7 +512,8 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	// Same full-view rule as listMCPServerConfigs: admins and auditors.
 	hasFullView := api.Authorize(r, policy.ActionUpdate, config) ||
 		api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog.InOrg(config.OrganizationID))
-	if !hasFullView && !config.Enabled {
+	if !hasFullView && !config.Enabled &&
+		!api.Authorize(r, policy.ActionDelete, config) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

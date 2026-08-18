@@ -109,6 +109,59 @@ func TestMCPServerConfigListUpdateOnlyRoleIsFiltered(t *testing.T) {
 	require.Empty(t, configs[0].URL)
 }
 
+func TestMCPServerConfigDeleteOnlyRoleReachesDisabled(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureCustomRoles: 1,
+			},
+		},
+	})
+
+	enabled := createMCPServerConfigForOrganization(t, owner, firstUser.OrganizationID, "enabled-mcp")
+	disabled := createMCPServerConfigForOrganization(t, owner, firstUser.OrganizationID, "disabled-mcp")
+	//nolint:gocritic // Owner access sets up the disabled fixture.
+	_, err := owner.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, disabled.ID,
+		codersdk.UpdateMCPServerConfigRequest{Enabled: ptr.Ref(false)})
+	require.NoError(t, err)
+
+	//nolint:gocritic // Owner access isolates custom-role setup from the behavior under test.
+	role, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
+		Name:           "mcp-delete-only",
+		OrganizationID: firstUser.OrganizationID.String(),
+		OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			codersdk.ResourceMCPServerConfig: {codersdk.ActionDelete},
+		}),
+	})
+	require.NoError(t, err)
+	deleteOnly, _ := coderdtest.CreateAnotherUser(t, owner, firstUser.OrganizationID,
+		rbac.RoleIdentifier{Name: role.Name, OrganizationID: firstUser.OrganizationID})
+
+	configs, err := deleteOnly.MCPServerConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	require.Len(t, configs, 2)
+	for _, config := range configs {
+		require.Empty(t, config.URL)
+	}
+
+	fetched, err := deleteOnly.MCPServerConfigByID(ctx, firstUser.OrganizationID, disabled.ID)
+	require.NoError(t, err)
+	require.Equal(t, disabled.ID, fetched.ID)
+	require.False(t, fetched.Enabled)
+	require.Empty(t, fetched.URL)
+
+	err = deleteOnly.DeleteMCPServerConfig(ctx, firstUser.OrganizationID, disabled.ID)
+	require.NoError(t, err)
+
+	configs, err = deleteOnly.MCPServerConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.Equal(t, enabled.ID, configs[0].ID)
+}
+
 func TestMCPServerConfigCollectionOrganizationIsolation(t *testing.T) {
 	t.Parallel()
 
