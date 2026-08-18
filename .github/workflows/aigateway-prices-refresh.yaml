@@ -6,7 +6,7 @@
 # reviews and merges it.
 #
 # Behavior:
-#   - Runs every Monday. If regeneration produces no diff, the run ends
+#   - Runs every Thursday. If regeneration produces no diff, the run ends
 #     without opening anything.
 #   - Reuses a single branch and pull request, force-pushing each week, so at
 #     most one refresh PR is open and it always carries the newest snapshot.
@@ -17,8 +17,8 @@ name: aigateway-prices-refresh
 
 on:
   schedule:
-    # 09:00 UTC every Monday, so the PR is waiting when EU and US start the week.
-    - cron: "0 9 * * 1"
+    # 09:00 UTC every Thursday, leaving three business days before Tuesday releases.
+    - cron: "0 9 * * 4"
   workflow_dispatch: # allows manual runs for testing
   # TEMPORARY: schedule and workflow_dispatch only fire from the default
   # branch, so this trigger is the only way to exercise the workflow before
