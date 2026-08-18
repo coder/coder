@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, waitFor } from "storybook/test";
+import { expect, fn, userEvent, waitFor } from "storybook/test";
 import type { AIBridgeThread } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
@@ -183,6 +183,39 @@ export const SearchFiltersThreads: Story = {
 			),
 		).not.toBeInTheDocument();
 		expect((await canvas.findAllByText("read_file")).length).toBeGreaterThan(0);
+	},
+};
+
+// A tool-name search hides non-matching tool calls in the multi-tool loop
+// and expands the match.
+export const SearchFiltersToolCalls: Story = {
+	args: {
+		threads: [mockThreadLong],
+		searchQuery: "read_file",
+	},
+	play: async ({ canvas }) => {
+		await expect(
+			(await canvas.findAllByText("read_file")).length,
+		).toBeGreaterThan(0);
+		await expect(canvas.queryByText("write_file")).not.toBeInTheDocument();
+	},
+};
+
+// A prompt-only search leaves tool calls alone: the empty match set must not
+// filter them out when the user opens the loop by hand.
+export const SearchPromptMatchKeepsToolCalls: Story = {
+	args: {
+		threads: [mockThreadLong],
+		// "token-based" appears only in the prompt, never in a tool name or
+		// input, so no tool call matches and all of them must still render.
+		searchQuery: "token-based",
+	},
+	play: async ({ canvas }) => {
+		await userEvent.click(
+			canvas.getByRole("button", { name: /agentic loop/i }),
+		);
+		await expect(canvas.getByText("read_file")).toBeInTheDocument();
+		await expect(canvas.getByText("write_file")).toBeInTheDocument();
 	},
 };
 

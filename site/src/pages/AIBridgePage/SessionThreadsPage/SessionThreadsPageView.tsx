@@ -15,6 +15,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useDebouncedValue } from "#/hooks/debounce";
+import { cn } from "#/utils/cn";
 import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
@@ -119,15 +120,17 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 							placeholder="Search prompt text, tool calls, and network requests..."
 							aria-label="Search session events"
 						/>
-						{isSearching && (
-							<p
-								className="m-0 text-sm font-normal text-content-secondary text-right"
-								role="status"
-							>
-								<strong>{searchResults.toLocaleString("en-US")}</strong>{" "}
-								{searchResults === 1 ? "result" : "results"}
-							</p>
-						)}
+						<p
+							className={cn(
+								"m-0 text-sm font-normal text-content-secondary text-right",
+								!isSearching && "invisible",
+							)}
+							role="status"
+							aria-hidden={!isSearching}
+						>
+							<strong>{searchResults.toLocaleString("en-US")}</strong>{" "}
+							{searchResults === 1 ? "result" : "results"}
+						</p>
 					</div>
 				)}
 			</nav>

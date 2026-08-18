@@ -340,8 +340,10 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 interface AgenticActionItemProps {
 	action: AIBridgeAgenticAction;
 	/**
-	 * When set, only these tool calls render, and they start expanded. A search
-	 * that matched a tool name or input hides the others and reveals these.
+	 * When set with entries, only these tool calls render, and they start
+	 * expanded. A search that matched a tool name or input hides the others
+	 * and reveals these. An empty set means the search matched elsewhere, so
+	 * all tool calls render unchanged.
 	 */
 	matchedToolCallIds?: Set<string>;
 	/** The active query, used to bold matches in the tool calls. */
@@ -353,7 +355,7 @@ const AgenticActionItem: FC<AgenticActionItemProps> = ({
 	matchedToolCallIds,
 	highlight,
 }) => {
-	const visibleToolCalls = matchedToolCallIds
+	const visibleToolCalls = matchedToolCallIds?.size
 		? action.tool_calls.filter((tool_call) =>
 				matchedToolCallIds.has(tool_call.id),
 			)
@@ -377,7 +379,7 @@ const AgenticActionItem: FC<AgenticActionItemProps> = ({
 					outputTokens={action.token_usage.output_tokens}
 					tokenUsageMetadata={tool_call.metadata}
 					timestamp={new Date(tool_call.created_at)}
-					expandedByDefault={matchedToolCallIds !== undefined}
+					expandedByDefault={(matchedToolCallIds?.size ?? 0) > 0}
 					highlight={highlight}
 				/>
 			))}
@@ -393,7 +395,8 @@ interface ThreadItemProps {
 	 */
 	searchToolMatch: boolean;
 	/**
-	 * The tool calls that matched the query. Undefined when nothing matched.
+	 * The tool calls that matched the query. Empty when the search matched
+	 * something other than a tool call, so all tool calls render.
 	 */
 	matchedToolCallIds?: Set<string>;
 	/**

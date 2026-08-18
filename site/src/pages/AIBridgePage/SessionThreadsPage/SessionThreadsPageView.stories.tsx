@@ -124,21 +124,20 @@ export const SearchNoMatches: Story = {
 	},
 };
 
-// The header count reports occurrences across the loaded session and names
-// the scope honestly.
+// The count keeps its slot in the layout when the search box is empty, so
+// the timeline does not shift when a search begins.
 export const SearchResultsCount: Story = {
 	play: async ({ canvas }) => {
 		const input = canvas.getByRole("textbox", {
 			name: /search session events/i,
 		});
+
+		const status = canvas.getByRole("status", { hidden: true });
+		await expect(status).not.toBeVisible();
+
 		await userEvent.type(input, "list_directory");
-		await waitFor(() =>
-			expect(
-				canvas.getByText((_content, element) => {
-					return element?.textContent === "1 result";
-				}),
-			).toBeInTheDocument(),
-		);
+		await waitFor(() => expect(status).toHaveTextContent("1 result"));
+		await expect(status).toBeVisible();
 	},
 };
 
