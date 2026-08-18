@@ -40,6 +40,7 @@ import {
 } from "./AgentChatPageView";
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
+import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 
@@ -988,22 +989,6 @@ export const NotFoundSidebarCollapsed: Story = {
 // Transcript scrolling stories
 // ---------------------------------------------------------------------------
 
-/** Generate a long conversation so the scroll container overflows. */
-const buildLongConversation = (count: number): TypesGen.ChatMessage[] => {
-	const messages: TypesGen.ChatMessage[] = [];
-	for (let i = 1; i <= count; i++) {
-		const role: TypesGen.ChatMessageRole = i % 2 === 1 ? "user" : "assistant";
-		const text =
-			role === "user"
-				? `Question ${Math.ceil(i / 2)}: Can you explain concept ${Math.ceil(i / 2)} in detail?`
-				: `Sure! Here is a detailed explanation of concept ${Math.floor(i / 2)}. `.repeat(
-						4,
-					);
-		messages.push(buildMessage(i, role, text));
-	}
-	return messages;
-};
-
 const scrollStoryDecorators: Decorator[] = [
 	(Story) => (
 		<div
@@ -1094,10 +1079,12 @@ export const UserPromptsRenderOnce: Story = {
 };
 
 const startEdgeStore = buildStoreWithMessages(
-	buildLongConversation(40).slice(1),
+	buildLongConversation(AGENT_ID, 40).slice(1),
 );
 
-const streamCompletionStore = buildStoreWithMessages(buildLongConversation(40));
+const streamCompletionStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 40),
+);
 
 let releaseStartEdgeFetch: (() => void) | undefined;
 let startEdgeFetchGate: Promise<void>;
@@ -1123,7 +1110,9 @@ export const ReachingTheStartLoadsEarlierMessages: Story = {
 		/>
 	),
 	play: async ({ canvasElement }) => {
-		startEdgeStore.replaceMessages(buildLongConversation(40).slice(1));
+		startEdgeStore.replaceMessages(
+			buildLongConversation(AGENT_ID, 40).slice(1),
+		);
 		startEdgeStore.setChatStatus("waiting");
 		startEdgeFetchSpy.mockClear();
 		const canvas = within(canvasElement);
@@ -1168,7 +1157,7 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={streamCompletionStore} />,
 	play: async ({ canvasElement }) => {
-		streamCompletionStore.replaceMessages(buildLongConversation(40));
+		streamCompletionStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
 		streamCompletionStore.setChatStatus("waiting");
 		const canvas = within(canvasElement);
 		const viewport = getViewport(canvas);
@@ -1311,7 +1300,7 @@ const retryFetchSpy = fn();
 
 const RetryPaginationStory: FC = () => {
 	const store = useRef(
-		buildStoreWithMessages(buildLongConversation(40)),
+		buildStoreWithMessages(buildLongConversation(AGENT_ID, 40)),
 	).current;
 	const [hasError, setHasError] = useState(true);
 	const [isFetching, setIsFetching] = useState(false);

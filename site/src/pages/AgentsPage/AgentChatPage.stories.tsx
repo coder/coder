@@ -45,6 +45,7 @@ import {
 } from "#/testHelpers/storybook";
 import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
+import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.
@@ -2815,31 +2816,6 @@ export const WithWaitAgentComputerUseVNC: Story = {
 // /compact slash command
 // ---------------------------------------------------------------------------
 
-const buildLongConversationForPage = (
-	count: number,
-): TypesGen.ChatMessage[] => {
-	const messages: TypesGen.ChatMessage[] = [];
-	for (let i = 1; i <= count; i++) {
-		const role: TypesGen.ChatMessageRole = i % 2 === 1 ? "user" : "assistant";
-		messages.push({
-			id: i,
-			chat_id: CHAT_ID,
-			created_at: new Date(Date.now() - (count - i) * 60_000).toISOString(),
-			role,
-			content: [
-				{
-					type: "text",
-					text:
-						role === "user"
-							? `Question ${Math.ceil(i / 2)}?`
-							: `Answer ${Math.floor(i / 2)}. `.repeat(12),
-				},
-			],
-		});
-	}
-	return messages;
-};
-
 const compactCommandMessages: TypesGen.ChatMessagesResponse = {
 	messages: [
 		{
@@ -3163,7 +3139,7 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 				status: "waiting",
 			},
 			{
-				messages: buildLongConversationForPage(40),
+				messages: buildLongConversation(CHAT_ID, 40),
 				queued_messages: [],
 				has_more: false,
 			},
