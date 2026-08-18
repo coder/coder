@@ -6698,7 +6698,7 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	if !provider.Enabled {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
+		writeChatProviderPreconditionError(ctx, rw, errChatProviderDisabled)
 		return
 	}
 	var req codersdk.CreateUserAIProviderKeyRequest
@@ -6938,7 +6938,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	aiProvider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), *req.AIProviderID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
-			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is not configured."})
+			writeChatProviderPreconditionError(ctx, rw, errChatProviderMissing)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -6948,7 +6948,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !aiProvider.Enabled {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
+		writeChatProviderPreconditionError(ctx, rw, errChatProviderDisabled)
 		return
 	}
 	aiProviderID := uuid.NullUUID{UUID: aiProvider.ID, Valid: true}
@@ -7073,6 +7073,9 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
+		if writeChatProviderPreconditionError(ctx, rw, err) {
+			return
+		}
 		var providerModelErr *chatModelConfigProviderModelError
 		switch {
 		case errors.As(err, &providerModelErr):
@@ -7082,16 +7085,6 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Chat model config already exists.",
 				Detail:  err.Error(),
-			})
-			return
-		case xerrors.Is(err, errChatProviderMissing):
-			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
-				Message: "AI provider is not configured.",
-			})
-			return
-		case xerrors.Is(err, errChatProviderDisabled):
-			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
-				Message: "AI provider is disabled.",
 			})
 			return
 		default:
@@ -7281,16 +7274,15 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 		refreshedConfig, err := tx.GetChatModelConfigByID(ctx, lockedExisting.ID)
 		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
-				// Do not wrap with %w. The outer handler maps target misses to 404.
-				return xerrors.Errorf("refresh updated chat model config: %v", err)
-			}
 			return xerrors.Errorf("refresh updated chat model config: %w", err)
 		}
 		updated = refreshedConfig
 		return nil
 	})
 	if err != nil {
+		if writeChatProviderPreconditionError(ctx, rw, err) {
+			return
+		}
 		var providerModelErr *chatModelConfigProviderModelError
 		switch {
 		case errors.As(err, &providerModelErr):
@@ -7300,16 +7292,6 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Chat model config already exists.",
 				Detail:  err.Error(),
-			})
-			return
-		case xerrors.Is(err, errChatProviderMissing):
-			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
-				Message: "AI provider is not configured.",
-			})
-			return
-		case xerrors.Is(err, errChatProviderDisabled):
-			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
-				Message: "AI provider is disabled.",
 			})
 			return
 		case xerrors.Is(err, errChatModelConfigNotFound):
@@ -7354,12 +7336,6 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
-		if _, err := tx.GetChatModelConfigByID(ctx, modelConfigID); err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
-				return errChatModelConfigNotFound
-			}
-			return xerrors.Errorf("get chat model config for delete: %w", err)
-		}
 		if _, err := tx.DeleteChatModelConfigByID(ctx, modelConfigID); err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return errChatModelConfigNotFound
@@ -7657,6 +7633,20 @@ func validateChatProviderAPIKeySize(apiKey string) error {
 		return xerrors.Errorf("API key exceeds maximum size of 10 KB (%d bytes)", maxChatProviderAPIKeySize)
 	}
 	return nil
+}
+
+func writeChatProviderPreconditionError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	var message string
+	switch {
+	case xerrors.Is(err, errChatProviderMissing):
+		message = "AI provider is not configured."
+	case xerrors.Is(err, errChatProviderDisabled):
+		message = "AI provider is disabled."
+	default:
+		return false
+	}
+	httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: message})
+	return true
 }
 
 var (
