@@ -28,9 +28,11 @@ const workspaceCapableUserCountTimeout = 60 * time.Second
 
 const (
 	// UsagePublishingFailureThreshold is how long usage event publishing must
-	// be failing before a warning is generated. An unpublished event older
-	// than this threshold, or a permanent rejection within this threshold,
-	// marks publishing as failing.
+	// be failing before a warning is generated. An event still unpublished
+	// this long after insertion, or a permanent rejection within this
+	// threshold, marks publishing as failing. Insertion time is used rather
+	// than the usage timestamp so heartbeat events backfilled after downtime
+	// get the full threshold before counting as stuck.
 	UsagePublishingFailureThreshold = 24 * time.Hour
 	// usagePublishingWindow matches the publisher's 30-day selection window
 	// in SelectUsageEventsForPublishing. Events older than this are never
@@ -812,8 +814,8 @@ func LicensesEntitlements(
 			// within the threshold. FailingSince is the earliest time
 			// associated with the failure.
 			var failingSince time.Time
-			if !status.OldestStuckCreatedAt.IsZero() {
-				failingSince = status.OldestStuckCreatedAt
+			if !status.OldestStuckInsertedAt.IsZero() {
+				failingSince = status.OldestStuckInsertedAt
 			}
 			if !status.EarliestRecentRejectionAt.IsZero() && (failingSince.IsZero() || status.EarliestRecentRejectionAt.Before(failingSince)) {
 				failingSince = status.EarliestRecentRejectionAt

@@ -10732,10 +10732,11 @@ func TestUsageEventsTrigger(t *testing.T) {
 
 		// Insert a usage event.
 		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
-			ID:        "1",
-			EventType: "dc_managed_agents_v1",
-			EventData: []byte(`{"count": 41}`),
-			CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			ID:         "1",
+			EventType:  "dc_managed_agents_v1",
+			EventData:  []byte(`{"count": 41}`),
+			CreatedAt:  time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			InsertedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 		})
 		require.NoError(t, err)
 
@@ -10757,7 +10758,8 @@ func TestUsageEventsTrigger(t *testing.T) {
 			EventData: []byte(`{"count": 1}`),
 			// Insert it at a random point during the same day. Sydney is +1000 or
 			// +1100, so 8am in Sydney is the previous day in UTC.
-			CreatedAt: time.Date(2025, 1, 2, 8, 38, 57, 0, locSydney),
+			CreatedAt:  time.Date(2025, 1, 2, 8, 38, 57, 0, locSydney),
+			InsertedAt: time.Date(2025, 1, 2, 8, 38, 57, 0, locSydney),
 		})
 		require.NoError(t, err)
 
@@ -10775,10 +10777,11 @@ func TestUsageEventsTrigger(t *testing.T) {
 		// Insert a new usage event on a different day, should create a new daily
 		// row.
 		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
-			ID:        "3",
-			EventType: "dc_managed_agents_v1",
-			EventData: []byte(`{"count": 1}`),
-			CreatedAt: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
+			ID:         "3",
+			EventType:  "dc_managed_agents_v1",
+			EventData:  []byte(`{"count": 1}`),
+			CreatedAt:  time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
+			InsertedAt: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
 		})
 		require.NoError(t, err)
 
@@ -10803,10 +10806,11 @@ func TestUsageEventsTrigger(t *testing.T) {
 
 		// Insert a heartbeat event.
 		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
-			ID:        "hb-1",
-			EventType: "hb_ai_seats_v1",
-			EventData: []byte(`{"count": 10}`),
-			CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			ID:         "hb-1",
+			EventType:  "hb_ai_seats_v1",
+			EventData:  []byte(`{"count": 10}`),
+			CreatedAt:  time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			InsertedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 		})
 		require.NoError(t, err)
 
@@ -10817,10 +10821,11 @@ func TestUsageEventsTrigger(t *testing.T) {
 
 		// Insert a higher count on the same day. It should take the max.
 		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
-			ID:        "hb-2",
-			EventType: "hb_ai_seats_v1",
-			EventData: []byte(`{"count": 50}`),
-			CreatedAt: time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC),
+			ID:         "hb-2",
+			EventType:  "hb_ai_seats_v1",
+			EventData:  []byte(`{"count": 50}`),
+			CreatedAt:  time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC),
+			InsertedAt: time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC),
 		})
 		require.NoError(t, err)
 
@@ -10830,10 +10835,11 @@ func TestUsageEventsTrigger(t *testing.T) {
 
 		// Insert a lower count on the same day. It should keep the max (50).
 		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
-			ID:        "hb-3",
-			EventType: "hb_ai_seats_v1",
-			EventData: []byte(`{"count": 25}`),
-			CreatedAt: time.Date(2025, 1, 1, 18, 0, 0, 0, time.UTC),
+			ID:         "hb-3",
+			EventType:  "hb_ai_seats_v1",
+			EventData:  []byte(`{"count": 25}`),
+			CreatedAt:  time.Date(2025, 1, 1, 18, 0, 0, 0, time.UTC),
+			InsertedAt: time.Date(2025, 1, 1, 18, 0, 0, 0, time.UTC),
 		})
 		require.NoError(t, err)
 
@@ -10843,10 +10849,11 @@ func TestUsageEventsTrigger(t *testing.T) {
 
 		// Insert on a different day.
 		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
-			ID:        "hb-4",
-			EventType: "hb_ai_seats_v1",
-			EventData: []byte(`{"count": 5}`),
-			CreatedAt: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
+			ID:         "hb-4",
+			EventType:  "hb_ai_seats_v1",
+			EventData:  []byte(`{"count": 5}`),
+			CreatedAt:  time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
+			InsertedAt: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
 		})
 		require.NoError(t, err)
 
@@ -10858,10 +10865,11 @@ func TestUsageEventsTrigger(t *testing.T) {
 		// Also insert a dc_managed_agents_v1 on the same first day to
 		// verify different event types get separate daily rows.
 		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
-			ID:        "dc-1",
-			EventType: "dc_managed_agents_v1",
-			EventData: []byte(`{"count": 7}`),
-			CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			ID:         "dc-1",
+			EventType:  "dc_managed_agents_v1",
+			EventData:  []byte(`{"count": 7}`),
+			CreatedAt:  time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			InsertedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 		})
 		require.NoError(t, err)
 
@@ -10878,10 +10886,11 @@ func TestUsageEventsTrigger(t *testing.T) {
 		insert := func(id, eventType, eventData string, createdAt time.Time) {
 			t.Helper()
 			err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
-				ID:        id,
-				EventType: eventType,
-				EventData: []byte(eventData),
-				CreatedAt: createdAt,
+				ID:         id,
+				EventType:  eventType,
+				EventData:  []byte(eventData),
+				CreatedAt:  createdAt,
+				InsertedAt: createdAt,
 			})
 			require.NoError(t, err)
 		}
@@ -10929,10 +10938,11 @@ func TestUsageEventsTrigger(t *testing.T) {
 		// idx_usage_events_agent_runtime rejects it loudly instead of the
 		// (id) arbiter silently dropping it.
 		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
-			ID:        "different-id-same-bucket",
-			EventType: "hb_agent_runtime_v1",
-			EventData: []byte(`{"runtime_ms": 9999}`),
-			CreatedAt: day1,
+			ID:         "different-id-same-bucket",
+			EventType:  "hb_agent_runtime_v1",
+			EventData:  []byte(`{"runtime_ms": 9999}`),
+			CreatedAt:  day1,
+			InsertedAt: day1,
 		})
 		require.True(t, database.IsUniqueViolation(err, database.UniqueIndexUsageEventsAgentRuntime),
 			"expected unique violation on idx_usage_events_agent_runtime, got %v", err)
@@ -10945,10 +10955,11 @@ func TestUsageEventsTrigger(t *testing.T) {
 		// usage_events_agent_runtime_hour_aligned rejects a misaligned row
 		// so it cannot skew the period a bucket is attributed to.
 		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
-			ID:        "hb_agent_runtime_v1:misaligned",
-			EventType: "hb_agent_runtime_v1",
-			EventData: []byte(`{"runtime_ms": 100}`),
-			CreatedAt: day1.Add(30 * time.Minute),
+			ID:         "hb_agent_runtime_v1:misaligned",
+			EventType:  "hb_agent_runtime_v1",
+			EventData:  []byte(`{"runtime_ms": 100}`),
+			CreatedAt:  day1.Add(30 * time.Minute),
+			InsertedAt: day1.Add(30 * time.Minute),
 		})
 		require.ErrorContains(t, err, string(database.CheckUsageEventsAgentRuntimeHourAligned))
 		rows = getDailyRows(ctx, sqlDB)
@@ -10970,10 +10981,11 @@ func TestUsageEventsTrigger(t *testing.T) {
 
 		// Insert a usage event with an unknown event type.
 		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
-			ID:        "broken",
-			EventType: "dean's cool event",
-			EventData: []byte(`{"my": "cool json"}`),
-			CreatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			ID:         "broken",
+			EventType:  "dean's cool event",
+			EventData:  []byte(`{"my": "cool json"}`),
+			CreatedAt:  time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			InsertedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 		})
 		require.ErrorContains(t, err, "Unhandled usage event type in aggregate_usage_event")
 
@@ -11071,10 +11083,11 @@ func TestListUsageEventCreatedAtsByTypeSince(t *testing.T) {
 	insertEvent := func(id, eventType string, eventData string, createdAt time.Time) {
 		t.Helper()
 		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
-			ID:        id,
-			EventType: eventType,
-			EventData: []byte(eventData),
-			CreatedAt: createdAt,
+			ID:         id,
+			EventType:  eventType,
+			EventData:  []byte(eventData),
+			CreatedAt:  createdAt,
+			InsertedAt: createdAt,
 		})
 		require.NoError(t, err)
 	}
@@ -11124,6 +11137,9 @@ func TestGetUsagePublishStatus(t *testing.T) {
 	type seedEvent struct {
 		id        string
 		createdAt time.Time
+		// insertedAt zero means the row was inserted when the usage
+		// occurred, i.e. it defaults to createdAt.
+		insertedAt time.Time
 		// publishedAt zero means never published.
 		publishedAt time.Time
 		// failureMessage combined with publishedAt determines the state:
@@ -11136,11 +11152,16 @@ func TestGetUsagePublishStatus(t *testing.T) {
 	seed := func(ctx context.Context, t *testing.T, db database.Store, events []seedEvent) {
 		t.Helper()
 		for _, ev := range events {
+			insertedAt := ev.insertedAt
+			if insertedAt.IsZero() {
+				insertedAt = ev.createdAt
+			}
 			err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
-				ID:        ev.id,
-				EventType: "dc_managed_agents_v1",
-				EventData: []byte(`{"count": 1}`),
-				CreatedAt: ev.createdAt,
+				ID:         ev.id,
+				EventType:  "dc_managed_agents_v1",
+				EventData:  []byte(`{"count": 1}`),
+				CreatedAt:  ev.createdAt,
+				InsertedAt: insertedAt,
 			})
 			require.NoError(t, err)
 			if !ev.publishedAt.IsZero() || ev.failureMessage != "" {
@@ -11191,7 +11212,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 				{id: "2", createdAt: now.Add(-30 * time.Hour)},
 			},
 			want: database.GetUsagePublishStatusRow{
-				OldestStuckCreatedAt: now.Add(-48 * time.Hour),
+				OldestStuckInsertedAt: now.Add(-48 * time.Hour),
 			},
 		},
 		{
@@ -11200,7 +11221,26 @@ func TestGetUsagePublishStatus(t *testing.T) {
 				{id: "1", createdAt: now.Add(-48 * time.Hour), failureMessage: "temporary failure"},
 			},
 			want: database.GetUsagePublishStatusRow{
-				OldestStuckCreatedAt: now.Add(-48 * time.Hour),
+				OldestStuckInsertedAt: now.Add(-48 * time.Hour),
+			},
+		},
+		{
+			// Heartbeat events backfilled after downtime carry a historical
+			// created_at but a fresh inserted_at. They must not count as
+			// stuck until the failure threshold elapses from insertion.
+			name: "BackfilledEventNotStuck",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-72 * time.Hour), insertedAt: now.Add(-1 * time.Hour)},
+			},
+			want: database.GetUsagePublishStatusRow{},
+		},
+		{
+			name: "BackfilledEventStuckAfterThreshold",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-72 * time.Hour), insertedAt: now.Add(-25 * time.Hour)},
+			},
+			want: database.GetUsagePublishStatusRow{
+				OldestStuckInsertedAt: now.Add(-25 * time.Hour),
 			},
 		},
 		{
@@ -11263,7 +11303,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			},
 			want: database.GetUsagePublishStatusRow{
 				LastPublishedAt:           now.Add(-49 * time.Hour),
-				OldestStuckCreatedAt:      now.Add(-40 * time.Hour),
+				OldestStuckInsertedAt:     now.Add(-40 * time.Hour),
 				EarliestRecentRejectionAt: now.Add(-4 * time.Hour),
 			},
 		},
@@ -11284,7 +11324,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			row, err := db.GetUsagePublishStatus(dbauthz.AsSystemRestricted(ctx), callParams)
 			require.NoError(t, err)
 			require.WithinDuration(t, tc.want.LastPublishedAt, row.LastPublishedAt, time.Second)
-			require.WithinDuration(t, tc.want.OldestStuckCreatedAt, row.OldestStuckCreatedAt, time.Second)
+			require.WithinDuration(t, tc.want.OldestStuckInsertedAt, row.OldestStuckInsertedAt, time.Second)
 			require.WithinDuration(t, tc.want.EarliestRecentRejectionAt, row.EarliestRecentRejectionAt, time.Second)
 		})
 	}

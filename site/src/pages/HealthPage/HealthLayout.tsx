@@ -49,6 +49,7 @@ export const HealthLayout: FC = () => {
 		database: "Database",
 		workspace_proxy: "Workspace Proxy",
 		provisioner_daemons: "Provisioner Daemons",
+		usage_publishing: "Usage Publishing",
 	} as const;
 	const visibleSections = filterVisibleSections(sections);
 

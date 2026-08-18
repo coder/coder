@@ -7,12 +7,13 @@ INSERT INTO
         event_type,
         event_data,
         created_at,
+        inserted_at,
         publish_started_at,
         published_at,
         failure_message
     )
 VALUES
-    (@id, @event_type, @event_data, @created_at, NULL, NULL, NULL)
+    (@id, @event_type, @event_data, @created_at, @inserted_at, NULL, NULL, NULL)
 ON CONFLICT (id) DO NOTHING;
 
 -- name: UsageEventExistsByID :one
@@ -108,7 +109,11 @@ WHERE
 --     30 days, matching SelectUsageEventsForPublishing). Events older than
 --     this are never published, so they must not trigger a failure forever.
 --   - stuck_cutoff: now minus the failure threshold. Unpublished events
---     created before this are considered stuck.
+--     inserted before this are considered stuck. Stuckness is measured
+--     against inserted_at rather than created_at because heartbeat events
+--     backfilled after downtime carry a historical created_at; measuring
+--     event age would flag them as failing before publishing was ever
+--     attempted.
 --   - rejected_after: now minus the failure threshold. Permanent rejections
 --     that happened after this are considered recent failures.
 SELECT
@@ -120,16 +125,16 @@ SELECT
         WHERE published_at IS NOT NULL
             AND failure_message IS NULL
     ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS last_published_at,
-    -- The creation time of the oldest event that should have been published
+    -- The insertion time of the oldest event that should have been published
     -- by now but wasn't.
     COALESCE((
-        SELECT MIN(created_at)
+        SELECT MIN(inserted_at)
         FROM usage_events
         WHERE published_at IS NULL
             AND created_at > @license_start::timestamptz
             AND created_at > @window_start::timestamptz
-            AND created_at < @stuck_cutoff::timestamptz
-    ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_created_at,
+            AND inserted_at < @stuck_cutoff::timestamptz
+    ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_inserted_at,
     -- The earliest recent permanent rejection.
     COALESCE((
         SELECT MIN(published_at)

@@ -6159,6 +6159,8 @@ type UsageEvent struct {
 	PublishedAt sql.NullTime `db:"published_at" json:"published_at"`
 	// Set to an error message when the event is temporarily or permanently unsuccessfully published to the usage collector service.
 	FailureMessage sql.NullString `db:"failure_message" json:"failure_message"`
+	// The time the row was inserted into the database. Unlike created_at, this is always the wall-clock insertion time, so backfilled heartbeat events (whose created_at is the historical bucket start) are not misdetected as stuck by publish failure detection.
+	InsertedAt time.Time `db:"inserted_at" json:"inserted_at"`
 }
 
 // usage_events_daily is a daily rollup of usage events. It stores the total usage for each event type by day.

@@ -322,6 +322,9 @@ const WorkspaceProxyHealthPage = lazy(
 const ProvisionerDaemonsHealthPage = lazy(
 	() => import("./pages/HealthPage/ProvisionerDaemonsPage"),
 );
+const UsagePublishingHealthPage = lazy(
+	() => import("./pages/HealthPage/UsagePublishingPage"),
+);
 const UserNotificationsPage = lazy(
 	() => import("./pages/UserSettingsPage/NotificationsPage/NotificationsPage"),
 );
@@ -801,6 +804,10 @@ export const router = createBrowserRouter(
 						<Route
 							path="provisioner-daemons"
 							element={<ProvisionerDaemonsHealthPage />}
+						/>
+						<Route
+							path="usage-publishing"
+							element={<UsagePublishingHealthPage />}
 						/>
 					</Route>
 

@@ -376,7 +376,6 @@ func TestMigration000362AggregateUsageEvents(t *testing.T) {
 	const migrationVersion = 362
 
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB)
 
 	// Migrate up to the migration before the one that aggregates usage events.
 	next, err := migrations.Stepper(sqlDB)
@@ -431,12 +430,17 @@ func TestMigration000362AggregateUsageEvents(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	for _, usageEvent := range usageEvents {
-		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
-			ID:        uuid.New().String(),
-			EventType: "dc_managed_agents_v1",
-			EventData: usageEvent.eventData,
-			CreatedAt: usageEvent.createdAt,
-		})
+		// Insert with raw SQL rather than db.InsertUsageEvent because the
+		// current insert query references columns (e.g. inserted_at) that do
+		// not exist at this migration version.
+		_, err := sqlDB.ExecContext(
+			ctx,
+			`INSERT INTO usage_events (id, event_type, event_data, created_at, publish_started_at, published_at, failure_message)
+			VALUES ($1, 'dc_managed_agents_v1', $2, $3, NULL, NULL, NULL)`,
+			uuid.New().String(),
+			usageEvent.eventData,
+			usageEvent.createdAt,
+		)
 		require.NoError(t, err)
 	}
 

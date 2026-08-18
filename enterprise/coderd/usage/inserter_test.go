@@ -58,6 +58,7 @@ func TestInserter(t *testing.T) {
 					assert.Equal(t, e.event.EventType(), usagetypes.UsageEventType(params.EventType))
 					assert.JSONEq(t, eventJSON, string(params.EventData))
 					assert.Equal(t, e.time, params.CreatedAt)
+					assert.Equal(t, e.time, params.InsertedAt)
 					return nil
 				},
 			).Times(1)
@@ -74,14 +75,18 @@ func TestInserter(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		inserter := usage.NewDBInserter()
+		clock := quartz.NewMock(t)
+		inserter := usage.NewDBInserter(usage.InserterWithClock(clock))
 
 		// Heartbeat inserts must store the provided id and createdAt
-		// verbatim.
+		// verbatim, while inserted_at is the current time so backfilled
+		// buckets are not misdetected as stuck by publish failure detection.
 		event := usagetypes.HBAgentRuntime{RuntimeMs: 1234}
 		eventJSON := jsoninate(t, event)
 		id := "hb_agent_runtime_v1:2025-01-02_03:00:00"
 		createdAt := time.Date(2025, 1, 2, 3, 0, 0, 0, time.UTC)
+		insertTime := time.Date(2025, 1, 9, 12, 34, 56, 0, time.UTC)
+		clock.Set(insertTime)
 
 		db.EXPECT().InsertUsageEvent(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(ctx interface{}, params database.InsertUsageEventParams) error {
@@ -89,6 +94,7 @@ func TestInserter(t *testing.T) {
 				assert.Equal(t, event.EventType(), usagetypes.UsageEventType(params.EventType))
 				assert.JSONEq(t, eventJSON, string(params.EventData))
 				assert.Equal(t, dbtime.Time(createdAt), params.CreatedAt)
+				assert.Equal(t, dbtime.Time(insertTime), params.InsertedAt)
 				return nil
 			},
 		).Times(1)

@@ -61,15 +61,16 @@ func (i *dbInserter) InsertDiscreteUsageEvent(ctx context.Context, tx database.S
 	// error.
 	return tx.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 		// Always generate a new UUID for discrete events.
-		ID:        uuid.New().String(),
-		EventType: string(event.EventType()),
-		EventData: jsonData,
-		CreatedAt: dbtime.Time(i.clock.Now()),
+		ID:         uuid.New().String(),
+		EventType:  string(event.EventType()),
+		EventData:  jsonData,
+		CreatedAt:  dbtime.Time(i.clock.Now()),
+		InsertedAt: dbtime.Time(i.clock.Now()),
 	})
 }
 
 // InsertHeartbeatUsageEvent implements agplusage.Inserter.
-func (*dbInserter) InsertHeartbeatUsageEvent(ctx context.Context, tx database.Store, id string, createdAt time.Time, event usagetypes.HeartbeatEvent) error {
+func (i *dbInserter) InsertHeartbeatUsageEvent(ctx context.Context, tx database.Store, id string, createdAt time.Time, event usagetypes.HeartbeatEvent) error {
 	if !event.EventType().IsHeartbeat() {
 		return xerrors.Errorf("event type %q is not a heartbeat event", event.EventType())
 	}
@@ -94,6 +95,10 @@ func (*dbInserter) InsertHeartbeatUsageEvent(ctx context.Context, tx database.St
 		ID:        id,
 		EventType: string(event.EventType()),
 		EventData: jsonData,
-		CreatedAt: dbtime.Time(createdAt),
+		// createdAt is the historical bucket start for backfilled events, so
+		// InsertedAt must come from the clock or publish failure detection
+		// would count the backfill lag against the failure threshold.
+		CreatedAt:  dbtime.Time(createdAt),
+		InsertedAt: dbtime.Time(i.clock.Now()),
 	})
 }

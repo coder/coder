@@ -28695,16 +28695,16 @@ SELECT
         WHERE published_at IS NOT NULL
             AND failure_message IS NULL
     ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS last_published_at,
-    -- The creation time of the oldest event that should have been published
+    -- The insertion time of the oldest event that should have been published
     -- by now but wasn't.
     COALESCE((
-        SELECT MIN(created_at)
+        SELECT MIN(inserted_at)
         FROM usage_events
         WHERE published_at IS NULL
             AND created_at > $1::timestamptz
             AND created_at > $2::timestamptz
-            AND created_at < $3::timestamptz
-    ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_created_at,
+            AND inserted_at < $3::timestamptz
+    ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_inserted_at,
     -- The earliest recent permanent rejection.
     COALESCE((
         SELECT MIN(published_at)
@@ -28724,7 +28724,7 @@ type GetUsagePublishStatusParams struct {
 
 type GetUsagePublishStatusRow struct {
 	LastPublishedAt           time.Time `db:"last_published_at" json:"last_published_at"`
-	OldestStuckCreatedAt      time.Time `db:"oldest_stuck_created_at" json:"oldest_stuck_created_at"`
+	OldestStuckInsertedAt     time.Time `db:"oldest_stuck_inserted_at" json:"oldest_stuck_inserted_at"`
 	EarliestRecentRejectionAt time.Time `db:"earliest_recent_rejection_at" json:"earliest_recent_rejection_at"`
 }
 
@@ -28738,7 +28738,11 @@ type GetUsagePublishStatusRow struct {
 //     30 days, matching SelectUsageEventsForPublishing). Events older than
 //     this are never published, so they must not trigger a failure forever.
 //   - stuck_cutoff: now minus the failure threshold. Unpublished events
-//     created before this are considered stuck.
+//     inserted before this are considered stuck. Stuckness is measured
+//     against inserted_at rather than created_at because heartbeat events
+//     backfilled after downtime carry a historical created_at; measuring
+//     event age would flag them as failing before publishing was ever
+//     attempted.
 //   - rejected_after: now minus the failure threshold. Permanent rejections
 //     that happened after this are considered recent failures.
 func (q *sqlQuerier) GetUsagePublishStatus(ctx context.Context, arg GetUsagePublishStatusParams) (GetUsagePublishStatusRow, error) {
@@ -28749,7 +28753,7 @@ func (q *sqlQuerier) GetUsagePublishStatus(ctx context.Context, arg GetUsagePubl
 		arg.RejectedAfter,
 	)
 	var i GetUsagePublishStatusRow
-	err := row.Scan(&i.LastPublishedAt, &i.OldestStuckCreatedAt, &i.EarliestRecentRejectionAt)
+	err := row.Scan(&i.LastPublishedAt, &i.OldestStuckInsertedAt, &i.EarliestRecentRejectionAt)
 	return i, err
 }
 
@@ -28760,20 +28764,22 @@ INSERT INTO
         event_type,
         event_data,
         created_at,
+        inserted_at,
         publish_started_at,
         published_at,
         failure_message
     )
 VALUES
-    ($1, $2, $3, $4, NULL, NULL, NULL)
+    ($1, $2, $3, $4, $5, NULL, NULL, NULL)
 ON CONFLICT (id) DO NOTHING
 `
 
 type InsertUsageEventParams struct {
-	ID        string          `db:"id" json:"id"`
-	EventType string          `db:"event_type" json:"event_type"`
-	EventData json.RawMessage `db:"event_data" json:"event_data"`
-	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	ID         string          `db:"id" json:"id"`
+	EventType  string          `db:"event_type" json:"event_type"`
+	EventData  json.RawMessage `db:"event_data" json:"event_data"`
+	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
+	InsertedAt time.Time       `db:"inserted_at" json:"inserted_at"`
 }
 
 // Duplicate events are ignored intentionally to allow for multiple replicas to
@@ -28784,6 +28790,7 @@ func (q *sqlQuerier) InsertUsageEvent(ctx context.Context, arg InsertUsageEventP
 		arg.EventType,
 		arg.EventData,
 		arg.CreatedAt,
+		arg.InsertedAt,
 	)
 	return err
 }
@@ -28862,9 +28869,9 @@ WITH usage_events AS (
             FOR UPDATE SKIP LOCKED
             LIMIT 100
         )
-    RETURNING id, event_type, event_data, created_at, publish_started_at, published_at, failure_message
+    RETURNING id, event_type, event_data, created_at, publish_started_at, published_at, failure_message, inserted_at
 )
-SELECT id, event_type, event_data, created_at, publish_started_at, published_at, failure_message
+SELECT id, event_type, event_data, created_at, publish_started_at, published_at, failure_message, inserted_at
 FROM usage_events
 ORDER BY created_at ASC
 `
@@ -28890,6 +28897,7 @@ func (q *sqlQuerier) SelectUsageEventsForPublishing(ctx context.Context, now tim
 			&i.PublishStartedAt,
 			&i.PublishedAt,
 			&i.FailureMessage,
+			&i.InsertedAt,
 		); err != nil {
 			return nil, err
 		}

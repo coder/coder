@@ -3191,6 +3191,9 @@ func TestUsagePublishingStatus(t *testing.T) {
 			EventType: "dc_managed_agents_v1",
 			EventData: []byte(`{"count": 1}`),
 			CreatedAt: createdAt,
+			// Stuckness is measured against insertion time, so tests that
+			// seed stuck events need the insertion time backdated too.
+			InsertedAt: createdAt,
 		})
 		require.NoError(t, err)
 		if !publishedAt.IsZero() || failureMessage != "" {

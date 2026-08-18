@@ -6491,10 +6491,11 @@ func (s *MethodTestSuite) TestUserSkills() {
 func (s *MethodTestSuite) TestUsageEvents() {
 	s.Run("InsertUsageEvent", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		params := database.InsertUsageEventParams{
-			ID:        "1",
-			EventType: "dc_managed_agents_v1",
-			EventData: []byte("{}"),
-			CreatedAt: dbtime.Now(),
+			ID:         "1",
+			EventType:  "dc_managed_agents_v1",
+			EventData:  []byte("{}"),
+			CreatedAt:  dbtime.Now(),
+			InsertedAt: dbtime.Now(),
 		}
 		db.EXPECT().InsertUsageEvent(gomock.Any(), params).Return(nil)
 		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionCreate)
