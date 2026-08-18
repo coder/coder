@@ -337,6 +337,22 @@ describe("entity-scoped keys", () => {
 		expect(localStorage.getItem("test.workspace-flag.chat-1")).not.toBeNull();
 	});
 
+	it("clears cached values when enumeration is unavailable", () => {
+		const handle = chatNote.forId("chat-1");
+		handle.set("draft");
+		// Prime the snapshot cache, then break enumeration.
+		expect(handle.get()).toBe("draft");
+		vi.spyOn(Storage.prototype, "key").mockImplementation(() => {
+			throw new Error("denied");
+		});
+
+		clearEntityStorage("chat", "chat-1");
+
+		expect(handle.get()).toBeNull();
+		vi.restoreAllMocks();
+		expect(localStorage.getItem("test.chat-note.chat-1")).toBeNull();
+	});
+
 	it("clears overlay-only values that never persisted", () => {
 		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
 			throw new DOMException("full", "QuotaExceededError");
