@@ -91,43 +91,48 @@ export function isWorkspaceNotFound(error: unknown): boolean {
 
 export class ArchiveAndDeleteError extends Error {
 	readonly step: "delete" | "archive";
-	readonly deleteEnqueued: boolean;
+	/**
+	 * Only meaningful for delete-step errors: the workspace delete
+	 * failed and the compensating unarchive failed too, so the chat is
+	 * still archived even though its workspace was not deleted.
+	 */
+	readonly unarchiveFailed: boolean;
 	declare readonly cause: unknown;
 
 	constructor(
 		step: "delete" | "archive",
 		cause: unknown,
-		deleteEnqueued = false,
+		unarchiveFailed = false,
 	) {
 		super(
 			step === "delete" ? "workspace delete failed" : "chat archive failed",
 			{ cause },
 		);
 		this.step = step;
-		this.deleteEnqueued = deleteEnqueued;
+		this.unarchiveFailed = unarchiveFailed;
 	}
 }
 
-// Delete-first, archive-second. 404/410 on delete falls through to archive.
-// Deleting first keeps the chat (and its retry surface) in the sidebar when
-// the delete enqueue fails, but it makes a late archive rejection
-// destructive: the workspace would be gone while the chat stays active. The
-// validation callback re-checks archive eligibility against fresh server
-// state right before the irreversible delete, closing the window where the
-// family became active while a confirmation dialog was open.
+// Archive-first, delete-second. The archive is the reversible step and
+// doubles as the eligibility check: the server rejects it with 409 while
+// any family member is active, before anything destructive happens, so a
+// chat that became active while a confirmation dialog was open can never
+// lose its workspace. When the delete enqueue then fails, the chat is
+// unarchived again so its retry surface returns to the sidebar; 404/410 on
+// delete mean the workspace is already gone and the archive stands.
 export async function archiveChatAndDeleteWorkspace(
 	chatId: string,
 	workspaceId: string,
 	doArchive: (chatId: string) => Promise<unknown>,
 	doDelete: (workspaceId: string) => Promise<WorkspaceBuild>,
-	validateArchive: (chatId: string) => Promise<void>,
+	doUnarchive: (chatId: string) => Promise<unknown>,
 ): Promise<{
 	chatId: string;
 	workspaceId: string;
 	deleteBuild: WorkspaceBuild | null;
 }> {
 	try {
-		await validateArchive(chatId);
+		await doArchive(chatId);
 	} catch (error) {
 		throw new ArchiveAndDeleteError("archive", error);
 	}
@@ -136,13 +141,14 @@ export async function archiveChatAndDeleteWorkspace(
 		deleteBuild = await doDelete(workspaceId);
 	} catch (error) {
 		if (!isWorkspaceNotFound(error)) {
-			throw new ArchiveAndDeleteError("delete", error);
+			let unarchiveFailed = false;
+			try {
+				await doUnarchive(chatId);
+			} catch {
+				unarchiveFailed = true;
+			}
+			throw new ArchiveAndDeleteError("delete", error, unarchiveFailed);
 		}
-	}
-	try {
-		await doArchive(chatId);
-	} catch (error) {
-		throw new ArchiveAndDeleteError("archive", error, deleteBuild !== null);
 	}
 	return { chatId, workspaceId, deleteBuild };
 }
@@ -254,11 +260,7 @@ export function notifyArchiveAndDeleteFailed(
 
 	if (step === "archive") {
 		const label = workspace ? `"${workspace.name}"` : "the workspace";
-		const deleteEnqueued =
-			error instanceof ArchiveAndDeleteError && error.deleteEnqueued;
-		const prefix = deleteEnqueued
-			? `Deleting ${label}, but failed to archive the chat.`
-			: `Failed to archive the chat for ${label}.`;
+		const prefix = `Failed to archive the chat for ${label}.`;
 		const detail = getErrorMessage(cause, "");
 		toast.error(detail ? `${prefix} ${detail}` : prefix);
 		return;
@@ -269,12 +271,15 @@ export function notifyArchiveAndDeleteFailed(
 		return;
 	}
 
+	const unarchiveFailed =
+		error instanceof ArchiveAndDeleteError && error.unarchiveFailed;
 	const path = `/@${workspace.owner_name}/${workspace.name}`;
 	toast.error(
 		getErrorMessage(cause, `Failed to delete workspace "${workspace.name}".`),
 		{
-			description:
-				"The chat was not archived. Open the workspace to delete it manually.",
+			description: unarchiveFailed
+				? "The chat could not be restored and remains archived. Open the workspace to delete it manually."
+				: "The chat was not archived. Open the workspace to delete it manually.",
 			action: {
 				label: "Open workspace",
 				onClick: () => onOpenWorkspace(path),

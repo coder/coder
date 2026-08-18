@@ -65,7 +65,6 @@ import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
-import { chatFamilyAllowsArchive } from "./components/ChatActionsMenuItems";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -301,14 +300,7 @@ const AgentsPageLayout: FC = () => {
 				workspaceId,
 				(id) => API.experimental.updateChat(id, { archived: true }),
 				(id) => API.deleteWorkspace(id),
-				async (id) => {
-					const chat = await API.experimental.getChat(id);
-					if (!chatFamilyAllowsArchive(chat.status, chat.children)) {
-						throw new Error(
-							"The agent is running. Interrupt or wait for it to finish first.",
-						);
-					}
-				},
+				(id) => API.experimental.updateChat(id, { archived: false }),
 			),
 		onSuccess: ({ chatId, workspaceId, deleteBuild }) => {
 			applyChatArchiveStateToCaches(queryClient, chatId, true);
@@ -331,7 +323,7 @@ const AgentsPageLayout: FC = () => {
 				deleteBuild,
 			);
 		},
-		onError: (error, { workspaceId }) => {
+		onError: (error, { chatId, workspaceId }) => {
 			notifyArchiveAndDeleteFailed(
 				queryClient.getQueryData<TypesGen.Workspace>(
 					workspaceByIdKey(workspaceId),
@@ -339,13 +331,12 @@ const AgentsPageLayout: FC = () => {
 				error,
 				(path) => navigate(path),
 			);
-			// Archive failed after the delete already ran; refresh
-			// workspace state so consumers see the deletion.
-			if (error instanceof ArchiveAndDeleteError && error.step === "archive") {
-				void invalidateWorkspaceMutationQueries(queryClient, {
-					organizationName,
-					username: user.username,
-				});
+			// The chat may have been archived and then restored (delete
+			// failure) or left archived (restore failure); refetch chat
+			// state so the sidebar converges on the server's view.
+			if (error instanceof ArchiveAndDeleteError && error.step === "delete") {
+				void invalidateChatListQueries(queryClient);
+				void invalidateChatEntity(queryClient, chatId);
 			}
 		},
 	});
