@@ -81,7 +81,6 @@ import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
-	ArchiveAndDeleteError,
 	archiveChatAndDeleteWorkspace,
 	notifyArchiveAndDeleteFailed,
 	notifyDeleteQueueState,
@@ -294,26 +293,13 @@ const AgentsPageLayout: FC = () => {
 		}: {
 			chatId: string;
 			workspaceId: string;
-		}) => {
-			// Captured before the archive resets pin_order to 0, so the
-			// compensating unarchive can restore the pinned state.
-			const previousPinOrder =
-				queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))
-					?.pin_order ??
-				chatList.find((chat) => chat.id === chatId)?.pin_order ??
-				0;
-			return archiveChatAndDeleteWorkspace(
+		}) =>
+			archiveChatAndDeleteWorkspace(
 				chatId,
 				workspaceId,
 				(id) => API.experimental.updateChat(id, { archived: true }),
 				(id) => API.deleteWorkspace(id),
-				(id) =>
-					API.experimental.updateChat(id, {
-						archived: false,
-						...(previousPinOrder > 0 ? { pin_order: previousPinOrder } : {}),
-					}),
-			);
-		},
+			),
 		onSuccess: ({ chatId, workspaceId, deleteBuild }) => {
 			applyChatArchiveStateToCaches(queryClient, chatId, true);
 			removeChatFromChatsByWorkspace(queryClient, chatId);
@@ -343,16 +329,14 @@ const AgentsPageLayout: FC = () => {
 				error,
 				(path) => navigate(path),
 			);
-			// The chat may have been archived and then restored (delete
-			// failure) or left archived (restore failure or ambiguous
-			// delete); refetch every collection that watch events may
-			// have already pruned so all caches converge on the server.
-			if (error instanceof ArchiveAndDeleteError && error.step === "delete") {
-				void invalidateChatListQueries(queryClient);
-				void invalidateChatEntity(queryClient, chatId);
-				void invalidateChatsByWorkspace(queryClient);
-				void invalidateChatSearches(queryClient);
-			}
+			// The archive may have committed server-side even when the
+			// request appeared to fail (transport errors), and on delete
+			// failures the chat stays archived; refetch every chat
+			// collection so all caches converge on the server.
+			void invalidateChatListQueries(queryClient);
+			void invalidateChatEntity(queryClient, chatId);
+			void invalidateChatsByWorkspace(queryClient);
+			void invalidateChatSearches(queryClient);
 		},
 	});
 	const [pendingArchiveAndDelete, setPendingArchiveAndDelete] = useState<{
