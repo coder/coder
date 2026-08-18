@@ -438,10 +438,13 @@ func extractOAuth2ProviderAppBase(db database.Store, errWriter errorWriter) func
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
-			// POST /oauth2/tokens and POST /oauth2/revoke authenticate the
-			// client from the request body, so they cannot require an API key
-			// and the body below is read before any authorization decision.
-			// Bound it here, ahead of every reader: r.ParseForm below, and the
+			// This middleware mounts on /oauth2/authorize, /oauth2/tokens,
+			// /oauth2/revoke, and /api/v2/oauth2-provider/apps/{app}, so the
+			// wrap covers all four. It belongs here rather than in the handlers
+			// because POST /oauth2/tokens and POST /oauth2/revoke authenticate
+			// the client from the request body, so they cannot require an API
+			// key and their body is read before any authorization decision.
+			// Bound it ahead of every reader: r.ParseForm below, and the
 			// handlers downstream, all read through this wrap.
 			//
 			// net/http caps an unwrapped urlencoded body at its own 10 MiB
