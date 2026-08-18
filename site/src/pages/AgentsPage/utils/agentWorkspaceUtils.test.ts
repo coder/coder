@@ -775,15 +775,13 @@ describe("notifyArchiveAndDeleteFailed", () => {
 			onOpen,
 		);
 		expect(toastError).toHaveBeenCalledTimes(1);
-		expect(toastError.mock.calls[0][0]).toContain(
-			"Failed to delete workspace.",
+		expect(toastError).toHaveBeenCalledWith(
+			expect.stringContaining("Failed to delete workspace."),
+			expect.objectContaining({
+				description: expect.stringContaining("archived filter"),
+			}),
 		);
-		const options = toastError.mock.calls[0][1] as {
-			description: string;
-			action?: unknown;
-		};
-		expect(options.description).toContain("archived filter");
-		expect(options.action).toBeUndefined();
+		expect(toastError.mock.calls[0][1]).not.toHaveProperty("action");
 	});
 
 	it("includes workspace name and an Open workspace action when delete fails", () => {

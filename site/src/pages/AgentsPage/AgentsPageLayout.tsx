@@ -81,6 +81,7 @@ import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
+	ArchiveAndDeleteError,
 	archiveChatAndDeleteWorkspace,
 	notifyArchiveAndDeleteFailed,
 	notifyDeleteQueueState,
@@ -337,6 +338,15 @@ const AgentsPageLayout: FC = () => {
 			void invalidateChatEntity(queryClient, chatId);
 			void invalidateChatsByWorkspace(queryClient);
 			void invalidateChatSearches(queryClient);
+			// A failed delete may still have committed server-side (lost
+			// response, late 5xx), so refresh workspace state too. On
+			// archive-step failures the delete never ran.
+			if (error instanceof ArchiveAndDeleteError && error.step === "delete") {
+				void invalidateWorkspaceMutationQueries(queryClient, {
+					organizationName,
+					username: user.username,
+				});
+			}
 		},
 	});
 	const [pendingArchiveAndDelete, setPendingArchiveAndDelete] = useState<{
