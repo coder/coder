@@ -1145,7 +1145,12 @@ func providerOptionsFromChatModelConfig(
 		)
 	}
 	if options.Google != nil {
+		var modelID string
+		if model.Valid() {
+			modelID = model.ModelID()
+		}
 		result[fantasygoogle.Name] = googleProviderOptionsFromChatConfig(
+			modelID,
 			options.Google,
 		)
 	}
@@ -1188,6 +1193,7 @@ func anthropicProviderOptionsFromChatConfig(
 }
 
 func googleProviderOptionsFromChatConfig(
+	modelID string,
 	options *codersdk.ChatModelGoogleProviderOptions,
 ) *fantasygoogle.ProviderOptions {
 	result := &fantasygoogle.ProviderOptions{
@@ -1197,8 +1203,14 @@ func googleProviderOptionsFromChatConfig(
 	if options.ThinkingConfig != nil {
 		result.ThinkingConfig = &fantasygoogle.ThinkingConfig{
 			ThinkingBudget:  options.ThinkingConfig.ThinkingBudget,
-			ThinkingLevel:   GoogleThinkingLevelFromChat(options.ThinkingConfig.ThinkingLevel),
 			IncludeThoughts: options.ThinkingConfig.IncludeThoughts,
+		}
+		// Models predating Gemini 3 reject requests carrying
+		// thinking_level, so drop a pinned level for them. Gating here
+		// rather than at config save time also covers updates that
+		// switch a config's model without resubmitting options.
+		if googleSupportsThinkingLevel(modelID) {
+			result.ThinkingConfig.ThinkingLevel = GoogleThinkingLevelFromChat(options.ThinkingConfig.ThinkingLevel)
 		}
 	}
 	if options.SafetySettings != nil {

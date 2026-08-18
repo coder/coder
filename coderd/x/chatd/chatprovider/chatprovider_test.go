@@ -484,6 +484,32 @@ func TestProviderOptionsForCall_GoogleThinkingConfig(t *testing.T) {
 		require.Equal(t, fantasygoogle.ThinkingLevelMedium, *googleOptions.ThinkingConfig.ThinkingLevel)
 	})
 
+	t.Run("PinnedLevelDroppedForGemini25", func(t *testing.T) {
+		t.Parallel()
+
+		gemini25 := chatprovider.NewModel(&chattest.FakeModel{
+			ProviderName: fantasygoogle.Name,
+			ModelName:    "gemini-2.5-flash",
+		}, nil)
+
+		providerOptions := chatprovider.ProviderOptionsForCall(gemini25, codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Google: &codersdk.ChatModelGoogleProviderOptions{
+					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
+						ThinkingLevel:   ptr.Ref("medium"),
+						IncludeThoughts: ptr.Ref(true),
+					},
+				},
+			},
+		}, nil)
+
+		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, googleOptions.ThinkingConfig)
+		require.Nil(t, googleOptions.ThinkingConfig.ThinkingLevel)
+		require.True(t, *googleOptions.ThinkingConfig.IncludeThoughts)
+	})
+
 	t.Run("EffortOverridesPinnedLevel", func(t *testing.T) {
 		t.Parallel()
 
