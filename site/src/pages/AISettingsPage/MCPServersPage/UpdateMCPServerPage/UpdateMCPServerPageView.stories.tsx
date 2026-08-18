@@ -70,3 +70,47 @@ export const Default: Story = {
 		expect(onUpdateServer.mock.calls[0]?.[1]).not.toHaveProperty("enabled");
 	},
 };
+
+export const ExistingToolRules: Story = {
+	args: {
+		server: {
+			...MockCoderMCPServer,
+			tool_default: "disabled",
+			tool_rules: [{ tool: "search", enabled: false }],
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /tool rules/i }));
+
+		await expect(
+			canvas.getByRole("combobox", { name: "Default tool state" }),
+		).toHaveTextContent("Disabled");
+		const rule = canvas.getByRole("group", { name: "Rule 1" });
+		const toolName = within(rule).getByRole("textbox", {
+			name: /^Tool name/,
+		});
+		const enabledSwitch = within(rule).getByRole("switch", {
+			name: "Enabled",
+		});
+		await expect(toolName).toHaveValue("search");
+		await expect(enabledSwitch).not.toBeChecked();
+
+		await userEvent.clear(toolName);
+		await userEvent.type(toolName, "lookup");
+		await userEvent.click(enabledSwitch);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Update server" }),
+		);
+
+		await waitFor(() => {
+			expect(args.onUpdateServer).toHaveBeenCalledWith(
+				"mcp-coder",
+				expect.objectContaining({
+					tool_default: "disabled",
+					tool_rules: [{ tool: "lookup", enabled: true }],
+				}),
+			);
+		});
+	},
+};

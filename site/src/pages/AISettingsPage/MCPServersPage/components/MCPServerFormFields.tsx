@@ -21,6 +21,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { MCPServerAuthSection } from "./MCPServerAuthSection";
 import { MCPServerBehaviorSection } from "./MCPServerBehaviorSection";
 import { CollapsibleSection, Field } from "./MCPServerFormFieldPrimitives";
+import { MCPServerToolRulesSection } from "./MCPServerToolRulesSection";
 import {
 	type MCPServerFormValues,
 	slugify,
@@ -44,6 +45,8 @@ interface MCPServerFormFieldsProps {
 	setShowAuth: (open: boolean) => void;
 	showBehavior: boolean;
 	setShowBehavior: (open: boolean) => void;
+	showToolRules: boolean;
+	setShowToolRules: (open: boolean) => void;
 }
 
 export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
@@ -63,6 +66,8 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 	setShowAuth,
 	showBehavior,
 	setShowBehavior,
+	showToolRules,
+	setShowToolRules,
 }) => {
 	const formId = useId();
 	const slug = form.values.slug.trim();
@@ -224,13 +229,28 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 
 					<CollapsibleSection
 						title="Behavior"
-						description="Availability, model intent, identity headers, and tool governance."
+						description="Availability, model intent, identity headers, and legacy tool filters."
 						open={showBehavior}
 						onOpenChange={setShowBehavior}
 						className="border-0 border-t border-solid border-border"
 						contentClassName="space-y-6 pt-5 pl-6"
 					>
 						<MCPServerBehaviorSection
+							form={form}
+							formId={formId}
+							disabled={isDisabled}
+						/>
+					</CollapsibleSection>
+
+					<CollapsibleSection
+						title="Tool rules"
+						description="Set the default state and exact-name overrides for tools."
+						open={showToolRules}
+						onOpenChange={setShowToolRules}
+						className="border-0 border-t border-solid border-border"
+						contentClassName="pt-5 pl-6"
+					>
+						<MCPServerToolRulesSection
 							form={form}
 							formId={formId}
 							disabled={isDisabled}

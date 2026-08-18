@@ -57,6 +57,23 @@ describe("mcpServerFormLogic", () => {
 				false,
 			),
 		).toBe(true);
+		expect(
+			canSubmitMCPServerForm(
+				validValues({ toolRules: [{ tool: " ", enabled: true }] }),
+				false,
+			),
+		).toBe(false);
+		expect(
+			canSubmitMCPServerForm(
+				validValues({
+					toolRules: [
+						{ tool: "search", enabled: true },
+						{ tool: " search ", enabled: false },
+					],
+				}),
+				false,
+			),
+		).toBe(false);
 		expect(canSubmitMCPServerForm(validValues(), true)).toBe(false);
 	});
 
@@ -84,6 +101,34 @@ describe("mcpServerFormLogic", () => {
 				}),
 			).external_auth_provider_id,
 		).toBe("github");
+	});
+
+	it("initializes and sends per-tool rules", () => {
+		const createValues = buildInitialMCPServerFormValues();
+		expect(createValues.toolDefault).toBe("enabled");
+		expect(createValues.toolRules).toEqual([]);
+
+		const values = buildInitialMCPServerFormValues({
+			...MockCoderMCPServer,
+			tool_default: "disabled",
+			tool_rules: [{ tool: "search", enabled: false }],
+		});
+
+		expect(values.toolDefault).toBe("disabled");
+		expect(values.toolRules).toEqual([{ tool: "search", enabled: false }]);
+
+		const formValues = validValues({
+			toolDefault: "disabled",
+			toolRules: [{ tool: " search ", enabled: false }],
+		});
+		expect(buildCreateMCPServerConfigRequest(formValues)).toMatchObject({
+			tool_default: "disabled",
+			tool_rules: [{ tool: "search", enabled: false }],
+		});
+		expect(buildUpdateMCPServerConfigRequest(formValues)).toMatchObject({
+			tool_default: "disabled",
+			tool_rules: [{ tool: "search", enabled: false }],
+		});
 	});
 
 	it("does not send placeholder OAuth2 secrets unless the value changes", () => {

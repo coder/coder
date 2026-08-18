@@ -69,12 +69,13 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	const [showDetails, setShowDetails] = useState(false);
 	const [showAuth, setShowAuth] = useState(false);
 	const [showBehavior, setShowBehavior] = useState(false);
+	const [showToolRules, setShowToolRules] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const form = useFormik<MCPServerFormValues>({
 		initialValues: buildInitialMCPServerFormValues(server),
 		onSubmit: async (values) => {
-			if (isSaving) return;
+			if (!canSubmitMCPServerForm(values, isSaving || isDeleting)) return;
 			if (server && onUpdateServer) {
 				await onUpdateServer(
 					server.id,
@@ -124,6 +125,8 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 					setShowAuth={setShowAuth}
 					showBehavior={showBehavior}
 					setShowBehavior={setShowBehavior}
+					showToolRules={showToolRules}
+					setShowToolRules={setShowToolRules}
 				/>
 			</div>
 			<MCPServerFormDialogs

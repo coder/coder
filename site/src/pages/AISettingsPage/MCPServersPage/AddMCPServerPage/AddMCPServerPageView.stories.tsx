@@ -108,6 +108,78 @@ export const ExternalAuthSelected: Story = {
 	},
 };
 
+export const ToolRulesEditor: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const addButton = canvas.getByRole("button", { name: "Add server" });
+
+		await userEvent.type(canvas.getByLabelText(/display name/i), "GitHub");
+		await userEvent.type(
+			canvas.getByLabelText(/server url/i),
+			"https://api.githubcopilot.com/mcp/",
+		);
+		await userEvent.click(canvas.getByRole("button", { name: /tool rules/i }));
+
+		const defaultSelector = canvas.getByRole("combobox", {
+			name: "Default tool state",
+		});
+		await userEvent.click(defaultSelector);
+		await userEvent.click(body.getByRole("option", { name: "Disabled" }));
+		await expect(defaultSelector).toHaveTextContent("Disabled");
+
+		await userEvent.click(canvas.getByRole("button", { name: "Add rule" }));
+		const firstRule = canvas.getByRole("group", { name: "Rule 1" });
+		const firstToolName = within(firstRule).getByRole("textbox", {
+			name: /^Tool name/,
+		});
+		const firstEnabledSwitch = within(firstRule).getByRole("switch", {
+			name: "Enabled",
+		});
+		await expect(within(firstRule).getByRole("alert")).toHaveTextContent(
+			"Enter a tool name.",
+		);
+		await expect(addButton).toBeDisabled();
+		await expect(firstEnabledSwitch).toBeChecked();
+		await userEvent.type(firstToolName, "search");
+		await userEvent.click(firstEnabledSwitch);
+		await expect(firstEnabledSwitch).not.toBeChecked();
+
+		await userEvent.click(canvas.getByRole("button", { name: "Add rule" }));
+		const secondRule = canvas.getByRole("group", { name: "Rule 2" });
+		await userEvent.type(
+			within(secondRule).getByRole("textbox", { name: /^Tool name/ }),
+			"search",
+		);
+		await expect(within(secondRule).getByRole("alert")).toHaveTextContent(
+			"Tool names must be unique.",
+		);
+		await expect(addButton).toBeDisabled();
+		expect(args.onCreateServer).not.toHaveBeenCalled();
+
+		await userEvent.click(
+			within(secondRule).getByRole("button", { name: "Remove rule 2" }),
+		);
+		await expect(
+			canvas.queryByRole("group", { name: "Rule 2" }),
+		).not.toBeInTheDocument();
+		await expect(
+			within(firstRule).queryByRole("alert"),
+		).not.toBeInTheDocument();
+		await expect(addButton).toBeEnabled();
+
+		await userEvent.click(addButton);
+		await waitFor(() => {
+			expect(args.onCreateServer).toHaveBeenCalledWith(
+				expect.objectContaining({
+					tool_default: "disabled",
+					tool_rules: [{ tool: "search", enabled: false }],
+				}),
+			);
+		});
+	},
+};
+
 export const ExternalAuthProviderRequired: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
