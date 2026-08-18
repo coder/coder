@@ -1099,10 +1099,10 @@ func (api *API) organizationGroupsAISpend(rw http.ResponseWriter, r *http.Reques
 
 // AISpendExportCSVHeader is the CSV column order for the AI spend export.
 var AISpendExportCSVHeader = []string{
-	"user_id", "username", "group_id", "group_name", "organization_id", "organization_name",
+	"user_id", "username", "capabilities", "group_id", "group_name", "organization_id", "organization_name",
 	"model", "provider", "provider_name",
 	"input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
-	"cost_micros", "period_start", "period_end", "capabilities",
+	"cost_micros", "period_start", "period_end",
 }
 
 // csvFormulaPrefixes are the leading characters a spreadsheet treats as the
@@ -1256,6 +1256,7 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 		if err := cw.Write([]string{
 			row.UserID.String(),
 			escapeCSVCell(row.Username),
+			escapeCSVCell(row.Capabilities),
 			row.GroupID.UUID.String(),
 			escapeCSVCell(row.GroupName),
 			row.OrganizationID.String(),
@@ -1270,7 +1271,6 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 			strconv.FormatInt(row.CostMicros, 10),
 			start,
 			end,
-			escapeCSVCell(row.Capabilities),
 		}); err != nil {
 			logger.Error(ctx, "failed to write AI spend export row", slog.Error(err))
 			httpapi.InternalServerError(rw, err)
