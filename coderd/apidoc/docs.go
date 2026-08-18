@@ -26736,7 +26736,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "last_published_at": {
-                    "description": "LastPublishedAt is the time of the latest successful publish of a usage\nevent. It is null if no event has ever been published successfully.",
+                    "description": "LastPublishedAt is the time of the latest successful publish of a usage\nevent. It is null if there is no successful publish among the most\nrecent publish outcomes, e.g. because nothing has ever been published\nor a sustained rejection streak displaced the last success.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -29443,7 +29443,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "last_published_at": {
-                    "description": "LastPublishedAt is the time of the latest successful publish of a usage\nevent. It is null if no event has ever been published successfully.",
+                    "description": "LastPublishedAt is the time of the latest successful publish of a usage\nevent. It is null if there is no successful publish among the most\nrecent publish outcomes, e.g. because nothing has ever been published\nor a sustained rejection streak displaced the last success.",
                     "type": "string",
                     "format": "date-time"
                 },

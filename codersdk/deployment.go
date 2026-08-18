@@ -557,7 +557,9 @@ type UsagePublishingStatus struct {
 	// event publishing.
 	PublishingEnabled bool `json:"publishing_enabled"`
 	// LastPublishedAt is the time of the latest successful publish of a usage
-	// event. It is null if no event has ever been published successfully.
+	// event. It is null if there is no successful publish among the most
+	// recent publish outcomes, e.g. because nothing has ever been published
+	// or a sustained rejection streak displaced the last success.
 	LastPublishedAt *time.Time `json:"last_published_at,omitempty" format:"date-time"`
 	// FailingSince is set when usage event publishing is considered failing.
 	// It is the effective start of the current failure: the first failed

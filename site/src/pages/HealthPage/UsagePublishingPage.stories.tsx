@@ -28,12 +28,17 @@ type Story = StoryObj;
 
 const Example: Story = {};
 
+// Relative to now so the rendered relative-time string is deterministic.
+const lastPublishedAt = new Date(
+	Date.now() - 2 * 24 * 60 * 60 * 1000,
+).toISOString();
+
 const settingsWithEnabledPublishing: HealthcheckReport = {
 	...MockHealth,
 	usage_publishing: {
 		...MockHealth.usage_publishing,
 		publishing_enabled: true,
-		last_published_at: "2023-10-12T12:00:00.000000000Z",
+		last_published_at: lastPublishedAt,
 	},
 };
 
@@ -52,6 +57,7 @@ export const PublishingEnabled: Story = {
 		await expect(await canvas.findByText("Publishing enabled")).toBeVisible();
 		await expect(canvas.getByText("Yes")).toBeVisible();
 		await expect(canvas.getByText("Last published")).toBeVisible();
+		await expect(canvas.getByText("2 days ago")).toBeVisible();
 		await expect(canvas.queryByText("Never")).not.toBeInTheDocument();
 		await expect(canvas.queryByText("Failing since")).not.toBeInTheDocument();
 	},

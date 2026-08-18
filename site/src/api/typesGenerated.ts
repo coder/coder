@@ -10255,7 +10255,9 @@ export interface UsagePublishingReport extends BaseReport {
 	readonly publishing_enabled: boolean;
 	/**
 	 * LastPublishedAt is the time of the latest successful publish of a usage
-	 * event. It is null if no event has ever been published successfully.
+	 * event. It is null if there is no successful publish among the most
+	 * recent publish outcomes, e.g. because nothing has ever been published
+	 * or a sustained rejection streak displaced the last success.
 	 */
 	readonly last_published_at?: string;
 	/**
@@ -10279,7 +10281,9 @@ export interface UsagePublishingStatus {
 	readonly publishing_enabled: boolean;
 	/**
 	 * LastPublishedAt is the time of the latest successful publish of a usage
-	 * event. It is null if no event has ever been published successfully.
+	 * event. It is null if there is no successful publish among the most
+	 * recent publish outcomes, e.g. because nothing has ever been published
+	 * or a sustained rejection streak displaced the last success.
 	 */
 	readonly last_published_at?: string;
 	/**

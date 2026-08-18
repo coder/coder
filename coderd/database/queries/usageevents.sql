@@ -136,12 +136,24 @@ WHERE
 --   - rejected_after: now minus the failure threshold. Permanent rejections
 --     that happened after this are considered recent failures.
 WITH last_success AS (
-    -- The latest successful publish. Rows with a failure_message and a
-    -- published_at are permanent rejections, not successes.
+    -- The latest successful publish among the most recent publish outcomes.
+    -- Rows with a failure_message and a published_at are permanent
+    -- rejections, not successes. The probe inspects at most one publisher
+    -- batch of the newest published rows, which
+    -- idx_usage_events_select_for_publishing's leading published_at column
+    -- delivers in order, instead of walking backward through an unbounded
+    -- rejection streak to find an older success; a success older than the
+    -- most recent 100 outcomes reports as no recent success, which the
+    -- ongoing rejections make moot.
     SELECT MAX(published_at) AS last_published_at
-    FROM usage_events
-    WHERE published_at IS NOT NULL
-        AND failure_message IS NULL
+    FROM (
+        SELECT published_at, failure_message
+        FROM usage_events
+        WHERE published_at IS NOT NULL
+        ORDER BY published_at DESC
+        LIMIT 100
+    ) recent
+    WHERE failure_message IS NULL
 ), stuck AS (
     -- The earliest effective stuck time among events at the front of the
     -- publisher's queue. This deliberately inspects at most one publisher

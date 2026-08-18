@@ -11195,6 +11195,46 @@ func TestListUsageEventCreatedAtsByTypeSince(t *testing.T) {
 	require.ElementsMatch(t, []time.Time{since, since.Add(time.Hour)}, normalized)
 }
 
+// usagePublishSeedEvent seeds a usage event for GetUsagePublishStatus tests.
+type usagePublishSeedEvent struct {
+	id        string
+	createdAt time.Time
+	// insertedAt zero means the row was inserted when the usage occurred,
+	// i.e. it defaults to createdAt.
+	insertedAt time.Time
+	// publishedAt zero means never published.
+	publishedAt time.Time
+	// failureMessage combined with publishedAt determines the state:
+	// publishedAt set + no failureMessage = success,
+	// no publishedAt + failureMessage = temporary failure,
+	// publishedAt set + failureMessage = permanent rejection.
+	failureMessage string
+	// failedAts are the times of temporary failed attempts, applied in
+	// order. Empty means a single attempt failed at the event's insertion
+	// time.
+	failedAts []time.Time
+}
+
+// sustainedRejectionStreak seeds one old success followed by more than 100
+// permanent rejections, enough to displace the success from the bounded
+// last-success probe in GetUsagePublishStatus.
+func sustainedRejectionStreak(now time.Time) []usagePublishSeedEvent {
+	events := []usagePublishSeedEvent{
+		{id: "success", createdAt: now.Add(-40 * 24 * time.Hour), publishedAt: now.Add(-39 * 24 * time.Hour)},
+	}
+	for i := range 110 {
+		events = append(events, usagePublishSeedEvent{
+			id:        fmt.Sprintf("rejected-%d", i),
+			createdAt: now.Add(-21 * time.Hour),
+			// Spread the rejections over the recent past; the earliest one
+			// within the threshold is the reported rejection time.
+			publishedAt:    now.Add(-20 * time.Hour).Add(time.Duration(i) * time.Minute),
+			failureMessage: "permanently rejected",
+		})
+	}
+	return events
+}
+
 func TestGetUsagePublishStatus(t *testing.T) {
 	t.Parallel()
 
@@ -11218,26 +11258,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 		RejectedAfter:        rejectedAfter,
 	}
 
-	type seedEvent struct {
-		id        string
-		createdAt time.Time
-		// insertedAt zero means the row was inserted when the usage
-		// occurred, i.e. it defaults to createdAt.
-		insertedAt time.Time
-		// publishedAt zero means never published.
-		publishedAt time.Time
-		// failureMessage combined with publishedAt determines the state:
-		// publishedAt set + no failureMessage = success,
-		// no publishedAt + failureMessage = temporary failure,
-		// publishedAt set + failureMessage = permanent rejection.
-		failureMessage string
-		// failedAts are the times of temporary failed attempts, applied in
-		// order. Empty means a single attempt failed at the event's
-		// insertion time.
-		failedAts []time.Time
-	}
-
-	seed := func(ctx context.Context, t *testing.T, db database.Store, events []seedEvent) {
+	seed := func(ctx context.Context, t *testing.T, db database.Store, events []usagePublishSeedEvent) {
 		t.Helper()
 		for _, ev := range events {
 			insertedAt := ev.insertedAt
@@ -11277,7 +11298,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 
 	for _, tc := range []struct {
 		name   string
-		events []seedEvent
+		events []usagePublishSeedEvent
 		// enabledSinceOverride overrides params.EnabledSince when non-zero.
 		enabledSinceOverride time.Time
 		// markInFlightAt, when non-zero, runs SelectUsageEventsForPublishing
@@ -11297,7 +11318,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			// the attempt either resolves them or they become retryable when
 			// it expires an hour later.
 			name: "InFlightEventNotStuck",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-48 * time.Hour)},
 			},
 			markInFlightAt: now,
@@ -11308,7 +11329,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			// belongs to a replica that exited mid-publish. The publisher
 			// considers the row retryable, so failure detection must too.
 			name: "ExpiredAttemptStillStuck",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-48 * time.Hour)},
 			},
 			markInFlightAt: now.Add(-2 * time.Hour),
@@ -11318,7 +11339,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 		},
 		{
 			name: "AllPublished",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-48 * time.Hour), publishedAt: now.Add(-47 * time.Hour)},
 				{id: "2", createdAt: now.Add(-2 * time.Hour), publishedAt: now.Add(-1 * time.Hour)},
 			},
@@ -11328,14 +11349,14 @@ func TestGetUsagePublishStatus(t *testing.T) {
 		},
 		{
 			name: "UnpublishedYoungerThanThreshold",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-1 * time.Hour)},
 			},
 			want: database.GetUsagePublishStatusRow{},
 		},
 		{
 			name: "UnpublishedOlderThanThreshold",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-48 * time.Hour)},
 				{id: "2", createdAt: now.Add(-30 * time.Hour)},
 			},
@@ -11345,7 +11366,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 		},
 		{
 			name: "TemporaryFailureOlderThanThreshold",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-48 * time.Hour), failureMessage: "temporary failure"},
 			},
 			want: database.GetUsagePublishStatusRow{
@@ -11357,14 +11378,14 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			// created_at but a fresh inserted_at. They must not count as
 			// stuck until the failure threshold elapses from insertion.
 			name: "BackfilledEventNotStuck",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-72 * time.Hour), insertedAt: now.Add(-1 * time.Hour)},
 			},
 			want: database.GetUsagePublishStatusRow{},
 		},
 		{
 			name: "BackfilledEventStuckAfterThreshold",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-72 * time.Hour), insertedAt: now.Add(-25 * time.Hour)},
 			},
 			want: database.GetUsagePublishStatusRow{
@@ -11375,7 +11396,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			// A pre-enablement backlog counts as stuck only from
 			// enabled_since, which is too recent to breach the threshold.
 			name: "FirstEnablementBacklogWithinGrace",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-48 * time.Hour)},
 			},
 			enabledSinceOverride: now.Add(-1 * time.Hour),
@@ -11386,7 +11407,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			// still unpublished, it warns with enabled_since as the
 			// effective stuck time.
 			name: "FirstEnablementBacklogWarnsAfterGrace",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-48 * time.Hour)},
 			},
 			enabledSinceOverride: now.Add(-30 * time.Hour),
@@ -11400,7 +11421,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			// from disabled to enabled), so an ongoing outage keeps warning
 			// from its first failure across renewals.
 			name: "RenewalDoesNotResetStuckDetection",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-10 * 24 * time.Hour), publishedAt: now.Add(-9 * 24 * time.Hour)},
 				{id: "2", createdAt: now.Add(-48 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{
 					now.Add(-48 * time.Hour),
@@ -11419,7 +11440,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			// enabled_since on re-enablement, granting the full grace
 			// instead of warning immediately off the old failure.
 			name: "StaleFailureGetsGraceAfterReEnable",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-20 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-15 * 24 * time.Hour)}},
 			},
 			enabledSinceOverride: now.Add(-1 * time.Hour),
@@ -11430,7 +11451,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			// unpublished, it warns once the threshold elapses from
 			// enabled_since.
 			name: "StaleFailureWarnsAfterReEnableGrace",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-20 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-15 * 24 * time.Hour)}},
 			},
 			enabledSinceOverride: now.Add(-30 * time.Hour),
@@ -11443,7 +11464,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			// mid-outage) does not reset failure age: publishing has been
 			// failing the whole time.
 			name: "AttemptGapDoesNotResetFailureAge",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-20 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour), now.Add(-10 * time.Minute)}},
 			},
 			want: database.GetUsagePublishStatusRow{
@@ -11454,7 +11475,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			// Repeated failures keep the first failure as the effective
 			// stuck time.
 			name: "RepeatedFailuresKeepFirstFailure",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-20 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour), now.Add(-20 * time.Hour), now.Add(-1 * time.Hour)}},
 			},
 			want: database.GetUsagePublishStatusRow{
@@ -11467,7 +11488,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			// grace period even though the deployment published
 			// successfully in the past.
 			name: "ReEnablingGrantsGraceToUnattemptedBacklog",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-10 * 24 * time.Hour), publishedAt: now.Add(-9 * 24 * time.Hour)},
 				{id: "2", createdAt: now.Add(-5 * 24 * time.Hour)},
 				{id: "3", createdAt: now.Add(-48 * time.Hour)},
@@ -11482,7 +11503,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			// a fresh threshold from the failure time; the old insertion
 			// time must not make it warn immediately.
 			name: "ReEnableFirstFailureStartsFreshThreshold",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-10 * 24 * time.Hour), publishedAt: now.Add(-9 * 24 * time.Hour)},
 				{id: "2", createdAt: now.Add(-5 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-1 * time.Hour)}},
 			},
@@ -11495,7 +11516,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			// Once failures have been ongoing past the threshold, the first
 			// failure time is the effective stuck time.
 			name: "FailingSinceFirstFailure",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-5 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-25 * time.Hour), now.Add(-2 * time.Hour)}},
 			},
 			want: database.GetUsagePublishStatusRow{
@@ -11504,14 +11525,14 @@ func TestGetUsagePublishStatus(t *testing.T) {
 		},
 		{
 			name: "UnpublishedOlderThanWindow",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-31 * 24 * time.Hour)},
 			},
 			want: database.GetUsagePublishStatusRow{},
 		},
 		{
 			name: "RecentPermanentRejection",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-3 * time.Hour), publishedAt: now.Add(-2 * time.Hour), failureMessage: "permanently rejected"},
 			},
 			want: database.GetUsagePublishStatusRow{
@@ -11520,14 +11541,14 @@ func TestGetUsagePublishStatus(t *testing.T) {
 		},
 		{
 			name: "OldPermanentRejection",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-72 * time.Hour), publishedAt: now.Add(-48 * time.Hour), failureMessage: "permanently rejected"},
 			},
 			want: database.GetUsagePublishStatusRow{},
 		},
 		{
 			name: "PermanentRejectionIsNotSuccessfulPublish",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-3 * time.Hour), publishedAt: now.Add(-2 * time.Hour), failureMessage: "permanently rejected"},
 				{id: "2", createdAt: now.Add(-10 * time.Hour), publishedAt: now.Add(-9 * time.Hour)},
 			},
@@ -11537,8 +11558,19 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			},
 		},
 		{
+			// The last-success probe inspects only the most recent 100
+			// publish outcomes, so a success displaced by a sustained
+			// rejection streak reports as no recent success instead of
+			// scanning backward through the whole streak.
+			name:   "SustainedRejectionStreakDisplacesLastSuccess",
+			events: sustainedRejectionStreak(now),
+			want: database.GetUsagePublishStatusRow{
+				EarliestRecentRejectionAt: now.Add(-20 * time.Hour),
+			},
+		},
+		{
 			name: "Mixed",
-			events: []seedEvent{
+			events: []usagePublishSeedEvent{
 				// Successful publish.
 				{id: "1", createdAt: now.Add(-50 * time.Hour), publishedAt: now.Add(-49 * time.Hour)},
 				// Stuck events.
