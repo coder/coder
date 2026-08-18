@@ -43,7 +43,14 @@ func NewPolicyEngine(controlPlaneHost string, controlPlanePort int) *PolicyEngin
 		controlPlaneHost: normalizeHost(controlPlaneHost),
 		controlPlanePort: controlPlanePort,
 	}
-	engine.Update(codersdk.AIEgressPolicy{})
+	bootstrap := &compiledPolicy{}
+	if engine.controlPlaneHost != "" && validPort(engine.controlPlanePort) {
+		bootstrap.rules = append(bootstrap.rules, compiledRule{
+			host:  engine.controlPlaneHost,
+			ports: map[int]struct{}{engine.controlPlanePort: {}},
+		})
+	}
+	engine.policy.Store(bootstrap)
 	return engine
 }
 

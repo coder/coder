@@ -1,0 +1,156 @@
+package confine
+
+import (
+	"context"
+	"net"
+	"net/netip"
+	"strings"
+
+	"github.com/coder/coder/coder-sandbox/policy"
+)
+
+type policyEvaluator struct {
+	engine           *PolicyEngine
+	lookupNetIP      func(context.Context, string, string) ([]netip.Addr, error)
+	allowPrivateHost string
+}
+
+func newPolicyEvaluator(engine *PolicyEngine, options DestinationOptions) *policyEvaluator {
+	lookupNetIP := options.LookupNetIP
+	if lookupNetIP == nil {
+		lookupNetIP = net.DefaultResolver.LookupNetIP
+	}
+	return &policyEvaluator{
+		engine:           engine,
+		lookupNetIP:      lookupNetIP,
+		allowPrivateHost: normalizeHost(options.AllowPrivateHost),
+	}
+}
+
+// Generation implements policy.Evaluator.
+func (e *policyEvaluator) Generation() int64 {
+	if e == nil || e.engine == nil {
+		return 0
+	}
+	current := e.engine.policy.Load()
+	if current == nil {
+		return 0
+	}
+	return current.revision
+}
+
+// EvaluateName implements policy.Evaluator.
+func (e *policyEvaluator) EvaluateName(ctx context.Context, host string, port uint16) (policy.Decision, error) {
+	if err := ctx.Err(); err != nil {
+		return policy.Decision{}, err
+	}
+	if e == nil || e.engine == nil {
+		return networkPolicyDecision(policy.ActionDeny, 0, "egress policy is unavailable"), nil
+	}
+
+	host = normalizeHost(host)
+	decision := e.engine.Decide(host, int(port))
+	if !decision.Allowed {
+		return networkPolicyDecision(policy.ActionDeny, decision.Revision, "destination is not allowed by the AI egress policy"), nil
+	}
+
+	literalHost := strings.Trim(strings.TrimSpace(host), "[]")
+	if address, err := netip.ParseAddr(literalHost); err == nil {
+		if !e.privateHostAllowed(host) && deniedDestination(address) {
+			return networkPolicyDecision(policy.ActionDeny, decision.Revision, "destination address is in a denied range"), nil
+		}
+		return networkPolicyDecision(policy.ActionAllow, decision.Revision, "destination is allowed by the AI egress policy"), nil
+	}
+
+	lookupCtx, cancel := context.WithTimeout(ctx, destinationTimeout)
+	defer cancel()
+	addresses, err := e.lookupNetIP(lookupCtx, "ip", host)
+	if err != nil {
+		return networkPolicyDecision(policy.ActionDeny, decision.Revision, "destination name could not be resolved"), nil
+	}
+	if len(addresses) == 0 {
+		return networkPolicyDecision(policy.ActionDeny, decision.Revision, "destination name resolved to no addresses"), nil
+	}
+	if !e.privateHostAllowed(host) {
+		// The sandbox proxy performs a second resolved-IP evaluation for IPv4
+		// loopback, RFC1918, CGNAT and link-local ranges, plus IPv6 loopback,
+		// private and link-local ranges. Its sensitive-prefix list omits
+		// 0.0.0.0/8, 224.0.0.0/4, ::/128 and ff00::/8. Checking every answer
+		// here blocks stable resolutions into those ranges, but a resolver change
+		// between this check and the library's dial remains possible for them.
+		for _, address := range addresses {
+			if !address.IsValid() || deniedDestination(address) {
+				return networkPolicyDecision(policy.ActionDeny, decision.Revision, "destination name resolved to a denied address"), nil
+			}
+		}
+	}
+	return networkPolicyDecision(policy.ActionAllow, decision.Revision, "destination is allowed by the AI egress policy"), nil
+}
+
+// EvaluateResolvedIP implements policy.Evaluator.
+func (e *policyEvaluator) EvaluateResolvedIP(ctx context.Context, host string, port uint16, address netip.Addr) (policy.Decision, error) {
+	if err := ctx.Err(); err != nil {
+		return policy.Decision{}, err
+	}
+	if e == nil || e.engine == nil {
+		return networkPolicyDecision(policy.ActionDeny, 0, "egress policy is unavailable"), nil
+	}
+
+	host = normalizeHost(host)
+	decision := e.engine.Decide(host, int(port))
+	if !decision.Allowed {
+		return networkPolicyDecision(policy.ActionDeny, decision.Revision, "destination is not allowed by the AI egress policy"), nil
+	}
+	if !address.IsValid() || !e.privateHostAllowed(host) && deniedDestination(address) {
+		return networkPolicyDecision(policy.ActionDeny, decision.Revision, "resolved destination address is in a denied range"), nil
+	}
+	return networkPolicyDecision(policy.ActionAllow, decision.Revision, "resolved destination is allowed by the AI egress policy"), nil
+}
+
+// HasMCPEndpoint implements policy.Evaluator.
+func (*policyEvaluator) HasMCPEndpoint(ctx context.Context, _ string, _ uint16) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
+// IsMCPEndpoint implements policy.Evaluator.
+func (*policyEvaluator) IsMCPEndpoint(ctx context.Context, _ string, _ uint16, _ string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
+// EvaluateMCP implements policy.Evaluator.
+func (e *policyEvaluator) EvaluateMCP(ctx context.Context, _ policy.MCPCall) (policy.Decision, error) {
+	if err := ctx.Err(); err != nil {
+		return policy.Decision{}, err
+	}
+	return policy.Decision{
+		Action:     policy.ActionDeny,
+		Verdict:    policy.ActionDeny,
+		Mode:       policy.ModeEnforce,
+		Generation: e.Generation(),
+		TLS:        policy.TLSPassthrough,
+		Reason:     "MCP inspection is not supported by the AI egress proxy",
+	}, nil
+}
+
+func (e *policyEvaluator) privateHostAllowed(host string) bool {
+	return e.allowPrivateHost != "" && normalizeHost(host) == e.allowPrivateHost
+}
+
+func networkPolicyDecision(action policy.Action, generation int64, reason string) policy.Decision {
+	return policy.Decision{
+		Action:     action,
+		Verdict:    action,
+		Mode:       policy.ModeEnforce,
+		Generation: generation,
+		TLS:        policy.TLSPassthrough,
+		Reason:     reason,
+	}
+}
+
+var _ policy.Evaluator = (*policyEvaluator)(nil)
