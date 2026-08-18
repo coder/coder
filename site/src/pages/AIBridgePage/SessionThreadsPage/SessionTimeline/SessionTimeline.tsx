@@ -23,6 +23,7 @@ import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
 import { AgenticLoopTable } from "./AgenticLoopTable";
+import { HighlightText } from "./HighlightText";
 import { NetworkCallsTable } from "./NetworkCallsTable";
 import { PromptTable } from "./PromptTable";
 import {
@@ -247,30 +248,6 @@ const ThinkingBlock: FC<ThinkingBlockProps> = ({ text }) => (
 		/>
 	</BracketConnector>
 );
-
-// Renders text with query matches bolded in the primary color.
-const HighlightText: FC<{ text: string; query: string }> = ({
-	text,
-	query,
-}) => {
-	const segments = splitMatchSegments(text, query);
-	if (segments.length === 1 && !segments[0].match) {
-		return <>{text}</>;
-	}
-	return (
-		<>
-			{segments.map((segment, i) =>
-				segment.match ? (
-					<strong key={i} className="text-content-primary font-semibold">
-						{segment.text}
-					</strong>
-				) : (
-					<span key={i}>{segment.text}</span>
-				),
-			)}
-		</>
-	);
-};
 
 interface ToolCallBlockProps {
 	tool: string;
@@ -722,7 +699,9 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 								summary={networkCallSummary}
 								calls={filteredNetworkCalls}
 								search={
-									isSearching ? { loaded: networkCalls.length } : undefined
+									isSearching
+										? { loaded: networkCalls.length, query: searchQuery }
+										: undefined
 								}
 							/>
 						</div>

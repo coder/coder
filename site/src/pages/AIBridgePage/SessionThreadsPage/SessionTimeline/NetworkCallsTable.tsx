@@ -12,6 +12,7 @@ import {
 } from "#/components/Collapsible/Collapsible";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { formatDateTime } from "#/utils/time";
+import { HighlightText } from "./HighlightText";
 
 interface NetworkCallsTableProps {
 	/**
@@ -24,9 +25,10 @@ interface NetworkCallsTableProps {
 	 * When set, the table renders search results. `calls` holds only the
 	 * matching rows, and `loaded` is the number of network calls the client
 	 * received (at most the server-side cap). When `loaded` is below
-	 * `summary.total`, the search only covered a truncated prefix.
+	 * `summary.total`, the search only covered a truncated prefix. `query`
+	 * bolds the matched substring in each row.
 	 */
-	search?: { loaded: number };
+	search?: { loaded: number; query: string };
 }
 
 export const NetworkCallsTable: FC<NetworkCallsTableProps> = ({
@@ -84,7 +86,7 @@ export const NetworkCallsTable: FC<NetworkCallsTableProps> = ({
 
 const NetworkCallsList: FC<{
 	calls: readonly AgentFirewallLog[];
-	search?: { loaded: number };
+	search?: { loaded: number; query: string };
 	sessionTotal: number;
 }> = ({ calls, search, sessionTotal }) => {
 	const matches = calls.length;
@@ -118,7 +120,11 @@ const NetworkCallsList: FC<{
 		<>
 			<ul className="m-0 p-0 list-none">
 				{calls.map((call) => (
-					<NetworkCallRow key={call.id} call={call} />
+					<NetworkCallRow
+						key={call.id}
+						call={call}
+						query={search?.query ?? ""}
+					/>
 				))}
 			</ul>
 			{isTruncated && (
@@ -140,9 +146,11 @@ const NetworkCallsList: FC<{
 
 interface NetworkCallRowProps {
 	call: AgentFirewallLog;
+	/** The active query, used to bold the matched substring in the URL. */
+	query: string;
 }
 
-const NetworkCallRow: FC<NetworkCallRowProps> = ({ call }) => {
+const NetworkCallRow: FC<NetworkCallRowProps> = ({ call, query }) => {
 	const timestamp = formatDateTime(new Date(call.created_at));
 
 	return (
@@ -164,7 +172,11 @@ const NetworkCallRow: FC<NetworkCallRowProps> = ({ call }) => {
 							className="flex-1 min-w-0 truncate font-mono text-xs text-content-primary"
 							title={call.detail}
 						>
-							{call.detail || "N/A"}
+							{call.detail ? (
+								<HighlightText text={call.detail} query={query} />
+							) : (
+								"N/A"
+							)}
 						</span>
 						<span className="hidden md:flex items-center gap-2 flex-shrink-0 text-sm font-normal text-content-secondary">
 							Timestamp

@@ -35,6 +35,12 @@ const noop = () => {};
 const promptByText = (root: HTMLElement, text: string) =>
 	Array.from(root.querySelectorAll("p")).find((el) => el.textContent === text);
 
+// Highlighted network URLs also split, so match by combined text.
+const rowByText = (root: HTMLElement, text: string) =>
+	Array.from(root.querySelectorAll("span")).find(
+		(el) => el.textContent === text,
+	);
+
 const meta: Meta<typeof SessionThreadsPageView> = {
 	title: "pages/AIBridgePage/SessionThreadsPageView",
 	component: SessionThreadsPageView,
@@ -94,11 +100,11 @@ export const SearchFiltersEvents: Story = {
 		await userEvent.type(input, "npmjs.org");
 		await canvas.findByText("1 match");
 		await expect(
-			canvas.getByText("https://registry.npmjs.org/lodash"),
-		).toBeVisible();
+			rowByText(canvasElement, "https://registry.npmjs.org/lodash"),
+		).toBeTruthy();
 		await expect(
-			canvas.queryByText("https://api.github.com/repos/coder/coder"),
-		).not.toBeInTheDocument();
+			rowByText(canvasElement, "https://api.github.com/repos/coder/coder"),
+		).toBeUndefined();
 
 		await userEvent.clear(input);
 		await waitFor(() => {

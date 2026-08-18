@@ -135,7 +135,7 @@ export const SearchTruncated: Story = {
 	args: {
 		summary: { total: 150, blocked: 2 },
 		calls: [MockAIBridgeSessionNetworkCalls[0]],
-		search: { loaded: 4 },
+		search: { loaded: 4, query: "npmjs.org" },
 	},
 	play: async ({ canvas }) => {
 		await canvas.findByText("1 match");
@@ -150,7 +150,7 @@ export const SearchTruncatedNoMatches: Story = {
 	args: {
 		summary: { total: 150, blocked: 2 },
 		calls: [],
-		search: { loaded: 4 },
+		search: { loaded: 4, query: "npmjs.org" },
 	},
 	play: async ({ canvas }) => {
 		await expect(
@@ -167,7 +167,7 @@ export const SearchBlockedMatches: Story = {
 	args: {
 		summary: { total: 4, blocked: 2 },
 		calls: [MockAIBridgeSessionNetworkCalls[1]],
-		search: { loaded: 4 },
+		search: { loaded: 4, query: "npmjs.org" },
 	},
 	play: async ({ canvas }) => {
 		await canvas.findByText("1 match");
@@ -176,5 +176,20 @@ export const SearchBlockedMatches: Story = {
 				return element?.textContent === "Blocked matches: 1";
 			}),
 		).toBeInTheDocument();
+	},
+};
+
+// The matched substring in the URL renders bold in the primary color.
+export const SearchHighlightsMatch: Story = {
+	args: {
+		summary: { total: 4, blocked: 2 },
+		calls: [MockAIBridgeSessionNetworkCalls[1]],
+		search: { loaded: 4, query: "npmjs.org" },
+	},
+	play: async ({ canvas, canvasElement }) => {
+		await canvas.findByText("1 match");
+		const bold = canvasElement.querySelector("strong");
+		await expect(bold?.textContent).toBe("npmjs.org");
+		await expect(bold).toHaveClass("text-content-primary", "font-semibold");
 	},
 };

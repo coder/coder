@@ -228,12 +228,16 @@ export const SearchFiltersNetworkCalls: Story = {
 	},
 	play: async ({ canvas }) => {
 		await canvas.findByText("1 match");
+		// Highlighting splits the URL into <strong>/<span> children, so match
+		// the row by its combined text rather than a single text node.
+		const rowByText = (text: string) =>
+			canvas.queryAllByText((_c, el) => el?.textContent === text);
 		await expect(
-			canvas.getByText("https://registry.npmjs.org/lodash"),
-		).toBeInTheDocument();
+			rowByText("https://registry.npmjs.org/lodash").length,
+		).toBeGreaterThan(0);
 		await expect(
-			canvas.queryByText("https://api.github.com/repos/coder/coder"),
-		).not.toBeInTheDocument();
+			rowByText("https://api.github.com/repos/coder/coder"),
+		).toHaveLength(0);
 	},
 };
 
