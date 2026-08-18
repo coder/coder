@@ -5109,9 +5109,10 @@ curl -X POST http://coder-server:8080/oauth2/register \
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                                                                           |
-|--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.OAuth2ClientRegistrationResponse](schemas.md#codersdkoauth2clientregistrationresponse) |
+| Status | Meaning                                                                 | Description                | Schema                                                                                           |
+|--------|-------------------------------------------------------------------------|----------------------------|--------------------------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                    | [codersdk.OAuth2ClientRegistrationResponse](schemas.md#codersdkoauth2clientregistrationresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 4 MiB | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error)                                           |
 
 ## Revoke OAuth2 tokens (RFC 7009)
 
@@ -5152,7 +5153,7 @@ token_type_hint: string
 | Status | Meaning                                                                 | Description                | Schema                                                 |
 |--------|-------------------------------------------------------------------------|----------------------------|--------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | Token successfully revoked |                                                        |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large   | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 4 MiB | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
 
 ## OAuth2 token exchange
 
@@ -5210,10 +5211,10 @@ grant_type: authorization_code
 
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                                 |
-|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [oauth2.Token](schemas.md#oauth2token)                 |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| Status | Meaning                                                                 | Description                | Schema                                                 |
+|--------|-------------------------------------------------------------------------|----------------------------|--------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                         | [oauth2.Token](schemas.md#oauth2token)                 |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 4 MiB | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
 
 ## Delete OAuth2 application tokens
 
