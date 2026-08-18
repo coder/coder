@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -81,15 +82,17 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		workspaceBuild,
 		workspace,
 		data.jobs[0],
-		data.resources,
-		data.metadata,
-		data.agents,
-		data.apps,
-		data.appStatuses,
-		data.scripts,
-		data.logSources,
+		newWorkspaceBuildIndex(
+			data.resources,
+			data.metadata,
+			data.agents,
+			data.apps,
+			data.appStatuses,
+			data.scripts,
+			data.logSources,
+			nil,
+		),
 		data.templateVersions[0],
-		nil,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -291,15 +294,17 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		workspaceBuild,
 		workspace,
 		data.jobs[0],
-		data.resources,
-		data.metadata,
-		data.agents,
-		data.apps,
-		data.appStatuses,
-		data.scripts,
-		data.logSources,
+		newWorkspaceBuildIndex(
+			data.resources,
+			data.metadata,
+			data.agents,
+			data.apps,
+			data.appStatuses,
+			data.scripts,
+			data.logSources,
+			data.provisionerDaemons,
+		),
 		data.templateVersions[0],
-		data.provisionerDaemons,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -616,15 +621,8 @@ func (api *API) postWorkspaceBuildsInternal(
 		*workspaceBuild,
 		workspace,
 		queuePos,
-		[]database.WorkspaceResource{},
-		[]database.WorkspaceResourceMetadatum{},
-		[]database.WorkspaceAgent{},
-		[]database.WorkspaceApp{},
-		[]database.WorkspaceAppStatus{},
-		[]database.GetWorkspaceAgentScriptsByAgentIDsRow{},
-		[]database.WorkspaceAgentLogSource{},
+		newWorkspaceBuildIndex(nil, nil, nil, nil, nil, nil, nil, provisionerDaemons),
 		database.TemplateVersion{},
-		provisionerDaemons,
 	)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, httperror.NewResponseError(
@@ -1245,6 +1243,78 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	}, nil
 }
 
+// workspaceBuildIndex groups build rows by the ID they are looked up with.
+// Conversion reorders rows within a bucket in place, so an index must be read
+// by a single goroutine.
+type workspaceBuildIndex struct {
+	resourcesByJobID     map[uuid.UUID][]database.WorkspaceResource
+	metadataByResourceID map[uuid.UUID][]database.WorkspaceResourceMetadatum
+	agentsByResourceID   map[uuid.UUID][]database.WorkspaceAgent
+	appsByAgentID        map[uuid.UUID][]database.WorkspaceApp
+	statusesByAgentID    map[uuid.UUID][]database.WorkspaceAppStatus
+	scriptsByAgentID     map[uuid.UUID][]database.GetWorkspaceAgentScriptsByAgentIDsRow
+	logSourcesByAgentID  map[uuid.UUID][]database.WorkspaceAgentLogSource
+	daemonsByJobID       map[uuid.UUID][]database.ProvisionerDaemon
+}
+
+// newWorkspaceBuildIndex makes one pass over each slice, copying rows into
+// per-ID buckets. The input slices are neither modified nor aliased.
+func newWorkspaceBuildIndex(
+	workspaceResources []database.WorkspaceResource,
+	resourceMetadata []database.WorkspaceResourceMetadatum,
+	resourceAgents []database.WorkspaceAgent,
+	agentApps []database.WorkspaceApp,
+	agentAppStatuses []database.WorkspaceAppStatus,
+	agentScripts []database.GetWorkspaceAgentScriptsByAgentIDsRow,
+	agentLogSources []database.WorkspaceAgentLogSource,
+	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
+) *workspaceBuildIndex {
+	index := &workspaceBuildIndex{
+		resourcesByJobID:     make(map[uuid.UUID][]database.WorkspaceResource),
+		metadataByResourceID: make(map[uuid.UUID][]database.WorkspaceResourceMetadatum),
+		agentsByResourceID:   make(map[uuid.UUID][]database.WorkspaceAgent),
+		appsByAgentID:        make(map[uuid.UUID][]database.WorkspaceApp),
+		statusesByAgentID:    make(map[uuid.UUID][]database.WorkspaceAppStatus),
+		scriptsByAgentID:     make(map[uuid.UUID][]database.GetWorkspaceAgentScriptsByAgentIDsRow),
+		logSourcesByAgentID:  make(map[uuid.UUID][]database.WorkspaceAgentLogSource),
+		daemonsByJobID:       make(map[uuid.UUID][]database.ProvisionerDaemon),
+	}
+	for _, resource := range workspaceResources {
+		index.resourcesByJobID[resource.JobID] = append(index.resourcesByJobID[resource.JobID], resource)
+	}
+	for _, metadata := range resourceMetadata {
+		index.metadataByResourceID[metadata.WorkspaceResourceID] = append(index.metadataByResourceID[metadata.WorkspaceResourceID], metadata)
+	}
+	for _, agent := range resourceAgents {
+		index.agentsByResourceID[agent.ResourceID] = append(index.agentsByResourceID[agent.ResourceID], agent)
+	}
+	for _, app := range agentApps {
+		index.appsByAgentID[app.AgentID] = append(index.appsByAgentID[app.AgentID], app)
+	}
+	for _, status := range agentAppStatuses {
+		index.statusesByAgentID[status.AgentID] = append(index.statusesByAgentID[status.AgentID], status)
+	}
+	for _, script := range agentScripts {
+		index.scriptsByAgentID[script.WorkspaceAgentID] = append(index.scriptsByAgentID[script.WorkspaceAgentID], script)
+	}
+	for _, logSource := range agentLogSources {
+		index.logSourcesByAgentID[logSource.WorkspaceAgentID] = append(index.logSourcesByAgentID[logSource.WorkspaceAgentID], logSource)
+	}
+	for _, daemon := range provisionerDaemons {
+		index.daemonsByJobID[daemon.JobID] = append(index.daemonsByJobID[daemon.JobID], daemon.ProvisionerDaemon)
+	}
+	// Agents within a resource are ordered by display order, then name.
+	for _, agents := range index.agentsByResourceID {
+		slices.SortFunc(agents, func(a, b database.WorkspaceAgent) int {
+			return cmp.Or(
+				cmp.Compare(a.DisplayOrder, b.DisplayOrder),
+				cmp.Compare(a.Name, b.Name),
+			)
+		})
+	}
+	return index
+}
+
 func (api *API) convertWorkspaceBuilds(
 	workspaceBuilds []database.WorkspaceBuild,
 	workspaces []database.Workspace,
@@ -1272,6 +1342,17 @@ func (api *API) convertWorkspaceBuilds(
 		templateVersionByID[templateVersion.ID] = templateVersion
 	}
 
+	index := newWorkspaceBuildIndex(
+		workspaceResources,
+		resourceMetadata,
+		resourceAgents,
+		agentApps,
+		agentAppStatuses,
+		agentScripts,
+		agentLogSources,
+		provisionerDaemons,
+	)
+
 	// Should never be nil for API consistency
 	apiBuilds := []codersdk.WorkspaceBuild{}
 	for _, build := range workspaceBuilds {
@@ -1292,15 +1373,8 @@ func (api *API) convertWorkspaceBuilds(
 			build,
 			workspace,
 			job,
-			workspaceResources,
-			resourceMetadata,
-			resourceAgents,
-			agentApps,
-			agentAppStatuses,
-			agentScripts,
-			agentLogSources,
+			index,
 			templateVersion,
-			provisionerDaemons,
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("converting workspace build: %w", err)
@@ -1316,64 +1390,16 @@ func (api *API) convertWorkspaceBuild(
 	build database.WorkspaceBuild,
 	workspace database.Workspace,
 	job database.GetProvisionerJobsByIDsWithQueuePositionRow,
-	workspaceResources []database.WorkspaceResource,
-	resourceMetadata []database.WorkspaceResourceMetadatum,
-	resourceAgents []database.WorkspaceAgent,
-	agentApps []database.WorkspaceApp,
-	agentAppStatuses []database.WorkspaceAppStatus,
-	agentScripts []database.GetWorkspaceAgentScriptsByAgentIDsRow,
-	agentLogSources []database.WorkspaceAgentLogSource,
+	index *workspaceBuildIndex,
 	templateVersion database.TemplateVersion,
-	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
 ) (codersdk.WorkspaceBuild, error) {
-	resourcesByJobID := map[uuid.UUID][]database.WorkspaceResource{}
-	for _, resource := range workspaceResources {
-		resourcesByJobID[resource.JobID] = append(resourcesByJobID[resource.JobID], resource)
-	}
-	metadataByResourceID := map[uuid.UUID][]database.WorkspaceResourceMetadatum{}
-	for _, metadata := range resourceMetadata {
-		metadataByResourceID[metadata.WorkspaceResourceID] = append(metadataByResourceID[metadata.WorkspaceResourceID], metadata)
-	}
-	agentsByResourceID := map[uuid.UUID][]database.WorkspaceAgent{}
-	for _, agent := range resourceAgents {
-		agentsByResourceID[agent.ResourceID] = append(agentsByResourceID[agent.ResourceID], agent)
-	}
-	appsByAgentID := map[uuid.UUID][]database.WorkspaceApp{}
-	for _, app := range agentApps {
-		appsByAgentID[app.AgentID] = append(appsByAgentID[app.AgentID], app)
-	}
-	scriptsByAgentID := map[uuid.UUID][]database.GetWorkspaceAgentScriptsByAgentIDsRow{}
-	for _, script := range agentScripts {
-		scriptsByAgentID[script.WorkspaceAgentID] = append(scriptsByAgentID[script.WorkspaceAgentID], script)
-	}
-	logSourcesByAgentID := map[uuid.UUID][]database.WorkspaceAgentLogSource{}
-	for _, logSource := range agentLogSources {
-		logSourcesByAgentID[logSource.WorkspaceAgentID] = append(logSourcesByAgentID[logSource.WorkspaceAgentID], logSource)
-	}
-	provisionerDaemonsForThisWorkspaceBuild := []database.ProvisionerDaemon{}
-	for _, provisionerDaemon := range provisionerDaemons {
-		if provisionerDaemon.JobID != job.ProvisionerJob.ID {
-			continue
-		}
-		provisionerDaemonsForThisWorkspaceBuild = append(provisionerDaemonsForThisWorkspaceBuild, provisionerDaemon.ProvisionerDaemon)
-	}
-	matchedProvisioners := db2sdk.MatchedProvisioners(provisionerDaemonsForThisWorkspaceBuild, job.ProvisionerJob.CreatedAt, provisionerdserver.StaleInterval)
-	statusesByAgentID := map[uuid.UUID][]database.WorkspaceAppStatus{}
-	for _, status := range agentAppStatuses {
-		statusesByAgentID[status.AgentID] = append(statusesByAgentID[status.AgentID], status)
-	}
+	matchedProvisioners := db2sdk.MatchedProvisioners(index.daemonsByJobID[job.ProvisionerJob.ID], job.ProvisionerJob.CreatedAt, provisionerdserver.StaleInterval)
 
-	resources := resourcesByJobID[job.ProvisionerJob.ID]
+	resources := index.resourcesByJobID[job.ProvisionerJob.ID]
 	apiResources := make([]codersdk.WorkspaceResource, 0)
 	resourceAgentsMinOrder := map[uuid.UUID]int32{} // map[resource.ID]minOrder
 	for _, resource := range resources {
-		agents := agentsByResourceID[resource.ID]
-		sort.Slice(agents, func(i, j int) bool {
-			if agents[i].DisplayOrder != agents[j].DisplayOrder {
-				return agents[i].DisplayOrder < agents[j].DisplayOrder
-			}
-			return agents[i].Name < agents[j].Name
-		})
+		agents := index.agentsByResourceID[resource.ID]
 
 		apiAgents := make([]codersdk.WorkspaceAgent, 0)
 		resourceAgentsMinOrder[resource.ID] = math.MaxInt32
@@ -1381,10 +1407,10 @@ func (api *API) convertWorkspaceBuild(
 		for _, agent := range agents {
 			resourceAgentsMinOrder[resource.ID] = min(resourceAgentsMinOrder[resource.ID], agent.DisplayOrder)
 
-			apps := appsByAgentID[agent.ID]
-			scripts := scriptsByAgentID[agent.ID]
-			statuses := statusesByAgentID[agent.ID]
-			logSources := logSourcesByAgentID[agent.ID]
+			apps := index.appsByAgentID[agent.ID]
+			scripts := index.scriptsByAgentID[agent.ID]
+			statuses := index.statusesByAgentID[agent.ID]
+			logSources := index.logSourcesByAgentID[agent.ID]
 			apiAgent, err := db2sdk.WorkspaceAgent(
 				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace.WorkspaceTable()), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
@@ -1394,7 +1420,7 @@ func (api *API) convertWorkspaceBuild(
 			}
 			apiAgents = append(apiAgents, apiAgent)
 		}
-		metadata := append(make([]database.WorkspaceResourceMetadatum, 0), metadataByResourceID[resource.ID]...)
+		metadata := append(make([]database.WorkspaceResourceMetadatum, 0), index.metadataByResourceID[resource.ID]...)
 		apiResources = append(apiResources, convertWorkspaceResource(resource, apiAgents, metadata))
 	}
 	sort.Slice(apiResources, func(i, j int) bool {
