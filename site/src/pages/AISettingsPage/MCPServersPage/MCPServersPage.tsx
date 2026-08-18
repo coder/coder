@@ -105,6 +105,7 @@ const MCPServersPage: FC = () => {
 							organizations={authorizedOrganizations}
 							organization={organization}
 							addOrganization={addOrganization}
+							addOrganizations={creatableOrganizations}
 							canOpenServer={canOpenServer}
 							onSelectOrganization={(org) => {
 								setSearchParams((params) => {

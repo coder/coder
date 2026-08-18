@@ -30,6 +30,7 @@ interface MCPServersPageViewProps {
 	organizations: readonly TypesGen.Organization[];
 	organization: TypesGen.Organization;
 	addOrganization?: TypesGen.Organization;
+	addOrganizations: readonly TypesGen.Organization[];
 	canOpenServer: boolean;
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
 }
@@ -41,13 +42,16 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 	organizations,
 	organization,
 	addOrganization,
+	addOrganizations,
 	canOpenServer,
 	onSelectOrganization,
 }) => {
 	const navigate = useNavigate();
+	// Disambiguate against creation targets: colliding display names
+	// among create-only organizations never appear in the list picker.
 	const addButtonLabel =
 		addOrganization && addOrganization.id !== organization.id
-			? `Add server to ${getOrganizationLabel(addOrganization, organizations)}`
+			? `Add server to ${getOrganizationLabel(addOrganization, addOrganizations)}`
 			: undefined;
 	const goToAddServer = () => {
 		if (addOrganization) {
