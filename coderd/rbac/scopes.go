@@ -393,11 +393,14 @@ func checkCoverable(scope Scope, side string, name ScopeName) error {
 
 // permissionCovered reports whether any granted permission subsumes needed,
 // treating the wildcard resource type and action as covering every value.
+//
+// granted must carry no negative permissions. checkCoverable refuses a scope
+// holding one before ScopesCover gets here, because subsumption is the wrong
+// question to ask about an anti-grant. Skipping a negative leaves any wildcard
+// beside it free to match, so an "everything except delete" scope would read
+// as covering delete, and honoring one as a grant would be worse still.
 func permissionCovered(needed Permission, granted []Permission) bool {
 	for _, perm := range granted {
-		if perm.Negate {
-			continue
-		}
 		if perm.ResourceType != needed.ResourceType && perm.ResourceType != policy.WildcardSymbol {
 			continue
 		}
