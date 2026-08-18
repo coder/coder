@@ -1214,10 +1214,8 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 
 	switch format {
 	case "agentapi":
-		// ReadLimit bounds the payload at taskSnapshotMaxSize rather than the
-		// default, and reports an oversized one as 413 with the limit on the
-		// request's log line. Validate is a no-op here: the payload type carries
-		// no validate tags.
+		// Validate is a no-op here: agentapisdk.GetMessagesResponse has no
+		// validate tags.
 		var payload agentapisdk.GetMessagesResponse
 		if !httpapi.ReadLimit(ctx, rw, r, taskSnapshotMaxSize, &payload) {
 			return

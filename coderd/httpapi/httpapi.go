@@ -231,9 +231,8 @@ func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, respon
 
 // DefaultMaxRequestBodyBytes bounds the request body that a JSON endpoint will
 // decode. It exists so that a single request, including an unauthenticated one,
-// cannot exhaust server memory with an oversized body. Endpoints whose payloads
-// legitimately exceed it must call ReadLimit with an explicit limit instead of
-// raising this constant.
+// cannot exhaust server memory with an oversized body. Endpoints that need a
+// different limit must call ReadLimit rather than change this constant.
 const DefaultMaxRequestBodyBytes = 4 << 20 // 4 MiB
 
 // Read decodes JSON from the HTTP request into the value provided, reading at
@@ -245,8 +244,9 @@ func Read(ctx context.Context, rw http.ResponseWriter, r *http.Request, value in
 	return ReadLimit(ctx, rw, r, DefaultMaxRequestBodyBytes, value)
 }
 
-// ReadLimit is Read with an explicit request body size limit, for the few
-// endpoints whose payloads legitimately exceed DefaultMaxRequestBodyBytes.
+// ReadLimit is Read with an explicit request body size limit, for endpoints
+// that need one above or below DefaultMaxRequestBodyBytes. Most callers set a
+// tighter one.
 //
 // Callers must use this rather than wrapping r.Body in an http.MaxBytesReader
 // themselves. Read installs its own limit, and nested readers compose as
@@ -264,6 +264,8 @@ func ReadLimit(ctx context.Context, rw http.ResponseWriter, r *http.Request, lim
 		// winner, so a caller that wrapped r.Body tighter would otherwise be
 		// told a limit far looser than the one that rejected it.
 		if mbe, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			// Must be r.Context(), not ctx: ctx is the caller's and need not
+			// be the request's, but the tracker rides the request's.
 			RecordRequestBodyLimit(r.Context(), mbe.Limit)
 			Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "Request body too large.",
