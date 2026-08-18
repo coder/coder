@@ -101,6 +101,21 @@ func TestSearchTools(t *testing.T) {
 		require.Len(t, result.Matches, 2,
 			"an unknown prefix is searched as plain keywords")
 	})
+	t.Run("server names containing colons", func(t *testing.T) {
+		t.Parallel()
+		colonEntries := []FindToolCatalogEntry{
+			{Name: "jira_prod__list_issues", Description: "List issues", Server: "jira:prod"},
+			{Name: "jira__list_issues", Description: "List issues", Server: "jira"},
+			{Name: "ci__status", Description: "Issue pipeline status", Server: "ci"},
+		}
+		result, _ := SearchTools(colonEntries, FindToolsArgs{Queries: []string{"jira:prod: issues"}}, SearchBudget{})
+		require.Equal(t, []string{"jira_prod__list_issues"}, result.Activated,
+			"the longest cataloged server name wins over its colon-split prefix")
+
+		result, _ = SearchTools(colonEntries, FindToolsArgs{Queries: []string{"jira: issues"}}, SearchBudget{})
+		require.Equal(t, []string{"jira__list_issues"}, result.Activated,
+			"the shorter server still scopes its own queries")
+	})
 	t.Run("unicode terms", func(t *testing.T) {
 		t.Parallel()
 		unicodeEntries := []FindToolCatalogEntry{

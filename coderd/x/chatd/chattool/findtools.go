@@ -325,24 +325,46 @@ type scopedFindToolsQuery struct {
 
 // parseFindToolsQueries treats "server: terms" as a scope only when the
 // prefix names a cataloged server, so queries like "error: timeout"
-// still search normally.
+// still search normally. Prefixes are matched against full cataloged
+// server names, longest first, because workspace server names may
+// themselves contain ":".
 func parseFindToolsQueries(entries []FindToolCatalogEntry, queries []string) []scopedFindToolsQuery {
-	servers := make(map[string]struct{}, len(entries))
+	servers := make([]string, 0, len(entries))
+	seen := make(map[string]struct{}, len(entries))
 	for _, entry := range entries {
-		if entry.Server != "" {
-			servers[strings.ToLower(entry.Server)] = struct{}{}
+		server := strings.ToLower(entry.Server)
+		if server == "" {
+			continue
 		}
+		if _, dup := seen[server]; dup {
+			continue
+		}
+		seen[server] = struct{}{}
+		servers = append(servers, server)
 	}
+	// Longest first, so a server named "jira:prod" wins over "jira"
+	// when both are cataloged.
+	slices.SortFunc(servers, func(a, b string) int { return len(b) - len(a) })
 	parsed := make([]scopedFindToolsQuery, 0, len(queries))
 	for _, query := range queries {
-		if prefix, rest, ok := strings.Cut(query, ":"); ok {
-			server := strings.ToLower(strings.TrimSpace(prefix))
-			if _, known := servers[server]; known {
-				parsed = append(parsed, scopedFindToolsQuery{server: server, tokens: tokenizeFindTools(rest)})
+		scoped := false
+		trimmed := strings.ToLower(strings.TrimSpace(query))
+		for _, server := range servers {
+			rest, ok := strings.CutPrefix(trimmed, server)
+			if !ok {
 				continue
 			}
+			rest, ok = strings.CutPrefix(strings.TrimLeft(rest, " "), ":")
+			if !ok {
+				continue
+			}
+			parsed = append(parsed, scopedFindToolsQuery{server: server, tokens: tokenizeFindTools(rest)})
+			scoped = true
+			break
 		}
-		parsed = append(parsed, scopedFindToolsQuery{tokens: tokenizeFindTools(query)})
+		if !scoped {
+			parsed = append(parsed, scopedFindToolsQuery{tokens: tokenizeFindTools(query)})
+		}
 	}
 	return parsed
 }
