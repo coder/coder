@@ -10,6 +10,7 @@ import type {
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { userIdentity } from "#/components/Avatar/userIdentity";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -370,11 +371,7 @@ const MembersTableBody: FC<MembersTableBodyProps> = ({
 			{templateACL.users.map((user) => (
 				<TableRow key={user.id}>
 					<TableCell>
-						<AvatarData
-							title={user.username}
-							subtitle={user.email}
-							src={user.avatar_url}
-						/>
+						<AvatarData {...userIdentity(user)} />
 					</TableCell>
 					<TableCell>
 						{canUpdatePermissions ? (

@@ -63,11 +63,11 @@ export const NullClient: Story = {
 	},
 };
 
-export const NoInitiatorName: Story = {
+export const NoInitiatorAvatar: Story = {
 	args: {
 		session: {
 			...MockSession,
-			initiator: { ...MockSession.initiator, name: "" },
+			initiator: { ...MockSession.initiator, avatar_url: "" },
 		},
 	},
 };

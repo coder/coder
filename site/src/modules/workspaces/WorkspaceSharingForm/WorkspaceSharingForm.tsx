@@ -13,6 +13,7 @@ import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { userIdentity } from "#/components/Avatar/userIdentity";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -292,11 +293,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 					{workspaceACL.users.map((user) => (
 						<TableRow key={user.id}>
 							<TableCell className="py-2 w-[50%]">
-								<AvatarData
-									title={user.username}
-									subtitle={user.name}
-									src={user.avatar_url}
-								/>
+								<AvatarData {...userIdentity(user)} />
 							</TableCell>
 							<TableCell className="py-2 w-[40%]">
 								{canUpdatePermissions ? (

@@ -26,6 +26,7 @@ import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { userIdentity } from "#/components/Avatar/userIdentity";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
@@ -158,17 +159,7 @@ export const UserAIBudgetOverrideDialog: FC<
 					<DialogTitle className="font-semibold text-content-primary">
 						AI Budget
 					</DialogTitle>
-					<AvatarData
-						avatar={
-							<Avatar
-								size="lg"
-								fallback={user.username}
-								src={user.avatar_url}
-							/>
-						}
-						title={user.username}
-						subtitle={user.is_service_account ? "Service Account" : user.email}
-					/>
+					<AvatarData {...userIdentity(user)} />
 				</div>
 
 				{body}
