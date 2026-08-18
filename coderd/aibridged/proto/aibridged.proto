@@ -27,6 +27,9 @@ service MCPConfigurator {
   // acquiring, validating, or refreshing tokens synchronously. The server should make every effort to
   // parallelise this work.
   rpc GetMCPServerAccessTokensBatch(GetMCPServerAccessTokensBatchRequest) returns (GetMCPServerAccessTokensBatchResponse);
+  // GetMCPUpstreamCredential resolves a fresh external-auth token belonging to
+  // the human sponsor of the API key identity.
+  rpc GetMCPUpstreamCredential(GetMCPUpstreamCredentialRequest) returns (GetMCPUpstreamCredentialResponse);
 }
 
 // Authorizer handles all Coder-related authorization functions.
@@ -169,6 +172,21 @@ message GetMCPServerAccessTokensBatchRequest {
 message GetMCPServerAccessTokensBatchResponse{
   map<string, string> access_tokens = 1;
   map<string, string> errors = 2;
+}
+
+message GetMCPUpstreamCredentialRequest {
+  // key is the full "<id>-<secret>" API token presented to the MCP gateway.
+  string key = 1;
+  // external_auth_provider_id is supplied directly until migration 000572
+  // adds the authoritative provider binding to MCP server configurations.
+  string external_auth_provider_id = 2;
+}
+
+message GetMCPUpstreamCredentialResponse {
+  string access_token = 1;
+  bool reauth_required = 2;
+  string reauth_url = 3;
+  string provider_id = 4;
 }
 
 message IsAuthorizedRequest {

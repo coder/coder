@@ -315,6 +315,7 @@ type DRPCMCPConfiguratorClient interface {
 
 	GetMCPServerConfigs(ctx context.Context, in *GetMCPServerConfigsRequest) (*GetMCPServerConfigsResponse, error)
 	GetMCPServerAccessTokensBatch(ctx context.Context, in *GetMCPServerAccessTokensBatchRequest) (*GetMCPServerAccessTokensBatchResponse, error)
+	GetMCPUpstreamCredential(ctx context.Context, in *GetMCPUpstreamCredentialRequest) (*GetMCPUpstreamCredentialResponse, error)
 }
 
 type drpcMCPConfiguratorClient struct {
@@ -345,9 +346,19 @@ func (c *drpcMCPConfiguratorClient) GetMCPServerAccessTokensBatch(ctx context.Co
 	return out, nil
 }
 
+func (c *drpcMCPConfiguratorClient) GetMCPUpstreamCredential(ctx context.Context, in *GetMCPUpstreamCredentialRequest) (*GetMCPUpstreamCredentialResponse, error) {
+	out := new(GetMCPUpstreamCredentialResponse)
+	err := c.cc.Invoke(ctx, "/proto.MCPConfigurator/GetMCPUpstreamCredential", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCMCPConfiguratorServer interface {
 	GetMCPServerConfigs(context.Context, *GetMCPServerConfigsRequest) (*GetMCPServerConfigsResponse, error)
 	GetMCPServerAccessTokensBatch(context.Context, *GetMCPServerAccessTokensBatchRequest) (*GetMCPServerAccessTokensBatchResponse, error)
+	GetMCPUpstreamCredential(context.Context, *GetMCPUpstreamCredentialRequest) (*GetMCPUpstreamCredentialResponse, error)
 }
 
 type DRPCMCPConfiguratorUnimplementedServer struct{}
@@ -360,9 +371,13 @@ func (s *DRPCMCPConfiguratorUnimplementedServer) GetMCPServerAccessTokensBatch(c
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCMCPConfiguratorUnimplementedServer) GetMCPUpstreamCredential(context.Context, *GetMCPUpstreamCredentialRequest) (*GetMCPUpstreamCredentialResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCMCPConfiguratorDescription struct{}
 
-func (DRPCMCPConfiguratorDescription) NumMethods() int { return 2 }
+func (DRPCMCPConfiguratorDescription) NumMethods() int { return 3 }
 
 func (DRPCMCPConfiguratorDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -384,6 +399,15 @@ func (DRPCMCPConfiguratorDescription) Method(n int) (string, drpc.Encoding, drpc
 						in1.(*GetMCPServerAccessTokensBatchRequest),
 					)
 			}, DRPCMCPConfiguratorServer.GetMCPServerAccessTokensBatch, true
+	case 2:
+		return "/proto.MCPConfigurator/GetMCPUpstreamCredential", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCMCPConfiguratorServer).
+					GetMCPUpstreamCredential(
+						ctx,
+						in1.(*GetMCPUpstreamCredentialRequest),
+					)
+			}, DRPCMCPConfiguratorServer.GetMCPUpstreamCredential, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -419,6 +443,22 @@ type drpcMCPConfigurator_GetMCPServerAccessTokensBatchStream struct {
 }
 
 func (x *drpcMCPConfigurator_GetMCPServerAccessTokensBatchStream) SendAndClose(m *GetMCPServerAccessTokensBatchResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCMCPConfigurator_GetMCPUpstreamCredentialStream interface {
+	drpc.Stream
+	SendAndClose(*GetMCPUpstreamCredentialResponse) error
+}
+
+type drpcMCPConfigurator_GetMCPUpstreamCredentialStream struct {
+	drpc.Stream
+}
+
+func (x *drpcMCPConfigurator_GetMCPUpstreamCredentialStream) SendAndClose(m *GetMCPUpstreamCredentialResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
 		return err
 	}
