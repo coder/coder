@@ -193,6 +193,74 @@ authorization from a delegating principal, ordinarily a user.
 **That delegation is recorded elsewhere and does not need to be recorded per
 event.** An auditable event needs to record only the actor behind the action.
 
+### How these entities arise
+
+`poc_audit/audit_approach.md` puts the general question as one of origin: does
+an event arise as a relationship, or as behaviour of a technical system? Every
+change has a technical manifestation, so the manifestation settles nothing. This
+section answers the question for the entities named above. It is not a
+classification of everything in the system, and the entities not listed are not
+yet placed.
+
+- **User.** Arises as a relationship. No human being comes into existence when a
+  user is created. What comes into existence is a relationship between a person
+  and this deployment. The `users` row records that relationship and is not the
+  person.
+- **AI agent.** Arises as a relationship, on a subject the system itself
+  embodies. See below.
+- **Workspace.** Arises as behaviour of a technical system. It is provisioned,
+  and it is material: a particular slice of the hardware it runs on, together
+  with the state of that slice.
+
+### Embodiment, and what a grant needs from its subject
+
+An AI agent's subject is in the end a process on a server, and that process is
+its **embodiment**. The embodiment must exist before any authority can be
+granted to it. There is no granting anything to a party that is not there.
+
+A technical system can embody an AI agent. It cannot embody a human. That
+asymmetry is the whole of the difference between the two so far as a grant is
+concerned. In every other respect a grant to an AI agent and a grant to a person
+are the same kind of act, made to a party that already exists.
+
+### Lifecycles are state machines either way
+
+Entities and relationships both have lifecycles, and both are describable by a
+state machine. That is the point of commonality, and it is what lets the two be
+treated alike in schema and in code.
+
+The theory exists for a practical reason: so that people can reason coherently
+about institutional facts by analogy with material entities, which is the mode
+of thought that comes naturally. The analogy is a working convenience and not a
+claim that the two are the same kind of thing.
+
+### What happens when an AI agent comes into being
+
+Three events occur, and three entries are made:
+
+1. **Creation of the AI agent**, recorded after its materialization.
+2. **The grant of authorization**, from the delegating principal.
+3. **Issuance of a credential.**
+
+All three are written in one transaction. That forecloses any divergence between
+them, for the reason given under Events that arise together in the audit
+approach.
+
+**They remain three entries.** They are three events, and collapsing them into
+one entry would discard what each of them records. In particular the grant is
+complete on its own terms and is not constituted by the credential, so an
+arrangement that recorded only the credential would leave the agency relation
+unrecorded.
+
+The grant recorded is **incipient authority**, in the sense the audit approach
+gives it. Actual authority arrives when the credential is returned to the AI
+agent, since that is the moment the agent learns it has been authorized. No
+separate entry marks it, for the reason given there.
+
+The grants in scope are grants by users to AI agents. Creation of `user` entries
+is not in scope: recording it would need a system actor to stand as the party
+making the grant, and no such actor exists yet.
+
 ## Derived
 
 Reasoning built on the positions above. Offered for challenge.
@@ -300,6 +368,17 @@ actors their own identity should take this row with it, rather than leaving a
 non-person filed among people and every query about users carrying an exception
 for it.
 
+### The code records one event where three belong
+
+`entity.CreateAIAgent` in `coderd/entity/aiagent.go` inserts the row, issues a
+credential, and appends a single entry whose event is `created`. `created` is
+the only event constant `coderd/entity/journal.go` defines.
+
+No grant of authorization is recorded anywhere, by that function or any other.
+The authority an AI agent exercises is at present nowhere in the journal, which
+puts the code short of the position stated above rather than in conflict with
+it. That code is not in its final form and is to be brought into conformance.
+
 ## Open
 
 - **Sandbox ontology.** Whether a sandbox is a resource the workspace provides,
@@ -324,3 +403,7 @@ for it.
   `resource_type` enum, given that `agent` collides with `workspace_agent`.
 - **coderd's identity.** Whether the control plane is modelled as an actor
   entity with an identity of its own, or remains implicit as it is today.
+- **A system actor for grants nobody makes.** Creating a user is a grant with no
+  human principal behind it, so recording one needs a party to stand as the
+  grantor. Service accounts may serve, but they have not been investigated, and
+  `user` lifecycle is out of scope for the proof of concept regardless.

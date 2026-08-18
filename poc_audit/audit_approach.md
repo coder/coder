@@ -70,6 +70,13 @@ arrangement, by different parties. Collapsing all three into "a database write"
 loses every distinction this document depends on, which is why the words are
 kept.
 
+**Recorder.** The party that makes entries in the journal. Accounting calls this
+role the **bookkeeper**, and the word is worth knowing, because the practice
+this approach borrows from is written in it. This document says "recorder"
+instead. A reader who does not already think of a database as a set of books
+will read "bookkeeper" as a person doing something else entirely, and the
+substitution costs nothing.
+
 **Audit trail.** A collection of data sufficient to follow a transaction from
 end to end, almost always heterogeneous in source: records from several systems,
 plus documents and other evidence that are not records at all. **It is not a
@@ -93,6 +100,48 @@ it is speaking about storage.
 
 The restriction on "record" applies to its use as a noun standing in for an
 entry. As a verb it remains ordinary usage: an entry records an event.
+
+**Institutional fact.** A fact that holds because the parties concerned treat it
+as holding, rather than because of any physical arrangement. The term is
+Searle's, from *The Construction of Social Reality* (1995). A grant of
+authorization is one. The moment it is made, an agency relation holds between
+two parties, and nothing anywhere else need have changed for that to be so.
+
+An institutional fact is as real, for present purposes, as a material one. It
+persists, it changes, and its changes are exactly what this document means by an
+auditable event. What it lacks is an independent physical form to be checked
+against, which has a consequence for reconciliation recorded below.
+
+**Perfect.** Used in its legal sense: to complete the steps that make an
+otherwise inchoate right effective, as in perfecting a security interest. Not
+the ordinary sense of making something ideal.
+
+A grant of authorization arises in a mind or in a system, and is **perfected**
+by an utterance or a recording. Before perfection there is an intention (in a
+mind) or a point of execution (in a program). There is actual state in both
+cases, and in both it is transitory. After perfection it is unambiguous that a
+grant exists. The distinction earns its keep because the entry is itself the
+perfection. Recording the grant does not report a perfection that happened
+somewhere else; the recording performs it. The origin remains outside the
+journal and prior to it, so the ordering of origin and entry is undisturbed.
+
+Recording a grant perfects it just as a speech act does. That is an analogy and
+not a classification: a grant is not a kind of speech act. What the two share is
+that making the utterance, or making the record, is what completes the thing
+rather than merely reporting on it. Austin's word for an utterance of that kind
+is **performative**, in *How to Do Things with Words* (1962).
+
+The law has a formula that shows the act plainly. A power of attorney conveys
+authority with the words "do hereby **make, constitute, and appoint**", and each
+verb does a distinct piece of work: *make* creates the relationship,
+*constitute* empowers, *appoint* designates the person. Bouvier's *Law
+Dictionary* (1856) glosses "constitute" as "to empower, to authorize". The
+instrument does not report that a grant happened somewhere else. Saying the
+words in it is itself the granting.
+
+The formula is cited for what it shows about the act, not because anything here
+creates an attorney relationship. What a grant creates is broader, and the same
+triplet serves other agency relationships equally well.
 
 **Agent**. The three senses of "agent", and the terms for the entities this work
 deals with, are defined in `poc_audit/entity_model.md` rather than here, since
@@ -170,7 +219,21 @@ includes making entries as much as storing them.
 
 ### What makes an event auditable
 
-An auditable event is one that has a **persistent effect on system state**.
+An auditable event is one that has a **persistent effect on state**.
+
+Persistent state is broader than the state of the technical system. It also
+covers relationships between parties, which are institutional facts in the sense
+defined above and are no less real for having no physical form. A grant of
+authorization changes the state of the world in the only way that matters here:
+an agency relation holds afterwards that did not hold before.
+
+That such a grant is complete once perfected can be seen from what it does not
+depend on. The grant stands whether or not anybody else has been told, whether
+or not the agent knows, whether or not the agent has any means of acting, and
+whether or not a credential has been issued. None of those is a
+constituent of the grant. Each is a separate fact that may or may not follow,
+and some of them are separately auditable events in their own right. The list is
+not exhaustive, and particular contexts will add to it.
 
 This is narrower than an activity log:
 
@@ -180,12 +243,70 @@ This is narrower than an activity log:
   auditable events.
 - Some failures do produce persistent state change. Those are auditable.
 
+### Incipient authority and actual authority
+
+The law of agency draws a line the section above steps over, and it is better
+drawn deliberately than left to be discovered.
+
+A principal's grant confers what can be called **incipient authority**. The
+principal has done everything required of them, and nothing further is owed by
+them for the grant to stand. **Actual authority** is the term of art, and the
+Restatement (Third) of Agency puts it at a further remove: by section 3.01 it is
+created by the principal's manifestation to the agent, as reasonably understood
+by the agent. It therefore does not arise until the agent has been told and has
+understood.
+
+**What this system records is incipient authority.** The entry is made when the
+grant is made, which is what makes the journal a book of original entry for it.
+
+Actual authority could be recorded as well. It would take a second entry, made
+once the agent had been told, which here is the moment the agent's credential is
+returned to it. The two entries would stand one to one and could be reconciled
+against each other.
+
+**That distinction is deliberately not modelled.** The interval between the two
+entries is a few statements wide, and the only failure it admits is a process
+crash falling between them. What such a reconciliation would detect does not
+repay what it would cost to model. This is a choice and not an oversight, and it
+is recorded so that a reader who knows the law of agency does not take the
+omission for ignorance of it.
+
+### The question is one of origin
+
+Every change is recorded somehow, so a technical manifestation is universal and
+by itself distinguishes nothing. The question that separates one kind of event
+from another is where it arises: **does the event arise as a relationship, or as
+behaviour of a technical system?**
+
+Both kinds are auditable, and both are recorded the same way. The distinction
+earns its place by predicting what can be checked afterwards. An event arising
+from technical behaviour leaves something behind that can be observed
+independently of the journal. An event arising as a relationship does not,
+because the relationship has no form other than the record of it.
+
+Which of this system's entities arise which way is a question about entities
+rather than about audit, and is answered in `poc_audit/entity_model.md`.
+
 ### Recordkeeping as an integrity property
 
 The event is the persistent state change itself. An entry in the journal
 is a reflection and recording of that event, not a part of it. The journal
 observes events external to itself, and additions to the journal are therefore
 not themselves events.
+
+That holds for institutional facts as well, though the line there is a fine one.
+What the journal records is the perfection of a grant and not its origin, and
+the origin lies outside the journal in every case. Where the recording is itself
+the perfecting act, the two coincide in a single action without the journal
+becoming its own subject: there is one entry and one fact, not an entry about an
+entry. A signed contract is the ordinary analogue. The signature is the act of
+agreeing and the evidence that the agreement happened, one thing physically and
+two things conceptually, and nobody is misled by it.
+
+The rule worth stating as a rule is therefore the narrow one: **the journal does
+not record its own operation.** Rotation, compaction, and the act of writing are
+not auditable events. Without that restriction the definition regresses, since
+every entry would need an entry of its own.
 
 The integrity invariant follows: every persistent state change has a
 corresponding journal entry, and every journal entry corresponds to a
@@ -194,6 +315,23 @@ its state change, is a violated invariant rather than a missing log line.
 
 Nothing available enforces that invariant. Reconciliation is the means by which
 violations of it are detected.
+
+### One recorder
+
+**There is exactly one recorder, and it is coderd.** Every entry is made by it,
+whatever party the entry is about and whichever component the event originated
+in.
+
+This is a policy, not an observed property of the code, and it could be relaxed
+later. The code is too immature for its conformance to be worth reporting as a
+finding, but checking the policy as the code is written is worthwhile: a second
+recorder appearing by accident is exactly the sort of thing that goes unnoticed
+until it matters.
+
+The reason for the policy is that the party who acts and the party who records
+are separated by design, which is developed under Derived below. A single
+recorder makes that separation checkable in one place rather than distributed
+across every component that might have something to say.
 
 ### The ideal, and the reality
 
@@ -218,6 +356,39 @@ that which the journal describes.
   transaction. The approach must not presume a transaction manager, so
   coherence is achieved after the fact rather than atomically. Reconciliation
   is the mechanism that achieves it.
+
+### What reconciliation cannot reach
+
+Reconciliation compares the journal against the world. Where an event arose as a
+relationship, there is no world to compare it against, the relationship having
+no existence apart from the record of it. Such entries are within the scope of
+reconciliation and the reconciliation returns nothing. That is a property of
+what is being reconciled, not a check left unimplemented.
+
+It is also not a gap to be closed. An institutional fact whose record is its
+only form cannot be confirmed against anything but another record of the same
+kind, and confirming a record against itself establishes nothing.
+
+What can be reconciled is the relationship against its technical consequences. A
+grant of authorization and the issuance of a credential stand one to one but are
+things of different kinds, so each is evidence about the other. A credential
+with no grant behind it is a capability nobody authorized, which is precisely
+the condition worth detecting. A grant with no credential is authority the
+system has not equipped anyone to exercise, which is a different fault and
+ordinarily a less alarming one.
+
+### Events that arise together
+
+Where several events necessarily arise at the same moment, recording them in one
+transaction forecloses any divergence between them. Nothing is left to reconcile
+afterwards, because no intermediate state is ever observable.
+
+This is a technical means of avoiding a reconciliation problem rather than a
+solution to one, and it is available only where the events genuinely co-occur.
+Each remains a separate event and takes its own entry. Collapsing them into a
+single entry would discard the distinctions the entries exist to record, and
+would leave that entry impossible to interpret without knowing which of several
+things it was standing for.
 
 ### Reconciliation belongs to recordkeeping
 
