@@ -842,8 +842,6 @@ Tool calls have at least once semantics: if the goroutine executes a tool call, 
 
 Parallel tool call results must be inserted in bulk after all parallel tool calls finish in a single `CommitStep` transition so that the generation goroutine only increments `history_version` once, since a change to the `history_version` interrupts the gorotuine. This is consistent with the existing chatd implementation.
 
-<!-- TODO(CODAGT-760): Add a human-authored section for deferred MCP tool loading and find_tools activation. -->
-
 The generation goroutine supports:
 
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
