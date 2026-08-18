@@ -7,7 +7,8 @@ Coder Agents is licensed differently depending on whether your deployment holds 
 ## Community licenses
 
 Community licenses support up to five concurrently active agents deployment-wide.
-There is no limit on how long those agents can run or how many tasks they complete over time; they simply queue when more than five agents are active.
+Coder doesn't limit how long those agents can run or how many tasks they complete over time.
+Agents will queue when more than five agents are active at a time.
 This enables individuals and small teams to experiment with Coder Agents at no cost.
 
 ## AI Premium licenses and Agent Time
