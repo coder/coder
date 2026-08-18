@@ -115,15 +115,15 @@ const stampFor = (key: string, atMs: number): void => {
 	);
 };
 
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
 describe("storage core", () => {
 	beforeEach(() => {
 		localStorage.clear();
 		sessionStorage.clear();
 		_resetStorageForTesting();
-	});
-
-	afterEach(() => {
-		vi.restoreAllMocks();
 	});
 
 	it("returns the default when nothing is stored and never writes it", () => {
@@ -335,6 +335,19 @@ describe("entity-scoped keys", () => {
 		// Other chats and other entity types are untouched.
 		expect(localStorage.getItem("test.chat-note.chat-2")).not.toBeNull();
 		expect(localStorage.getItem("test.workspace-flag.chat-1")).not.toBeNull();
+	});
+
+	it("clears overlay-only values that never persisted", () => {
+		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+			throw new DOMException("full", "QuotaExceededError");
+		});
+		const handle = chatNote.forId("chat-1");
+		expect(handle.set("draft").ok).toBe(false);
+		expect(handle.get()).toBe("draft");
+
+		clearEntityStorage("chat", "chat-1");
+
+		expect(handle.get()).toBeNull();
 	});
 
 	it("notifies subscribers when entity cleanup removes their key", () => {

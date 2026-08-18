@@ -503,27 +503,36 @@ export function clearEntityStorage(
 		return;
 	}
 	// Collect first: removing keys while enumerating by index skips
-	// entries.
-	const ownedKeys: string[] = [];
+	// entries. Overlay-only keys (failed writes with nothing persisted)
+	// exist solely in memory, so include them alongside localStorage.
+	const candidateKeys = new Set<string>();
 	try {
 		for (const key of listLocalKeys()) {
-			// Companion timestamps are owned by their value key.
-			const valueKey = key.startsWith(TIMESTAMP_KEY_PREFIX)
-				? key.slice(TIMESTAMP_KEY_PREFIX.length)
-				: key;
-			const owned = entityFamilies.some(
-				(family) =>
-					family.entity === entity &&
-					valueKey.startsWith(family.prefix) &&
-					family.entityIdFromSuffix(valueKey.slice(family.prefix.length)) ===
-						id,
-			);
-			if (owned) {
-				ownedKeys.push(key);
-			}
+			candidateKeys.add(key);
 		}
 	} catch {
 		// Enumeration failed; stale keys will be caught by the sweep.
+	}
+	for (const cacheKey of overlayKeys) {
+		if (cacheKey.startsWith("local:")) {
+			candidateKeys.add(cacheKey.slice("local:".length));
+		}
+	}
+	const ownedKeys: string[] = [];
+	for (const key of candidateKeys) {
+		// Companion timestamps are owned by their value key.
+		const valueKey = key.startsWith(TIMESTAMP_KEY_PREFIX)
+			? key.slice(TIMESTAMP_KEY_PREFIX.length)
+			: key;
+		const owned = entityFamilies.some(
+			(family) =>
+				family.entity === entity &&
+				valueKey.startsWith(family.prefix) &&
+				family.entityIdFromSuffix(valueKey.slice(family.prefix.length)) === id,
+		);
+		if (owned) {
+			ownedKeys.push(key);
+		}
 	}
 	for (const key of ownedKeys) {
 		removeRaw("local", key);
