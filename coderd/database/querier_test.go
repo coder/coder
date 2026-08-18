@@ -11212,7 +11212,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 				{id: "2", createdAt: now.Add(-30 * time.Hour)},
 			},
 			want: database.GetUsagePublishStatusRow{
-				OldestStuckInsertedAt: now.Add(-48 * time.Hour),
+				OldestStuckAt: now.Add(-48 * time.Hour),
 			},
 		},
 		{
@@ -11221,7 +11221,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 				{id: "1", createdAt: now.Add(-48 * time.Hour), failureMessage: "temporary failure"},
 			},
 			want: database.GetUsagePublishStatusRow{
-				OldestStuckInsertedAt: now.Add(-48 * time.Hour),
+				OldestStuckAt: now.Add(-48 * time.Hour),
 			},
 		},
 		{
@@ -11240,18 +11240,48 @@ func TestGetUsagePublishStatus(t *testing.T) {
 				{id: "1", createdAt: now.Add(-72 * time.Hour), insertedAt: now.Add(-25 * time.Hour)},
 			},
 			want: database.GetUsagePublishStatusRow{
-				OldestStuckInsertedAt: now.Add(-25 * time.Hour),
+				OldestStuckAt: now.Add(-25 * time.Hour),
 			},
 		},
 		{
-			name: "UnpublishedBeforeLicenseStart",
+			// Never published successfully, so the pre-enablement backlog
+			// counts as stuck only from license_start, which is too recent
+			// to breach the threshold.
+			name: "FirstEnablementBacklogWithinGrace",
 			events: []seedEvent{
-				// Stuck and within the 30 day window, but created before the
-				// license start, so it must be ignored.
 				{id: "1", createdAt: now.Add(-48 * time.Hour)},
 			},
-			licenseStartOverride: now.Add(-24 * time.Hour),
+			licenseStartOverride: now.Add(-1 * time.Hour),
 			want:                 database.GetUsagePublishStatusRow{},
+		},
+		{
+			// Once the grace from license_start elapses without a single
+			// successful publish, the backlog warns with license_start as
+			// the effective stuck time.
+			name: "FirstEnablementBacklogWarnsAfterGrace",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-48 * time.Hour)},
+			},
+			licenseStartOverride: now.Add(-30 * time.Hour),
+			want: database.GetUsagePublishStatusRow{
+				OldestStuckAt: now.Add(-30 * time.Hour),
+			},
+		},
+		{
+			// A deployment that has published successfully before gets no
+			// license_start grace: a license renewal advancing license_start
+			// must not clear an active failure warning for events that are
+			// still stuck from before the renewal.
+			name: "RenewalDoesNotResetStuckDetection",
+			events: []seedEvent{
+				{id: "1", createdAt: now.Add(-10 * 24 * time.Hour), publishedAt: now.Add(-9 * 24 * time.Hour)},
+				{id: "2", createdAt: now.Add(-48 * time.Hour)},
+			},
+			licenseStartOverride: now.Add(-1 * time.Hour),
+			want: database.GetUsagePublishStatusRow{
+				LastPublishedAt: now.Add(-9 * 24 * time.Hour),
+				OldestStuckAt:   now.Add(-48 * time.Hour),
+			},
 		},
 		{
 			name: "UnpublishedOlderThanWindow",
@@ -11303,7 +11333,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			},
 			want: database.GetUsagePublishStatusRow{
 				LastPublishedAt:           now.Add(-49 * time.Hour),
-				OldestStuckInsertedAt:     now.Add(-40 * time.Hour),
+				OldestStuckAt:             now.Add(-40 * time.Hour),
 				EarliestRecentRejectionAt: now.Add(-4 * time.Hour),
 			},
 		},
@@ -11324,7 +11354,7 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			row, err := db.GetUsagePublishStatus(dbauthz.AsSystemRestricted(ctx), callParams)
 			require.NoError(t, err)
 			require.WithinDuration(t, tc.want.LastPublishedAt, row.LastPublishedAt, time.Second)
-			require.WithinDuration(t, tc.want.OldestStuckInsertedAt, row.OldestStuckInsertedAt, time.Second)
+			require.WithinDuration(t, tc.want.OldestStuckAt, row.OldestStuckAt, time.Second)
 			require.WithinDuration(t, tc.want.EarliestRecentRejectionAt, row.EarliestRecentRejectionAt, time.Second)
 		})
 	}

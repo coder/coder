@@ -183,7 +183,9 @@ type FeatureArguments struct {
 	// UsagePublishStatusFn fetches the usage event publishing status from the
 	// database. It is only called when a currently-valid license enables
 	// usage publishing. licenseStart is the earliest nbf among such licenses;
-	// events created before it are ignored.
+	// until the deployment has published successfully at least once, events
+	// count as stuck only from licenseStart so a pre-enablement backlog gets
+	// the full failure threshold as a grace period.
 	UsagePublishStatusFn UsagePublishStatusFn
 }
 
@@ -814,8 +816,8 @@ func LicensesEntitlements(
 			// within the threshold. FailingSince is the earliest time
 			// associated with the failure.
 			var failingSince time.Time
-			if !status.OldestStuckInsertedAt.IsZero() {
-				failingSince = status.OldestStuckInsertedAt
+			if !status.OldestStuckAt.IsZero() {
+				failingSince = status.OldestStuckAt
 			}
 			if !status.EarliestRecentRejectionAt.IsZero() && (failingSince.IsZero() || status.EarliestRecentRejectionAt.Before(failingSince)) {
 				failingSince = status.EarliestRecentRejectionAt

@@ -28686,45 +28686,54 @@ func (q *sqlQuerier) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg Get
 }
 
 const getUsagePublishStatus = `-- name: GetUsagePublishStatus :one
-SELECT
+WITH last_success AS (
     -- The latest successful publish. Rows with a failure_message and a
     -- published_at are permanent rejections, not successes.
-    COALESCE((
-        SELECT MAX(published_at)
-        FROM usage_events
-        WHERE published_at IS NOT NULL
-            AND failure_message IS NULL
-    ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS last_published_at,
-    -- The insertion time of the oldest event that should have been published
-    -- by now but wasn't.
-    COALESCE((
-        SELECT MIN(inserted_at)
-        FROM usage_events
-        WHERE published_at IS NULL
-            AND created_at > $1::timestamptz
-            AND created_at > $2::timestamptz
-            AND inserted_at < $3::timestamptz
-    ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_inserted_at,
+    SELECT MAX(published_at) AS last_published_at
+    FROM usage_events
+    WHERE published_at IS NOT NULL
+        AND failure_message IS NULL
+), stuck AS (
+    -- The effective stuck time of the oldest event that should have been
+    -- published by now but wasn't.
+    SELECT MIN(effective_stuck_at) AS oldest_stuck_at
+    FROM (
+        SELECT
+            CASE
+                WHEN last_success.last_published_at IS NULL
+                    THEN GREATEST(potential_event.inserted_at, $2::timestamptz)
+                ELSE potential_event.inserted_at
+            END AS effective_stuck_at
+        FROM usage_events potential_event
+        CROSS JOIN last_success
+        WHERE potential_event.published_at IS NULL
+            AND potential_event.created_at > $3::timestamptz
+    ) candidates
+    WHERE effective_stuck_at < $4::timestamptz
+)
+SELECT
+    COALESCE((SELECT last_published_at FROM last_success), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS last_published_at,
+    COALESCE((SELECT oldest_stuck_at FROM stuck), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_at,
     -- The earliest recent permanent rejection.
     COALESCE((
         SELECT MIN(published_at)
         FROM usage_events
         WHERE published_at IS NOT NULL
             AND failure_message IS NOT NULL
-            AND published_at > $4::timestamptz
+            AND published_at > $1::timestamptz
     ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS earliest_recent_rejection_at
 `
 
 type GetUsagePublishStatusParams struct {
+	RejectedAfter time.Time `db:"rejected_after" json:"rejected_after"`
 	LicenseStart  time.Time `db:"license_start" json:"license_start"`
 	WindowStart   time.Time `db:"window_start" json:"window_start"`
 	StuckCutoff   time.Time `db:"stuck_cutoff" json:"stuck_cutoff"`
-	RejectedAfter time.Time `db:"rejected_after" json:"rejected_after"`
 }
 
 type GetUsagePublishStatusRow struct {
 	LastPublishedAt           time.Time `db:"last_published_at" json:"last_published_at"`
-	OldestStuckInsertedAt     time.Time `db:"oldest_stuck_inserted_at" json:"oldest_stuck_inserted_at"`
+	OldestStuckAt             time.Time `db:"oldest_stuck_at" json:"oldest_stuck_at"`
 	EarliestRecentRejectionAt time.Time `db:"earliest_recent_rejection_at" json:"earliest_recent_rejection_at"`
 }
 
@@ -28733,27 +28742,33 @@ type GetUsagePublishStatusRow struct {
 // cannot reliably infer the nullability of aggregate expressions. All cutoff
 // parameters are computed by the caller so tests can control time:
 //   - license_start: the nbf of the earliest currently-valid license with
-//     usage publishing enabled. Events created before this are ignored.
+//     usage publishing enabled. Until the deployment has published
+//     successfully at least once, events count as stuck only from
+//     license_start, giving the publisher a grace period to work through a
+//     backlog that predates publishing being enabled (e.g. after switching
+//     from an air-gapped license). After any successful publish the grace no
+//     longer applies, so a license renewal cannot reset an active failure
+//     warning even though renewal advances license_start.
 //   - window_start: the start of the publisher's selection window (now minus
 //     30 days, matching SelectUsageEventsForPublishing). Events older than
 //     this are never published, so they must not trigger a failure forever.
 //   - stuck_cutoff: now minus the failure threshold. Unpublished events
-//     inserted before this are considered stuck. Stuckness is measured
-//     against inserted_at rather than created_at because heartbeat events
-//     backfilled after downtime carry a historical created_at; measuring
-//     event age would flag them as failing before publishing was ever
-//     attempted.
+//     whose effective stuck time is before this are considered stuck.
+//     Stuckness is measured against inserted_at rather than created_at
+//     because heartbeat events backfilled after downtime carry a historical
+//     created_at; measuring event age would flag them as failing before
+//     publishing was ever attempted.
 //   - rejected_after: now minus the failure threshold. Permanent rejections
 //     that happened after this are considered recent failures.
 func (q *sqlQuerier) GetUsagePublishStatus(ctx context.Context, arg GetUsagePublishStatusParams) (GetUsagePublishStatusRow, error) {
 	row := q.db.QueryRowContext(ctx, getUsagePublishStatus,
+		arg.RejectedAfter,
 		arg.LicenseStart,
 		arg.WindowStart,
 		arg.StuckCutoff,
-		arg.RejectedAfter,
 	)
 	var i GetUsagePublishStatusRow
-	err := row.Scan(&i.LastPublishedAt, &i.OldestStuckInsertedAt, &i.EarliestRecentRejectionAt)
+	err := row.Scan(&i.LastPublishedAt, &i.OldestStuckAt, &i.EarliestRecentRejectionAt)
 	return i, err
 }
 
