@@ -1,4 +1,6 @@
-# Prebuilt workspaces
+---
+title: Prebuilt workspaces
+---
 
 Prebuilt workspaces (prebuilds) reduce workspace creation time with an automatically-maintained pool of
 ready-to-use workspaces for specific parameter presets.

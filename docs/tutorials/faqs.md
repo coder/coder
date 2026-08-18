@@ -1,4 +1,6 @@
-# FAQs
+---
+title: FAQs
+---
 
 Frequently asked questions on Coder OSS and licensed deployments. These FAQs
 come from our community and customers, feel free to

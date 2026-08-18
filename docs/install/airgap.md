@@ -1,4 +1,6 @@
-# Air-gapped Deployments
+---
+title: Air-gapped Deployments
+---
 
 All Coder features are supported in air-gapped / behind firewalls / disconnected / offline.
 This is a general comparison. Keep reading for a full tutorial running Coder

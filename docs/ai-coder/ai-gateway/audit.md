@@ -1,4 +1,6 @@
-# Auditing AI Sessions
+---
+title: Auditing AI Sessions
+---
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../ai-governance.md), which is

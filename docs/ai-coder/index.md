@@ -1,4 +1,6 @@
-# Run AI Coding Agents in Coder
+---
+title: Run AI Coding Agents in Coder
+---
 
 Learn how to run & manage coding agents with Coder, both alongside existing
 workspaces and for background task execution.
