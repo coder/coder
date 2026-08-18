@@ -536,6 +536,11 @@ func interruptedBatchFixture(
 
 func (b interruptedBatch) interrupt(t *testing.T, f *taskTestFixture) []database.ChatMessage {
 	t.Helper()
+	return b.interruptWithSnapshot(t, f, nil)
+}
+
+func (b interruptedBatch) interruptWithSnapshot(t *testing.T, f *taskTestFixture, snapshot *interruptEpisodeSnapshot) []database.ChatMessage {
+	t.Helper()
 	interrupting := f.interruptChat(t, b.chat.ID)
 	err := b.starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:            b.chat.ID,
@@ -544,6 +549,7 @@ func (b interruptedBatch) interrupt(t *testing.T, f *taskTestFixture) []database
 		HistoryVersion:    interrupting.HistoryVersion,
 		GenerationAttempt: interrupting.GenerationAttempt,
 		Status:            database.ChatStatusInterrupting,
+		InterruptSnapshot: snapshot,
 	})
 	require.NoError(t, err)
 	messages, err := f.db.GetChatMessagesByChatID(testutil.Context(t, testutil.WaitShort), database.GetChatMessagesByChatIDParams{ChatID: b.chat.ID})
@@ -606,11 +612,54 @@ func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T
 	// 5 seconds later.
 	batch.clock.Advance(5 * time.Second)
 
-	messages := batch.interrupt(t, f)
+	// The first attempt stores the episode snapshot it read, so a
+	// retry after buffer eviction reuses it.
+	snapshot := &interruptEpisodeSnapshot{}
+	messages := batch.interruptWithSnapshot(t, f, snapshot)
 	execRow := findToolResultMessage(t, messages, execCallID)
 	require.Equal(t, sql.NullInt64{Int64: 3_000, Valid: true}, execRow.RuntimeMs)
 	waitRow := findToolResultMessage(t, messages, waitCallID)
 	require.False(t, waitRow.RuntimeMs.Valid)
+	require.True(t, snapshot.loaded)
+	require.Equal(t, batch.key, snapshot.key)
+	require.Len(t, snapshot.billing.ToolCompletions, 2)
+}
+
+// A retry attempt reuses the snapshot its first attempt captured: after
+// a stalled attempt outlives the buffer's retention and the episode is
+// evicted, the blank recreated episode must not replace the snapshot's
+// billing state, so the interrupted batch still bills its window.
+func TestInterruptTask_RetrySnapshotOutlivesEpisodeEviction(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	execCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+	})
+
+	// Simulate a retry: the first attempt snapshotted a live batch
+	// (started at 2s, closed at 9s, execute still running) and then
+	// stalled past the buffer's retention. The buffer's episode
+	// carries none of that state, like the blank episode a retry
+	// recreates after eviction, so billing can only come from the
+	// carried snapshot.
+	batch.clock.Advance(2 * time.Second)
+	batchStartedAt := batch.clock.Now()
+	batch.clock.Advance(7 * time.Second)
+	snapshot := &interruptEpisodeSnapshot{
+		loaded: true,
+		key:    batch.key,
+		billing: messagepartbuffer.EpisodeBilling{
+			ClosedAt:           batch.clock.Now(),
+			ToolBatchStartedAt: batchStartedAt,
+			ToolCompletions:    []messagepartbuffer.ToolCompletion{{CallIndex: 0, ToolCallID: execCallID}},
+		},
+	}
+
+	messages := batch.interruptWithSnapshot(t, f, snapshot)
+	execRow := findToolResultMessage(t, messages, execCallID)
+	require.Equal(t, sql.NullInt64{Int64: 7_000, Valid: true}, execRow.RuntimeMs)
 }
 
 // A billed tool still running at the interrupt bills up to the interrupt

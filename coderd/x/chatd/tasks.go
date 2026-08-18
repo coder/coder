@@ -240,6 +240,21 @@ func (o chatWorkerOptions) retryOptions() retryWrapperOptions {
 	}
 }
 
+// interruptEpisodeSnapshot carries the interrupt task's one-time episode
+// snapshot across retry attempts of the same task instance. One attempt
+// can outlive the buffer's closed-episode retention (a machine.Update
+// stalled on a database outage runs up to the task timeout), so
+// re-reading the buffer on a later attempt could find a blank recreated
+// episode and underbill the interrupted work or drop the partial
+// messages. Attempts of one task run sequentially, so no locking is
+// needed.
+type interruptEpisodeSnapshot struct {
+	loaded  bool
+	key     messagepartbuffer.Key
+	billing messagepartbuffer.EpisodeBilling
+	parts   []messagepartbuffer.Part
+}
+
 func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskStartInput) error {
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
 	var chat database.Chat
@@ -260,27 +275,45 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		HistoryVersion:    input.HistoryVersion,
 		GenerationAttempt: chat.GenerationAttempt,
 	}
-	// Closing and snapshotting billing state must be one atomic step:
-	// the generation goroutine records batch starts and tool
-	// completions concurrently, so a read-then-close would let stamps
-	// land in the gap and go missing from the snapshot.
-	episodeBilling, err := s.opts.MessagePartBuffer.CloseEpisodeForBilling(key)
-	if err != nil {
-		if ctx.Err() != nil {
-			return errors.Join(errTaskExpectedExit, xerrors.Errorf("close message part episode: %w", err), ctx.Err())
+	var episodeBilling messagepartbuffer.EpisodeBilling
+	var parts []messagepartbuffer.Part
+	snapshot := input.InterruptSnapshot
+	if snapshot != nil && snapshot.loaded && snapshot.key == key {
+		// A previous attempt of this task already snapshotted the
+		// episode. Reuse it: the episode may have been evicted from
+		// the buffer while that attempt stalled, and re-reading would
+		// find a blank recreated episode.
+		episodeBilling = snapshot.billing
+		parts = snapshot.parts
+	} else {
+		// Closing and snapshotting billing state must be one atomic
+		// step: the generation goroutine records batch starts and tool
+		// completions concurrently, so a read-then-close would let
+		// stamps land in the gap and go missing from the snapshot.
+		episodeBilling, err = s.opts.MessagePartBuffer.CloseEpisodeForBilling(key)
+		if err != nil {
+			if ctx.Err() != nil {
+				return errors.Join(errTaskExpectedExit, xerrors.Errorf("close message part episode: %w", err), ctx.Err())
+			}
+			return taskRetryableError{err: xerrors.Errorf("close message part episode: %w", err)}
 		}
-		return taskRetryableError{err: xerrors.Errorf("close message part episode: %w", err)}
-	}
-	parts, err := s.opts.MessagePartBuffer.GetParts(key)
-	if errors.Is(err, messagepartbuffer.ErrEpisodeNotFound) {
-		parts = nil
-		err = nil
-	}
-	if err != nil {
-		if ctx.Err() != nil {
-			return errors.Join(errTaskExpectedExit, xerrors.Errorf("get message part episode: %w", err), ctx.Err())
+		parts, err = s.opts.MessagePartBuffer.GetParts(key)
+		if errors.Is(err, messagepartbuffer.ErrEpisodeNotFound) {
+			parts = nil
+			err = nil
 		}
-		return taskRetryableError{err: xerrors.Errorf("get message part episode: %w", err)}
+		if err != nil {
+			if ctx.Err() != nil {
+				return errors.Join(errTaskExpectedExit, xerrors.Errorf("get message part episode: %w", err), ctx.Err())
+			}
+			return taskRetryableError{err: xerrors.Errorf("get message part episode: %w", err)}
+		}
+		if snapshot != nil {
+			snapshot.loaded = true
+			snapshot.key = key
+			snapshot.billing = episodeBilling
+			snapshot.parts = parts
+		}
 	}
 	// The interrupt instant is the episode's first close, which is
 	// stable across repeat closes: a retried interrupt task (transient
