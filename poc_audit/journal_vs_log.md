@@ -213,8 +213,22 @@ disqualify a journal.**
 
 That is the answer. The question is a fair one and the burden is on the new
 thing, since two mechanisms covering adjacent ground is a cost paid by everyone
-who later has to work out which of them answers a question. The rest of this
-section is why each of the three claims holds.
+who later has to work out which of them answers a question.
+
+The question is usually asked about `audit_logs`, and only its name makes it the
+one that gets asked about. There are at least four logs in this codebase, listed
+under Findings, and none of them behaves like a journal. Take the name away and
+the question has two forms: **why not use one of the logs that already exist**,
+and **why not add another log**. Both have the same answer, the one above. A
+fifth log would be one more record with a log's properties, and the properties
+are the problem.
+
+The name is doing work the contents do not support. Were that table called
+something like `user_http_logs`, after what it actually holds, the question
+would probably not arise in this shape at all. The recommendation to rename it
+stands in `poc_audit/audit_approach.md`.
+
+The rest of this section is why each of the three claims holds.
 
 #### `audit_logs` is a log
 
@@ -252,6 +266,8 @@ filter's ability to drop a record, and making writes transactional with the stat
 change they account for. At the end of that there are two tables sharing one
 name. Replacing it outright is the honest reading and much the largest, and it
 would take away a feature people use for reasons unconnected to this work.
+Migrating into it is not a fourth option: there is nothing to migrate into that
+would hold what is needed.
 
 Nor is extending the cheaper path. Registering one new audited resource already
 touches eight places and a documentation generator, and none of that goes away if
@@ -270,6 +286,25 @@ The last argument is about risk rather than design. Building beside the existing
 table is reversible: if the two should later merge, they can. Changing what the
 existing table guarantees is not reversible in the same way, and a mistake there
 breaks something already in use by people who never asked for any of this.
+
+### Why not add a value to `audit_logs.resource_type`?
+
+This is the cheapest form of the previous question: leave everything as it is,
+add `ai_agent` to the `resource_type` enum, and let the existing machinery
+record what happens to AI agents.
+
+The answer is the same, and this codebase has already run the experiment.
+
+Connections used to be recorded that way. The `audit_action` enum still carries
+`connect`, `disconnect`, `open`, and `close`, marked in a comment as deprecated
+and no longer used, "these events are now tracked in the connection_logs table".
+Migration `000349` moved them out into a table shaped for what they are, with
+its own retention setting and its own writer.
+
+So the enum was never where the difficulty lay. A value in it costs nothing; the
+coverage is the work, and what the coverage buys is a record with a log's
+properties. When the properties did not fit before, the answer here was a new
+table, not a new enum value.
 
 ### Sources for the etymology
 
@@ -290,6 +325,41 @@ nobody has to take them on trust.
 
 Verifiable facts about this codebase, recorded so that the positions above can
 be checked rather than taken on trust.
+
+### There are at least four logs already
+
+`audit_logs` is not the only one, and it is singled out above only because of
+its name. Four tables in this schema are logs, each with its own retention
+setting in `coderd/database/dbpurge/dbpurge.go`, and each deleted by age:
+
+- `audit_logs`, requests made through the API.
+- `connection_logs`, connections to workspaces.
+- `boundary_logs`, network events captured against a session and numbered by a
+  sequence within it.
+- `workspace_agent_logs`, output from the agent and the scripts it runs.
+
+`provisioner_job_logs` is a fifth, tied to the lifetime of its job rather than
+to a retention setting.
+
+None of them has the properties of a journal, and two go further than deletion
+by age.
+
+`workspace_agent_logs` is declared `CREATE UNLOGGED TABLE`. Postgres does not
+write an unlogged table to its own write ahead log, does not replicate it, and
+**truncates it after a crash**. That is a deliberate trade of durability for
+write speed, entirely reasonable for script output, and it means a record that
+may simply be gone after a restart.
+
+`connection_logs` rows are updated in place. `BatchUpsertConnectionLogs` does
+`ON CONFLICT (connection_id, workspace_id, agent_name) DO UPDATE`, revising
+`connect_time` and `disconnect_time` as later events arrive, because a row
+stands for a connection rather than for an event. Its merge key includes
+`connection_id`, which the schema comment describes as originating from the
+agent and "not guaranteed to be unique", so two connections can be folded into
+one row. Both are acceptable in a log and disqualifying in an account.
+
+Two of the four also have writer implementations that discard everything, in
+`coderd/audit/audit.go` and `coderd/connectionlog/connectionlog.go`.
 
 ### The shape of `audit_logs`
 
