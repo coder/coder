@@ -383,6 +383,9 @@ export const IdleChatArchiveActionsEnabled: Story = {
 		});
 		expect(archiveItem).not.toHaveAttribute("aria-disabled", "true");
 		expect(archiveAndDeleteItem).not.toHaveAttribute("aria-disabled", "true");
+		expect(
+			body.queryByText("Interrupt or wait for the agent to finish first."),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -403,6 +406,13 @@ export const ActiveChatArchiveActionsDisabled: Story = {
 		});
 		expect(archiveItem).toHaveAttribute("aria-disabled", "true");
 		expect(archiveAndDeleteItem).toHaveAttribute("aria-disabled", "true");
+		const hint = "Interrupt or wait for the agent to finish first.";
+		// The menu content fades in, so visibility needs a retry window.
+		await waitFor(() => {
+			expect(body.getByText(hint)).toBeVisible();
+		});
+		expect(archiveItem).toHaveAccessibleDescription(hint);
+		expect(archiveAndDeleteItem).toHaveAccessibleDescription(hint);
 	},
 };
 

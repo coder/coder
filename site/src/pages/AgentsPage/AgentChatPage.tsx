@@ -82,7 +82,7 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import { chatStatusAllowsArchive } from "./components/ChatActionsMenuItems";
+import { chatFamilyAllowsArchive } from "./components/ChatActionsMenuItems";
 import {
 	type ChatDetailError,
 	isChatHookDeniedResponse,
@@ -2087,7 +2087,9 @@ const AgentChatPage: FC = () => {
 			}
 			isPinned={(chatRecord?.pin_order ?? 0) > 0}
 			isChildChat={parentChatID !== undefined}
-			isArchiveBlocked={!chatStatusAllowsArchive(liveChatStatus)}
+			isArchiveBlocked={
+				!chatFamilyAllowsArchive(liveChatStatus, chatRecord?.children)
+			}
 			urlTransform={urlTransform}
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
