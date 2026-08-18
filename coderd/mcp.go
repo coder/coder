@@ -178,17 +178,36 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	if hasFullView {
 		//nolint:gocritic // The update-or-audit gate above owns this authorization.
 		configs, err = api.Database.GetMCPServerConfigsByOrganization(dbauthz.AsSystemRestricted(ctx), organization.ID)
-	} else {
-		prepared, prepareErr := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceMCPServerConfig.Type)
-		if prepareErr != nil {
-			httpapi.InternalServerError(rw, prepareErr)
-			return
+	} else if api.mcpServerConfigReadInKeyScope(r, organization.ID) {
+		seen := make(map[uuid.UUID]struct{})
+		for _, action := range []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete} {
+			prepared, prepareErr := api.HTTPAuth.AuthorizeSQLFilter(r, action, rbac.ResourceMCPServerConfig.Type)
+			if prepareErr != nil {
+				httpapi.InternalServerError(rw, prepareErr)
+				return
+			}
+			authorized, queryErr := api.Database.GetAuthorizedMCPServerConfigs(ctx, organization.ID, prepared)
+			if queryErr != nil {
+				err = queryErr
+				break
+			}
+			for _, config := range authorized {
+				if _, ok := seen[config.ID]; ok {
+					continue
+				}
+				seen[config.ID] = struct{}{}
+				configs = append(configs, config)
+			}
 		}
-		configs, err = api.Database.GetAuthorizedMCPServerConfigs(ctx, organization.ID, prepared)
-		// Delete-authorized callers keep disabled configs in the redacted
-		// list so they can still reach and remove them.
+		slices.SortFunc(configs, func(a, b database.MCPServerConfig) int {
+			return strings.Compare(a.DisplayName, b.DisplayName)
+		})
+		// Mutation-authorized callers keep disabled configs in the redacted
+		// list so they can still reach and manage them.
 		configs = slices.DeleteFunc(configs, func(config database.MCPServerConfig) bool {
-			return !config.Enabled && !api.Authorize(r, policy.ActionDelete, config)
+			return !config.Enabled &&
+				!api.Authorize(r, policy.ActionUpdate, config) &&
+				!api.Authorize(r, policy.ActionDelete, config)
 		})
 	}
 	if err != nil {
@@ -508,6 +527,10 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	config := httpmw.MCPServerConfigParam(r)
+	if !api.mcpServerConfigReadInKeyScope(r, config.OrganizationID) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	// Same full-view rule as listMCPServerConfigs: admins and auditors.
 	hasFullView := api.Authorize(r, policy.ActionUpdate, config) ||
@@ -601,9 +624,8 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAudit()
 
-	// Set Old before the write-authz check so a write-denied 403 is
-	// audited. Read-denied callers were already concealed with 404 by
-	// the param middleware and never reach this handler.
+	// Set Old before the requested-action check so callers admitted for a
+	// different action are audited when this handler denies them with 403.
 	aReq.Old = httpmw.MCPServerConfigParam(r)
 	aReq.UpdateOrganizationID(aReq.Old.OrganizationID)
 
@@ -659,7 +681,8 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		// Lock and re-fetch the row so omitted fields and the audit baseline
 		// match the row this update replaces, and so grant invalidation
 		// serializes with in-flight OAuth callbacks verifying the config.
-		current, err := tx.GetMCPServerConfigByIDForUpdate(ctx, existing.ID)
+		//nolint:gocritic // The update write reauthorizes the locked row.
+		current, err := tx.GetMCPServerConfigByIDForUpdate(dbauthz.AsSystemRestricted(ctx), existing.ID)
 		if err != nil {
 			return err
 		}
@@ -963,9 +986,8 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAudit()
 
-	// Set Old before the write-authz check so a write-denied 403 is
-	// audited. Read-denied callers were already concealed with 404 by
-	// the param middleware and never reach this handler.
+	// Set Old before the requested-action check so callers admitted for a
+	// different action are audited when this handler denies them with 403.
 	aReq.Old = httpmw.MCPServerConfigParam(r)
 	aReq.UpdateOrganizationID(aReq.Old.OrganizationID)
 
@@ -978,7 +1000,8 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		// Re-fetch under a row lock so the audit record describes the
 		// row this request actually removes, not a middleware snapshot
 		// that a concurrent update may have made stale.
-		current, err := tx.GetMCPServerConfigByIDForUpdate(ctx, config.ID)
+		//nolint:gocritic // The delete write reauthorizes the locked row.
+		current, err := tx.GetMCPServerConfigByIDForUpdate(dbauthz.AsSystemRestricted(ctx), config.ID)
 		if err != nil {
 			return err
 		}

@@ -71,7 +71,7 @@ func requireMCPServerConfigRequestStatus(
 	require.Equal(t, wantStatus, res.StatusCode)
 }
 
-func TestMCPServerConfigListUpdateOnlyRoleIsFiltered(t *testing.T) {
+func TestMCPServerConfigUpdateOnlyRoleReachesACLExcludedConfigs(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -89,6 +89,15 @@ func TestMCPServerConfigListUpdateOnlyRoleIsFiltered(t *testing.T) {
 	_, err := owner.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, disabled.ID,
 		codersdk.UpdateMCPServerConfigRequest{Enabled: ptr.Ref(false)})
 	require.NoError(t, err)
+	for _, config := range []codersdk.MCPServerConfig{enabled, disabled} {
+		//nolint:gocritic // Owner access removes the default ACL grant.
+		err = owner.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+			GroupRoles: map[string]codersdk.MCPServerConfigRole{
+				firstUser.OrganizationID.String(): codersdk.MCPServerConfigRoleDeleted,
+			},
+		})
+		require.NoError(t, err)
+	}
 
 	//nolint:gocritic // Owner access isolates custom-role setup from the behavior under test.
 	role, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
@@ -104,9 +113,20 @@ func TestMCPServerConfigListUpdateOnlyRoleIsFiltered(t *testing.T) {
 
 	configs, err := updateOnly.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
-	require.Len(t, configs, 1)
-	require.Equal(t, enabled.ID, configs[0].ID)
-	require.Empty(t, configs[0].URL)
+	require.Len(t, configs, 2)
+	for _, config := range configs {
+		require.Empty(t, config.URL)
+	}
+
+	fetched, err := updateOnly.MCPServerConfigByID(ctx, firstUser.OrganizationID, disabled.ID)
+	require.NoError(t, err)
+	require.Equal(t, disabled.URL, fetched.URL)
+
+	updatedName := "updated-hidden-mcp"
+	updated, err := updateOnly.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, disabled.ID,
+		codersdk.UpdateMCPServerConfigRequest{DisplayName: &updatedName})
+	require.NoError(t, err)
+	require.Equal(t, updatedName, updated.DisplayName)
 }
 
 func TestMCPServerConfigDeleteOnlyRoleReachesDisabled(t *testing.T) {
@@ -127,6 +147,15 @@ func TestMCPServerConfigDeleteOnlyRoleReachesDisabled(t *testing.T) {
 	_, err := owner.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, disabled.ID,
 		codersdk.UpdateMCPServerConfigRequest{Enabled: ptr.Ref(false)})
 	require.NoError(t, err)
+	for _, config := range []codersdk.MCPServerConfig{enabled, disabled} {
+		//nolint:gocritic // Owner access removes the default ACL grant.
+		err = owner.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+			GroupRoles: map[string]codersdk.MCPServerConfigRole{
+				firstUser.OrganizationID.String(): codersdk.MCPServerConfigRoleDeleted,
+			},
+		})
+		require.NoError(t, err)
+	}
 
 	//nolint:gocritic // Owner access isolates custom-role setup from the behavior under test.
 	role, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
