@@ -53,7 +53,7 @@ adoption patterns and potential issues.
 
 AI agents can make arbitrary network requests, potentially accessing unauthorized services or exfiltrating data.
 Agent Firewall enforces process-level policies that restrict which domains agents can reach and what actions they can perform,
-preventing unintended data exposure and destructive operations like `rm -rf`.
+preventing unintended data exposure.
 
 ### Centralizing API key management
 
