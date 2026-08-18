@@ -42,7 +42,10 @@ git checkout 4791eb1
 go build -o terraform-provider-coder
 ```
 
-Add a development override to that user's `~/.terraformrc`. Replace
+Write a Terraform CLI configuration with a development override and point the
+provisioner at that exact file with `TF_CLI_CONFIG_FILE`. The `dev_overrides`
+value must be the directory containing the built `terraform-provider-coder`
+binary; Terraform does not accept a file path there. Replace
 `/home/YOU/terraform-provider-coder` with the absolute path printed by `pwd` in
 the provider checkout:
 
@@ -55,19 +58,17 @@ provider_installation {
 }
 ```
 
-For example, if the checkout is `/home/coder/terraform-provider-coder`, the
-exact override is:
+Save the configuration to a file, for example `/home/coder/coder-dev.tfrc`,
+and set `TF_CLI_CONFIG_FILE` on the process that runs the provisioner. With
+built-in provisioners that is the `coder server` process:
 
-```hcl
-provider_installation {
-  dev_overrides {
-    "coder/coder" = "/home/coder/terraform-provider-coder"
-  }
-  direct {}
-}
+```bash
+TF_CLI_CONFIG_FILE=/home/coder/coder-dev.tfrc coder server ...
 ```
 
-Restart the provisioner after changing `~/.terraformrc`. Terraform prints a
+The provisioner passes `TF_*` variables through to Terraform, so the exact
+file is used regardless of the provisioner user's home directory. Writing the
+same content to that user's `~/.terraformrc` also works. Terraform prints a
 warning when a development override is active. That warning is expected.
 
 ## Prerequisites
