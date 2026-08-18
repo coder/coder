@@ -56,10 +56,9 @@ shown below when adding new failures.
 - How to diagnose: Playwright writes per-test failure artifacts (screenshots,
   videos, and traces) to `site/test-results/`, the HTML report to
   `site/playwright-report/`, and the coderd debug log to
-  `site/e2e/test-results/debug.log`. In CI, the `test-e2e` job uploads failure
-  artifacts named with the `playwright-artifacts-` prefix followed by the
-  matrix job name and commit SHA; debug logs and pprof dumps use the same
-  naming convention.
+  `site/e2e/test-results/debug.log`. In CI, the `test-e2e` job uploads
+  artifacts named `playwright-artifacts-`, `coderd-debug-logs-`, and
+  `debug-pprof-dumps-`, each followed by the matrix job name and commit SHA.
 - Existing docs or tools: [Frontend Development Guidelines](../../site/AGENTS.md),
   `site/e2e/README.md`, and `pnpm playwright:test`.
 - Missing harness piece: No central checklist tells agents which browser
