@@ -104,6 +104,7 @@ export const WithoutWorkspaceAccess: Story = {
 		canViewTemplates: false,
 	},
 	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
 		const body = within(canvasElement.ownerDocument.body);
 		await body.findByText("Workspaces");
 
@@ -114,13 +115,20 @@ export const WithoutWorkspaceAccess: Story = {
 			body.queryByRole("menuitem", { name: /workspace proxy settings/i }),
 		).not.toBeInTheDocument();
 
-		// The reason is visible without hover.
-		await body.findByText(/workspaces are not available/i);
-		const item = body.getByRole("menuitem", { name: /^Workspaces/ });
-		expect(item).toHaveAttribute("aria-disabled", "true");
+		// The reason is revealed on tap rather than always rendered.
+		expect(
+			body.queryByText(/workspaces are not available/i),
+		).not.toBeInTheDocument();
+		const item = body.getByRole("menuitem", {
+			name: "Workspaces (unavailable)",
+		});
 		// Radix removes items marked with its own `disabled` prop from roving
-		// focus, which puts the inline message out of keyboard reach.
+		// focus, which puts the message out of keyboard reach.
 		expect(item).not.toHaveAttribute("data-disabled");
+
+		await user.click(item);
+		await body.findByText(/workspaces are not available/i);
+		expect(item).toHaveAttribute("aria-expanded", "true");
 	},
 };
 

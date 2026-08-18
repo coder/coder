@@ -105,15 +105,7 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 							<Link to={to}>{label}</Link>
 						</DropdownMenuItem>
 					) : (
-						<DropdownMenuItem
-							key={label}
-							aria-disabled="true"
-							onSelect={(event) => event.preventDefault()}
-							className={cn(itemStyles.default, "h-auto flex-col items-start")}
-						>
-							<span className="opacity-50">{label}</span>
-							<span className="text-xs">{message}</span>
-						</DropdownMenuItem>
+						<RestrictedMenuItem key={label} label={label} message={message} />
 					),
 				)}
 				<DropdownMenuItem asChild className={itemStyles.default}>
@@ -140,6 +132,40 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				/>
 			</DropdownMenuContent>
 		</DropdownMenu>
+	);
+};
+
+type RestrictedMenuItemProps = {
+	label: string;
+	message: string;
+};
+
+const RestrictedMenuItem: FC<RestrictedMenuItemProps> = ({
+	label,
+	message,
+}) => {
+	const [open, setOpen] = useState(false);
+
+	return (
+		<Collapsible open={open} onOpenChange={setOpen}>
+			<CollapsibleTrigger asChild>
+				<DropdownMenuItem
+					aria-label={`${label} (unavailable)`}
+					className={cn(itemStyles.default, open && itemStyles.open)}
+					onSelect={(event) => event.preventDefault()}
+					onClick={(event) => {
+						event.preventDefault();
+						setOpen((prev) => !prev);
+					}}
+				>
+					<span className="opacity-50">{label}</span>
+					<CircleHelpIcon className="ml-auto opacity-50" />
+				</DropdownMenuItem>
+			</CollapsibleTrigger>
+			<CollapsibleContent className="px-9 pb-2 text-xs text-content-secondary">
+				{message}
+			</CollapsibleContent>
+		</Collapsible>
 	);
 };
 
