@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/agent/confine"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/serpent"
@@ -106,7 +107,13 @@ func agentSandboxWithDeps(agentAuth *AgentAuth, deps agentSandboxDeps) *serpent.
 			if err != nil {
 				return xerrors.Errorf("resolve Coder executable: %w", err)
 			}
-			logger := inv.Logger.Named("agent-sandbox")
+			// The command is daemonized by template scripts with stderr
+			// redirected to a log file, so a human-readable sink on stderr
+			// is the only observability this process has.
+			logger := inv.Logger.
+				AppendSinks(sloghuman.Sink(inv.Stderr)).
+				Leveled(slog.LevelInfo).
+				Named("agent-sandbox")
 			destination, err := confine.ControlChannelDestinationOptions(&agentAuth.agentURL)
 			if err != nil {
 				return xerrors.Errorf("configure agent sandbox control channel: %w", err)
