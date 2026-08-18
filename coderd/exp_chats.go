@@ -4049,7 +4049,7 @@ func (api *API) resolveChatDiffReference(
 	// PR URL so the caller can still show provider/owner/repo.
 	if reference.RepositoryRef == nil && reference.PullRequestURL != "" {
 		for _, extAuth := range api.ExternalAuthConfigs {
-			gp, err := extAuth.Git(api.HTTPClient)
+			gp, err := extAuth.Git()
 			if err != nil || gp == nil {
 				continue
 			}
@@ -4156,7 +4156,7 @@ func (api *API) resolveExternalAuth(ctx context.Context, origin string) (provide
 		if extAuth.Regex == nil || !extAuth.Regex.MatchString(origin) {
 			continue
 		}
-		p, err := extAuth.Git(api.HTTPClient)
+		p, err := extAuth.Git()
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to construct git provider",
 				slog.F("provider_id", extAuth.ID),

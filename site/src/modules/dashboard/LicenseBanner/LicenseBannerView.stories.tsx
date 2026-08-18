@@ -2,7 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import {
 	type Entitlements,
+	LicenseAgentRuntimeHoursAllocationReachedWarningText,
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
+	LicenseAgentRuntimeHoursSoftLimitWarningText,
+	LicenseAgentRuntimeUsageUnavailableErrorText,
 	LicenseAIGovernance90PercentWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
@@ -16,7 +19,7 @@ import {
 } from "#/testHelpers/entities";
 import { docs } from "#/utils/docs";
 import { DashboardContext, type DashboardValue } from "../DashboardProvider";
-import { LicenseBanner } from "./LicenseBanner";
+import { formatLicenseMessage, LicenseBanner } from "./LicenseBanner";
 import { LicenseBannerView } from "./LicenseBannerView";
 
 const meta: Meta<typeof LicenseBannerView> = {
@@ -60,7 +63,7 @@ export const TwoWarnings: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("status")).toBeInTheDocument();
 		await expect(
-			canvas.getByText("Your license limits have been exceeded"),
+			canvas.getByText("Your license limits have been reached"),
 		).toBeInTheDocument();
 		await expect(
 			canvas.queryByRole("button", { name: "Show more" }),
@@ -295,6 +298,83 @@ export const AIGovernanceOverLimitGracePeriod: Story = {
 	},
 };
 
+export const AgentRuntimeHoursSoftLimit: Story = {
+	render: () =>
+		renderLicenseBanner({
+			warnings: [
+				formatLicenseMessage(
+					LicenseAgentRuntimeHoursSoftLimitWarningText,
+					90,
+					100,
+					80,
+				),
+			],
+		}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByRole("status");
+		await expect(banner).toHaveTextContent(
+			"Your deployment is approaching its Coder Agent runtime hours allocation: 90 of the 100 hours included in the current license term are used, at or above the advisory soft limit of 80 hours.",
+		);
+		await expect(
+			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const AgentRuntimeHoursAllocationReached: Story = {
+	render: () =>
+		renderLicenseBanner({
+			warnings: [
+				formatLicenseMessage(
+					LicenseAgentRuntimeHoursAllocationReachedWarningText,
+					100,
+					100,
+				),
+			],
+		}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByRole("status");
+		await expect(banner).toHaveTextContent(
+			"Your deployment has used 100 of the 100 Coder Agent runtime hours included in the current license term.",
+		);
+		await expect(
+			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
+		).toHaveAttribute("href", "mailto:sales@coder.com");
+	},
+};
+
+// The allocation warning fires at exact equality (actual >= allocation), so
+// a multi-message banner containing it must use a heading that stays
+// accurate when the allocation is reached but not exceeded.
+export const AgentRuntimeHoursAllocationReachedWithDiagnostic: Story = {
+	render: () =>
+		renderLicenseBanner({
+			errors: [LicenseAgentRuntimeUsageUnavailableErrorText],
+			warnings: [
+				formatLicenseMessage(
+					LicenseAgentRuntimeHoursAllocationReachedWarningText,
+					100,
+					100,
+				),
+			],
+		}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByRole("status");
+		await expect(
+			canvas.getByText("Your license limits have been reached"),
+		).toBeInTheDocument();
+		await expect(banner).toHaveTextContent(
+			"Your deployment has used 100 of the 100 Coder Agent runtime hours included in the current license term.",
+		);
+		await expect(banner).toHaveTextContent(
+			LicenseAgentRuntimeUsageUnavailableErrorText,
+		);
+	},
+};
+
 // Each diagnostic pins role=status (not alert) and a suppressed sales
 // link. Background mutedness is covered by the visual snapshot.
 const playMutedDiagnostic =
@@ -308,6 +388,14 @@ const playMutedDiagnostic =
 		).not.toBeInTheDocument();
 	};
 
+export const AgentRuntimeUsageUnavailable: Story = {
+	render: () =>
+		renderLicenseBanner({
+			errors: [LicenseAgentRuntimeUsageUnavailableErrorText],
+		}),
+	play: playMutedDiagnostic(LicenseAgentRuntimeUsageUnavailableErrorText),
+};
+
 export const AgentRuntimeHoursClaimsIgnored: Story = {
 	render: () =>
 		renderLicenseBanner({
@@ -316,10 +404,12 @@ export const AgentRuntimeHoursClaimsIgnored: Story = {
 	play: playMutedDiagnostic(LicenseAgentRuntimeHoursClaimsIgnoredWarningText),
 };
 
-// An all-diagnostic banner must not claim license limits were exceeded.
+// An all-diagnostic banner must not claim license limits were exceeded,
+// even when a diagnostic arrives via entitlements.errors.
 export const UsageDiagnosticsOnlyHeading: Story = {
 	render: () =>
 		renderLicenseBanner({
+			errors: [LicenseAgentRuntimeUsageUnavailableErrorText],
 			warnings: [LicenseAgentRuntimeHoursClaimsIgnoredWarningText],
 		}),
 	play: async ({ canvasElement }) => {
@@ -327,7 +417,7 @@ export const UsageDiagnosticsOnlyHeading: Story = {
 		await expect(canvas.getByRole("status")).toBeInTheDocument();
 		await expect(canvas.getByText("License notices")).toBeInTheDocument();
 		await expect(
-			canvas.queryByText("Your license limits have been exceeded"),
+			canvas.queryByText("Your license limits have been reached"),
 		).not.toBeInTheDocument();
 		await expect(
 			canvas.queryByText("License errors require attention"),

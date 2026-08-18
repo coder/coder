@@ -870,6 +870,20 @@ type sqlcQuerier interface {
 	// the events that happened on and between the two dates. Both dates are
 	// inclusive.
 	GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg GetTotalUsageDCManagedAgentsV1Params) (int64, error)
+	// Gets the total Coder Agent runtime in milliseconds between two timestamps.
+	// The start bound is inclusive and the end bound is exclusive.
+	//
+	// Unlike GetTotalUsageDCManagedAgentsV1 this reads usage_events directly
+	// rather than the usage_events_daily rollup: hb_agent_runtime_v1 is exactly
+	// one row per hourly bucket deployment-wide, with created_at at the bucket
+	// start, enforced by the unique partial index
+	// idx_usage_events_agent_runtime (which also keeps SUM from counting a
+	// bucket twice and serves this query). The result is bucket-granular: a
+	// bucket counts entirely against the period containing its start. See
+	// enterprise/coderd/usage/generator.go for what a bucket holds. If a
+	// usage_events retention policy ever lands, this must move to the daily
+	// rollup and accept day-granularity bounds.
+	GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	// Returns the status of usage event publishing so callers can detect publish
 	// failures. NULL results are encoded as the zero timestamp because sqlc

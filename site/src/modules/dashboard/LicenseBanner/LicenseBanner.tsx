@@ -1,6 +1,8 @@
 import type { FC } from "react";
 import {
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
+	LicenseAgentRuntimeHoursSoftLimitWarningText,
+	LicenseAgentRuntimeUsageUnavailableErrorText,
 	LicenseAIGovernance90PercentWarningText,
 	LicenseAIGovernanceOverLimitWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
@@ -18,6 +20,8 @@ const aiGovernanceOverLimitWarningPrefix =
 	LicenseAIGovernanceOverLimitWarningText.split("%d")[0];
 const aiGovernanceNearLimitWarningPrefix =
 	LicenseAIGovernance90PercentWarningText.split("%d%%")[0];
+const agentRuntimeSoftLimitWarningPrefix =
+	LicenseAgentRuntimeHoursSoftLimitWarningText.split("%d")[0];
 const AI_GOVERNANCE_NEAR_LIMIT_FALLBACK_MESSAGE =
 	"You are approaching your AI Governance add-on seat limit.";
 
@@ -26,8 +30,12 @@ const isAIGovernanceWarning = (message: string): boolean =>
 	message.startsWith(aiGovernanceOverLimitWarningPrefix);
 
 // Substitutes the given values into the template's %d placeholders in order.
-// No other fmt verb, width, or flag is implemented.
-const formatLicenseMessage = (template: string, ...values: number[]): string =>
+// No other fmt verb, width, or flag is implemented. Exported for the
+// stories, so what they pin is what production renders.
+export const formatLicenseMessage = (
+	template: string,
+	...values: number[]
+): string =>
 	values.reduce(
 		(message, value) => message.replace("%d", `${value}`),
 		template,
@@ -37,6 +45,7 @@ const formatLicenseMessage = (template: string, ...values: number[]): string =>
 // usage itself. They render muted, without the exceedance heading or a sales
 // link, even when they arrive via entitlements.errors.
 const diagnosticMessages: readonly string[] = [
+	LicenseAgentRuntimeUsageUnavailableErrorText,
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
 ];
 
@@ -44,9 +53,10 @@ const isDiagnosticMessage = (message: string): boolean =>
 	diagnosticMessages.includes(message);
 
 // Advisories render muted to stay visually distinct from warnings that
-// demand action, such as exceeding a license limit.
+// demand action, such as reaching the runtime hours allocation.
 const isAdvisoryMessage = (message: string): boolean =>
-	message.startsWith(aiGovernanceNearLimitWarningPrefix);
+	message.startsWith(aiGovernanceNearLimitWarningPrefix) ||
+	message.startsWith(agentRuntimeSoftLimitWarningPrefix);
 
 const aiGovernanceOverLimitMessage = (
 	feature: ReturnType<
@@ -138,6 +148,11 @@ const messageLink = (message: string): LicenseBannerLink | undefined => {
 			label: "Contact sales@coder.com if you need an exception.",
 			showExternalIcon: false,
 		};
+	}
+	// The soft-limit advisory fires inside the purchased allocation, so it
+	// does not get a sales link.
+	if (message.startsWith(agentRuntimeSoftLimitWarningPrefix)) {
+		return undefined;
 	}
 	return {
 		href: "mailto:sales@coder.com",

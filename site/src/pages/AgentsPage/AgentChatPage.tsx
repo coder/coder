@@ -1799,10 +1799,7 @@ const AgentChatPage: FC = () => {
 			content,
 			model_config_id: selectedModelConfigID,
 			reasoning_effort: effectiveReasoningEffort,
-			mcp_server_ids:
-				effectiveMCPServerIds.length > 0
-					? [...effectiveMCPServerIds]
-					: undefined,
+			mcp_server_ids: [...effectiveMCPServerIds],
 			...(planModeSwitch !== undefined
 				? {
 						plan_mode:

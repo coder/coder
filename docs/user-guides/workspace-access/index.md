@@ -149,10 +149,10 @@ Cursor connects using the Coder extension.
 
 Read more about [using Cursor with your workspace](./cursor.md).
 
-## Windsurf
+## Devin Desktop
 
-[Windsurf](./windsurf.md) is Codeium's code editor designed for AI-assisted development.
-Windsurf connects using the Coder extension.
+[Devin Desktop](./devin-desktop.md) (formerly Windsurf, formerly Codeium) is Cognition's AI-powered code editor designed for AI-assisted development.
+Devin Desktop connects using the Coder extension.
 
 ## Antigravity
 
