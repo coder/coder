@@ -96,6 +96,7 @@ import {
 	type ChatStore,
 	type ChatStoreState,
 	selectChatStatus,
+	selectHasStreamState,
 	selectIsAwaitingFirstStreamChunk,
 	useChatSelector,
 	useChatStore,
@@ -1902,11 +1903,14 @@ const AgentChatPage: FC = () => {
 			}
 		}
 		// A queued send produces an anchor row only when it inserted a message
-		// whose turn still awaits its first stream chunk; otherwise nothing
-		// takes the scroller to the live edge, so scroll explicitly.
+		// whose turn is live: still awaiting its first stream chunk, or already
+		// streaming. Otherwise nothing takes the scroller to the live edge, so
+		// scroll explicitly.
+		const snapshot = store.getSnapshot();
 		const producedAnchorRow =
 			insertedMessages.length > 0 &&
-			selectIsAwaitingFirstStreamChunk(store.getSnapshot());
+			(selectIsAwaitingFirstStreamChunk(snapshot) ||
+				selectHasStreamState(snapshot));
 		if (response.queued && !producedAnchorRow) {
 			scrollToEnd({ behavior: "smooth" });
 		}

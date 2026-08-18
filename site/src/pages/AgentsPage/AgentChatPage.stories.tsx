@@ -2815,6 +2815,31 @@ export const WithWaitAgentComputerUseVNC: Story = {
 // /compact slash command
 // ---------------------------------------------------------------------------
 
+const buildLongConversationForPage = (
+	count: number,
+): TypesGen.ChatMessage[] => {
+	const messages: TypesGen.ChatMessage[] = [];
+	for (let i = 1; i <= count; i++) {
+		const role: TypesGen.ChatMessageRole = i % 2 === 1 ? "user" : "assistant";
+		messages.push({
+			id: i,
+			chat_id: CHAT_ID,
+			created_at: new Date(Date.now() - (count - i) * 60_000).toISOString(),
+			role,
+			content: [
+				{
+					type: "text",
+					text:
+						role === "user"
+							? `Question ${Math.ceil(i / 2)}?`
+							: `Answer ${Math.floor(i / 2)}. `.repeat(12),
+				},
+			],
+		});
+	}
+	return messages;
+};
+
 const compactCommandMessages: TypesGen.ChatMessagesResponse = {
 	messages: [
 		{
@@ -2904,6 +2929,81 @@ export const SlashCompactCommandSubmits: Story = {
 		});
 		expect(compactSpy).toHaveBeenCalledWith(CHAT_ID);
 		expect(sendSpy).not.toHaveBeenCalled();
+	},
+};
+
+/**
+ * A successful /compact inserts no transcript row, so nothing anchors the
+ * scroller. The post-compact scrollToEnd is the only thing that moves a
+ * reader from older history to the live edge. Assert it fires.
+ */
+export const SlashCompactScrollsToLiveEdge: Story = {
+	parameters: {
+		pixel: { exclude: true },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Compact command",
+				status: "waiting",
+			},
+			{
+				messages: buildLongConversationForPage(40),
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	decorators: [
+		(Story) => (
+			<div
+				style={{ height: "600px", display: "flex", flexDirection: "column" }}
+			>
+				<Story />
+			</div>
+		),
+	],
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const compactSpy = spyOn(API.experimental, "compactChat").mockResolvedValue(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Compact command",
+				status: "running",
+			} as TypesGen.Chat,
+		);
+		const scrollToMock = spyOn(Element.prototype, "scrollTo");
+		try {
+			const viewport = canvas.getByRole("region", { name: "Messages" });
+			// Position the reader in older history; the repro starting point.
+			viewport.scrollTop = 0;
+
+			const editor = await canvas.findByTestId("chat-message-input");
+			await userEvent.click(editor);
+			await userEvent.keyboard("/compact");
+			// First Enter accepts the highlighted menu entry; second Enter
+			// submits the composer.
+			expect(await within(document.body).findByText("Commands")).toBeVisible();
+			await userEvent.keyboard("{Enter}");
+			await userEvent.keyboard("{Enter}");
+
+			await waitFor(() => {
+				expect(compactSpy).toHaveBeenCalledTimes(1);
+			});
+			// /compact produced no anchor row, so the live-edge scroll must fire.
+			await waitFor(() => {
+				expect(scrollToMock).toHaveBeenCalledWith(
+					expect.objectContaining({ behavior: "smooth" }),
+				);
+			});
+		} finally {
+			scrollToMock.mockRestore();
+		}
 	},
 };
 
@@ -3125,31 +3225,6 @@ const switchedChatMessage: TypesGen.ChatMessage = {
 	chat_id: SWITCHED_CHAT_ID,
 	role: "assistant",
 	content: [{ type: "text", text: "Current chat message" }],
-};
-
-const buildLongConversationForPage = (
-	count: number,
-): TypesGen.ChatMessage[] => {
-	const messages: TypesGen.ChatMessage[] = [];
-	for (let i = 1; i <= count; i++) {
-		const role: TypesGen.ChatMessageRole = i % 2 === 1 ? "user" : "assistant";
-		messages.push({
-			id: i,
-			chat_id: CHAT_ID,
-			created_at: new Date(Date.now() - (count - i) * 60_000).toISOString(),
-			role,
-			content: [
-				{
-					type: "text",
-					text:
-						role === "user"
-							? `Question ${Math.ceil(i / 2)}?`
-							: `Answer ${Math.floor(i / 2)}. `.repeat(12),
-				},
-			],
-		});
-	}
-	return messages;
 };
 
 export const SendingFromHistoryDoesNotSnapToBottom: Story = {
