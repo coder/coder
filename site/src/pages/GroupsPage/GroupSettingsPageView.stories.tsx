@@ -42,7 +42,14 @@ export const WithAIBudget: Story = {
 			1000,
 		);
 		const helper = canvas.getByText(/month, based on/i);
-		await expect(helper).toHaveTextContent("$7,000/month, based on 7 members.");
+		await expect(helper).toHaveTextContent(
+			"This group's limit is $7,000/month, based on 7 members.",
+		);
+		await expect(
+			canvas.getByRole("link", {
+				name: /learn how budgets apply across groups/i,
+			}),
+		).toBeInTheDocument();
 	},
 };
 
@@ -101,7 +108,9 @@ export const AIBudgetDecimal: Story = {
 		const canvas = within(canvasElement);
 		// Cents are kept when the amount is not a whole dollar.
 		const helper = canvas.getByText(/month, based on/i);
-		await expect(helper).toHaveTextContent("$99.99/month, based on 1 member.");
+		await expect(helper).toHaveTextContent(
+			"This group's limit is $99.99/month, based on 1 member.",
+		);
 	},
 };
 

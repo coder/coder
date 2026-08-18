@@ -47,6 +47,17 @@ const validationSchema = Yup.object({
 		.max(maxAIBudgetDollars, aiBudgetRangeError),
 });
 
+const BudgetDocsLink: FC = () => (
+	<Link
+		href={docs("/ai-coder/ai-gateway/cost-controls#effective-group-resolution")}
+		target="_blank"
+		rel="noreferrer"
+		size="sm"
+	>
+		Learn how budgets apply across groups
+	</Link>
+);
+
 interface AIBudgetFeedbackProps {
 	error: boolean;
 	helperText?: ReactNode;
@@ -79,17 +90,7 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 				<span className="text-left text-xs text-content-secondary">
 					This group has{" "}
 					<span className="font-medium text-content-primary">no budget</span>{" "}
-					set.{" "}
-					<Link
-						href={docs(
-							"/ai-coder/ai-gateway/cost-controls#effective-group-resolution",
-						)}
-						target="_blank"
-						rel="noreferrer"
-						size="sm"
-					>
-						Learn how budgets apply across groups
-					</Link>
+					set. <BudgetDocsLink />
 				</span>
 				{budgetValue !== "" && (
 					<Alert severity="info">
@@ -103,12 +104,13 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 	if (Number.isFinite(budgetAmount) && budgetAmount > 0) {
 		return (
 			<span className="text-left text-xs text-content-secondary">
+				This group's limit is{" "}
 				<span className="font-medium text-content-primary">
 					{usdBudgetFormatter.format(budgetAmount * memberCount)}
 				</span>
 				/month, based on{" "}
 				<span className="font-medium text-content-primary">{memberCount}</span>{" "}
-				{memberCount === 1 ? "member" : "members"}.
+				{memberCount === 1 ? "member" : "members"}. <BudgetDocsLink />
 			</span>
 		);
 	}
