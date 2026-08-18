@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -122,11 +123,15 @@ func TestEmbeddedMicroVMConfigWiresEvaluatorRecorderAndAgent(t *testing.T) {
 	require.True(t, config.hostOptions.Mounts[0].Nosuid)
 	require.True(t, config.hostOptions.Mounts[0].Nodev)
 	require.False(t, config.hostOptions.Mounts[0].Noexec)
-	require.Contains(t, config.agentCommand, "setsid sh -c")
-	require.Contains(t, config.agentCommand, "CODER_AGENT_URL=")
-	require.Contains(t, config.agentCommand, "CODER_AGENT_TOKEN=")
-	require.Contains(t, config.agentCommand, "CODER_SESSION_TOKEN=")
-	require.Contains(t, config.agentCommand, "exec '\\''/opt/coder-bin/coder-real'\\'' agent")
+	require.Contains(t, config.agentCommand, "mkdir -p '/var/lib/coder'")
+	require.Contains(t, config.agentCommand, "printf '%s'")
+	require.Contains(t, config.agentCommand, "chmod 0700 '/var/lib/coder/bootstrap.sh'")
+	require.Contains(t, config.agentCommand, "CODER_AGENT_URL='https://coder.example.com'")
+	require.Contains(t, config.agentCommand, "CODER_AGENT_TOKEN='agent'\\''token'")
+	require.Contains(t, config.agentCommand, "CODER_SESSION_TOKEN='session-token'")
+	require.Contains(t, config.agentCommand, "setsid sh '/var/lib/coder/bootstrap.sh'")
+	require.Contains(t, config.agentCommand, "</dev/null >'/var/log/coder-agent.log' 2>&1 &")
+	require.NotContains(t, config.agentCommand, "setsid sh -c")
 	//nolint:gosec // The generated command is the value under test.
 	require.NoError(t, exec.Command("sh", "-n", "-c", config.agentCommand).Run())
 
@@ -155,6 +160,41 @@ func TestEmbeddedMicroVMConfigWiresEvaluatorRecorderAndAgent(t *testing.T) {
 		Protocol: agentsdk.AISandboxNetworkProtocolConnect, Host: "denied.example", Port: 443,
 		Action: agentsdk.AISandboxNetworkEventActionDenied, PolicyRevision: 12,
 	}}, events)
+}
+
+func TestEmbeddedAgentBootstrapScript(t *testing.T) {
+	t.Parallel()
+
+	script := embeddedAgentBootstrapScript(
+		embeddedCoderGuestDir+"/coder real", embeddedCAGuestDir+"/bundle.crt",
+	)
+	require.Contains(t, script, "#!/bin/sh\nset -eu\n")
+	require.NotContains(t, script, "set -x")
+	require.Contains(t, script, "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}")
+	require.Contains(t, script, "export PATH=\"$CODER_BIN_DIR:$PATH\"")
+	require.Contains(t, script, "ln -sf \"$CODER_BINARY\" /usr/local/bin/coder 2>/dev/null || true")
+	require.Contains(t, script, "USER=$(id -un)")
+	require.Contains(t, script, "getent passwd \"$USER\"")
+	require.Contains(t, script, "HOME=/root")
+	require.Contains(t, script, "HOME=/home/$USER")
+	require.Contains(t, script, "export USER HOME SHELL")
+	require.Contains(t, script, "mkdir -p \"$HOME\"")
+	require.Contains(t, script, embeddedAgentProfilePath)
+	require.Contains(t, script, "export HTTPS_PROXY=")
+	require.Contains(t, script, "export SSL_CERT_FILE=")
+	require.Contains(t, script, embeddedCAGuestDir+"/bundle.crt")
+	require.Contains(t, script, "trap waitonexit EXIT")
+	require.Contains(t, script, "sleep 86400")
+	require.Contains(t, script, "cd \"$CODER_BIN_DIR\"")
+	require.Contains(t, script, "exec \"./$CODER_BINARY_NAME\" agent")
+	require.NotContains(t, script, "CODER_AGENT_URL")
+	require.NotContains(t, script, "CODER_AGENT_TOKEN")
+	require.NotContains(t, script, "CODER_SESSION_TOKEN")
+	require.NotContains(t, script, "agent-token")
+
+	command := exec.Command("sh", "-n") //nolint:gosec // The generated script is the value under test.
+	command.Stdin = strings.NewReader(script)
+	require.NoError(t, command.Run())
 }
 
 func TestEmbeddedAgentCommandWithoutSessionToken(t *testing.T) {
@@ -191,7 +231,7 @@ func TestEmbeddedAgentCommandCAEnvironment(t *testing.T) {
 		embeddedCoderGuestDir+"/coder", embeddedCAGuestDir+"/bundle.crt",
 		"https://coder.example.com", "agent-token", "",
 	)
-	require.Contains(t, withCA, "SSL_CERT_FILE='\\''"+embeddedCAGuestDir+"/bundle.crt'\\''")
+	require.Contains(t, withCA, " SSL_CERT_FILE='"+embeddedCAGuestDir+"/bundle.crt'")
 	require.NotContains(t, withCA, "coder-sandbox-ca.crt")
 
 	withoutCA := embeddedAgentCommand(
