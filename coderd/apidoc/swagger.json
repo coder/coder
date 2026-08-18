@@ -365,6 +365,9 @@
 					"200": {
 						"description": "OK"
 					}
+				},
+				"x-apidocgen": {
+					"skip": true
 				}
 			}
 		},
@@ -397,7 +400,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/experimental/chats/models": {

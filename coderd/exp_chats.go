@@ -5966,6 +5966,7 @@ func (c ChatFileDownloadClaims) Validate(expected jwt.Expected) error {
 // @Param file path string true "File ID" format(uuid)
 // @Success 200 {object} codersdk.ChatFileDownloadURLResponse
 // @Router /api/experimental/chats/files/{file}/download-url [post]
+// @x-apidocgen {"skip": true}
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -6032,6 +6033,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 // @Param token query string true "Signed download token"
 // @Success 200
 // @Router /api/experimental/chats/files/{file}/download [get]
+// @x-apidocgen {"skip": true}
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

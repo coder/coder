@@ -451,7 +451,11 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 						}
 						return AwaitChatResponse{}, xerrors.Errorf("get chat after status change: %w", err)
 					}
-					return AwaitChatResponse{Chat: chatToolStatus(deps, chat)}, nil
+					// A new turn may start between the event and this
+					// confirmation; keep waiting if the chat is busy again.
+					if !chatStatusBusy(chat.Status) {
+						return AwaitChatResponse{Chat: chatToolStatus(deps, chat)}, nil
+					}
 				}
 			}
 		}
