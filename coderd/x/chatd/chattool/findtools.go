@@ -18,6 +18,11 @@ const (
 	FindToolsName          = "find_tools"
 	findToolsMaxMatches    = 20
 	findToolsCatalogTokens = 4000
+	// findToolsMaxQueries and findToolsMaxQueryTokens bound scoring
+	// work: queries are model output, so one call could otherwise
+	// carry arbitrarily many tokens scored against every entry.
+	findToolsMaxQueries     = 10
+	findToolsMaxQueryTokens = 16
 	// findToolsSpentBudgetFloor replaces a spent or over-reserved budget
 	// for searches so zero-cost reserved names remain activatable while
 	// any real schema weight still exceeds it.
@@ -344,7 +349,11 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget Sear
 		byName[entry.Name] = entry
 	}
 
-	queries := parseFindToolsQueries(entries, args.Queries)
+	queryArgs := args.Queries
+	if len(queryArgs) > findToolsMaxQueries {
+		queryArgs = queryArgs[:findToolsMaxQueries]
+	}
+	queries := parseFindToolsQueries(entries, queryArgs)
 
 	type scoredEntry struct {
 		entry FindToolCatalogEntry
@@ -352,6 +361,7 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget Sear
 	}
 	scored := make([]scoredEntry, 0, len(entries))
 	for _, entry := range entries {
+		tokens := tokenizeFindToolsEntry(entry)
 		score := 0
 		for _, query := range queries {
 			if query.server != "" {
@@ -367,7 +377,7 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget Sear
 				continue
 			}
 			for _, token := range query.tokens {
-				score += scoreFindToolToken(entry, token)
+				score += tokens.score(token)
 			}
 		}
 		if score > 0 {
@@ -489,13 +499,13 @@ func parseFindToolsQueries(entries []FindToolCatalogEntry, queries []string) []s
 				if !ok {
 					continue
 				}
-				parsed = append(parsed, scopedFindToolsQuery{server: server, exact: pass.exact, tokens: tokenizeFindTools(rest)})
+				parsed = append(parsed, scopedFindToolsQuery{server: server, exact: pass.exact, tokens: tokenizeFindToolsQuery(rest)})
 				scoped = true
 				break
 			}
 		}
 		if !scoped {
-			parsed = append(parsed, scopedFindToolsQuery{tokens: tokenizeFindTools(query)})
+			parsed = append(parsed, scopedFindToolsQuery{tokens: tokenizeFindToolsQuery(query)})
 		}
 	}
 	return parsed
@@ -506,26 +516,62 @@ func tokenizeFindTools(value string) []string {
 	return slices.DeleteFunc(parts, func(part string) bool { return part == "" })
 }
 
-func scoreFindToolToken(entry FindToolCatalogEntry, token string) int {
-	name := strings.ToLower(entry.Name)
-	nameTokens := tokenizeFindTools(name)
+// tokenizeFindToolsQuery caps model-supplied query tokens; catalog
+// fields are tokenized uncapped so every term stays searchable.
+func tokenizeFindToolsQuery(value string) []string {
+	tokens := tokenizeFindTools(value)
+	if len(tokens) > findToolsMaxQueryTokens {
+		tokens = tokens[:findToolsMaxQueryTokens]
+	}
+	return tokens
+}
+
+// findToolsEntryTokens holds an entry's fields tokenized once per
+// search, so scoring a token is a set lookup instead of re-splitting
+// name, description, parameter, and server text for every query token.
+type findToolsEntryTokens struct {
+	name        string
+	nameTokens  map[string]struct{}
+	description map[string]struct{}
+	parameters  map[string]struct{}
+	server      map[string]struct{}
+}
+
+func tokenizeFindToolsEntry(entry FindToolCatalogEntry) findToolsEntryTokens {
+	toSet := func(value string) map[string]struct{} {
+		tokens := tokenizeFindTools(value)
+		set := make(map[string]struct{}, len(tokens))
+		for _, token := range tokens {
+			set[token] = struct{}{}
+		}
+		return set
+	}
+	return findToolsEntryTokens{
+		name:        strings.ToLower(entry.Name),
+		nameTokens:  toSet(entry.Name),
+		description: toSet(entry.Description),
+		parameters:  toSet(entry.ParameterText),
+		// Server metadata is shown in catalog headers, so its terms
+		// must be searchable too. It applies to every tool on the
+		// server, so it scores below tool-specific matches.
+		server: toSet(entry.Server + " " + entry.ServerDescription),
+	}
+}
+
+func (t findToolsEntryTokens) score(token string) int {
 	score := 0
-	if slices.Contains(nameTokens, token) {
+	if _, ok := t.nameTokens[token]; ok {
 		score += 8
-	} else if strings.Contains(name, token) {
+	} else if strings.Contains(t.name, token) {
 		score += 5
 	}
-	if slices.Contains(tokenizeFindTools(entry.Description), token) {
+	if _, ok := t.description[token]; ok {
 		score += 2
 	}
-	if slices.Contains(tokenizeFindTools(entry.ParameterText), token) {
+	if _, ok := t.parameters[token]; ok {
 		score++
 	}
-	// Server metadata is shown in catalog headers, so its terms must be
-	// searchable too. It applies to every tool on the server, so it
-	// scores below tool-specific matches.
-	if slices.Contains(tokenizeFindTools(entry.Server), token) ||
-		slices.Contains(tokenizeFindTools(entry.ServerDescription), token) {
+	if _, ok := t.server[token]; ok {
 		score++
 	}
 	return score

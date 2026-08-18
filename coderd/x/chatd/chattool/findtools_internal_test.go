@@ -123,6 +123,31 @@ func TestSearchTools(t *testing.T) {
 		require.Len(t, result.Activated, 2,
 			"a prefix matching no exact-case name falls back to spanning the case-colliding servers")
 	})
+	t.Run("bounded query work", func(t *testing.T) {
+		t.Parallel()
+		entries := []FindToolCatalogEntry{
+			{Name: "server__match", Description: "Matches the last token", Server: "server"},
+		}
+		// The matching term is placed beyond both caps, so a match
+		// proves the caps were not applied.
+		overflowQuery := strings.Repeat("filler ", findToolsMaxQueryTokens) + "matches"
+		result, _ := SearchTools(entries, FindToolsArgs{Queries: []string{overflowQuery}}, SearchBudget{})
+		require.Empty(t, result.Activated,
+			"tokens beyond the per-query cap are not scored")
+
+		queries := make([]string, findToolsMaxQueries+1)
+		for i := range queries {
+			queries[i] = "filler"
+		}
+		queries[len(queries)-1] = "matches"
+		result, _ = SearchTools(entries, FindToolsArgs{Queries: queries}, SearchBudget{})
+		require.Empty(t, result.Activated,
+			"queries beyond the per-call cap are not scored")
+
+		result, _ = SearchTools(entries, FindToolsArgs{Queries: []string{"matches"}}, SearchBudget{})
+		require.Equal(t, []string{"server__match"}, result.Activated,
+			"capped search still scores in-bound tokens")
+	})
 	t.Run("whitespace-colliding server names", func(t *testing.T) {
 		t.Parallel()
 		paddedEntries := []FindToolCatalogEntry{
