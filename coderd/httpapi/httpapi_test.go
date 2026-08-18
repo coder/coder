@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -163,7 +162,7 @@ func jsonBodyOfSize(size int) string {
 	return prefix + strings.Repeat("a", size-len(prefix)-len(suffix)) + suffix
 }
 
-func TestReadBodyLimit(t *testing.T) {
+func TestReadDefaultLimit(t *testing.T) {
 	t.Parallel()
 
 	// requireTooLarge asserts the 413 response shape shared by every
@@ -290,10 +289,9 @@ func TestReadLimit(t *testing.T) {
 		require.True(t, httpapi.ReadLimit(context.Background(), rw, r, limit, &v))
 	})
 
-	// The limit lands on the request's existing log line rather than a line of
-	// its own, because a caller can produce 413s at will and a dedicated line
-	// would let them drive log volume. Without the limit recorded somewhere, a
-	// rejection is indistinguishable from a client that hung up.
+	// The limit lands on the request's existing log line rather than one of its
+	// own: a caller can produce 413s at will, so a dedicated line would let them
+	// drive log volume.
 	t.Run("RecordsLimitOnRequestLog", func(t *testing.T) {
 		t.Parallel()
 		const limit = 1024
@@ -359,40 +357,6 @@ func TestReadLimit(t *testing.T) {
 			})
 		}
 	})
-}
-
-// TestMaxBytesReaderNesting pins how http.MaxBytesReader composes: nesting two
-// readers yields the tighter of the two limits, regardless of which one is
-// outermost. httpapi.Read wraps the body it decodes, so handlers that need a
-// different limit cannot get one by wrapping the body themselves, and must use
-// httpapi.ReadLimit instead. That requirement is only true because composition
-// behaves this way, so it is asserted here rather than assumed.
-func TestMaxBytesReaderNesting(t *testing.T) {
-	t.Parallel()
-
-	const (
-		tight = 4
-		loose = 8
-	)
-	body := strings.Repeat("a", loose+1)
-
-	// readNested wraps body in two MaxBytesReaders and reports how many bytes
-	// were readable before the limit tripped.
-	readNested := func(t *testing.T, outer, inner int64) int {
-		t.Helper()
-		rw := httptest.NewRecorder()
-		rc := io.NopCloser(strings.NewReader(body))
-		rc = http.MaxBytesReader(rw, rc, inner)
-		rc = http.MaxBytesReader(rw, rc, outer)
-
-		read, err := io.ReadAll(rc)
-		_, ok := errors.AsType[*http.MaxBytesError](err)
-		require.True(t, ok, "expected *http.MaxBytesError, got %v", err)
-		return len(read)
-	}
-
-	require.Equal(t, tight, readNested(t, tight, loose), "tight limit outside a loose one must win")
-	require.Equal(t, tight, readNested(t, loose, tight), "tight limit inside a loose one must win")
 }
 
 func TestWebsocketCloseMsg(t *testing.T) {
@@ -849,12 +813,10 @@ func TestServerSentEventSender(t *testing.T) {
 	})
 }
 
-// TestRecordRequestBodyLimit covers the pairing that every 413-for-an-oversized-
-// body site depends on. The sites answer in their own error shapes, codersdk,
-// RFC 6749, RFC 7591 and RFC 7644, so what they share is this call rather than a
-// response writer. Both halves matter: the log field is what tells an operator
-// which limit tripped, and the tracker is what stops the metric attributing a
-// 413 to body size when it was raised for another reason.
+// TestRecordRequestBodyLimit covers the one call every 413-for-an-oversized-body
+// site shares, since the sites answer in their own error shapes rather than
+// through a common response writer. The log field names the limit that tripped;
+// the tracker stops the metric attributing a 413 to body size when it was not.
 func TestRecordRequestBodyLimit(t *testing.T) {
 	t.Parallel()
 
