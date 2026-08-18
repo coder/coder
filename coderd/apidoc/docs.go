@@ -374,6 +374,91 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/files/{file}/download": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/gif",
+                    "image/webp",
+                    "text/plain",
+                    "text/markdown",
+                    "text/csv",
+                    "application/json",
+                    "application/pdf"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Download chat file with signed token",
+                "operationId": "download-chat-file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "File ID",
+                        "name": "file",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Signed download token",
+                        "name": "token",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/chats/files/{file}/download-url": {
+            "post": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat file download URL",
+                "operationId": "create-chat-file-download-url",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "File ID",
+                        "name": "file",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatFileDownloadURLResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/models": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -17518,6 +17603,10 @@ const docTemplate = `{
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
                 },
+                "queued_for_capacity": {
+                    "description": "QueuedForCapacity reports that the chat is waiting for a concurrent\nagent slot. Single-chat reads derive it; list responses leave it false.",
+                    "type": "boolean"
+                },
                 "root_chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -17902,6 +17991,31 @@ const docTemplate = `{
                 "ChatErrorKindHookDenied"
             ]
         },
+        "codersdk.ChatFileDownloadURLResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sha256": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string",
+                    "format": "uri"
+                }
+            }
+        },
         "codersdk.ChatFileMetadata": {
             "type": "object",
             "properties": {
@@ -17926,6 +18040,9 @@ const docTemplate = `{
                 "owner_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "size_bytes": {
+                    "type": "integer"
                 }
             }
         },
@@ -19854,6 +19971,7 @@ const docTemplate = `{
                 "workspace_apps_api_key",
                 "workspace_apps_token",
                 "oidc_convert",
+                "chat_files_token",
                 "tailnet_resume",
                 "nats_ca"
             ],
@@ -19861,6 +19979,7 @@ const docTemplate = `{
                 "CryptoKeyFeatureWorkspaceAppsAPIKey",
                 "CryptoKeyFeatureWorkspaceAppsToken",
                 "CryptoKeyFeatureOIDCConvert",
+                "CryptoKeyFeatureChatFilesToken",
                 "CryptoKeyFeatureTailnetResume",
                 "CryptoKeyFeatureNATSCA"
             ]
@@ -20550,6 +20669,7 @@ const docTemplate = `{
                 "workspace-usage",
                 "oauth2",
                 "mcp-server-http",
+                "mcp-tool-search",
                 "workspace-build-updates",
                 "nats_pubsub",
                 "workspace-capable-licensing",
@@ -20566,6 +20686,7 @@ const docTemplate = `{
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
+                "ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
@@ -20580,6 +20701,7 @@ const docTemplate = `{
                 "Enables the new workspace usage tracking.",
                 "Enables OAuth2 provider functionality.",
                 "Enables the MCP HTTP server functionality.",
+                "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "Enables embedded NATS pubsub.",
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
@@ -20595,6 +20717,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceUsage",
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
+                "ExperimentMCPToolSearch",
                 "ExperimentWorkspaceBuildUpdates",
                 "ExperimentNATSPubsub",
                 "ExperimentWorkspaceCapableLicensing",
@@ -24182,7 +24305,8 @@ const docTemplate = `{
                 "user_ai_budget_override",
                 "chat",
                 "user_secret",
-                "user_skill"
+                "user_skill",
+                "chat_instruction_settings"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -24220,7 +24344,8 @@ const docTemplate = `{
                 "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret",
-                "ResourceTypeUserSkill"
+                "ResourceTypeUserSkill",
+                "ResourceTypeChatInstructionSettings"
             ]
         },
         "codersdk.Response": {

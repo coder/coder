@@ -293,6 +293,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 		t.Cleanup(consumer.Close)
 		server := &Server{
 			db:     db,
+			pubsub: pubsub.NewInMemory(),
 			logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 			hooks: chathooks.NewTrigger(dispatch.New(
 				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),

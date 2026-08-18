@@ -21,12 +21,10 @@ type SecretsPageViewProps = {
 	secrets?: readonly UserSecret[];
 	isLoading: boolean;
 	hasLoaded: boolean;
-	isRefreshing: boolean;
 	isCreating: boolean;
 	isUpdating: boolean;
 	isDeleting: boolean;
 	getSecretsError?: unknown;
-	onRefresh: () => void;
 	onCreateSecret: (
 		request: CreateUserSecretRequest,
 	) => Promise<UserSecret> | UserSecret;
