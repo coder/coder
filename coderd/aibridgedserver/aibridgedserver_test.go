@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -1375,6 +1376,50 @@ func TestGetMCPServerConfigs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetMCPGatewayServerConfig(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	configID := uuid.New()
+	rules, err := json.Marshal([]codersdk.MCPServerToolRule{{Tool: "read", Enabled: true}})
+	require.NoError(t, err)
+	db.EXPECT().GetMCPServerConfigBySlug(gomock.Any(), "github").Return(database.MCPServerConfig{
+		ID:                     configID,
+		Slug:                   "github",
+		Url:                    "https://example.com/mcp",
+		Transport:              "streamable_http",
+		AuthType:               "external_auth",
+		ExternalAuthProviderID: sql.NullString{String: "github", Valid: true},
+		ToolAllowList:          []string{"read"},
+		ToolRules:              rules,
+		ToolDefault:            "disabled",
+		Enabled:                true,
+	}, nil)
+
+	srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
+		Store:         db,
+		AISeatTracker: agplaiseats.Noop{},
+		ExternalAuthConfigs: []*externalauth.Config{{
+			ID:                "github",
+			MCPToolAllowRegex: regexp.MustCompile(`^read`),
+			MCPToolDenyRegex:  regexp.MustCompile(`secret$`),
+		}},
+		Logger: testutil.Logger(t),
+		Clock:  quartz.NewReal(),
+	})
+	require.NoError(t, err)
+
+	response, err := srv.GetMCPGatewayServerConfig(t.Context(), &proto.GetMCPGatewayServerConfigRequest{Slug: "github"})
+	require.NoError(t, err)
+	require.True(t, response.GetFound())
+	require.Equal(t, configID.String(), response.GetConfig().GetId())
+	require.Equal(t, "github", response.GetConfig().GetExternalAuthProviderId())
+	require.Equal(t, `^read`, response.GetConfig().GetToolAllowRegex())
+	require.Equal(t, `secret$`, response.GetConfig().GetToolDenyRegex())
+	require.Equal(t, "read", response.GetConfig().GetToolRules()[0].GetTool())
 }
 
 func TestGetMCPServerAccessTokensBatch(t *testing.T) {

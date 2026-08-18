@@ -316,6 +316,7 @@ type DRPCMCPConfiguratorClient interface {
 	GetMCPServerConfigs(ctx context.Context, in *GetMCPServerConfigsRequest) (*GetMCPServerConfigsResponse, error)
 	GetMCPServerAccessTokensBatch(ctx context.Context, in *GetMCPServerAccessTokensBatchRequest) (*GetMCPServerAccessTokensBatchResponse, error)
 	GetMCPUpstreamCredential(ctx context.Context, in *GetMCPUpstreamCredentialRequest) (*GetMCPUpstreamCredentialResponse, error)
+	GetMCPGatewayServerConfig(ctx context.Context, in *GetMCPGatewayServerConfigRequest) (*GetMCPGatewayServerConfigResponse, error)
 }
 
 type drpcMCPConfiguratorClient struct {
@@ -355,10 +356,20 @@ func (c *drpcMCPConfiguratorClient) GetMCPUpstreamCredential(ctx context.Context
 	return out, nil
 }
 
+func (c *drpcMCPConfiguratorClient) GetMCPGatewayServerConfig(ctx context.Context, in *GetMCPGatewayServerConfigRequest) (*GetMCPGatewayServerConfigResponse, error) {
+	out := new(GetMCPGatewayServerConfigResponse)
+	err := c.cc.Invoke(ctx, "/proto.MCPConfigurator/GetMCPGatewayServerConfig", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCMCPConfiguratorServer interface {
 	GetMCPServerConfigs(context.Context, *GetMCPServerConfigsRequest) (*GetMCPServerConfigsResponse, error)
 	GetMCPServerAccessTokensBatch(context.Context, *GetMCPServerAccessTokensBatchRequest) (*GetMCPServerAccessTokensBatchResponse, error)
 	GetMCPUpstreamCredential(context.Context, *GetMCPUpstreamCredentialRequest) (*GetMCPUpstreamCredentialResponse, error)
+	GetMCPGatewayServerConfig(context.Context, *GetMCPGatewayServerConfigRequest) (*GetMCPGatewayServerConfigResponse, error)
 }
 
 type DRPCMCPConfiguratorUnimplementedServer struct{}
@@ -375,9 +386,13 @@ func (s *DRPCMCPConfiguratorUnimplementedServer) GetMCPUpstreamCredential(contex
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCMCPConfiguratorUnimplementedServer) GetMCPGatewayServerConfig(context.Context, *GetMCPGatewayServerConfigRequest) (*GetMCPGatewayServerConfigResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCMCPConfiguratorDescription struct{}
 
-func (DRPCMCPConfiguratorDescription) NumMethods() int { return 3 }
+func (DRPCMCPConfiguratorDescription) NumMethods() int { return 4 }
 
 func (DRPCMCPConfiguratorDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -408,6 +423,15 @@ func (DRPCMCPConfiguratorDescription) Method(n int) (string, drpc.Encoding, drpc
 						in1.(*GetMCPUpstreamCredentialRequest),
 					)
 			}, DRPCMCPConfiguratorServer.GetMCPUpstreamCredential, true
+	case 3:
+		return "/proto.MCPConfigurator/GetMCPGatewayServerConfig", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCMCPConfiguratorServer).
+					GetMCPGatewayServerConfig(
+						ctx,
+						in1.(*GetMCPGatewayServerConfigRequest),
+					)
+			}, DRPCMCPConfiguratorServer.GetMCPGatewayServerConfig, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -459,6 +483,22 @@ type drpcMCPConfigurator_GetMCPUpstreamCredentialStream struct {
 }
 
 func (x *drpcMCPConfigurator_GetMCPUpstreamCredentialStream) SendAndClose(m *GetMCPUpstreamCredentialResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCMCPConfigurator_GetMCPGatewayServerConfigStream interface {
+	drpc.Stream
+	SendAndClose(*GetMCPGatewayServerConfigResponse) error
+}
+
+type drpcMCPConfigurator_GetMCPGatewayServerConfigStream struct {
+	drpc.Stream
+}
+
+func (x *drpcMCPConfigurator_GetMCPGatewayServerConfigStream) SendAndClose(m *GetMCPGatewayServerConfigResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
 		return err
 	}

@@ -86,6 +86,21 @@ func (mr *MockDRPCClientMockRecorder) GetAIProviders(ctx, in any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviders", reflect.TypeOf((*MockDRPCClient)(nil).GetAIProviders), ctx, in)
 }
 
+// GetMCPGatewayServerConfig mocks base method.
+func (m *MockDRPCClient) GetMCPGatewayServerConfig(ctx context.Context, in *proto.GetMCPGatewayServerConfigRequest) (*proto.GetMCPGatewayServerConfigResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMCPGatewayServerConfig", ctx, in)
+	ret0, _ := ret[0].(*proto.GetMCPGatewayServerConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMCPGatewayServerConfig indicates an expected call of GetMCPGatewayServerConfig.
+func (mr *MockDRPCClientMockRecorder) GetMCPGatewayServerConfig(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPGatewayServerConfig", reflect.TypeOf((*MockDRPCClient)(nil).GetMCPGatewayServerConfig), ctx, in)
+}
+
 // GetMCPServerAccessTokensBatch mocks base method.
 func (m *MockDRPCClient) GetMCPServerAccessTokensBatch(ctx context.Context, in *proto.GetMCPServerAccessTokensBatchRequest) (*proto.GetMCPServerAccessTokensBatchResponse, error) {
 	m.ctrl.T.Helper()

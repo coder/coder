@@ -30,6 +30,9 @@ service MCPConfigurator {
   // GetMCPUpstreamCredential resolves a fresh external-auth token belonging to
   // the human sponsor of the API key identity.
   rpc GetMCPUpstreamCredential(GetMCPUpstreamCredentialRequest) returns (GetMCPUpstreamCredentialResponse);
+  // GetMCPGatewayServerConfig returns the enabled MCP server configuration
+  // addressed by its public gateway slug.
+  rpc GetMCPGatewayServerConfig(GetMCPGatewayServerConfigRequest) returns (GetMCPGatewayServerConfigResponse);
 }
 
 // Authorizer handles all Coder-related authorization functions.
@@ -187,6 +190,39 @@ message GetMCPUpstreamCredentialResponse {
   bool reauth_required = 2;
   string reauth_url = 3;
   string provider_id = 4;
+}
+
+message GetMCPGatewayServerConfigRequest {
+  string slug = 1;
+}
+
+message MCPGatewayToolRule {
+  string tool = 1;
+  bool enabled = 2;
+}
+
+message MCPGatewayServerConfig {
+  string id = 1; // UUID.
+  string slug = 2;
+  string url = 3;
+  string transport = 4;
+  string auth_type = 5;
+  string external_auth_provider_id = 6;
+  string api_key_header = 7;
+  string api_key_value = 8;
+  string custom_headers = 9; // JSON object.
+  repeated string tool_allow_list = 10;
+  repeated string tool_deny_list = 11;
+  repeated MCPGatewayToolRule tool_rules = 12;
+  string tool_default = 13;
+  string tool_allow_regex = 14;
+  string tool_deny_regex = 15;
+}
+
+message GetMCPGatewayServerConfigResponse {
+  // found is false for unknown and disabled server slugs.
+  bool found = 1;
+  MCPGatewayServerConfig config = 2;
 }
 
 message IsAuthorizedRequest {
