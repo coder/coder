@@ -29,7 +29,12 @@ against the chat owner's ACL. The section must cover:
 - why the owner's RBAC subject is loaded with `rbac.ScopeAll` for this
   evaluation,
 - the immutable-snapshot rule for Explore chats and how it differs
-  from the per-turn evaluation above.
+  from the per-turn evaluation above,
+- the grandfathering rule for persisted selections: ACL revocation is
+  deliberately not re-checked for already-selected servers
+  (`enabledMCPServerConfigsForChatOrg`), mirroring template ACLs for
+  running workspaces, while disabling or deleting the config cuts off
+  existing chats.
 
 # Core state machine
 
