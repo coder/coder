@@ -11325,6 +11325,19 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			want:           database.GetUsagePublishStatusRow{},
 		},
 		{
+			// An in-flight retry of an already-failing event stays visible:
+			// a refresh racing a slow retry must not clear an active
+			// warning that the retry's failure would immediately re-raise.
+			name: "InFlightRetryOfFailingEventStillStuck",
+			events: []usagePublishSeedEvent{
+				{id: "1", createdAt: now.Add(-48 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour)}},
+			},
+			markInFlightAt: now,
+			want: database.GetUsagePublishStatusRow{
+				OldestStuckAt: now.Add(-30 * time.Hour),
+			},
+		},
+		{
 			// An in-flight attempt older than the publisher's 1-hour expiry
 			// belongs to a replica that exited mid-publish. The publisher
 			// considers the row retryable, so failure detection must too.

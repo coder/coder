@@ -225,45 +225,80 @@ func Entitlements(
 // resolveUsagePublishingEnabledSince returns when usage publishing most
 // recently became enabled and stamps the marker's last_seen, starting a new
 // enabled period when the marker is missing, corrupted, or stale. See
-// UsagePublishingEnabledSinceKey. The caller must pass a system-authorized
-// context.
+// UsagePublishingEnabledSinceKey. The read-check-write runs in a transaction
+// under an advisory lock so concurrent refreshes on other replicas cannot
+// interleave and move last_seen backward; a refresh that loses the lock race
+// skips its write and uses the winner's marker. The caller must pass a
+// system-authorized context.
 func resolveUsagePublishingEnabledSince(ctx context.Context, db database.Store, now time.Time) (time.Time, error) {
-	var marker usagePublishingEnabledMarker
-	raw, err := db.GetRuntimeConfig(ctx, UsagePublishingEnabledSinceKey)
-	if err == nil {
-		if jsonErr := json.Unmarshal([]byte(raw), &marker); jsonErr != nil {
-			// A corrupted value is unrecoverable; start a new period below.
-			marker = usagePublishingEnabledMarker{}
+	var enabledSince time.Time
+	err := db.InTx(func(tx database.Store) error {
+		var marker usagePublishingEnabledMarker
+		readMarker := func() error {
+			raw, err := tx.GetRuntimeConfig(ctx, UsagePublishingEnabledSinceKey)
+			if err == nil {
+				if jsonErr := json.Unmarshal([]byte(raw), &marker); jsonErr != nil {
+					// A corrupted value is unrecoverable; start a new
+					// period.
+					marker = usagePublishingEnabledMarker{}
+				}
+			} else if !xerrors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get usage publishing enabled-since marker: %w", err)
+			}
+			return nil
 		}
-	} else if !xerrors.Is(err, sql.ErrNoRows) {
-		return time.Time{}, xerrors.Errorf("get usage publishing enabled-since marker: %w", err)
-	}
-	if !now.After(marker.LastSeen) {
-		// A refresh that stalled after capturing now can otherwise move
-		// last_seen backward past what a concurrent replica already
-		// recorded, making the next refresh misread the marker as stale and
-		// spuriously reset the enabled period. Keep last_seen monotonic by
-		// skipping the write; the read above happens just before this
-		// check, so the remaining read-to-write race is far smaller than
-		// the staleness window.
-		return marker.EnabledSince, nil
-	}
-	if marker.EnabledSince.IsZero() || now.Sub(marker.LastSeen) > usagePublishingEnabledMarkerStaleAfter {
-		marker.EnabledSince = now
-	}
-	marker.LastSeen = now
-	value, err := json.Marshal(marker)
+		locked, err := tx.TryAcquireLock(ctx, database.LockIDUsagePublishingEnabledMarker)
+		if err != nil {
+			return xerrors.Errorf("acquire usage publishing marker lock: %w", err)
+		}
+		if !locked {
+			// Another replica is updating the marker right now; its write
+			// serves as this refresh's observation.
+			if err := readMarker(); err != nil {
+				return err
+			}
+			enabledSince = marker.EnabledSince
+			if enabledSince.IsZero() {
+				// The concurrent writer has not committed yet; treat the
+				// period as starting now. The writer's marker wins on the
+				// next refresh.
+				enabledSince = now
+			}
+			return nil
+		}
+		if err := readMarker(); err != nil {
+			return err
+		}
+		if !now.After(marker.LastSeen) {
+			// A refresh that stalled after capturing now must not move
+			// last_seen backward past what another replica already
+			// recorded, or the next refresh could misread the marker as
+			// stale and spuriously reset the enabled period.
+			enabledSince = marker.EnabledSince
+			return nil
+		}
+		if marker.EnabledSince.IsZero() || now.Sub(marker.LastSeen) > usagePublishingEnabledMarkerStaleAfter {
+			marker.EnabledSince = now
+		}
+		marker.LastSeen = now
+		value, err := json.Marshal(marker)
+		if err != nil {
+			return xerrors.Errorf("marshal usage publishing enabled-since marker: %w", err)
+		}
+		err = tx.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+			Key:   UsagePublishingEnabledSinceKey,
+			Value: string(value),
+		})
+		if err != nil {
+			return xerrors.Errorf("update usage publishing enabled-since marker: %w", err)
+		}
+		enabledSince = marker.EnabledSince
+		return nil
+	}, nil)
 	if err != nil {
-		return time.Time{}, xerrors.Errorf("marshal usage publishing enabled-since marker: %w", err)
+		return time.Time{}, err
 	}
-	err = db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
-		Key:   UsagePublishingEnabledSinceKey,
-		Value: string(value),
-	})
-	if err != nil {
-		return time.Time{}, xerrors.Errorf("update usage publishing enabled-since marker: %w", err)
-	}
-	return marker.EnabledSince, nil
+	return enabledSince, nil
 }
 
 type FeatureArguments struct {
