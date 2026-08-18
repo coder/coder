@@ -76,6 +76,13 @@ warning when a development override is active. That warning is expected.
 - Coder server code from the `ais` branch.
 - The provider development override described above.
 - A Linux amd64 Docker provisioner host with hardware virtualization enabled.
+- Passwordless sudo for the workspace user (true for
+  `codercom/enterprise-base` images). The sandbox host process serves the
+  guest's virtio-fs filesystem, so guest `chown` calls execute with that
+  process's host privileges. Without root, guest package managers fail with
+  ownership errors (the CAP_CHOWN preflight warning). The startup script
+  elevates with `sudo -E` when available; the microVM remains the security
+  boundary.
 - `/dev/kvm` available to Docker and accessible to the workspace user. Find the
   device group ID on the Docker host:
 

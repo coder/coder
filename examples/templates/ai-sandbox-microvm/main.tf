@@ -128,8 +128,24 @@ resource "coder_script" "sandbox" {
       exit 1
     fi
 
+    # The sandbox host process serves the guest's virtio-fs filesystem, so
+    # guest chown calls execute on the host with this process's privileges.
+    # Without CAP_CHOWN, guest package managers fail with ownership errors.
+    # Run as root when passwordless sudo is available; the microVM remains
+    # the security boundary. Cache and state stay under the persistent home
+    # volume so first-boot downloads are not repeated.
+    run_as=""
+    if [ "$(id -u)" != "0" ] && command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+      run_as="sudo -E"
+    else
+      echo "warning: no root or passwordless sudo; guest chown will fail (CAP_CHOWN)" >>"$log_file"
+    fi
+
     echo "starting coder agent sandbox at $(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$log_file"
-    nohup "$coder_bin" agent sandbox </dev/null >>"$log_file" 2>&1 &
+    nohup $run_as "$coder_bin" agent sandbox \
+      --cache-dir "$HOME/.config/coder-ai/microvm/cache" \
+      --state-dir "$HOME/.config/coder-ai/microvm/state" \
+      </dev/null >>"$log_file" 2>&1 &
     sandbox_pid=$!
     echo "$sandbox_pid" >"$pid_file"
     echo "started coder agent sandbox with PID $sandbox_pid; logs: $log_file"
