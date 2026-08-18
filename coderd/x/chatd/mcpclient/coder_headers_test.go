@@ -9,8 +9,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
-	"github.com/mark3labs/mcp-go/mcp"
-	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -29,19 +28,19 @@ func newHeaderRecordingServer(t *testing.T) (*httptest.Server, *sync.Mutex, *[]h
 		mu      sync.Mutex
 		headers []http.Header
 	)
-	srv := mcpserver.NewMCPServer("hdr-server", "1.0.0")
-	srv.AddTools(mcpserver.ServerTool{
-		Tool: mcp.NewTool("ping", mcp.WithDescription("records the request headers")),
-		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	ts := newTestMCPServer(t, testTool{
+		tool: &mcp.Tool{
+			Name:        "ping",
+			Description: "records the request headers",
+			InputSchema: map[string]any{"type": "object"},
+		},
+		handler: func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			mu.Lock()
-			headers = append(headers, req.Header.Clone())
+			headers = append(headers, req.Extra.Header.Clone())
 			mu.Unlock()
-			return mcp.NewToolResultText("ok"), nil
+			return textToolResult("ok"), nil
 		},
 	})
-	httpSrv := mcpserver.NewStreamableHTTPServer(srv)
-	ts := httptest.NewServer(httpSrv)
-	t.Cleanup(ts.Close)
 	return ts, &mu, &headers
 }
 

@@ -25,6 +25,10 @@ export interface LicenseBannerLink {
 export interface LicenseBannerMessage {
 	message: string;
 	variant: LicenseBannerVariant;
+	// Diagnostics about the license or the usage measurement rather than
+	// about usage itself. They keep the "License notices" heading even when
+	// they are the only message, since the muted text needs that context.
+	kind?: "diagnostic";
 	link?: LicenseBannerLink;
 }
 
@@ -148,6 +152,9 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 	const bannerVariant = getBannerVariant(messages);
 	const visibleMessages = messages.slice(0, 2);
 	const hiddenMessages = messages.slice(2);
+	// A lone diagnostic keeps the heading: without it the muted banner is an
+	// unexplained sentence. Other single messages stay heading-less.
+	const showHeading = !isSingleMessage || messages[0].kind === "diagnostic";
 
 	return (
 		<div
@@ -161,20 +168,20 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 					/>
 				</div>
 				<div className="flex min-w-0 flex-1 flex-col gap-2">
+					{showHeading && (
+						<div className="text-sm font-semibold leading-6 text-content-primary">
+							{bannerTitle(bannerVariant)}
+						</div>
+					)}
 					{isSingleMessage ? (
 						<div className="flex min-h-6 items-center text-xs leading-4 text-content-primary">
 							<LicenseMessageText entry={messages[0]} />
 						</div>
 					) : (
-						<>
-							<div className="text-sm font-semibold leading-6 text-content-primary">
-								{bannerTitle(bannerVariant)}
-							</div>
-							<ExpandableLicenseMessageList
-								hiddenMessages={hiddenMessages}
-								visibleMessages={visibleMessages}
-							/>
-						</>
+						<ExpandableLicenseMessageList
+							hiddenMessages={hiddenMessages}
+							visibleMessages={visibleMessages}
+						/>
 					)}
 				</div>
 			</div>

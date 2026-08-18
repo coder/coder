@@ -10,7 +10,6 @@ import {
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
@@ -37,8 +36,7 @@ const TemplatePermissionsPage: FC = () => {
 			{!isTemplateRBACEnabled ? (
 				<PaywallPremium
 					message="Template permissions"
-					description="Control users and groups access to templates. You need a Premium license to use this feature."
-					documentationLink={docs("/admin/templates/template-permissions")}
+					description="Control users and groups access to templates."
 					canViewPremium={authPermissions.viewAllLicenses}
 				/>
 			) : (

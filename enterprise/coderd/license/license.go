@@ -115,8 +115,8 @@ func Entitlements(
 			// licenses (e.g. higher hard limit) to account for additional
 			// usage.
 			//
-			// nolint:gocritic // Reading usage events requires the usage publisher subject.
-			return db.GetTotalUsageDCManagedAgentsV1(dbauthz.AsUsagePublisher(ctx), database.GetTotalUsageDCManagedAgentsV1Params{
+			// nolint:gocritic // Requires permission to read all workspaces to read managed agent count.
+			return db.GetTotalUsageDCManagedAgentsV1(dbauthz.AsSystemRestricted(ctx), database.GetTotalUsageDCManagedAgentsV1Params{
 				StartDate: startTime,
 				EndDate:   endTime,
 			})
@@ -485,9 +485,9 @@ func LicensesEntitlements(
 			// Premium licenses without agent_runtime_hours_* claims are
 			// grandfathered into a zero-hour allocation: the feature is
 			// granted disabled with a zero limit, which measures and
-			// publishes usage (see the measureUsage call below) and caps
-			// concurrent agentic chats the same as an explicit zero
-			// allocation.
+			// publishes usage (see the measureAgentRuntimeMs call below)
+			// and caps concurrent agentic chats the same as an explicit
+			// zero allocation.
 			var (
 				// A fixed issue time that predates any license issued with
 				// agent_runtime_hours_* claims, so a license that actually
@@ -756,17 +756,24 @@ func LicensesEntitlements(
 	if entitlements.HasLicense && agentLimit.UsagePeriod != nil {
 		// Calculate the amount of agents between the usage period start and
 		// end.
-		managedAgentCount, ok, err := measureUsage(ctx, &entitlements,
-			featureArguments.Logger, featureArguments.ManagedAgentCountFn, *agentLimit.UsagePeriod,
-			"managed agent count", codersdk.LicenseManagedAgentUsageUnavailableErrorText)
-		if err != nil {
-			return entitlements, err
+		var (
+			managedAgentCount int64
+			err               = xerrors.New("dev error: managed agent count function is not set")
+		)
+		if featureArguments.ManagedAgentCountFn != nil {
+			managedAgentCount, err = featureArguments.ManagedAgentCountFn(ctx, agentLimit.UsagePeriod.Start, agentLimit.UsagePeriod.End)
 		}
-		if ok {
+		if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+			// If the context is canceled, we want to bail the entire
+			// LicensesEntitlements call.
+			return entitlements, xerrors.Errorf("get managed agent count: %w", err)
+		}
+		if err != nil {
+			entitlements.Errors = append(entitlements.Errors, fmt.Sprintf("Error getting managed agent count: %s", err.Error()))
+			// no return
+		} else {
 			agentLimit.Actual = &managedAgentCount
-			// Write directly rather than via AddFeature so its Compare
-			// cannot drop the update.
-			entitlements.Features[codersdk.FeatureManagedAgentLimit] = agentLimit
+			entitlements.AddFeature(codersdk.FeatureManagedAgentLimit, agentLimit)
 
 			// Only issue warnings if the feature is enabled.
 			if agentLimit.Enabled && agentLimit.Limit != nil && managedAgentCount >= *agentLimit.Limit {
@@ -785,9 +792,8 @@ func LicensesEntitlements(
 	// enterprise/coderd/usage.AgentRuntime* constants.
 	runtimeHours := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
 	if entitlements.HasLicense && runtimeHours.UsagePeriod != nil {
-		runtimeMs, ok, err := measureUsage(ctx, &entitlements,
-			featureArguments.Logger, featureArguments.AgentRuntimeMsFn, *runtimeHours.UsagePeriod,
-			"agent runtime", codersdk.LicenseAgentRuntimeUsageUnavailableErrorText)
+		runtimeMs, ok, err := measureAgentRuntimeMs(ctx, &entitlements,
+			featureArguments.Logger, featureArguments.AgentRuntimeMsFn, *runtimeHours.UsagePeriod)
 		if err != nil {
 			return entitlements, err
 		}
@@ -800,8 +806,10 @@ func LicensesEntitlements(
 			// caller-supplied seam.
 			actualMs := max(runtimeMs, 0)
 			runtimeHours.ActualMs = &actualMs
-			// Written back directly rather than through AddFeature; see
-			// the managed-agent write-back above for why.
+			// Written back directly rather than through AddFeature:
+			// AddFeature only replaces the existing entry when the new one
+			// strictly outranks it, so setting Actual on an otherwise
+			// identical feature would be dropped as a tie.
 			entitlements.Features[codersdk.FeatureAgentRuntimeHours] = runtimeHours
 
 			// A nil Limit means the license grants unlimited runtime
@@ -942,21 +950,19 @@ func LicensesEntitlements(
 	return entitlements, nil
 }
 
-// measureUsage runs fn over the feature's usage period. A nil fn or a
-// failure with a dead context fails the whole call; any other failure logs
-// the cause and publishes unavailableText instead. It returns the measured
-// value and true only on success.
-func measureUsage(
+// measureAgentRuntimeMs runs fn over the feature's usage period. A nil fn
+// or a failure with a dead context fails the whole call; any other failure
+// logs the cause and publishes the stable unavailable text instead. It
+// returns the measured milliseconds and true only on success.
+func measureAgentRuntimeMs(
 	ctx context.Context,
 	entitlements *codersdk.Entitlements,
 	logger slog.Logger,
-	fn func(ctx context.Context, from time.Time, to time.Time) (int64, error),
+	fn AgentRuntimeMsFn,
 	usagePeriod codersdk.UsagePeriod,
-	what string,
-	unavailableText string,
 ) (int64, bool, error) {
 	if fn == nil {
-		return 0, false, xerrors.Errorf("developer error: no closure provided to measure %s usage", what)
+		return 0, false, xerrors.New("developer error: no closure provided to measure agent runtime usage")
 	}
 	value, err := fn(ctx, usagePeriod.Start, usagePeriod.End)
 	switch {
@@ -966,10 +972,10 @@ func measureUsage(
 		// statement_timeout kills as well as client cancels, and aborting on
 		// those would fail every entitlements refresh on a deployment whose
 		// statement_timeout is shorter than a usage query.
-		return 0, false, xerrors.Errorf("get %s: %w", what, err)
+		return 0, false, xerrors.Errorf("get agent runtime: %w", err)
 	case err != nil:
-		logger.Error(ctx, fmt.Sprintf("get %s for entitlements", what), slog.Error(err))
-		entitlements.Errors = append(entitlements.Errors, unavailableText)
+		logger.Error(ctx, "get agent runtime for entitlements", slog.Error(err))
+		entitlements.Errors = append(entitlements.Errors, codersdk.LicenseAgentRuntimeUsageUnavailableErrorText)
 		return 0, false, nil
 	}
 	return value, true, nil
@@ -1109,9 +1115,7 @@ func agentRuntimeMsToHours(ms int64) int64 {
 // look healthy.
 //
 // A zero allocation grants the feature disabled, but Actual is still
-// measured and published. A disabled feature forces the concurrency-limited
-// mode from CODAGT-856 (chatd pooled admission), which also covers premium
-// licenses granted the grandfathered zero-hour default in Entitlements.
+// measured and published.
 func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement, usagePeriod codersdk.UsagePeriod) (feature codersdk.Feature, granted bool, ignoredClaims []string) {
 	if _, ok := features[codersdk.FeatureAgentRuntimeHours]; ok {
 		ignoredClaims = append(ignoredClaims, string(codersdk.FeatureAgentRuntimeHours))

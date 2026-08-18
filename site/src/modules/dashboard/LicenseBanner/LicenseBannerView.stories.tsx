@@ -8,7 +8,6 @@ import {
 	LicenseAgentRuntimeUsageUnavailableErrorText,
 	LicenseAIGovernance90PercentWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
-	LicenseManagedAgentUsageUnavailableErrorText,
 	LicenseTelemetryRequiredErrorText,
 } from "#/api/typesGenerated";
 import {
@@ -264,6 +263,9 @@ export const AIGovernanceNearLimit: Story = {
 		await expect(
 			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
 		).toHaveAttribute("href", "mailto:sales@coder.com");
+		// A lone advisory is muted but not a diagnostic, so it renders
+		// without the notices heading.
+		await expect(canvas.queryByText("License notices")).not.toBeInTheDocument();
 	},
 };
 
@@ -349,7 +351,7 @@ export const AgentRuntimeHoursAllocationReached: Story = {
 export const AgentRuntimeHoursAllocationReachedWithDiagnostic: Story = {
 	render: () =>
 		renderLicenseBanner({
-			errors: [LicenseManagedAgentUsageUnavailableErrorText],
+			errors: [LicenseAgentRuntimeUsageUnavailableErrorText],
 			warnings: [
 				formatLicenseMessage(
 					LicenseAgentRuntimeHoursAllocationReachedWarningText,
@@ -368,7 +370,7 @@ export const AgentRuntimeHoursAllocationReachedWithDiagnostic: Story = {
 			"Your deployment has used 100 of the 100 Coder Agent runtime hours included in the current license term.",
 		);
 		await expect(banner).toHaveTextContent(
-			LicenseManagedAgentUsageUnavailableErrorText,
+			LicenseAgentRuntimeUsageUnavailableErrorText,
 		);
 	},
 };
@@ -394,14 +396,6 @@ export const AgentRuntimeUsageUnavailable: Story = {
 	play: playMutedDiagnostic(LicenseAgentRuntimeUsageUnavailableErrorText),
 };
 
-export const ManagedAgentUsageUnavailable: Story = {
-	render: () =>
-		renderLicenseBanner({
-			errors: [LicenseManagedAgentUsageUnavailableErrorText],
-		}),
-	play: playMutedDiagnostic(LicenseManagedAgentUsageUnavailableErrorText),
-};
-
 export const AgentRuntimeHoursClaimsIgnored: Story = {
 	render: () =>
 		renderLicenseBanner({
@@ -410,15 +404,13 @@ export const AgentRuntimeHoursClaimsIgnored: Story = {
 	play: playMutedDiagnostic(LicenseAgentRuntimeHoursClaimsIgnoredWarningText),
 };
 
-// An all-diagnostic banner (e.g. one database blip failing both usage
-// queries) must not claim license limits were exceeded.
+// An all-diagnostic banner must not claim license limits were exceeded,
+// even when a diagnostic arrives via entitlements.errors.
 export const UsageDiagnosticsOnlyHeading: Story = {
 	render: () =>
 		renderLicenseBanner({
-			errors: [
-				LicenseManagedAgentUsageUnavailableErrorText,
-				LicenseAgentRuntimeUsageUnavailableErrorText,
-			],
+			errors: [LicenseAgentRuntimeUsageUnavailableErrorText],
+			warnings: [LicenseAgentRuntimeHoursClaimsIgnoredWarningText],
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

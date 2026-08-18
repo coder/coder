@@ -1,6 +1,5 @@
--- IF EXISTS matches 000561's down migration: if the index is already gone
--- (e.g. rolling back out of order during an incident), tolerate the miss
--- instead of failing.
+-- IF EXISTS tolerates the index already being gone (e.g. rolling back out
+-- of order during an incident) instead of failing.
 DROP INDEX IF EXISTS idx_usage_events_agent_runtime;
 CREATE INDEX idx_usage_events_agent_runtime
   ON usage_events (event_type, created_at)

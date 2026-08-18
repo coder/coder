@@ -6,7 +6,6 @@ import {
 	LicenseAIGovernance90PercentWarningText,
 	LicenseAIGovernanceOverLimitWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
-	LicenseManagedAgentUsageUnavailableErrorText,
 	LicenseTelemetryRequiredErrorText,
 } from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -46,7 +45,6 @@ export const formatLicenseMessage = (
 // usage itself. They render muted, without the exceedance heading or a sales
 // link, even when they arrive via entitlements.errors.
 const diagnosticMessages: readonly string[] = [
-	LicenseManagedAgentUsageUnavailableErrorText,
 	LicenseAgentRuntimeUsageUnavailableErrorText,
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
 ];
@@ -54,13 +52,11 @@ const diagnosticMessages: readonly string[] = [
 const isDiagnosticMessage = (message: string): boolean =>
 	diagnosticMessages.includes(message);
 
-// Advisories and diagnostics render muted to stay visually distinct from
-// warnings that demand action, such as reaching the runtime hours
-// allocation.
-const isMutedWarning = (message: string): boolean =>
+// Advisories render muted to stay visually distinct from warnings that
+// demand action, such as reaching the runtime hours allocation.
+const isAdvisoryMessage = (message: string): boolean =>
 	message.startsWith(aiGovernanceNearLimitWarningPrefix) ||
-	message.startsWith(agentRuntimeSoftLimitWarningPrefix) ||
-	isDiagnosticMessage(message);
+	message.startsWith(agentRuntimeSoftLimitWarningPrefix);
 
 const aiGovernanceOverLimitMessage = (
 	feature: ReturnType<
@@ -153,19 +149,38 @@ const messageLink = (message: string): LicenseBannerLink | undefined => {
 			showExternalIcon: false,
 		};
 	}
-	// Diagnostics point the operator at the logs or support, and the
-	// soft-limit advisory fires inside the purchased allocation, so neither
-	// gets a sales link.
-	if (
-		isDiagnosticMessage(message) ||
-		message.startsWith(agentRuntimeSoftLimitWarningPrefix)
-	) {
+	// The soft-limit advisory fires inside the purchased allocation, so it
+	// does not get a sales link.
+	if (message.startsWith(agentRuntimeSoftLimitWarningPrefix)) {
 		return undefined;
 	}
 	return {
 		href: "mailto:sales@coder.com",
 		label: "Contact sales@coder.com.",
 		showExternalIcon: false,
+	};
+};
+
+// Classifies a raw entitlements message once and carries the result as
+// structured message data, so rendering branches on the message's kind and
+// variant fields rather than re-matching display text.
+const toBannerMessage = (
+	message: string,
+	channel: "errors" | "warnings",
+): LicenseBannerMessage => {
+	// Measurement diagnostics travel in the errors channel but are not
+	// license errors. They render muted and without a sales link: they point
+	// the operator at the logs, not at sales.
+	if (isDiagnosticMessage(message)) {
+		return { message, variant: "warning", kind: "diagnostic" };
+	}
+	if (channel === "errors") {
+		return { message, variant: "error", link: messageLink(message) };
+	}
+	return {
+		message,
+		variant: isAdvisoryMessage(message) ? "warning" : "warningProminent",
+		link: messageLink(message),
 	};
 };
 
@@ -191,21 +206,9 @@ export const LicenseBanner: FC = () => {
 	);
 
 	const messages: LicenseBannerMessage[] = [
-		...errors.map(
-			(message): LicenseBannerMessage => ({
-				message,
-				// Measurement diagnostics travel in the errors channel but are
-				// not license errors; see diagnosticMessages.
-				variant: isDiagnosticMessage(message) ? "warning" : "error",
-				link: messageLink(message),
-			}),
-		),
-		...normalizedWarnings.map(
-			(message): LicenseBannerMessage => ({
-				message,
-				variant: isMutedWarning(message) ? "warning" : "warningProminent",
-				link: messageLink(message),
-			}),
+		...errors.map((message) => toBannerMessage(message, "errors")),
+		...normalizedWarnings.map((message) =>
+			toBannerMessage(message, "warnings"),
 		),
 	];
 
