@@ -96,8 +96,6 @@ import {
 	type ChatStore,
 	type ChatStoreState,
 	selectChatStatus,
-	selectHasStreamState,
-	selectIsAwaitingFirstStreamChunk,
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
@@ -1724,9 +1722,6 @@ const AgentChatPage: FC = () => {
 				toast.error(getErrorMessage(error, "Failed to compact chat."));
 				throw error;
 			}
-			// /compact appends no visible prompt row, so there is no anchor to
-			// take the scroller; move the reader to the live edge explicitly.
-			scrollToEnd({ behavior: "smooth" });
 			return;
 		}
 
@@ -1787,9 +1782,6 @@ const AgentChatPage: FC = () => {
 					void invalidateChatEntity(queryClient, agentId);
 				},
 			});
-			// History edits scroll to the live edge only after the mutation
-			// succeeds, so a rejected edit cannot pull a reader of older
-			// history away from what they were reading.
 			scrollToEnd({ behavior: "smooth" });
 			if (editSelectedModelConfigID) {
 				localStorage.setItem(
@@ -1901,18 +1893,6 @@ const AgentChatPage: FC = () => {
 					}
 				}
 			}
-		}
-		// A send produces an anchor row only when it inserted a message whose
-		// turn is live: still awaiting its first stream chunk, or already
-		// streaming. Otherwise nothing takes the scroller to the live edge, so
-		// scroll explicitly.
-		const snapshot = store.getSnapshot();
-		const producedAnchorRow =
-			insertedMessages.length > 0 &&
-			(selectIsAwaitingFirstStreamChunk(snapshot) ||
-				selectHasStreamState(snapshot));
-		if (!producedAnchorRow) {
-			scrollToEnd({ behavior: "smooth" });
 		}
 		if (selectedModelConfigID) {
 			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
