@@ -7295,15 +7295,28 @@ func validateChatModelReasoningEffortConfig(modelConfig *codersdk.ChatModelCallC
 }
 
 func validateChatModelProviderOptions(options *codersdk.ChatModelProviderOptions) error {
-	if options == nil || options.Anthropic == nil || options.Anthropic.ThinkingDisplay == nil {
+	if options == nil {
 		return nil
 	}
 
-	if strings.TrimSpace(*options.Anthropic.ThinkingDisplay) == "" ||
-		chatprovider.AnthropicThinkingDisplayFromChat(options.Anthropic.ThinkingDisplay) != nil {
-		return nil
+	if options.Anthropic != nil && options.Anthropic.ThinkingDisplay != nil &&
+		strings.TrimSpace(*options.Anthropic.ThinkingDisplay) != "" &&
+		chatprovider.AnthropicThinkingDisplayFromChat(options.Anthropic.ThinkingDisplay) == nil {
+		return xerrors.Errorf("provider_options.anthropic.thinking_display must be one of summarized, omitted")
 	}
-	return xerrors.Errorf("provider_options.anthropic.thinking_display must be one of summarized, omitted")
+
+	if options.Google != nil && options.Google.ThinkingConfig != nil &&
+		options.Google.ThinkingConfig.ThinkingLevel != nil &&
+		strings.TrimSpace(*options.Google.ThinkingConfig.ThinkingLevel) != "" {
+		if chatprovider.GoogleThinkingLevelFromChat(options.Google.ThinkingConfig.ThinkingLevel) == nil {
+			return xerrors.Errorf("provider_options.google.thinking_config.thinking_level must be one of minimal, low, medium, high")
+		}
+		if options.Google.ThinkingConfig.ThinkingBudget != nil {
+			return xerrors.Errorf("provider_options.google.thinking_config.thinking_level cannot be combined with thinking_budget")
+		}
+	}
+
+	return nil
 }
 
 func unmarshalChatModelCallConfig(

@@ -810,6 +810,27 @@ func AnthropicThinkingDisplayFromChat(value *string) *fantasyanthropic.ThinkingD
 	return &valueCopy
 }
 
+// GoogleThinkingLevelFromChat normalizes chat-config thinking level values
+// for Google and returns the canonical provider level value.
+func GoogleThinkingLevelFromChat(value *string) *fantasygoogle.ThinkingLevel {
+	if value == nil {
+		return nil
+	}
+
+	normalized := strings.ToLower(strings.TrimSpace(*value))
+	if normalized == "" {
+		return nil
+	}
+
+	return chatutil.NormalizedEnumValue(
+		normalized,
+		fantasygoogle.ThinkingLevelMinimal,
+		fantasygoogle.ThinkingLevelLow,
+		fantasygoogle.ThinkingLevelMedium,
+		fantasygoogle.ThinkingLevelHigh,
+	)
+}
+
 // Header constants sent on upstream LLM API requests so that
 // intermediaries (e.g. aibridged) can correlate traffic back to
 // Coder entities.
@@ -1176,6 +1197,7 @@ func googleProviderOptionsFromChatConfig(
 	if options.ThinkingConfig != nil {
 		result.ThinkingConfig = &fantasygoogle.ThinkingConfig{
 			ThinkingBudget:  options.ThinkingConfig.ThinkingBudget,
+			ThinkingLevel:   GoogleThinkingLevelFromChat(options.ThinkingConfig.ThinkingLevel),
 			IncludeThoughts: options.ThinkingConfig.IncludeThoughts,
 		}
 	}

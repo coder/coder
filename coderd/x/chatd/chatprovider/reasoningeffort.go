@@ -129,7 +129,9 @@ func applyReasoningEffort(
 			providerOptions.ThinkingConfig = &fantasygoogle.ThinkingConfig{}
 		}
 		// A configured thinking budget wins: fantasy rejects requests that
-		// set both thinking_budget and thinking_level.
+		// set both thinking_budget and thinking_level. The resolved effort
+		// overrides a config-pinned thinking_level so the user's effort
+		// selection stays meaningful.
 		if providerOptions.ThinkingConfig.ThinkingBudget == nil {
 			level := googleThinkingLevel(*effort)
 			providerOptions.ThinkingConfig.ThinkingLevel = &level
