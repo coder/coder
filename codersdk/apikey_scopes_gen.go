@@ -104,6 +104,8 @@ const (
 	APIKeyScopeLicenseCreate                       APIKeyScope = "license:create"
 	APIKeyScopeLicenseDelete                       APIKeyScope = "license:delete"
 	APIKeyScopeLicenseRead                         APIKeyScope = "license:read"
+	APIKeyScopeMcpGatewayAll                       APIKeyScope = "mcp_gateway:*"
+	APIKeyScopeMcpGatewayUse                       APIKeyScope = "mcp_gateway:use"
 	APIKeyScopeNotificationMessageAll              APIKeyScope = "notification_message:*"
 	APIKeyScopeNotificationMessageCreate           APIKeyScope = "notification_message:create"
 	APIKeyScopeNotificationMessageDelete           APIKeyScope = "notification_message:delete"

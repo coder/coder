@@ -409,6 +409,11 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionCreate: "create aibridge interceptions & related records",
 		},
 	},
+	"mcp_gateway": {
+		Actions: map[Action]ActionDefinition{
+			ActionUse: "use the MCP gateway",
+		},
+	},
 	"ai_model_price": {
 		Actions: map[Action]ActionDefinition{
 			ActionRead:   "read AI model prices",

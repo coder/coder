@@ -219,6 +219,13 @@ var (
 		Type: "license",
 	}
 
+	// ResourceMcpGateway
+	// Valid Actions
+	//  - "ActionUse" :: use the MCP gateway
+	ResourceMcpGateway = Object{
+		Type: "mcp_gateway",
+	}
+
 	// ResourceNotificationMessage
 	// Valid Actions
 	//  - "ActionCreate" :: create notification messages
@@ -522,6 +529,7 @@ func AllResources() []Objecter {
 		ResourceIdpsyncSettings,
 		ResourceInboxNotification,
 		ResourceLicense,
+		ResourceMcpGateway,
 		ResourceNotificationMessage,
 		ResourceNotificationPreference,
 		ResourceNotificationTemplate,

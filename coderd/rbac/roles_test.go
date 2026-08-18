@@ -1284,6 +1284,21 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "MCPGateway",
+			Actions:  []policy.Action{policy.ActionUse},
+			Resource: rbac.ResourceMcpGateway,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner},
+				false: {
+					orgWorkspaceAccessUser, memberMe, agentsAccessUser,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
 			// Only owners can manage AI Gateway keys. They hold
 			// a hashed bearer secret used to authenticate Gateway
 			// replicas to coderd. Keys are deployment-wide.
