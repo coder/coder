@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -232,6 +233,84 @@ func TestCheckSameOriginRedirect(t *testing.T) {
 			require.ErrorContains(t, err, tc.wantErr)
 		})
 	}
+}
+
+func TestDialAttemptDeadline(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 18, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name              string
+		timeRemaining     time.Duration
+		attemptsRemaining int
+		want              time.Duration
+	}{
+		{name: "FirstOfTwo", timeRemaining: 6 * time.Second, attemptsRemaining: 2, want: 3 * time.Second},
+		{name: "FirstOfThree", timeRemaining: 6 * time.Second, attemptsRemaining: 3, want: 2 * time.Second},
+		{name: "LastAttempt", timeRemaining: 6 * time.Second, attemptsRemaining: 1, want: 6 * time.Second},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			deadline := now.Add(tc.timeRemaining)
+			require.Equal(t, now.Add(tc.want), dialAttemptDeadline(now, deadline, tc.attemptsRemaining))
+		})
+	}
+}
+
+func TestDialValidatedIPs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("PartialDeadlineAllowsLaterAddress", func(t *testing.T) {
+		t.Parallel()
+
+		listener, err := net.Listen("tcp4", "127.0.0.1:0")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, listener.Close())
+		})
+		_, port, err := net.SplitHostPort(listener.Addr().String())
+		require.NoError(t, err)
+
+		accepted := make(chan net.Conn, 1)
+		acceptErr := make(chan error, 1)
+		go func() {
+			conn, err := listener.Accept()
+			if err != nil {
+				acceptErr <- err
+				return
+			}
+			accepted <- conn
+		}()
+
+		stalledIP := netip.MustParseAddr("127.0.0.2")
+		dialer := &net.Dialer{
+			ControlContext: func(ctx context.Context, _, addr string, _ syscall.RawConn) error {
+				if addr != net.JoinHostPort(stalledIP.String(), port) {
+					return nil
+				}
+				<-ctx.Done()
+				return ctx.Err()
+			},
+		}
+		ctx := testutil.Context(t, 2*time.Second)
+		conn, err := dialValidatedIPs(ctx, dialer, "tcp4", port, []netip.Addr{
+			stalledIP,
+			netip.MustParseAddr("127.0.0.1"),
+		})
+		require.NoError(t, err)
+		require.NoError(t, conn.Close())
+
+		select {
+		case serverConn := <-accepted:
+			require.NoError(t, serverConn.Close())
+		case err := <-acceptErr:
+			require.NoError(t, err)
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for the successful connection")
+		}
+	})
 }
 
 func TestNewHTTPClientTimeout(t *testing.T) {
