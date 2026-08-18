@@ -28,6 +28,7 @@ import { shortRelativeTime } from "#/utils/time";
 import {
 	ChatActionsMenuItems,
 	chatHasMenuActions,
+	chatStatusAllowsArchive,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
@@ -150,6 +151,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		isChildChat: isChildNode,
 		hasWorkspace: Boolean(workspaceId),
 		isArchiving,
+		isArchiveBlocked: !chatStatusAllowsArchive(chat.status),
 		onPinAgent: () => onPinAgent(chat.id),
 		onUnpinAgent: () => onUnpinAgent(chat.id),
 		onArchiveAgent: () => onArchiveAgent(chat.id),

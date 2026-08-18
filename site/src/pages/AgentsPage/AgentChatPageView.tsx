@@ -206,6 +206,7 @@ interface AgentChatPageViewProps {
 	isPinned?: boolean;
 	isChildChat?: boolean;
 	isArchivingThisChat?: boolean;
+	isArchiveBlocked?: boolean;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -380,6 +381,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isPinned,
 	isChildChat,
 	isArchivingThisChat,
+	isArchiveBlocked,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	isHydratingMessages,
@@ -876,6 +878,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								isPinned={isPinned}
 								isChildChat={isChildChat}
 								isArchiving={isArchivingThisChat}
+								isArchiveBlocked={isArchiveBlocked}
 								hasWorkspace={Boolean(workspace)}
 								isArchived={isArchived}
 								diffStatusData={diffStatusData}

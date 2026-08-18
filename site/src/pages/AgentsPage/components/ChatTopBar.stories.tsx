@@ -367,6 +367,45 @@ export const ArchiveAndDeleteWorkspaceItem: Story = {
 	},
 };
 
+export const IdleChatArchiveActionsEnabled: Story = {
+	args: {
+		hasWorkspace: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
+		const body = within(document.body);
+		const archiveItem = await body.findByRole("menuitem", {
+			name: "Archive agent",
+		});
+		const archiveAndDeleteItem = body.getByRole("menuitem", {
+			name: "Archive & delete workspace",
+		});
+		expect(archiveItem).not.toHaveAttribute("aria-disabled", "true");
+		expect(archiveAndDeleteItem).not.toHaveAttribute("aria-disabled", "true");
+	},
+};
+
+export const ActiveChatArchiveActionsDisabled: Story = {
+	args: {
+		hasWorkspace: true,
+		isArchiveBlocked: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
+		const body = within(document.body);
+		const archiveItem = await body.findByRole("menuitem", {
+			name: "Archive agent",
+		});
+		const archiveAndDeleteItem = body.getByRole("menuitem", {
+			name: "Archive & delete workspace",
+		});
+		expect(archiveItem).toHaveAttribute("aria-disabled", "true");
+		expect(archiveAndDeleteItem).toHaveAttribute("aria-disabled", "true");
+	},
+};
+
 export const PreservesArchivedFilterOnMobileBack: Story = {
 	decorators: mobileDecorator,
 	parameters: {

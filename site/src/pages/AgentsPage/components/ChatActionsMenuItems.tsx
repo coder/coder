@@ -7,6 +7,7 @@ import {
 	Trash2Icon,
 } from "lucide-react";
 import type { FC } from "react";
+import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	ContextMenuItem,
 	ContextMenuSeparator,
@@ -15,6 +16,16 @@ import type {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 } from "#/components/DropdownMenu/DropdownMenu";
+
+// Backend chatstate permits archive only from W, E0, and E1. Unknown status
+// stays fail-open so the server conflict response remains the backstop.
+export const chatStatusAllowsArchive = (
+	status: TypesGen.ChatStatus | null | undefined,
+): boolean =>
+	status === undefined ||
+	status === null ||
+	status === "waiting" ||
+	status === "error";
 
 type ItemComponent = typeof DropdownMenuItem | typeof ContextMenuItem;
 type SeparatorComponent =
@@ -41,6 +52,7 @@ interface ChatActionsMenuItemsProps {
 	readonly isChildChat: boolean;
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;
+	readonly isArchiveBlocked?: boolean;
 	readonly onPinAgent?: () => void;
 	readonly onUnpinAgent?: () => void;
 	readonly onArchiveAgent: () => void;
@@ -58,6 +70,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	isChildChat,
 	hasWorkspace,
 	isArchiving = false,
+	isArchiveBlocked = false,
 	onPinAgent,
 	onUnpinAgent,
 	onArchiveAgent,
@@ -108,7 +121,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 							{(onOpenRenameDialog || showPinAction) && <Separator />}
 							<Item
 								className="text-content-destructive focus:text-content-destructive"
-								disabled={isArchiving}
+								disabled={isArchiving || isArchiveBlocked}
 								onSelect={onArchiveAgent}
 							>
 								<ArchiveIcon className="size-3.5" />
@@ -117,7 +130,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 							{hasWorkspace && (
 								<Item
 									className="text-content-destructive focus:text-content-destructive"
-									disabled={isArchiving}
+									disabled={isArchiving || isArchiveBlocked}
 									onSelect={onArchiveAndDeleteWorkspace}
 								>
 									<Trash2Icon className="size-3.5" />

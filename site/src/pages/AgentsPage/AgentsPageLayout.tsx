@@ -55,7 +55,6 @@ import {
 	workspaceByIdKey,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
@@ -341,9 +340,6 @@ const AgentsPageLayout: FC = () => {
 			}
 		},
 	});
-	const [pendingArchiveChatId, setPendingArchiveChatId] = useState<
-		string | null
-	>(null);
 	const [pendingArchiveAndDelete, setPendingArchiveAndDelete] = useState<{
 		chatId: string;
 		workspaceId: string;
@@ -401,34 +397,11 @@ const AgentsPageLayout: FC = () => {
 		(archiveAndDeleteMutation.isPending
 			? archiveAndDeleteMutation.variables?.chatId
 			: undefined);
-	// A chat in any of these statuses has an in-flight run that
-	// archiving would interrupt, so ask for confirmation first.
-	const isActiveChat = (chat: TypesGen.Chat | undefined) =>
-		chat?.status === "running" ||
-		chat?.status === "interrupting" ||
-		chat?.status === "requires_action";
 	const requestArchiveAgent = (chatId: string) => {
 		if (isArchiving) {
 			return;
 		}
-		const chat =
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)) ??
-			chatList.find((candidate) => candidate.id === chatId);
-		if (chat === undefined || isActiveChat(chat)) {
-			setPendingArchiveChatId(chatId);
-			return;
-		}
 		archiveAgentMutation.mutate(chatId);
-	};
-	const handleConfirmArchiveAgent = () => {
-		if (!pendingArchiveChatId || isArchiving) {
-			return;
-		}
-		archiveAgentMutation.mutate(pendingArchiveChatId, {
-			onSettled: () => {
-				setPendingArchiveChatId(null);
-			},
-		});
 	};
 
 	// Track the active chat ID in a ref so the watchChats
@@ -835,16 +808,6 @@ const AgentsPageLayout: FC = () => {
 					<Outlet context={outletContextValue} />
 				</div>
 			</div>
-			<ConfirmDialog
-				open={pendingArchiveChatId !== null}
-				onClose={() => setPendingArchiveChatId(null)}
-				onConfirm={handleConfirmArchiveAgent}
-				type="delete"
-				confirmText="Archive"
-				confirmLoading={archiveAgentMutation.isPending}
-				title="Archive agent?"
-				description="This agent is currently running. Archiving it will interrupt the current run."
-			/>
 			<DeleteDialog
 				key={pendingWorkspaceName}
 				isOpen={deleteDialogOpen}

@@ -2007,6 +2007,79 @@ export const AgentWithWorkspaceMenuFull: Story = {
 	},
 };
 
+export const ArchiveActionsFollowChatStatus: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "running-archive-actions",
+				title: "Running agent",
+				status: "running",
+				workspace_id: "workspace-running",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "idle-archive-actions",
+				title: "Idle agent",
+				status: "waiting",
+				workspace_id: "workspace-idle",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Running agent")).toBeInTheDocument();
+			expect(canvas.getByText("Idle agent")).toBeInTheDocument();
+		});
+
+		await userEvent.click(
+			canvas.getByLabelText("Open actions for Running agent"),
+		);
+		let body = within(document.body);
+		expect(
+			await body.findByRole("menuitem", { name: "Archive agent" }),
+		).toHaveAttribute("aria-disabled", "true");
+		expect(
+			body.getByRole("menuitem", { name: "Archive & delete workspace" }),
+		).toHaveAttribute("aria-disabled", "true");
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
+		});
+
+		fireEvent.contextMenu(
+			canvas.getByTestId("agents-tree-node-running-archive-actions"),
+		);
+		body = within(document.body);
+		expect(
+			await body.findByRole("menuitem", { name: "Archive agent" }),
+		).toHaveAttribute("aria-disabled", "true");
+		expect(
+			body.getByRole("menuitem", { name: "Archive & delete workspace" }),
+		).toHaveAttribute("aria-disabled", "true");
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(canvas.getByLabelText("Open actions for Idle agent"));
+		body = within(document.body);
+		expect(
+			await body.findByRole("menuitem", { name: "Archive agent" }),
+		).not.toHaveAttribute("aria-disabled", "true");
+		expect(
+			body.getByRole("menuitem", { name: "Archive & delete workspace" }),
+		).not.toHaveAttribute("aria-disabled", "true");
+	},
+};
+
 export const ArchivedChildChatRowHasNoActionsMenu: Story = {
 	args: {
 		chats: [
