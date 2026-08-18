@@ -2010,6 +2010,7 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 			ID:        version.CreatedBy,
 			Username:  version.CreatedByUsername,
 			Name:      version.CreatedByName,
+			Email:     version.CreatedByEmail,
 			AvatarURL: version.CreatedByAvatarURL,
 		},
 		Archived:            version.Archived,
