@@ -16,31 +16,33 @@ variable "docker_socket" {
 }
 
 variable "workspace_image" {
-  description = <<-EOT
-    Image for the human workspace container. It must contain coder-sandbox,
-    bash, and a static Linux amd64 coder binary on PATH.
-  EOT
+  description = "Image for the workspace container that runs the Coder agent."
   type        = string
   default     = "codercom/enterprise-base:ubuntu"
 }
 
 variable "sandbox_image" {
-  description = "OCI image booted inside the coder/sandbox microVM."
+  description = "OCI image booted inside the embedded microVM."
   type        = string
   default     = "ubuntu:24.04"
 }
 
 variable "sandbox_memory_mib" {
-  description = "Guest memory for the coder/sandbox microVM, in MiB."
+  description = "Guest memory for the embedded microVM, in MiB."
   type        = number
   default     = 1024
+}
+
+variable "sandbox_cpus" {
+  description = "Virtual CPU count for the embedded microVM."
+  type        = number
+  default     = 1
 }
 
 provider "docker" {
   host = var.docker_socket != "" ? var.docker_socket : null
 }
 
-data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
@@ -56,31 +58,24 @@ data "coder_parameter" "kvm_gid" {
 
 locals {
   workspace_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  staging_dir    = "/tmp/coder-ai-microvm"
-  policy_file    = "/home/coder/.config/coder-sandbox/coder-ai/runtime-network.yaml"
-
   agent_init = replace(
     coder_agent.main.init_script,
     "/localhost|127\\.0\\.0\\.1/",
     "host.docker.internal",
   )
 
-  # These variables must be present in the agent process environment. The
-  # controller reads them while the agent starts, before startup scripts run.
-  agent_process_env = [
-    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
-    "CODER_AI_SANDBOX_CREATE_SCRIPT=${local.staging_dir}/sandbox-create.sh",
-    "CODER_AI_SANDBOX_DESTROY_SCRIPT=${local.staging_dir}/sandbox-destroy.sh",
-    "CODER_AI_SANDBOX_POLICY_FILE=${local.policy_file}",
-    "CODER_AI_SANDBOX_POLICY_RELOAD_SCRIPT=${local.staging_dir}/sandbox-reload-policy.sh",
-    "CODER_AI_SANDBOX_NAME=microvm",
-    "CODER_AI_SANDBOX_IMAGE=${var.sandbox_image}",
-    "CODER_AI_SANDBOX_MEMORY_MIB=${var.sandbox_memory_mib}",
-  ]
+  sandbox_env = {
+    CODER_AI_SANDBOX_MICROVM            = "true"
+    CODER_AI_SANDBOX_NAME               = "microvm"
+    CODER_AI_SANDBOX_IMAGE              = var.sandbox_image
+    CODER_AI_SANDBOX_MEMORY_MIB         = tostring(var.sandbox_memory_mib)
+    CODER_AI_SANDBOX_CPUS               = tostring(var.sandbox_cpus)
+    CODER_AI_SANDBOX_EGRESS_ENFORCEMENT = "forced"
+  }
 }
 
 resource "coder_agent" "main" {
-  arch = data.coder_provisioner.me.arch
+  arch = "amd64"
   os   = "linux"
 
   startup_script = <<-EOT
@@ -91,12 +86,12 @@ resource "coder_agent" "main" {
     fi
   EOT
 
-  env = {
+  env = merge(local.sandbox_env, {
     GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_AUTHOR_EMAIL    = data.coder_workspace_owner.me.email
     GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL = data.coder_workspace_owner.me.email
-  }
+  })
 
   metadata {
     display_name = "CPU Usage"
@@ -120,14 +115,17 @@ resource "docker_volume" "home_volume" {
   lifecycle {
     ignore_changes = all
   }
+
   labels {
     label = "coder.owner"
     value = data.coder_workspace_owner.me.name
   }
+
   labels {
     label = "coder.owner_id"
     value = data.coder_workspace_owner.me.id
   }
+
   labels {
     label = "coder.workspace_id"
     value = data.coder_workspace.me.id
@@ -140,21 +138,12 @@ resource "docker_container" "workspace" {
   name     = local.workspace_name
   hostname = data.coder_workspace.me.name
 
-  # Stage scripts before starting the agent. A bind mount from path.module does
-  # not work because Docker resolves host paths on the daemon host.
-  entrypoint = ["sh", "-c", <<-EOT
-    set -eu
-    mkdir -p ${local.staging_dir}
-    echo '${base64encode(file("${path.module}/scripts/sandbox-create.sh"))}' | base64 -d > ${local.staging_dir}/sandbox-create.sh
-    echo '${base64encode(file("${path.module}/scripts/sandbox-destroy.sh"))}' | base64 -d > ${local.staging_dir}/sandbox-destroy.sh
-    echo '${base64encode(file("${path.module}/scripts/sandbox-reload-policy.sh"))}' | base64 -d > ${local.staging_dir}/sandbox-reload-policy.sh
-    echo '${base64encode(local.agent_init)}' | base64 -d > ${local.staging_dir}/init.sh
-    chmod +x ${local.staging_dir}/sandbox-create.sh ${local.staging_dir}/sandbox-destroy.sh ${local.staging_dir}/sandbox-reload-policy.sh
-    exec sh ${local.staging_dir}/init.sh
-  EOT
-  ]
+  entrypoint = ["sh", "-c", local.agent_init]
+  env = concat(
+    ["CODER_AGENT_TOKEN=${coder_agent.main.token}"],
+    [for name, value in local.sandbox_env : "${name}=${value}"],
+  )
 
-  env       = local.agent_process_env
   group_add = [data.coder_parameter.kvm_gid.value]
 
   devices {
@@ -168,8 +157,9 @@ resource "docker_container" "workspace" {
     ip   = "host-gateway"
   }
 
-  # The whole home directory is persistent. coder/sandbox keeps daemon state,
-  # downloaded runtime artifacts, and image caches below this mount.
+  # The agent stores downloaded runtime artifacts and OCI image layers below
+  # ~/.config/coder-ai/microvm, so the home volume makes first-boot downloads
+  # reusable across workspace restarts.
   volumes {
     container_path = "/home/coder"
     volume_name    = docker_volume.home_volume.name
@@ -180,14 +170,17 @@ resource "docker_container" "workspace" {
     label = "coder.owner"
     value = data.coder_workspace_owner.me.name
   }
+
   labels {
     label = "coder.owner_id"
     value = data.coder_workspace_owner.me.id
   }
+
   labels {
     label = "coder.workspace_id"
     value = data.coder_workspace.me.id
   }
+
   labels {
     label = "coder.workspace_name"
     value = data.coder_workspace.me.name

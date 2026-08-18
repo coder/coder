@@ -1,164 +1,110 @@
 ---
 display_name: AI sandbox (microVM)
-description: An AI child agent confined in a coder/sandbox microVM
+description: An AI child agent confined in an embedded microVM
 icon: ../../../site/static/icon/coder.svg
 maintainer_github: coder
 tags: [docker, ai, security, microvm, demo]
 ---
 
-# AI sandbox in a coder/sandbox microVM
+# AI sandbox in an embedded microVM
 
-This template runs one ordinary Coder agent in a Docker workspace. That host
-agent asks coderd to create a managed AI sandbox and child agent, then boots the
-child inside a `coder/sandbox` microVM. Terraform declares only
-`coder_agent.main`; coderd creates the child agent with the correct parent and
-AI identity.
+This template boots a managed AI sandbox directly from the Coder agent binary.
+It does not install or invoke `coder-sandbox`, a microVM daemon, helper scripts,
+or any other runtime binary. The workspace image can remain the plain
+`codercom/enterprise-base:ubuntu` image.
 
-The template demonstrates live policy delivery to an external sandbox runtime.
-It does not claim that Coder can attest the microVM boundary or force all guest
-egress itself.
+Terraform creates one workspace container and one `coder_agent.main`. When the
+agent sees `CODER_AI_SANDBOX_MICROVM=true`, it asks coderd to reconcile the
+managed sandbox and child agent, downloads the microVM runtime and guest image
+when needed, boots the guest, mounts its own executable at `/opt/coder`, and
+starts the child agent inside the guest.
 
-## Requirements
+## Prerequisites
 
 - A Linux amd64 Docker provisioner host with hardware virtualization enabled.
-- `/dev/kvm` available to the Docker daemon.
-- The numeric group ID that owns `/dev/kvm`. Find it on the Docker host:
+- `/dev/kvm` available to the Docker daemon and accessible to the workspace
+  user. Find the device group ID on the Docker host:
 
   ```bash
   stat -c %g /dev/kvm
   ```
 
-  Enter that value for the `kvm_gid` workspace parameter. The default `108` is
-  common on Debian and Ubuntu, but it must not be assumed correct for another
-  host.
-- A workspace image containing `coder-sandbox`, `bash`, and a static Linux
-  amd64 `coder` binary on `PATH`. The default image documents the expected base
-  image but does not include `coder-sandbox`; build a derived image before using
-  the template:
+  Supply that value through the `kvm_gid` workspace parameter. The template
+  mounts the device and adds the numeric GID as a supplemental group. The
+  default `108` is common on Debian and Ubuntu, but it is not portable.
+- Outbound network access from the workspace container on first boot. The agent
+  downloads the embedded microVM runtime and the configured OCI guest image.
 
-  ```dockerfile
-  FROM codercom/enterprise-base:ubuntu
-  COPY coder-sandbox /usr/local/bin/coder-sandbox
-  RUN sudo chmod 0755 /usr/local/bin/coder-sandbox
-  ```
+No additional executable is required in the workspace image. The Coder agent
+binary carries the sandbox integration and is also the binary launched inside
+the guest.
 
-- An OCI guest image for `linux/amd64` with `/bin/sh`. The default is
-  `ubuntu:24.04`.
+## Persistent first-boot cache
 
-The Docker container mounts `/dev/kvm` and adds the supplied group ID as a
-supplemental group. The persistent `/home/coder` volume retains
-`~/.config/coder-sandbox`, including daemon state, runtime artifacts, and image
-cache.
+The template mounts a persistent volume at `/home/coder`. The agent stores
+runtime artifacts and OCI image data below:
 
-### First boot network access
+```text
+~/.config/coder-ai/microvm/cache
+~/.config/coder-ai/microvm/state
+```
 
-A cold `coder-sandbox up` may download its VM runtime and the OCI rootfs. The
-sandbox controller allows five minutes for the create script. Slow or restricted
-networks can exceed that limit. Preinstall or prewarm the runtime and guest image
-when possible. The persistent home volume avoids repeating successful downloads
-on later workspace starts.
+A cold workspace start needs network access and can take several minutes. Once
+an artifact or image is cached successfully, later workspace restarts reuse it
+from the home volume.
 
-These downloads are made by the host workspace, before guest policy is relevant.
-The host workspace therefore needs ordinary network access to the configured
-artifact and image registries.
+## Configuration
+
+| Input | Default | Purpose |
+|---|---:|---|
+| `kvm_gid` parameter | `108` | Numeric group ID that owns `/dev/kvm` on the Docker host |
+| `workspace_image` variable | `codercom/enterprise-base:ubuntu` | Container image that runs the host Coder agent |
+| `sandbox_image` variable | `ubuntu:24.04` | Linux amd64 OCI image booted as the guest |
+| `sandbox_memory_mib` variable | `1024` | Guest memory in MiB |
+| `sandbox_cpus` variable | `1` | Guest virtual CPU count |
+
+The template declares `CODER_AI_SANDBOX_EGRESS_ENFORCEMENT=forced`. This is an
+administrator attestation recorded by Coder. Embedded mode makes that claim
+defensible because the platform starts the microVM and installs its gateway
+proxy instead of trusting an external runtime script to do so.
 
 ## Live policy flow
 
 ```text
-coderd policy revision
+Coder UI or API policy edit
+  -> coderd policy revision
   -> SSE to coder_agent.main
-  -> atomic runtime-network.yaml replacement
-  -> sandbox-reload-policy.sh rebuilds the full descriptor
-  -> coder/sandbox watches that descriptor every 500ms
-  -> valid runtime policy is atomically applied to the guest proxy
+  -> shared in-memory PolicyEngine
+  -> in-process microVM gateway proxy
+  -> immediate guest enforcement
 ```
 
-`coder/sandbox up NAME -f descriptor.yaml` registers the descriptor path itself.
-With `runtime.network.reload: watch`, the daemon polls that descriptor, parses
-only its `runtime` section, and applies the shared network and MCP policy
-snapshot. Changes under `sandbox` do not alter a running VM.
+There is no exported policy file, descriptor rendering, reload hook, daemon
+watch loop, or 500 millisecond polling interval. The SSE watcher updates the
+same `PolicyEngine` read by the embedded proxy, so a complete policy revision is
+used immediately for new requests.
 
-The descriptor format cannot include an external `runtime.network` file. The
-reload hook therefore indents the controller-owned policy document into a newly
-rendered descriptor. The initial policy file and descriptor are written before
-the create script boots the VM.
+## Enforcement model
 
-## Policy translation
+The gateway proxy runs inside the host Coder agent process and is attached to
+the private network created for the embedded microVM. The guest does not use the
+parent loopback proxy listener used by create-script and proxy-only modes. It
+can reach the dedicated gateway listener supplied by the embedded runtime.
 
-The host agent exports this `runtime.network` shape:
+This differs from the former external-daemon example. In that arrangement,
+Coder exported policy to a file and trusted `coder-sandbox` plus template
+scripts to create the boundary and reload policy. In embedded mode, the Coder
+agent owns the VM boot configuration, proxy evaluator, event recorder, child
+agent launch, and shutdown. Network events flow through the normal Coder event
+batcher and can be attributed to the managed child agent.
 
-```yaml
-reload: watch
-default: deny
-mode: enforce
-rules:
-  - host: api.example.com
-    ports: [443]
-    action: allow
-    tls: passthrough
-```
-
-Translation differences are security relevant:
-
-| Coder egress policy | coder/sandbox document |
-|---|---|
-| Empty port list | Explicit ports `80` and `443` |
-| `*.example.com` | Passed through unchanged, but coder/sandbox matches arbitrary subdomain depth rather than exactly one label |
-| TLS handling | Every rule uses `tls: passthrough`; the guest keeps end-to-end TLS |
-| IP literal | Exact `/32` or `/128` CIDR rule |
-| Coder access URL | Host rule on the access URL port, plus exact CIDRs for private or loopback resolutions |
-| Default and mode | Always `deny` and `enforce` |
-
-The access URL CIDRs are required because the coder/sandbox proxy performs a
-second policy decision when a hostname resolves to a private or loopback
-address.
-
-## Lifecycle
-
-The controller invokes the policy reload hook before the create script. The
-create script then:
-
-1. Verifies `coder-sandbox`, the static `coder` binary, and read-write KVM
-   access.
-2. Runs `coder-sandbox down` to discard stale state. The daemon does not resume
-   VMs after daemon restarts.
-3. Renders the descriptor again and runs `coder-sandbox up NAME -f ...`.
-4. Bind-mounts the static `coder` binary read-only at `/opt/coder`.
-5. Uses `coder-sandbox ssh NAME -- ...` and `setsid` to launch the child agent
-   with the server-minted child token.
-
-On workspace stop, the destroy script runs `coder-sandbox down NAME`.
-
-## What is and is not attested
-
-This template deliberately does not set Terraform `ai_bound` or
-`egress_enforcement` fields. Managed-sandbox mode creates the AI child in coderd,
-and the session reports `egress_enforcement: none`. The network boundary is
-implemented externally by `coder/sandbox`, not forced or verified by the Coder
-platform.
-
-`coder/sandbox` prevents ordinary guest IPv4 egress from bypassing its proxy,
-but its VM firewall forwards IPv6 and other non-IPv4 EtherTypes without the same
-policy parsing. This is a known enforcement gap, so the template must not claim
-platform-forced confinement.
-
-The Coder confine proxy and event batcher still run on the host, but the microVM
-guest cannot use that proxy. Guest requests are recorded by `coder/sandbox`.
-They are not yet retained as Coder AI sandbox network events.
-
-## Validation status
-
-The template was not booted end to end in the development workspace where it
-was added. On that host, `/dev/kvm` is mode `0660`, owned by group ID `65534`,
-and UID `1000` cannot open it read-write. Terraform validation, shell checks,
-and descriptor rendering were exercised without starting a VM.
-
-An operator with KVM access must complete the guest boot and live-policy checks
-below before relying on the demo.
+The controller does not automatically change an administrator's egress
+attestation. This template explicitly declares `forced`; custom templates must
+choose their own value.
 
 ## Try it
 
-Push the template and supply the actual KVM group ID:
+Push the template and provide the KVM group ID from the Docker host:
 
 ```bash
 KVM_GID=$(stat -c %g /dev/kvm)
@@ -169,29 +115,60 @@ coder create ai-microvm \
   --parameter "kvm_gid=${KVM_GID}"
 ```
 
-Check the host-side daemon and guest:
+The managed child agent is named `microvm`, so it is addressable as
+`ai-microvm.microvm` after it connects.
 
-```bash
-coder ssh ai-microvm -- 'coder-sandbox ls'
-coder ssh ai-microvm -- 'coder-sandbox troubleshoot'
-```
+## Operator validation checklist
 
-Change the template AI egress policy without rebuilding the workspace, then
-inspect the exported policy and descriptor:
+MicroVM boot is gated on KVM and is not exercised by the ordinary CI suite. An
+operator with usable `/dev/kvm` access should validate all of the following:
 
-```bash
-coder ssh ai-microvm -- \
-  'cat ~/.config/coder-sandbox/coder-ai/runtime-network.yaml'
-coder ssh ai-microvm -- \
-  'grep -A30 "^runtime:" ~/.config/coder-sandbox/coder-ai/coder-*.yaml'
-```
+1. **KVM access.** Connect to `ai-microvm.main` and confirm that the workspace
+   user can open `/dev/kvm` read-write.
 
-For an end-to-end host validation, confirm all of the following:
+   ```bash
+   coder ssh ai-microvm.main
+   test -r /dev/kvm && test -w /dev/kvm && echo "KVM accessible"
+   ```
 
-1. The workspace container can open `/dev/kvm` read-write as the `coder` user.
-2. `coder-sandbox up` boots the guest and `coder-sandbox ls` reports it running.
-3. The managed child agent connects and appears under the workspace.
-4. An allowed HTTPS request succeeds from `coder-sandbox ssh NAME -- ...`.
-5. A denied host or port fails.
-6. Editing the Coder egress policy changes the descriptor and guest behavior
-   without rebuilding or rebooting the workspace.
+2. **Guest boot.** Inspect the host agent logs for `embedded AI sandbox microVM
+   started`. A failure is reported as degraded while the host workspace remains
+   available.
+3. **Child agent connection.** Run `coder show ai-microvm` and confirm that the
+   `microvm` child agent is connected. Then connect with:
+
+   ```bash
+   coder ssh ai-microvm.microvm
+   ```
+
+4. **Allowed request.** In the Coder egress policy UI, allow a test host and
+   port. From the child-agent terminal, run a request such as:
+
+   ```bash
+   curl -I --max-time 10 https://allowed.example
+   ```
+
+5. **Denied request.** From the same terminal, request a host or port that is
+   not allowed and confirm the proxy rejects it:
+
+   ```bash
+   curl -I --max-time 10 https://denied.example
+   ```
+
+6. **Live policy flip.** Change the allowlist in the UI without restarting the
+   workspace or guest. Repeat both requests and confirm that the new decision
+   applies immediately.
+7. **Shutdown.** Stop the workspace and confirm the controller closes the
+   embedded VM without leaving runtime state for a running guest.
+
+The default Ubuntu guest may not include `curl`. For the HTTP checks, select a
+Linux amd64 guest image that already contains it. This is a validation tool in
+the guest image, not a host runtime dependency.
+
+## Validation status
+
+Terraform formatting and provider validation are exercised without KVM. The
+embedded controller and policy wiring have unit coverage with a fake VM, while
+the real boot smoke test skips unless `/dev/kvm` can be opened read-write. An
+end-to-end guest boot, child connection, and live allow or deny flip therefore
+remain operator-validated on a KVM-capable host.
