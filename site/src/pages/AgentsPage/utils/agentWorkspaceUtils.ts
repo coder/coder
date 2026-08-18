@@ -109,16 +109,28 @@ export class ArchiveAndDeleteError extends Error {
 }
 
 // Delete-first, archive-second. 404/410 on delete falls through to archive.
+// Deleting first keeps the chat (and its retry surface) in the sidebar when
+// the delete enqueue fails, but it makes a late archive rejection
+// destructive: the workspace would be gone while the chat stays active. The
+// validation callback re-checks archive eligibility against fresh server
+// state right before the irreversible delete, closing the window where the
+// family became active while a confirmation dialog was open.
 export async function archiveChatAndDeleteWorkspace(
 	chatId: string,
 	workspaceId: string,
 	doArchive: (chatId: string) => Promise<unknown>,
 	doDelete: (workspaceId: string) => Promise<WorkspaceBuild>,
+	validateArchive: (chatId: string) => Promise<void>,
 ): Promise<{
 	chatId: string;
 	workspaceId: string;
 	deleteBuild: WorkspaceBuild | null;
 }> {
+	try {
+		await validateArchive(chatId);
+	} catch (error) {
+		throw new ArchiveAndDeleteError("archive", error);
+	}
 	let deleteBuild: WorkspaceBuild | null = null;
 	try {
 		deleteBuild = await doDelete(workspaceId);

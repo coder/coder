@@ -65,6 +65,7 @@ import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { chatFamilyAllowsArchive } from "./components/ChatActionsMenuItems";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -300,6 +301,14 @@ const AgentsPageLayout: FC = () => {
 				workspaceId,
 				(id) => API.experimental.updateChat(id, { archived: true }),
 				(id) => API.deleteWorkspace(id),
+				async (id) => {
+					const chat = await API.experimental.getChat(id);
+					if (!chatFamilyAllowsArchive(chat.status, chat.children)) {
+						throw new Error(
+							"The agent is running. Interrupt or wait for it to finish first.",
+						);
+					}
+				},
 			),
 		onSuccess: ({ chatId, workspaceId, deleteBuild }) => {
 			applyChatArchiveStateToCaches(queryClient, chatId, true);

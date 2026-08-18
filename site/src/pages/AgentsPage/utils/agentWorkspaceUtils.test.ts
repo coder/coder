@@ -280,8 +280,9 @@ describe("archiveChatAndDeleteWorkspace", () => {
 	const BUILD_OK = {
 		job: { queue_position: 0, queue_size: 1 },
 	} as unknown as WorkspaceBuild;
+	const validateOk = async () => undefined;
 
-	it("archives and deletes when both succeed, deleting first", async () => {
+	it("archives and deletes when both succeed, validating then deleting first", async () => {
 		const callOrder: string[] = [];
 		const doArchive = vi.fn(async () => {
 			callOrder.push("archive");
@@ -290,6 +291,9 @@ describe("archiveChatAndDeleteWorkspace", () => {
 			callOrder.push("delete");
 			return BUILD_OK;
 		});
+		const validateArchive = vi.fn(async () => {
+			callOrder.push("validate");
+		});
 
 		await expect(
 			archiveChatAndDeleteWorkspace(
@@ -297,6 +301,7 @@ describe("archiveChatAndDeleteWorkspace", () => {
 				"workspace-1",
 				doArchive,
 				doDelete,
+				validateArchive,
 			),
 		).resolves.toEqual({
 			chatId: "chat-1",
@@ -307,7 +312,31 @@ describe("archiveChatAndDeleteWorkspace", () => {
 		expect(doArchive).toHaveBeenCalledWith("chat-1");
 		expect(doDelete).toHaveBeenCalledTimes(1);
 		expect(doDelete).toHaveBeenCalledWith("workspace-1");
-		expect(callOrder).toEqual(["delete", "archive"]);
+		expect(validateArchive).toHaveBeenCalledWith("chat-1");
+		expect(callOrder).toEqual(["validate", "delete", "archive"]);
+	});
+
+	it("does not delete the workspace when archive validation fails", async () => {
+		const doArchive = vi.fn(async () => undefined);
+		const doDelete = vi.fn(async () => BUILD_OK);
+		const validateArchive = vi.fn(async () => {
+			throw new Error("chat family is active");
+		});
+
+		const result = archiveChatAndDeleteWorkspace(
+			"chat-1",
+			"workspace-1",
+			doArchive,
+			doDelete,
+			validateArchive,
+		);
+		await expect(result).rejects.toBeInstanceOf(ArchiveAndDeleteError);
+		await expect(result).rejects.toMatchObject({
+			step: "archive",
+			deleteEnqueued: false,
+		});
+		expect(doDelete).not.toHaveBeenCalled();
+		expect(doArchive).not.toHaveBeenCalled();
 	});
 
 	it("archives even when delete returns 404, with null deleteBuild", async () => {
@@ -332,6 +361,7 @@ describe("archiveChatAndDeleteWorkspace", () => {
 				"workspace-1",
 				doArchive,
 				doDelete,
+				validateOk,
 			),
 		).resolves.toEqual({
 			chatId: "chat-1",
@@ -359,6 +389,7 @@ describe("archiveChatAndDeleteWorkspace", () => {
 				"workspace-1",
 				doArchive,
 				doDelete,
+				validateOk,
 			),
 		).resolves.toEqual({
 			chatId: "chat-1",
@@ -387,6 +418,7 @@ describe("archiveChatAndDeleteWorkspace", () => {
 			"workspace-1",
 			doArchive,
 			doDelete,
+			validateOk,
 		);
 		await expect(promise).rejects.toBeInstanceOf(ArchiveAndDeleteError);
 		const err = await promise.catch((e: unknown) => e);
@@ -408,6 +440,7 @@ describe("archiveChatAndDeleteWorkspace", () => {
 			"workspace-1",
 			doArchive,
 			doDelete,
+			validateOk,
 		);
 		await expect(promise).rejects.toBeInstanceOf(ArchiveAndDeleteError);
 		const err = await promise.catch((e: unknown) => e);
@@ -434,6 +467,7 @@ describe("archiveChatAndDeleteWorkspace", () => {
 			"workspace-1",
 			doArchive,
 			doDelete,
+			validateOk,
 		);
 		const err = (await promise.catch(
 			(e: unknown) => e,
@@ -454,6 +488,7 @@ describe("archiveChatAndDeleteWorkspace", () => {
 			"workspace-1",
 			doArchive,
 			doDelete,
+			validateOk,
 		);
 		expect(result.deleteBuild).toBe(build);
 	});
