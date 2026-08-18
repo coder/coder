@@ -149,9 +149,9 @@ export const WithAllApps: Story = {
 			expect(body.getByText("JetBrains Gateway")).toBeInTheDocument();
 			expect(body.getByText("Cursor")).toBeInTheDocument();
 			expect(body.getByText("Terminal")).toBeInTheDocument();
-			// The workspace status now renders as a subtitle under View
+			// The workspace status now renders as a colored subtitle under View
 			// Workspace instead of a hover tooltip.
-			expect(body.getByText("Workspace running")).toBeInTheDocument();
+			expect(body.getByText("Running")).toBeInTheDocument();
 			expect(body.getByText("Copy SSH Command")).toBeInTheDocument();
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
 
@@ -316,7 +316,7 @@ export const WithStoppedWorkspace: Story = {
 			const body = within(document.body);
 
 			// Status subtitle under View Workspace reflects the stopped state.
-			expect(body.getByText("Workspace stopped")).toBeInTheDocument();
+			expect(body.getByText("Stopped")).toBeInTheDocument();
 
 			// VS Code items should be present but disabled.
 			const vscodeItem = body.getByText("VS Code").closest("[role=menuitem]");

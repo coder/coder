@@ -1,5 +1,6 @@
 import {
 	ChevronDownIcon,
+	CircleDotIcon,
 	CopyIcon,
 	LayoutGridIcon,
 	MonitorIcon,
@@ -44,6 +45,7 @@ import {
 	usePortsData,
 } from "#/modules/resources/usePortsData";
 import { cn } from "#/utils/cn";
+import type { DisplayWorkspaceStatusType } from "#/utils/workspace";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
 import { MobilePortsPanel, PortsMenuItem } from "./WorkspacePillPorts";
 
@@ -68,7 +70,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	const isRunning = workspace.latest_build.status === "running";
 	const route = `/@${workspace.owner_name}/${workspace.name}`;
 
-	const { effectiveType, statusLabel } = getWorkspaceStatus(workspace, agent);
+	const { effectiveType, statusText } = getWorkspaceStatus(workspace, agent);
 
 	const { mutate: generateKey, isPending: isGeneratingKey } = useMutation({
 		mutationFn: () => API.getApiKey(),
@@ -234,8 +236,14 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								<MonitorIcon className="mt-px size-3.5 shrink-0" />
 								<span className="flex min-w-0 flex-col">
 									<span className="truncate">View Workspace</span>
-									<span className="truncate font-normal text-content-disabled">
-										{statusLabel}
+									<span
+										className={cn(
+											"flex min-w-0 items-center gap-1 font-normal",
+											statusColorMap[effectiveType],
+										)}
+									>
+										<CircleDotIcon className="size-3 shrink-0" />
+										<span className="truncate">{statusText}</span>
 									</span>
 								</span>
 							</Link>
@@ -257,6 +265,15 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
+};
+
+const statusColorMap: Record<DisplayWorkspaceStatusType, string> = {
+	success: "text-content-success",
+	active: "text-content-link",
+	inactive: "text-content-secondary",
+	error: "text-content-destructive",
+	danger: "text-content-destructive",
+	warning: "text-content-warning",
 };
 
 const VSCodeMenuItem: FC<{

@@ -34,7 +34,11 @@ export const StatusIcon: FC<{
 export function getWorkspaceStatus(
 	workspace: Workspace,
 	agent?: WorkspaceAgent | null,
-): { effectiveType: DisplayWorkspaceStatusType; statusLabel: string } {
+): {
+	effectiveType: DisplayWorkspaceStatusType;
+	statusLabel: string;
+	statusText: string;
+} {
 	let { type, text } = getDisplayWorkspaceStatus(
 		workspace.latest_build.status,
 		workspace.latest_build.job,
@@ -57,8 +61,9 @@ export function getWorkspaceStatus(
 	}
 
 	const effectiveType = workspace.health.healthy ? type : "warning";
+	const statusText = workspace.health.healthy ? text : `${text} (unhealthy)`;
 	const statusLabel = workspace.health.healthy
 		? `Workspace ${text.toLowerCase()}`
 		: `Workspace ${text.toLowerCase()} (unhealthy)`;
-	return { effectiveType, statusLabel };
+	return { effectiveType, statusLabel, statusText };
 }
