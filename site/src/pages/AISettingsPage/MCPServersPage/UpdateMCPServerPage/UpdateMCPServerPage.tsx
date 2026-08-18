@@ -14,7 +14,6 @@ import {
 	updateMCPServerConfig,
 } from "#/api/queries/chats";
 import { organizationsPermissions } from "#/api/queries/organizations";
-import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -65,11 +64,12 @@ const UpdateMCPServerPage: FC = () => {
 	const canDelete =
 		permissions.editDeploymentConfig ||
 		Boolean(organizationPermissions?.deleteMCPServerConfig);
+	const canManage = canUpdate || canDelete;
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const serverQuery = useQuery({
 		...mcpServerConfig(organization?.id ?? "", serverId ?? ""),
-		enabled: Boolean(serverId) && (canUpdate || canDelete),
+		enabled: Boolean(serverId) && canManage,
 	});
 	const server = serverQuery.data;
 	const updateMutation = useMutation(
@@ -87,17 +87,6 @@ const UpdateMCPServerPage: FC = () => {
 	const listPath = organization
 		? mcpServersPath(organization)
 		: "/ai/settings/mcp-servers";
-	const onUpdateServer = canUpdate
-		? async (id: string, req: TypesGen.UpdateMCPServerConfigRequest) => {
-				try {
-					const updated = await updateMutation.mutateAsync({ id, req });
-					toast.success(`MCP server "${updated.display_name}" updated.`);
-					await navigate(listPath);
-				} catch (error) {
-					toast.error(getErrorMessage(error, "Failed to update MCP server."));
-				}
-			}
-		: undefined;
 
 	return (
 		<RequirePermission
@@ -114,7 +103,7 @@ const UpdateMCPServerPage: FC = () => {
 				<Loader />
 			) : (
 				<RequirePermission
-					isFeatureVisible={(canUpdate || canDelete) && Boolean(organization)}
+					isFeatureVisible={canManage && Boolean(organization)}
 				>
 					{!serverId ? (
 						<Navigate to={listPath} replace />
@@ -145,7 +134,29 @@ const UpdateMCPServerPage: FC = () => {
 								isSaving={updateMutation.isPending}
 								isDeleting={deleteMutation.isPending}
 								onCancel={() => void navigate(listPath)}
-								onUpdateServer={onUpdateServer}
+								onUpdateServer={
+									canUpdate
+										? async (id, req) => {
+												try {
+													const updated = await updateMutation.mutateAsync({
+														id,
+														req,
+													});
+													toast.success(
+														`MCP server "${updated.display_name}" updated.`,
+													);
+													await navigate(listPath);
+												} catch (error) {
+													toast.error(
+														getErrorMessage(
+															error,
+															"Failed to update MCP server.",
+														),
+													);
+												}
+											}
+										: undefined
+								}
 								onDeleteServer={
 									canDelete
 										? async (id) => {

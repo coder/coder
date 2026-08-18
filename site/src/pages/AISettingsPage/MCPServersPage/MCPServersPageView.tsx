@@ -29,8 +29,7 @@ interface MCPServersPageViewProps {
 	organizations: readonly TypesGen.Organization[];
 	organization: TypesGen.Organization;
 	canCreate: boolean;
-	canUpdate: boolean;
-	canDelete: boolean;
+	canOpenServer: boolean;
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
 }
 
@@ -41,8 +40,7 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 	organizations,
 	organization,
 	canCreate,
-	canUpdate,
-	canDelete,
+	canOpenServer,
 	onSelectOrganization,
 }) => {
 	const navigate = useNavigate();
@@ -112,7 +110,7 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 								key={server.id}
 								server={server}
 								onClick={
-									canUpdate || canDelete
+									canOpenServer
 										? () =>
 												void navigate(
 													updateMCPServerPath(server.id, organization),

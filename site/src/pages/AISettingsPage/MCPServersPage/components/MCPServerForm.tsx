@@ -78,9 +78,9 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	});
 
 	const isDisabled = isSaving || isDeleting;
-	const canUpdate = !isEditing || Boolean(onUpdateServer);
 	const canSubmit =
-		canUpdate && canSubmitMCPServerForm(form.values, isDisabled);
+		(!isEditing || Boolean(onUpdateServer)) &&
+		canSubmitMCPServerForm(form.values, isDisabled);
 	const unsavedChanges = useUnsavedChangesPrompt(
 		form.dirty && !form.isSubmitting,
 	);

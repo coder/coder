@@ -42,18 +42,15 @@ const AddMCPServerPage: FC = () => {
 					organizationPermissionsQuery.data?.[organization.id]
 						.createMCPServerConfig,
 			);
+	const requestedOrganizationName = searchParams.get(orgSearchParam);
 	const requestedOrganization = viewableOrganizations.find(
-		(organization) => organization.name === searchParams.get(orgSearchParam),
+		(organization) => organization.name === requestedOrganizationName,
 	);
-	const selectableOrganizations =
-		creatableOrganizations.length > 0
-			? creatableOrganizations
-			: viewableOrganizations;
-	const organization = requestedOrganization
-		? requestedOrganization
-		: selectableOrganizations.length > 0
-			? selectOrganization(selectableOrganizations, null)
-			: undefined;
+	const organization =
+		requestedOrganization ??
+		(creatableOrganizations.length > 0
+			? selectOrganization(creatableOrganizations, null)
+			: undefined);
 	const organizationPermissions = organization
 		? organizationPermissionsQuery.data?.[organization.id]
 		: undefined;

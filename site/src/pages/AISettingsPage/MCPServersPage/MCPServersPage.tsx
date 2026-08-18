@@ -42,6 +42,15 @@ const MCPServersPage: FC = () => {
 	const canView =
 		permissions.editDeploymentConfig ||
 		Boolean(organizationPermissions?.viewMCPServerConfigs);
+	const canCreate =
+		permissions.editDeploymentConfig ||
+		Boolean(organizationPermissions?.createMCPServerConfig);
+	const canOpenServer =
+		permissions.editDeploymentConfig ||
+		Boolean(
+			organizationPermissions?.updateMCPServerConfig ||
+				organizationPermissions?.deleteMCPServerConfig,
+		);
 	const serversQuery = useQuery({
 		...mcpServerConfigs(organization?.id ?? ""),
 		enabled: canView,
@@ -71,18 +80,8 @@ const MCPServersPage: FC = () => {
 							servers={servers}
 							organizations={authorizedOrganizations}
 							organization={organization}
-							canCreate={
-								permissions.editDeploymentConfig ||
-								Boolean(organizationPermissions?.createMCPServerConfig)
-							}
-							canUpdate={
-								permissions.editDeploymentConfig ||
-								Boolean(organizationPermissions?.updateMCPServerConfig)
-							}
-							canDelete={
-								permissions.editDeploymentConfig ||
-								Boolean(organizationPermissions?.deleteMCPServerConfig)
-							}
+							canCreate={canCreate}
+							canOpenServer={canOpenServer}
 							onSelectOrganization={(org) => {
 								setSearchParams((params) => {
 									const next = new URLSearchParams(params);

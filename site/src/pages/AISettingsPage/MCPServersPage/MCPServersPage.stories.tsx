@@ -10,6 +10,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockOrganization3,
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -22,13 +23,6 @@ import MCPServersPage from "./MCPServersPage";
 import { orgSearchParam } from "./organizationParam";
 import { MockCoderMCPServer } from "./testFixtures";
 import UpdateMCPServerPage from "./UpdateMCPServerPage/UpdateMCPServerPage";
-
-const MockOrganization3: TypesGen.Organization = {
-	...MockOrganization2,
-	id: "organization-3",
-	name: "organization-3",
-	display_name: "Organization 3",
-};
 
 const MockOrganization2MCPServer: TypesGen.MCPServerConfig = {
 	...MockCoderMCPServer,
@@ -109,7 +103,7 @@ const ListRedirectProbe: FC = () => {
 
 const DetailRedirectProbe: FC = () => {
 	const [searchParams] = useSearchParams();
-	return <div>detail-org:{searchParams.get(orgSearchParam) ?? "none"}</div>;
+	return <h1>detail-org:{searchParams.get(orgSearchParam) ?? "none"}</h1>;
 };
 
 const meta = {
@@ -247,7 +241,9 @@ export const DeleteOnlyOrgAdminCanOpenMCPServer: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(await canvas.findByRole("button", { name: /Coder/ }));
 		await expect(
-			await canvas.findByText(`detail-org:${MockDefaultOrganization.name}`),
+			await canvas.findByRole("heading", {
+				name: `detail-org:${MockDefaultOrganization.name}`,
+			}),
 		).toBeVisible();
 	},
 };
@@ -729,6 +725,7 @@ export const DeleteOnlyOrgAdminCanDeleteWithoutUpdating: Story = {
 		spyOn(API.experimental, "getMCPServerConfig").mockResolvedValue(
 			MockCoderMCPServer,
 		);
+		spyOn(API.experimental, "deleteMCPServerConfig").mockResolvedValue();
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -748,9 +745,15 @@ export const DeleteOnlyOrgAdminCanDeleteWithoutUpdating: Story = {
 		await userEvent.click(
 			await body.findByRole("menuitem", { name: "Remove" }),
 		);
-		await expect(
+		await userEvent.click(
 			await body.findByRole("button", { name: "Delete MCP server" }),
-		).toBeInTheDocument();
+		);
+		await waitFor(() => {
+			expect(API.experimental.deleteMCPServerConfig).toHaveBeenCalledWith(
+				MockDefaultOrganization.id,
+				MockCoderMCPServer.id,
+			);
+		});
 	},
 };
 
