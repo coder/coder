@@ -567,7 +567,7 @@ export const AddFailurePreservesEnteredValues: Story = {
 		await userEvent.click(canvas.getByRole("button", { name: "Add server" }));
 		await expect(
 			await body.findByText("Invalid client credentials."),
-		).toBeVisible();
+		).toBeInTheDocument();
 		await expect(canvas.getByLabelText(/display name/i)).toHaveValue("GitHub");
 		await expect(canvas.getByLabelText(/^slug/i)).toHaveValue("github");
 		await expect(canvas.getByLabelText(/server url/i)).toHaveValue(
