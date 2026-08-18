@@ -17,7 +17,7 @@ import {
 } from "react";
 import { Link as RouterLink } from "react-router";
 import AutoSizer from "react-virtualized-auto-sizer";
-import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
+import type { VariableSizeList as List, ListOnScrollProps } from "react-window";
 import type {
 	AgentScriptTiming,
 	Template,
