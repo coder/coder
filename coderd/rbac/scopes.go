@@ -244,6 +244,16 @@ func (s Scope) Name() RoleIdentifier {
 	return s.Identifier
 }
 
+// ExpandScope resolves a scope name to the permissions it grants, from the
+// builtin scopes, the composite coder:* scopes, or a low-level resource:action
+// pair. The name must be canonical: the `all` and `application_connect`
+// aliases IsExternalScope accepts are not scope names here, so canonicalize
+// with CanonicalScopeName first.
+//
+// Every expansion populates Site only, with a wildcard allow list and no
+// negative permissions. Keep new scopes within that shape. ScopesCover depends
+// on it, and a scope that breaks it becomes uncomparable: coverage refuses it
+// on either side rather than answering from the fraction it does read.
 func ExpandScope(scope ScopeName) (Scope, error) {
 	if role, ok := builtinScopes[scope]; ok {
 		return role, nil
@@ -323,6 +333,12 @@ func expandLowLevel(resource string, action policy.Action) Scope {
 // also granted by at least one of the allowed scopes. It compares expanded
 // permissions, not names, so `coder:workspaces.access` covers `workspace:read`
 // and `coder:all` covers everything.
+//
+// A wildcard request is covered only by a wildcard grant. Enumerating every
+// workspace action that exists today does not cover `workspace:*`, because the
+// wildcard also authorizes the actions added tomorrow. Rejecting a wildcard
+// against an allowlist that looks exhaustive is the intended answer, not a gap
+// to close.
 //
 // Both sides must already be canonical, which the parameter names restate at
 // every call site. Passing what IsExternalScope accepted is not enough: it
