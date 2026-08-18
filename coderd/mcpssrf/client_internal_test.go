@@ -14,9 +14,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/testutil"
 )
+
+type dialContextFunc func(context.Context, string, string) (net.Conn, error)
+
+func (f dialContextFunc) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	return f(ctx, network, addr)
+}
 
 func TestIsBlockedAddr(t *testing.T) {
 	t.Parallel()
@@ -35,6 +42,13 @@ func TestIsBlockedAddr(t *testing.T) {
 		{addr: "192.168.1.1", blocked: true},
 		{addr: "fd12:3456::1", blocked: true},
 		{addr: "169.254.169.254", blocked: true},
+		{name: "ZonedLinkLocalIPv6", addr: "fe80::1%eth0", blocked: true},
+		{
+			name:    "AllowlistedZonedLinkLocalIPv6",
+			addr:    "fe80::1%eth0",
+			allowed: []netip.Prefix{netip.MustParsePrefix("fe80::/10")},
+			blocked: false,
+		},
 		{addr: "fe80::1", blocked: true},
 		{addr: "0.0.0.0", blocked: true},
 		{addr: "::", blocked: true},
@@ -117,7 +131,14 @@ func TestIsBlockedAddr(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.blocked, isBlockedAddr(netip.MustParseAddr(tc.addr), tc.allowed))
+
+			addr := netip.MustParseAddr(tc.addr)
+			if addr.Zone() != "" {
+				for _, prefix := range tc.allowed {
+					require.False(t, prefix.Contains(addr))
+				}
+			}
+			require.Equal(t, tc.blocked, isBlockedAddr(addr, tc.allowed))
 		})
 	}
 }
@@ -322,6 +343,52 @@ func TestDialValidatedIPs(t *testing.T) {
 			t.Fatal("timed out waiting for the successful connection")
 		}
 	})
+}
+
+func TestDialMCPAddressIPv6Zone(t *testing.T) {
+	t.Parallel()
+
+	errDial := xerrors.New("dial stopped")
+	cases := []struct {
+		name        string
+		allowed     []netip.Prefix
+		wantBlocked bool
+		wantAddr    string
+	}{
+		{name: "BlockedByDefault", wantBlocked: true},
+		{
+			name:     "AllowedPreservesZone",
+			allowed:  []netip.Prefix{netip.MustParsePrefix("fe80::/10")},
+			wantAddr: "[fe80::1%eth0]:80",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var dialedAddr string
+			dialer := dialContextFunc(func(_ context.Context, network, addr string) (net.Conn, error) {
+				require.Equal(t, "tcp6", network)
+				dialedAddr = addr
+				return nil, errDial
+			})
+			conn, err := dialMCPAddress(
+				t.Context(),
+				dialer,
+				"tcp6",
+				"[fe80::1%eth0]:80",
+				tc.allowed,
+			)
+			require.Nil(t, conn)
+			if tc.wantBlocked {
+				require.ErrorContains(t, err, "not permitted for MCP traffic")
+				require.Empty(t, dialedAddr)
+				return
+			}
+			require.ErrorIs(t, err, errDial)
+			require.Equal(t, tc.wantAddr, dialedAddr)
+		})
+	}
 }
 
 func TestNewHTTPClientTimeout(t *testing.T) {

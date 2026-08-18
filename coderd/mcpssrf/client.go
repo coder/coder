@@ -63,10 +63,11 @@ func ParseAllowedPrefix(raw string) (netip.Prefix, error) {
 	return netip.PrefixFrom(prefix.Addr().Unmap(), prefix.Bits()-96), nil
 }
 
-// IPv4-mapped IPv6 addresses are normalized before checking so mapped private
-// addresses cannot bypass IPv4 restrictions. Allowed prefixes take precedence.
+// IPv4-mapped addresses are unmapped and IPv6 zones are stripped before
+// checking so address forms cannot bypass prefix policy. Allowed prefixes take
+// precedence.
 func isBlockedAddr(addr netip.Addr, allowed []netip.Prefix) bool {
-	addr = addr.Unmap()
+	addr = addr.WithZone("").Unmap()
 	for _, prefix := range allowed {
 		if prefix.Contains(addr) {
 			return false
@@ -130,9 +131,13 @@ func dialAttemptDeadline(now, deadline time.Time, attemptsRemaining int) time.Ti
 	return now.Add(deadline.Sub(now) / time.Duration(attemptsRemaining))
 }
 
+type contextDialer interface {
+	DialContext(context.Context, string, string) (net.Conn, error)
+}
+
 func dialValidatedIPs(
 	ctx context.Context,
-	dialer *net.Dialer,
+	dialer contextDialer,
 	network string,
 	port string,
 	ips []netip.Addr,
@@ -161,6 +166,62 @@ func dialValidatedIPs(
 		}
 	}
 	return nil, firstErr
+}
+
+func dialMCPAddress(
+	ctx context.Context,
+	dialer contextDialer,
+	network string,
+	addr string,
+	allowed []netip.Prefix,
+) (net.Conn, error) {
+	lookupNetwork := "ip"
+	switch network {
+	case "tcp":
+	case "tcp4":
+		lookupNetwork = "ip4"
+	case "tcp6":
+		lookupNetwork = "ip6"
+	default:
+		return nil, xerrors.Errorf("network %q not permitted for MCP traffic", network)
+	}
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, xerrors.Errorf("split host/port %q: %w", addr, err)
+	}
+	if ip, parseErr := netip.ParseAddr(host); parseErr == nil {
+		if isBlockedAddr(ip, allowed) {
+			return nil, xerrors.Errorf(
+				"connection to %q blocked: %s is in a private/reserved IP range not permitted for MCP traffic",
+				host, ip.WithZone("").Unmap(),
+			)
+		}
+		return dialer.DialContext(ctx, network, addr)
+	}
+	ips, err := net.DefaultResolver.LookupNetIP(ctx, lookupNetwork, host)
+	if err != nil {
+		return nil, xerrors.Errorf("resolve %q: %w", host, err)
+	}
+	if len(ips) == 0 {
+		return nil, xerrors.Errorf("no addresses for %q", host)
+	}
+	// Reject when ANY resolved address is blocked so a single
+	// tainted DNS answer short-circuits the dial rather than
+	// racing it.
+	for _, ip := range ips {
+		if isBlockedAddr(ip, allowed) {
+			return nil, xerrors.Errorf(
+				"connection to %q blocked: %s is in a private/reserved IP range not permitted for MCP traffic",
+				host, ip.Unmap(),
+			)
+		}
+	}
+	// Dial a validated IP directly. Dialing by hostname would
+	// re-resolve, letting a hostile resolver swap in a private
+	// IP after validation (DNS rebinding). TLS verification
+	// still uses the URL hostname via the transport's TLS
+	// config.
+	return dialValidatedIPs(ctx, dialer, network, port, ips)
 }
 
 // NewHTTPClient blocks private and special-use destinations unless allowed.
@@ -192,44 +253,7 @@ func NewHTTPClient(base *http.Client, allowed []netip.Prefix) *http.Client {
 	transport.DialTLS = nil
 	transport.DialTLSContext = nil
 	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		lookupNetwork := "ip"
-		switch network {
-		case "tcp":
-		case "tcp4":
-			lookupNetwork = "ip4"
-		case "tcp6":
-			lookupNetwork = "ip6"
-		default:
-			return nil, xerrors.Errorf("network %q not permitted for MCP traffic", network)
-		}
-		host, port, err := net.SplitHostPort(addr)
-		if err != nil {
-			return nil, xerrors.Errorf("split host/port %q: %w", addr, err)
-		}
-		ips, err := net.DefaultResolver.LookupNetIP(ctx, lookupNetwork, host)
-		if err != nil {
-			return nil, xerrors.Errorf("resolve %q: %w", host, err)
-		}
-		if len(ips) == 0 {
-			return nil, xerrors.Errorf("no addresses for %q", host)
-		}
-		// Reject when ANY resolved address is blocked so a single
-		// tainted DNS answer short-circuits the dial rather than
-		// racing it.
-		for _, ip := range ips {
-			if isBlockedAddr(ip, allowed) {
-				return nil, xerrors.Errorf(
-					"connection to %q blocked: %s is in a private/reserved IP range not permitted for MCP traffic",
-					host, ip.Unmap(),
-				)
-			}
-		}
-		// Dial a validated IP directly. Dialing by hostname would
-		// re-resolve, letting a hostile resolver swap in a private
-		// IP after validation (DNS rebinding). TLS verification
-		// still uses the URL hostname via the transport's TLS
-		// config.
-		return dialValidatedIPs(ctx, &net.Dialer{}, network, port, ips)
+		return dialMCPAddress(ctx, &net.Dialer{}, network, addr, allowed)
 	}
 
 	return &http.Client{
