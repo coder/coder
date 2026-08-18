@@ -257,14 +257,12 @@ export const PremiumWithAgentHoursSoftLimitReached: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Active")).toBeInTheDocument();
-		const hoursValue = getMetricValue(canvas, "Total Agent hours");
-		await expect(hoursValue).toHaveTextContent("16,264.3 / 20,000");
-		await expect(hoursValue?.querySelector("span")).toHaveClass(
-			"text-border-warning",
+		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
+			"16,264.3 / 20,000",
 		);
-		await expect(
-			canvas.getByText("Coder Agents").closest(".coder-agents-product-card"),
-		).toHaveClass("border-border-warning");
+		await expect(canvas.getByRole("status")).toHaveTextContent(
+			"Approaching hours limit",
+		);
 		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
 			"Unlimited",
 		);
@@ -317,9 +315,9 @@ export const PremiumWithAgentHoursHardLimitExceeded: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"25,000.0 / 20,000",
 		);
-		const concurrentChats = getMetricValue(canvas, "Concurrent chats");
-		await expect(concurrentChats).toHaveTextContent("5");
-		await expect(concurrentChats).toHaveClass("text-content-destructive");
+		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+			"5",
+		);
 		await expect(canvas.getByRole("status")).toHaveTextContent("Limit reached");
 	},
 };

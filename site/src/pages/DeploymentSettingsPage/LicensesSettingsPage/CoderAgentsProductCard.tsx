@@ -71,7 +71,7 @@ const CardContainer: FC<{
 }> = ({ className, headerEnd, children }) => (
 	<div
 		className={cn(
-			"coder-agents-product-card min-w-[320px] flex-1 rounded-sm border px-6 py-4",
+			"min-w-[320px] flex-1 rounded-sm border px-6 py-4",
 			className,
 		)}
 	>
@@ -165,6 +165,12 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 						<TriangleAlertIcon />
 						Limit reached
 					</Badge>
+				) : isSoftLimitReached && !isOverage ? (
+					// The soft limit is otherwise only conveyed by the warning
+					// colors, so announce it for assistive technology too.
+					<span role="status" className="sr-only">
+						Approaching hours limit
+					</span>
 				) : undefined
 			}
 		>
