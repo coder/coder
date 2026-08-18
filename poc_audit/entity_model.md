@@ -157,7 +157,16 @@ A sandbox is an entity but not an actor, per the definition above.
 
 The wider system contains further actors, including provisionerd, the Terraform
 CLI, the Terraform providers, and the Docker daemon. They appear as participants
-in the startup diagrams but are not of immediate relevance to audit in the PoC.
+in the startup diagrams. The provisioner is also an actor in the AI agent
+lifecycle below, where it can command a termination or a suspension and can
+observe a finish. It is left out of the proof of concept for reasons of scope
+rather than of principle.
+
+**A reconciler is a role, not an actor.** Whoever performs a reconciliation
+acts in that role, and at the outset that will be a user. Automatic
+reconciliation could act under a service account, or through an AI agent acting
+at the behest of a user charged with the task. Reconciliation adds nothing to
+the set of actor types.
 
 ### Sandbox occupancy
 
@@ -233,6 +242,90 @@ The theory exists for a practical reason: so that people can reason coherently
 about institutional facts by analogy with material entities, which is the mode
 of thought that comes naturally. The analogy is a working convenience and not a
 claim that the two are the same kind of thing.
+
+### Commanded and observed transitions
+
+Every transition in a lifecycle state machine is of one of two kinds, and the
+kind settles whose identity the entry carries.
+
+A **commanded** transition happens because some party decided it should. The
+actor is the party who commanded it.
+
+An **observed** transition happens of its own accord, and is recorded because
+some party noticed. The actor is the party who noticed.
+
+The kind is a property of the transition and not of the occasion. A process
+returning of its own accord is never something anybody decided, so that
+transition is observed whenever it occurs. Which party fills the role does vary
+with the occasion, and the entry records whichever it was.
+
+Two things follow. An entity can never be the actor of its own observed
+transitions, which is the rule against an entity writing about itself arriving
+by another road. And an observed transition may be recorded long after it
+occurred, by whoever eventually noticed, which the audit approach addresses
+under the entry's timestamp.
+
+**Transitions are named with the bare verb**: `create`, `finish`, `suspend`.
+Not `created`, and not `creating`. The imperative reads naturally for a
+commanded transition and the declarative for an observed one, and English
+spells the two alike, so one form serves both.
+
+**A state machine is defined without reference to actors.** The states and the
+transitions stand on their own. An actor is recorded on every entry, but that
+record is kept for forensic purposes. What live operation needs from the machine
+is the current state, not who brought it about.
+
+### The AI agent lifecycle
+
+Two machines are given. The larger is the model. The smaller is what the proof
+of concept implements, and it is the larger with one state removed.
+
+**The smaller must be derivable from the larger by deleting `dormant` and every
+transition touching it, and by no other difference.** This is a backward
+compatibility requirement: what a state means may not change when the machine
+grows.
+
+| State     | Meaning                                                                   |
+|-----------|---------------------------------------------------------------------------|
+| `active`  | The identity exists and denotes a live embodiment.                        |
+| `dormant` | The identity exists, no embodiment is live, and it may be embodied again. |
+| `retired` | Terminal. The identity exists only as history.                            |
+
+`dormant` goes into the enum now, marked reserved for future use, so that
+supporting reconstitution later costs no migration.
+
+| From      | Transition  | To        | Kind      |
+|-----------|-------------|-----------|-----------|
+| none      | `create`    | `active`  | commanded |
+| `active`  | `finish`    | `retired` | observed  |
+| `active`  | `terminate` | `retired` | commanded |
+| `active`  | `suspend`   | `dormant` | commanded |
+| `dormant` | `resume`    | `active`  | commanded |
+| `dormant` | `retire`    | `retired` | commanded |
+
+**The proof of concept machine is the first three rows.**
+
+Actors are given by way of illustration, the machine not depending on them.
+`create` records the delegating principal. `terminate` records the owner who
+commanded it, or the provisioner taking a cluster offline. `finish` records
+whoever noticed, which may be the owner, or the provisioner during a sweep, or
+a user performing a reconciliation long afterwards.
+
+**`finish` and `suspend` are told apart by intent, not by mechanism.** `finish`
+means the work is done and will not resume. `suspend` means the embodiment
+ended and the identity may be embodied again. A process exiting is the same
+occurrence in both.
+
+That is what keeps the two machines compatible. Were the two transitions told
+apart by the process exiting, adding `dormant` would make every earlier
+`finish` ambiguous in retrospect. Since the smaller machine offers no
+reconstitution it never emits `suspend`, so nothing recorded under it means
+anything different once the larger machine arrives.
+
+**Proof of concept cheat.** A process exiting carries no statement of intent,
+and the proof of concept reads every exit as `finish`. That is sound only while
+`dormant` is unreachable. A revision supporting dormancy cannot keep the cheat,
+and will need a source for the intent.
 
 ### What happens when an AI agent comes into being
 
@@ -372,7 +465,8 @@ for it.
 
 `entity.CreateAIAgent` in `coderd/entity/aiagent.go` inserts the row, issues a
 credential, and appends a single entry whose event is `created`. `created` is
-the only event constant `coderd/entity/journal.go` defines.
+the only event constant `coderd/entity/journal.go` defines, and it is in the
+participle form the naming rule above replaces with `create`.
 
 No grant of authorization is recorded anywhere, by that function or any other.
 The authority an AI agent exercises is at present nowhere in the journal, which
@@ -397,8 +491,13 @@ it. That code is not in its final form and is to be brought into conformance.
   system user to a real user while keeping its identifier and build history. If
   a prebuilt workspace can carry sandboxes, their audit trail spans two owners,
   one of which cannot log in.
-- **Run as an entity.** Whether the ephemeral execution of an AI agent is
-  modelled separately from its durable identity, per the derived section above.
+- **Run as an entity.** Not modelled at this stage, though it could be. A run
+  would be the ephemeral execution of an AI agent, distinct from its durable
+  identity, and would plausibly be created by the provisioner. Modelling it
+  would move embodiment out of the identity and leave each entity with a single
+  origin, institutional for the identity and material for the run. Listed as a
+  candidate rather than as an open question. `dormant` in the state enum is
+  what holds the door open meanwhile.
 - **Naming.** What the AI agent entity is called in the schema and in the audit
   `resource_type` enum, given that `agent` collides with `workspace_agent`.
 - **coderd's identity.** Whether the control plane is modelled as an actor

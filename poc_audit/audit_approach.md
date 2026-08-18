@@ -390,6 +390,30 @@ single entry would discard the distinctions the entries exist to record, and
 would leave that entry impossible to interpret without knowing which of several
 things it was standing for.
 
+### The entry's timestamp is the time of recording
+
+The timestamp on an entry is always the time the entry was made. It is not the
+time the event occurred, and it does not become so by being close to it.
+
+For a commanded event the two are close enough that the difference never
+surfaces. For an observed one they can be far apart: something that happened on
+a Tuesday and was noticed on a Friday is recorded on the Friday.
+
+Where a time of occurrence is known and worth keeping, it belongs somewhere
+other than the entry's timestamp. That timestamp is not to be displaced and not
+to be backdated. A book of original entry that misreports when it was written is
+worth less than one that admits the gap.
+
+A time of occurrence recovered after the fact is often not a single value. It
+may be known exactly, known only to fall within a window, or not recoverable at
+all. A column forces every case into the shape of the first. Free text can carry
+all three and say which it is.
+
+This generalises past time. **Reconciliation will never be as tight as
+enforcement before the fact.** What it recovers is more approximate than what
+was enforced, and the record should be able to say so rather than round it to
+something crisper than the evidence supports.
+
 ### Reconciliation belongs to recordkeeping
 
 Reconciliation is a recordkeeping activity, and treating it as the part of this
