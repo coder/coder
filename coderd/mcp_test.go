@@ -1453,6 +1453,10 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		require.Equal(t, "https://override.example.com/revoke", overridden.OAuth2RevocationURL)
 	})
 
+	// Verify that when both path-aware and root-level protected
+	// resource metadata are available, the path-aware URL takes
+	// priority. Each points to a different auth server so we can
+	// distinguish which one was actually used.
 	t.Run("CreateOnlyScopeAllowed", func(t *testing.T) {
 		t.Parallel()
 
@@ -1515,10 +1519,6 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		require.Zero(t, registrationRequests.Load())
 	})
 
-	// Verify that when both path-aware and root-level protected
-	// resource metadata are available, the path-aware URL takes
-	// priority. Each points to a different auth server so we can
-	// distinguish which one was actually used.
 	t.Run("PathAwareTakesPriority", func(t *testing.T) {
 		t.Parallel()
 
