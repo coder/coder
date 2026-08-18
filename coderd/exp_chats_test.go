@@ -340,10 +340,11 @@ func (s *failNextUpsertChatPlanModeInstructionsStore) UpsertChatPlanModeInstruct
 }
 
 // lockSwitchChatPlanModeInstructionsStore can disable the per-setting
-// advisory lock (to prove its effect) and stall the Old-capture read until
-// every concurrent transaction is parked there, so the stale-Old race the
-// lock prevents is deterministic when the lock is off. The lock must stay
-// enabled in any test that leaves it on, or the barrier deadlocks.
+// advisory lock (to prove its effect) and stall each transaction after its
+// Old-capture read until every concurrent transaction has read, so the
+// stale-Old race the lock prevents is deterministic when the lock is off.
+// The lock must stay enabled in any test that leaves it on, or the barrier
+// deadlocks.
 type lockSwitchChatPlanModeInstructionsStore struct {
 	database.Store
 
@@ -386,6 +387,12 @@ func (s *lockSwitchChatPlanModeInstructionsStore) AcquireLock(ctx context.Contex
 }
 
 func (s *lockSwitchChatPlanModeInstructionsStore) GetChatPlanModeInstructions(ctx context.Context) (string, error) {
+	// Read before parking so every waiter holds the same stale value no
+	// matter how goroutines are scheduled afterwards. Parking before the
+	// read lets the releasing goroutine write and commit before a slowly
+	// waking waiter executes its read, which then sees the committed new
+	// value under read committed and turns into a no-op.
+	instructions, err := s.Store.GetChatPlanModeInstructions(ctx)
 	if s.target.Load() > 0 {
 		s.mu.Lock()
 		*s.parked++
@@ -397,7 +404,7 @@ func (s *lockSwitchChatPlanModeInstructionsStore) GetChatPlanModeInstructions(ct
 			<-s.release
 		}
 	}
-	return s.Store.GetChatPlanModeInstructions(ctx)
+	return instructions, err
 }
 
 // failNextUpdateChatModelConfigStore shares its failure state across InTx
