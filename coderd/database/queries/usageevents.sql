@@ -133,10 +133,10 @@ WHERE
 --     attempts newer than this are skipped; older markers are from replicas
 --     that exited mid-publish, and the publisher considers those rows
 --     retryable, so the status scan must too or they could stay stuck
---     without warning. In-flight retries of already-failing events
---     (failure_message set) stay visible regardless, so an entitlements
---     refresh racing a slow retry cannot clear an active warning that the
---     retry's failure would immediately re-raise.
+--     without warning. Already-failing events (failure_message set) stay
+--     visible regardless of in-flight state via their own branch, so
+--     neither a slow retry nor a flood of fresh backfills ahead of them in
+--     the queue can clear an active warning.
 --   - rejected_after: now minus the failure threshold. Permanent rejections
 --     that happened after this and within the current enabled period are
 --     considered recent failures; rejections from a prior enabled period
@@ -167,18 +167,26 @@ WITH last_success AS (
     -- batch per branch (100 rows, matching SelectUsageEventsForPublishing)
     -- instead of computing an exact minimum over a potentially unbounded
     -- unpublished backlog (e.g. after publishing was disabled for weeks). A
-    -- stuck event behind the first batch surfaces once the queue ahead of
-    -- it drains or is attempted; the publisher cannot reach it any earlier
-    -- either. The two branches exist so each is separately index-served by
-    -- idx_usage_events_select_for_publishing (published_at,
-    -- publish_started_at, created_at): the never/not-in-flight branch pins
-    -- both leading columns, letting the index deliver created_at order and
-    -- stop at the LIMIT, while the expired-attempt branch (replicas that
-    -- exited mid-publish, which the publisher considers retryable, so the
-    -- status scan must too) ranges over publish_started_at and sorts its
-    -- naturally tiny row set. A single OR'd scan could not use the index
-    -- for the global created_at order and would top-N sort the whole
-    -- backlog.
+    -- never-attempted stuck event behind the first batch surfaces once the
+    -- queue ahead of it drains or is attempted; the publisher cannot reach
+    -- it any earlier either. Three branches, each separately bounded:
+    --   1. Never-attempted, not in flight: pins both leading columns of
+    --      idx_usage_events_select_for_publishing (published_at,
+    --      publish_started_at, created_at), letting the index deliver
+    --      created_at order and stop at the LIMIT.
+    --   2. Expired in-flight attempts (replicas that exited mid-publish,
+    --      which the publisher considers retryable, so the status scan
+    --      must too): ranges over publish_started_at and sorts its
+    --      naturally tiny row set.
+    --   3. Already-failing events, regardless of in-flight state, ordered
+    --      by their effective stuck time so the oldest active failure is
+    --      always in the batch: fresh backfills flooding the queue front
+    --      of branch 1, or a slow retry, cannot displace an established
+    --      failure and clear its warning. Failing rows accumulate at the
+    --      publisher's bounded attempt rate and failures are exceptional,
+    --      so this top-N sorts a small set.
+    -- A single OR'd scan could not use the index for the global created_at
+    -- order and would top-N sort the whole backlog.
     SELECT MIN(
         -- The clamp to enabled_since grants the post-(re-)enablement grace
         -- period; see the enabled_since parameter doc.
@@ -203,12 +211,19 @@ WITH last_success AS (
             FROM usage_events
             WHERE published_at IS NULL
                 AND publish_started_at IS NOT NULL
-                AND (
-                    publish_started_at < @attempt_expired_before::timestamptz
-                    OR failure_message IS NOT NULL
-                )
+                AND publish_started_at < @attempt_expired_before::timestamptz
                 AND created_at > @window_start::timestamptz
             ORDER BY created_at ASC
+            LIMIT 100
+        )
+        UNION ALL
+        (
+            SELECT inserted_at, first_failed_at
+            FROM usage_events
+            WHERE published_at IS NULL
+                AND failure_message IS NOT NULL
+                AND created_at > @window_start::timestamptz
+            ORDER BY COALESCE(first_failed_at, inserted_at) ASC
             LIMIT 100
         )
     ) queued

@@ -11215,6 +11215,22 @@ type usagePublishSeedEvent struct {
 	failedAts []time.Time
 }
 
+// backfillFlood seeds more than 100 never-attempted events with historical
+// created_at values (as heartbeat backfill produces) but fresh insertion
+// times, enough to fill GetUsagePublishStatus's queue-front batch with
+// non-stuck rows.
+func backfillFlood(now time.Time) []usagePublishSeedEvent {
+	events := make([]usagePublishSeedEvent, 0, 110)
+	for i := range 110 {
+		events = append(events, usagePublishSeedEvent{
+			id:         fmt.Sprintf("backfill-%d", i),
+			createdAt:  now.Add(-7 * 24 * time.Hour).Add(time.Duration(i) * time.Hour),
+			insertedAt: now.Add(-10 * time.Minute),
+		})
+	}
+	return events
+}
+
 // sustainedRejectionStreak seeds one old success followed by more than 100
 // permanent rejections, enough to displace the success from the bounded
 // last-success probe in GetUsagePublishStatus.
@@ -11323,6 +11339,20 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			},
 			markInFlightAt: now,
 			want:           database.GetUsagePublishStatusRow{},
+		},
+		{
+			// More than 100 freshly backfilled heartbeats with historical
+			// created_at values sort ahead of an established failure in the
+			// publisher's queue. The failing event must stay visible via
+			// its own branch, not be displaced by the fresh batch.
+			name: "BackfillFloodDoesNotDisplaceEstablishedFailure",
+			events: append(
+				backfillFlood(now),
+				usagePublishSeedEvent{id: "failing", createdAt: now.Add(-3 * time.Hour), insertedAt: now.Add(-40 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour)}},
+			),
+			want: database.GetUsagePublishStatusRow{
+				OldestStuckAt: now.Add(-30 * time.Hour),
+			},
 		},
 		{
 			// An in-flight retry of an already-failing event stays visible:

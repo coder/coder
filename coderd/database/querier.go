@@ -913,10 +913,10 @@ type sqlcQuerier interface {
 	//     attempts newer than this are skipped; older markers are from replicas
 	//     that exited mid-publish, and the publisher considers those rows
 	//     retryable, so the status scan must too or they could stay stuck
-	//     without warning. In-flight retries of already-failing events
-	//     (failure_message set) stay visible regardless, so an entitlements
-	//     refresh racing a slow retry cannot clear an active warning that the
-	//     retry's failure would immediately re-raise.
+	//     without warning. Already-failing events (failure_message set) stay
+	//     visible regardless of in-flight state via their own branch, so
+	//     neither a slow retry nor a flood of fresh backfills ahead of them in
+	//     the queue can clear an active warning.
 	//   - rejected_after: now minus the failure threshold. Permanent rejections
 	//     that happened after this and within the current enabled period are
 	//     considered recent failures; rejections from a prior enabled period
