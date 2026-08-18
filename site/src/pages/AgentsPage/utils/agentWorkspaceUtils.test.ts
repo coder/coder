@@ -460,11 +460,11 @@ describe("archiveChatAndDeleteWorkspace", () => {
 			doDelete,
 			doUnarchive,
 		);
-		const err = (await promise.catch(
-			(e: unknown) => e,
-		)) as ArchiveAndDeleteError;
-		expect(err.step).toBe("delete");
-		expect(err.recovery).toBe("skipped-unknown-outcome");
+		await expect(promise).rejects.toBeInstanceOf(ArchiveAndDeleteError);
+		await expect(promise).rejects.toMatchObject({
+			step: "delete",
+			recovery: "skipped-unknown-outcome",
+		});
 		expect(doUnarchive).not.toHaveBeenCalled();
 	});
 
@@ -487,11 +487,11 @@ describe("archiveChatAndDeleteWorkspace", () => {
 			doDelete,
 			doUnarchive,
 		);
-		const err = (await promise.catch(
-			(e: unknown) => e,
-		)) as ArchiveAndDeleteError;
-		expect(err.step).toBe("delete");
-		expect(err.recovery).toBe("unarchive-failed");
+		await expect(promise).rejects.toBeInstanceOf(ArchiveAndDeleteError);
+		await expect(promise).rejects.toMatchObject({
+			step: "delete",
+			recovery: "unarchive-failed",
+		});
 	});
 
 	it("returns the delete build payload on success", async () => {
