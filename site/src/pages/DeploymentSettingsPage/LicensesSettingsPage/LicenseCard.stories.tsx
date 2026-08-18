@@ -322,6 +322,31 @@ export const PremiumWithAgentHoursHardLimitExceeded: Story = {
 	},
 };
 
+export const PremiumWithAgentHoursAtAllocation: Story = {
+	args: {
+		license: premiumLicenseWithAgentHours(20000),
+		agentRuntimeHoursFeature: {
+			enabled: true,
+			entitlement: "entitled",
+			limit: 20000,
+			soft_limit: 16000,
+			hard_limit: 25000,
+			// Usage equal to the allocation is already over: the backend
+			// reports the allocation as reached at this exact boundary.
+			actual: 20000,
+			actual_ms: 20_000 * 3_600_000,
+			usage_period: winningUsagePeriod,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Agent hours exceeded")).toBeInTheDocument();
+		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
+			"20,000.0 / 20,000",
+		);
+	},
+};
+
 export const PremiumWithAgentHoursExceededByFraction: Story = {
 	args: {
 		license: premiumLicenseWithAgentHours(20000),
@@ -331,8 +356,8 @@ export const PremiumWithAgentHoursExceededByFraction: Story = {
 			limit: 20000,
 			soft_limit: 16000,
 			hard_limit: 25000,
-			// The extra 6 minutes push the tenths-precision value past the
-			// allocation, so the fraction alone flips the exceeded state.
+			// The extra 6 minutes render as a tenth past the allocation,
+			// so the display shows fractional overage.
 			actual: 20000,
 			actual_ms: 20_000 * 3_600_000 + 6 * 60_000,
 			usage_period: winningUsagePeriod,

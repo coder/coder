@@ -170,13 +170,15 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		agentHoursHardLimit !== undefined &&
 		agentHoursDisplayActual !== undefined &&
 		agentHoursDisplayActual >= agentHoursHardLimit;
+	// Inclusive: usage equal to the allocation is already over, matching
+	// the backend's "allocation reached" warning boundary.
 	const isAgentHoursExceeded =
 		canUseAgentHoursUsageForThisLicense &&
 		!isAgentHoursHardLimitExceeded &&
 		agentHoursAllocation !== undefined &&
 		agentHoursAllocation > 0 &&
 		agentHoursDisplayActual !== undefined &&
-		agentHoursDisplayActual > agentHoursAllocation;
+		agentHoursDisplayActual >= agentHoursAllocation;
 	// Advisory only: at or above the soft threshold, still inside the
 	// purchased allocation. Allocation and hard-limit overage supersede
 	// this so the product card never stacks warning on destructive.
