@@ -167,9 +167,29 @@ const isRegion = (parsed: unknown): Region | undefined => {
 	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
 		return undefined;
 	}
-	return typeof (parsed as Record<string, unknown>).id === "string"
-		? (parsed as Region)
-		: undefined;
+	const record = parsed as Record<string, unknown>;
+	// Rebuild from the validated fields rather than asserting the
+	// stored object, so extra or stale properties never leak through.
+	if (
+		typeof record.id !== "string" ||
+		typeof record.name !== "string" ||
+		typeof record.display_name !== "string" ||
+		typeof record.icon_url !== "string" ||
+		typeof record.healthy !== "boolean" ||
+		typeof record.path_app_url !== "string" ||
+		typeof record.wildcard_hostname !== "string"
+	) {
+		return undefined;
+	}
+	return {
+		id: record.id,
+		name: record.name,
+		display_name: record.display_name,
+		icon_url: record.icon_url,
+		healthy: record.healthy,
+		path_app_url: record.path_app_url,
+		wildcard_hostname: record.wildcard_hostname,
+	};
 };
 
 export const userSelectedProxyStorage = defineStorageKey<Region | null>({
