@@ -53,14 +53,22 @@ Three properties of that practice survive into what we now call a log:
 ### The word outgrew the measurements
 
 "Log" did not stay with soundings and speeds. By 1913 it named any record of
-facts entered in order, and usage went further still: a log records activity of
-any kind, including attempts, requests, and things that changed nothing.
+facts entered in order, and usage went further still: a log records **activity**.
+Attempting something, succeeding, failing, being asked, declining to act. Things
+that changed nothing are as much at home there as things that changed
+everything.
 
 What generalized was the discipline, not the subject matter. A modern log is
 still **sampled**, now by level, by sampling rate, or by whether the code path
 bothered to write at all. It is still **kept for as long as it is useful**, with
 retention chosen for cost rather than for obligation. A missing line is still a
 **nuisance rather than a defect**.
+
+Everything about a log is arranged for whoever reads it later. Levels and
+filters exist so that the interesting lines can be found among the dull ones.
+Retention is set to a period somebody chose, weighing storage against how far
+back anyone is likely to look. Both are sensible, and both are possible only
+because nothing depends on the log being complete.
 
 This matters for the comparison ahead. The table named `audit_logs` records
 requests, not measurements, and someone may reasonably object that a framing
@@ -103,7 +111,8 @@ respect that is visible.
 - Both grow without bound, so both raise the same operational questions of
   storage, indexing, and querying by time.
 - Both are read backwards, by someone reconstructing what happened after the
-  fact.
+  fact. Telemetry and forensic investigation draw on either, and the particulars
+  differ without the purpose differing.
 - Both call their elements entries.
 - Both were books. A ship's log book and a merchant's journal were each a bound,
   dated record of a working day, kept by an authority and written up at
@@ -126,15 +135,32 @@ Ask what follows from losing one entry. If the answer is that somebody would
 like it back, it is a log. If the answer is that the record can no longer be
 relied upon, it is a journal.
 
-### The distinction
+### The distinctions
 
 A log is a record of what was observed, kept so that something can be estimated.
 A journal is a record of what was done, kept so that someone can be answered.
 
-Everything else follows from that. A log may be sampled, because an estimate
-tolerates gaps. A journal may not, because an account with gaps is not an
-account. A log may be discarded once the estimate it supported is no longer
-interesting. A journal may not, because the obligation outlives the moment.
+The rest follows from that. Not every property of a journal is worth stating
+here, only those where following the purpose leads somewhere a log does not go.
+
+**Authority.** A journal is authoritative. It is the record, and where it and
+some other account of the same events disagree, the other account is the one in
+question. A log is best effort: useful when it is there, unremarkable when it is
+not, and never by itself the thing that settles a question.
+
+**Completeness.** A log may be sampled, because an estimate tolerates gaps. A
+journal may not, because an account with gaps is not an account.
+
+**Permanence.** A log may be discarded once the estimate it supported is no
+longer interesting. A journal may not, because the obligation outlives the
+moment.
+
+**Reconcilability.** A journal can be reconciled against the world. A log cannot
+be, not reliably. Reconciling compares a record of what was done against what is
+there, and a record permitted to omit things cannot support the comparison: a
+discrepancy might be a real divergence, or might be a line nobody wrote. Against
+a journal the same discrepancy has one explanation left, which is why it can be
+escalated rather than shrugged at.
 
 ### Two hazards in the word "journal"
 

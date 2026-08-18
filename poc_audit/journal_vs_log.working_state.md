@@ -63,10 +63,10 @@ Each item carries one of four states:
 
 ### 3. What a journal is for
 
-1. **open.** Recordkeeping is an integrity property, not a feature. Reworded
-   from "audit" to follow the renaming in `audit_approach.md`, where the
-   section is now "Recordkeeping as an integrity property". **Summarize here;
-   the definitive text stays there.**
+1. **done.** Recordkeeping is an integrity property, not a feature. Summarized
+   as "Authority" under The distinctions: a journal is the record, a log is best
+   effort. The definitive text stays in `audit_approach.md`, where the section
+   is now "Recordkeeping as an integrity property".
 2. **drop.** The auditable event is the persistent state change; the entry is a
    reflection and recording of it. It was held open in case section 5 needed it.
    It does not: section 5 is illustrative rather than persuasive, so a precise
@@ -84,44 +84,55 @@ Each item carries one of four states:
 5. **drop.** The ideal is one entry per state change; reality diverges. Not a
    point about how the two kinds of record are used, which is this document's
    subject, and the full story is already in `audit_approach.md`.
-6. **open.** Reconciliation in the accounting sense.
+6. **done.** Reconciliation in the accounting sense. Stated as a contrast under
+   The distinctions: a log cannot be reconciled against reliably, because a
+   discrepancy might be a divergence or might be a line nobody wrote. Against a
+   journal one explanation is left, so it can be escalated.
 7. **drop.** Three exhaustive divergence classes.
 8. **drop.** Correspondence keys.
 9. **drop.** Ordering of entry and effect.
 10. **drop.** One transaction collapses the ordering problem.
 11. **drop.** Detection is not resolution.
-12. **open.** Who reads each, and why. A log is read by someone trying to work
-    something out. A journal is read to discharge an obligation or to test
-    whether it was discharged: by the recordkeeper when reconciling or
-    rendering, and by the auditor when examining. Nobody reads a journal out of
-    curiosity. Reworded: the original made a process into a reader, and named
-    rendering before rendering had been placed on the audit side. Probably an
-    axis for section 5 rather than a point about what a journal is for.
+12. **drop.** Who reads each, and why. Not a distinction but a side effect of
+    what each is made for, and the purposes are already stated. Reworded once
+    before dropping, because the original made a process into a reader.
 
 ### 4. What a log is for
 
-1. **open.** Telemetry and forensics.
-2. **open.** Records attempts, and successes and failures symmetrically.
-3. **part.** Optimized for reading, filtering, and bounded retention. The draft
-   has discardability; filtering and retention are owed.
-4. **part.** Correctly deletable, droppable, samplable, licence-gated. The
-   licence gate is owed and needs verifying first, per 10.1.
+1. **done.** Telemetry and forensics. Not a property of logs at all: both are
+   consulted for both purposes, so this belongs with the resemblances and is now
+   a clause under Why they are so easily confused. The related point that
+   auditing is not forensic investigation, one looking for unknown anomalies and
+   the other working outward from a known one, is recorded in
+   `audit_approach.md`.
+2. **done.** Records **activity**, with attempting, succeeding, failing, being
+   asked, and declining to act as exemplars. Symmetry needed no separate
+   statement once the exemplars carry it.
+3. **done.** Arranged for whoever reads it later: levels and filters to find
+   the interesting lines, retention chosen by weighing storage against how far
+   back anyone will look. Both possible only because nothing depends on the log
+   being complete.
+4. **done.** Deletable, droppable, and samplable, all covered by the modern
+   sense and by the retention point. **Licensing is out of scope for the proof
+   of concept**, so that clause is dropped rather than owed.
 5. **done.** No completeness obligation, so gaps are not defects.
 
 ### 5. Properties where the two diverge
 
 The core of this section is expected to be a table over these axes.
 
-1. **part.** Completeness. Foreshadowed in the draft's closing paragraph.
-2. **part.** Permanence. Foreshadowed likewise.
-3. **open.** Availability, meaning unconditional versus licence-gated.
+1. **done.** Completeness. Stated under The distinctions rather than in a
+   table.
+2. **done.** Permanence. Stated under The distinctions.
+3. **drop.** Availability, meaning unconditional versus licence-gated.
+   Licensing is out of scope for the proof of concept.
 4. **open.** Filterability.
 5. **open.** Unit of record: persistent state change versus request.
 6. **open.** Attempts.
 7. **open.** Failure symmetry.
 8. **open.** Actor: any entity kind versus a user.
 9. **open.** Ordering: distinct monotonic identifiers versus timestamps that tie.
-10. **open.** Reconcilability.
+10. **done.** Reconcilability. Stated under The distinctions.
 11. **open.** Mutability.
 12. **open.** Transactionality.
 13. **open.** Unbypassability.
@@ -188,8 +199,8 @@ The core of this section is expected to be a table over these axes.
 
 ### 10. To verify before drafting the sections that need it
 
-1. **open.** The exact licensing gate for the existing mechanism. Currently
-   taken from `audit_approach.md` rather than from code.
+1. **drop.** The exact licensing gate for the existing mechanism. Nothing
+   depends on it now that licensing is out of scope.
 2. **open.** The retention deletion query names, and what schedules them.
 3. **open.** Whether anything writes `audit_logs` outside the HTTP middleware
    path.
@@ -217,6 +228,16 @@ argument against dropping, that this document should be readable alone, was
 weighed and rejected: it is readable alone as an account of the distinction,
 which is its subject, and a reader who needs the mechanics of reconciliation is
 already being sent to the approach document.
+
+**"The distinction" became "The distinctions", and is where contrasts live.**
+The document does not need every property of a journal, only those where the
+purpose leads somewhere a log does not go. Authority, completeness, permanence,
+and reconcilability are stated there. Items were closed against that section
+rather than against the table originally imagined for section 5.
+
+**Licensing is out of scope for the proof of concept.** Whether the existing
+table is gated behind a licence has no bearing on anything being built, so 4.4's
+clause, 5.3, and 10.1 are all disposed of on that basis.
 
 **Section 5 is illustrative, not persuasive.** The table of properties shows
 where the two kinds of record differ. It is not required to argue for each
