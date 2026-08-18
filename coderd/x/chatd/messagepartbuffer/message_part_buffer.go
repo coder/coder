@@ -453,6 +453,12 @@ func (b *Buffer) ToolCompletions(key Key) []ToolCompletion {
 // EpisodeBilling is the billing state an episode accumulated before it
 // closed.
 type EpisodeBilling struct {
+	// ClosedAt is the instant the episode first closed. Interrupt
+	// handling uses it as the interrupt instant: it is stable across
+	// repeat closes, so a retried interrupt task bills the same window
+	// every attempt instead of one that grows with each retry's later
+	// clock reading.
+	ClosedAt time.Time
 	// ModelInvokedAt is the StartModelInvocation stamp, or zero when
 	// the episode never opened a provider stream.
 	ModelInvokedAt time.Time
@@ -472,6 +478,14 @@ type EpisodeBilling struct {
 // the gap, billing a finished tool as still running or losing a live
 // batch's window entirely. Closing an unknown episode creates it
 // closed, mirroring CloseEpisode, and reports empty billing.
+//
+// Calling it again on an already-closed episode returns the same
+// snapshot and pushes the episode's eviction deadline out by the
+// retention window. Interrupt task retries re-read the snapshot on
+// every attempt with backoff well under the retention window, so a
+// retrying interrupt keeps its billing state and buffered parts alive
+// through a database outage instead of losing them to the cleanup
+// loop mid-retry.
 func (b *Buffer) CloseEpisodeForBilling(key Key) (EpisodeBilling, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -479,11 +493,15 @@ func (b *Buffer) CloseEpisodeForBilling(key Key) (EpisodeBilling, error) {
 		return EpisodeBilling{}, ErrMessagePartBufferClosed
 	}
 	episode := b.getOrCreateEpisodeLocked(key)
-	if episode.close(b.opts.Clock.Now("message-part-buffer", "close")) {
+	now := b.opts.Clock.Now("message-part-buffer", "close")
+	if episode.close(now) {
 		b.queueClosedEpisodeLocked(key, episode)
 		episode.notifySubscribers()
+	} else {
+		b.refreshClosedEpisodeEvictionLocked(key, episode, now)
 	}
 	return EpisodeBilling{
+		ClosedAt:           episode.closedAt,
 		ModelInvokedAt:     episode.modelStartedAt,
 		ToolBatchStartedAt: episode.toolBatchStartedAt,
 		ToolCompletions:    slices.Clone(episode.toolCompletions),
@@ -607,6 +625,16 @@ func (b *Buffer) queueClosedEpisodeLocked(key Key, episode *episodeState) {
 		return
 	}
 	item := &closedEpisodeItem{key: key, closedAt: episode.closedAt}
+	episode.closedHeapItem = item
+	heap.Push(&b.closedEpisodes, item)
+}
+
+// refreshClosedEpisodeEvictionLocked pushes a closed episode's eviction
+// deadline out to evictAt plus the retention window by queueing a fresh
+// heap item. The superseded item stays in the heap until the cleanup
+// loop pops it and skips it via the closedHeapItem identity check.
+func (b *Buffer) refreshClosedEpisodeEvictionLocked(key Key, episode *episodeState, evictAt time.Time) {
+	item := &closedEpisodeItem{key: key, closedAt: evictAt}
 	episode.closedHeapItem = item
 	heap.Push(&b.closedEpisodes, item)
 }

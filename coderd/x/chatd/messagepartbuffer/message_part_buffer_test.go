@@ -264,10 +264,11 @@ func TestBuffer_CloseEpisodeForBilling(t *testing.T) {
 	defer buffer.Close()
 
 	// Closing an unknown episode creates it closed, like CloseEpisode,
-	// and reports empty billing.
+	// and reports empty billing stamped with the close instant.
 	unknown := testEpisodeKey()
 	billing, err := buffer.CloseEpisodeForBilling(unknown)
 	require.NoError(t, err)
+	require.Equal(t, clock.Now(), billing.ClosedAt)
 	require.Zero(t, billing.ModelInvokedAt)
 	require.Zero(t, billing.ToolBatchStartedAt)
 	require.Empty(t, billing.ToolCompletions)
@@ -286,8 +287,11 @@ func TestBuffer_CloseEpisodeForBilling(t *testing.T) {
 	clock.Advance(time.Second)
 	completedAt := clock.Now()
 	require.NoError(t, buffer.RecordToolCompletion(key, 0, "call-1", completedAt))
+	clock.Advance(time.Second)
+	closedAt := clock.Now()
 	billing, err = buffer.CloseEpisodeForBilling(key)
 	require.NoError(t, err)
+	require.Equal(t, closedAt, billing.ClosedAt)
 	require.Zero(t, billing.ModelInvokedAt)
 	require.Equal(t, batchStartedAt, billing.ToolBatchStartedAt)
 	require.Equal(t, []messagepartbuffer.ToolCompletion{
@@ -296,12 +300,59 @@ func TestBuffer_CloseEpisodeForBilling(t *testing.T) {
 	}, billing.ToolCompletions)
 	require.ErrorIs(t, buffer.RecordToolCompletion(key, 1, "call-2", clock.Now()), messagepartbuffer.ErrEpisodeClosed)
 
-	// Closing an already-closed episode still reports its billing, so
-	// an interrupt racing the generation task's own close loses
-	// nothing.
+	// Closing an already-closed episode reports the identical snapshot,
+	// including the original close instant: a retried interrupt task
+	// bills the same window every attempt, and an interrupt racing the
+	// generation task's own close loses nothing.
+	clock.Advance(time.Second)
 	again, err := buffer.CloseEpisodeForBilling(key)
 	require.NoError(t, err)
 	require.Equal(t, billing, again)
+}
+
+// A retrying interrupt task re-reads its billing snapshot on every
+// attempt; each re-read pushes the episode's eviction deadline out, so
+// a retry loop outlasting the original retention window keeps the
+// snapshot instead of losing it to the cleanup loop mid-outage.
+func TestBuffer_CloseEpisodeForBillingRefreshesEviction(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{
+		Clock:                  clock,
+		ClosedEpisodeRetention: time.Minute,
+	})
+	defer buffer.Close()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	key := testEpisodeKey()
+	require.NoError(t, buffer.CreateEpisode(key))
+	require.NoError(t, buffer.StartToolBatch(key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 0, ToolCallID: "call-1"}}))
+	first, err := buffer.CloseEpisodeForBilling(key)
+	require.NoError(t, err)
+
+	// A retry 45 seconds in re-reads the snapshot and refreshes the
+	// deadline.
+	clock.Advance(45 * time.Second).MustWait(ctx)
+	again, err := buffer.CloseEpisodeForBilling(key)
+	require.NoError(t, err)
+	require.Equal(t, first, again)
+
+	// The cleanup tick after the original one-minute deadline must not
+	// collect the refreshed episode: the snapshot survives.
+	clock.Advance(15 * time.Second).MustWait(ctx)
+	again, err = buffer.CloseEpisodeForBilling(key)
+	require.NoError(t, err)
+	require.Equal(t, first, again)
+
+	// Once retries stop refreshing it, the episode ages out and a later
+	// close reports empty billing again.
+	clock.Advance(time.Minute).MustWait(ctx)
+	clock.Advance(time.Minute).MustWait(ctx)
+	expired, err := buffer.CloseEpisodeForBilling(key)
+	require.NoError(t, err)
+	require.Zero(t, expired.ToolBatchStartedAt)
+	require.Empty(t, expired.ToolCompletions)
 }
 
 func TestBuffer_SubscribeExistingReplaysThenStreamsLiveParts(t *testing.T) {

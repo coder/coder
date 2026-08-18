@@ -282,7 +282,12 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		}
 		return taskRetryableError{err: xerrors.Errorf("get message part episode: %w", err)}
 	}
-	interruptedAt := s.opts.Clock.Now("chatworker", "interrupt")
+	// The interrupt instant is the episode's first close, which is
+	// stable across repeat closes: a retried interrupt task (transient
+	// database errors) recomputes identical partial messages and
+	// billing windows instead of billing still-running tools through
+	// each retry's later clock reading.
+	interruptedAt := episodeBilling.ClosedAt
 	var attemptRuntime time.Duration
 	if !episodeBilling.ModelInvokedAt.IsZero() {
 		attemptRuntime = interruptedAt.Sub(episodeBilling.ModelInvokedAt)
