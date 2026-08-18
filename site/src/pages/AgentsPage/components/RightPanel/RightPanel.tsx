@@ -93,6 +93,10 @@ function useResizableDrag({
 	const isDragging = useRef(false);
 	const startX = useRef(0);
 	const startWidth = useRef(0);
+	// Latest width set during this drag. The `width` prop can lag the
+	// final pointermove at pointerup because moves render at lower
+	// priority, so persistence reads the ref instead.
+	const lastDragWidth = useRef<number | null>(null);
 	const sidebarCollapsedByDrag = useRef(false);
 	// Track snap state during a drag. This is state (not a ref) so
 	// the panel visually updates as the user drags across thresholds.
@@ -104,6 +108,7 @@ function useResizableDrag({
 		e.preventDefault();
 		isDragging.current = true;
 		setDragSnap(null);
+		lastDragWidth.current = null;
 		sidebarCollapsedByDrag.current = false;
 		startX.current = e.clientX;
 		const panel = (e.target as HTMLElement).closest(
@@ -142,7 +147,9 @@ function useResizableDrag({
 			nextSnap = "closed";
 		} else {
 			nextSnap = "normal";
-			setWidth(Math.min(maxWidth, Math.max(MIN_WIDTH, raw)));
+			const clamped = Math.min(maxWidth, Math.max(MIN_WIDTH, raw));
+			setWidth(clamped);
+			lastDragWidth.current = clamped;
 		}
 		setDragSnap(nextSnap);
 
@@ -168,7 +175,7 @@ function useResizableDrag({
 		onVisualExpandedChange?.(null);
 
 		// Persist once per drag instead of on every width change.
-		rightPanelWidthStorage.set(width);
+		rightPanelWidthStorage.set(lastDragWidth.current ?? width);
 
 		if (snap) {
 			onSnapCommit(snap);

@@ -281,6 +281,11 @@ const createHandle = <T>(
 	};
 
 	const remove = (): void => {
+		// Skip the write and listener notification when there is
+		// nothing to remove.
+		if (readRaw(area, key) === null) {
+			return;
+		}
 		removeRaw(area, key);
 		invalidateAndNotify(area, key);
 	};
