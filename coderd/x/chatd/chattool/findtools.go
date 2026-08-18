@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
 	"unicode/utf8"
 
 	"charm.land/fantasy"
@@ -490,10 +491,11 @@ func parseFindToolsQueries(entries []FindToolCatalogEntry, queries []string) []s
 						continue
 					}
 				} else {
-					if len(pass.text) < len(server) || !strings.EqualFold(pass.text[:len(server)], server) {
+					var ok bool
+					rest, ok = cutPrefixFold(pass.text, server)
+					if !ok {
 						continue
 					}
-					rest = pass.text[len(server):]
 				}
 				rest, ok := strings.CutPrefix(strings.TrimLeft(rest, " "), ":")
 				if !ok {
@@ -509,6 +511,35 @@ func parseFindToolsQueries(entries []FindToolCatalogEntry, queries []string) []s
 		}
 	}
 	return parsed
+}
+
+// cutPrefixFold is a case-insensitive strings.CutPrefix. It compares
+// rune by rune with the same simple folding as strings.EqualFold, so a
+// prefix whose folded form differs in UTF-8 byte length (like S and
+// the long s) still matches and the cut lands on a rune boundary,
+// which byte-length slicing cannot guarantee.
+func cutPrefixFold(s, prefix string) (string, bool) {
+	rest := s
+	for _, prefixRune := range prefix {
+		restRune, size := utf8.DecodeRuneInString(rest)
+		if size == 0 || !runesFoldEqual(restRune, prefixRune) {
+			return "", false
+		}
+		rest = rest[size:]
+	}
+	return rest, true
+}
+
+func runesFoldEqual(a, b rune) bool {
+	if a == b {
+		return true
+	}
+	for r := unicode.SimpleFold(a); r != a; r = unicode.SimpleFold(r) {
+		if r == b {
+			return true
+		}
+	}
+	return false
 }
 
 func tokenizeFindTools(value string) []string {

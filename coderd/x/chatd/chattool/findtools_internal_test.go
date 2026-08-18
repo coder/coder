@@ -123,6 +123,27 @@ func TestSearchTools(t *testing.T) {
 		require.Len(t, result.Activated, 2,
 			"a prefix matching no exact-case name falls back to spanning the case-colliding servers")
 	})
+	t.Run("folded scopes with different byte lengths", func(t *testing.T) {
+		t.Parallel()
+		// The long s folds with S and s but is two UTF-8 bytes, so a
+		// byte-length prefix slice can never line the two forms up.
+		// Scope-only queries keep the assertion sharp: an unscoped
+		// fallback tokenizes to a term that matches nothing because
+		// ToLower does not case-fold the long s.
+		foldedEntries := []FindToolCatalogEntry{
+			{Name: "ſerver__tool", Description: "does things", Server: "ſerver"},
+		}
+		result, _ := SearchTools(foldedEntries, FindToolsArgs{Queries: []string{"Server:"}}, SearchBudget{})
+		require.Equal(t, []string{"ſerver__tool"}, result.Activated,
+			"a folded scope with fewer bytes than the server name still scopes")
+
+		asciiEntries := []FindToolCatalogEntry{
+			{Name: "server__tool", Description: "does things", Server: "server"},
+		}
+		result, _ = SearchTools(asciiEntries, FindToolsArgs{Queries: []string{"ſerver:"}}, SearchBudget{})
+		require.Equal(t, []string{"server__tool"}, result.Activated,
+			"a folded scope with more bytes than the server name still scopes")
+	})
 	t.Run("bounded query work", func(t *testing.T) {
 		t.Parallel()
 		entries := []FindToolCatalogEntry{
