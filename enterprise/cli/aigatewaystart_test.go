@@ -121,8 +121,7 @@ func withAIGatewayUpstream(handler http.HandlerFunc) aiGatewayDeploymentOption {
 	}
 }
 
-// withAIGatewayCoderdOptions mutates coderd's options, for example to replace
-// the ticker that drives its gateway key checks.
+// withAIGatewayCoderdOptions mutates coderd's options.
 func withAIGatewayCoderdOptions(mutate func(*coderdenttest.Options)) aiGatewayDeploymentOption {
 	return func(cfg *aiGatewayDeploymentConfig) {
 		cfg.coderdOptions = mutate
@@ -249,29 +248,34 @@ func TestAIGatewayStartE2E(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
+	// Given: a coderd entitled for the AI Gateway, with a key and a provider.
 	dep := setupAIGatewayDeployment(ctx, t)
 
+	// When: the gateway starts against that coderd.
 	baseURL, waiter := startAIGatewayCommand(ctx, t, dep.client.URL.String(), dep.key)
 
-	// Liveness holds as soon as the listener is up; readiness follows once the
-	// DRPC connection is established and providers are loaded.
+	// Then: liveness holds as soon as the listener is bound, and readiness
+	// follows the DRPC connection and the provider load.
 	requireAIGatewayStatus(ctx, t, baseURL+aiGatewayHealthzPath, http.StatusOK)
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
-	// One LLM request through the gateway's own listener.
+	// When: a user sends an LLM request to the gateway.
 	result := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
+
+	// Then: the upstream's response reaches the caller.
 	require.NoError(t, result.err)
 	require.Equal(t, http.StatusOK, result.status, "body: %s", result.body)
 	require.Contains(t, string(result.body), "standalone gateway e2e response")
 	require.Equal(t, int32(1), dep.upstreamHits.Load())
 
-	// The interception is recorded in coderd.
+	// Then: coderd records the interception, attributed to that user.
 	sessions := requireAIGatewaySessions(ctx, t, dep, 1)
 	require.Equal(t, dep.user.Username, sessions[0].Initiator.Username)
 
-	// Graceful shutdown: canceling the command must produce a clean exit.
+	// When: the command is canceled.
 	waiter.Cancel()
+	// Then: it exits cleanly.
 	require.NoError(t, waiter.Wait())
 }
 
@@ -284,6 +288,7 @@ func TestAIGatewayStartE2E_InvalidKey(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, _ := setupAIGatewayCoderdenttestDeployment(t)
 
+	// When: the gateway starts with invalid key.
 	inv, _ := newCLI(t,
 		"ai-gateway", "start",
 		"--url", client.URL.String(),
@@ -292,6 +297,8 @@ func TestAIGatewayStartE2E_InvalidKey(t *testing.T) {
 	)
 	inv = inv.WithContext(ctx)
 	waiter := clitest.StartWithWaiter(t, inv)
+
+	// Then: it exits with error without retrying.
 	require.ErrorContains(t, waiter.Wait(), "AI Gateway key invalid")
 }
 
@@ -301,17 +308,18 @@ func TestAIGatewayStartE2E_InvalidKey(t *testing.T) {
 func TestAIGatewayStart_HealthBeforeReady(t *testing.T) {
 	t.Parallel()
 
-	// Fake coderd that answers 503 so the daemon keeps retrying to connect.
+	// Given: a coderd that always answers 503
 	coderSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	t.Cleanup(coderSrv.Close)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
+	// When: the gateway starts and binds its listener.
 	baseURL, _ := startAIGatewayCommand(ctx, t, coderSrv.URL, "test-key")
 
-	// The startup log line is emitted after the listener is bound, so no retry
-	// loop is needed.
+	// Then: healthz is already 200 while readyz stays 503.
+	// The startup log line is emitted after the bind, so no retry is needed.
 	requireAIGatewayStatus(ctx, t, baseURL+aiGatewayHealthzPath, http.StatusOK)
 	requireAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusServiceUnavailable)
 }
@@ -323,6 +331,7 @@ func TestAIGatewayStartE2E_RevokedKey(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
+	// Given: a ready gateway, and a coderd whose key check ticker the test drives.
 	keyCheck := make(chan time.Time, 1)
 	dep := setupAIGatewayDeployment(ctx, t, withAIGatewayCoderdOptions(func(opts *coderdenttest.Options) {
 		opts.Options.NewTicker = func(time.Duration) (<-chan time.Time, func()) {
@@ -333,10 +342,12 @@ func TestAIGatewayStartE2E_RevokedKey(t *testing.T) {
 	baseURL, waiter := startAIGatewayCommand(ctx, t, dep.client.URL.String(), dep.key)
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
+	// When: the key is deleted and coderd runs its check.
 	//nolint:gocritic // Owner role is needed for gateway key management.
 	require.NoError(t, dep.client.DeleteAIGatewayKey(ctx, dep.keyID))
 	keyCheck <- time.Now()
 
+	// Then: the 401 on the gateway's redial terminates the command.
 	require.ErrorContains(t, waiter.Wait(), "AI Gateway key invalid")
 }
 
@@ -417,19 +428,11 @@ func (p *chaosProxy) setHealthy(healthy bool) {
 	p.healthy.Store(healthy)
 }
 
-// disconnect makes coderd both unreachable and unavailable, then waits for the
-// gateway to observe the loss of its DRPC connection. Closing the proxy's
+// disconnect makes coderd both unreachable and unavailable. Closing the proxy's
 // connections takes the gateway's multiplexed websocket down with them.
-//
-// Readiness is the only signal a caller has that the gateway noticed, so it is
-// used to sequence the test. That readiness follows the DRPC connection at all
-// is asserted by TestStandaloneGatewayHealthAndReadiness.
-func (p *chaosProxy) disconnect(ctx context.Context, t *testing.T, gatewayBaseURL string) {
-	t.Helper()
-
+func (p *chaosProxy) disconnect() {
 	p.setHealthy(false)
 	p.listener.closeConns()
-	requireEventualAIGatewayStatus(ctx, t, gatewayBaseURL+aiGatewayReadyzPath, http.StatusServiceUnavailable)
 }
 
 // aiGatewayResponse is the outcome of an LLM request sent through a gateway.
@@ -496,31 +499,47 @@ func requireAIGatewaySessions(ctx context.Context, t *testing.T, dep *aiGatewayD
 // gateway serves LLM traffic again once coderd returns, without any operator
 // intervention, which requires the provider cache and the recorder to recover
 // alongside the DRPC connection.
-//
-// The readiness transitions themselves are asserted by
-// TestStandaloneGatewayHealthAndReadiness and are used here only to sequence
-// the outage.
 func TestAIGatewayStartE2E_ReconnectAfterDisconnect(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	dep := setupAIGatewayDeployment(ctx, t)
 
+	// Given: a ready gateway, reaching coderd through a chaos proxy.
 	proxy := newChaosProxy(t, dep.client.URL)
 	baseURL, _ := startAIGatewayCommand(ctx, t, proxy.srv.URL, dep.key)
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
-	proxy.disconnect(ctx, t, baseURL)
+	// When: a request arrives while coderd is reachable.
+	before := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
+
+	// Then: it is served and recorded.
+	require.NoError(t, before.err)
+	require.Equal(t, http.StatusOK, before.status, "body: %s", before.body)
+	requireAIGatewaySessions(ctx, t, dep, 1)
+
+	// When: coderd becomes unreachable.
+	proxy.disconnect()
+
+	// Then: readiness withdraws.
+	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusServiceUnavailable)
+
+	// When: coderd is reachable again.
 	proxy.setHealthy(true)
+
+	// Then: readiness recovers with no intervention.
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
 
-	result := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+	// Then: a new request is served and both interceptions are recorded, so the
+	// provider cache and the recorder recovered with the connection.
+	after := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
 		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
-	require.NoError(t, result.err)
-	require.Equal(t, http.StatusOK, result.status, "body: %s", result.body)
-	require.Contains(t, string(result.body), "standalone gateway e2e response")
-	require.Equal(t, int32(1), dep.upstreamHits.Load())
-	requireAIGatewaySessions(ctx, t, dep, 1)
+	require.NoError(t, after.err)
+	require.Equal(t, http.StatusOK, after.status, "body: %s", after.body)
+	require.Contains(t, string(after.body), "standalone gateway e2e response")
+	require.Equal(t, int32(2), dep.upstreamHits.Load())
+	requireAIGatewaySessions(ctx, t, dep, 2)
 }
 
 // TestAIGatewayStartE2E_RequestWhileDisconnected pins the behavior of an LLM
@@ -534,43 +553,36 @@ func TestAIGatewayStartE2E_RequestWhileDisconnected(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	dep := setupAIGatewayDeployment(ctx, t)
 
+	// Given: a ready gateway that then loses its connection to coderd.
 	proxy := newChaosProxy(t, dep.client.URL)
 	baseURL, _ := startAIGatewayCommand(ctx, t, proxy.srv.URL, dep.key)
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
+	proxy.disconnect()
+	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusServiceUnavailable)
 
-	proxy.disconnect(ctx, t, baseURL)
-
-	// A request that arrives while disconnected does not fail fast; it blocks
-	// until the caller gives up. The gateway has no server-side timeout on its
-	// pre-flight DRPC calls, so the caller's deadline is the only bound.
-	reqCtx, cancel := context.WithTimeout(ctx, testutil.IntervalSlow)
-	defer cancel()
-	abandoned := postChatCompletionAndRead(reqCtx, baseURL+aiGatewayChatCompletionPath,
-		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
-	require.ErrorIs(t, abandoned.err, context.DeadlineExceeded)
-	require.Equal(t, int32(0), dep.upstreamHits.Load(), "a request must not reach the upstream before it is authorized")
-
-	// A caller that keeps waiting is served as soon as the connection returns.
+	// When: a request arrives while the gateway has no connection to coderd.
 	responses := make(chan aiGatewayResponse, 1)
 	go func() {
 		responses <- postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
 			dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
 	}()
-	// The proxy is still unhealthy, so there is no path for this request to
-	// complete. Confirming it stays parked is the assertion, not a workaround
-	// for a race.
+
+	// Then: it does not fail fast, and it does not reach the upstream before it
+	// is authorized which requires a connection to coderd.
 	select {
 	case result := <-responses:
 		t.Fatalf("request completed while disconnected: status=%d, err=%v", result.status, result.err)
-	case <-time.After(testutil.IntervalSlow):
+	case <-time.After(testutil.IntervalMedium):
 	}
+	require.Equal(t, int32(0), dep.upstreamHits.Load(), "a request must not reach the upstream before it is authorized")
 
+	// When: coderd returns. Then: the parked request is served.
 	proxy.setHealthy(true)
 	result := testutil.RequireReceive(ctx, t, responses)
 	require.NoError(t, result.err)
 	require.Equal(t, http.StatusOK, result.status, "body: %s", result.body)
 	require.Contains(t, string(result.body), "standalone gateway e2e response")
-	require.Equal(t, int32(1), dep.upstreamHits.Load(), "only the request whose caller waited reaches the upstream")
+	require.Equal(t, int32(1), dep.upstreamHits.Load(), "the parked request reaches the upstream once it is authorized")
 }
 
 // readAIGatewayStreamEvent returns the payload of the next server-sent event,
@@ -637,6 +649,8 @@ func TestAIGatewayStartE2E_InFlightRequestSurvivesDisconnect(t *testing.T) {
 	release := make(chan struct{})
 	dep := setupAIGatewayDeployment(ctx, t, withAIGatewayUpstream(blockingStreamAIGatewayUpstream(release)))
 
+	// Given: a ready gateway, and a streaming request whose first chunk the
+	// caller has already received.
 	proxy := newChaosProxy(t, dep.client.URL)
 	baseURL, _ := startAIGatewayCommand(ctx, t, proxy.srv.URL, dep.key)
 	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
@@ -648,16 +662,15 @@ func TestAIGatewayStartE2E_InFlightRequestSurvivesDisconnect(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	// Reading the first delta proves the gateway already forwarded part of the
-	// response, so it can no longer substitute an error for it. The upstream is
-	// still blocked, so the rest of the stream depends on what happens next.
 	stream := bufio.NewReader(resp.Body)
 	require.Equal(t, "first half", readAIGatewayStreamDelta(t, stream))
 
-	proxy.disconnect(ctx, t, baseURL)
+	// When: the DRPC connection drops and the upstream finishes the stream.
+	proxy.disconnect()
+	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusServiceUnavailable)
 	close(release)
 
+	// Then: the rest of the stream reaches the caller, in order.
 	require.Equal(t, " second half", readAIGatewayStreamDelta(t, stream))
 	require.Equal(t, "[DONE]", readAIGatewayStreamEvent(t, stream), "the stream must be terminated")
 	require.Equal(t, int32(1), dep.upstreamHits.Load(), "the request must reach the upstream exactly once")
