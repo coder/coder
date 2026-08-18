@@ -9274,6 +9274,38 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------|------------------------------------------------------------|----------|--------------|-------------|
 | `github` | [codersdk.OAuth2GithubConfig](#codersdkoauth2githubconfig) | false    |              |             |
 
+## codersdk.OAuth2Error
+
+```json
+{
+  "error": "invalid_request",
+  "error_description": "string",
+  "error_uri": "string"
+}
+```
+
+### Properties
+
+| Name                | Type                                                 | Required | Restrictions | Description |
+|---------------------|------------------------------------------------------|----------|--------------|-------------|
+| `error`             | [codersdk.OAuth2ErrorCode](#codersdkoauth2errorcode) | false    |              |             |
+| `error_description` | string                                               | false    |              |             |
+| `error_uri`         | string                                               | false    |              |             |
+
+## codersdk.OAuth2ErrorCode
+
+```json
+"invalid_request"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                                                                                                                                                    |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `access_denied`, `invalid_client`, `invalid_grant`, `invalid_request`, `invalid_scope`, `invalid_target`, `server_error`, `temporarily_unavailable`, `unauthorized_client`, `unsupported_grant_type`, `unsupported_response_type`, `unsupported_token_type` |
+
 ## codersdk.OAuth2GithubConfig
 
 ```json

@@ -229,20 +229,41 @@ func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, respon
 	_ = enc.Encode(response)
 }
 
-// Read decodes JSON from the HTTP request into the value provided. It uses
-// go-validator to validate the incoming request body. ctx is used for tracing
-// and can be nil. Although tracing this function isn't likely too helpful, it
-// was done to be consistent with Write.
+// DefaultMaxRequestBodyBytes bounds the request body that a JSON endpoint will
+// decode. It exists so that a single request, including an unauthenticated one,
+// cannot exhaust server memory with an oversized body. Endpoints whose payloads
+// legitimately exceed it must call ReadLimit with an explicit limit instead of
+// raising this constant.
+const DefaultMaxRequestBodyBytes = 4 << 20 // 4 MiB
+
+// Read decodes JSON from the HTTP request into the value provided, reading at
+// most DefaultMaxRequestBodyBytes from the body. It uses go-validator to
+// validate the incoming request body. ctx is used for tracing and can be nil.
+// Although tracing this function isn't likely too helpful, it was done to be
+// consistent with Write.
 func Read(ctx context.Context, rw http.ResponseWriter, r *http.Request, value interface{}) bool {
+	return ReadLimit(ctx, rw, r, DefaultMaxRequestBodyBytes, value)
+}
+
+// ReadLimit is Read with an explicit request body size limit, for the few
+// endpoints whose payloads legitimately exceed DefaultMaxRequestBodyBytes.
+//
+// Callers must use this rather than wrapping r.Body in an http.MaxBytesReader
+// themselves. Read installs its own limit, and nested readers compose as
+// tightest-wins, so the default would override a larger caller-supplied limit.
+func ReadLimit(ctx context.Context, rw http.ResponseWriter, r *http.Request, limit int64, value interface{}) bool {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+
+	r.Body = http.MaxBytesReader(rw, r.Body, limit)
 
 	err := json.NewDecoder(r.Body).Decode(value)
 	if err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			RecordRequestBodyLimit(r.Context(), limit)
 			Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "Request body too large.",
-				Detail:  err.Error(),
+				Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", limit),
 			})
 			return false
 		}
@@ -530,4 +551,18 @@ func WriteOAuth2Error(ctx context.Context, rw http.ResponseWriter, status int, e
 		Error:            errorCode,
 		ErrorDescription: description,
 	})
+}
+
+// WriteOAuth2RequestTooLarge reports a request body over limit as an RFC 6749
+// error, for the OAuth2 endpoints that read a form body rather than decoding
+// through Read. RFC 6749 defines no error code for a transport rejection, so
+// invalid_request is the closest compliant framing.
+//
+// The limit is the one carried by the *http.MaxBytesError that tripped, so a
+// caller of this function reports the bound that actually applied rather than
+// the one it assumes applied.
+func WriteOAuth2RequestTooLarge(ctx context.Context, rw http.ResponseWriter, limit int64) {
+	RecordRequestBodyLimit(ctx, limit)
+	WriteOAuth2Error(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.OAuth2ErrorCodeInvalidRequest,
+		fmt.Sprintf("Maximum request body size is %d bytes.", limit))
 }

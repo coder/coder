@@ -5120,7 +5120,7 @@ curl -X POST http://coder-server:8080/oauth2/register \
 ```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/oauth2/revoke \
-
+  -H 'Accept: */*'
 ```
 
 `POST /oauth2/revoke`
@@ -5143,11 +5143,16 @@ token_type_hint: string
 | `» token`           | body | string | true     | The token to revoke                                   |
 | `» token_type_hint` | body | string | false    | Hint about token type (access_token or refresh_token) |
 
+### Example responses
+
+> 413 Response
+
 ### Responses
 
-| Status | Meaning                                                 | Description                | Schema |
-|--------|---------------------------------------------------------|----------------------------|--------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | Token successfully revoked |        |
+| Status | Meaning                                                                 | Description                | Schema                                                 |
+|--------|-------------------------------------------------------------------------|----------------------------|--------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | Token successfully revoked |                                                        |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large   | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
 
 ## OAuth2 token exchange
 
@@ -5205,9 +5210,10 @@ grant_type: authorization_code
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                 |
-|--------|---------------------------------------------------------|-------------|----------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [oauth2.Token](schemas.md#oauth2token) |
+| Status | Meaning                                                                 | Description              | Schema                                                 |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       | [oauth2.Token](schemas.md#oauth2token)                 |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
 
 ## Delete OAuth2 application tokens
 

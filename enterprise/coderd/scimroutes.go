@@ -1,6 +1,9 @@
 package coderd
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -12,6 +15,50 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/legacyscim"
 	"github.com/coder/coder/v2/enterprise/coderd/scim"
 )
+
+// scimMaxRequestBodyBytes bounds a SCIM request body. SCIM does not decode
+// through httpapi.Read and so does not inherit its limit: the legacy handler
+// decodes r.Body directly, and the SCIM 2.0 library calls io.ReadAll(r.Body) on
+// every method that carries one, including the .search POST. The library's read
+// happens before any error handling of its own could report it, so neither
+// implementation would report an oversized body as such and the bound is
+// enforced outside both handlers.
+const scimMaxRequestBodyBytes = httpapi.DefaultMaxRequestBodyBytes
+
+// scimLimitRequestBody rejects a request body over scimMaxRequestBodyBytes with
+// a SCIM-shaped 413 and passes the buffered body to next. The limit is enforced
+// on bytes read rather than on Content-Length, which is absent under chunked
+// transfer encoding and caller-controlled otherwise.
+//
+// This buffers, so it is mounted after the SCIM API key check on both
+// implementations. Mounting it ahead of authentication would let an
+// unauthenticated caller spend scimMaxRequestBodyBytes per request on a path
+// that has no rate limit, which is the exposure the bound exists to remove.
+func scimLimitRequestBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if r.Body == nil {
+			next.ServeHTTP(rw, r)
+			return
+		}
+
+		// Reading a single byte past the limit is what separates an at-limit
+		// body from an oversized one.
+		body, err := io.ReadAll(io.LimitReader(r.Body, scimMaxRequestBodyBytes+1))
+		if err != nil {
+			scim.WriteError(rw, http.StatusBadRequest, "could not read request body")
+			return
+		}
+		if len(body) > scimMaxRequestBodyBytes {
+			httpapi.RecordRequestBodyLimit(r.Context(), scimMaxRequestBodyBytes)
+			scim.WriteError(rw, http.StatusRequestEntityTooLarge,
+				fmt.Sprintf("request body must not exceed %d bytes", scimMaxRequestBodyBytes))
+			return
+		}
+
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		next.ServeHTTP(rw, r)
+	})
+}
 
 func (api *API) mountScimRoute(opt *Options, r chi.Router) error {
 	if len(opt.SCIMAPIKey) == 0 {
@@ -42,9 +89,14 @@ func (api *API) mountScimRoute(opt *Options, r chi.Router) error {
 			SCIMAPIKey: opt.SCIMAPIKey,
 			Auditor:    &api.AGPL.Auditor,
 		}
+		// The body bound runs after AuthMiddleware, which is a header
+		// comparison that never reads the body. A caller without the SCIM API
+		// key is rejected there having caused no read, and an authenticated
+		// caller still reaches the handler through the bound.
 		r.Mount("/v2", chi.Chain(
 			api.RequireFeatureMW(codersdk.FeatureSCIM),
 			legacySrv.AuthMiddleware,
+			scimLimitRequestBody,
 		).Handler(legacySrv.Handler()))
 		return nil
 	}
@@ -66,9 +118,13 @@ func (api *API) mountScimRoute(opt *Options, r chi.Router) error {
 	// internally. Chi's Route/Mount modifies its own routing context
 	// but not r.URL.Path, so we use http.StripPrefix to ensure the
 	// library sees paths like "/v2/Users" instead of "/scim/v2/Users".
+	//
+	// The body bound is passed to Handler rather than mounted here because this
+	// implementation authenticates inside its own handler. Handler runs it after
+	// the API key check, so an unauthenticated caller causes no read.
 	r.Mount("/", chi.Chain(
 		api.RequireFeatureMW(codersdk.FeatureSCIM),
 		middleware.StripPrefix("/scim"),
-	).Handler(scimSrv.Handler()))
+	).Handler(scimSrv.Handler(scimLimitRequestBody)))
 	return nil
 }
