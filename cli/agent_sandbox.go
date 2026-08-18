@@ -107,6 +107,15 @@ func agentSandboxWithDeps(agentAuth *AgentAuth, deps agentSandboxDeps) *serpent.
 				return xerrors.Errorf("resolve Coder executable: %w", err)
 			}
 			logger := inv.Logger.Named("agent-sandbox")
+			destination, err := confine.ControlChannelDestinationOptions(&agentAuth.agentURL)
+			if err != nil {
+				return xerrors.Errorf("configure agent sandbox control channel: %w", err)
+			}
+			logger.Info(inv.Context(), "injected AI sandbox egress allowance",
+				slog.F("host", destination.AlwaysAllowHost),
+				slog.F("port", destination.AlwaysAllowPort),
+				slog.F("reason", "platform control channel"),
+			)
 			client := deps.newPolicyClient(&agentAuth.agentURL, policyToken, logger)
 			policyMonitor, err := confine.NewPolicyMonitor(confine.PolicyMonitorOptions{
 				Client:    client,
@@ -143,9 +152,7 @@ func agentSandboxWithDeps(agentAuth *AgentAuth, deps agentSandboxDeps) *serpent.
 				AgentURL:        agentAuth.agentURL.String(),
 				AgentToken:      agentAuth.agentToken,
 				Policy:          policyMonitor.Engine(),
-				Destination: confine.DestinationOptions{
-					AllowPrivateHost: agentAuth.agentURL.Hostname(),
-				},
+				Destination:     destination,
 				Event: func(event confine.NetworkEvent) {
 					logger.Info(context.Background(), "ai sandbox egress decision",
 						slog.F("action", event.Action),

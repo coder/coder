@@ -131,6 +131,42 @@ func TestAgentSandboxOptions(t *testing.T) {
 	})
 }
 
+func TestAgentSandboxControlChannelAllowance(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		agentURL string
+		wantHost string
+		wantPort int
+	}{
+		{name: "HTTPSDefault", agentURL: "https://CODER.Example.COM.", wantHost: "coder.example.com", wantPort: 443},
+		{name: "HTTPSExplicit", agentURL: "https://coder.example.com:8443", wantHost: "coder.example.com", wantPort: 8443},
+		{name: "HTTPDefault", agentURL: "http://coder.example.com", wantHost: "coder.example.com", wantPort: 80},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotOptions confine.MicroVMOptions
+			deps := agentSandboxTestDeps()
+			deps.startMicroVM = func(_ context.Context, options confine.MicroVMOptions) (agentSandboxInstance, error) {
+				gotOptions = options
+				return &agentSandboxTestInstance{}, nil
+			}
+			inv := canceledAgentSandboxInvocation(t, agentSandboxWithDeps(&AgentAuth{}, deps), []string{
+				"--agent-token", "guest-token",
+				"--policy-token", "host-token",
+				"--agent-url", tt.agentURL,
+			}, nil)
+			require.NoError(t, inv.Run())
+			require.Equal(t, tt.wantHost, gotOptions.Destination.AlwaysAllowHost)
+			require.Equal(t, tt.wantPort, gotOptions.Destination.AlwaysAllowPort)
+			require.Equal(t, gotOptions.Destination.AlwaysAllowHost, gotOptions.Destination.AllowPrivateHost)
+		})
+	}
+}
+
 func TestValidateAgentSandboxOptions(t *testing.T) {
 	t.Parallel()
 
