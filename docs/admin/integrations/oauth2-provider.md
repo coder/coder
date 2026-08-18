@@ -390,7 +390,7 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
 As an experimental feature, the current implementation has limitations:
 
 - A scope allowlist can only be declared at [Dynamic Client Registration](#dynamic-client-registration); applications created through the web UI or the management API cannot restrict which scopes a client may request
-- A `scope` parameter on a refresh request is ignored, and the refreshed token keeps the scope originally granted
+- A client cannot narrow the token's scope on refresh; the `scope` parameter is ignored and the refreshed token always keeps the scope originally granted
 - No client credentials grant support
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1
   deprecated this flow due to token leakage risks, and requests return
