@@ -83,6 +83,20 @@ func newEmbeddedMicroVMConfig(options MicroVMOptions) (embeddedMicroVMConfig, er
 		Name:   options.Name,
 		Policy: evaluator,
 	}
+	mounts := []hostvm.Mount{{
+		Source: filepath.Dir(binaryPath), Target: embeddedCoderGuestDir,
+		ReadOnly: true, Nosuid: true, Nodev: true,
+	}}
+	guestCAFile, caBundlePath, err := resolveHostCABundle(options.CABundlePath)
+	if err != nil {
+		return embeddedMicroVMConfig{}, err
+	}
+	if caBundlePath != "" {
+		mounts = append(mounts, hostvm.Mount{
+			Source: filepath.Dir(caBundlePath), Target: embeddedCAGuestDir,
+			ReadOnly: true, Noexec: true, Nosuid: true, Nodev: true,
+		})
+	}
 	return embeddedMicroVMConfig{
 		hostOptions: hostvm.Options{
 			Image:     options.Image,
@@ -93,13 +107,10 @@ func newEmbeddedMicroVMConfig(options MicroVMOptions) (embeddedMicroVMConfig, er
 			MemoryMiB: options.MemoryMiB,
 			Proxy:     server,
 			Subject:   subject,
-			Mounts: []hostvm.Mount{{
-				Source: filepath.Dir(binaryPath), Target: embeddedCoderGuestDir,
-				ReadOnly: true, Nosuid: true, Nodev: true,
-			}},
+			Mounts:    mounts,
 		},
 		agentCommand: embeddedAgentCommand(
-			embeddedCoderGuestDir+"/"+filepath.Base(binaryPath),
+			embeddedCoderGuestDir+"/"+filepath.Base(binaryPath), guestCAFile,
 			agentURL.String(), options.AgentToken, options.SessionToken,
 		),
 		evaluator: evaluator,
@@ -164,7 +175,32 @@ func validateMicroVMOptions(options MicroVMOptions) (string, *url.URL, error) {
 	return binaryPath, agentURL, nil
 }
 
-func embeddedAgentCommand(guestBinaryPath, agentURL, agentToken, sessionToken string) string {
+// resolveHostCABundle returns the guest path for the CA bundle and the host
+// bundle path. An explicit override must exist; discovery misses return empty
+// values so the guest image's own trust store applies.
+func resolveHostCABundle(override string) (guestFile string, hostPath string, err error) {
+	if override != "" {
+		info, statErr := os.Stat(override)
+		if statErr != nil || !info.Mode().IsRegular() {
+			return "", "", xerrors.Errorf("CA bundle %q is not a readable file", override)
+		}
+		return embeddedCAGuestDir + "/" + filepath.Base(override), override, nil
+	}
+	for _, candidate := range hostCABundlePaths {
+		if info, statErr := os.Stat(candidate); statErr == nil && info.Mode().IsRegular() {
+			return embeddedCAGuestDir + "/" + filepath.Base(candidate), candidate, nil
+		}
+	}
+	return "", "", nil
+}
+
+// caEnvironmentKeys are the reserved guest variables that name a trust store.
+var caEnvironmentKeys = []string{
+	"CURL_CA_BUNDLE", "GIT_SSL_CAINFO", "NODE_EXTRA_CA_CERTS",
+	"REQUESTS_CA_BUNDLE", "SSL_CERT_FILE",
+}
+
+func embeddedAgentCommand(guestBinaryPath, guestCAFile, agentURL, agentToken, sessionToken string) string {
 	environment := "CODER_AGENT_URL=" + shellQuote(agentURL) +
 		" CODER_AGENT_TOKEN=" + shellQuote(agentToken)
 	if sessionToken != "" {
@@ -173,7 +209,16 @@ func embeddedAgentCommand(guestBinaryPath, agentURL, agentToken, sessionToken st
 	// Guest exec sessions do not inherit init's environment, so the
 	// reserved proxy and CA variables must be applied explicitly or the
 	// agent dials directly and the VM firewall silently drops the traffic.
+	// The proxy runs TLS passthrough, so the CA variables must name real
+	// roots, not the interception CA, or every TLS verification fails.
 	proxyEnv := hostvm.GuestProxyEnv()
+	for _, key := range caEnvironmentKeys {
+		if guestCAFile == "" {
+			delete(proxyEnv, key)
+			continue
+		}
+		proxyEnv[key] = guestCAFile
+	}
 	for _, key := range slices.Sorted(maps.Keys(proxyEnv)) {
 		environment += " " + key + "=" + shellQuote(proxyEnv[key])
 	}

@@ -80,6 +80,9 @@ func TestEmbeddedMicroVMConfigWiresEvaluatorRecorderAndAgent(t *testing.T) {
 	binaryLink := filepath.Join(t.TempDir(), "coder-link")
 	require.NoError(t, os.Symlink(binaryPath, binaryLink))
 
+	caBundle := filepath.Join(t.TempDir(), "ca-bundle.crt")
+	require.NoError(t, os.WriteFile(caBundle, []byte("bundle"), 0o600))
+
 	engine := NewPolicyEngine("", 0)
 	engine.Update(codersdk.AIEgressPolicy{Revision: 11})
 	var events []NetworkEvent
@@ -98,6 +101,7 @@ func TestEmbeddedMicroVMConfigWiresEvaluatorRecorderAndAgent(t *testing.T) {
 		Event: func(event NetworkEvent) {
 			events = append(events, event)
 		},
+		CABundlePath: caBundle,
 	})
 	require.NoError(t, err)
 	require.Equal(t, "embedded-test", config.hostOptions.Name)
@@ -108,7 +112,10 @@ func TestEmbeddedMicroVMConfigWiresEvaluatorRecorderAndAgent(t *testing.T) {
 	require.NotNil(t, config.hostOptions.Subject)
 	require.Same(t, config.evaluator, config.hostOptions.Subject.Policy)
 	require.Equal(t, "embedded-test", config.hostOptions.Subject.ID)
-	require.Len(t, config.hostOptions.Mounts, 1)
+	require.Len(t, config.hostOptions.Mounts, 2)
+	require.Equal(t, filepath.Dir(caBundle), config.hostOptions.Mounts[1].Source)
+	require.Equal(t, embeddedCAGuestDir, config.hostOptions.Mounts[1].Target)
+	require.True(t, config.hostOptions.Mounts[1].ReadOnly)
 	require.Equal(t, filepath.Dir(binaryPath), config.hostOptions.Mounts[0].Source)
 	require.Equal(t, embeddedCoderGuestDir, config.hostOptions.Mounts[0].Target)
 	require.True(t, config.hostOptions.Mounts[0].ReadOnly)
@@ -153,7 +160,7 @@ func TestEmbeddedMicroVMConfigWiresEvaluatorRecorderAndAgent(t *testing.T) {
 func TestEmbeddedAgentCommandWithoutSessionToken(t *testing.T) {
 	t.Parallel()
 
-	command := embeddedAgentCommand(embeddedCoderGuestDir+"/coder", "https://coder.example.com", "agent-token", "")
+	command := embeddedAgentCommand(embeddedCoderGuestDir+"/coder", embeddedCAGuestDir+"/ca-certificates.crt", "https://coder.example.com", "agent-token", "")
 	require.NotContains(t, command, "CODER_SESSION_TOKEN=")
 	//nolint:gosec // The generated command is the value under test.
 	require.NoError(t, exec.Command("sh", "-n", "-c", command).Run())
@@ -171,10 +178,44 @@ func TestEmbeddedAgentCommandShellQuoting(t *testing.T) {
 	require.Equal(t, value, string(output))
 
 	command := embeddedAgentCommand(
-		embeddedCoderGuestDir+"/coder name", "https://coder.example.com/a path", "agent'token", "session'token",
+		embeddedCoderGuestDir+"/coder name", "", "https://coder.example.com/a path", "agent'token", "session'token",
 	)
 	//nolint:gosec // The generated command is the value under test.
 	require.NoError(t, exec.Command("sh", "-n", "-c", command).Run())
+}
+
+func TestEmbeddedAgentCommandCAEnvironment(t *testing.T) {
+	t.Parallel()
+
+	withCA := embeddedAgentCommand(
+		embeddedCoderGuestDir+"/coder", embeddedCAGuestDir+"/bundle.crt",
+		"https://coder.example.com", "agent-token", "",
+	)
+	require.Contains(t, withCA, "SSL_CERT_FILE='\\''"+embeddedCAGuestDir+"/bundle.crt'\\''")
+	require.NotContains(t, withCA, "coder-sandbox-ca.crt")
+
+	withoutCA := embeddedAgentCommand(
+		embeddedCoderGuestDir+"/coder", "",
+		"https://coder.example.com", "agent-token", "",
+	)
+	require.NotContains(t, withoutCA, "SSL_CERT_FILE=")
+	require.NotContains(t, withoutCA, "CURL_CA_BUNDLE=")
+	require.Contains(t, withoutCA, "HTTPS_PROXY=")
+}
+
+func TestResolveHostCABundle(t *testing.T) {
+	t.Parallel()
+
+	bundle := filepath.Join(t.TempDir(), "bundle.crt")
+	require.NoError(t, os.WriteFile(bundle, []byte("test"), 0o600))
+
+	guestFile, hostPath, err := resolveHostCABundle(bundle)
+	require.NoError(t, err)
+	require.Equal(t, bundle, hostPath)
+	require.Equal(t, embeddedCAGuestDir+"/bundle.crt", guestFile)
+
+	_, _, err = resolveHostCABundle(filepath.Join(t.TempDir(), "missing.crt"))
+	require.Error(t, err)
 }
 
 func TestStartEmbeddedMicroVMSmoke(t *testing.T) {

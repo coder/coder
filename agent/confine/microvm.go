@@ -34,6 +34,12 @@ type MicroVMOptions struct {
 	Destination DestinationOptions
 	Event       EventCallback
 	Progress    func(string)
+
+	// CABundlePath overrides host system CA bundle discovery. When empty,
+	// well-known locations are probed; when no bundle is found the CA
+	// environment variables are omitted and the guest image's own trust
+	// store applies.
+	CABundlePath string
 }
 
 func reportMicroVMProgress(callback func(string), message string) {
@@ -46,6 +52,22 @@ func reportMicroVMProgress(callback func(string), message string) {
 // guest. Post-launch capture reads it back through guest exec because guest
 // writes are not reliably visible in the host-side rootfs directory.
 const embeddedAgentLogPath = "/var/log/coder-agent.log"
+
+// embeddedCAGuestDir is the guest mountpoint for the host's system CA
+// directory. The proxy runs TLS passthrough, so the guest verifies real
+// server certificates and needs real roots; the daemon's reserved CA
+// variables point at the interception CA, which verifies nothing in
+// passthrough mode, and minimal guest images may ship no CA store at all.
+const embeddedCAGuestDir = "/opt/coder-ca"
+
+// hostCABundlePaths are common system CA bundle locations, in preference
+// order.
+var hostCABundlePaths = []string{
+	"/etc/ssl/certs/ca-certificates.crt",
+	"/etc/pki/tls/certs/ca-bundle.crt",
+	"/etc/ssl/ca-bundle.pem",
+	"/etc/ssl/cert.pem",
+}
 
 type embeddedVM interface {
 	Exec(context.Context, string) (int, error)
