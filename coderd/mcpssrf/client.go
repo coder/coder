@@ -32,6 +32,13 @@ var extraBlockedPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("240.0.0.0/4"),     // RFC 1112 reserved.
 
 	// IPv6 special-use ranges not covered by stdlib.
+	// Deprecated IPv4-embedding forms are blocked outright rather than
+	// decoded like the NAT64 well-known prefix: RFC 4291 deprecated
+	// IPv4-compatible addresses and RFC 2765 SIIT translation has no
+	// modern deployment, so a translator routing them is not a
+	// supported path to otherwise-public IPv4 targets.
+	netip.MustParsePrefix("::/96"),           // RFC 4291 deprecated IPv4-compatible.
+	netip.MustParsePrefix("::ffff:0:0:0/96"), // RFC 2765 SIIT IPv4-translated.
 	// RFC 8215 permits deployment-chosen embedding layouts, so its IPv4
 	// destination cannot be decoded reliably.
 	netip.MustParsePrefix("64:ff9b:1::/48"),

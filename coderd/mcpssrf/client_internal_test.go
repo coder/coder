@@ -87,6 +87,12 @@ func TestIsBlockedAddr(t *testing.T) {
 		{addr: "3fff::1", blocked: true},
 		{addr: "5f00::1", blocked: true},
 		{name: "NAT64LocalUsePrefix", addr: "64:ff9b:1::808:808", blocked: true},
+		{name: "IPv4CompatibleLoopback", addr: "::127.0.0.1", blocked: true},
+		{name: "IPv4CompatiblePrivate", addr: "::10.0.0.1", blocked: true},
+		{name: "IPv4CompatiblePublic", addr: "::8.8.8.8", blocked: true},
+		{name: "SIITTranslatedMetadata", addr: "::ffff:0:169.254.169.254", blocked: true},
+		{name: "SIITTranslatedLoopback", addr: "::ffff:0:127.0.0.1", blocked: true},
+		{name: "SIITTranslatedPublic", addr: "::ffff:0:8.8.8.8", blocked: true},
 		{addr: "fec0::1", blocked: true},
 		{
 			name:    "AllowlistedDeprecatedSiteLocalIPv6",
