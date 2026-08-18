@@ -1,28 +1,47 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
+import { fn } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
 } from "#/components/Filter/storyHelpers";
 import { ListSessionsFilter } from "./ListSessionsFilter";
+import type { TimeRange } from "./timeRange";
 
 type FilterProps = ComponentProps<typeof ListSessionsFilter>;
 
-const defaultFilterProps = getDefaultFilterProps<
-	Pick<FilterProps, "filter" | "menus">
->({
-	query: "",
-	values: {
-		username: undefined,
-		provider: undefined,
-	},
-	menus: {
-		user: MockMenu,
-		provider: MockMenu,
-		client: MockMenu,
-		model: MockMenu,
-	},
-});
+type FilterAndMenus = Pick<FilterProps, "filter" | "menus">;
+
+const timeRange: TimeRange = {
+	startedAfter: new Date("2026-08-12T15:00:00Z"),
+	startedBefore: new Date("2026-08-13T15:00:00Z"),
+};
+
+const timeRangeProps: Pick<
+	FilterProps,
+	"timeRange" | "defaultTimeRange" | "onTimeRangeChange"
+> = {
+	timeRange,
+	defaultTimeRange: timeRange,
+	onTimeRangeChange: fn(),
+};
+
+const defaultFilterProps = {
+	...getDefaultFilterProps<FilterAndMenus>({
+		query: "",
+		values: {
+			username: undefined,
+			provider: undefined,
+		},
+		menus: {
+			user: MockMenu,
+			provider: MockMenu,
+			client: MockMenu,
+			model: MockMenu,
+		},
+	}),
+	...timeRangeProps,
+};
 
 const meta: Meta<typeof ListSessionsFilter> = {
 	title: "pages/AIBridgePage/ListSessionsFilter",
@@ -40,7 +59,7 @@ export const Default: Story = {
 
 export const WithQuery: Story = {
 	args: {
-		...getDefaultFilterProps<Pick<FilterProps, "filter" | "menus">>({
+		...getDefaultFilterProps<FilterAndMenus>({
 			query: "initiator:me",
 			values: {
 				username: "me",
@@ -54,6 +73,17 @@ export const WithQuery: Story = {
 			},
 			used: true,
 		}),
+		...timeRangeProps,
+	},
+};
+
+export const ExplicitTimeRange: Story = {
+	args: {
+		...defaultFilterProps,
+		timeRange: {
+			startedAfter: new Date("2026-08-01T09:30:00"),
+			startedBefore: new Date("2026-08-02T17:45:00"),
+		},
 	},
 };
 

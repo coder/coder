@@ -1,4 +1,5 @@
 import type { FC } from "react";
+import { DateTimeRangeFilter } from "#/components/DateTimeRangeFilter/DateTimeRangeFilter";
 import {
 	Filter,
 	MenuSkeleton,
@@ -11,6 +12,11 @@ import {
 	ProviderFilter,
 	type ProviderFilterMenu,
 } from "../filters/ProviderFilter";
+import type { TimeRange } from "./timeRange";
+
+// Narrower than the SelectFilter default so the search input keeps most
+// of the row on wide viewports.
+const FILTER_WIDTH = 150;
 
 interface ListSessionsFilterProps {
 	filter: ReturnType<typeof useFilter>;
@@ -21,12 +27,18 @@ interface ListSessionsFilterProps {
 		client: ClientFilterMenu;
 		model: ModelFilterMenu;
 	};
+	timeRange: TimeRange;
+	defaultTimeRange: TimeRange;
+	onTimeRangeChange: (range: TimeRange) => void;
 }
 
 export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 	filter,
 	error,
 	menus,
+	timeRange,
+	defaultTimeRange,
+	onTimeRangeChange,
 }) => {
 	return (
 		<Filter
@@ -46,10 +58,20 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 			error={error}
 			options={
 				<>
-					<UserMenu menu={menus.user} placeholder="All users" />
-					<ProviderFilter menu={menus.provider} />
-					<ClientFilter menu={menus.client} />
-					<ModelFilter menu={menus.model} />
+					<DateTimeRangeFilter
+						value={timeRange}
+						defaultValue={defaultTimeRange}
+						onChange={onTimeRangeChange}
+						width={FILTER_WIDTH}
+					/>
+					<UserMenu
+						menu={menus.user}
+						placeholder="All users"
+						width={FILTER_WIDTH}
+					/>
+					<ProviderFilter menu={menus.provider} width={FILTER_WIDTH} />
+					<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
+					<ModelFilter menu={menus.model} width={FILTER_WIDTH} />
 				</>
 			}
 		/>
