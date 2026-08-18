@@ -683,8 +683,6 @@ export const FindToolsEmptyResult: Story = {
 			"Searched tools: nonexistent capability -> 0 matched",
 		);
 		expect(summary).toBeVisible();
-		// A valid empty result has no match list to expand and no error
-		// indicator.
 		expect(
 			canvas.queryByRole("button", {
 				name: "Searched tools: nonexistent capability -> 0 matched",
@@ -735,7 +733,6 @@ export const FindToolsErrorResult: Story = {
 		expect(
 			canvas.getByText("Searched tools: github issues -> 0 matched"),
 		).toBeVisible();
-		// The failure indicator carries the persisted error message.
 		expect(
 			canvas.getByRole("img", {
 				name: "The schema budget for this step is exhausted; call the tools already activated or retry next step.",
