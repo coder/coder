@@ -271,6 +271,48 @@ The default Ubuntu guest may not include `curl`. For the HTTP checks, select a
 Linux amd64 guest image that already contains it. This is a validation tool in
 the guest image, not a host runtime dependency.
 
+## MCP gateway access
+
+Sandboxed agents reach MCP servers through the Coder MCP gateway instead of
+connecting to them directly, so no new egress rules are needed and the
+sponsoring human's OAuth credentials never enter the guest. See
+`AI_AGENT_MCP_GATEWAY_SPEC.md` for the full contract.
+
+- Endpoint: `<access URL>/api/v2/ai-gateway/mcp/{server-slug}` over
+  streamable HTTP.
+- Credential: the scoped AI identity session token as a bearer token. Inside
+  the guest it is exposed as `CODER_SESSION_TOKEN` when delivered.
+- Administrators configure servers under Admin settings, AI, MCP Servers:
+  choose the `External auth provider` authentication method, select a
+  configured provider, and set tool rules (a server default plus per-tool
+  overrides).
+- When the sponsoring human has not authenticated with the provider, tool
+  calls return a JSON-RPC error whose data carries a `reauth_url`; opening
+  that URL in a browser completes the provider login and unblocks the agent.
+
+### Session token delivery status
+
+The managed embedded mode (`CODER_AI_SANDBOX_MICROVM=true`) delivers the
+scoped session token to the guest automatically. This declared two-agent
+template does not yet: no Terraform-visible session-token value exists, so
+`coder_script` cannot pass one. The wiring seam exists as
+`coder agent sandbox --session-token` (`CODER_SANDBOX_SESSION_TOKEN`); an
+operator can export that variable into the sandbox process environment
+manually for testing until a provider data source lands.
+
+### MCP validation checklist (with a supplied token)
+
+1. Configure an MCP server with external auth and at least one disabled
+   tool rule.
+2. From the guest, list tools:
+   `curl -X POST -H "Authorization: Bearer $CODER_SESSION_TOKEN" ...`
+   against the gateway URL and confirm disabled tools are absent.
+3. Call an allowed tool and confirm it succeeds using the sponsor's
+   provider identity.
+4. Call the disabled tool directly and confirm a JSON-RPC policy denial.
+5. Revoke the provider link at `<access URL>/external-auth/{provider}` and
+   confirm the next call returns the structured re-auth error.
+
 ## Current limitations and validation status
 
 - Egress allow and deny decisions are structured entries in
