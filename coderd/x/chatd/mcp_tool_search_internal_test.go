@@ -214,6 +214,18 @@ func TestDeriveDeferredMCPActivationsReusedCallIDs(t *testing.T) {
 	aWeight := estimateDeferredMCPToolTokens(candidates[:1])
 	require.Equal(t, []string{"server__a"}, deriveDeferredMCPActivations(missingResult, candidates, aWeight),
 		"under budget the abandoned call keeps its successful position")
+
+	// Compaction removed the orphan find_tools result's call row, and a
+	// later step reuses its ID for a fresh find_tools call. The orphan
+	// must be admitted at its own row, not stashed for a call that was
+	// already visited.
+	orphanSearch := []database.ChatMessage{
+		row(t, database.ChatMessageRoleTool, codersdk.ChatMessageToolResult("call-1", chattool.FindToolsName, []byte(`{"activated":["server__a"]}`), false, false)),
+		row(t, database.ChatMessageRoleAssistant, codersdk.ChatMessageToolCall("call-1", chattool.FindToolsName, []byte(`{"queries":["b"]}`))),
+		row(t, database.ChatMessageRoleTool, codersdk.ChatMessageToolResult("call-1", chattool.FindToolsName, []byte(`{"activated":["server__b"]}`), false, false)),
+	}
+	require.Equal(t, []string{"server__b", "server__a"}, deriveDeferredMCPActivations(orphanSearch, candidates, 0),
+		"an orphan search result with a reused ID is admitted at its own row")
 }
 
 func TestFlattenMCPParameterText(t *testing.T) {

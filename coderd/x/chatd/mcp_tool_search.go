@@ -269,27 +269,25 @@ func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []defe
 		activated = append(activated, name)
 	}
 	parsedParts := make([][]codersdk.ChatMessagePart, len(rows))
-	findToolsCallIDs := make(map[string]struct{})
 	for i := range rows {
 		parts, err := chatprompt.ParseContent(rows[i])
 		if err != nil {
 			continue
 		}
 		parsedParts[i] = parts
-		for _, part := range parts {
-			if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolName == chattool.FindToolsName && part.ToolCallID != "" {
-				findToolsCallIDs[part.ToolCallID] = struct{}{}
-			}
-		}
 	}
 	// Providers may reuse a tool-call ID in a later step, so a result
 	// settles the newest unpaired call with its ID: a new call abandons
 	// any older unpaired call, whose own result was lost or compacted
 	// away, and abandoned calls count as successful rather than
-	// adopting a later call's result.
-	type callRef struct{ row, part int }
-	callErrored := make(map[callRef]bool)
-	pendingByID := make(map[string]callRef)
+	// adopting a later call's result. Results paired to a call
+	// occurrence are recorded so orphan results, whose call row was
+	// compacted away, are admitted at their own row even when a later
+	// step reuses their ID.
+	type partRef struct{ row, part int }
+	callErrored := make(map[partRef]bool)
+	resultPaired := make(map[partRef]struct{})
+	pendingByID := make(map[string]partRef)
 	for i := range rows {
 		for j, part := range parsedParts[i] {
 			if part.ToolCallID == "" {
@@ -297,10 +295,11 @@ func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []defe
 			}
 			switch part.Type {
 			case codersdk.ChatMessagePartTypeToolCall:
-				pendingByID[part.ToolCallID] = callRef{row: i, part: j}
+				pendingByID[part.ToolCallID] = partRef{row: i, part: j}
 			case codersdk.ChatMessagePartTypeToolResult:
 				if ref, ok := pendingByID[part.ToolCallID]; ok {
 					callErrored[ref] = part.IsError
+					resultPaired[partRef{row: i, part: j}] = struct{}{}
 					delete(pendingByID, part.ToolCallID)
 				}
 			}
@@ -311,21 +310,21 @@ func deriveDeferredMCPActivations(rows []database.ChatMessage, candidates []defe
 	for i := len(rows) - 1; i >= 0; i-- {
 		for j, part := range parsedParts[i] {
 			if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolName != chattool.FindToolsName {
-				if callErrored[callRef{row: i, part: j}] {
+				if callErrored[partRef{row: i, part: j}] {
 					erroredNames = append(erroredNames, part.ToolName)
 					continue
 				}
 				appendName(part.ToolName)
 			}
 		}
-		for _, part := range parsedParts[i] {
+		for j, part := range parsedParts[i] {
 			switch {
 			case part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolName == chattool.FindToolsName:
 				var result chattool.FindToolsResult
 				if err := json.Unmarshal(part.Result, &result); err != nil {
 					continue
 				}
-				if _, paired := findToolsCallIDs[part.ToolCallID]; paired {
+				if _, paired := resultPaired[partRef{row: i, part: j}]; paired {
 					pendingSearch[part.ToolCallID] = result.Activated
 					continue
 				}
