@@ -119,6 +119,43 @@ func normalizedPort(u *url.URL) string {
 	}
 }
 
+func dialAttemptDeadline(now, deadline time.Time, attemptsRemaining int) time.Time {
+	return now.Add(deadline.Sub(now) / time.Duration(attemptsRemaining))
+}
+
+func dialValidatedIPs(
+	ctx context.Context,
+	dialer *net.Dialer,
+	network string,
+	port string,
+	ips []netip.Addr,
+) (net.Conn, error) {
+	var firstErr error
+	for i, ip := range ips {
+		dialCtx := ctx
+		cancel := func() {}
+		if deadline, ok := ctx.Deadline(); ok {
+			dialCtx, cancel = context.WithDeadline(
+				ctx,
+				dialAttemptDeadline(time.Now(), deadline, len(ips)-i),
+			)
+		}
+		conn, dialErr := dialer.DialContext(
+			dialCtx,
+			network,
+			net.JoinHostPort(ip.Unmap().String(), port),
+		)
+		cancel()
+		if dialErr == nil {
+			return conn, nil
+		}
+		if firstErr == nil {
+			firstErr = dialErr
+		}
+	}
+	return nil, firstErr
+}
+
 // NewHTTPClient blocks private and special-use destinations unless allowed.
 // It validates and dials resolved IPs directly to prevent DNS rebinding.
 // Base client timeouts and non-routing transport settings are preserved.
@@ -185,18 +222,7 @@ func NewHTTPClient(base *http.Client, allowed []netip.Prefix) *http.Client {
 		// IP after validation (DNS rebinding). TLS verification
 		// still uses the URL hostname via the transport's TLS
 		// config.
-		var dialer net.Dialer
-		var firstErr error
-		for _, ip := range ips {
-			conn, dialErr := dialer.DialContext(ctx, network, net.JoinHostPort(ip.Unmap().String(), port))
-			if dialErr == nil {
-				return conn, nil
-			}
-			if firstErr == nil {
-				firstErr = dialErr
-			}
-		}
-		return nil, firstErr
+		return dialValidatedIPs(ctx, &net.Dialer{}, network, port, ips)
 	}
 
 	return &http.Client{
