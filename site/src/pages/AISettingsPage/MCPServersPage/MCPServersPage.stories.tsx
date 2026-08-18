@@ -245,7 +245,7 @@ export const DeleteOnlyOrgAdminCanOpenMCPServer: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(await canvas.findByText("Coder"));
+		await userEvent.click(await canvas.findByRole("button", { name: /Coder/ }));
 		await expect(
 			await canvas.findByText(`detail-org:${MockDefaultOrganization.name}`),
 		).toBeVisible();
