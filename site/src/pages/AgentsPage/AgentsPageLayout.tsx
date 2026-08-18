@@ -332,11 +332,14 @@ const AgentsPageLayout: FC = () => {
 				(path) => navigate(path),
 			);
 			// The chat may have been archived and then restored (delete
-			// failure) or left archived (restore failure); refetch chat
-			// state so the sidebar converges on the server's view.
+			// failure) or left archived (restore failure or ambiguous
+			// delete); refetch every collection that watch events may
+			// have already pruned so all caches converge on the server.
 			if (error instanceof ArchiveAndDeleteError && error.step === "delete") {
 				void invalidateChatListQueries(queryClient);
 				void invalidateChatEntity(queryClient, chatId);
+				void invalidateChatsByWorkspace(queryClient);
+				void invalidateChatSearches(queryClient);
 			}
 		},
 	});

@@ -438,12 +438,37 @@ describe("archiveChatAndDeleteWorkspace", () => {
 		const err = await promise.catch((e: unknown) => e);
 		expect((err as ArchiveAndDeleteError).step).toBe("delete");
 		expect((err as ArchiveAndDeleteError).cause).toBe(cause);
-		expect((err as ArchiveAndDeleteError).unarchiveFailed).toBe(false);
+		expect((err as ArchiveAndDeleteError).recovery).toBe("unarchived");
 		expect(doUnarchive).toHaveBeenCalledWith("chat-1");
 		expect(callOrder).toEqual(["archive", "delete", "unarchive"]);
 	});
 
-	it("flags unarchiveFailed when the compensating unarchive also fails", async () => {
+	it("skips the unarchive when the delete outcome is unknown", async () => {
+		const doArchive = vi.fn(async () => undefined);
+		// No HTTP response: the request may have been processed even
+		// though the client saw a timeout.
+		const cause = { isAxiosError: true, code: "ECONNABORTED" };
+		const doDelete = vi.fn(async () => {
+			throw cause;
+		});
+		const doUnarchive = vi.fn(async () => undefined);
+
+		const promise = archiveChatAndDeleteWorkspace(
+			"chat-1",
+			"workspace-1",
+			doArchive,
+			doDelete,
+			doUnarchive,
+		);
+		const err = (await promise.catch(
+			(e: unknown) => e,
+		)) as ArchiveAndDeleteError;
+		expect(err.step).toBe("delete");
+		expect(err.recovery).toBe("skipped-unknown-outcome");
+		expect(doUnarchive).not.toHaveBeenCalled();
+	});
+
+	it("flags the recovery when the compensating unarchive also fails", async () => {
 		const doArchive = vi.fn(async () => undefined);
 		const doDelete = vi.fn(async () => {
 			throw {
@@ -466,7 +491,7 @@ describe("archiveChatAndDeleteWorkspace", () => {
 			(e: unknown) => e,
 		)) as ArchiveAndDeleteError;
 		expect(err.step).toBe("delete");
-		expect(err.unarchiveFailed).toBe(true);
+		expect(err.recovery).toBe("unarchive-failed");
 	});
 
 	it("returns the delete build payload on success", async () => {
@@ -885,7 +910,11 @@ describe("notifyArchiveAndDeleteFailed", () => {
 		const onOpen = vi.fn();
 		notifyArchiveAndDeleteFailed(
 			makeWorkspace({ name: "stuck-ws", owner_name: "dana" }),
-			new ArchiveAndDeleteError("delete", new Error("boom"), true),
+			new ArchiveAndDeleteError(
+				"delete",
+				new Error("boom"),
+				"unarchive-failed",
+			),
 			onOpen,
 		);
 		expect(toastError).toHaveBeenCalledTimes(1);
@@ -893,6 +922,26 @@ describe("notifyArchiveAndDeleteFailed", () => {
 			string,
 			{ description: string },
 		];
+		expect(options.description).toContain("remains archived");
+	});
+
+	it("explains the unknown delete outcome when the compensation was skipped", () => {
+		const onOpen = vi.fn();
+		notifyArchiveAndDeleteFailed(
+			makeWorkspace({ name: "timeout-ws" }),
+			new ArchiveAndDeleteError(
+				"delete",
+				new Error("timeout"),
+				"skipped-unknown-outcome",
+			),
+			onOpen,
+		);
+		expect(toastError).toHaveBeenCalledTimes(1);
+		const [, options] = toastError.mock.calls[0] as [
+			string,
+			{ description: string },
+		];
+		expect(options.description).toContain("delete result is unknown");
 		expect(options.description).toContain("remains archived");
 	});
 

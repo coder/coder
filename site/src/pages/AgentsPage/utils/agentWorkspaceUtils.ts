@@ -89,27 +89,35 @@ export function isWorkspaceNotFound(error: unknown): boolean {
 	return status === 404 || status === 410;
 }
 
+/**
+ * Outcome of the compensating unarchive after a delete-step failure:
+ * the chat was restored ("unarchived"), the restore itself failed
+ * ("unarchive-failed"), or the delete outcome was ambiguous (no HTTP
+ * response) so the compensation was skipped and the chat stays
+ * archived ("skipped-unknown-outcome").
+ */
+type ArchiveRecovery =
+	| "unarchived"
+	| "unarchive-failed"
+	| "skipped-unknown-outcome";
+
 export class ArchiveAndDeleteError extends Error {
 	readonly step: "delete" | "archive";
-	/**
-	 * Only meaningful for delete-step errors: the workspace delete
-	 * failed and the compensating unarchive failed too, so the chat is
-	 * still archived even though its workspace was not deleted.
-	 */
-	readonly unarchiveFailed: boolean;
+	/** Only set for delete-step errors. */
+	readonly recovery?: ArchiveRecovery;
 	declare readonly cause: unknown;
 
 	constructor(
 		step: "delete" | "archive",
 		cause: unknown,
-		unarchiveFailed = false,
+		recovery?: ArchiveRecovery,
 	) {
 		super(
 			step === "delete" ? "workspace delete failed" : "chat archive failed",
 			{ cause },
 		);
 		this.step = step;
-		this.unarchiveFailed = unarchiveFailed;
+		this.recovery = recovery;
 	}
 }
 
@@ -141,13 +149,23 @@ export async function archiveChatAndDeleteWorkspace(
 		deleteBuild = await doDelete(workspaceId);
 	} catch (error) {
 		if (!isWorkspaceNotFound(error)) {
-			let unarchiveFailed = false;
-			try {
-				await doUnarchive(chatId);
-			} catch {
-				unarchiveFailed = true;
+			// A failure without an HTTP response (timeout, dropped
+			// connection) leaves the delete outcome unknown: the enqueue
+			// may have succeeded server-side, and restoring the chat would
+			// resurface it while its workspace is being deleted. Only
+			// compensate on a definitive server response.
+			const definitiveRejection =
+				isAxiosError(error) && error.response !== undefined;
+			let recovery: ArchiveRecovery = "skipped-unknown-outcome";
+			if (definitiveRejection) {
+				try {
+					await doUnarchive(chatId);
+					recovery = "unarchived";
+				} catch {
+					recovery = "unarchive-failed";
+				}
 			}
-			throw new ArchiveAndDeleteError("delete", error, unarchiveFailed);
+			throw new ArchiveAndDeleteError("delete", error, recovery);
 		}
 	}
 	return { chatId, workspaceId, deleteBuild };
@@ -271,15 +289,21 @@ export function notifyArchiveAndDeleteFailed(
 		return;
 	}
 
-	const unarchiveFailed =
-		error instanceof ArchiveAndDeleteError && error.unarchiveFailed;
+	const recovery =
+		error instanceof ArchiveAndDeleteError ? error.recovery : undefined;
+	const descriptions: Record<ArchiveRecovery, string> = {
+		unarchived:
+			"The chat was not archived. Open the workspace to delete it manually.",
+		"unarchive-failed":
+			"The chat could not be restored and remains archived. Open the workspace to delete it manually.",
+		"skipped-unknown-outcome":
+			"The delete result is unknown and the workspace may still be deleting, so the chat remains archived.",
+	};
 	const path = `/@${workspace.owner_name}/${workspace.name}`;
 	toast.error(
 		getErrorMessage(cause, `Failed to delete workspace "${workspace.name}".`),
 		{
-			description: unarchiveFailed
-				? "The chat could not be restored and remains archived. Open the workspace to delete it manually."
-				: "The chat was not archived. Open the workspace to delete it manually.",
+			description: descriptions[recovery ?? "unarchived"],
 			action: {
 				label: "Open workspace",
 				onClick: () => onOpenWorkspace(path),
