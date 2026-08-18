@@ -69,9 +69,10 @@ func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			httpapi.RecordRequestBodyLimit(ctx, codersdk.MaxAIModelPricesBytes)
 			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "Request body too large.",
-				Detail:  err.Error(),
+				Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", codersdk.MaxAIModelPricesBytes),
 			})
 			return
 		}
