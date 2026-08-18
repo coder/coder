@@ -1,10 +1,6 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	PaywallGuidance,
-	PaywallTitle,
-	PREMIUM_DEFAULT_HERO,
-} from "#/components/Paywall/Paywall";
+import { PaywallGuidance } from "#/components/Paywall/Paywall";
 import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
 import { LicenseActivePanel } from "./LicenseActivePanel";
 import { TrialActivePanel } from "./TrialActivePanel";
@@ -34,7 +30,7 @@ export const PremiumPageView: FC<PremiumPageViewProps> = ({
 }) => {
 	if (hasLicense && isTrial) {
 		return (
-			<div className="relative isolate overflow-hidden rounded-lg border border-solid border-border-default bg-surface-secondary min-h-[640px] flex items-center justify-center p-8 lg:p-12">
+			<div className="relative isolate overflow-hidden rounded-lg py-12 mb-8 border border-solid bg-surface-secondary flex items-center justify-center">
 				<Supergraphic className="bg-[position:20%_20%]" />
 				<TrialActivePanel
 					daysRemaining={trialDaysRemaining}
@@ -44,35 +40,38 @@ export const PremiumPageView: FC<PremiumPageViewProps> = ({
 		);
 	}
 
-	let panel: React.ReactNode;
-	if (hasLicense) {
-		panel = <LicenseActivePanel />;
-	} else if (canRequestTrial) {
-		panel = (
-			<TrialRequestForm
-				onSubmit={onSubmit}
-				isSubmitting={isSubmitting}
-				error={error}
-			/>
-		);
-	} else {
-		panel = (
-			<div className="flex flex-col gap-2 items-start">
-				<PaywallTitle>{PREMIUM_DEFAULT_HERO}</PaywallTitle>
-				<PaywallGuidance className="mx-0">
-					Contact your deployment administrator for Premium.
-				</PaywallGuidance>
-			</div>
-		);
-	}
-
 	return (
 		<div className="rounded-lg border border-solid border-border-default bg-surface-primary overflow-hidden">
 			<div className="grid grid-cols-1 lg:grid-cols-2 min-h-[640px]">
-				<div className="relative isolate overflow-hidden lg:block bg-surface-secondary">
-					<Supergraphic className="bg-[position:20%_20%] bg-[length:110%_125%] -scale-x-100" />
+				<div className="relative isolate overflow-hidden hidden lg:flex flex-col p-12 bg-surface-secondary">
+					<Supergraphic className="bg-[length:100%_130%] bg-[position:0_100%] -scale-x-100" />
+					<h2 className="self-end m-0 max-w-md text-3xl font-semibold text-content-primary text-balance">
+						{hasLicense
+							? "Coder Premium"
+							: "Start a 30-day trial of Coder Premium"}
+					</h2>
+					{!hasLicense && (
+						<p className="self-start m-0 max-w-sm pt-6 text-sm text-content-secondary">
+							Control what agents can access, who can use which templates, and
+							how your infrastructure scales. No credit card required.
+						</p>
+					)}
 				</div>
-				<div className="flex flex-col justify-center p-8 lg:p-12">{panel}</div>
+				<div className="flex flex-col justify-center p-8 lg:p-12 bg-surface-secondary">
+					{hasLicense ? (
+						<LicenseActivePanel />
+					) : canRequestTrial ? (
+						<TrialRequestForm
+							onSubmit={onSubmit}
+							isSubmitting={isSubmitting}
+							error={error}
+						/>
+					) : (
+						<PaywallGuidance className="mx-0">
+							Contact your deployment administrator for Premium.
+						</PaywallGuidance>
+					)}
+				</div>
 			</div>
 		</div>
 	);

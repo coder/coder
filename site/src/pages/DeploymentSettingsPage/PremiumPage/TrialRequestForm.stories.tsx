@@ -30,7 +30,7 @@ const COMPLETE_REQUEST = {
 /** Radix Select portals its listbox into document.body. */
 const selectOption = async (
 	canvasElement: HTMLElement,
-	comboboxName: string,
+	comboboxName: RegExp,
 	optionName: RegExp,
 ) => {
 	const canvas = within(canvasElement);
@@ -45,7 +45,7 @@ const selectOption = async (
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const submit = canvas.getByRole("button", { name: "Start trial" });
+		const submit = canvas.getByRole("button", { name: "Start a trial" });
 
 		await expect(submit).toBeDisabled();
 
@@ -66,7 +66,9 @@ export const ValidationErrors: Story = {
 		const canvas = within(canvasElement);
 
 		await userEvent.click(canvas.getByRole("checkbox"));
-		await userEvent.click(canvas.getByRole("button", { name: "Start trial" }));
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Start a trial" }),
+		);
 
 		await waitFor(() =>
 			expect(
@@ -87,9 +89,14 @@ export const InvalidEmail: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
-		await userEvent.type(canvas.getByLabelText("Email"), "not-an-email");
+		await userEvent.type(
+			canvas.getByLabelText(/^Business email/),
+			"not-an-email",
+		);
 		await userEvent.click(canvas.getByRole("checkbox"));
-		await userEvent.click(canvas.getByRole("button", { name: "Start trial" }));
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Start a trial" }),
+		);
 
 		await waitFor(() =>
 			expect(
@@ -105,11 +112,13 @@ export const InvalidPhoneNumber: Story = {
 		const canvas = within(canvasElement);
 
 		await userEvent.type(
-			canvas.getByLabelText("Phone number"),
-			"(415) 555-2671",
+			canvas.getByLabelText(/^Phone number/),
+			"415-555-CODE",
 		);
 		await userEvent.click(canvas.getByRole("checkbox"));
-		await userEvent.click(canvas.getByRole("button", { name: "Start trial" }));
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Start a trial" }),
+		);
 
 		await waitFor(() =>
 			expect(
@@ -126,9 +135,11 @@ export const TooShortJobTitle: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
-		await userEvent.type(canvas.getByLabelText("Job title"), "X");
+		await userEvent.type(canvas.getByLabelText(/^Job title/), "X");
 		await userEvent.click(canvas.getByRole("checkbox"));
-		await userEvent.click(canvas.getByRole("button", { name: "Start trial" }));
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Start a trial" }),
+		);
 
 		await waitFor(() =>
 			expect(
@@ -145,7 +156,7 @@ export const CompanyNameOverLimit: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
-		await userEvent.type(canvas.getByLabelText("Company"), "a".repeat(101));
+		await userEvent.type(canvas.getByLabelText(/^Company/), "a".repeat(101));
 
 		await waitFor(() =>
 			expect(
@@ -156,22 +167,22 @@ export const CompanyNameOverLimit: Story = {
 		);
 
 		await userEvent.click(canvas.getByRole("checkbox"));
-		await userEvent.click(canvas.getByRole("button", { name: "Start trial" }));
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Start a trial" }),
+		);
 
 		await expect(args.onSubmit).not.toHaveBeenCalled();
 	},
 };
 
-// Pins the "Number of developers" bucket list. If this assertion changes,
-// coordinate the new values with the licensor service owner, since the selected
-// bucket is forwarded verbatim to the licensor.
+// Pins the "Number of developers" bucket list.
 export const SelectDevelopers: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await canvas.findByRole("combobox", { name: "Number of developers" }),
+			await canvas.findByRole("combobox", { name: /^Number of developers/ }),
 		);
 
 		await waitFor(() => {
@@ -194,39 +205,65 @@ export const SubmitsCompleteForm: Story = {
 		const canvas = within(canvasElement);
 
 		await userEvent.type(
-			canvas.getByLabelText("Email"),
+			canvas.getByLabelText(/^Business email/),
 			COMPLETE_REQUEST.email,
 		);
 		await userEvent.type(
-			canvas.getByLabelText("First name"),
+			canvas.getByLabelText(/^First name/),
 			COMPLETE_REQUEST.first_name,
 		);
 		await userEvent.type(
-			canvas.getByLabelText("Last name"),
+			canvas.getByLabelText(/^Last name/),
 			COMPLETE_REQUEST.last_name,
 		);
 		await userEvent.type(
-			canvas.getByLabelText("Company"),
+			canvas.getByLabelText(/^Company/),
 			COMPLETE_REQUEST.company_name,
 		);
 		await userEvent.type(
-			canvas.getByLabelText("Job title"),
+			canvas.getByLabelText(/^Job title/),
 			COMPLETE_REQUEST.job_title,
 		);
 		await userEvent.type(
-			canvas.getByLabelText("Phone number"),
+			canvas.getByLabelText(/^Phone number/),
 			COMPLETE_REQUEST.phone_number,
 		);
-		await selectOption(canvasElement, "Number of developers", /^51 - 100$/);
-		await selectOption(canvasElement, "Country", /United States$/);
+		await selectOption(canvasElement, /^Number of developers/, /^51 - 100$/);
+		await selectOption(canvasElement, /^Country/, /United States$/);
 
 		await userEvent.click(canvas.getByRole("checkbox"));
-		await userEvent.click(canvas.getByRole("button", { name: "Start trial" }));
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Start a trial" }),
+		);
 
 		// Deep equality, so an extra `acknowledged` key would fail this assertion.
 		await waitFor(() =>
 			expect(args.onSubmit).toHaveBeenCalledWith(COMPLETE_REQUEST),
 		);
+	},
+};
+
+export const KeyboardNavigation: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		canvas.getByLabelText(/^Phone number/).focus();
+
+		const tabOrder = [
+			canvas.getByRole("combobox", { name: /^Number of developers/ }),
+			canvas.getByRole("combobox", { name: /^Country/ }),
+			canvas.getByRole("checkbox"),
+			canvas.getByRole("link", { name: "Learn more" }),
+		];
+
+		for (const element of tabOrder) {
+			await userEvent.tab();
+			await expect(element).toHaveFocus();
+		}
+
+		// The docs link sits outside the checkbox label, so reaching it leaves
+		// the acknowledgement untouched.
+		await expect(canvas.getByRole("checkbox")).not.toBeChecked();
 	},
 };
 
@@ -242,7 +279,7 @@ export const ServerError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await userEvent.click(canvas.getByLabelText("Email"));
+		await userEvent.click(canvas.getByLabelText(/^Business email/));
 		await userEvent.tab();
 
 		await waitFor(() =>
@@ -260,11 +297,9 @@ export const Submitting: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// The in-button Spinner contributes "Loading spinner" to the accessible
-		// name, so match on the visible label rather than the whole name.
 		await expect(
-			canvas.getByRole("button", { name: /Start trial/ }),
+			canvas.getByRole("button", { name: /Start a trial/ }),
 		).toBeDisabled();
-		await expect(canvas.getByLabelText("Email")).toBeDisabled();
+		await expect(canvas.getByLabelText(/^Business email/)).toBeDisabled();
 	},
 };

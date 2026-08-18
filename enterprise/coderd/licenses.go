@@ -171,7 +171,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 // this path installs the license itself so that a trial behaves like any other uploaded license.
 //
 // @Summary Request a trial license
-// @ID request-trial-license
+// @ID request-a-trial-license
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json

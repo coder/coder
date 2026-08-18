@@ -15,3 +15,6 @@ export const numberOfDevelopersOptions = [
 export const DATABASE_DOCS_LINK = docs(
 	"/admin/infrastructure/architecture#postgresql-recommended",
 );
+
+export const CODER_PRIVACY_POLICY_LINK =
+	"https://coder.com/legal/privacy-policy";

@@ -5,6 +5,8 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { createTrialLicense, licenses } from "#/api/queries/licenses";
+import { Link } from "#/components/Link/Link";
+import { PREMIUM_PRICING_LINK } from "#/components/Paywall/Paywall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -41,20 +43,29 @@ const PremiumPage: FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Premium")}</title>
+			<title>{pageTitle("Premium trial")}</title>
 
 			<SettingsHeader
 				actions={
-					<SettingsHeaderDocsLink
-						href={DATABASE_DOCS_LINK}
-					></SettingsHeaderDocsLink>
+					<SettingsHeaderDocsLink href={DATABASE_DOCS_LINK}>
+						Review Coder system requirements
+					</SettingsHeaderDocsLink>
 				}
 			>
-				<SettingsHeaderTitle>Premium Trial</SettingsHeaderTitle>
+				<SettingsHeaderTitle>Premium trial</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					For enterprises ready to achieve world-class security, scalability,
 					and developer experience.
 				</SettingsHeaderDescription>
+				<Link
+					href={PREMIUM_PRICING_LINK}
+					target="_blank"
+					rel="noreferrer"
+					size="sm"
+					className="w-fit"
+				>
+					Learn more about premium
+				</Link>
 			</SettingsHeader>
 
 			<PremiumPageView

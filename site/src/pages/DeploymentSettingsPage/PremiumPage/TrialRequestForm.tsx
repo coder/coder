@@ -10,6 +10,7 @@ import { SelectItem } from "#/components/Select/Select";
 import { SelectField } from "#/components/SelectField/SelectField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
+	CODER_PRIVACY_POLICY_LINK,
 	DATABASE_DOCS_LINK,
 	numberOfDevelopersOptions,
 } from "#/modules/licenses/trialLicense";
@@ -27,7 +28,22 @@ const MIN_JOB_TITLE_LENGTH = 2;
 const MAX_JOB_TITLE_LENGTH = 100;
 const MIN_COMPANY_NAME_LENGTH = 2;
 const MAX_COMPANY_NAME_LENGTH = 100;
-const E164_PHONE_NUMBER_RE = /^\+[1-9]\d{1,14}$/;
+const PHONE_NUMBER_RE = /^\+?[\d\s\-.()]{7,20}$/;
+
+const DisclaimerText = () => (
+	<p className="m-0 text-xs text-content-secondary leading-relaxed">
+		The information you provide will be treated in accordance with the{" "}
+		<a
+			href={CODER_PRIVACY_POLICY_LINK}
+			target="_blank"
+			rel="noreferrer"
+			className="text-content-link hover:underline"
+		>
+			Coder Privacy Policy
+		</a>
+		. Opt-out at any time.
+	</p>
+);
 
 const validationSchema = Yup.object({
 	email: Yup.string()
@@ -51,7 +67,7 @@ const validationSchema = Yup.object({
 		)
 		.required("Please enter your last name."),
 	phone_number: Yup.string()
-		.matches(E164_PHONE_NUMBER_RE, {
+		.matches(PHONE_NUMBER_RE, {
 			message:
 				"Phone number should be in international format (e.g. +14155552671).",
 			excludeEmptyString: true,
@@ -131,21 +147,16 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 	const getFieldHelpers = getFormHelpers<TrialFormValues>(form, error);
 
 	return (
-		<form onSubmit={form.handleSubmit} className="flex flex-col gap-6">
-			<div className="flex flex-col gap-2">
-				<h1 className="m-0 font-semibold text-2xl text-content-primary">
-					Start your Premium trial
-				</h1>
-				<p className="m-0 text-sm text-content-secondary">
-					Tell us how to reach you and we will activate a 30-day Premium trial
-					on this deployment.
-				</p>
-			</div>
-
+		<form
+			onSubmit={form.handleSubmit}
+			className="flex flex-col gap-6"
+			noValidate
+		>
 			<div className="flex flex-col gap-4">
 				<FormField
-					label="Email"
+					label="Business email"
 					type="email"
+					placeholder="you@company.com"
 					field={getFieldHelpers("email", { maxLength: MAX_EMAIL_LENGTH })}
 					onChange={onChangeTrimmed(form)}
 					disabled={isSubmitting}
@@ -154,6 +165,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 				<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 					<FormField
 						label="First name"
+						placeholder="Jane"
 						field={getFieldHelpers("first_name", {
 							maxLength: MAX_NAME_LENGTH,
 						})}
@@ -161,6 +173,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 					/>
 					<FormField
 						label="Last name"
+						placeholder="Doe"
 						field={getFieldHelpers("last_name", { maxLength: MAX_NAME_LENGTH })}
 						disabled={isSubmitting}
 					/>
@@ -169,6 +182,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 				<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 					<FormField
 						label="Company"
+						placeholder="Acme Inc."
 						field={getFieldHelpers("company_name", {
 							maxLength: MAX_COMPANY_NAME_LENGTH,
 						})}
@@ -176,6 +190,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 					/>
 					<FormField
 						label="Job title"
+						placeholder="Platform Engineer"
 						field={getFieldHelpers("job_title", {
 							maxLength: MAX_JOB_TITLE_LENGTH,
 						})}
@@ -186,6 +201,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 				<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 					<FormField
 						label="Phone number"
+						placeholder="+1 415 5552671"
 						field={getFieldHelpers("phone_number")}
 						disabled={isSubmitting}
 					/>
@@ -222,50 +238,48 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 					))}
 				</SelectField>
 			</div>
-
-			<div className="flex flex-col gap-2">
-				<label
-					htmlFor={acknowledgementId}
-					className="flex cursor-pointer gap-2 items-start text-sm"
-				>
-					<Checkbox
-						id={acknowledgementId}
-						checked={form.values.acknowledged}
-						onCheckedChange={(checked) =>
-							form.setFieldValue("acknowledged", checked === true)
-						}
-						disabled={isSubmitting}
-					/>
-					<span className="text-content-secondary">
+			<div className="flex gap-2 items-start text-sm text-content-secondary">
+				<Checkbox
+					id={acknowledgementId}
+					checked={form.values.acknowledged}
+					onCheckedChange={(checked) =>
+						form.setFieldValue("acknowledged", checked === true)
+					}
+					disabled={isSubmitting}
+				/>
+				<div>
+					<label htmlFor={acknowledgementId} className="cursor-pointer">
 						I understand that Premium features increase database load, and that
 						Coder recommends an external PostgreSQL database for production
 						deployments.
-					</span>
-				</label>
-				<a
-					href={DATABASE_DOCS_LINK}
-					target="_blank"
-					rel="noreferrer"
-					className="ml-6 text-xs text-content-link hover:underline w-fit"
-				>
-					Learn more
-				</a>
+					</label>{" "}
+					<a
+						href={DATABASE_DOCS_LINK}
+						target="_blank"
+						rel="noreferrer"
+						className="text-content-link hover:underline"
+					>
+						Learn more
+					</a>
+				</div>
 			</div>
 
-			<div className="flex flex-col gap-2 items-start">
+			<div className="flex flex-col gap-2">
 				<Button
 					type="submit"
 					size="lg"
+					className="w-full"
 					disabled={!form.values.acknowledged || isSubmitting}
 				>
 					<Spinner loading={isSubmitting} />
-					Start trial
+					Start a trial
 				</Button>
 				{!form.values.acknowledged && (
 					<p className="m-0 text-xs text-content-secondary">
 						Acknowledge the database requirements to start your trial.
 					</p>
 				)}
+				<DisclaimerText />
 			</div>
 		</form>
 	);

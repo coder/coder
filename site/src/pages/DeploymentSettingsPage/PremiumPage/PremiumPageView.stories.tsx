@@ -24,10 +24,17 @@ export const NoLicense: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await expect(canvas.getByLabelText("Email")).toBeVisible();
+		// The hero tracks the panel, so the trial pitch only appears here.
+		await expect(
+			canvas.getByRole("heading", {
+				name: "Start a 30-day trial of Coder Premium",
+				level: 2,
+			}),
+		).toBeInTheDocument();
+		await expect(canvas.getByLabelText(/^Business email/)).toBeVisible();
 		// The acknowledgement gates submission.
 		await expect(
-			canvas.getByRole("button", { name: "Start trial" }),
+			canvas.getByRole("button", { name: "Start a trial" }),
 		).toBeDisabled();
 		await expect(
 			canvas.getByText(
@@ -51,9 +58,11 @@ export const NoLicenseWithoutPermission: Story = {
 		await expect(
 			canvas.getByText("Contact your deployment administrator for Premium."),
 		).toBeVisible();
-		await expect(canvas.queryByLabelText("Email")).not.toBeInTheDocument();
 		await expect(
-			canvas.queryByRole("button", { name: "Start trial" }),
+			canvas.queryByLabelText(/^Business email/),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("button", { name: "Start a trial" }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -77,7 +86,9 @@ export const TrialActive: Story = {
 		await expect(
 			canvas.getByRole("link", { name: /talk to sales/i }),
 		).toHaveAttribute("href", "https://coder.com/contact/sales");
-		await expect(canvas.queryByLabelText("Email")).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByLabelText(/^Business email/),
+		).not.toBeInTheDocument();
 		// The upsell drops the secondary CTA and the feature checklist so it no
 		// longer mirrors the trial request form.
 		await expect(
@@ -178,6 +189,12 @@ export const LicenseActive: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "View licenses" }),
 		).toHaveAttribute("href", "/deployment/licenses");
-		await expect(canvas.queryByLabelText("Email")).not.toBeInTheDocument();
+		// An installed license drops the trial pitch from the hero.
+		await expect(
+			canvas.getByRole("heading", { name: "Coder Premium", level: 2 }),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByLabelText(/^Business email/),
+		).not.toBeInTheDocument();
 	},
 };

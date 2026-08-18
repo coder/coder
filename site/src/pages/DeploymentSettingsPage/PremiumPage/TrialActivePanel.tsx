@@ -2,7 +2,7 @@ import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 
-export const CONTACT_SALES_LINK = "https://coder.com/contact/sales";
+const CONTACT_SALES_LINK = "https://coder.com/contact/sales";
 
 interface TrialActivePanelProps {
 	daysRemaining: number | undefined;

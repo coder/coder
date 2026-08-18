@@ -14,7 +14,10 @@ import { PasswordField } from "#/components/PasswordField/PasswordField";
 import { SelectItem } from "#/components/Select/Select";
 import { SelectField } from "#/components/SelectField/SelectField";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { numberOfDevelopersOptions } from "#/modules/licenses/trialLicense";
+import {
+	CODER_PRIVACY_POLICY_LINK,
+	numberOfDevelopersOptions,
+} from "#/modules/licenses/trialLicense";
 import {
 	getFormHelpers,
 	nameValidator,
@@ -330,7 +333,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							Subscribe for the latest product and news updates from Coder. The
 							information you provide will be treated in accordance with the{" "}
 							<a
-								href="https://coder.com/legal/privacy-policy"
+								href={CODER_PRIVACY_POLICY_LINK}
 								target="_blank"
 								rel="noreferrer"
 								className="text-content-link hover:underline"

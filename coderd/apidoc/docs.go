@@ -3995,7 +3995,7 @@ const docTemplate = `{
                     "Enterprise"
                 ],
                 "summary": "Request a trial license",
-                "operationId": "request-trial-license",
+                "operationId": "request-a-trial-license",
                 "parameters": [
                     {
                         "description": "Trial license request",
