@@ -327,32 +327,17 @@ func expandLowLevel(resource string, action policy.Action) Scope {
 // Names must be canonical (see CanonicalScopeName). An unknown name is an
 // error rather than a false, since a caller cannot tell those two apart.
 //
-// Coverage models site-level grants only. Anything else returns an error
-// instead of being skipped, because skipping it could report "covered" about
-// authority that was never compared. The one exception is an unmodelled grant
-// on the allowed side, which is dropped. Dropping it only shrinks the ceiling,
-// so at worst it rejects a request that would have been allowed. A negative
-// permission or an allow list is never dropped, on either side, since
-// dropping one would widen the ceiling rather than shrink it.
+// Coverage models site-level grants only. A scope carrying anything else is
+// refused on either side rather than compared on the part that is modeled,
+// because comparing a subset could report "covered" about authority that was
+// never examined.
 func ScopesCover(allowed []ScopeName, requested ScopeName) (bool, error) {
 	want, err := ExpandScope(requested)
 	if err != nil {
 		return false, xerrors.Errorf("expand requested scope: %w", err)
 	}
-	// Scope expansion populates Site only, with a wildcard allow list and no
-	// negative permissions. These guards hold that invariant: if a future
-	// scope breaks it, coverage stops being decidable here and the request is
-	// refused rather than approved on an incomplete comparison.
-	if len(want.User) > 0 || len(want.ByOrgID) > 0 {
-		return false, xerrors.Errorf("scope %q grants org or user permissions, which coverage does not model", requested)
-	}
-	for _, perm := range want.Site {
-		if perm.Negate {
-			return false, xerrors.Errorf("scope %q carries a negative permission, which coverage does not model", requested)
-		}
-	}
-	if !allowListContainsAll(want.AllowIDList) {
-		return false, xerrors.Errorf("scope %q carries a resource allow list, which coverage does not model", requested)
+	if err := checkCoverable(want, coverageSideRequested, requested); err != nil {
+		return false, err
 	}
 
 	granted := make([]Permission, 0, len(allowed)*4)
@@ -361,20 +346,8 @@ func ScopesCover(allowed []ScopeName, requested ScopeName) (bool, error) {
 		if err != nil {
 			return false, xerrors.Errorf("expand allowed scope %q: %w", name, err)
 		}
-		// A narrower allow list on the allowed side would make these
-		// permissions conditional, and treating them as unconditional would
-		// overstate the ceiling.
-		if !allowListContainsAll(expanded.AllowIDList) {
-			return false, xerrors.Errorf("allowed scope %q carries a resource allow list, which coverage does not model", name)
-		}
-		// A negative permission is the one thing on this side that cannot be
-		// dropped safely. Ignoring an unmodelled grant narrows the ceiling,
-		// but ignoring an anti-grant widens it: an "everything except delete"
-		// scope would otherwise cover a request for delete.
-		for _, perm := range expanded.Site {
-			if perm.Negate {
-				return false, xerrors.Errorf("allowed scope %q carries a negative permission, which coverage does not model", name)
-			}
+		if err := checkCoverable(expanded, coverageSideAllowed, name); err != nil {
+			return false, err
 		}
 		granted = append(granted, expanded.Site...)
 	}
@@ -385,6 +358,37 @@ func ScopesCover(allowed []ScopeName, requested ScopeName) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+// Which side of a coverage comparison a scope sits on. Both sides are held to
+// the same invariant, so the side only distinguishes the error messages.
+const (
+	coverageSideRequested = "requested"
+	coverageSideAllowed   = "allowed"
+)
+
+// checkCoverable reports an error when scope carries authority that coverage
+// cannot compare. Scope expansion populates Site only, with a wildcard allow
+// list and no negative permissions, and coverage reads nothing else. A scope
+// that breaks the invariant is refused rather than compared on its Site
+// permissions alone, since the permissions left unread could be the ones that
+// decide the answer: an org or user grant may itself carry a negative
+// permission, and an "everything except delete" scope must not end up covering
+// a request for delete. An allow list makes the Site permissions conditional,
+// and reading them as unconditional would overstate the authority granted.
+func checkCoverable(scope Scope, side string, name ScopeName) error {
+	if len(scope.User) > 0 || len(scope.ByOrgID) > 0 {
+		return xerrors.Errorf("%s scope %q grants org or user permissions, which coverage does not model", side, name)
+	}
+	for _, perm := range scope.Site {
+		if perm.Negate {
+			return xerrors.Errorf("%s scope %q carries a negative permission, which coverage does not model", side, name)
+		}
+	}
+	if !allowListContainsAll(scope.AllowIDList) {
+		return xerrors.Errorf("%s scope %q carries a resource allow list, which coverage does not model", side, name)
+	}
+	return nil
 }
 
 // permissionCovered reports whether any granted permission subsumes needed,
