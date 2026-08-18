@@ -26,31 +26,38 @@ const countOccurrences = (text: string, query: string): number => {
 
 interface ThreadSearchClassification {
 	promptMatch: boolean;
-	toolMatch: boolean;
+	/** IDs of tool calls whose tool name or input matched. */
+	toolCallIds: Set<string>;
 }
 
 /**
- * Reports which search axis matched, in one walk. The filter, the
- * auto-expand signal, and the prompt window all derive from this.
- * An empty query matches the prompt axis but reports no tool match.
+ * Reports which search axis matched and which tool calls matched, in one
+ * walk. The filter, the auto-expand signal, the prompt window, and the
+ * tool-call filter all derive from this. An empty query matches the prompt
+ * axis but reports no tool matches.
  */
 export const classifyThreadSearch = (
 	thread: AIBridgeThread,
 	query: string,
 ): ThreadSearchClassification => {
 	const q = normalizeQuery(query);
-	if (q === "") {
-		return { promptMatch: true, toolMatch: false };
+	const toolCallIds = new Set<string>();
+	if (q !== "") {
+		for (const action of thread.agentic_actions) {
+			for (const call of action.tool_calls) {
+				if (
+					call.tool.toLowerCase().includes(q) ||
+					call.input.toLowerCase().includes(q)
+				) {
+					toolCallIds.add(call.id);
+				}
+			}
+		}
 	}
 	return {
-		promptMatch: thread.prompt?.toLowerCase().includes(q) ?? false,
-		toolMatch: thread.agentic_actions.some((action) =>
-			action.tool_calls.some(
-				(call) =>
-					call.tool.toLowerCase().includes(q) ||
-					call.input.toLowerCase().includes(q),
-			),
-		),
+		promptMatch:
+			q === "" ? true : (thread.prompt?.toLowerCase().includes(q) ?? false),
+		toolCallIds,
 	};
 };
 
@@ -81,11 +88,15 @@ export const countSessionSearchResults = (
 	}
 	let count = 0;
 	for (const thread of threads) {
+		const { toolCallIds } = classifyThreadSearch(thread, q);
 		if (thread.prompt) {
 			count += countOccurrences(thread.prompt, q);
 		}
 		for (const action of thread.agentic_actions) {
 			for (const call of action.tool_calls) {
+				if (!toolCallIds.has(call.id)) {
+					continue;
+				}
 				count += countOccurrences(call.tool, q);
 				count += countOccurrences(call.input, q);
 			}

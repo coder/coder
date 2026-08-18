@@ -14,15 +14,17 @@ import {
 
 describe("classifyThreadSearch", () => {
 	it.each([
-		["summarize", { promptMatch: true, toolMatch: false }],
-		["PROJECT", { promptMatch: true, toolMatch: false }],
-		["list_directory", { promptMatch: false, toolMatch: true }],
-		["path", { promptMatch: false, toolMatch: true }],
-		["st", { promptMatch: true, toolMatch: true }],
-		["claude-opus", { promptMatch: false, toolMatch: false }],
-		["anthropic", { promptMatch: false, toolMatch: false }],
+		["summarize", { promptMatch: true, toolCalls: 0 }],
+		["PROJECT", { promptMatch: true, toolCalls: 0 }],
+		["list_directory", { promptMatch: false, toolCalls: 1 }],
+		["path", { promptMatch: false, toolCalls: 1 }],
+		["st", { promptMatch: true, toolCalls: 1 }],
+		["claude-opus", { promptMatch: false, toolCalls: 0 }],
+		["anthropic", { promptMatch: false, toolCalls: 0 }],
 	])("classifies %s", (query, expected) => {
-		expect(classifyThreadSearch(MockAIBridgeThread, query)).toEqual(expected);
+		const result = classifyThreadSearch(MockAIBridgeThread, query);
+		expect(result.promptMatch).toBe(expected.promptMatch);
+		expect(result.toolCallIds.size).toBe(expected.toolCalls);
 	});
 
 	it("matches tool names and input case-insensitively", () => {
@@ -37,14 +39,10 @@ describe("classifyThreadSearch", () => {
 				})),
 			})),
 		};
-		expect(classifyThreadSearch(upper, "list_directory")).toEqual({
-			promptMatch: false,
-			toolMatch: true,
-		});
-		expect(classifyThreadSearch(upper, "path")).toEqual({
-			promptMatch: false,
-			toolMatch: true,
-		});
+		expect(classifyThreadSearch(upper, "list_directory").toolCallIds.size).toBe(
+			1,
+		);
+		expect(classifyThreadSearch(upper, "path").toolCallIds.size).toBe(1);
 	});
 
 	it("does not match a thread with no prompt", () => {
@@ -54,14 +52,14 @@ describe("classifyThreadSearch", () => {
 		};
 		expect(classifyThreadSearch(noPrompt, "structure")).toEqual({
 			promptMatch: false,
-			toolMatch: false,
+			toolCallIds: new Set<string>(),
 		});
 	});
 
 	it("keeps the thread visible but reports no tool match for an empty query", () => {
 		expect(classifyThreadSearch(MockAIBridgeThread, "")).toEqual({
 			promptMatch: true,
-			toolMatch: false,
+			toolCallIds: new Set<string>(),
 		});
 	});
 });

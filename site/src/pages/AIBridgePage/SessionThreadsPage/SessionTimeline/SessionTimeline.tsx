@@ -132,7 +132,9 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 					? visibleText
 					: segments.map((segment, i) =>
 							segment.match ? (
-								<strong key={i}>{segment.text}</strong>
+								<strong key={i} className="text-content-primary font-semibold">
+									{segment.text}
+								</strong>
 							) : (
 								<span key={i}>{segment.text}</span>
 							),
@@ -246,6 +248,30 @@ const ThinkingBlock: FC<ThinkingBlockProps> = ({ text }) => (
 	</BracketConnector>
 );
 
+// Renders text with query matches bolded in the primary color.
+const HighlightText: FC<{ text: string; query: string }> = ({
+	text,
+	query,
+}) => {
+	const segments = splitMatchSegments(text, query);
+	if (segments.length === 1 && !segments[0].match) {
+		return <>{text}</>;
+	}
+	return (
+		<>
+			{segments.map((segment, i) =>
+				segment.match ? (
+					<strong key={i} className="text-content-primary font-semibold">
+						{segment.text}
+					</strong>
+				) : (
+					<span key={i}>{segment.text}</span>
+				),
+			)}
+		</>
+	);
+};
+
 interface ToolCallBlockProps {
 	tool: string;
 	serverURL: string;
@@ -255,6 +281,8 @@ interface ToolCallBlockProps {
 	timestamp: Date;
 	tokenUsageMetadata?: Record<string, unknown>;
 	expandedByDefault?: boolean;
+	/** The active query, used to bold matches in the tool name and input. */
+	highlight: string;
 }
 
 const ToolCallBlock: FC<ToolCallBlockProps> = ({
@@ -266,6 +294,7 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 	timestamp,
 	tokenUsageMetadata,
 	expandedByDefault = false,
+	highlight,
 }) => {
 	// Only user toggles are stored, so a later search match still reveals it.
 	const [userToggled, setUserToggled] = useState<boolean | null>(null);
@@ -280,7 +309,7 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 				>
 					<span className="text-sm font-normal">Tool call</span>
 					<Badge size="xs" className="font-mono ml-1">
-						{tool}
+						<HighlightText text={tool} query={highlight} />
 					</Badge>
 				</CollapseButton>
 			</div>
@@ -295,7 +324,9 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 						tokenUsageMetadata={tokenUsageMetadata}
 					/>
 					<pre className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto m-0">
-						<span>{tool}</span>
+						<span>
+							<HighlightText text={tool} query={highlight} />
+						</span>
 						<span>
 							<JsonPrettyPrinter input={input} />
 						</span>
@@ -309,16 +340,25 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 interface AgenticActionItemProps {
 	action: AIBridgeAgenticAction;
 	/**
-	 * When true, tool calls start expanded so a search that matched a tool
-	 * name or tool input reveals why the thread surfaced.
+	 * When set, only these tool calls render, and they start expanded. A search
+	 * that matched a tool name or input hides the others and reveals these.
 	 */
-	expandToolCalls: boolean;
+	matchedToolCallIds?: Set<string>;
+	/** The active query, used to bold matches in the tool calls. */
+	highlight: string;
 }
 
 const AgenticActionItem: FC<AgenticActionItemProps> = ({
 	action,
-	expandToolCalls,
+	matchedToolCallIds,
+	highlight,
 }) => {
+	const visibleToolCalls = matchedToolCallIds
+		? action.tool_calls.filter((tool_call) =>
+				matchedToolCallIds.has(tool_call.id),
+			)
+		: action.tool_calls;
+
 	return (
 		<>
 			{/* thinking blocks */}
@@ -327,7 +367,7 @@ const AgenticActionItem: FC<AgenticActionItemProps> = ({
 			))}
 
 			{/* tool call blocks */}
-			{action.tool_calls.map((tool_call) => (
+			{visibleToolCalls.map((tool_call) => (
 				<ToolCallBlock
 					key={tool_call.id}
 					tool={tool_call.tool}
@@ -337,7 +377,8 @@ const AgenticActionItem: FC<AgenticActionItemProps> = ({
 					outputTokens={action.token_usage.output_tokens}
 					tokenUsageMetadata={tool_call.metadata}
 					timestamp={new Date(tool_call.created_at)}
-					expandedByDefault={expandToolCalls}
+					expandedByDefault={matchedToolCallIds !== undefined}
+					highlight={highlight}
 				/>
 			))}
 		</>
@@ -352,6 +393,10 @@ interface ThreadItemProps {
 	 */
 	searchToolMatch: boolean;
 	/**
+	 * The tool calls that matched the query. Undefined when nothing matched.
+	 */
+	matchedToolCallIds?: Set<string>;
+	/**
 	 * The active query, passed to the prompt for bolding and windowing.
 	 */
 	highlight: string;
@@ -361,6 +406,7 @@ const ThreadItem: FC<ThreadItemProps> = ({
 	thread,
 	initiator,
 	searchToolMatch,
+	matchedToolCallIds,
 	highlight,
 }) => {
 	// Only user toggles are stored, so the loop follows the search (FE8).
@@ -485,7 +531,8 @@ const ThreadItem: FC<ThreadItemProps> = ({
 								<AgenticActionItem
 									key={`${thread.id}-${i}`}
 									action={action}
-									expandToolCalls={searchToolMatch}
+									matchedToolCallIds={matchedToolCallIds}
+									highlight={highlight}
 								/>
 							))}
 
@@ -551,7 +598,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 		}))
 		.filter(
 			({ classification }) =>
-				classification.promptMatch || classification.toolMatch,
+				classification.promptMatch || classification.toolCallIds.size > 0,
 		);
 
 	const filteredNetworkCalls = networkCalls.filter((call) =>
@@ -684,7 +731,8 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 								key={thread.id}
 								thread={thread}
 								initiator={initiator}
-								searchToolMatch={classification.toolMatch}
+								searchToolMatch={classification.toolCallIds.size > 0}
+								matchedToolCallIds={classification.toolCallIds}
 								highlight={searchQuery}
 							/>
 						))}
