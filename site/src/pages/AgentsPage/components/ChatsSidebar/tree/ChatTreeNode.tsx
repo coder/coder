@@ -1,7 +1,6 @@
 import {
 	BotIcon,
 	ChevronDownIcon,
-	ChevronRightIcon,
 	EllipsisVerticalIcon,
 	UsersIcon,
 } from "lucide-react";
@@ -236,17 +235,13 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											>
 												{childIDs.length}
 												<BotIcon className="size-3.5" aria-hidden="true" />
-												{isExpanded ? (
-													<ChevronDownIcon
-														className="size-3.5"
-														aria-hidden="true"
-													/>
-												) : (
-													<ChevronRightIcon
-														className="size-3.5"
-														aria-hidden="true"
-													/>
-												)}
+												<ChevronDownIcon
+													aria-hidden="true"
+													className={cn(
+														"size-3.5 transition-transform",
+														isExpanded && "rotate-180",
+													)}
+												/>
 											</span>
 										)}
 										{hasLinkedDiffStatus && hasLineStats && (
