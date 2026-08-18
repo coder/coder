@@ -24305,7 +24305,8 @@ const docTemplate = `{
                 "user_ai_budget_override",
                 "chat",
                 "user_secret",
-                "user_skill"
+                "user_skill",
+                "chat_instruction_settings"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -24343,7 +24344,8 @@ const docTemplate = `{
                 "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret",
-                "ResourceTypeUserSkill"
+                "ResourceTypeUserSkill",
+                "ResourceTypeChatInstructionSettings"
             ]
         },
         "codersdk.Response": {

@@ -4546,12 +4546,38 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// chatInstructionSettingsLockTimeout bounds how long a request waits for the
+// per-setting advisory lock. The only other holders are sibling requests
+// holding it for a single upsert, so a short bound cannot strand a waiter:
+// on expiry the request falls back to the unaudited write path instead of
+// hanging until the client deadline.
+const chatInstructionSettingsLockTimeout = 5 * time.Second
+
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	// Identity is assigned before the authorization check so a denied PUT
+	// records the attempt with status 403 and an empty diff. The body is
+	// never read before authorization, so no request content reaches that
+	// row.
+	aReq, commitAudit := audit.InitRequestWithCancel[database.ChatInstructionSettings](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit(true)
+	aReq.Old = database.ChatInstructionSettings{
+		ID:   audit.ChatInstructionSystemPromptID,
+		Name: audit.ChatInstructionSystemPromptName,
+	}
+	aReq.New = aReq.Old
+
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}
+
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
@@ -4569,7 +4595,40 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	var (
+		noChange    bool
+		oldCaptured bool
+		oldReadErr  error
+		lockErr     error
+	)
+	// The per-setting advisory lock serializes the audit change-detection
+	// with the write: two concurrent identical PUTs both still succeed,
+	// but the second transaction's comparison sees the first's committed
+	// state and reports no change. The lock wait is bounded so a waiter
+	// cannot hang past the client's deadline.
+	lockCtx, lockCancel := context.WithTimeout(ctx, chatInstructionSettingsLockTimeout)
+	defer lockCancel()
 	err := api.Database.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(lockCtx, database.LockIDChatInstructionSystemPrompt); err != nil {
+			lockErr = err
+			return xerrors.Errorf("acquire chat instruction setting write lock: %w", err)
+		}
+
+		// Old capture is best effort: it runs after the lock but before
+		// the write, so abandoning the transaction on its error costs
+		// nothing and the handler writes directly below with no entry.
+		// The lock keeps the captured baseline serialized with the write.
+		oldConfig, oldErr := tx.GetChatSystemPromptConfig(ctx)
+		if oldErr != nil {
+			oldReadErr = oldErr
+			return oldErr
+		}
+		oldCaptured = true
+		aReq.Old.SystemPrompt = oldConfig.ChatSystemPrompt
+		aReq.Old.IncludeDefaultSystemPromptSet = oldConfig.IncludeDefaultSystemPromptSet
+		aReq.Old.IncludeDefaultSystemPrompt = oldConfig.IncludeDefaultSystemPrompt
+
 		if err := tx.UpsertChatSystemPrompt(ctx, sanitizedPrompt); err != nil {
 			return err
 		}
@@ -4579,16 +4638,82 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		// avoiding a backward-compatibility regression for older clients
 		// that only send system_prompt.
 		if req.IncludeDefaultSystemPrompt != nil {
-			return tx.UpsertChatIncludeDefaultSystemPrompt(ctx, *req.IncludeDefaultSystemPrompt)
+			if err := tx.UpsertChatIncludeDefaultSystemPrompt(ctx, *req.IncludeDefaultSystemPrompt); err != nil {
+				return err
+			}
 		}
+
+		// Derive New from what was written rather than re-reading: the
+		// upserts store $1 verbatim, so the stored prompt is the request
+		// value, and the effective include-default flag follows
+		// GetChatSystemPromptConfig's rule from the written toggle row
+		// and the written prompt. A post-write read would fail on
+		// query-local context cancellation even after a successful
+		// commit, silently discarding a change the client made.
+		newIncludeSet := oldConfig.IncludeDefaultSystemPromptSet
+		newIncludeValue := oldConfig.IncludeDefaultSystemPrompt
+		if req.IncludeDefaultSystemPrompt != nil {
+			newIncludeSet = true
+			newIncludeValue = *req.IncludeDefaultSystemPrompt
+		}
+		if !newIncludeSet {
+			// Legacy fallback: a non-empty custom prompt implies opting
+			// out; otherwise the setting defaults to true.
+			newIncludeValue = sanitizedPrompt == ""
+		}
+		aReq.New.SystemPrompt = sanitizedPrompt
+		aReq.New.IncludeDefaultSystemPromptSet = newIncludeSet
+		aReq.New.IncludeDefaultSystemPrompt = newIncludeValue
+		noChange = aReq.New.SystemPrompt == aReq.Old.SystemPrompt &&
+			aReq.New.IncludeDefaultSystemPromptSet == aReq.Old.IncludeDefaultSystemPromptSet &&
+			aReq.New.IncludeDefaultSystemPrompt == aReq.Old.IncludeDefaultSystemPrompt
 		return nil
 	}, nil)
 	if err != nil {
+		auditSetupErr := lockErr
+		if auditSetupErr == nil {
+			auditSetupErr = oldReadErr
+		}
+		if auditSetupErr != nil {
+			// The audit-added lock wait or Old capture failed before
+			// anything was written, so the transaction was abandoned at
+			// no cost: write directly exactly as main does, emit no
+			// entry, and warn.
+			api.Logger.Warn(ctx, "audit change detection failed, writing chat system prompt without an audit entry",
+				slog.Error(auditSetupErr))
+			commitAudit(false)
+			if mainErr := api.Database.InTx(func(tx database.Store) error {
+				if err := tx.UpsertChatSystemPrompt(ctx, sanitizedPrompt); err != nil {
+					return err
+				}
+				if req.IncludeDefaultSystemPrompt != nil {
+					return tx.UpsertChatIncludeDefaultSystemPrompt(ctx, *req.IncludeDefaultSystemPrompt)
+				}
+				return nil
+			}, nil); mainErr != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error updating chat system prompt configuration.",
+					Detail:  mainErr.Error(),
+				})
+				return
+			}
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
+		// This endpoint was transactional on main, so begin, write,
+		// commit and rollback errors all surface exactly as main's. The
+		// advisory lock is audit-added, so its failure falls back above
+		// instead of surfacing.
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating chat system prompt configuration.",
 			Detail:  err.Error(),
 		})
 		return
+	}
+	if oldCaptured && noChange {
+		// Stage the no-op decision until after the transaction commits,
+		// so a commit failure cannot suppress an attempt row.
+		commitAudit(false)
 	}
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -4620,6 +4745,24 @@ func (api *API) getChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	// Identity is assigned before the authorization check so a denied PUT
+	// records the attempt with status 403 and an empty diff. The body is
+	// never read before authorization, so no request content reaches that
+	// row.
+	aReq, commitAudit := audit.InitRequestWithCancel[database.ChatInstructionSettings](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit(true)
+	aReq.Old = database.ChatInstructionSettings{
+		ID:   audit.ChatInstructionPlanModeID,
+		Name: audit.ChatInstructionPlanModeName,
+	}
+	aReq.New = aReq.Old
+
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
@@ -4643,14 +4786,94 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := api.Database.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions); err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating plan mode instructions.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	// This endpoint was not transactional on main, so the audited
+	// transaction's lock, begin, commit and rollback failures run the
+	// direct write instead, matching main's non-transactional behavior.
+	// Only a failure of the write itself surfaces the transaction error
+	// (the raw write error, as main produced).
+	var (
+		noChange    bool
+		oldCaptured bool
+		oldReadErr  error
+	)
+	lockCtx, lockCancel := context.WithTimeout(ctx, chatInstructionSettingsLockTimeout)
+	defer lockCancel()
+	var writeErr error
+	err := api.Database.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(lockCtx, database.LockIDChatInstructionPlanMode); err != nil {
+			return xerrors.Errorf("acquire chat instruction setting write lock: %w", err)
+		}
 
+		// Old capture is best effort: it runs after the lock but before
+		// the write, so abandoning the transaction on its error costs
+		// nothing and the handler writes directly below with no entry;
+		// see putChatSystemPrompt for why New is derived from the write.
+		oldInstructions, oldErr := tx.GetChatPlanModeInstructions(ctx)
+		if oldErr != nil {
+			oldReadErr = oldErr
+			return oldErr
+		}
+		oldCaptured = true
+		aReq.Old.PlanModeInstructions = oldInstructions
+
+		if err := tx.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions); err != nil {
+			writeErr = err
+			return err
+		}
+		aReq.New.PlanModeInstructions = sanitizedInstructions
+		noChange = aReq.New.PlanModeInstructions == aReq.Old.PlanModeInstructions
+		return nil
+	}, nil)
+	if err != nil {
+		// Log the full InTx error first: the response below derives from
+		// the write error alone, so a rollback failure layered on it
+		// would otherwise vanish from response, audit row and logs
+		// simultaneously.
+		api.Logger.Warn(ctx, "plan mode instructions update transaction failed",
+			slog.Error(err))
+		if oldReadErr != nil {
+			// The Old capture failed before anything was written: fall
+			// through to the direct write below with no entry.
+			oldCaptured = false
+		} else if writeErr != nil {
+			// The write itself failed: respond with the raw error
+			// exactly as the endpoint did before the audit wiring
+			// existed.
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error updating plan mode instructions.",
+				Detail:  writeErr.Error(),
+			})
+			return
+		}
+		// Only the audit-added transaction machinery failed (lock,
+		// begin, commit, rollback, or the Old read), not the write.
+		// Main's non-transactional behavior is authoritative: run the
+		// direct upsert and derive the response from that.
+		if mainErr := api.Database.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions); mainErr != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error updating plan mode instructions.",
+				Detail:  mainErr.Error(),
+			})
+			return
+		}
+		if !oldCaptured {
+			// The lock wait or Old capture failed, so the write landed
+			// through the direct path with no baseline: no entry, warn,
+			// and finish with the success response. A commit failure
+			// keeps oldCaptured true and deliberately falls through so
+			// the attempt row with its real diff survives.
+			api.Logger.Warn(ctx, "audit change detection failed, writing plan mode instructions without an audit entry",
+				slog.Error(err))
+			commitAudit(false)
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
+	if oldCaptured && noChange {
+		// Stage the no-op decision until after the transaction commits,
+		// so a commit failure cannot suppress an attempt row.
+		commitAudit(false)
+	}
 	rw.WriteHeader(http.StatusNoContent)
 }
 
