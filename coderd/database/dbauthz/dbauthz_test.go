@@ -704,9 +704,9 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(msg.ID).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
 	s.Run("DeleteChatModelConfigByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		config := database.ChatModelConfig{ID: uuid.New()}
-		dbm.EXPECT().DeleteChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
-		check.Args(config.ID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(config)
+		configID := uuid.New()
+		dbm.EXPECT().DeleteChatModelConfigByID(gomock.Any(), configID).Return(configID, nil).AnyTimes()
+		check.Args(configID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(configID)
 	}))
 	s.Run("DeleteChatQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

@@ -133,4 +133,4 @@ SET
 WHERE
     id = @id::uuid
     AND deleted = FALSE
-RETURNING *;
+RETURNING id;

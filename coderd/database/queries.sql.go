@@ -6145,30 +6145,14 @@ SET
 WHERE
     id = $1::uuid
     AND deleted = FALSE
-RETURNING id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+RETURNING id
 `
 
-func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error) {
+func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	row := q.db.QueryRowContext(ctx, deleteChatModelConfigByID, id)
-	var i ChatModelConfig
-	err := row.Scan(
-		&i.ID,
-		&i.Model,
-		&i.DisplayName,
-		&i.CreatedBy,
-		&i.UpdatedBy,
-		&i.Enabled,
-		&i.IsDefault,
-		&i.Deleted,
-		&i.DeletedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ContextLimit,
-		&i.CompressionThreshold,
-		&i.Options,
-		&i.AIProviderID,
-	)
-	return i, err
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
