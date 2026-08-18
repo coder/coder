@@ -5,7 +5,6 @@ import {
 	type ReactNode,
 	type RefObject,
 	useEffect,
-	useRef,
 	useState,
 } from "react";
 import { useQueryClient } from "react-query";
@@ -19,9 +18,14 @@ import type {
 	ChatMessagePart,
 } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
-import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import {
+	getAgentBrowserApp,
+	isWorkspaceAppEmbeddable,
+} from "#/modules/apps/apps";
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { findWorkspaceAgent } from "#/utils/workspace";
@@ -35,12 +39,12 @@ import {
 } from "./components/AgentsSkeletons";
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import type { useChatStore } from "./components/ChatConversation/chatStore";
+import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { SkillMetadata } from "./components/ChatMessageInput/SkillsTriggerMenu";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
-import { ChatScrollContainer } from "./components/ChatScrollContainer";
 import { ChatSharingPopoverContent } from "./components/ChatSharingPopover";
 import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
 import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
@@ -121,6 +125,7 @@ interface AgentChatPageViewProps {
 	isArchived: boolean;
 	isSharedChat: boolean;
 	chatOwner: ChatOwnerInfo | undefined;
+	queuedForCapacity?: boolean;
 	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
@@ -128,6 +133,10 @@ interface AgentChatPageViewProps {
 
 	// Store handle.
 	store: ChatStoreHandle;
+	/** Chat status when the page first loaded, before any in-session turn. */
+	initialChatStatus: TypesGen.ChatStatus;
+	/** Messages as first loaded; read once at mount for the initial anchor. */
+	initialMessages: readonly TypesGen.ChatMessage[];
 
 	// Editing state.
 	editing: EditingState;
@@ -202,15 +211,12 @@ interface AgentChatPageViewProps {
 	isChildChat?: boolean;
 	isArchivingThisChat?: boolean;
 
-	// Scroll container ref.
-	scrollContainerRef: RefObject<HTMLDivElement | null>;
-	scrollToBottomRef?: RefObject<(() => void) | null>;
-
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
-	onFetchMoreMessages: () => void;
-	messageCount: number;
+	isHydratingMessages: boolean;
+	hasFetchMoreError: boolean;
+	onFetchMoreMessages: () => Promise<unknown>;
 
 	urlTransform?: UrlTransform;
 
@@ -322,11 +328,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isArchived,
 	isSharedChat,
 	chatOwner,
+	queuedForCapacity,
 	canShareChat,
 	workspaceAgent,
 	workspace,
 	chatBuildId,
 	store,
+	initialChatStatus,
+	initialMessages,
 	editing,
 	effectiveSelectedModel,
 	setSelectedModel,
@@ -376,12 +385,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isPinned,
 	isChildChat,
 	isArchivingThisChat,
-	scrollContainerRef,
-	scrollToBottomRef,
 	hasMoreMessages,
 	isFetchingMoreMessages,
+	isHydratingMessages,
+	hasFetchMoreError,
 	onFetchMoreMessages,
-	messageCount,
 	urlTransform,
 	mcpServers,
 	selectedMCPServerIds,
@@ -393,6 +401,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
+	const { entitlements } = useDashboard();
+	const { permissions } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 
 	const canOpenChatSharing = canShareChat && organizationId !== undefined;
@@ -413,13 +423,20 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	};
 
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
+	// The turn already running when the page loaded must not anchor the
+	// scroller, even if its prompt is older than the newest messages page and
+	// only renders after the user pages up. Message ids are allocated from one
+	// sequence, so every user row created after mount (sends, queue
+	// promotions, edit re-sends) has an id above the initial maximum.
+	const [initialActiveTurnMaxMessageId] = useState<number | undefined>(() =>
+		initialChatStatus === "running" || initialChatStatus === "interrupting"
+			? (initialMessages.at(-1)?.id ?? -1)
+			: undefined,
+	);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
 	);
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
-	const internalScrollToBottomRef = useRef<(() => void) | null>(null);
-	const effectiveScrollToBottomRef =
-		scrollToBottomRef ?? internalScrollToBottomRef;
 
 	const [sidebarTabId, setSidebarTabIdState] = useState<string | null>(() =>
 		getPersistedSidebarTabId(agentId),
@@ -497,6 +514,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const availableDesktopChatId =
 		workspace && workspaceAgent ? desktopChatId : undefined;
 
+	const availableBrowserApp = workspace
+		? getAgentBrowserApp(workspaceAgent)
+		: undefined;
+
 	const validatedUserRightPanelTabs = validateUserRightPanelTabs(
 		userRightPanelTabs,
 		{ workspace, workspaceAgent, wildcardHostname },
@@ -513,6 +534,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		{ id: "summary", label: "Summary" },
 		{ id: "git", label: "Git" },
 		...(debugLoggingEnabled ? [{ id: "debug", label: "Debug" }] : []),
+		...(availableBrowserApp ? [{ id: "browser", label: "Browser" }] : []),
 		...(availableDesktopChatId ? [{ id: "desktop", label: "Desktop" }] : []),
 		...(hasBuiltInTerminal ? [{ id: "terminal", label: "Terminal" }] : []),
 	];
@@ -705,6 +727,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						chatInputRef={editing.chatInputRef}
 					/>
 				);
+			case "browser":
+				return workspace && workspaceAgent && availableBrowserApp ? (
+					<WorkspaceAppFrame
+						workspace={workspace}
+						app={{ ...availableBrowserApp, agent: workspaceAgent }}
+						active={effectiveSidebarTabId === "browser"}
+					/>
+				) : null;
 			case "desktop":
 				return availableDesktopChatId ? (
 					<DesktopPanel
@@ -807,6 +837,17 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
 
+	const hasLicense = entitlements.has_license;
+	const canManageLicenses = permissions.viewAllLicenses;
+	const runtimeHours = entitlements.features.agent_runtime_hours;
+	const agentHoursHardLimit =
+		runtimeHours.enabled &&
+		runtimeHours.hard_limit !== undefined &&
+		runtimeHours.actual !== undefined &&
+		runtimeHours.actual >= runtimeHours.hard_limit
+			? runtimeHours.hard_limit
+			: undefined;
+
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
@@ -898,38 +939,38 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								}}
 							/>
 						</div>
-						<ChatScrollContainer
+						<ChatPageTimeline
 							key={agentId}
-							scrollContainerRef={scrollContainerRef}
-							scrollToBottomRef={effectiveScrollToBottomRef}
-							isFetchingMoreMessages={isFetchingMoreMessages}
+							store={store}
+							initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+							persistedError={persistedError}
 							hasMoreMessages={hasMoreMessages}
+							isFetchingMoreMessages={isFetchingMoreMessages}
+							isHydratingMessages={isHydratingMessages}
+							hasFetchMoreError={hasFetchMoreError}
 							onFetchMoreMessages={onFetchMoreMessages}
-							messageCount={messageCount}
-						>
-							<div className="px-4" data-chat-scroll-content>
-								<ChatPageTimeline
-									store={store}
-									persistedError={persistedError}
-									onEditUserMessage={
-										isOtherUserReadOnly
-											? undefined
-											: editing.handleEditUserMessage
-									}
-									editingMessageId={editing.editingMessageId}
-									urlTransform={urlTransform}
-									mcpServers={mcpServers}
-									onImplementPlan={
-										isOtherUserReadOnly ? undefined : onImplementPlan
-									}
-									onSendAskUserQuestionResponse={
-										isOtherUserReadOnly
-											? undefined
-											: canSendAskUserQuestionResponse
-									}
-								/>
-							</div>
-						</ChatScrollContainer>
+							onEditUserMessage={
+								isOtherUserReadOnly ? undefined : editing.handleEditUserMessage
+							}
+							editingMessageId={editing.editingMessageId}
+							urlTransform={urlTransform}
+							mcpServers={mcpServers}
+							onImplementPlan={
+								isOtherUserReadOnly ? undefined : onImplementPlan
+							}
+							onSendAskUserQuestionResponse={
+								isOtherUserReadOnly ? undefined : canSendAskUserQuestionResponse
+							}
+							footer={
+								queuedForCapacity ? (
+									<QueuedForCapacityCallout
+										hasLicense={hasLicense}
+										canManageLicenses={canManageLicenses}
+										agentHoursHardLimit={agentHoursHardLimit}
+									/>
+								) : undefined
+							}
+						/>
 						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 							<ChatPageInput
 								organizationId={organizationId}

@@ -23,8 +23,7 @@ import (
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
-	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/sqlc-dev/pqtype"
@@ -81,6 +80,40 @@ func chatAIGatewayTransportFactoryPointer(factory aibridge.TransportFactory) *at
 
 func openAIToolName(tool chattest.OpenAITool) string {
 	return cmp.Or(tool.Function.Name, tool.Name, tool.Type)
+}
+
+func newTestMCPServer(name string) *mcp.Server {
+	return mcp.NewServer(&mcp.Implementation{Name: name, Version: "1.0.0"}, nil)
+}
+
+func addTestMCPTextTool(server *mcp.Server, name, description, outputPrefix string) {
+	server.AddTool(&mcp.Tool{
+		Name:        name,
+		Description: description,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"input": map[string]any{
+					"type":        "string",
+					"description": "The input string",
+				},
+			},
+			"required": []string{"input"},
+		},
+	}, func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var arguments map[string]any
+		_ = json.Unmarshal(req.Params.Arguments, &arguments)
+		input, _ := arguments["input"].(string)
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: outputPrefix + input}},
+		}, nil
+	})
+}
+
+func testMCPHTTPHandler(server *mcp.Server) http.Handler {
+	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+		return server
+	}, &mcp.StreamableHTTPOptions{Stateless: true})
 }
 
 func mustChatLastErrorRawMessage(t testing.TB, payload codersdk.ChatError) pqtype.NullRawMessage {
@@ -366,21 +399,9 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 
 	// Start an external MCP server whose tools should remain available to the
 	// root plan-mode chat but stay hidden from plan-mode subagents.
-	mcpSrv := mcpserver.NewMCPServer("plan-root-mcp", "1.0.0")
-	mcpSrv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+	mcpSrv := newTestMCPServer("plan-root-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
 	t.Cleanup(mcpTS.Close)
 
 	mcpConfig, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
@@ -661,38 +682,14 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	externalMCP := mcpserver.NewMCPServer("external-snapshot-mcp", "1.0.0")
-	externalMCP.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	externalMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(externalMCP))
+	externalMCP := newTestMCPServer("external-snapshot-mcp")
+	addTestMCPTextTool(externalMCP, "echo", "Echoes the input", "echo: ")
+	externalMCPServer := httptest.NewServer(testMCPHTTPHandler(externalMCP))
 	defer externalMCPServer.Close()
 
-	secondMCP := mcpserver.NewMCPServer("second-mcp", "1.0.0")
-	secondMCP.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	secondMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(secondMCP))
+	secondMCP := newTestMCPServer("second-mcp")
+	addTestMCPTextTool(secondMCP, "echo", "Echoes the input", "echo: ")
+	secondMCPServer := httptest.NewServer(testMCPHTTPHandler(secondMCP))
 	defer secondMCPServer.Close()
 
 	var (
@@ -842,21 +839,9 @@ func TestRootExploreChatStaysBuiltinOnlyAtRuntime(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	externalMCP := mcpserver.NewMCPServer("root-explore-runtime-mcp", "1.0.0")
-	externalMCP.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	externalMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(externalMCP))
+	externalMCP := newTestMCPServer("root-explore-runtime-mcp")
+	addTestMCPTextTool(externalMCP, "echo", "Echoes the input", "echo: ")
+	externalMCPServer := httptest.NewServer(testMCPHTTPHandler(externalMCP))
 	defer externalMCPServer.Close()
 
 	var (
@@ -1024,21 +1009,9 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 	newEchoMCPServer := func(name string) *httptest.Server {
 		t.Helper()
 
-		mcpSrv := mcpserver.NewMCPServer(name, "1.0.0")
-		mcpSrv.AddTools(mcpserver.ServerTool{
-			Tool: mcpgo.NewTool("echo",
-				mcpgo.WithDescription("Echoes the input"),
-				mcpgo.WithString("input",
-					mcpgo.Description("The input string"),
-					mcpgo.Required(),
-				),
-			),
-			Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-				input, _ := req.GetArguments()["input"].(string)
-				return mcpgo.NewToolResultText("echo: " + input), nil
-			},
-		})
-		mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+		mcpSrv := newTestMCPServer(name)
+		addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+		mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
 		t.Cleanup(mcpTS.Close)
 		return mcpTS
 	}
@@ -1183,53 +1156,15 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	echoMCP := mcpserver.NewMCPServer("plan-visibility-echo", "1.0.0")
-	echoMCP.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	echoTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(echoMCP))
+	echoMCP := newTestMCPServer("plan-visibility-echo")
+	addTestMCPTextTool(echoMCP, "echo", "Echoes the input", "echo: ")
+	echoTS := httptest.NewServer(testMCPHTTPHandler(echoMCP))
 	t.Cleanup(echoTS.Close)
 
-	filteredMCP := mcpserver.NewMCPServer("plan-visibility-filtered", "1.0.0")
-	filteredMCP.AddTools(
-		mcpserver.ServerTool{
-			Tool: mcpgo.NewTool("visible",
-				mcpgo.WithDescription("Visible tool"),
-				mcpgo.WithString("input",
-					mcpgo.Description("The input string"),
-					mcpgo.Required(),
-				),
-			),
-			Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-				input, _ := req.GetArguments()["input"].(string)
-				return mcpgo.NewToolResultText("visible: " + input), nil
-			},
-		},
-		mcpserver.ServerTool{
-			Tool: mcpgo.NewTool("hidden",
-				mcpgo.WithDescription("Hidden tool"),
-				mcpgo.WithString("input",
-					mcpgo.Description("The input string"),
-					mcpgo.Required(),
-				),
-			),
-			Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-				input, _ := req.GetArguments()["input"].(string)
-				return mcpgo.NewToolResultText("hidden: " + input), nil
-			},
-		},
-	)
-	filteredTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(filteredMCP))
+	filteredMCP := newTestMCPServer("plan-visibility-filtered")
+	addTestMCPTextTool(filteredMCP, "visible", "Visible tool", "visible: ")
+	addTestMCPTextTool(filteredMCP, "hidden", "Hidden tool", "hidden: ")
+	filteredTS := httptest.NewServer(testMCPHTTPHandler(filteredMCP))
 	t.Cleanup(filteredTS.Close)
 
 	var (
@@ -1644,6 +1579,214 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
+}
+
+func TestMessageFileLinking(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	insertFile := func(name string) uuid.UUID {
+		t.Helper()
+		row, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			Name:           name,
+			Mimetype:       "image/png",
+			Data:           []byte("png-bytes"),
+		})
+		require.NoError(t, err)
+		return row.ID
+	}
+	linkedFileIDs := func(chatID uuid.UUID) []uuid.UUID {
+		t.Helper()
+		rows, err := db.GetChatFileMetadataByChatID(ctx, chatID)
+		require.NoError(t, err)
+		ids := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.ID)
+		}
+		return ids
+	}
+
+	fileCreate := insertFile("create.png")
+	fileSend := insertFile("send.png")
+	fileQueued := insertFile("queued.png")
+	fileEdit := insertFile("edit.png")
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "file-linking",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("with attachment"),
+			codersdk.ChatMessageFile(fileCreate, "image/png", "create.png"),
+		},
+	})
+	require.NoError(t, err)
+	require.Contains(t, linkedFileIDs(chat.ID), fileCreate)
+
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	sendResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID: chat.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("another attachment"),
+			codersdk.ChatMessageFile(fileSend, "image/png", "send.png"),
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, sendResult.Queued)
+	require.Contains(t, linkedFileIDs(chat.ID), fileSend)
+
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	var userMessageID int64
+	for _, msg := range messages {
+		if msg.Role == database.ChatMessageRoleUser {
+			userMessageID = msg.ID
+			break
+		}
+	}
+	require.NotZero(t, userMessageID)
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: userMessageID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("edited attachment"),
+			codersdk.ChatMessageFile(fileEdit, "image/png", "edit.png"),
+		},
+	})
+	require.NoError(t, err)
+	editedLinks := linkedFileIDs(chat.ID)
+	require.Contains(t, editedLinks, fileEdit)
+	require.Contains(t, editedLinks, fileCreate)
+
+	// Queued files must be linked before promotion to prevent purge.
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+	queuedResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID: chat.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued attachment"),
+			codersdk.ChatMessageFile(fileQueued, "image/png", "queued.png"),
+		},
+		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+	})
+	require.NoError(t, err)
+	require.True(t, queuedResult.Queued)
+	require.Contains(t, linkedFileIDs(chat.ID), fileQueued)
+}
+
+func TestMessageFileLinkingCapRollsBack(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "cap-rollback",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	capFileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs)
+	for i := range codersdk.MaxChatFileIDs {
+		row, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			Name:           fmt.Sprintf("cap-%d.png", i),
+			Mimetype:       "image/png",
+			Data:           []byte("png-bytes"),
+		})
+		require.NoError(t, err)
+		capFileIDs = append(capFileIDs, row.ID)
+	}
+	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		FileIds:      capFileIDs,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+
+	extra, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		Name:           "extra.png",
+		Mimetype:       "image/png",
+		Data:           []byte("png-bytes"),
+	})
+	require.NoError(t, err)
+
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	messagesBefore, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+
+	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID: chat.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("one too many"),
+			codersdk.ChatMessageFile(extra.ID, "image/png", "extra.png"),
+		},
+	})
+	require.ErrorIs(t, err, chatstate.ErrChatFileCapExceeded)
+
+	messagesAfter, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, messagesAfter, len(messagesBefore), "rejected send must not persist a message")
+	files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, files, codersdk.MaxChatFileIDs)
+
+	sendResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID: chat.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("re-reference"),
+			codersdk.ChatMessageFile(capFileIDs[0], "image/png", "cap-0.png"),
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, sendResult.Queued)
 }
 
 func TestPlanTurnPromptContract(t *testing.T) {
@@ -2251,12 +2394,12 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 
 	toolName := "my_dynamic_tool"
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        toolName,
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type:       "object",
-			Properties: map[string]any{},
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
 		},
 	}})
 	require.NoError(t, err)
@@ -2761,15 +2904,15 @@ func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        "my_dynamic_tool",
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"input": map[string]any{"type": "string"},
 			},
-			Required: []string{"input"},
+			"required": []string{"input"},
 		},
 	}})
 	require.NoError(t, err)
@@ -3557,15 +3700,15 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 	})
 
 	// Create a chat with a dynamic tool.
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        "my_dynamic_tool",
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"input": map[string]any{"type": "string"},
 			},
-			Required: []string{"input"},
+			"required": []string{"input"},
 		},
 	}})
 	require.NoError(t, err)
@@ -3727,15 +3870,15 @@ func TestDynamicToolNamedProposePlanRemainsAvailableOutsidePlanMode(t *testing.T
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 	})
 
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        "propose_plan",
 		Description: "A dynamic tool whose name collides with the hidden built-in.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"input": map[string]any{"type": "string"},
 			},
-			Required: []string{"input"},
+			"required": []string{"input"},
 		},
 	}})
 	require.NoError(t, err)
@@ -3844,15 +3987,15 @@ func TestDynamicToolCallMixedWithBuiltIn(t *testing.T) {
 	})
 
 	// Create a chat with a dynamic tool.
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        "my_dynamic_tool",
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"input": map[string]any{"type": "string"},
 			},
-			Required: []string{"input"},
+			"required": []string{"input"},
 		},
 	}})
 	require.NoError(t, err)
@@ -3986,15 +4129,15 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 	})
 
 	// Create a chat with a dynamic tool.
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        "my_dynamic_tool",
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"input": map[string]any{"type": "string"},
 			},
-			Required: []string{"input"},
+			"required": []string{"input"},
 		},
 	}})
 	require.NoError(t, err)
@@ -5431,6 +5574,65 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		require.Equal(t, int32(2), streamCount.Load())
 	})
 
+	t.Run("compacts an errored chat and clears last_error", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var compactionRequests atomic.Int32
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if !req.Stream {
+				if strings.Contains(body, "You are performing a context compaction") {
+					compactionRequests.Add(1)
+					return anthropicCompactionResponse(compactionSummary)
+				}
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("assistant answer")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		machine := chatstate.NewChatMachine(db, ps, chat.ID)
+		require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := tx.FinishError(chatstate.FinishErrorInput{
+				LastError: mustChatLastErrorRawMessage(t, codersdk.ChatError{
+					Message: "input length exceeds the maximum allowed input length",
+					Kind:    codersdk.ChatErrorKindGeneric,
+				}),
+			})
+			return err
+		}))
+		chat, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusError, chat.Status)
+		require.True(t, chat.LastError.Valid)
+
+		compacted, err := server.CompactChat(ctx, chat)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRunning, compacted.Status)
+		require.False(t, compacted.LastError.Valid,
+			"requesting compaction from the error state clears last_error")
+
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+		require.False(t, chat.CompactionRequestedAt.Valid)
+		require.Equal(t, int32(1), compactionRequests.Load(), "one forced compaction call")
+
+		messages := chatMessages(ctx, t, db, chat.ID)
+		promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
+		require.Len(t, compressed.summaries, 1,
+			"prompt history contains the compressed summary boundary")
+	})
+
 	t.Run("busy chat rejects manual compaction", func(t *testing.T) {
 		t.Parallel()
 
@@ -6467,12 +6669,12 @@ func setupToolExecutionAgentConn(
 
 func dynamicToolJSON(t *testing.T, name string) []byte {
 	t.Helper()
-	encoded, err := json.Marshal([]mcpgo.Tool{{
+	encoded, err := json.Marshal([]mcp.Tool{{
 		Name:        name,
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"query": map[string]any{"type": "string"},
 			},
 		},
@@ -6662,6 +6864,45 @@ func TestActiveServer_AnthropicUsageMatchesFinalDelta(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 275, Valid: true}, last.TotalTokens)
 	require.Equal(t, sql.NullInt64{Int64: 30, Valid: true}, last.CacheCreationTokens)
 	require.Equal(t, sql.NullInt64{Int64: 150, Valid: true}, last.CacheReadTokens)
+}
+
+func TestActiveServer_AnthropicPersistsPerRequestUsage(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	anthropicURL := chattest.NewAnthropic(t, func(_ *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithMessageUsages(
+			chattest.AnthropicUsage{
+				InputTokens:              2,
+				CacheReadInputTokens:     139956,
+				CacheCreationInputTokens: 7770,
+			},
+			chattest.AnthropicUsage{
+				InputTokens:              4,
+				CacheReadInputTokens:     287682,
+				CacheCreationInputTokens: 15556,
+				OutputTokens:             4996,
+			},
+			"cached response",
+		)...)
+	})
+	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+	})
+	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	messages := chatMessages(ctx, t, db, chat.ID)
+	last := messages[len(messages)-1]
+	require.Equal(t, database.ChatMessageRoleAssistant, last.Role)
+	require.Equal(t, sql.NullInt64{Int64: 139956, Valid: true}, last.CacheReadTokens)
+	require.Equal(t, sql.NullInt64{Int64: 7770, Valid: true}, last.CacheCreationTokens)
+	require.Equal(t, sql.NullInt64{Int64: 2, Valid: true}, last.InputTokens)
+	require.Equal(t, sql.NullInt64{Int64: 4996, Valid: true}, last.OutputTokens)
+	require.Equal(t, sql.NullInt64{Int64: 4998, Valid: true}, last.TotalTokens)
 }
 
 func TestActiveServer_ChatTurnDebugRunRecordsStreamStep(t *testing.T) {
@@ -7385,10 +7626,10 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 		seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
-		dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+		dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 			Name:        "mcp_tool",
 			Description: "dynamic test tool",
-			InputSchema: mcpgo.ToolInputSchema{Type: "object", Properties: map[string]any{"q": map[string]any{"type": "string"}}},
+			InputSchema: map[string]any{"type": "object", "properties": map[string]any{"q": map[string]any{"type": "string"}}},
 		}})
 		require.NoError(t, err)
 
@@ -10184,21 +10425,9 @@ func TestMCPServerToolInvocation(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// Start a real MCP server that exposes an "echo" tool.
-	mcpSrv := mcpserver.NewMCPServer("test-mcp", "1.0.0")
-	mcpSrv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	mcpHTTP := mcpserver.NewStreamableHTTPServer(mcpSrv)
+	mcpSrv := newTestMCPServer("test-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpHTTP := testMCPHTTPHandler(mcpSrv)
 	mcpTS := httptest.NewServer(mcpHTTP)
 	t.Cleanup(mcpTS.Close)
 
@@ -10366,21 +10595,9 @@ func TestPlanModeRootChatApprovedExternalMCPToolInvocation(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	mcpSrv := mcpserver.NewMCPServer("plan-mode-mcp", "1.0.0")
-	mcpSrv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+	mcpSrv := newTestMCPServer("plan-mode-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
 	t.Cleanup(mcpTS.Close)
 
 	var (
@@ -10471,21 +10688,9 @@ func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testi
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	mcpSrv := mcpserver.NewMCPServer("plan-workflow-mcp", "1.0.0")
-	mcpSrv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+	mcpSrv := newTestMCPServer("plan-workflow-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
 	t.Cleanup(mcpTS.Close)
 
 	var (
@@ -10671,21 +10876,9 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 	// Start a real MCP server with an auth middleware that only
 	// accepts the fresh access token. An expired token (or any
 	// other value) gets a 401.
-	mcpSrv := mcpserver.NewMCPServer("authed-mcp", "1.0.0")
-	mcpSrv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	mcpHTTP := mcpserver.NewStreamableHTTPServer(mcpSrv)
+	mcpSrv := newTestMCPServer("authed-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpHTTP := testMCPHTTPHandler(mcpSrv)
 	// Wrap with auth check.
 	authMux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")

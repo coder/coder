@@ -48,8 +48,14 @@ const (
 // Cron jobs, which sample live state when they fire, the Generator derives
 // events from data already persisted in the database, so it can
 // deterministically backfill hours missed while the deployment was down,
-// zero-filling idle hours. Deterministic event IDs plus the database's
-// ON CONFLICT (id) DO NOTHING make concurrent replicas safe without locking.
+// zero-filling idle hours. Deterministic event IDs make concurrent replicas
+// safe without locking: the insert's ON CONFLICT (id) arbiter turns a
+// re-insert of a bucket into a no-op, even when the competing insert is
+// still in flight (once its arbiter index entry is visible, PostgreSQL
+// waits on that transaction and takes the DO NOTHING path if it commits).
+// Only the narrow speculative-insertion race, before the competing row's
+// arbiter entry exists, surfaces a bucket unique violation instead, which
+// generateBucket recognizes as the other replica winning.
 //
 // Events are generated unconditionally in enterprise builds; the
 // publish_usage_data license flag only gates publishing to Tallyman.
@@ -157,7 +163,7 @@ func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
 	// A row marks its bucket complete regardless of publish outcome, so a
 	// bucket whose event Tallyman permanently rejected is never
 	// regenerated (re-inserting under the deterministic ID is a no-op via
-	// ON CONFLICT (id) DO NOTHING).
+	// the insert's ON CONFLICT (id) arbiter).
 	//
 	// The runtime is not lost locally: the row still holds it, and the
 	// event can be re-queued for publishing with
@@ -235,6 +241,12 @@ func (g *Generator) generateBucket(ctx context.Context, bucket time.Time) error 
 	// time) so daily rollups attribute backfilled hours to the correct day.
 	stableID := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(usageEventIDTimeFormat)
 	err = g.ins.InsertHeartbeatUsageEvent(ctx, g.db, stableID, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
+	if database.IsUniqueViolation(err, database.UniqueIndexUsageEventsAgentRuntime) {
+		// Another replica already created this bucket's row. The Generator
+		// doc comment explains why this race reaches the bucket unique
+		// index instead of the insert's ON CONFLICT (id) arbiter.
+		return nil
+	}
 	if err != nil {
 		return xerrors.Errorf("insert usage event: %w", err)
 	}

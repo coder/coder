@@ -225,7 +225,8 @@ export const AISpendZeroLimit: Story = {
 	},
 };
 
-// Dropdown closed to isolate the avatar border, which reflects spend severity.
+// Dropdown closed to isolate the avatar and its severity badge, which
+// indicates AI spend limit severity.
 
 export const AvatarBorderDisabled: Story = {
 	parameters: {
@@ -237,6 +238,14 @@ export const AvatarBorderNormal: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [{ key: meAISpendKey, data: mockAISpend }],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("shows no severity indicator for normal spend", async () => {
+			const canvas = within(canvasElement);
+			expect(
+				canvas.getByRole("button", { name: "User menu" }),
+			).toBeInTheDocument();
+		});
 	},
 };
 
@@ -250,6 +259,14 @@ export const AvatarBorderWarning: Story = {
 			},
 		],
 	},
+	play: async ({ canvasElement, step }) => {
+		await step("labels the trigger with the warning state", async () => {
+			const canvas = within(canvasElement);
+			await canvas.findByRole("button", {
+				name: "User menu. AI spend is nearing its limit",
+			});
+		});
+	},
 };
 
 export const AvatarBorderExceeded: Story = {
@@ -261,6 +278,14 @@ export const AvatarBorderExceeded: Story = {
 				data: { ...mockAISpend, current_spend_micros: 1_500_000_000 },
 			},
 		],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("labels the trigger with the exceeded state", async () => {
+			const canvas = within(canvasElement);
+			await canvas.findByRole("button", {
+				name: "User menu. AI spend limit exceeded",
+			});
+		});
 	},
 };
 
