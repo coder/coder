@@ -385,6 +385,9 @@ export const chatDraftAttachmentsStorage = defineEntityStorageKey<
 	defaultValue: null,
 	ttlMs: draftTtlMs,
 	timestamped: false,
+	// chatDraftAttachmentStorage checks PersistResult and retries with
+	// lighter payloads, so reads must reflect persisted bytes only.
+	overlay: false,
 	entityIdFromSuffix: (suffix) => suffix.split(".").at(-1) ?? suffix,
 	sweepValue: sweepChatDraftAttachments,
 });

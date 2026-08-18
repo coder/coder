@@ -89,6 +89,17 @@ defineEntityStorageKey<string | null>({
 	timestamped: false,
 	sweepValue: (raw) => (raw === "stale" ? "remove" : "keep"),
 });
+// Mirrors chat draft attachments: manages its own quota fallback.
+const noOverlayNote = defineEntityStorageKey<string | null>({
+	prefix: "test.no-overlay.",
+	entity: "chat",
+	codec: stringCodec,
+	defaultValue: null,
+	ttlMs: 30 * dayMs,
+	timestamped: false,
+	overlay: false,
+	sweepValue: () => "keep",
+});
 
 registerLegacyStorageKeys(["test.legacy-one", "test.legacy-two"]);
 
@@ -351,6 +362,24 @@ describe("entity-scoped keys", () => {
 		expect(handle.get()).toBeNull();
 		vi.restoreAllMocks();
 		expect(localStorage.getItem("test.chat-note.chat-1")).toBeNull();
+	});
+
+	it("keeps reads on persisted bytes for overlay: false keys", () => {
+		const handle = noOverlayNote.forId("chat-1");
+		handle.set("persisted");
+		const listener = vi.fn();
+		const unsubscribe = handle.subscribe(listener);
+		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+			throw new DOMException("full", "QuotaExceededError");
+		});
+
+		expect(handle.set("unpersisted").ok).toBe(false);
+
+		// Reads keep reflecting the persisted bytes so callers with
+		// their own quota handling can reconcile.
+		expect(handle.get()).toBe("persisted");
+		expect(listener).not.toHaveBeenCalled();
+		unsubscribe();
 	});
 
 	it("clears overlay-only values that never persisted", () => {
