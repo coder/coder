@@ -152,6 +152,7 @@ func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Param refresh_token formData string false "Refresh token, required if grant_type=refresh_token"
 // @Param grant_type formData codersdk.OAuth2ProviderGrantType true "Grant type"
 // @Success 200 {object} oauth2.Token
+// @Failure 413 {object} codersdk.OAuth2Error "Request body exceeds 4 MiB"
 // @Router /oauth2/tokens [post]
 func (api *API) postOAuth2ProviderAppToken() http.HandlerFunc {
 	return oauth2provider.Tokens(api.Database, api.DeploymentValues.Sessions)
@@ -176,6 +177,7 @@ func (api *API) deleteOAuth2ProviderAppTokens() http.HandlerFunc {
 // @Param token formData string true "The token to revoke"
 // @Param token_type_hint formData string false "Hint about token type (access_token or refresh_token)"
 // @Success 200 "Token successfully revoked"
+// @Failure 413 {object} codersdk.OAuth2Error "Request body exceeds 4 MiB"
 // @Router /oauth2/revoke [post]
 func (api *API) revokeOAuth2Token() http.HandlerFunc {
 	return oauth2provider.RevokeToken(api.Database, api.Logger)
@@ -208,6 +210,7 @@ func (api *API) oauth2ProtectedResourceMetadata() http.HandlerFunc {
 // @Tags Enterprise
 // @Param request body codersdk.OAuth2ClientRegistrationRequest true "Client registration request"
 // @Success 201 {object} codersdk.OAuth2ClientRegistrationResponse
+// @Failure 413 {object} codersdk.OAuth2Error "Request body exceeds 4 MiB"
 // @Router /oauth2/register [post]
 func (api *API) postOAuth2ClientRegistration() http.HandlerFunc {
 	return oauth2provider.CreateDynamicClientRegistration(api.Database, api.AccessURL, api.Auditor.Load(), api.Logger)
@@ -321,6 +324,7 @@ func (api *API) oauth2ClientConfiguration() http.HandlerFunc {
 // @Param client_id path string true "Client ID"
 // @Param request body codersdk.OAuth2ClientRegistrationRequest true "Client update request"
 // @Success 200 {object} codersdk.OAuth2ClientConfiguration
+// @Failure 413 {object} codersdk.OAuth2Error "Request body exceeds 4 MiB"
 // @Router /oauth2/clients/{client_id} [put]
 func (api *API) putOAuth2ClientConfiguration() http.HandlerFunc {
 	return oauth2provider.UpdateClientConfiguration(api.Database, api.Auditor.Load(), api.Logger)

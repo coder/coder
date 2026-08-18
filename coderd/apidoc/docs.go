@@ -14961,6 +14961,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2ClientConfiguration"
                         }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
                     }
                 }
             },
@@ -15016,6 +15022,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2ClientRegistrationResponse"
                         }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
                     }
                 }
             }
@@ -15055,6 +15067,12 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "Token successfully revoked"
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
                     }
                 }
             }
@@ -15114,6 +15132,12 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/oauth2.Token"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
                         }
                     }
                 }
@@ -22287,6 +22311,51 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.OAuth2GithubConfig"
                 }
             }
+        },
+        "codersdk.OAuth2Error": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/codersdk.OAuth2ErrorCode"
+                },
+                "error_description": {
+                    "type": "string"
+                },
+                "error_uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuth2ErrorCode": {
+            "type": "string",
+            "enum": [
+                "invalid_request",
+                "invalid_client",
+                "invalid_grant",
+                "unauthorized_client",
+                "unsupported_grant_type",
+                "invalid_scope",
+                "access_denied",
+                "unsupported_response_type",
+                "server_error",
+                "temporarily_unavailable",
+                "unsupported_token_type",
+                "invalid_target"
+            ],
+            "x-enum-varnames": [
+                "OAuth2ErrorCodeInvalidRequest",
+                "OAuth2ErrorCodeInvalidClient",
+                "OAuth2ErrorCodeInvalidGrant",
+                "OAuth2ErrorCodeUnauthorizedClient",
+                "OAuth2ErrorCodeUnsupportedGrantType",
+                "OAuth2ErrorCodeInvalidScope",
+                "OAuth2ErrorCodeAccessDenied",
+                "OAuth2ErrorCodeUnsupportedResponseType",
+                "OAuth2ErrorCodeServerError",
+                "OAuth2ErrorCodeTemporarilyUnavailable",
+                "OAuth2ErrorCodeUnsupportedTokenType",
+                "OAuth2ErrorCodeInvalidTarget"
+            ]
         },
         "codersdk.OAuth2GithubConfig": {
             "type": "object",
