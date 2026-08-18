@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -223,9 +222,14 @@ func DefaultOrgMemberRoles() []string {
 	return []string{orgWorkspaceAccess}
 }
 
-// OrgWorkspaceAccessMemberPerms returns the elevation perms granted by the
-// organization-workspace-access role.
-func OrgWorkspaceAccessMemberPerms() []Permission {
+// orgWorkspaceAccessMemberPerms returns the member-scoped permissions
+// granted by the organization-workspace-access role: the ability to
+// create and operate your own workspaces in the organization. The
+// organization-member role intentionally does not include these
+// permissions (see OrgMemberPermissions), so workspace access is only
+// held by members that have this role, typically through the
+// organization's default_org_member_roles.
+func orgWorkspaceAccessMemberPerms() []Permission {
 	return Permissions(map[string][]policy.Action{
 		ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
 
@@ -340,14 +344,6 @@ type RoleOptions struct {
 	NoOwnerWorkspaceExec bool
 	NoWorkspaceSharing   bool
 	NoChatSharing        bool
-
-	// MinimumImplicitMember removes the workspace-ops elevation
-	// (OrgWorkspaceAccessMemberPerms) from organization-member and
-	// organization-service-account. With it set, those two roles carry
-	// only the floor, and the elevation must be granted explicitly via
-	// the organization-workspace-access role (typically attached
-	// through default_org_member_roles).
-	MinimumImplicitMember bool
 }
 
 // ReservedRoleName exists because the database should only allow unique role
@@ -368,8 +364,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	if opts == nil {
 		opts = &RoleOptions{}
 	}
-
-	minimumImplicitMember.Store(opts.MinimumImplicitMember)
 
 	denyPermissions := []Permission{}
 	if opts.NoWorkspaceSharing {
@@ -728,7 +722,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ByOrgID: map[string]OrgPermissions{
 					organizationID.String(): {
 						Org:    []Permission{},
-						Member: OrgWorkspaceAccessMemberPerms(),
+						Member: orgWorkspaceAccessMemberPerms(),
 					},
 				},
 			}
@@ -1074,8 +1068,8 @@ func Permissions(perms map[string][]policy.Action) []Permission {
 		}
 	}
 	// Deterministic ordering of permissions
-	sort.Slice(list, func(i, j int) bool {
-		return list[i].ResourceType < list[j].ResourceType
+	slices.SortFunc(list, func(a, b Permission) int {
+		return strings.Compare(a.ResourceType, b.ResourceType)
 	})
 	return list
 }
@@ -1144,6 +1138,16 @@ type OrgRolePermissions struct {
 // OrgMemberPermissions returns the permissions for the organization-member
 // system role, which can vary based on the organization's workspace sharing
 // settings.
+//
+// organization-member carries only the "floor": the minimum permission
+// set every member of an organization holds (read-self records,
+// notifications, and similar). It deliberately grants no workspace
+// access. The ability to create and use workspaces lives exclusively on
+// the organization-workspace-access role (see
+// orgWorkspaceAccessMemberPerms), which organizations attach to members
+// through default_org_member_roles or explicit assignment. This is what
+// makes restricted "gateway account" members possible: clear the
+// default roles and members keep the floor but cannot touch workspaces.
 func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 	// Organization-level permissions that all org members get.
 	orgPermMap := map[string][]policy.Action{
@@ -1184,7 +1188,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 
 	// Chat access requires the agents-access role and is intentionally
 	// not granted in the floor.
-	floor := Permissions(map[string][]policy.Action{
+	memberPerms := Permissions(map[string][]policy.Action{
 		// Read-self org-member record.
 		ResourceOrganizationMember.Type: {policy.ActionRead},
 
@@ -1206,19 +1210,6 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceNotificationPreference.Type: ResourceNotificationPreference.AvailableActions(),
 		ResourceInboxNotification.Type:      ResourceInboxNotification.AvailableActions(),
 	})
-
-	// Workspace-ops elevation. When MinimumImplicitMember is off, the
-	// elevation is bundled into organization-member here. When on, the
-	// elevation lives exclusively on organization-workspace-access; a
-	// user without that role then has only the floor. See
-	// OrgWorkspaceAccessMemberPerms for the perm set and the
-	// "Intentionally omitted" rationale.
-	var elevation []Permission
-	if !MinimumImplicitMember() {
-		elevation = OrgWorkspaceAccessMemberPerms()
-	}
-
-	memberPerms := slices.Concat(elevation, floor)
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
 		memberPerms = append(memberPerms, Permission{
@@ -1265,7 +1256,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
-	floor := Permissions(map[string][]policy.Action{
+	memberPerms := Permissions(map[string][]policy.Action{
 		// Read-self org-member record.
 		ResourceOrganizationMember.Type: {policy.ActionRead},
 
@@ -1288,13 +1279,6 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceNotificationPreference.Type: ResourceNotificationPreference.AvailableActions(),
 		ResourceInboxNotification.Type:      ResourceInboxNotification.AvailableActions(),
 	})
-
-	var elevation []Permission
-	if !MinimumImplicitMember() {
-		elevation = OrgWorkspaceAccessMemberPerms()
-	}
-
-	memberPerms := slices.Concat(elevation, floor)
 
 	return OrgRolePermissions{Org: orgPerms, Member: memberPerms}
 }

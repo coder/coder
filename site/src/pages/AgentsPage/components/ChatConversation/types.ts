@@ -7,6 +7,7 @@ export type ParsedToolCall = {
 	args?: unknown;
 	parsedCommands?: readonly string[][];
 	mcpServerConfigId?: string;
+	hookRewritten?: boolean;
 };
 
 export type ParsedToolResult = {
@@ -27,6 +28,7 @@ export type MergedTool = {
 	mcpServerConfigId?: string;
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
+	hookRewritten?: boolean;
 	/** Set when a process_signal killed/terminated this process. */
 	killedBySignal?: "kill" | "terminate";
 };
@@ -65,6 +67,9 @@ export type ParsedMessageContent = {
 export type ParsedMessageEntry = {
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
+	// IDs of the messages folded into this entry when consecutive read_file
+	// runs are merged into one row. Absent for ordinary messages.
+	mergedFrom?: readonly number[];
 };
 
 export type ReconnectState = ReconnectSchedule;

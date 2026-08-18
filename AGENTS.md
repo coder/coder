@@ -56,7 +56,7 @@ Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live
 
 - **Database changes:** edit `coderd/database/queries/*.sql`, run `make gen`, update `enterprise/audit/table.go` for audit errors, then run `make gen` again.
 - **OAuth2:** return RFC-compliant errors such as `writeOAuth2Error(...)`. Public endpoints that need system access use `dbauthz.AsSystemRestricted`.
-- **Chatd:** update its architecture document when a change affects the documented architecture.
+- **Chatd:** when a change affects the documented architecture, do not edit the architecture document yourself. Leave TODO items in the affected sections; the human PR author writes the actual updates.
 - **Public API:** add the required Swagger annotations for new public HTTP endpoints.
 - **Transactions:** keep `InTx` work on the transaction handle. Prefer explicit database-to-SDK converters.
 - **Concurrent tests:** use unique identifiers. Do not use `time.Sleep` to mask timing problems.

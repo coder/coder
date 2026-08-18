@@ -283,6 +283,11 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	)
 	logger.Info(ctx, "running agent script", slog.F("script", script.Script))
 
+	logDir := filepath.Dir(logPath)
+	if err = r.Filesystem.MkdirAll(logDir, 0o700); err != nil {
+		return xerrors.Errorf("create script log file directory %q: %w", logDir, err)
+	}
+
 	fileWriter, err := r.Filesystem.OpenFile(logPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open %s script log file: %w", logPath, err)

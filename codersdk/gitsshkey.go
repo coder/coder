@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -34,7 +33,7 @@ func (c *Client) GitSSHKey(ctx context.Context, user string) (GitSSHKey, error) 
 	}
 
 	var gitsshkey GitSSHKey
-	return gitsshkey, json.NewDecoder(res.Body).Decode(&gitsshkey)
+	return gitsshkey, ReadBodyAsJSON(res, &gitsshkey)
 }
 
 // RegenerateGitSSHKey will create a new SSH key pair for the user and return it.
@@ -50,5 +49,5 @@ func (c *Client) RegenerateGitSSHKey(ctx context.Context, user string) (GitSSHKe
 	}
 
 	var gitsshkey GitSSHKey
-	return gitsshkey, json.NewDecoder(res.Body).Decode(&gitsshkey)
+	return gitsshkey, ReadBodyAsJSON(res, &gitsshkey)
 }

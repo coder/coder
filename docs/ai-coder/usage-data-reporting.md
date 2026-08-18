@@ -55,3 +55,30 @@ Example of a failed request (e.g. Tallyman Server is blocked by your network):
 
 > [!NOTE]
 > Air-gapped deployments and/or those with legal restrictions around usage reporting can [contact us](https://coder.com/contact) to discuss alternative methods.
+
+## Agent runtime measurement
+
+Total Coder Agent runtime is summed from per-message generation time
+(`runtime_ms` on chat messages).
+
+A message's runtime is the wall-clock duration of the model invocation that
+produced its content, measured from just before the request to the model
+provider opens until the response is fully consumed.
+
+What counts:
+
+- Assistant generation steps, in both top-level chats and sub-agent chats.
+- Context compaction (summarization) model calls.
+- Interrupted generation: the time streamed before the interrupt is kept on
+  the partial assistant message.
+
+What does not count:
+
+- Local tool execution, including waiting on sub-agents. A sub-agent is its
+  own chat and records its own model invocations, so counting the parent's
+  wait would double count.
+- Idle time: chats waiting for user input or external tool results.
+- Failed model calls whose output was discarded. Retried and errored
+  attempts persist no content, so they record no runtime.
+- Ancillary model calls that produce no chat messages, such as title
+  generation.

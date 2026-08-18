@@ -294,6 +294,12 @@ export const provisionerJobs = (
 	};
 };
 
+export const permittedOrganizationsKey = (check: AuthorizationCheck) => [
+	"organizations",
+	"permitted",
+	check,
+];
+
 /**
  * Fetch organizations the current user is permitted to use for a given
  * action. Fetches all organizations, runs a per-org authorization
@@ -301,7 +307,7 @@ export const provisionerJobs = (
  */
 export const permittedOrganizations = (check: AuthorizationCheck) => {
 	return {
-		queryKey: ["organizations", "permitted", check],
+		queryKey: permittedOrganizationsKey(check),
 		queryFn: async (): Promise<Organization[]> => {
 			const orgs = await API.getOrganizations();
 			const checks = Object.fromEntries(

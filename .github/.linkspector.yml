@@ -20,6 +20,8 @@ ignorePatterns:
   # These real sites were blocking the linkspector action / GitHub runner IPs(?)
   - pattern: "i.imgur.com"
   - pattern: "code.visualstudio.com"
+  - pattern: "marketplace.visualstudio.com"
+  - pattern: "codeium.com"
   - pattern: "www.emacswiki.org"
   - pattern: "linux.die.net/man"
   - pattern: "www.gnu.org"
@@ -29,7 +31,7 @@ ignorePatterns:
   - pattern: "docs.github.com"
   - pattern: "claude.ai"
   - pattern: "splunk.com"
-  - pattern: "stackoverflow.com/questions"
+  - pattern: "stackoverflow.com"
   - pattern: "developer.hashicorp.com/terraform/language"
   - pattern: "platform.openai.com"
   - pattern: "api.openai.com"
@@ -38,5 +40,8 @@ ignorePatterns:
   - pattern: "merriam-webster.com"
   # npmjs.com returns 403 from GitHub runner IPs
   - pattern: "npmjs.com"
+  # AWS Bedrock base URL appears as an illustrative <region> placeholder in
+  # the generated configuration reference, not as a live link.
+  - pattern: "bedrock-runtime"
 aliveStatusCodes:
   - 200

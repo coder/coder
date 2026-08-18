@@ -46,6 +46,7 @@ export const UpdateAutomaticUpdatesPolicy: Story = {
 		await waitFor(() =>
 			expect(args.onSubmit).toHaveBeenCalledWith(
 				expect.objectContaining({ automatic_updates: "always" }),
+				expect.anything(),
 			),
 		);
 	},

@@ -15,7 +15,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -26,6 +25,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -136,15 +136,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 	}
 
 	if (!users || users.length === 0) {
-		return (
-			<TableRow>
-				<TableCell colSpan={999}>
-					<div className="p-8">
-						<EmptyState message="No users found" />
-					</div>
-				</TableCell>
-			</TableRow>
-		);
+		return <TableEmpty message="No users found" />;
 	}
 
 	return (

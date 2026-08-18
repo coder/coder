@@ -141,7 +141,7 @@ export interface AIBridgeSession {
 	readonly threads: number;
 	readonly token_usage_summary: AIBridgeSessionTokenUsageSummary;
 	/**
-	 * NetworkCalls summarizes the Agent Firewall network calls made during the
+	 * NetworkCalls summarizes the Agent Firewall network requests made during the
 	 * session. A nil value means the session did not pass through Agent
 	 * Firewall, so network call monitoring was not active, which the UI
 	 * surfaces as "Disabled".
@@ -164,6 +164,16 @@ export interface AIBridgeSessionNetworkCallSummary {
 
 // From codersdk/aibridge.go
 /**
+ * AIBridgeSessionNetworkDomain is one destination host contacted during a
+ * session, with the number of network calls made to it.
+ */
+export interface AIBridgeSessionNetworkDomain {
+	readonly domain: string;
+	readonly count: number;
+}
+
+// From codersdk/aibridge.go
+/**
  * AIBridgeSessionThreadsResponse is the response for GET
  * /api/v2/ai-gateway/sessions/{session_id} which returns a single
  * session with fully expanded threads.
@@ -181,6 +191,28 @@ export interface AIBridgeSessionThreadsResponse {
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage_summary: AIBridgeSessionThreadsTokenUsage;
+	/**
+	 * NetworkCalls summarizes the Agent Firewall network calls made during the
+	 * session. A nil value means the session did not pass through Agent
+	 * Firewall, so network call monitoring was not active, which the UI
+	 * surfaces as "Disabled".
+	 */
+	readonly network_calls?: AIBridgeSessionNetworkCallSummary;
+	/**
+	 * NetworkTopDomains lists the most contacted destination hosts, ordered by
+	 * call count descending. NetworkDomainCount is the total number of distinct
+	 * domains, used to render a "+N more" overflow beyond the listed domains.
+	 */
+	readonly network_top_domains?: readonly AIBridgeSessionNetworkDomain[];
+	readonly network_domain_count?: number;
+	/**
+	 * NetworkCallLogs is the chronological list of individual network calls made
+	 * during the session, holding the earliest calls up to a server-side cap.
+	 * NetworkCalls remains authoritative for whole-session totals, so a shorter
+	 * list than NetworkCalls.Total means the list was truncated. Empty when the
+	 * session did not pass through Agent Firewall.
+	 */
+	readonly network_call_logs?: readonly AgentFirewallLog[];
 	readonly threads: readonly AIBridgeThread[];
 }
 
@@ -319,6 +351,41 @@ export interface AIGatewayKey {
  * AIGatewayKeyHeader contains the authentication key for a standalone AI Gateway replica.
  */
 export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
+
+// From codersdk/aimodelprices.go
+/**
+ * AIModelPrice is a per-model token price used by AI Gateway to compute the
+ * cost of an interception.
+ *
+ * Prices are integer micro-units per million tokens, so 1000000 is $1.00 per
+ * million tokens. A nil price means the price is not known, which the cost
+ * calculation treats the same as zero. Distinguish that from an explicit 0,
+ * which declares the model free of charge.
+ */
+export interface AIModelPrice {
+	readonly provider: string;
+	readonly model: string;
+	readonly input_price: number | null;
+	readonly output_price: number | null;
+	readonly cache_read_price: number | null;
+	readonly cache_write_price: number | null;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/aimodelprices.go
+/**
+ * AIModelPriceUpsert is one model's prices in an upsert request. It carries
+ * only the writable fields of AIModelPrice.
+ */
+export interface AIModelPriceUpsert {
+	readonly provider: string;
+	readonly model: string;
+	readonly input_price: number | null;
+	readonly output_price: number | null;
+	readonly cache_read_price: number | null;
+	readonly cache_write_price: number | null;
+}
 
 // From codersdk/aiproviders.go
 /**
@@ -2005,6 +2072,7 @@ export interface ChatConfig {
 	readonly hook_secret: string;
 	readonly hook_timeout: number;
 	readonly hook_enabled: boolean;
+	readonly hook_allow_insecure: boolean;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
@@ -2143,7 +2211,7 @@ export const ChatContextResourceStatuses: ChatContextResourceStatus[] = [
  */
 export interface ChatContextTool {
 	/**
-	 * Name is the tool name with the "<server>__" prefix the agent adds
+	 * Name is the tool name with the `<server>__` prefix the agent adds
 	 * stripped, so it reads as the server exposes it.
 	 */
 	readonly name: string;
@@ -2155,119 +2223,19 @@ export interface ChatContextTool {
 
 // From codersdk/chats.go
 /**
- * ChatCost is the cumulative cost for a selected chat's subtree: the
- * chat itself plus every descendant (subagent) chat it spawned. A root
- * chat therefore reports its whole tree, while a subagent reports only
- * its own spend plus any nested subagents.
+ * ChatCost is the AI Gateway cost for the requested chat's whole tree.
+ * Root and subagent chats report the same total.
+ * RequestCount counts every finished request in the tree, including ones that
+ * recorded no billable usage at all, such as a request that failed upstream.
+ * UnpricedRequestCount counts requests with at least one usage record whose
+ * model had no recorded price; RequestCount includes them and
+ * TotalCostMicros omits only their unpriced usage.
  */
 export interface ChatCost {
 	readonly chat_id: string;
 	readonly total_cost_micros: number;
-	readonly priced_message_count: number;
-	readonly unpriced_messages_having_usage_count: number;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostChatBreakdown contains per-root-chat cost aggregation.
- */
-export interface ChatCostChatBreakdown {
-	readonly root_chat_id: string;
-	readonly chat_title: string;
-	readonly total_cost_micros: number;
-	readonly message_count: number;
-	readonly total_input_tokens: number;
-	readonly total_output_tokens: number;
-	readonly total_cache_read_tokens: number;
-	readonly total_cache_creation_tokens: number;
-	readonly total_runtime_ms: number;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostModelBreakdown contains per-model cost aggregation.
- */
-export interface ChatCostModelBreakdown {
-	readonly model_config_id: string;
-	readonly display_name: string;
-	readonly provider: string;
-	readonly model: string;
-	readonly total_cost_micros: number;
-	readonly message_count: number;
-	readonly total_input_tokens: number;
-	readonly total_output_tokens: number;
-	readonly total_cache_read_tokens: number;
-	readonly total_cache_creation_tokens: number;
-	readonly total_runtime_ms: number;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostSummary is the response from the chat cost summary endpoint.
- */
-export interface ChatCostSummary {
-	readonly start_date: string;
-	readonly end_date: string;
-	readonly total_cost_micros: number;
-	readonly priced_message_count: number;
-	readonly unpriced_messages_having_usage_count: number;
-	readonly total_input_tokens: number;
-	readonly total_output_tokens: number;
-	readonly total_cache_read_tokens: number;
-	readonly total_cache_creation_tokens: number;
-	readonly total_runtime_ms: number;
-	readonly by_model: readonly ChatCostModelBreakdown[];
-	readonly by_chat: readonly ChatCostChatBreakdown[];
-	readonly usage_limit?: ChatUsageLimitStatus;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostSummaryOptions are optional query parameters for GetChatCostSummary.
- */
-export interface ChatCostSummaryOptions {
-	readonly StartDate: string;
-	readonly EndDate: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostUserRollup contains per-user cost aggregation for admin views.
- */
-export interface ChatCostUserRollup {
-	readonly user_id: string;
-	readonly username: string;
-	readonly name: string;
-	readonly avatar_url: string;
-	readonly total_cost_micros: number;
-	readonly message_count: number;
-	readonly chat_count: number;
-	readonly total_input_tokens: number;
-	readonly total_output_tokens: number;
-	readonly total_cache_read_tokens: number;
-	readonly total_cache_creation_tokens: number;
-	readonly total_runtime_ms: number;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostUsersOptions are optional query parameters for GetChatCostUsers.
- */
-export interface ChatCostUsersOptions extends Pagination {
-	readonly StartDate: string;
-	readonly EndDate: string;
-	readonly Username: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatCostUsersResponse is the response from the admin chat cost users endpoint.
- */
-export interface ChatCostUsersResponse {
-	readonly start_date: string;
-	readonly end_date: string;
-	readonly count: number;
-	readonly users: readonly ChatCostUserRollup[];
+	readonly request_count: number;
+	readonly unpriced_request_count: number;
 }
 
 // From codersdk/chats.go
@@ -2856,8 +2824,8 @@ export interface ChatModelCallConfig {
 	readonly top_k?: number;
 	readonly presence_penalty?: number;
 	readonly frequency_penalty?: number;
-	readonly cost?: ModelCostConfig;
 	readonly reasoning_effort?: ChatModelReasoningEffortConfig;
+	readonly openai_config?: ChatModelOpenAIConfig;
 	readonly provider_options?: ChatModelProviderOptions;
 }
 
@@ -2920,6 +2888,15 @@ export interface ChatModelGoogleThinkingConfig {
  */
 export interface ChatModelOpenAICompatProviderOptions {
 	readonly user?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelOpenAIConfig holds settings applied once when the OpenAI client
+ * is built, not per request.
+ */
+export interface ChatModelOpenAIConfig {
+	readonly use_responses_api?: boolean;
 }
 
 // From codersdk/chats.go
@@ -3492,16 +3469,6 @@ export interface ChatSystemPromptResponse {
 }
 
 // From codersdk/chats.go
-/**
- * ChatTemplateAllowlist is the request and response body for the
- * chat template allowlist configuration endpoint. An empty list
- * means all templates are allowed.
- */
-export interface ChatTemplateAllowlist {
-	readonly template_ids: readonly string[];
-}
-
-// From codersdk/chats.go
 export interface ChatTextPart {
 	readonly type: "text";
 	readonly text: string;
@@ -3529,6 +3496,10 @@ export interface ChatToolCallPart {
 	 * the provider (e.g. Anthropic computer use).
 	 */
 	readonly provider_executed?: boolean;
+	/**
+	 * HookRewritten indicates that a lifecycle hook replaced model-proposed tool input.
+	 */
+	readonly hook_rewritten?: boolean;
 	/**
 	 * CreatedAt is the timestamp this part carries. The semantics
 	 * depend on the part type: for tool-call and tool-result parts
@@ -3578,100 +3549,6 @@ export interface ChatUnsupportedProvider {
 	 */
 	readonly provider: string;
 	readonly display_name: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatUsageLimitConfig is the deployment-wide default usage limit config.
- */
-export interface ChatUsageLimitConfig {
-	/**
-	 * Nil in the API means no default limit is set. The DB stores 0 when
-	 * limiting is disabled.
-	 */
-	readonly spend_limit_micros: number | null;
-	readonly period: ChatUsageLimitPeriod;
-	readonly updated_at: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatUsageLimitConfigResponse is returned from the admin config endpoint
- * and includes the config plus a count of models without pricing.
- */
-export interface ChatUsageLimitConfigResponse extends ChatUsageLimitConfig {
-	readonly unpriced_model_count: number;
-	readonly overrides: readonly ChatUsageLimitOverride[];
-	readonly group_overrides: readonly ChatUsageLimitGroupOverride[];
-}
-
-// From codersdk/chats.go
-/**
- * ChatUsageLimitExceededResponse is the 409 response body returned when a
- * chat operation exceeds the caller's usage limit. The structured fields let
- * frontends render user-friendly spend, limit, and reset information without
- * parsing debug text.
- */
-export interface ChatUsageLimitExceededResponse extends Response {
-	readonly spent_micros: number;
-	readonly limit_micros: number;
-	readonly resets_at: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatUsageLimitGroupOverride represents a group-scoped spend limit override.
- */
-export interface ChatUsageLimitGroupOverride {
-	readonly group_id: string;
-	readonly group_name: string;
-	readonly group_display_name: string;
-	readonly group_avatar_url: string;
-	readonly member_count: number;
-	/**
-	 * Nil in the API means no group override is set. Persisted override rows
-	 * store positive values.
-	 */
-	readonly spend_limit_micros: number | null;
-}
-
-// From codersdk/chats.go
-/**
- * ChatUsageLimitOverride is a per-user override of the deployment default.
- */
-export interface ChatUsageLimitOverride {
-	readonly user_id: string;
-	readonly username: string;
-	readonly name: string;
-	readonly avatar_url: string;
-	/**
-	 * Nil in the API means no user override is set. Persisted override rows
-	 * store positive values.
-	 */
-	readonly spend_limit_micros: number | null;
-}
-
-// From codersdk/chats.go
-export type ChatUsageLimitPeriod = "day" | "month" | "week";
-
-export const ChatUsageLimitPeriods: ChatUsageLimitPeriod[] = [
-	"day",
-	"month",
-	"week",
-];
-
-// From codersdk/chats.go
-/**
- * ChatUsageLimitStatus represents the current spend status for a user
- * within their active limit period.
- */
-export interface ChatUsageLimitStatus {
-	readonly is_limited: boolean;
-	readonly period?: ChatUsageLimitPeriod;
-	readonly spend_limit_micros?: number;
-	readonly current_spend: number;
-	readonly period_start?: string;
-	readonly period_end?: string;
 }
 
 // From codersdk/chats.go
@@ -4256,6 +4133,11 @@ export interface CreateTemplateRequest {
 	 * CORSBehavior allows optionally specifying the CORS behavior for all shared ports.
 	 */
 	readonly cors_behavior: CORSBehavior | null;
+	/**
+	 * AgentsAllowed controls whether Coder Agents can create workspaces using
+	 * this template. Defaults to true.
+	 */
+	readonly agents_allowed?: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -5104,7 +4986,6 @@ export type Experiment =
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
-	| "minimum-implicit-member"
 	| "nats_pubsub"
 	| "notifications"
 	| "oauth2"
@@ -5120,7 +5001,6 @@ export const Experiments: Experiment[] = [
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",
-	"minimum-implicit-member",
 	"nats_pubsub",
 	"notifications",
 	"oauth2",
@@ -5189,6 +5069,12 @@ export interface ExternalAuthConfig {
 	readonly auth_url: string;
 	readonly token_url: string;
 	readonly validate_url: string;
+	/**
+	 * RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
+	 * situations where the OAuth callback domain is different from the ACCESS_URL
+	 * domain. The path component is ignored.
+	 */
+	readonly redirect_url: string;
 	readonly revoke_url: string;
 	readonly app_install_url: string;
 	readonly app_installations_url: string;
@@ -5301,14 +5187,18 @@ export interface ExternalAuthUser {
 export interface Feature {
 	readonly entitlement: Entitlement;
 	readonly enabled: boolean;
+	/**
+	 * Limit is the maximum value the license grants for the feature, in the
+	 * feature's own unit. For FeatureAgentRuntimeHours, an enabled feature
+	 * with Limit omitted means the license grants unlimited runtime hours.
+	 */
 	readonly limit?: number;
 	/**
 	 * SoftLimit is the advisory warning threshold that accompanies Limit for
 	 * features whose license carries it. For these features, Limit carries
-	 * the purchased allocation.
-	 *
-	 * Only certain features set this field:
-	 * - FeatureAgentRuntimeHours
+	 * the purchased allocation; an unlimited allocation has no thresholds,
+	 * so SoftLimit is omitted alongside the omitted Limit. Only
+	 * FeatureAgentRuntimeHours sets this field.
 	 */
 	readonly soft_limit?: number;
 	/**
@@ -5317,18 +5207,30 @@ export interface Feature {
 	 * features that use these thresholds.
 	 */
 	readonly hard_limit?: number;
+	/**
+	 * Actual is the usage measured against Limit, when known: a
+	 * point-in-time count for most features, or usage accumulated over
+	 * UsagePeriod for features that set one. Its unit matches Limit's;
+	 * FeatureAgentRuntimeHours reports whole hours floored from the
+	 * recorded milliseconds, with the precise value available in
+	 * ActualMs. FeatureAgentRuntimeHours usage can trail by roughly one
+	 * hour because the current hour is not emitted, plus the entitlement
+	 * refresh interval.
+	 */
 	readonly actual?: number;
+	/**
+	 * ActualMs is the precise usage backing Actual, in milliseconds, for
+	 * features measured in time. It has the same freshness as Actual.
+	 * Only FeatureAgentRuntimeHours sets this field.
+	 */
+	readonly actual_ms?: number;
 	/**
 	 * UsagePeriod denotes that the usage is a counter that accumulates over
 	 * this period (and most likely resets with the issuance of the next
-	 * license).
-	 *
-	 * These dates are determined from the license that this entitlement comes
-	 * from, see enterprise/coderd/license/license.go.
-	 *
-	 * Only certain features set these fields:
-	 * - FeatureManagedAgentLimit
-	 * - FeatureAgentRuntimeHours
+	 * license). These dates are determined from the license that this
+	 * entitlement comes from, see enterprise/coderd/license/license.go.
+	 * Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this
+	 * field.
 	 */
 	readonly usage_period?: UsagePeriod;
 }
@@ -5878,6 +5780,28 @@ export const LicenseAIGovernanceOverLimitWarningText =
 	"Your organization is using %d of %d AI Governance add-on seats (%d over the limit).";
 
 // From codersdk/licenses.go
+export const LicenseAgentRuntimeHoursAllocationReachedWarningText =
+	"Your deployment has used %d of the %d Coder Agent runtime hours included in the current license term.";
+
+// From codersdk/licenses.go
+export const LicenseAgentRuntimeHoursClaimsIgnoredWarningText =
+	"A license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of that license is unaffected. Check the coderd logs for the affected license and claims, and contact support to have the license re-issued.";
+
+// From codersdk/licenses.go
+/**
+ * The dashboard's LicenseBanner matches this text's pre-placeholder
+ * prefix to render it muted and without a sales link, so the license
+ * warning texts must stay pairwise distinct before their first
+ * placeholder. See TestLicenseAgentRuntimeHoursWarningTexts.
+ */
+export const LicenseAgentRuntimeHoursSoftLimitWarningText =
+	"Your deployment is approaching its Coder Agent runtime hours allocation: %d of the %d hours included in the current license term are used, at or above the advisory soft limit of %d hours.";
+
+// From codersdk/licenses.go
+export const LicenseAgentRuntimeUsageUnavailableErrorText =
+	"Unable to determine Coder Agent runtime usage. Reported runtime hours are unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details.";
+
+// From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
 
 // From codersdk/licenses.go
@@ -6084,6 +6008,12 @@ export interface MatchedProvisioners {
 	readonly most_recently_seen?: string;
 }
 
+// From codersdk/aimodelprices.go
+/**
+ * MaxAIModelPricesBytes bounds an upsert request body.
+ */
+export const MaxAIModelPricesBytes = 1048576; // 1 MiB
+
 // From codersdk/aibridge.go
 /**
  * MaxAISpendLimitMicros is the highest AI spend limit that can be configured,
@@ -6231,17 +6161,6 @@ export interface MinimalUser {
 	readonly username: string;
 	readonly name?: string;
 	readonly avatar_url?: string;
-}
-
-// From codersdk/chats.go
-/**
- * ModelCostConfig stores pricing metadata for a chat model.
- */
-export interface ModelCostConfig {
-	readonly input_price_per_million_tokens?: string;
-	readonly output_price_per_million_tokens?: string;
-	readonly cache_read_price_per_million_tokens?: string;
-	readonly cache_write_price_per_million_tokens?: string;
 }
 
 // From netcheck/netcheck.go
@@ -6924,7 +6843,7 @@ export interface OIDCConfig {
 	/**
 	 * RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
 	 * situations where the OIDC callback domain is different from the ACCESS_URL
-	 * domain.
+	 * domain. The path component is ignored.
 	 */
 	readonly redirect_url: string;
 	readonly auto_repair_links: boolean;
@@ -7081,6 +7000,47 @@ export interface OrganizationSyncSettings {
 	 * for every user, regardless of their claims. This preserves legacy behavior.
 	 */
 	readonly organization_assign_default: boolean;
+}
+
+// From codersdk/groups.go
+/**
+ * PaginatedGroup is a group summary returned by the paginated groups endpoint.
+ * It deliberately omits the member roster (which the endpoint does not return)
+ * and exposes only the total member count. Fetch the roster via the group
+ * members endpoint.
+ */
+export interface PaginatedGroup {
+	readonly id: string;
+	readonly name: string;
+	readonly display_name: string;
+	readonly organization_id: string;
+	/**
+	 * TotalMemberCount is the number of members in the group, shown even when
+	 * the caller cannot read individual members. The roster itself is not
+	 * returned by this endpoint.
+	 */
+	readonly total_member_count: number;
+	readonly avatar_url: string;
+	readonly quota_allowance: number;
+	readonly source: GroupSource;
+	readonly organization_name: string;
+	readonly organization_display_name: string;
+}
+
+// From codersdk/groups.go
+/**
+ * PaginatedGroupsRequest are the filters for a paginated groups request.
+ * Groups only support free-text search, so unlike UsersRequest it exposes no
+ * key:value filters that the endpoint would reject.
+ */
+export interface PaginatedGroupsRequest extends Pagination {
+	readonly q?: string;
+}
+
+// From codersdk/groups.go
+export interface PaginatedGroupsResponse {
+	readonly groups: readonly PaginatedGroup[];
+	readonly count: number;
 }
 
 // From codersdk/organizations.go
@@ -8953,6 +8913,7 @@ export interface Template {
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel;
 	readonly cors_behavior: CORSBehavior;
 	readonly use_classic_parameter_flow: boolean;
+	readonly agents_allowed: boolean;
 	/**
 	 * DisableModuleCache disables the use of cached Terraform modules during
 	 * provisioning.
@@ -9721,22 +9682,6 @@ export interface UpdateChatSystemPromptRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatUsageLimitGroupOverrideRequest is kept as a compatibility alias.
- */
-export interface UpdateChatUsageLimitGroupOverrideRequest {
-	readonly spend_limit_micros: number; // Must be greater than 0.
-}
-
-// From codersdk/chats.go
-/**
- * UpdateChatUsageLimitOverrideRequest is kept as a compatibility alias.
- */
-export interface UpdateChatUsageLimitOverrideRequest {
-	readonly spend_limit_micros: number; // Must be greater than 0.
-}
-
-// From codersdk/chats.go
-/**
  * UpdateChatWorkspaceTTLRequest is the request to update the chat
  * workspace TTL setting.
  */
@@ -9955,6 +9900,11 @@ export interface UpdateTemplateMeta {
 	 * provisioning. It is recommended not to disable this.
 	 */
 	readonly disable_module_cache?: boolean;
+	/**
+	 * AgentsAllowed controls whether Coder Agents can create workspaces using
+	 * this template. If omitted, the current value is preserved.
+	 */
+	readonly agents_allowed?: boolean;
 }
 
 // From codersdk/users.go
@@ -10203,22 +10153,13 @@ export interface UploadResponse {
 	readonly hash: string;
 }
 
-// From codersdk/chats.go
+// From codersdk/aimodelprices.go
 /**
- * UpsertChatUsageLimitGroupOverrideRequest is the request to create or update
- * a group-level spend limit override.
+ * UpsertAIModelPricesRequest sets prices for the listed models. Models absent
+ * from the request are left untouched.
  */
-export interface UpsertChatUsageLimitGroupOverrideRequest {
-	readonly spend_limit_micros: number; // Must be greater than 0.
-}
-
-// From codersdk/chats.go
-/**
- * UpsertChatUsageLimitOverrideRequest is the body for creating/updating a
- * per-user usage limit override.
- */
-export interface UpsertChatUsageLimitOverrideRequest {
-	readonly spend_limit_micros: number; // Must be greater than 0.
+export interface UpsertAIModelPricesRequest {
+	readonly prices: readonly AIModelPriceUpsert[];
 }
 
 // From codersdk/aibridge.go
@@ -10855,6 +10796,13 @@ export interface WorkspaceAgent {
 	readonly display_apps: readonly DisplayApp[];
 	readonly log_sources: readonly WorkspaceAgentLogSource[];
 	readonly scripts: readonly WorkspaceAgentScript[];
+	/**
+	 * Metadata is only populated on the workspaces list endpoint when the
+	 * request opts in with the include_agent_metadata search key, and it
+	 * only carries the requested keys. The description's script is always
+	 * empty here: it can be long, and list consumers want values.
+	 */
+	readonly metadata?: readonly WorkspaceAgentMetadata[];
 	/**
 	 * StartupScriptBehavior is a legacy field that is deprecated in favor
 	 * of the `coder_script` resource. It's only referenced by old clients.

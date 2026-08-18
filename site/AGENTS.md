@@ -37,14 +37,13 @@ Some end-to-end tests require a license. The Storybook MCP at `http://localhost:
 
 ## Components and styling
 
-- MUI and Emotion are deprecated. Do not add new usage. Use existing shadcn components and Tailwind CSS.
+- Use existing shadcn components and Tailwind CSS. MUI and Emotion have been removed; do not reintroduce them.
 - Search `site/src/components/` and nearby feature code before creating a component or helper.
 - Add shadcn components manually. Do not use the shadcn CLI.
 - Keep business-specific components in feature modules. Create shared components only when reuse is established.
 - Changes to core components are cross-cutting. Coordinate visual or API expansion with design when needed.
 - Keep component files near 500 lines or less. Extract coherent sections when a file becomes difficult to navigate.
 - Use semantic theme colors and existing Tailwind tokens. Do not use the `dark:` prefix.
-- Tailwind reset is disabled for MUI compatibility.
 
 ## TypeScript and data flow
 

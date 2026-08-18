@@ -489,12 +489,18 @@ func memberSubject(userID, orgID uuid.UUID) rbac.Subject {
 	if err != nil {
 		panic(err)
 	}
+	// organization-workspace-access carries the workspace perms; the
+	// organization-member role alone is only the floor.
+	wsAccess, err := rbac.RoleByName(rbac.ScopedRoleOrgWorkspaceAccess(orgID))
+	if err != nil {
+		panic(err)
+	}
 	return rbac.Subject{
 		FriendlyName: "coderdtest-member",
 		Email:        "member@coderd.test",
 		Type:         rbac.SubjectTypeUser,
 		ID:           userID.String(),
-		Roles:        rbac.Roles{memberRole, orgMember},
+		Roles:        rbac.Roles{memberRole, orgMember, wsAccess},
 		Scope:        rbac.ScopeAll,
 	}.WithCachedASTValue()
 }

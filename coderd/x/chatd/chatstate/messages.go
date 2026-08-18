@@ -33,7 +33,6 @@ type Message struct {
 	CacheCreationTokens sql.NullInt64
 	CacheReadTokens     sql.NullInt64
 	ContextLimit        sql.NullInt64
-	TotalCostMicros     sql.NullInt64
 	RuntimeMs           sql.NullInt64
 }
 
@@ -62,7 +61,6 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		CacheReadTokens:     make([]int64, n),
 		ContextLimit:        make([]int64, n),
 		Compressed:          make([]bool, n),
-		TotalCostMicros:     make([]int64, n),
 		RuntimeMs:           make([]int64, n),
 	}
 	for i, m := range messages {
@@ -89,7 +87,6 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		params.CacheReadTokens[i] = nullInt64Or(m.CacheReadTokens, 0)
 		params.ContextLimit[i] = nullInt64Or(m.ContextLimit, 0)
 		params.Compressed[i] = m.Compressed
-		params.TotalCostMicros[i] = nullInt64Or(m.TotalCostMicros, 0)
 		params.RuntimeMs[i] = nullInt64Or(m.RuntimeMs, 0)
 	}
 	return params

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import {
@@ -41,9 +41,13 @@ export const Default: Story = {
 				name: /add an oauth2 application/i,
 			}),
 		).toBeVisible();
-		await expect(
-			canvas.getByRole("button", { name: /create application/i }),
-		).toBeDisabled();
+		// The submit button renders enabled for a frame until the form's
+		// validate-on-mount pass reports the empty required fields.
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("button", { name: /create application/i }),
+			).toBeDisabled(),
+		);
 	},
 };
 
