@@ -268,8 +268,6 @@ export const InterruptingShowsBusyComposer: Story = {
 			"Interrupting. Waiting for the agent to stop.",
 		);
 		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
-		// The transcript must not claim the agent is still thinking while
-		// the interruption finalizes.
 		expect(canvas.getByText("Interrupting")).toBeInTheDocument();
 		expect(canvas.queryByText("Thinking")).toBeNull();
 
