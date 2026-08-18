@@ -618,6 +618,16 @@ const AgentsPageLayout: FC = () => {
 					// the fallback title.
 					void cancelChatListRefetches(queryClient);
 					void cancelLoadedChatEntityRefetch(queryClient, updatedChat.id);
+					// Child events also write into the parent's embedded
+					// children, so cancel the parent's in-flight entity
+					// refetch too; a response issued before this event could
+					// otherwise overwrite the newer child state.
+					if (updatedChat.parent_chat_id) {
+						void cancelLoadedChatEntityRefetch(
+							queryClient,
+							updatedChat.parent_chat_id,
+						);
+					}
 
 					if (chatEvent.kind === "created") {
 						if (updatedChat.parent_chat_id) {
