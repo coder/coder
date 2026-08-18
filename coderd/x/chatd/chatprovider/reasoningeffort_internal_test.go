@@ -68,10 +68,11 @@ func TestApplyReasoningEffort(t *testing.T) {
 	})
 
 	tests := []struct {
-		name     string
-		provider string
-		options  fantasy.ProviderOptions
-		assert   func(*testing.T, fantasy.ProviderOptions)
+		name      string
+		provider  string
+		modelName string
+		options   fantasy.ProviderOptions
+		assert    func(*testing.T, fantasy.ProviderOptions)
 	}{
 		{
 			name:     "CreatesAnthropicEntry",
@@ -94,8 +95,9 @@ func TestApplyReasoningEffort(t *testing.T) {
 			},
 		},
 		{
-			name:     "CreatesGoogleEntry",
-			provider: fantasygoogle.Name,
+			name:      "CreatesGoogleEntry",
+			provider:  fantasygoogle.Name,
+			modelName: "gemini-3.7-flash",
 			assert: func(t *testing.T, got fantasy.ProviderOptions) {
 				providerOptions, ok := got[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
 				require.True(t, ok, "%T", got[fantasygoogle.Name])
@@ -105,9 +107,10 @@ func TestApplyReasoningEffort(t *testing.T) {
 			},
 		},
 		{
-			name:     "PreservesGoogleEntry",
-			provider: fantasygoogle.Name,
-			options:  fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{IncludeThoughts: ptr.Ref(true)}}},
+			name:      "PreservesGoogleEntry",
+			provider:  fantasygoogle.Name,
+			modelName: "gemini-3.7-flash",
+			options:   fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{IncludeThoughts: ptr.Ref(true)}}},
 			assert: func(t *testing.T, got fantasy.ProviderOptions) {
 				providerOptions := got[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
 				require.True(t, *providerOptions.ThinkingConfig.IncludeThoughts)
@@ -116,13 +119,22 @@ func TestApplyReasoningEffort(t *testing.T) {
 			},
 		},
 		{
-			name:     "GoogleExplicitBudgetWins",
-			provider: fantasygoogle.Name,
-			options:  fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{ThinkingBudget: ptr.Ref(int64(1024))}}},
+			name:      "GoogleExplicitBudgetWins",
+			provider:  fantasygoogle.Name,
+			modelName: "gemini-3.7-flash",
+			options:   fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{ThinkingBudget: ptr.Ref(int64(1024))}}},
 			assert: func(t *testing.T, got fantasy.ProviderOptions) {
 				providerOptions := got[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
 				require.Equal(t, int64(1024), *providerOptions.ThinkingConfig.ThinkingBudget)
 				require.Nil(t, providerOptions.ThinkingConfig.ThinkingLevel)
+			},
+		},
+		{
+			name:      "GoogleGemini25GetsNoLevel",
+			provider:  fantasygoogle.Name,
+			modelName: "gemini-2.5-flash",
+			assert: func(t *testing.T, got fantasy.ProviderOptions) {
+				require.Nil(t, got[fantasygoogle.Name])
 			},
 		},
 		{
@@ -196,8 +208,37 @@ func TestApplyReasoningEffort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := applyReasoningEffort(NewModel(&chattest.FakeModel{ProviderName: tt.provider}, nil), tt.options, new(codersdk.ChatModelReasoningEffortHigh))
+			got := applyReasoningEffort(NewModel(&chattest.FakeModel{ProviderName: tt.provider, ModelName: tt.modelName}, nil), tt.options, new(codersdk.ChatModelReasoningEffortHigh))
 			tt.assert(t, got)
+		})
+	}
+}
+
+func TestGoogleSupportsThinkingLevel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		modelID string
+		want    bool
+	}{
+		{modelID: "gemini-3.7-flash", want: true},
+		{modelID: "gemini-3-pro-preview", want: true},
+		{modelID: "models/gemini-3.7-flash", want: true},
+		{modelID: " Gemini-4-Flash ", want: true},
+		{modelID: "gemini-10.5-pro", want: true},
+		{modelID: "gemini-2.5-flash", want: false},
+		{modelID: "gemini-2.0-flash", want: false},
+		{modelID: "gemini-1.5-pro", want: false},
+		{modelID: "gemini-exp-1206", want: false},
+		{modelID: "gemma-3-27b-it", want: false},
+		{modelID: "learnlm-2.0-flash", want: false},
+		{modelID: "", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.modelID, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, googleSupportsThinkingLevel(tt.modelID))
 		})
 	}
 }

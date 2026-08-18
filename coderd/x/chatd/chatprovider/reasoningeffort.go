@@ -2,6 +2,8 @@ package chatprovider
 
 import (
 	"slices"
+	"strconv"
+	"strings"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
@@ -124,6 +126,11 @@ func applyReasoningEffort(
 		providerOptions := ensureProviderOptions[fantasyanthropic.ProviderOptions](options, fantasyanthropic.Name)
 		providerOptions.Effort = &providerEffort
 	case fantasygoogle.Name:
+		// Only Gemini 3+ accepts thinking_level; older generations reject
+		// requests carrying it, so keep dropping the effort for them.
+		if !googleSupportsThinkingLevel(model.ModelID()) {
+			return options
+		}
 		providerOptions := ensureProviderOptions[fantasygoogle.ProviderOptions](options, fantasygoogle.Name)
 		if providerOptions.ThinkingConfig == nil {
 			providerOptions.ThinkingConfig = &fantasygoogle.ThinkingConfig{}
@@ -156,6 +163,22 @@ func applyReasoningEffort(
 		providerOptions.Reasoning.Effort = &providerEffort
 	}
 	return options
+}
+
+// googleSupportsThinkingLevel reports whether the Google model accepts the
+// thinking_level generation option, which Gemini introduced in version 3.
+// Non-Gemini and unrecognized model IDs return false so reasoning effort
+// degrades to a no-op instead of a rejected request.
+func googleSupportsThinkingLevel(modelID string) bool {
+	normalized := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(modelID)), "models/")
+	version, ok := strings.CutPrefix(normalized, "gemini-")
+	if !ok {
+		return false
+	}
+	version, _, _ = strings.Cut(version, "-")
+	major, _, _ := strings.Cut(version, ".")
+	majorVersion, err := strconv.Atoi(major)
+	return err == nil && majorVersion >= 3
 }
 
 // googleThinkingLevel maps the global reasoning effort scale to Google
