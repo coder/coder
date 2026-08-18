@@ -197,7 +197,7 @@ func TestFindToolsDirectCallReservation(t *testing.T) {
 		require.Equal(t, []string{"server__c"}, result.Activated)
 	})
 
-	t.Run("budget-rejected calls still reach OnCall", func(t *testing.T) {
+	t.Run("rejected calls still reach OnCall", func(t *testing.T) {
 		t.Parallel()
 		var calls []FindToolsCall
 		tool := FindTools(FindToolsOptions{
@@ -214,11 +214,16 @@ func TestFindToolsDirectCallReservation(t *testing.T) {
 		resp, err = tool.Run(context.Background(), fantasy.ToolCall{Input: `{"names":["server__b"]}`})
 		require.NoError(t, err)
 		require.True(t, resp.IsError)
-		require.Len(t, calls, 2, "rejected calls count toward call totals")
-		require.False(t, calls[0].BudgetRejected)
-		require.True(t, calls[1].BudgetRejected)
+		resp, err = tool.Run(context.Background(), fantasy.ToolCall{Input: `{}`})
+		require.NoError(t, err)
+		require.True(t, resp.IsError)
+		require.Len(t, calls, 3, "rejected calls count toward call totals")
+		require.Empty(t, calls[0].Rejection)
+		require.Equal(t, "budget", calls[1].Rejection)
 		require.Equal(t, []string{"server__b"}, calls[1].Names)
 		require.Empty(t, calls[1].Activated, "a rejected call reports no activations")
+		require.Equal(t, "arguments", calls[2].Rejection, "empty-argument calls are counted as rejected")
+		require.Empty(t, calls[2].Activated)
 	})
 
 	t.Run("reserved names stay activatable after the budget is spent", func(t *testing.T) {

@@ -623,7 +623,7 @@ func (server *Server) prepareGeneration(
 			CatalogTokenBudget: activationTokenBudget,
 			OnCall: func(callCtx context.Context, call chattool.FindToolsCall) {
 				server.metrics.FindToolsCallsTotal.Inc()
-				if !call.BudgetRejected {
+				if call.Rejection == "" {
 					server.metrics.FindToolsMatchCount.Observe(float64(call.MatchCount))
 					server.metrics.FindToolsActivationsTotal.Add(float64(len(call.Activated)))
 					if call.MatchCount == 0 {
@@ -640,7 +640,7 @@ func (server *Server) prepareGeneration(
 					slog.F("match_count", call.MatchCount),
 					slog.F("activated_count", len(call.Activated)),
 					slog.F("total_deferred", call.TotalDeferred),
-					slog.F("budget_rejected", call.BudgetRejected),
+					slog.F("rejection", call.Rejection),
 				)
 			},
 		})

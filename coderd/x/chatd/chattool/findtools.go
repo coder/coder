@@ -46,11 +46,16 @@ type FindToolsCall struct {
 	MatchCount    int
 	Activated     []string
 	TotalDeferred int
-	// BudgetRejected marks a call that returned the budget-exhausted
-	// error instead of results, so callers can count it without
+	// Rejection is empty for successful searches. Rejected calls carry
+	// "budget" or "arguments" so callers can count them without
 	// polluting match or activation statistics.
-	BudgetRejected bool
+	Rejection string
 }
+
+const (
+	findToolsRejectionBudget    = "budget"
+	findToolsRejectionArguments = "arguments"
+)
 
 type FindToolsOptions struct {
 	Entries []FindToolCatalogEntry
@@ -135,6 +140,12 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 		buildFindToolsDescription(entries, options.CatalogTokenBudget),
 		func(ctx context.Context, args FindToolsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if len(args.Queries) == 0 && len(args.Names) == 0 {
+				if options.OnCall != nil {
+					options.OnCall(ctx, FindToolsCall{
+						TotalDeferred: len(entries),
+						Rejection:     findToolsRejectionArguments,
+					})
+				}
 				return fantasy.NewTextErrorResponse("at least one query or name is required"), nil
 			}
 			budgetMu.Lock()
@@ -173,10 +184,10 @@ func FindTools(options FindToolsOptions) fantasy.AgentTool {
 					budgetMu.Unlock()
 					if options.OnCall != nil {
 						options.OnCall(ctx, FindToolsCall{
-							Queries:        args.Queries,
-							Names:          args.Names,
-							TotalDeferred:  len(entries),
-							BudgetRejected: true,
+							Queries:       args.Queries,
+							Names:         args.Names,
+							TotalDeferred: len(entries),
+							Rejection:     findToolsRejectionBudget,
 						})
 					}
 					return fantasy.NewTextErrorResponse(findToolsBudgetExhausted), nil
