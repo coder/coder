@@ -3083,3 +3083,59 @@ func TestMigration000572WorkspaceAgentScriptTimingSkipped(t *testing.T) {
 		"skipped",
 	}, values)
 }
+
+func TestMigration000573TemplateVersionScriptOrderUsage(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion uint = 573
+
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.Equal(t, migrationVersion, version)
+
+	rows, err := sqlDB.Query(`
+		SELECT column_name, data_type, is_nullable, column_default
+		FROM information_schema.columns
+		WHERE table_name = 'template_version_terraform_values'
+			AND column_name IN (
+				'script_order_data_source_count',
+				'script_order_rule_count'
+			)
+		ORDER BY column_name
+	`)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	type column struct {
+		name         string
+		dataType     string
+		nullable     string
+		defaultValue string
+	}
+	var columns []column
+	for rows.Next() {
+		var got column
+		require.NoError(t, rows.Scan(&got.name, &got.dataType, &got.nullable, &got.defaultValue))
+		columns = append(columns, got)
+	}
+	require.NoError(t, rows.Err())
+	require.Equal(t, []column{
+		{name: "script_order_data_source_count", dataType: "integer", nullable: "NO", defaultValue: "0"},
+		{name: "script_order_rule_count", dataType: "integer", nullable: "NO", defaultValue: "0"},
+	}, columns)
+}

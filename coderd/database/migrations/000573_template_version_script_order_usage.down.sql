@@ -1,0 +1,3 @@
+ALTER TABLE template_version_terraform_values
+	DROP COLUMN script_order_rule_count,
+	DROP COLUMN script_order_data_source_count;

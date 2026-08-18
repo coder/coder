@@ -1719,7 +1719,8 @@ func TestCompleteJob(t *testing.T) {
 							Name: "test-resource",
 							Type: "aws_instance",
 						}},
-						Plan: []byte("{}"),
+						ScriptOrderDataSourceCount: 2,
+						ScriptOrderRuleCount:       3,
 					},
 				},
 			})
@@ -1735,6 +1736,11 @@ func TestCompleteJob(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, resources, 1, "Expected one resource to be created")
 			require.Equal(t, "test-resource", resources[0].Name)
+
+			terraformValues, err := db.GetTemplateVersionTerraformValues(ctx, versionID)
+			require.NoError(t, err)
+			require.EqualValues(t, 2, terraformValues.ScriptOrderDataSourceCount)
+			require.EqualValues(t, 3, terraformValues.ScriptOrderRuleCount)
 		})
 
 		// Test TemplateDryRun transaction

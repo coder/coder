@@ -28168,37 +28168,53 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 }
 
 const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
-SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, created_by_avatar_url, created_by_username, created_by_name FROM template_version_with_user AS template_versions WHERE created_at > $1
+SELECT
+	template_versions.id,
+	template_versions.created_at,
+	template_versions.template_id,
+	template_versions.organization_id,
+	template_versions.job_id,
+	template_versions.source_example_id,
+	template_versions.has_ai_task,
+	COALESCE(terraform_values.script_order_data_source_count, 0)::integer AS script_order_data_source_count,
+	COALESCE(terraform_values.script_order_rule_count, 0)::integer AS script_order_rule_count
+FROM template_version_with_user AS template_versions
+LEFT JOIN template_version_terraform_values AS terraform_values
+	ON terraform_values.template_version_id = template_versions.id
+WHERE template_versions.created_at > $1
 `
 
-func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
+type GetTemplateVersionsCreatedAfterRow struct {
+	ID                         uuid.UUID      `db:"id" json:"id"`
+	CreatedAt                  time.Time      `db:"created_at" json:"created_at"`
+	TemplateID                 uuid.NullUUID  `db:"template_id" json:"template_id"`
+	OrganizationID             uuid.UUID      `db:"organization_id" json:"organization_id"`
+	JobID                      uuid.UUID      `db:"job_id" json:"job_id"`
+	SourceExampleID            sql.NullString `db:"source_example_id" json:"source_example_id"`
+	HasAITask                  sql.NullBool   `db:"has_ai_task" json:"has_ai_task"`
+	ScriptOrderDataSourceCount int32          `db:"script_order_data_source_count" json:"script_order_data_source_count"`
+	ScriptOrderRuleCount       int32          `db:"script_order_rule_count" json:"script_order_rule_count"`
+}
+
+func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]GetTemplateVersionsCreatedAfterRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplateVersionsCreatedAfter, createdAt)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []TemplateVersion
+	var items []GetTemplateVersionsCreatedAfterRow
 	for rows.Next() {
-		var i TemplateVersion
+		var i GetTemplateVersionsCreatedAfterRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.CreatedAt,
 			&i.TemplateID,
 			&i.OrganizationID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Name,
-			&i.Readme,
 			&i.JobID,
-			&i.CreatedBy,
-			&i.ExternalAuthProviders,
-			&i.Message,
-			&i.Archived,
 			&i.SourceExampleID,
 			&i.HasAITask,
-			&i.HasExternalAgent,
-			&i.CreatedByAvatarURL,
-			&i.CreatedByUsername,
-			&i.CreatedByName,
+			&i.ScriptOrderDataSourceCount,
+			&i.ScriptOrderRuleCount,
 		); err != nil {
 			return nil, err
 		}
@@ -28387,7 +28403,7 @@ func (q *sqlQuerier) UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg 
 
 const getTemplateVersionTerraformValues = `-- name: GetTemplateVersionTerraformValues :one
 SELECT
-	template_version_terraform_values.template_version_id, template_version_terraform_values.updated_at, template_version_terraform_values.cached_plan, template_version_terraform_values.cached_module_files, template_version_terraform_values.provisionerd_version
+	template_version_terraform_values.template_version_id, template_version_terraform_values.updated_at, template_version_terraform_values.cached_plan, template_version_terraform_values.cached_module_files, template_version_terraform_values.provisionerd_version, template_version_terraform_values.script_order_data_source_count, template_version_terraform_values.script_order_rule_count
 FROM
 	template_version_terraform_values
 WHERE
@@ -28403,6 +28419,8 @@ func (q *sqlQuerier) GetTemplateVersionTerraformValues(ctx context.Context, temp
 		&i.CachedPlan,
 		&i.CachedModuleFiles,
 		&i.ProvisionerdVersion,
+		&i.ScriptOrderDataSourceCount,
+		&i.ScriptOrderRuleCount,
 	)
 	return i, err
 }
@@ -28441,7 +28459,9 @@ INSERT INTO
 		cached_plan,
 		cached_module_files,
 		updated_at,
-	    provisionerd_version
+		provisionerd_version,
+		script_order_data_source_count,
+		script_order_rule_count
 	)
 VALUES
 	(
@@ -28449,16 +28469,20 @@ VALUES
 		$2,
 		$3,
 		$4,
-		$5
+		$5,
+		$6,
+		$7
 	)
 `
 
 type InsertTemplateVersionTerraformValuesByJobIDParams struct {
-	JobID               uuid.UUID       `db:"job_id" json:"job_id"`
-	CachedPlan          json.RawMessage `db:"cached_plan" json:"cached_plan"`
-	CachedModuleFiles   uuid.NullUUID   `db:"cached_module_files" json:"cached_module_files"`
-	UpdatedAt           time.Time       `db:"updated_at" json:"updated_at"`
-	ProvisionerdVersion string          `db:"provisionerd_version" json:"provisionerd_version"`
+	JobID                      uuid.UUID       `db:"job_id" json:"job_id"`
+	CachedPlan                 json.RawMessage `db:"cached_plan" json:"cached_plan"`
+	CachedModuleFiles          uuid.NullUUID   `db:"cached_module_files" json:"cached_module_files"`
+	UpdatedAt                  time.Time       `db:"updated_at" json:"updated_at"`
+	ProvisionerdVersion        string          `db:"provisionerd_version" json:"provisionerd_version"`
+	ScriptOrderDataSourceCount int32           `db:"script_order_data_source_count" json:"script_order_data_source_count"`
+	ScriptOrderRuleCount       int32           `db:"script_order_rule_count" json:"script_order_rule_count"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionTerraformValuesByJobID(ctx context.Context, arg InsertTemplateVersionTerraformValuesByJobIDParams) error {
@@ -28468,6 +28492,8 @@ func (q *sqlQuerier) InsertTemplateVersionTerraformValuesByJobID(ctx context.Con
 		arg.CachedModuleFiles,
 		arg.UpdatedAt,
 		arg.ProvisionerdVersion,
+		arg.ScriptOrderDataSourceCount,
+		arg.ScriptOrderRuleCount,
 	)
 	return err
 }

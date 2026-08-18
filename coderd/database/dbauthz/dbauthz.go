@@ -4909,7 +4909,7 @@ func (q *querier) GetTemplateVersionsByTemplateID(ctx context.Context, arg datab
 	return q.db.GetTemplateVersionsByTemplateID(ctx, arg)
 }
 
-func (q *querier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.TemplateVersion, error) {
+func (q *querier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.GetTemplateVersionsCreatedAfterRow, error) {
 	// An actor can read execute this query if they can read all templates.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
 		return nil, err

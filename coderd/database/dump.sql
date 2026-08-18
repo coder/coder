@@ -3357,10 +3357,16 @@ CREATE TABLE template_version_terraform_values (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     cached_plan jsonb NOT NULL,
     cached_module_files uuid,
-    provisionerd_version text DEFAULT ''::text NOT NULL
+    provisionerd_version text DEFAULT ''::text NOT NULL,
+    script_order_data_source_count integer DEFAULT 0 NOT NULL,
+    script_order_rule_count integer DEFAULT 0 NOT NULL
 );
 
 COMMENT ON COLUMN template_version_terraform_values.provisionerd_version IS 'What version of the provisioning engine was used to generate the cached plan and module files.';
+
+COMMENT ON COLUMN template_version_terraform_values.script_order_data_source_count IS 'Number of coder_script_order data source declarations in the template configuration.';
+
+COMMENT ON COLUMN template_version_terraform_values.script_order_rule_count IS 'Number of rule blocks across coder_script_order declarations in the template configuration.';
 
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,

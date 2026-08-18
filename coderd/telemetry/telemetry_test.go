@@ -105,6 +105,11 @@ func TestTelemetry(t *testing.T) {
 			CreatedBy:       user.ID,
 			JobID:           job.ID,
 		})
+		_ = dbgen.TemplateVersionTerraformValues(t, db, database.TemplateVersionTerraformValue{
+			TemplateVersionID:          tv.ID,
+			ScriptOrderDataSourceCount: 2,
+			ScriptOrderRuleCount:       3,
+		})
 		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
 			OrganizationID: org.ID,
 			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
@@ -384,8 +389,29 @@ func TestTelemetry(t *testing.T) {
 			if ttv.ID != taskTV.ID {
 				return false
 			}
-			return assert.NotNil(t, ttv.HasAITask) && assert.True(t, *ttv.HasAITask)
+			return assert.NotNil(t, ttv.HasAITask) &&
+				assert.True(t, *ttv.HasAITask) &&
+				assert.Zero(t, ttv.ScriptOrderDataSourceCount) &&
+				assert.Zero(t, ttv.ScriptOrderRuleCount)
 		}))
+		var scriptOrderVersion telemetry.TemplateVersion
+		require.True(t, slices.ContainsFunc(snapshot.TemplateVersions, func(ttv telemetry.TemplateVersion) bool {
+			if ttv.ID != tv.ID {
+				return false
+			}
+			scriptOrderVersion = ttv
+			return true
+		}))
+		require.EqualValues(t, 2, scriptOrderVersion.ScriptOrderDataSourceCount)
+		require.EqualValues(t, 3, scriptOrderVersion.ScriptOrderRuleCount)
+		serializedVersion, err := json.Marshal(scriptOrderVersion)
+		require.NoError(t, err)
+		var serializedFields map[string]any
+		require.NoError(t, json.Unmarshal(serializedVersion, &serializedFields))
+		require.EqualValues(t, 2, serializedFields["script_order_data_source_count"])
+		require.EqualValues(t, 3, serializedFields["script_order_rule_count"])
+		require.NotContains(t, serializedFields, "script_order_selectors")
+		require.NotContains(t, serializedFields, "script_order_rules")
 		require.True(t, slices.ContainsFunc(snapshot.WorkspaceBuilds, func(twb telemetry.WorkspaceBuild) bool {
 			if twb.ID != taskWB.ID {
 				return false
