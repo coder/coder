@@ -198,10 +198,20 @@ The core of this section is expected to be a table over these axes.
    about adding `ai_agent` to `audit_logs.resource_type`. Answered with the
    precedent, since this codebase already recorded connections that way and then
    moved them out to `connection_logs` in migration `000349`.
-3. **open.** Is this not duplication?
-4. **open.** Can one be derived from the other?
+3. **done.** Is this not duplication? Answered as apparent only: the two sit at
+   different levels of the stack, `audit_logs` recording how an action came
+   about and the journal recording the action. A one to one correspondence is
+   not an identity, and the correspondence is not even general, since a
+   background state change makes no request.
+4. **done.** Can one be derived from the other? Folded into 7.1, under "One
+   record cannot serve both well", as the strongest form of that claim: keep one
+   and derive the other. No in both directions, since each is missing precisely
+   what the other exists for.
 5. **open.** Why not triggers, as with the user history tables?
-6. **open.** Why not a transaction manager?
+6. **drop.** Why not a transaction manager? Answered in `audit_approach.md`
+   under Reconciliation: given one, coherence could be complete on commit, and
+   the approach must not presume one. A statement about the approach rather than
+   about journals and logs.
 7. **done.** Why two systems rather than a migration? No separate answer
    needed. Folded into 7.1 as one clause: migrating is not a fourth option,
    because there is nothing to migrate into that would hold what is needed.

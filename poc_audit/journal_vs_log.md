@@ -256,6 +256,14 @@ Droppable against complete. Bypassable against unbypassable. Shaped for a
 request against shaped for a state change. A single record would have to honour
 both halves of each pair at once.
 
+The strongest form of the question is whether one could be derived from the
+other, so that only one need be kept. It cannot, in either direction. A journal
+cannot be recovered from a log, because a log may omit and a gap cannot be
+filled afterwards, and because a state change with no request behind it leaves
+no line to recover from. A log cannot be recovered from a journal, because the
+journal deliberately holds no attempts, no reads, and no failures that changed
+nothing. Each is missing precisely what the other exists for.
+
 Whatever "extend" is taken to mean, it meets that wall. Writing journal entries
 into the table means filling required request columns with placeholders chosen to
 satisfy the schema, and then watching retention remove the rows anyway. Changing
@@ -305,6 +313,27 @@ So the enum was never where the difficulty lay. A value in it costs nothing; the
 coverage is the work, and what the coverage buys is a record with a log's
 properties. When the properties did not fit before, the answer here was a new
 table, not a new enum value.
+
+### Is this not duplication?
+
+Only at a coarse enough granularity.
+
+The two records sit at different levels of the stack. `audit_logs` records that
+a request was made and answered, which is what lets someone trace **how** an
+action came about: which user asked, from where, and what the API said back. The
+journal records the action itself, that an AI agent came into existence and
+which party is answerable for it.
+
+Creating an AI agent through the API would produce a row in each, and the two
+would stand in a one to one relationship. That still does not make them one
+record. A request that caused a thing is not the thing, and a correspondence
+between two records is not an identity between them. They read as the same event
+only when the granularity of vision is large enough to lose the difference.
+
+Nor is the correspondence general. A state change made by a background loop
+produces an entry and no request at all, so on that side there is nothing to be
+duplicated. And where both do exist, neither can be folded into the other, for
+the reason given above: neither is derivable from the other.
 
 ### Sources for the etymology
 
