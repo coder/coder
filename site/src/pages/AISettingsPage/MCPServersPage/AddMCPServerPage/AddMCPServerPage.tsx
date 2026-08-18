@@ -37,15 +37,19 @@ const AddMCPServerPage: FC = () => {
 			);
 	const creatableOrganizations = permissions.editDeploymentConfig
 		? organizations
-		: viewableOrganizations.filter(
+		: organizations.filter(
 				(organization) =>
 					organizationPermissionsQuery.data?.[organization.id]
 						.createMCPServerConfig,
 			);
 	const requestedOrganizationName = searchParams.get(orgSearchParam);
-	const requestedOrganization = viewableOrganizations.find(
-		(organization) => organization.name === requestedOrganizationName,
-	);
+	const requestedOrganization =
+		viewableOrganizations.find(
+			(organization) => organization.name === requestedOrganizationName,
+		) ??
+		creatableOrganizations.find(
+			(organization) => organization.name === requestedOrganizationName,
+		);
 	const organization =
 		requestedOrganization ??
 		(creatableOrganizations.length > 0
@@ -54,12 +58,19 @@ const AddMCPServerPage: FC = () => {
 	const organizationPermissions = organization
 		? organizationPermissionsQuery.data?.[organization.id]
 		: undefined;
+	const canView =
+		permissions.editDeploymentConfig ||
+		Boolean(organizationPermissions?.viewMCPServerConfigs);
 	const canCreate =
 		permissions.editDeploymentConfig ||
-		Boolean(
-			organizationPermissions?.viewMCPServerConfigs &&
-				organizationPermissions.createMCPServerConfig,
-		);
+		Boolean(organizationPermissions?.createMCPServerConfig);
+	const canOpenServer =
+		canView &&
+		(permissions.editDeploymentConfig ||
+			Boolean(
+				organizationPermissions?.updateMCPServerConfig ||
+					organizationPermissions?.deleteMCPServerConfig,
+			));
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const createMutation = useMutation(
@@ -104,7 +115,13 @@ const AddMCPServerPage: FC = () => {
 								try {
 									const server = await createMutation.mutateAsync(req);
 									toast.success(`MCP server "${server.display_name}" added.`);
-									await navigate(updateMCPServerPath(server.id, organization));
+									if (canOpenServer) {
+										await navigate(
+											updateMCPServerPath(server.id, organization),
+										);
+									} else if (canView) {
+										await navigate(mcpServersPath(organization));
+									}
 								} catch (error) {
 									toast.error(
 										getErrorMessage(error, "Failed to add MCP server."),

@@ -419,6 +419,60 @@ export const OrgAdminCanAddMCPServer: Story = {
 	},
 };
 
+export const CreateOnlyOrgAdminCanAddMCPServer: Story = {
+	render: () => <AddMCPServerPage />,
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: false,
+			createAnyMCPServerConfig: true,
+			updateAnyMCPServerConfig: false,
+		},
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers/add" },
+			routing: { path: "/ai/settings/mcp-servers/add" },
+		}),
+	},
+	beforeEach: () => {
+		mockOrganizationPermissions({
+			[MockDefaultOrganization.id]: { view: true, create: true },
+			[MockOrganization2.id]: { create: true },
+		});
+		spyOn(API.experimental, "createMCPServerConfig").mockResolvedValue(
+			MockOrganization2MCPServer,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
+		);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			await body.findByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		);
+		await expect(await canvas.findByLabelText(/display name/i)).toBeVisible();
+		await userEvent.type(canvas.getByLabelText(/display name/i), "GitHub");
+		await userEvent.type(
+			canvas.getByLabelText(/server url/i),
+			"https://api.githubcopilot.com/mcp/",
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "Add server" }));
+		await waitFor(() => {
+			expect(API.experimental.createMCPServerConfig).toHaveBeenCalledWith(
+				MockOrganization2.id,
+				expect.objectContaining({ display_name: "GitHub" }),
+			);
+		});
+		await expect(canvas.getByLabelText(/display name/i)).toBeVisible();
+	},
+};
+
 export const AddPermissionsRefetchErrorKeepsForm: Story = {
 	render: () => <AddMCPServerPage />,
 	decorators: [withRefetchPermissionsProbe],
