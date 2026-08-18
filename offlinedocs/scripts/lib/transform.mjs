@@ -328,8 +328,16 @@ function mapOutsideInlineCode(line, fn) {
 	return out;
 }
 
-const URL_AUTOLINK = /<(https?:\/\/[^\s<>]+)>/g;
-const EMAIL_AUTOLINK = /<([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})>/g;
+// Markdown autolinks (`<https://x>`, `<user@host>`). The negative lookbehind
+// skips a CommonMark angle-bracket link *destination* (`[text](<url>)`, and the
+// image form `![alt](<url>)`): those angle brackets delimit a URL that may
+// contain parentheses and must be left intact, not rewritten into a nested
+// `[url](url)` that ships a broken link. `\s*` covers the legal `]( <url> )`
+// spacing; a plain parenthetical autolink `(<https://x>)` has no `]` and is
+// still rewritten.
+const URL_AUTOLINK = /(?<!\]\(\s*)<(https?:\/\/[^\s<>]+)>/g;
+const EMAIL_AUTOLINK =
+	/(?<!\]\(\s*)<([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})>/g;
 
 // Forward-looking escape for the planned `.mdx` flip; a no-op at render in the
 // current `.md` + rehype-raw pipeline, which the rewrites are chosen to render
@@ -392,6 +400,19 @@ export function selfCloseVoidElements(content) {
 	);
 }
 
+// Thrown by parseFrontmatter when a file's leading `---` block is present but is
+// not valid YAML. Carries the js-yaml `reason` and a stable `name` so callers
+// can catch it (rather than the raw third-party YAMLException) and attribute the
+// failure to the source file being parsed instead of crashing on an opaque
+// parser stack trace.
+export class FrontmatterError extends Error {
+	constructor(reason) {
+		super(`invalid YAML frontmatter: ${reason}`);
+		this.name = "FrontmatterError";
+		this.reason = reason;
+	}
+}
+
 // Parse a leading YAML frontmatter block: a `---` line at the very top of the
 // file, its body, and a closing `---`. `make gen` prepends such a block to the
 // API and CLI reference docs, with a `# Code generated ... DO NOT EDIT.` YAML
@@ -417,7 +438,17 @@ export function selfCloseVoidElements(content) {
 // string or null for every downstream consumer.
 export function parseFrontmatter(content) {
 	const none = { title: null, description: null, endLine: 0 };
-	const { matter, data } = parseYamlFrontmatter(content);
+	let matter;
+	let data;
+	try {
+		({ matter, data } = parseYamlFrontmatter(content));
+	} catch (err) {
+		// js-yaml (via fumadocs-core) throws a YAMLException that names no source
+		// file. Re-throw as a FrontmatterError carrying the human-readable reason so
+		// the sync can attribute it to the file being parsed (collect-and-name)
+		// instead of surfacing an opaque parser stack trace.
+		throw new FrontmatterError(err?.reason ?? err?.message ?? String(err));
+	}
 	if (
 		!matter ||
 		data === null ||

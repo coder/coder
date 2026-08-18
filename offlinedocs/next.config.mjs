@@ -27,7 +27,6 @@ const config = {
 	// server keeps the local workflow normal (clean 404s) while `next build`
 	// still produces the static export.
 	output: process.env.NODE_ENV === "production" ? "export" : undefined,
-	reactStrictMode: true,
 	// Canonical URLs end in a slash and every route is emitted as
 	// <route>/index.html, which is what a plain static file server expects.
 	trailingSlash: true,

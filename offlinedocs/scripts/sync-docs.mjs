@@ -38,6 +38,7 @@ import {
 import {
 	escapeCurlyBraces,
 	extractTitle,
+	FrontmatterError,
 	normalizeAngleBrackets,
 	normalizeFences,
 	normalizeStepHeadings,
@@ -155,6 +156,11 @@ const unresolvedImages = [];
 // and the 1-based line where they began. An unterminated comment would otherwise
 // silently swallow the rest of the page, so it fails the sync the same way.
 const unclosedComments = [];
+// Source files whose leading `---` block is present but is not valid YAML
+// (parseFrontmatter throws a FrontmatterError). Collected with the js-yaml
+// reason so a malformed block names the file that carries it instead of crashing
+// the sync with an unlabeled parser stack trace.
+const malformedFrontmatter = [];
 
 function copyAsset(resolvedRel) {
 	if (copiedAssets.has(resolvedRel)) return true;
@@ -227,12 +233,24 @@ for (const rel of manifestMd) {
 	const raw = readFileSync(join(DOCS, rel), "utf8");
 
 	const meta = manifestMeta.get(route);
+	let extracted;
+	try {
+		extracted = extractTitle(raw, route, manifestMeta);
+	} catch (err) {
+		// A file with an invalid YAML frontmatter block is named and collected here
+		// like the other defects, then fails the sync below, instead of crashing it
+		// with an unlabeled parser error. Anything that is not a frontmatter parse
+		// error is a real bug, so re-throw it.
+		if (!(err instanceof FrontmatterError)) throw err;
+		malformedFrontmatter.push({ source: rel, reason: err.reason });
+		continue;
+	}
 	const {
 		title: extractedTitle,
 		h1Line,
 		frontmatterEnd,
 		description: frontmatterDescription,
-	} = extractTitle(raw, route, manifestMeta);
+	} = extracted;
 	// The manifest's first route (the README homepage, route "") is titled
 	// "About" so coder.com's static landing page keeps working, but coder.com
 	// itself renders that root entry as "Home" in the sidebar and derives a
@@ -328,13 +346,15 @@ console.log(
 // Fail the sync (and therefore the offlinedocs build and the release target) on
 // any defect that would otherwise ship silently: a dead inter-doc link, a broken
 // image reference, an unterminated HTML comment that blanks a page, two source
-// files whose routes collide and overwrite one another, or a manifest route with
-// no backing file. Each is named with its source so a docs change that
-// introduces one is actionable in CI instead of shipping.
+// files whose routes collide and overwrite one another, a manifest route with no
+// backing file, or a file with invalid YAML frontmatter. Each is named with its
+// source so a docs change that introduces one is actionable in CI instead of
+// shipping.
 if (
 	unmappedLinks.length > 0 ||
 	unresolvedImages.length > 0 ||
 	unclosedComments.length > 0 ||
+	malformedFrontmatter.length > 0 ||
 	outputCollisions.length > 0 ||
 	missingManifestRoutes.length > 0
 ) {
@@ -375,6 +395,19 @@ if (
 		}
 		console.error(
 			"\nClose each comment with `-->`, or remove the stray `<!--`.",
+		);
+	}
+	if (malformedFrontmatter.length > 0) {
+		console.error(
+			`\n[sync-docs] ERROR: ${malformedFrontmatter.length} file(s) have a ` +
+				"leading `---` block that is not valid YAML frontmatter:",
+		);
+		for (const { source, reason } of malformedFrontmatter) {
+			console.error(`  ${source}: ${reason}`);
+		}
+		console.error(
+			"\nFix the YAML in each frontmatter block, or remove the stray `---` " +
+				"delimiters.",
 		);
 	}
 	if (outputCollisions.length > 0) {
