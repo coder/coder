@@ -324,21 +324,25 @@ func expandLowLevel(resource string, action policy.Action) Scope {
 // permissions, not names, so `coder:workspaces.access` covers `workspace:read`
 // and `coder:all` covers everything.
 //
-// Names must be canonical (see CanonicalScopeName). An unknown name is an
-// error rather than a false, since a caller cannot tell those two apart.
+// Both sides must already be canonical, which the parameter names restate at
+// every call site. Passing what IsExternalScope accepted is not enough: it
+// admits the `all` and `application_connect` aliases, which are public
+// spellings rather than expandable names, so canonicalize between validating a
+// name and asking about its coverage. An unknown name is an error rather than
+// a false, since a caller cannot tell those two apart.
 //
 // Coverage models site-level grants only. A scope carrying anything else is
 // refused on either side rather than compared on the part that is modeled,
 // because comparing a subset could report "covered" about authority that was
 // never examined.
-func ScopesCover(allowed []ScopeName, requested ScopeName) (bool, error) {
-	want, err := ExpandScope(requested)
+func ScopesCover(canonicalAllowed []ScopeName, canonicalRequested ScopeName) (bool, error) {
+	want, err := ExpandScope(canonicalRequested)
 	if err != nil {
 		return false, xerrors.Errorf("expand requested scope: %w", err)
 	}
 
-	grants := make([]namedScope, 0, len(allowed))
-	for _, name := range allowed {
+	grants := make([]namedScope, 0, len(canonicalAllowed))
+	for _, name := range canonicalAllowed {
 		expanded, err := ExpandScope(name)
 		if err != nil {
 			return false, xerrors.Errorf("expand allowed scope %q: %w", name, err)
@@ -346,7 +350,7 @@ func ScopesCover(allowed []ScopeName, requested ScopeName) (bool, error) {
 		grants = append(grants, namedScope{name: name, scope: expanded})
 	}
 
-	return scopesCoverExpanded(grants, namedScope{name: requested, scope: want})
+	return scopesCoverExpanded(grants, namedScope{name: canonicalRequested, scope: want})
 }
 
 // namedScope pairs an expanded scope with the name the caller spelled, so a

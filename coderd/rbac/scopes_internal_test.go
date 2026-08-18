@@ -23,6 +23,34 @@ func coverableScope(perms ...Permission) Scope {
 	}
 }
 
+// TestScopeAliases asserts what the shared table exists to guarantee, which no
+// test outside this package can: every alias is public, resolves to a public
+// name, and resolves to one the RBAC layer can expand. A name IsExternalScope
+// calls public but ExpandScope rejects is requestable in name only, and every
+// request naming it fails. Iterating the table rather than naming the two
+// aliases means a third is covered the day it is added.
+func TestScopeAliases(t *testing.T) {
+	t.Parallel()
+
+	require.NotEmpty(t, scopeAliases)
+
+	for alias, canonical := range scopeAliases {
+		require.Truef(t, IsExternalScope(alias), "alias %q must be public", alias)
+		require.Equalf(t, canonical, CanonicalScopeName(alias), "alias %q", alias)
+
+		// An alias is a second spelling of a scope, not a scope of its own.
+		require.Truef(t, IsExternalScope(canonical), "canonical %q must be public", canonical)
+		_, err := ExpandScope(canonical)
+		require.NoErrorf(t, err, "canonical %q must expand", canonical)
+
+		// The alias itself does not expand, which is what makes
+		// canonicalization mandatory before storage or coverage rather than a
+		// tidying step callers may skip.
+		_, err = ExpandScope(alias)
+		require.Errorf(t, err, "alias %q must not expand directly", alias)
+	}
+}
+
 // TestScopesCoverGuards drives Scope values that no catalog entry produces.
 // The guards exist for authority ScopeName inputs cannot express today, so
 // ScopesCover cannot reach them and they would otherwise ship unverified.
