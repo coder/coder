@@ -19,7 +19,7 @@ This usage-based model supports enterprise workloads where large development tea
 
 ## Agent Time measurement
 
-Agent Time is the cumulative runtime of model invocations that produce Coder Agents chat messages.
+Agent Time is the cumulative duration of model invocations that produce Coder Agents chat messages.
 Coder measures each invocation from immediately before the request to the model provider opens until the response stream is fully consumed.
 
 Agent Time includes:
@@ -27,16 +27,13 @@ Agent Time includes:
 - Assistant generation steps in top-level and subagent chats.
 - Context compaction model calls.
 - Model-provider tool execution within a model response.
-- Stream retries within an invocation that produces a persisted response.
 - The portion of an interrupted generation that produced a partial assistant message.
 
 Agent Time excludes:
 
 - Time spent composing or reviewing messages.
 - Time between conversation turns while an agent waits for user input.
-- Local tool execution between model invocations, including file operations, terminal commands, and workspace provisioning.
 - Time a parent agent spends waiting for a subagent, because the subagent records its own model invocations.
-- Failed model calls whose output isn't persisted.
 - Model calls that don't produce chat messages, such as title generation.
 
 Coder records Agent Time in milliseconds and sums it across all Coder Agents chats in the deployment.
