@@ -4423,41 +4423,16 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.Nil(t, entitlements.UsagePublishing.FailingSince)
 	})
 
-	t.Run("OverflowKeepsWarningWhenTrackedEventResolves", func(t *testing.T) {
-		t.Parallel()
-		ctx := context.Background()
-		db, _ := dbtestutil.NewDB(t)
-		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
-
-		// Failures folded into the overflow aggregate cannot be resolved
-		// individually, so publishing every tracked event must not clear
-		// the warning while the overflow is fresh.
-		now := time.Now()
-		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
-			Events: map[string]license.UsagePublishingEventFailure{
-				"tracked": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
-			},
-			Overflow: &license.UsagePublishingEventFailure{StuckSince: now.Add(-30 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
-		})
-		//nolint:gocritic // Unit test.
-		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now, []string{"tracked"}, nil)
-		require.NoError(t, err)
-
-		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
-		require.NoError(t, err)
-		require.Contains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
-		require.NotNil(t, entitlements.UsagePublishing.FailingSince)
-		require.WithinDuration(t, now.Add(-30*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
-	})
-
-	t.Run("EntryCapFoldsNewestIntoOverflow", func(t *testing.T) {
+	t.Run("EntryCapDropsNewestEntries", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
 		db, _ := dbtestutil.NewDB(t)
 
 		// A batch outcome reporting more failing events than the cap keeps
-		// the oldest entries resolvable and folds the rest into the
-		// overflow aggregate.
+		// the oldest entries, which determine the warning, and drops the
+		// newest. Dropping loses no durable state: a still-failing dropped
+		// event is restored with its identical insertion-age entry by its
+		// next failing batch.
 		now := time.Now()
 		//nolint:gocritic // Unit test.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
@@ -4484,10 +4459,26 @@ func TestUsagePublishingStatus(t *testing.T) {
 		var marker license.UsagePublishingFailingEvents
 		require.NoError(t, json.Unmarshal([]byte(raw), &marker))
 		require.Len(t, marker.Events, 100)
-		require.NotNil(t, marker.Overflow)
-		// The oldest entry survives the fold because it determines the
+		// The oldest entry survives the drop because it determines the
 		// warning.
 		require.Contains(t, marker.Events, "oldest")
+
+		// After the tracked events recover, a dropped event's next failing
+		// batch restores its entry with the original insertion age.
+		droppedID := fmt.Sprintf("event-%d", 0)
+		require.NotContains(t, marker.Events, droppedID)
+		publishedIDs := make([]string, 0, len(marker.Events))
+		for id := range marker.Events {
+			publishedIDs = append(publishedIDs, id)
+		}
+		err = license.RecordUsagePublishingBatchOutcome(sysCtx, db, now.Add(17*time.Minute), publishedIDs, map[string]time.Time{droppedID: failed[droppedID]})
+		require.NoError(t, err)
+		raw, err = db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailingEventsKey)
+		require.NoError(t, err)
+		var restored license.UsagePublishingFailingEvents
+		require.NoError(t, json.Unmarshal([]byte(raw), &restored))
+		require.Contains(t, restored.Events, droppedID)
+		require.WithinDuration(t, failed[droppedID], restored.Events[droppedID].StuckSince, time.Second)
 	})
 
 	t.Run("StaleRefreshDoesNotMoveMarkerBackward", func(t *testing.T) {

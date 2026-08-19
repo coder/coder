@@ -90,29 +90,23 @@ type usagePublishingEnabledMarker struct {
 // as its stuck base, mirroring GetUsagePublishStatus, so an event that
 // breached the failure threshold before its first failed attempt keeps
 // warning while an active retry holds its row out of the query's view.
-// Entries are never expired on wall-clock alone: both the batch outcome
-// and detection verify entries against the database with a bounded
+// Entries are never expired on wall-clock: both the batch outcome and
+// detection verify entries against the database with a bounded
 // primary-key lookup (FilterPendingUsageEventIDs), so an entry persists
 // exactly as long as its event stays pending. A failing event displaced
 // behind fresh backfills keeps warning even though no replica can retry
 // and re-stamp it, and an entry whose removal failed after its event
-// published stops warning on the next refresh. The unverifiable Overflow
-// aggregate is the exception: it expires once its last_failed_at is older
-// than usagePublishingFailureStaleAfter.
+// published stops warning on the next refresh.
 const UsagePublishingFailingEventsKey = "usage_publishing_failing_events"
-
-// usagePublishingFailureStaleAfter is how old the overflow aggregate's
-// last_failed_at may be before it counts as resolved. The publisher
-// retries pending events every 17 minutes, so an hour of silence means
-// several consecutive cycles saw no failure from the overflowed set.
-// Per-event entries do not use this: they are verified against the
-// database instead (see UsagePublishingFailingEventsKey).
-const usagePublishingFailureStaleAfter = time.Hour
 
 // usagePublishingFailingEventsCap bounds how many per-event entries the
 // marker holds so its JSON value stays small. It matches the publish batch
-// size; overflow beyond the cap is folded into an aggregate record (see
-// UsagePublishingFailingEvents.Overflow).
+// size. Beyond the cap the entries with the newest stuck_since are
+// dropped: they never determine the warning while an older entry is
+// tracked, and dropping loses no durable state because stuck_since is the
+// event's inserted_at, recomputed from the row, so a still-failing dropped
+// event is restored identically by its next failing batch (at most one
+// publish cycle later, immaterial against the 24-hour failure threshold).
 const usagePublishingFailingEventsCap = 100
 
 // UsagePublishingEventFailure records one failing event.
@@ -133,11 +127,6 @@ type UsagePublishingFailingEvents struct {
 	// usagePublishingFailingEventsCap entries, keeping the oldest
 	// stuck_since values because they determine the warning.
 	Events map[string]UsagePublishingEventFailure `json:"events"`
-	// Overflow aggregates failures dropped by the entry cap. Detection
-	// treats a fresh overflow conservatively as an unresolved failure:
-	// dropped entries cannot be resolved individually, so they expire only
-	// by staleness.
-	Overflow *UsagePublishingEventFailure `json:"overflow,omitempty"`
 }
 
 // RecordUsagePublishingBatchOutcome updates the failing-events marker with
@@ -222,32 +211,21 @@ func RecordUsagePublishingBatchOutcome(ctx context.Context, db database.Store, n
 				}
 			}
 		}
-		if marker.Overflow != nil && now.Sub(marker.Overflow.LastFailedAt) > usagePublishingFailureStaleAfter {
-			marker.Overflow = nil
-		}
-		// Enforce the entry cap by folding the newest entries into the
-		// overflow aggregate. The oldest stuck_since values stay resolvable
-		// per event because they determine the warning.
+		// Enforce the entry cap by dropping the entries with the newest
+		// stuck_since: they never determine the warning while an older
+		// entry is tracked, and a still-failing dropped event is restored
+		// identically by its next failing batch (see
+		// usagePublishingFailingEventsCap).
 		for len(marker.Events) > usagePublishingFailingEventsCap {
 			newestID := ""
-			var newest UsagePublishingEventFailure
+			var newestStuckSince time.Time
 			for id, entry := range marker.Events {
-				if newestID == "" || entry.StuckSince.After(newest.StuckSince) {
+				if newestID == "" || entry.StuckSince.After(newestStuckSince) {
 					newestID = id
-					newest = entry
+					newestStuckSince = entry.StuckSince
 				}
 			}
 			delete(marker.Events, newestID)
-			if marker.Overflow == nil {
-				marker.Overflow = &UsagePublishingEventFailure{StuckSince: newest.StuckSince, LastFailedAt: newest.LastFailedAt}
-				continue
-			}
-			if newest.StuckSince.Before(marker.Overflow.StuckSince) {
-				marker.Overflow.StuckSince = newest.StuckSince
-			}
-			if newest.LastFailedAt.After(marker.Overflow.LastFailedAt) {
-				marker.Overflow.LastFailedAt = newest.LastFailedAt
-			}
 		}
 		value, err := json.Marshal(marker)
 		if err != nil {
@@ -438,11 +416,6 @@ func Entitlements(
 					continue
 				}
 				fold(entry)
-			}
-			// The overflow aggregate has no IDs to verify, so it alone
-			// expires by staleness.
-			if marker.Overflow != nil && now.Sub(marker.Overflow.LastFailedAt) <= usagePublishingFailureStaleAfter {
-				fold(*marker.Overflow)
 			}
 			if oldestFailing.IsZero() {
 				return status, nil
