@@ -1318,7 +1318,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 	}
 
-	userPrompt := SanitizePromptText(opts.SystemPrompt)
+	userPrompt := codersdk.SanitizePromptText(opts.SystemPrompt)
 	workspaceAwareness := workspaceDetachedAwareness
 	if opts.WorkspaceID.Valid {
 		workspaceAwareness = workspaceAttachedAwareness
@@ -4421,7 +4421,7 @@ func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) string {
 		return DefaultSystemPrompt
 	}
 
-	sanitizedCustom := SanitizePromptText(config.ChatSystemPrompt)
+	sanitizedCustom := codersdk.SanitizePromptText(config.ChatSystemPrompt)
 	if sanitizedCustom == "" && strings.TrimSpace(config.ChatSystemPrompt) != "" {
 		p.logger.Warn(ctx, "custom system prompt became empty after sanitization, omitting custom portion")
 	}
