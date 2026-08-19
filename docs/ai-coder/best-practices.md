@@ -50,7 +50,7 @@ In internal testing, we have seen significant improvements in agent performance 
 
 LLMs and agents can be dangerous if not run with proper boundaries. Be sure not to give agents full permissions on behalf of a user, and instead use separate identities with limited scope whenever interacting autonomously.
 
-[Learn more about securing AI agents](./security.md)
+[Learn more about the Agent Firewall](./agent-firewall/index.md)
 
 ## Keep it Simple
 
