@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/idemetadata"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -355,7 +356,13 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 			buf := &bytes.Buffer{}
 			enc := json.NewEncoder(buf)
 			enc.SetIndent("", "\t")
-			wasRows, err := db.GetWorkspaceAgentStats(ctx, now.AddDate(0, -7, 0))
+			wasRows, err := db.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
+				CreatedAt:           now.AddDate(0, -7, 0),
+				VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+				SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+				JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+				ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+			})
 			if err == nil {
 				_, _ = fmt.Fprintf(buf, "workspace agent stats: ")
 				_ = enc.Encode(wasRows)
@@ -414,7 +421,13 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	var err error
 	require.Eventuallyf(t, func() bool {
 		// Query all stats created not earlier than ~7 months ago
-		stats, err = db.GetWorkspaceAgentStats(ctx, now.AddDate(0, 0, -210))
+		stats, err = db.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
+			CreatedAt:           now.AddDate(0, 0, -210),
+			VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+			SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+			JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+			ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+		})
 		if err != nil {
 			return false
 		}
@@ -437,7 +450,13 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	// then
 	require.Eventuallyf(t, func() bool {
 		// Query all stats created not earlier than ~7 months ago
-		stats, err = db.GetWorkspaceAgentStats(ctx, now.AddDate(0, 0, -210))
+		stats, err = db.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
+			CreatedAt:           now.AddDate(0, 0, -210),
+			VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+			SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+			JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+			ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+		})
 		if err != nil {
 			return false
 		}

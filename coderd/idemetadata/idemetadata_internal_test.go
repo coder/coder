@@ -14,3 +14,13 @@ func TestFamilyKeysAreCanonical(t *testing.T) {
 		require.Equal(t, canonicalKey(name), name)
 	}
 }
+
+// A family with no destination in AttributedFamilies silently drops its
+// sessions from usage reporting, so adding one must fail here first.
+func TestEveryFamilyIsAttributed(t *testing.T) {
+	t.Parallel()
+	for appName, family := range families {
+		require.Contains(t, AttributedFamilies, family,
+			"app %q maps to family %q, which usage reporting cannot report", appName, family)
+	}
+}

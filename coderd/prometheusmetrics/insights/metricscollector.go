@@ -13,6 +13,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/idemetadata"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
@@ -98,8 +99,12 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		eg.Go(func() error {
 			var err error
 			templateInsights, err = mc.database.GetTemplateInsightsByTemplate(egCtx, database.GetTemplateInsightsByTemplateParams{
-				StartTime: startTime,
-				EndTime:   endTime,
+				StartTime:           startTime,
+				EndTime:             endTime,
+				VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+				SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+				JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+				ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
 			})
 			if err != nil {
 				mc.logger.Error(ctx, "unable to fetch template insights from database", slog.Error(err))

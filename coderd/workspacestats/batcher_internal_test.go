@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/idemetadata"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
@@ -57,7 +58,13 @@ func TestBatchStats(t *testing.T) {
 	t.Log("flush 1 completed")
 
 	// Then: it should report no stats.
-	stats, err := store.GetWorkspaceAgentStats(ctx, t1)
+	stats, err := store.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
+		CreatedAt:           t1,
+		VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+		SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+		JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+		ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+	})
 	require.NoError(t, err, "should not error getting stats")
 	require.Empty(t, stats, "should have no stats for workspace")
 
@@ -80,7 +87,13 @@ func TestBatchStats(t *testing.T) {
 	t.Log("flush 2 completed")
 
 	// Then: counts reach the right agent, normalized, without the zero entry.
-	stats, err = store.GetWorkspaceAgentStats(ctx, t2)
+	stats, err = store.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
+		CreatedAt:           t2,
+		VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+		SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+		JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+		ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+	})
 	require.NoError(t, err, "should not error getting stats")
 	require.Len(t, stats, 2, "should have stats for both workspaces")
 	byAgent := make(map[uuid.UUID]database.GetWorkspaceAgentStatsRow)
@@ -135,7 +148,13 @@ func TestBatchStats(t *testing.T) {
 	// And we should finish inserting the stats
 	<-done
 
-	stats, err = store.GetWorkspaceAgentStats(ctx, t3)
+	stats, err = store.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
+		CreatedAt:           t3,
+		VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+		SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+		JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+		ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+	})
 	require.NoError(t, err, "should not error getting stats")
 	require.Len(t, stats, 2, "should have stats for both workspaces")
 
@@ -154,7 +173,13 @@ func TestBatchStats(t *testing.T) {
 	require.Zero(t, f, "expected zero stats to have been flushed")
 	t.Log("flush 5 completed")
 
-	stats, err = store.GetWorkspaceAgentStats(ctx, t5)
+	stats, err = store.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
+		CreatedAt:           t5,
+		VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+		SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+		JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+		ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+	})
 	require.NoError(t, err, "should not error getting stats")
 	require.Len(t, stats, 0, "should have no stats for workspace")
 

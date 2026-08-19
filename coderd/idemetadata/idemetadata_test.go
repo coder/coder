@@ -1,6 +1,7 @@
 package idemetadata_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -80,4 +81,20 @@ func TestFamily(t *testing.T) {
 			require.Equal(t, tc.want, idemetadata.Family(tc.input))
 		})
 	}
+}
+
+func TestFamilyAliases(t *testing.T) {
+	t.Parallel()
+
+	// Forks share the VS Code family, and the list is sorted.
+	vscode := idemetadata.FamilyAliases(idemetadata.AppNameVSCode)
+	require.Contains(t, vscode, "cursor")
+	require.Contains(t, vscode, idemetadata.AppNameVSCode)
+	require.True(t, slices.IsSorted(vscode))
+
+	// Zed speaks SSH, so it reports under the SSH family.
+	require.Equal(t, []string{idemetadata.AppNameSSH, idemetadata.AppNameZed},
+		idemetadata.FamilyAliases(idemetadata.AppNameSSH))
+
+	require.Empty(t, idemetadata.FamilyAliases("no_such_family"))
 }

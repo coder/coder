@@ -3690,33 +3690,33 @@ func (mr *MockStoreMockRecorder) GetDeploymentID(ctx any) *gomock.Call {
 }
 
 // GetDeploymentWorkspaceAgentStats mocks base method.
-func (m *MockStore) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
+func (m *MockStore) GetDeploymentWorkspaceAgentStats(ctx context.Context, arg database.GetDeploymentWorkspaceAgentStatsParams) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDeploymentWorkspaceAgentStats", ctx, createdAt)
+	ret := m.ctrl.Call(m, "GetDeploymentWorkspaceAgentStats", ctx, arg)
 	ret0, _ := ret[0].(database.GetDeploymentWorkspaceAgentStatsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetDeploymentWorkspaceAgentStats indicates an expected call of GetDeploymentWorkspaceAgentStats.
-func (mr *MockStoreMockRecorder) GetDeploymentWorkspaceAgentStats(ctx, createdAt any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetDeploymentWorkspaceAgentStats(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeploymentWorkspaceAgentStats", reflect.TypeOf((*MockStore)(nil).GetDeploymentWorkspaceAgentStats), ctx, createdAt)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeploymentWorkspaceAgentStats", reflect.TypeOf((*MockStore)(nil).GetDeploymentWorkspaceAgentStats), ctx, arg)
 }
 
 // GetDeploymentWorkspaceAgentUsageStats mocks base method.
-func (m *MockStore) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (database.GetDeploymentWorkspaceAgentUsageStatsRow, error) {
+func (m *MockStore) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, arg database.GetDeploymentWorkspaceAgentUsageStatsParams) (database.GetDeploymentWorkspaceAgentUsageStatsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDeploymentWorkspaceAgentUsageStats", ctx, createdAt)
+	ret := m.ctrl.Call(m, "GetDeploymentWorkspaceAgentUsageStats", ctx, arg)
 	ret0, _ := ret[0].(database.GetDeploymentWorkspaceAgentUsageStatsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetDeploymentWorkspaceAgentUsageStats indicates an expected call of GetDeploymentWorkspaceAgentUsageStats.
-func (mr *MockStoreMockRecorder) GetDeploymentWorkspaceAgentUsageStats(ctx, createdAt any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetDeploymentWorkspaceAgentUsageStats(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeploymentWorkspaceAgentUsageStats", reflect.TypeOf((*MockStore)(nil).GetDeploymentWorkspaceAgentUsageStats), ctx, createdAt)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeploymentWorkspaceAgentUsageStats", reflect.TypeOf((*MockStore)(nil).GetDeploymentWorkspaceAgentUsageStats), ctx, arg)
 }
 
 // GetDeploymentWorkspaceStats mocks base method.
@@ -6735,63 +6735,63 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentScriptsByAgentIDs(ctx, ids any
 }
 
 // GetWorkspaceAgentStats mocks base method.
-func (m *MockStore) GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
+func (m *MockStore) GetWorkspaceAgentStats(ctx context.Context, arg database.GetWorkspaceAgentStatsParams) ([]database.GetWorkspaceAgentStatsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspaceAgentStats", ctx, createdAt)
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentStats", ctx, arg)
 	ret0, _ := ret[0].([]database.GetWorkspaceAgentStatsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetWorkspaceAgentStats indicates an expected call of GetWorkspaceAgentStats.
-func (mr *MockStoreMockRecorder) GetWorkspaceAgentStats(ctx, createdAt any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentStats(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentStats", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentStats), ctx, createdAt)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentStats", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentStats), ctx, arg)
 }
 
 // GetWorkspaceAgentStatsAndLabels mocks base method.
-func (m *MockStore) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
+func (m *MockStore) GetWorkspaceAgentStatsAndLabels(ctx context.Context, arg database.GetWorkspaceAgentStatsAndLabelsParams) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspaceAgentStatsAndLabels", ctx, createdAt)
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentStatsAndLabels", ctx, arg)
 	ret0, _ := ret[0].([]database.GetWorkspaceAgentStatsAndLabelsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetWorkspaceAgentStatsAndLabels indicates an expected call of GetWorkspaceAgentStatsAndLabels.
-func (mr *MockStoreMockRecorder) GetWorkspaceAgentStatsAndLabels(ctx, createdAt any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentStatsAndLabels(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentStatsAndLabels", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentStatsAndLabels), ctx, createdAt)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentStatsAndLabels", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentStatsAndLabels), ctx, arg)
 }
 
 // GetWorkspaceAgentUsageStats mocks base method.
-func (m *MockStore) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
+func (m *MockStore) GetWorkspaceAgentUsageStats(ctx context.Context, arg database.GetWorkspaceAgentUsageStatsParams) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspaceAgentUsageStats", ctx, createdAt)
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentUsageStats", ctx, arg)
 	ret0, _ := ret[0].([]database.GetWorkspaceAgentUsageStatsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetWorkspaceAgentUsageStats indicates an expected call of GetWorkspaceAgentUsageStats.
-func (mr *MockStoreMockRecorder) GetWorkspaceAgentUsageStats(ctx, createdAt any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentUsageStats(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentUsageStats", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentUsageStats), ctx, createdAt)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentUsageStats", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentUsageStats), ctx, arg)
 }
 
 // GetWorkspaceAgentUsageStatsAndLabels mocks base method.
-func (m *MockStore) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
+func (m *MockStore) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, arg database.GetWorkspaceAgentUsageStatsAndLabelsParams) ([]database.GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspaceAgentUsageStatsAndLabels", ctx, createdAt)
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentUsageStatsAndLabels", ctx, arg)
 	ret0, _ := ret[0].([]database.GetWorkspaceAgentUsageStatsAndLabelsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetWorkspaceAgentUsageStatsAndLabels indicates an expected call of GetWorkspaceAgentUsageStatsAndLabels.
-func (mr *MockStoreMockRecorder) GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentUsageStatsAndLabels(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentUsageStatsAndLabels", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentUsageStatsAndLabels), ctx, createdAt)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentUsageStatsAndLabels", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentUsageStatsAndLabels), ctx, arg)
 }
 
 // GetWorkspaceAgentsByInstanceID mocks base method.
@@ -12329,17 +12329,17 @@ func (mr *MockStoreMockRecorder) UpsertTelemetryItem(ctx, arg any) *gomock.Call 
 }
 
 // UpsertTemplateUsageStats mocks base method.
-func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context) error {
+func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context, arg database.UpsertTemplateUsageStatsParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertTemplateUsageStats", ctx)
+	ret := m.ctrl.Call(m, "UpsertTemplateUsageStats", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpsertTemplateUsageStats indicates an expected call of UpsertTemplateUsageStats.
-func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx, arg)
 }
 
 // UpsertUserAIBudgetOverride mocks base method.

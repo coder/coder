@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/idemetadata"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -2837,7 +2838,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights).Returns([]database.TemplateUsageStat{})
 	}))
 	s.Run("UpsertTemplateUsageStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().UpsertTemplateUsageStats(gomock.Any()).Return(nil).AnyTimes()
+		dbm.EXPECT().UpsertTemplateUsageStats(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		check.Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("UpdatePresetsLastInvalidatedAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -5323,12 +5324,24 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetDeploymentWorkspaceAgentStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		t := time.Time{}
-		dbm.EXPECT().GetDeploymentWorkspaceAgentStats(gomock.Any(), t).Return(database.GetDeploymentWorkspaceAgentStatsRow{}, nil).AnyTimes()
+		dbm.EXPECT().GetDeploymentWorkspaceAgentStats(gomock.Any(), database.GetDeploymentWorkspaceAgentStatsParams{
+			CreatedAt:           t,
+			VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+			SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+			JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+			ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+		}).Return(database.GetDeploymentWorkspaceAgentStatsRow{}, nil).AnyTimes()
 		check.Args(t).Asserts()
 	}))
 	s.Run("GetDeploymentWorkspaceAgentUsageStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		t := time.Time{}
-		dbm.EXPECT().GetDeploymentWorkspaceAgentUsageStats(gomock.Any(), t).Return(database.GetDeploymentWorkspaceAgentUsageStatsRow{}, nil).AnyTimes()
+		dbm.EXPECT().GetDeploymentWorkspaceAgentUsageStats(gomock.Any(), database.GetDeploymentWorkspaceAgentUsageStatsParams{
+			CreatedAt:           t,
+			VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+			SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+			JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+			ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+		}).Return(database.GetDeploymentWorkspaceAgentUsageStatsRow{}, nil).AnyTimes()
 		check.Args(t).Asserts()
 	}))
 	s.Run("GetDeploymentWorkspaceStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -5358,22 +5371,46 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetWorkspaceAgentStatsAndLabels", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		t := time.Time{}
-		dbm.EXPECT().GetWorkspaceAgentStatsAndLabels(gomock.Any(), t).Return([]database.GetWorkspaceAgentStatsAndLabelsRow{}, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceAgentStatsAndLabels(gomock.Any(), database.GetWorkspaceAgentStatsAndLabelsParams{
+			CreatedAt:           t,
+			VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+			SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+			JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+			ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+		}).Return([]database.GetWorkspaceAgentStatsAndLabelsRow{}, nil).AnyTimes()
 		check.Args(t).Asserts()
 	}))
 	s.Run("GetWorkspaceAgentUsageStatsAndLabels", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		t := time.Time{}
-		dbm.EXPECT().GetWorkspaceAgentUsageStatsAndLabels(gomock.Any(), t).Return([]database.GetWorkspaceAgentUsageStatsAndLabelsRow{}, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceAgentUsageStatsAndLabels(gomock.Any(), database.GetWorkspaceAgentUsageStatsAndLabelsParams{
+			CreatedAt:           t,
+			VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+			SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+			JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+			ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+		}).Return([]database.GetWorkspaceAgentUsageStatsAndLabelsRow{}, nil).AnyTimes()
 		check.Args(t).Asserts()
 	}))
 	s.Run("GetWorkspaceAgentStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		t := time.Time{}
-		dbm.EXPECT().GetWorkspaceAgentStats(gomock.Any(), t).Return([]database.GetWorkspaceAgentStatsRow{}, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceAgentStats(gomock.Any(), database.GetWorkspaceAgentStatsParams{
+			CreatedAt:           t,
+			VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+			SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+			JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+			ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+		}).Return([]database.GetWorkspaceAgentStatsRow{}, nil).AnyTimes()
 		check.Args(t).Asserts()
 	}))
 	s.Run("GetWorkspaceAgentUsageStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		t := time.Time{}
-		dbm.EXPECT().GetWorkspaceAgentUsageStats(gomock.Any(), t).Return([]database.GetWorkspaceAgentUsageStatsRow{}, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceAgentUsageStats(gomock.Any(), database.GetWorkspaceAgentUsageStatsParams{
+			CreatedAt:           t,
+			VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+			SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+			JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+			ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+		}).Return([]database.GetWorkspaceAgentUsageStatsRow{}, nil).AnyTimes()
 		check.Args(t).Asserts()
 	}))
 	s.Run("GetWorkspaceProxyByHostname", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

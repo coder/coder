@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/idemetadata"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
@@ -647,7 +648,13 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	})
 	eg.Go(func() error {
 		if r.options.DeploymentConfig != nil && slices.Contains(r.options.DeploymentConfig.Experiments, string(codersdk.ExperimentWorkspaceUsage)) {
-			agentStats, err := r.options.Database.GetWorkspaceAgentUsageStats(ctx, createdAfter)
+			agentStats, err := r.options.Database.GetWorkspaceAgentUsageStats(ctx, database.GetWorkspaceAgentUsageStatsParams{
+				CreatedAt:           createdAfter,
+				VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+				SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+				JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+				ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+			})
 			if err != nil {
 				return xerrors.Errorf("get workspace agent stats: %w", err)
 			}
@@ -656,7 +663,13 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(database.GetWorkspaceAgentStatsRow(stat)))
 			}
 		} else {
-			agentStats, err := r.options.Database.GetWorkspaceAgentStats(ctx, createdAfter)
+			agentStats, err := r.options.Database.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
+				CreatedAt:           createdAfter,
+				VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+				SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+				JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+				ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+			})
 			if err != nil {
 				return xerrors.Errorf("get workspace agent stats: %w", err)
 			}

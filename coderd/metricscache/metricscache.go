@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/idemetadata"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
@@ -138,13 +139,25 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 	)
 
 	if c.usage {
-		agentUsageStats, err := c.database.GetDeploymentWorkspaceAgentUsageStats(ctx, from)
+		agentUsageStats, err := c.database.GetDeploymentWorkspaceAgentUsageStats(ctx, database.GetDeploymentWorkspaceAgentUsageStatsParams{
+			CreatedAt:           from,
+			VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+			SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+			JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+			ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+		})
 		if err != nil {
 			return err
 		}
 		agentStats = database.GetDeploymentWorkspaceAgentStatsRow(agentUsageStats)
 	} else {
-		agentStats, err = c.database.GetDeploymentWorkspaceAgentStats(ctx, from)
+		agentStats, err = c.database.GetDeploymentWorkspaceAgentStats(ctx, database.GetDeploymentWorkspaceAgentStatsParams{
+			CreatedAt:           from,
+			VscodeApps:          idemetadata.FamilyAliases(idemetadata.AppNameVSCode),
+			SshApps:             idemetadata.FamilyAliases(idemetadata.AppNameSSH),
+			JetbrainsApps:       idemetadata.FamilyAliases(idemetadata.AppNameJetBrains),
+			ReconnectingPtyApps: idemetadata.FamilyAliases(idemetadata.AppNameReconnectingPTY),
+		})
 		if err != nil {
 			return err
 		}

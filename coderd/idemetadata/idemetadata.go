@@ -4,6 +4,7 @@
 package idemetadata
 
 import (
+	"slices"
 	"strings"
 
 	utilstrings "github.com/coder/coder/v2/coderd/util/strings"
@@ -50,6 +51,29 @@ var families = map[string]string{
 	AppNameZed:             AppNameSSH,
 	AppNameSSH:             AppNameSSH,
 	AppNameReconnectingPTY: AppNameReconnectingPTY,
+}
+
+// AttributedFamilies are the families usage reporting has somewhere to put.
+// Every value in families must appear here or its sessions go uncounted, which
+// TestEveryFamilyIsAttributed enforces.
+var AttributedFamilies = []string{
+	AppNameVSCode,
+	AppNameJetBrains,
+	AppNameSSH,
+	AppNameReconnectingPTY,
+}
+
+// FamilyAliases returns the app names belonging to a family, sorted so query
+// parameters stay stable across calls.
+func FamilyAliases(family string) []string {
+	var aliases []string
+	for appName, appFamily := range families {
+		if appFamily == family {
+			aliases = append(aliases, appName)
+		}
+	}
+	slices.Sort(aliases)
+	return aliases
 }
 
 // Family returns the family for an app name, or AppNameUnknown. Matching is
