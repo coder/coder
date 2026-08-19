@@ -609,7 +609,7 @@ func aiProviderHostnameWarningFromMap(provider database.AIProvider, namesByHost 
 	}}
 }
 
-// aiProviderHostnameWarningFromDB fetches all enabled, non-deleted
+// aiProviderHostnameWarningFromDB fetches enabled, non-deleted
 // providers to determine whether the given provider is excluded from
 // proxy routing by hostname collision. Used by the single-row handlers
 // (Get, Create, Update) where one extra query is not N+1.
@@ -621,12 +621,12 @@ func aiProviderHostnameWarningFromDB(ctx context.Context, logger slog.Logger, st
 	if host == "" {
 		return nil
 	}
-	others, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{})
+	allProviders, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{})
 	if err != nil {
 		logger.Error(ctx, "load AI providers for hostname warnings", slog.Error(err))
 		return nil
 	}
-	namesByHost := buildHostnameCollisionMap(others)
+	namesByHost := buildHostnameCollisionMap(allProviders)
 	return aiProviderHostnameWarningFromMap(provider, namesByHost)
 }
 
