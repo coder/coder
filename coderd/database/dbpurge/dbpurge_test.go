@@ -3115,7 +3115,7 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		t.Helper()
 		var matches bool
 		err := rawDB.QueryRowContext(ctx,
-			"SELECT search_tsv = to_tsvector('simple', $2::text) FROM chat_messages WHERE id = $1", id, expectedText).
+			"SELECT search_tsv = to_tsvector('english', $2::text) FROM chat_messages WHERE id = $1", id, expectedText).
 			Scan(&matches)
 		require.NoError(t, err)
 		require.True(t, matches, "search_tsv should contain the lexemes of %q", expectedText)

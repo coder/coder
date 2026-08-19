@@ -307,7 +307,7 @@ func TestSearchTsvBackfillDoesNotTouchChatState(t *testing.T) {
 	// Backfill-shaped UPDATE: only search_tsv changes.
 	_, err = tf.sqlDB.ExecContext(ctx, `
 		UPDATE chat_messages
-		SET search_tsv = COALESCE(to_tsvector('simple', chat_message_search_text(content)), ''::tsvector)
+		SET search_tsv = COALESCE(to_tsvector('english', chat_message_search_text(content)), ''::tsvector)
 		WHERE id = $1
 	`, target.ID)
 	require.NoError(t, err)

@@ -331,7 +331,7 @@ WITH batch AS (
 UPDATE chat_messages cm
 -- NULL means "pending", empty tsvector means "backfilled, no text".
 SET search_tsv = COALESCE(
-    to_tsvector('simple', chat_message_search_text(cm.content)),
+    to_tsvector('english', chat_message_search_text(cm.content)),
     ''::tsvector)
 FROM batch WHERE cm.id = batch.id;
 
@@ -679,17 +679,21 @@ WHERE
         ELSE true
     END
     -- websearch_to_tsquery accepts quoted phrases, OR, and -negation;
-    -- the 'simple' config folds case and skips stemming.
+    -- the 'english' config folds case and stems words, so inflected
+    -- forms match (e.g. "refactor" matches "refactoring"). The config
+    -- must match the one baked into the tsvectors and expression
+    -- indexes (idx_chats_title_fts, idx_chat_diff_statuses_pr_title_fts,
+    -- and the backfilled chat_messages.search_tsv).
     AND CASE
         WHEN @search::text != '' THEN (
             -- Served by idx_chats_title_fts.
-            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', @search)
+            to_tsvector('english', chats_expanded.title) @@ websearch_to_tsquery('english', @search)
             -- Served by idx_chat_diff_statuses_pr_title_fts.
             OR EXISTS (
                 SELECT 1
                 FROM chat_diff_statuses cds
                 WHERE cds.chat_id = chats_expanded.id
-                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', @search)
+                    AND to_tsvector('english', cds.pull_request_title) @@ websearch_to_tsquery('english', @search)
             )
             -- The WHERE clause must repeat the predicate of the partial index
             -- idx_chat_messages_search_tsv so the planner can use it. Additional
@@ -702,7 +706,7 @@ WHERE
                     AND cm.deleted = false
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
-                    AND cm.search_tsv @@ websearch_to_tsquery('simple', @search)
+                    AND cm.search_tsv @@ websearch_to_tsquery('english', @search)
             )
             -- Skip an explicit pr_number lookup unless the search is a valid bigint.
             OR CASE

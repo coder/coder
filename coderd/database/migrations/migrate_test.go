@@ -2516,7 +2516,7 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	// queue.
 	_, err = sqlDB.ExecContext(ctx, `
 		UPDATE chat_messages
-		SET search_tsv = COALESCE(to_tsvector('simple', chat_message_search_text(content)), ''::tsvector)
+		SET search_tsv = COALESCE(to_tsvector('english', chat_message_search_text(content)), ''::tsvector)
 		WHERE id = ANY($1)`, pq.Array([]int64{eligibleText.ID, eligibleNoText.ID}))
 	require.NoError(t, err)
 	require.Empty(t, pendingIDs(ctx, 10), "swept rows must leave the queue, including no-text rows")
@@ -2532,13 +2532,13 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	// ineligible ones) and assert the search-index predicate filters them.
 	_, err = sqlDB.ExecContext(ctx, `
 		UPDATE chat_messages
-		SET search_tsv = COALESCE(to_tsvector('simple', chat_message_search_text(content)), ''::tsvector)
+		SET search_tsv = COALESCE(to_tsvector('english', chat_message_search_text(content)), ''::tsvector)
 		WHERE chat_id = $1`, chat.ID)
 	require.NoError(t, err)
 
 	rows, err := sqlDB.QueryContext(ctx, `
 		SELECT id FROM chat_messages
-		WHERE search_tsv @@ websearch_to_tsquery('simple', $1)
+		WHERE search_tsv @@ websearch_to_tsquery('english', $1)
 			AND search_tsv IS NOT NULL
 			AND `+eligibilityPredicate+`
 		ORDER BY id`, "deploy")
