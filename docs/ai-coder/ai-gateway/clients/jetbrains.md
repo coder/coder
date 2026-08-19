@@ -34,7 +34,7 @@ You can now use the AI Assistant chat with the configured provider.
 > [!NOTE]
 >
 > * JetBrains AI Assistant currently only supports OpenAI-compatible endpoints. There is an open [issue](https://youtrack.jetbrains.com/issue/LLM-22740) tracking support for Anthropic.
-> * JetBrains AI Assistant may not support all models that support OPenAI's `/chat/completions` endpoint in Chat mode.
+> * JetBrains AI Assistant may not support all models that support OpenAI's `/chat/completions` endpoint in Chat mode.
 > * JetBrains AI Assistant does not send an identifying user agent, so AI Gateway records these sessions with the client `Unknown`. Usage, tokens, and audit data are still captured.
 
 ## BYOK (Personal API Key)
