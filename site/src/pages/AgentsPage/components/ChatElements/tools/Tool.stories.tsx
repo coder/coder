@@ -883,8 +883,7 @@ export const ProcessOutputRunningThenKilled: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Checked npm start")).toBeVisible();
 		expect(canvas.queryByText(/Checking/)).not.toBeInTheDocument();
-		await userEvent.hover(canvas.getByText("Checked npm start"));
-		expect(canvasElement.querySelector(".lucide-octagon-x")).not.toBeNull();
+		expect(canvas.getByRole("img", { name: "Killed (SIGKILL)" })).toBeVisible();
 	},
 };
 

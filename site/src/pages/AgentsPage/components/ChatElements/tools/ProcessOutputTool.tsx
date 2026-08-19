@@ -111,7 +111,13 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 						{killedBySignal && !isRunning && (
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<OctagonXIcon className="size-3.5 shrink-0 text-content-secondary" />
+									<span
+										aria-label={signalTooltipLabel(killedBySignal)}
+										role="img"
+										className="flex shrink-0 items-center text-content-secondary"
+									>
+										<OctagonXIcon aria-hidden className="size-3.5 shrink-0" />
+									</span>
 								</TooltipTrigger>
 								<TooltipContent>
 									{signalTooltipLabel(killedBySignal)}
