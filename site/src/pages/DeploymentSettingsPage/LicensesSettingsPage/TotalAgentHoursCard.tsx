@@ -48,8 +48,9 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	const meteredLimit = limit ?? 0;
 	// Floored to tenths so the displayed number and the reached states
 	// below flip together at the backend's whole-hour thresholds.
-	const usedHours =
-		actualMs === undefined ? 0 : Math.floor(actualMs / 360_000) / 10;
+	const usedTenths =
+		actualMs === undefined ? 0 : Math.floor(actualMs / 360_000);
+	const usedHours = usedTenths / 10;
 	// The backend guarantees hard >= allocation > 0; anything else comes
 	// from a decoding bug and is ignored the same way.
 	const hardCap =
@@ -128,12 +129,15 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 
 	// Floored at one decimal so the shown percentage never crosses a
 	// threshold the underlying hours have not (99.9%, never a false 100%).
-	const formatPercent = (value: number): string =>
-		(Math.floor(value * 10) / 10).toLocaleString("en-US");
+	// Tenths are computed from integer hour (or tenths-of-hour) inputs so
+	// IEEE-754 ratios such as (29 / 100) * 100 === 28.999... are not
+	// floored to 28.9%.
+	const formatPercent = (numerator: number, denominator: number): string =>
+		(Math.floor((numerator * 1000) / denominator) / 10).toLocaleString("en-US");
 
 	const softLimitPercent =
 		!isUnlimited && softLimit !== undefined && meteredLimit > 0
-			? formatPercent((softLimit / meteredLimit) * 100)
+			? formatPercent(softLimit, meteredLimit)
 			: undefined;
 
 	// A fading green fill reads as an unmetered allocation rather than
@@ -150,9 +154,7 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		// bar. The zero-limit fallback is unreachable for well-formed
 		// licenses, which report zero-hour allocations as disabled.
 		const usedPercent =
-			meteredLimit > 0
-				? formatPercent((usedHours / meteredLimit) * 100)
-				: "100";
+			meteredLimit > 0 ? formatPercent(usedTenths, meteredLimit * 10) : "100";
 		tooltip = reachedHardCap
 			? `You've used ${usedPercent}% of your Total Agent hours for this license and reached the hard cap of ${limitLabel} hours. Contact sales to receive more Agent hours.`
 			: `You've used ${usedPercent}% of your Total Agent hours for this license. Contact sales to receive more Agent hours.`;

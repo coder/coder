@@ -156,6 +156,31 @@ export const ReachedAllocationByFraction: Story = {
 	},
 };
 
+// Integer claims such as 29/100 must not underflow to 28.9% after
+// flooring a binary ratio ((29 / 100) * 100 === 28.999...).
+export const SoftLimitExactPercent: Story = {
+	args: {
+		feature: {
+			...MockAgentRuntimeHoursFeature,
+			limit: 100,
+			soft_limit: 29,
+			actual: 10,
+			actual_ms: 10 * 3_600_000,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("10.0")).toBeInTheDocument();
+		await expect(canvas.getByText("29")).toBeInTheDocument();
+		await expect(canvas.getByText("100")).toBeInTheDocument();
+		const body = await hoverInfoIcon(canvasElement);
+		await expectTooltipText(
+			body,
+			/Total time agents have been working across all workspaces this license\. A soft-limit warning appears at 29%/,
+		);
+	},
+};
+
 // 99.9% must never read as a false 100%.
 export const NearAllocation: Story = {
 	args: {
