@@ -13,55 +13,24 @@
 package main
 
 import (
-	"encoding/json"
+	"cmp"
 	"flag"
 	"fmt"
 	"io"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/aibridge/prices/pricebook"
 )
-
-// priceRow mirrors the seed file schema written by aibridgepricesgen. Pointer
-// fields preserve the distinction between "not populated by upstream" (null)
-// and "explicitly zero" (0).
-type priceRow struct {
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
-	InputPrice      *int64 `json:"input_price"`
-	OutputPrice     *int64 `json:"output_price"`
-	CacheReadPrice  *int64 `json:"cache_read_price"`
-	CacheWritePrice *int64 `json:"cache_write_price"`
-}
-
-// modelKey identifies a model across the two snapshots.
-type modelKey struct {
-	provider string
-	model    string
-}
-
-func (r priceRow) key() modelKey {
-	return modelKey{provider: r.Provider, model: r.Model}
-}
-
-func (k modelKey) String() string {
-	return k.provider + "/" + k.model
-}
-
-func less(a, b modelKey) bool {
-	if a.provider != b.provider {
-		return a.provider < b.provider
-	}
-	return a.model < b.model
-}
 
 // diff is the full comparison between two snapshots
 type diff struct {
-	added   []modelKey
-	removed []modelKey
-	changed []modelKey
+	added   []pricebook.Key
+	removed []pricebook.Key
+	changed []pricebook.Key
 }
 
 func (d diff) empty() bool {
@@ -94,52 +63,57 @@ func run(oldPath, newPath string, w io.Writer) error {
 	return err
 }
 
-func readRows(path string) ([]priceRow, error) {
+func readRows(path string) ([]pricebook.Row, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	var rows []priceRow
-	if err := json.Unmarshal(data, &rows); err != nil {
+	rows, err := pricebook.Parse(data)
+	if err != nil {
 		return nil, xerrors.Errorf("parse: %w", err)
 	}
 	return rows, nil
 }
 
 // compare classifies every model as added, removed, or changed.
-func compare(oldRows, newRows []priceRow) diff {
-	oldByKey := make(map[modelKey]priceRow, len(oldRows))
+func compare(oldRows, newRows []pricebook.Row) diff {
+	oldByKey := make(map[pricebook.Key]pricebook.Row, len(oldRows))
 	for _, r := range oldRows {
-		oldByKey[r.key()] = r
+		oldByKey[r.Key()] = r
 	}
 
 	var d diff
-	seen := make(map[modelKey]struct{}, len(newRows))
+	seen := make(map[pricebook.Key]struct{}, len(newRows))
 	for _, r := range newRows {
-		seen[r.key()] = struct{}{}
-		prev, ok := oldByKey[r.key()]
+		seen[r.Key()] = struct{}{}
+		prev, ok := oldByKey[r.Key()]
 		switch {
 		case !ok:
-			d.added = append(d.added, r.key())
+			d.added = append(d.added, r.Key())
 		case !samePrices(prev, r):
-			d.changed = append(d.changed, r.key())
+			d.changed = append(d.changed, r.Key())
 		}
 	}
 	for _, r := range oldRows {
-		if _, ok := seen[r.key()]; !ok {
-			d.removed = append(d.removed, r.key())
+		if _, ok := seen[r.Key()]; !ok {
+			d.removed = append(d.removed, r.Key())
 		}
 	}
 
-	for _, keys := range [][]modelKey{d.added, d.removed, d.changed} {
-		sort.Slice(keys, func(i, j int) bool { return less(keys[i], keys[j]) })
+	for _, keys := range [][]pricebook.Key{d.added, d.removed, d.changed} {
+		slices.SortFunc(keys, func(a, b pricebook.Key) int {
+			if c := cmp.Compare(a.Provider, b.Provider); c != 0 {
+				return c
+			}
+			return cmp.Compare(a.Model, b.Model)
+		})
 	}
 	return d
 }
 
 // samePrices reports whether two rows for the same model carry identical
 // prices. A price moving to or from null counts as a change.
-func samePrices(a, b priceRow) bool {
+func samePrices(a, b pricebook.Row) bool {
 	return equalPrice(a.InputPrice, b.InputPrice) &&
 		equalPrice(a.OutputPrice, b.OutputPrice) &&
 		equalPrice(a.CacheReadPrice, b.CacheReadPrice) &&
@@ -173,7 +147,7 @@ func render(d diff) string {
 		plural(len(d.changed), "model"),
 	)
 
-	renderList := func(heading string, keys []modelKey) {
+	renderList := func(heading string, keys []pricebook.Key) {
 		if len(keys) == 0 {
 			return
 		}
