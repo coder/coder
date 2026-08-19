@@ -217,9 +217,9 @@ price for it yourself.
 ### Set model prices
 
 Use the experimental `coder exp ai-model-prices` command to set prices for
-models the price book does not cover. It requires the AI Governance add-on and
-the `ai_model_price:update` permission. Run
-`coder exp ai-model-prices --help` for the full reference.
+models the price book does not cover. It requires AI Governance, which is
+included with a Premium license, and the `ai_model_price:update` permission.
+Run `coder exp ai-model-prices --help` for the full reference.
 
 List the prices this deployment holds, optionally narrowed to one provider or
 model:
