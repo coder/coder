@@ -87,7 +87,11 @@ const (
 // BlockedFileTransferCommands contains a list of restricted file transfer commands.
 var BlockedFileTransferCommands = []string{"nc", "rsync", "scp", "sftp"}
 
-type reportConnectionFunc func(id uuid.UUID, sessionType MagicSessionType, ip string) (disconnected func(code int, reason string))
+// reportConnectionFunc reports the start of a connection to coderd for the
+// connection log. fileTransfer indicates that the session was classified
+// as a file transfer (SFTP, SCP, rsync) and should be reported as such
+// instead of a plain SSH session.
+type reportConnectionFunc func(id uuid.UUID, sessionType MagicSessionType, fileTransfer bool, ip string) (disconnected func(code int, reason string))
 
 // Config sets configuration parameters for the agent SSH server.
 type Config struct {
@@ -126,6 +130,11 @@ type Config struct {
 	BlockLocalPortForwarding bool
 	// ReportConnection.
 	ReportConnection reportConnectionFunc
+	// ReportFileTransfer reports a file operation observed during a
+	// file-transfer session (SFTP, SCP, rsync) for the connection log.
+	// The id matches the session's connection report so operations can
+	// be grouped with the session.
+	ReportFileTransfer func(id uuid.UUID, op FileTransferOperation)
 	// Experimental: allow connecting to running containers via Docker exec.
 	// Note that this is different from the devcontainers feature, which uses
 	// subagents.
@@ -192,7 +201,10 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		config.EnvInfo = &usershell.SystemEnvInfo{}
 	}
 	if config.ReportConnection == nil {
-		config.ReportConnection = func(uuid.UUID, MagicSessionType, string) func(int, string) { return func(int, string) {} }
+		config.ReportConnection = func(uuid.UUID, MagicSessionType, bool, string) func(int, string) { return func(int, string) {} }
+	}
+	if config.ReportFileTransfer == nil {
+		config.ReportFileTransfer = func(uuid.UUID, FileTransferOperation) {}
 	}
 
 	forwardHandler := &ssh.ForwardedTCPHandler{}
@@ -434,10 +446,17 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		remoteAddrString = remoteAddr.String()
 	}
 
+	// Classify file-transfer sessions (SFTP subsystem, scp, rsync) so
+	// they can be reported distinctly from plain SSH in the connection
+	// log. IDE sessions (VS Code, JetBrains) keep their more specific
+	// type.
+	fileTransfer, isFileTransfer := classifyFileTransfer(session)
+	reportAsFileTransfer := isFileTransfer && magicTypeForFileTransfer(magicType)
+
 	if !s.trackSession(session, true) {
 		reason := "unable to accept new session, server is closing"
 		// Report connection attempt even if we couldn't accept it.
-		disconnected := s.config.ReportConnection(id, magicType, remoteAddrString)
+		disconnected := s.config.ReportConnection(id, magicType, reportAsFileTransfer, remoteAddrString)
 		defer disconnected(1, reason)
 
 		logger.Info(ctx, reason)
@@ -472,7 +491,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		scr := &sessionCloseTracker{Session: session}
 		session = scr
 
-		disconnected := s.config.ReportConnection(id, magicType, remoteAddrString)
+		disconnected := s.config.ReportConnection(id, magicType, reportAsFileTransfer, remoteAddrString)
 		defer func() {
 			logger.Info(ctx, "ssh session closed",
 				codersdk.ConnectionDirectionAgentToClient.SlogField(),
@@ -497,6 +516,18 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		return
 	}
 
+	// Emit file operations only for sessions reported as file transfers
+	// so every operation row groups under a file_transfer session row in
+	// the connection log. The transfer was permitted if we got here.
+	var emitOp func(FileTransferOperation)
+	if reportSession && reportAsFileTransfer {
+		emitter := newFileTransferOpEmitter(logger, id, s.config.ReportFileTransfer)
+		emitOp = emitter.Emit
+		if fileTransfer.InitialOperation != nil {
+			emitOp(*fileTransfer.InitialOperation)
+		}
+	}
+
 	container, containerUser, env := extractContainerInfo(env)
 	if container != "" {
 		s.logger.Debug(ctx, "container info",
@@ -513,7 +544,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			_ = session.Exit(1)
 			return
 		}
-		err := s.sftpHandler(logger, session)
+		err := s.sftpHandler(logger, session, emitOp)
 		if err != nil {
 			closeCause(err.Error())
 		}
@@ -858,7 +889,7 @@ func handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signa
 	}
 }
 
-func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) error {
+func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session, emitOp func(FileTransferOperation)) error {
 	s.metrics.sftpConnectionsTotal.Add(1)
 
 	ctx := session.Context()
@@ -886,7 +917,16 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) error {
 		opts = append(opts, sftp.WithServerWorkingDirectory(dir))
 	}
 
-	server, err := sftp.NewServer(session, opts...)
+	// Observe file operations for the connection log by passively
+	// decoding the client-to-server request stream. The decoder is
+	// bounded and fail-open: on malformed input it stops decoding
+	// without affecting the SFTP session.
+	var rwc io.ReadWriteCloser = session
+	if emitOp != nil {
+		rwc = newSFTPAuditSession(session, newSFTPRequestDecoder(emitOp))
+	}
+
+	server, err := sftp.NewServer(rwc, opts...)
 	if err != nil {
 		logger.Debug(ctx, "initialize sftp server", slog.Error(err))
 		return xerrors.Errorf("initialize sftp server: %w", err)

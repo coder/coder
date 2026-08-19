@@ -71,7 +71,7 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, reportConne
 }
 
 func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request, error) {
-	disconnected := w.reportConnection(uuid.New(), MagicSessionTypeJetBrains, w.originAddr)
+	disconnected := w.reportConnection(uuid.New(), MagicSessionTypeJetBrains, false, w.originAddr)
 
 	c, r, err := w.NewChannel.Accept()
 	if err != nil {

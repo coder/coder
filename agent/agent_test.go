@@ -1393,7 +1393,20 @@ func TestAgent_SFTP(t *testing.T) {
 
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+		assertConnectionReport(t, agentClient, proto.Connection_FILE_TRANSFER, 0, "")
+
+		// The file creation should be reported as a file operation.
+		// sftp's Create opens with O_RDWR|O_CREATE|O_TRUNC, so the
+		// observed action is bidirectional.
+		var ops []*proto.FileTransferOperation
+		require.Eventually(t, func() bool {
+			ops = agentClient.GetFileOperations()
+			return len(ops) >= 1
+		}, testutil.WaitMedium, testutil.IntervalFast, "waiting for file operation report")
+		require.Len(t, ops, 1)
+		assert.Equal(t, proto.FileTransferOperation_SFTP, ops[0].GetProtocol())
+		assert.Equal(t, proto.FileTransferOperation_BIDIRECTIONAL, ops[0].GetAction())
+		assert.Equal(t, remoteFile, ops[0].GetPath())
 	})
 
 	t.Run("CustomWorkingDirectory", func(t *testing.T) {
@@ -1426,7 +1439,7 @@ func TestAgent_SFTP(t *testing.T) {
 
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+		assertConnectionReport(t, agentClient, proto.Connection_FILE_TRANSFER, 0, "")
 	})
 
 	t.Run("MissingWorkingDirectory", func(t *testing.T) {
@@ -1481,7 +1494,19 @@ func TestAgent_SCP(t *testing.T) {
 
 	// Close the client to trigger disconnect event.
 	scpClient.Close()
-	assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+	assertConnectionReport(t, agentClient, proto.Connection_FILE_TRANSFER, 0, "")
+
+	// The upload should be reported as a single write operation rooted
+	// at the requested path, parsed from the scp command line.
+	var ops []*proto.FileTransferOperation
+	require.Eventually(t, func() bool {
+		ops = agentClient.GetFileOperations()
+		return len(ops) >= 1
+	}, testutil.WaitMedium, testutil.IntervalFast, "waiting for file operation report")
+	require.Len(t, ops, 1)
+	assert.Equal(t, proto.FileTransferOperation_SCP, ops[0].GetProtocol())
+	assert.Equal(t, proto.FileTransferOperation_UPLOAD, ops[0].GetAction())
+	assert.Equal(t, tempFile, ops[0].GetPath())
 }
 
 func TestAgent_FileTransferBlocked(t *testing.T) {
@@ -1516,7 +1541,10 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		require.Error(t, err)
 		assertFileTransferBlocked(t, err.Error())
 
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
+		// Blocked attempts are still classified as file transfers.
+		assertConnectionReport(t, agentClient, proto.Connection_FILE_TRANSFER, agentssh.BlockedFileTransferErrorCode, "")
+		// No file operations are reported for blocked sessions.
+		assert.Empty(t, agentClient.GetFileOperations())
 	})
 
 	t.Run("SCP with go-scp package", func(t *testing.T) {
@@ -1540,7 +1568,10 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		require.Error(t, err)
 		assertFileTransferBlocked(t, err.Error())
 
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
+		// Blocked attempts are still classified as file transfers.
+		assertConnectionReport(t, agentClient, proto.Connection_FILE_TRANSFER, agentssh.BlockedFileTransferErrorCode, "")
+		// No file operations are reported for blocked sessions.
+		assert.Empty(t, agentClient.GetFileOperations())
 	})
 
 	t.Run("Forbidden commands", func(t *testing.T) {
@@ -1577,7 +1608,13 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				require.NoError(t, err)
 				assertFileTransferBlocked(t, string(msg))
 
-				assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
+				// scp and rsync commands are classified as file
+				// transfers; nc and the sftp client binary are not.
+				expectedType := proto.Connection_SSH
+				if c == "scp" || c == "rsync" {
+					expectedType = proto.Connection_FILE_TRANSFER
+				}
+				assertConnectionReport(t, agentClient, expectedType, agentssh.BlockedFileTransferErrorCode, "")
 			})
 		}
 	})

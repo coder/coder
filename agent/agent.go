@@ -224,25 +224,26 @@ func New(options Options) Agent {
 	hardCtx, hardCancel := context.WithCancel(context.Background())
 	gracefulCtx, gracefulCancel := context.WithCancel(hardCtx)
 	a := &agent{
-		clock:                   options.Clock,
-		tailnetListenPort:       options.TailnetListenPort,
-		reconnectingPTYTimeout:  options.ReconnectingPTYTimeout,
-		logger:                  options.Logger,
-		gracefulCtx:             gracefulCtx,
-		gracefulCancel:          gracefulCancel,
-		hardCtx:                 hardCtx,
-		hardCancel:              hardCancel,
-		coordDisconnected:       make(chan struct{}),
-		environmentVariables:    options.EnvironmentVariables,
-		client:                  options.Client,
-		filesystem:              options.Filesystem,
-		logDir:                  options.LogDir,
-		tempDir:                 options.TempDir,
-		scriptDataDir:           options.ScriptDataDir,
-		lifecycleUpdate:         make(chan struct{}, 1),
-		lifecycleReported:       make(chan codersdk.WorkspaceAgentLifecycle, 1),
-		lifecycleStates:         []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
-		reportConnectionsUpdate: make(chan struct{}, 1),
+		clock:                      options.Clock,
+		tailnetListenPort:          options.TailnetListenPort,
+		reconnectingPTYTimeout:     options.ReconnectingPTYTimeout,
+		logger:                     options.Logger,
+		gracefulCtx:                gracefulCtx,
+		gracefulCancel:             gracefulCancel,
+		hardCtx:                    hardCtx,
+		hardCancel:                 hardCancel,
+		coordDisconnected:          make(chan struct{}),
+		environmentVariables:       options.EnvironmentVariables,
+		client:                     options.Client,
+		filesystem:                 options.Filesystem,
+		logDir:                     options.LogDir,
+		tempDir:                    options.TempDir,
+		scriptDataDir:              options.ScriptDataDir,
+		lifecycleUpdate:            make(chan struct{}, 1),
+		lifecycleReported:          make(chan codersdk.WorkspaceAgentLifecycle, 1),
+		lifecycleStates:            []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
+		reportConnectionsUpdate:    make(chan struct{}, 1),
+		reportFileOperationsUpdate: make(chan struct{}, 1),
 		listeningPortsHandler: listeningPortsHandler{
 			getter:      options.ListeningPortsGetter,
 			ignorePorts: maps.Clone(options.IgnorePorts),
@@ -344,6 +345,10 @@ type agent struct {
 	reportConnectionsMu     sync.Mutex
 	reportConnections       []*proto.ReportConnectionRequest
 
+	reportFileOperationsUpdate chan struct{}
+	reportFileOperationsMu     sync.Mutex
+	reportFileOperations       []*proto.FileTransferOperation
+
 	logSender *agentsdk.LogSender
 
 	// agentFirewallLogProxy is a socket server that forwards Agent Firewall audit logs to coderd.
@@ -433,16 +438,18 @@ func (a *agent) init() {
 		BlockFileTransfer:          a.blockFileTransfer,
 		BlockReversePortForwarding: a.blockReversePortForwarding,
 		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
-		ReportConnection: func(id uuid.UUID, magicType agentssh.MagicSessionType, ip string) func(code int, reason string) {
+		ReportConnection: func(id uuid.UUID, magicType agentssh.MagicSessionType, fileTransfer bool, ip string) func(code int, reason string) {
 			var connectionType proto.Connection_Type
-			switch magicType {
-			case agentssh.MagicSessionTypeSSH:
+			switch {
+			case fileTransfer:
+				connectionType = proto.Connection_FILE_TRANSFER
+			case magicType == agentssh.MagicSessionTypeSSH:
 				connectionType = proto.Connection_SSH
-			case agentssh.MagicSessionTypeVSCode:
+			case magicType == agentssh.MagicSessionTypeVSCode:
 				connectionType = proto.Connection_VSCODE
-			case agentssh.MagicSessionTypeJetBrains:
+			case magicType == agentssh.MagicSessionTypeJetBrains:
 				connectionType = proto.Connection_JETBRAINS
-			case agentssh.MagicSessionTypeUnknown:
+			case magicType == agentssh.MagicSessionTypeUnknown:
 				connectionType = proto.Connection_TYPE_UNSPECIFIED
 			default:
 				a.logger.Error(a.hardCtx, "unhandled magic session type when reporting connection", slog.F("magic_type", magicType))
@@ -451,6 +458,7 @@ func (a *agent) init() {
 
 			return a.reportConnection(id, connectionType, ip)
 		},
+		ReportFileTransfer: a.reportFileOperation,
 
 		ExperimentalContainers: a.devcontainers,
 	})
@@ -1064,6 +1072,16 @@ const (
 	// of memory which seems acceptable. We could reduce this if necessary by
 	// not using the proto struct directly.
 	reportConnectionBufferLimit = 2048
+
+	// reportFileOperationsBufferLimit limits the number of buffered file
+	// operation reports. Operations are already deduplicated and capped
+	// per session in agentssh, so hitting this limit means coderd has
+	// been unreachable for a while; new operations are dropped.
+	reportFileOperationsBufferLimit = 2048
+
+	// reportFileOperationsBatchSize bounds how many file operations are
+	// sent in a single ReportFileOperations RPC.
+	reportFileOperationsBatchSize = 100
 )
 
 func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip string) (disconnected func(code int, reason string)) {
@@ -1141,6 +1159,124 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 		select {
 		case a.reportConnectionsUpdate <- struct{}{}:
 		default:
+		}
+	}
+}
+
+// reportFileOperation enqueues a file operation observed during a
+// file-transfer session for reporting to coderd. Reporting is best
+// effort; operations are dropped when the buffer is full.
+func (a *agent) reportFileOperation(id uuid.UUID, op agentssh.FileTransferOperation) {
+	var protocol proto.FileTransferOperation_Protocol
+	switch op.Protocol {
+	case agentssh.FileTransferProtocolSFTP:
+		protocol = proto.FileTransferOperation_SFTP
+	case agentssh.FileTransferProtocolSCP:
+		protocol = proto.FileTransferOperation_SCP
+	case agentssh.FileTransferProtocolRsync:
+		protocol = proto.FileTransferOperation_RSYNC
+	default:
+		a.logger.Error(a.hardCtx, "unhandled file transfer protocol when reporting file operation", slog.F("protocol", op.Protocol))
+		return
+	}
+	var action proto.FileTransferOperation_Action
+	switch op.Action {
+	case agentssh.FileTransferActionDownload:
+		action = proto.FileTransferOperation_DOWNLOAD
+	case agentssh.FileTransferActionUpload:
+		action = proto.FileTransferOperation_UPLOAD
+	case agentssh.FileTransferActionBidirectional:
+		action = proto.FileTransferOperation_BIDIRECTIONAL
+	case agentssh.FileTransferActionRemove:
+		action = proto.FileTransferOperation_REMOVE
+	case agentssh.FileTransferActionRmdir:
+		action = proto.FileTransferOperation_RMDIR
+	case agentssh.FileTransferActionRename:
+		action = proto.FileTransferOperation_RENAME
+	case agentssh.FileTransferActionSymlink:
+		action = proto.FileTransferOperation_SYMLINK
+	case agentssh.FileTransferActionSetattr:
+		action = proto.FileTransferOperation_SETATTR
+	case agentssh.FileTransferActionHardlink:
+		action = proto.FileTransferOperation_HARDLINK
+	default:
+		a.logger.Error(a.hardCtx, "unhandled file transfer action when reporting file operation", slog.F("action", op.Action))
+		return
+	}
+
+	var target *string
+	if op.Target != "" {
+		target = &op.Target
+	}
+
+	a.reportFileOperationsMu.Lock()
+	defer a.reportFileOperationsMu.Unlock()
+
+	if len(a.reportFileOperations) >= reportFileOperationsBufferLimit {
+		a.logger.Warn(a.hardCtx, "file operation report buffer limit reached, dropping operation",
+			slog.F("limit", reportFileOperationsBufferLimit),
+			slog.F("connection_id", id),
+		)
+		return
+	}
+
+	a.reportFileOperations = append(a.reportFileOperations, &proto.FileTransferOperation{
+		ConnectionId: id[:],
+		Protocol:     protocol,
+		Action:       action,
+		Path:         op.Path,
+		Target:       target,
+		Timestamp:    timestamppb.New(time.Now()),
+	})
+	select {
+	case a.reportFileOperationsUpdate <- struct{}{}:
+	default:
+	}
+}
+
+// reportFileOperationsLoop streams buffered file operations to coderd
+// for the connection log. Like reportConnectionsLoop, sends are best
+// effort: a failed batch is logged and dropped.
+func (a *agent) reportFileOperationsLoop(ctx context.Context, aAPI proto.DRPCAgentClient211) error {
+	for {
+		select {
+		case <-a.reportFileOperationsUpdate:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+
+		for {
+			a.reportFileOperationsMu.Lock()
+			if len(a.reportFileOperations) == 0 {
+				a.reportFileOperationsMu.Unlock()
+				break
+			}
+			batchSize := min(len(a.reportFileOperations), reportFileOperationsBatchSize)
+			batch := a.reportFileOperations[:batchSize]
+			// Release lock while we send the batch, this is safe
+			// since we only append to the slice.
+			a.reportFileOperationsMu.Unlock()
+
+			logger := a.logger.With(slog.F("batch_size", batchSize))
+			logger.Debug(ctx, "reporting file operations")
+			_, err := aAPI.ReportFileOperations(ctx, &proto.ReportFileOperationsRequest{
+				Operations: batch,
+			})
+			if err != nil {
+				// Do not fail the loop if we fail to report file
+				// operations, just log a warning and drop the batch.
+				logger.Warn(ctx, "failed to report file operations to server", slog.Error(err))
+			} else {
+				logger.Debug(ctx, "successfully reported file operations")
+			}
+
+			// Remove the batch we sent (or failed to send).
+			a.reportFileOperationsMu.Lock()
+			for i := range batchSize {
+				a.reportFileOperations[i] = nil // Release the pointers from the underlying array.
+			}
+			a.reportFileOperations = a.reportFileOperations[batchSize:]
+			a.reportFileOperationsMu.Unlock()
 		}
 	}
 }
@@ -1278,6 +1414,10 @@ func (a *agent) run() (retErr error) {
 	// Connection reports are part of auditing, we should keep sending them via
 	// gracefulShutdownBehaviorRemain.
 	connMan.startAgentAPI("report connections", gracefulShutdownBehaviorRemain, a.reportConnectionsLoop)
+
+	// File operations are reported during graceful shutdown as well so
+	// operations from sessions that are wrapping up are not lost.
+	connMan.startAgentAPI211("report file operations", gracefulShutdownBehaviorRemain, a.reportFileOperationsLoop)
 
 	// Push resolved workspace context (instructions, skills, MCP
 	// configs, MCP server tool lists) to coderd. The push loop
@@ -2614,6 +2754,35 @@ func (a *apiConnRoutineManager) startAgentAPI(
 func (a *apiConnRoutineManager) startAgentAPI210(
 	name string, behavior gracefulShutdownBehavior,
 	f func(context.Context, proto.DRPCAgentClient210) error,
+) {
+	logger := a.logger.With(slog.F("name", name))
+	var ctx context.Context
+	switch behavior {
+	case gracefulShutdownBehaviorStop:
+		ctx = a.stopCtx
+	case gracefulShutdownBehaviorRemain:
+		ctx = a.remainCtx
+	default:
+		panic("unknown behavior")
+	}
+	a.eg.Go(func() error {
+		logger.Debug(ctx, "starting agent routine")
+		err := f(ctx, a.aAPI)
+		err = shouldPropagateError(ctx, logger, err)
+		logger.Debug(ctx, "routine exited", slog.Error(err))
+		if err != nil {
+			return xerrors.Errorf("error in routine %s: %w", name, err)
+		}
+		return nil
+	})
+}
+
+// startAgentAPI211 is the v2.11 counterpart to startAgentAPI; it hands the
+// routine the full v2.11 Agent API client. Use it for routines that need
+// RPCs introduced after v2.10 (notably ReportFileOperations).
+func (a *apiConnRoutineManager) startAgentAPI211(
+	name string, behavior gracefulShutdownBehavior,
+	f func(context.Context, proto.DRPCAgentClient211) error,
 ) {
 	logger := a.logger.With(slog.F("name", name))
 	var ctx context.Context
