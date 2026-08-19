@@ -55,6 +55,15 @@ CREATE INDEX idx_usage_events_publish_rejections_published_at ON usage_events_pu
 -- rejection would go undetected. Cost is one primary-key delete (plus one
 -- insert for rejections) per newly published row, bounded by the publish
 -- batch size.
+--
+-- Known limit: a permanent rejection whose message is empty is stored by
+-- writers running an older release as published_at set with a NULL
+-- failure_message, byte-identical to a successful publish (their
+-- post-publish update NULLIFs the message before it reaches the
+-- database), so no trigger can classify it as a rejection. The exposure
+-- requires tallyman to omit the rejection message it always sends, and it
+-- ends with the rolling upgrade: upgraded publishers normalize empty
+-- rejection messages before writing.
 CREATE FUNCTION record_usage_events_publish_outcome() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
