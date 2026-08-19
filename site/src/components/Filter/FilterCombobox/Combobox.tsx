@@ -19,24 +19,9 @@ import {
 } from "#/components/Popover/Popover";
 import { cn } from "#/utils/cn";
 
-/**
- * A chip-based combobox built on cmdk (listbox, keyboard navigation,
- * `aria-activedescendant`) and Radix Popover (positioning, dismissal). It
- * exposes a controlled API shaped for `FilterCombobox`:
- *
- * - `open` is caller-owned; the popup only ever opens because the caller sets
- *   it, so the component reports the single event Radix can actually observe,
- *   `onDismiss` (escape / outside press).
- * - `value` is the committed chip tokens, rendered through `ComboboxValue`.
- *   Chips are removed via `onRemoveValue`; additions are driven by the caller.
- * - Dropdown rows are actions: each `ComboboxItem` invokes its own `onSelect`
- *   rather than mutating a selection array, so categories, value suggestions,
- *   and resource previews stay distinct concerns.
- * - `inputValue`/`onInputValueChange` is the free-text input, and
- *   `onItemHighlighted` reports the cmdk-highlighted row so callers can
- *   implement Tab completion.
- */
-
+// A chip-based combobox for `FilterCombobox`, built on cmdk (listbox, keyboard
+// navigation) and Radix Popover (positioning, dismissal). `open` is
+// caller-owned; dropdown rows are actions that fire their own `onSelect`.
 const ComboboxAnchorContext =
 	createContext<RefObject<HTMLDivElement | null> | null>(null);
 
