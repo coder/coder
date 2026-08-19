@@ -1791,8 +1791,8 @@ func AllChatStatusValues() []ChatStatus {
 type ConnectionLogFileAction string
 
 const (
-	ConnectionLogFileActionRead      ConnectionLogFileAction = "read"
-	ConnectionLogFileActionWrite     ConnectionLogFileAction = "write"
+	ConnectionLogFileActionDownload  ConnectionLogFileAction = "download"
+	ConnectionLogFileActionUpload    ConnectionLogFileAction = "upload"
 	ConnectionLogFileActionReadWrite ConnectionLogFileAction = "read_write"
 	ConnectionLogFileActionMkdir     ConnectionLogFileAction = "mkdir"
 	ConnectionLogFileActionRemove    ConnectionLogFileAction = "remove"
@@ -1838,8 +1838,8 @@ func (ns NullConnectionLogFileAction) Value() (driver.Value, error) {
 
 func (e ConnectionLogFileAction) Valid() bool {
 	switch e {
-	case ConnectionLogFileActionRead,
-		ConnectionLogFileActionWrite,
+	case ConnectionLogFileActionDownload,
+		ConnectionLogFileActionUpload,
 		ConnectionLogFileActionReadWrite,
 		ConnectionLogFileActionMkdir,
 		ConnectionLogFileActionRemove,
@@ -1853,8 +1853,8 @@ func (e ConnectionLogFileAction) Valid() bool {
 
 func AllConnectionLogFileActionValues() []ConnectionLogFileAction {
 	return []ConnectionLogFileAction{
-		ConnectionLogFileActionRead,
-		ConnectionLogFileActionWrite,
+		ConnectionLogFileActionDownload,
+		ConnectionLogFileActionUpload,
 		ConnectionLogFileActionReadWrite,
 		ConnectionLogFileActionMkdir,
 		ConnectionLogFileActionRemove,

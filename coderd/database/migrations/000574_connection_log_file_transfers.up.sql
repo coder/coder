@@ -16,12 +16,14 @@ CREATE TYPE connection_log_file_protocol AS ENUM (
 	'rsync'
 );
 
--- The kind of file operation observed. 'read' is a transfer from the
--- workspace to the client, 'write' is a transfer from the client to the
--- workspace, and 'read_write' is a file opened for both.
+-- The kind of file operation observed. 'download' is a transfer from
+-- the workspace to the client, 'upload' is a transfer from the client
+-- to the workspace, and 'read_write' is a file opened for both reading
+-- and writing at once. For SFTP these record the requested access mode
+-- at open time, not bytes actually transferred.
 CREATE TYPE connection_log_file_action AS ENUM (
-	'read',
-	'write',
+	'download',
+	'upload',
 	'read_write',
 	'mkdir',
 	'remove',

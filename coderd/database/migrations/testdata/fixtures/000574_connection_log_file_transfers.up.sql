@@ -63,7 +63,7 @@ INSERT INTO connection_logs (
 	NULL, -- close time
 	NULL, -- reason
 	'sftp', -- file protocol
-	'read', -- file action
+	'download', -- file action
 	'/home/coder/secrets.txt', -- file path
 	NULL -- file target
 ),

@@ -1035,10 +1035,10 @@ func ConnectionLogFileProtocolFromAgentProtoFileTransferProtocol(protocol agentp
 
 func ConnectionLogFileActionFromAgentProtoFileTransferAction(action agentproto.FileTransferOperation_Action) (database.ConnectionLogFileAction, error) {
 	switch action {
-	case agentproto.FileTransferOperation_READ:
-		return database.ConnectionLogFileActionRead, nil
-	case agentproto.FileTransferOperation_WRITE:
-		return database.ConnectionLogFileActionWrite, nil
+	case agentproto.FileTransferOperation_DOWNLOAD:
+		return database.ConnectionLogFileActionDownload, nil
+	case agentproto.FileTransferOperation_UPLOAD:
+		return database.ConnectionLogFileActionUpload, nil
 	case agentproto.FileTransferOperation_READ_WRITE:
 		return database.ConnectionLogFileActionReadWrite, nil
 	case agentproto.FileTransferOperation_MKDIR:

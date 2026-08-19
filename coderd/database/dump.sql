@@ -369,8 +369,8 @@ CREATE TYPE chat_status AS ENUM (
 );
 
 CREATE TYPE connection_log_file_action AS ENUM (
-    'read',
-    'write',
+    'download',
+    'upload',
     'read_write',
     'mkdir',
     'remove',
