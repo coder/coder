@@ -2241,6 +2241,14 @@ func (m queryMetricsStore) GetLatestAIBridgeInterceptionByInitiator(ctx context.
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetLatestAIBridgeInterceptionIDByInitiator(ctx context.Context, arg database.GetLatestAIBridgeInterceptionIDByInitiatorParams) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestAIBridgeInterceptionIDByInitiator(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetLatestAIBridgeInterceptionIDByInitiator").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestAIBridgeInterceptionIDByInitiator").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetLatestCryptoKeyByFeature(ctx, feature)

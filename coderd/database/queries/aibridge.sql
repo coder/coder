@@ -88,6 +88,24 @@ ORDER BY
 	started_at DESC
 LIMIT 1;
 
+-- name: GetLatestAIBridgeInterceptionIDByInitiator :one
+-- Returns only the identifier, so a caller that may write annotations but not
+-- read interceptions can locate the row to write to. A null client_session_id
+-- matches any session.
+SELECT
+	id
+FROM
+	aibridge_interceptions
+WHERE
+	initiator_id = @initiator_id::uuid
+	AND (
+		sqlc.narg('client_session_id')::text IS NULL
+		OR client_session_id = sqlc.narg('client_session_id')::text
+	)
+ORDER BY
+	started_at DESC
+LIMIT 1;
+
 -- name: GetAIBridgeInterceptionLineageByToolCallID :one
 -- Look up the parent interception and the root of the thread by finding
 -- which interception recorded a tool usage with the given tool call ID.

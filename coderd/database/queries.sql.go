@@ -1602,6 +1602,37 @@ func (q *sqlQuerier) GetLatestAIBridgeInterceptionByInitiator(ctx context.Contex
 	return i, err
 }
 
+const getLatestAIBridgeInterceptionIDByInitiator = `-- name: GetLatestAIBridgeInterceptionIDByInitiator :one
+SELECT
+	id
+FROM
+	aibridge_interceptions
+WHERE
+	initiator_id = $1::uuid
+	AND (
+		$2::text IS NULL
+		OR client_session_id = $2::text
+	)
+ORDER BY
+	started_at DESC
+LIMIT 1
+`
+
+type GetLatestAIBridgeInterceptionIDByInitiatorParams struct {
+	InitiatorID     uuid.UUID      `db:"initiator_id" json:"initiator_id"`
+	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
+}
+
+// Returns only the identifier, so a caller that may write annotations but not
+// read interceptions can locate the row to write to. A null client_session_id
+// matches any session.
+func (q *sqlQuerier) GetLatestAIBridgeInterceptionIDByInitiator(ctx context.Context, arg GetLatestAIBridgeInterceptionIDByInitiatorParams) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, getLatestAIBridgeInterceptionIDByInitiator, arg.InitiatorID, arg.ClientSessionID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
 	id, api_key_id, initiator_id, provider, provider_name, model, metadata, annotations, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number

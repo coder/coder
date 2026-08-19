@@ -3975,6 +3975,16 @@ func (q *querier) GetLatestAIBridgeInterceptionByInitiator(ctx context.Context, 
 	return fetch(q.log, q.auth, q.db.GetLatestAIBridgeInterceptionByInitiator)(ctx, initiatorID)
 }
 
+// GetLatestAIBridgeInterceptionIDByInitiator returns an identifier rather than
+// interception content, so it is authorized as a system read. Callers must
+// scope the lookup to the initiator they are acting for.
+func (q *querier) GetLatestAIBridgeInterceptionIDByInitiator(ctx context.Context, arg database.GetLatestAIBridgeInterceptionIDByInitiatorParams) (uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.GetLatestAIBridgeInterceptionIDByInitiator(ctx, arg)
+}
+
 func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err

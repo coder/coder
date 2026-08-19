@@ -3,6 +3,7 @@ package mcp_test
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -30,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	mcpserver "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -1543,6 +1546,88 @@ func TestMCPHTTP_E2E_AnnotationsToolset(t *testing.T) {
 		text, ok := result.Content[0].(*mcp.TextContent)
 		require.True(t, ok, "expected TextContent, got %T", result.Content[0])
 		require.Contains(t, text.Text, "no AI Gateway interception to annotate")
+	})
+
+	t.Run("TargetsTheSuppliedSession", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A plain member can annotate but cannot read interceptions, which
+		// is the case the identifier lookup has to work under.
+		sessionUser, sessionMember := coderdtest.CreateAnotherUser(t, coderClient, firstUser.OrganizationID)
+		started := dbtime.Now()
+		targeted := dbgen.AIBridgeInterception(t, api.Database, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     sessionMember.ID,
+			ClientSessionID: sql.NullString{String: "claude-session-a", Valid: true},
+			StartedAt:       started.Add(-time.Hour),
+		}, nil)
+		newest := dbgen.AIBridgeInterception(t, api.Database, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     sessionMember.ID,
+			ClientSessionID: sql.NullString{String: "claude-session-b", Valid: true},
+			StartedAt:       started,
+		}, nil)
+
+		session, err := newIsolatedMCPClient(ctx, annotationsURL, "test-client-annotations-session", map[string]string{
+			"Authorization": "Bearer " + sessionUser.SessionToken(),
+		})
+		require.NoError(t, err)
+		defer func() {
+			_ = session.Close()
+		}()
+
+		result, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name: agplcoderd.MCPToolNameAnnotateInterception,
+			Arguments: map[string]any{
+				"session_id": " claude-session-a ",
+				"repo":       "coder/coder",
+			},
+		})
+		require.NoError(t, err)
+		text, ok := result.Content[0].(*mcp.TextContent)
+		require.True(t, ok, "expected TextContent, got %T", result.Content[0])
+		require.False(t, result.IsError, text.Text)
+
+		var payload struct {
+			InterceptionID string `json:"interception_id"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(text.Text), &payload))
+		require.Equal(t, targeted.ID.String(), payload.InterceptionID)
+
+		//nolint:gocritic // The test asserts on stored annotations.
+		systemCtx := dbauthz.AsSystemRestricted(ctx)
+		got, err := api.Database.GetAIBridgeInterceptionByID(systemCtx, targeted.ID)
+		require.NoError(t, err)
+		require.Equal(t, "coder/coder", *got.Annotations.Repo)
+
+		untouched, err := api.Database.GetAIBridgeInterceptionByID(systemCtx, newest.ID)
+		require.NoError(t, err)
+		require.Nil(t, untouched.Annotations.Repo)
+	})
+
+	t.Run("UnknownSession", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		session, err := newIsolatedMCPClient(ctx, annotationsURL, "test-client-annotations-unknown-session", map[string]string{
+			"Authorization": "Bearer " + coderClient.SessionToken(),
+		})
+		require.NoError(t, err)
+		defer func() {
+			_ = session.Close()
+		}()
+
+		result, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name: agplcoderd.MCPToolNameAnnotateInterception,
+			Arguments: map[string]any{
+				"session_id": "no-such-session",
+				"repo":       "coder/coder",
+			},
+		})
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		text, ok := result.Content[0].(*mcp.TextContent)
+		require.True(t, ok, "expected TextContent, got %T", result.Content[0])
+		require.Contains(t, text.Text, `no AI Gateway interception for session "no-such-session"`)
 	})
 
 	t.Run("UnknownToolset", func(t *testing.T) {

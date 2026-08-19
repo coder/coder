@@ -636,6 +636,10 @@ type sqlcQuerier interface {
 	GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestAIBridgeInterceptionByInitiator(ctx context.Context, initiatorID uuid.UUID) (AIBridgeInterception, error)
+	// Returns only the identifier, so a caller that may write annotations but not
+	// read interceptions can locate the row to write to. A null client_session_id
+	// matches any session.
+	GetLatestAIBridgeInterceptionIDByInitiator(ctx context.Context, arg GetLatestAIBridgeInterceptionIDByInitiatorParams) (uuid.UUID, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
 	GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (WorkspaceAgentContextSnapshot, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)

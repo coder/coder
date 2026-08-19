@@ -6723,6 +6723,13 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(initID).Asserts(intc, policy.ActionRead).Returns(intc)
 	}))
 
+	s.Run("GetLatestAIBridgeInterceptionIDByInitiator", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetLatestAIBridgeInterceptionIDByInitiatorParams{InitiatorID: uuid.UUID{3}}
+		intcID := uuid.UUID{2}
+		db.EXPECT().GetLatestAIBridgeInterceptionIDByInitiator(gomock.Any(), arg).Return(intcID, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(intcID)
+	}))
+
 	s.Run("GetAIBridgeTokenUsagesByInterceptionID", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		intID := uuid.UUID{2}
 		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})

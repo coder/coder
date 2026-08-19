@@ -4170,6 +4170,21 @@ func (mr *MockStoreMockRecorder) GetLatestAIBridgeInterceptionByInitiator(ctx, i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestAIBridgeInterceptionByInitiator", reflect.TypeOf((*MockStore)(nil).GetLatestAIBridgeInterceptionByInitiator), ctx, initiatorID)
 }
 
+// GetLatestAIBridgeInterceptionIDByInitiator mocks base method.
+func (m *MockStore) GetLatestAIBridgeInterceptionIDByInitiator(ctx context.Context, arg database.GetLatestAIBridgeInterceptionIDByInitiatorParams) (uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestAIBridgeInterceptionIDByInitiator", ctx, arg)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestAIBridgeInterceptionIDByInitiator indicates an expected call of GetLatestAIBridgeInterceptionIDByInitiator.
+func (mr *MockStoreMockRecorder) GetLatestAIBridgeInterceptionIDByInitiator(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestAIBridgeInterceptionIDByInitiator", reflect.TypeOf((*MockStore)(nil).GetLatestAIBridgeInterceptionIDByInitiator), ctx, arg)
+}
+
 // GetLatestCryptoKeyByFeature mocks base method.
 func (m *MockStore) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	m.ctrl.T.Helper()

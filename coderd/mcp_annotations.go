@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/google/uuid"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/aibridge/annotations"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
@@ -29,8 +31,9 @@ const MCPAnnotationsInstructions = "Coder AI Gateway work-context annotation. " 
 	"Linear issues, and GitHub pull requests the current work belongs to, so " +
 	"the recorded activity can be attributed later. Call it as soon as you " +
 	"know any of those values, and again whenever they change or you learn a " +
-	"new issue or pull request. Never ask the user for these values and never " +
-	"guess them."
+	"new issue or pull request. When the session context supplies an AI " +
+	"Gateway session ID, pass it as session_id on every call. Never ask the " +
+	"user for these values and never guess them."
 
 const mcpAnnotateInterceptionDescription = "Record the work context for the " +
 	"current AI Gateway activity so it can be attributed later. Call this as " +
@@ -38,13 +41,15 @@ const mcpAnnotateInterceptionDescription = "Record the work context for the " +
 	"working on, and again whenever any of them change, including when you " +
 	"open a pull request. Supply only the fields you are confident about; " +
 	"omitted fields keep their previous value. Issues and pull requests " +
-	"accumulate, so passing a new one keeps the earlier ones. Do not guess."
+	"accumulate, so passing a new one keeps the earlier ones. Pass session_id " +
+	"whenever the session context supplies one. Do not guess."
 
 type mcpAnnotateInterceptionArgs struct {
 	LinearIssueIDs []string `json:"linear_issue_ids"`
 	GitHubPRURLs   []string `json:"github_pr_urls"`
 	Repo           string   `json:"repo"`
 	Branch         string   `json:"branch"`
+	SessionID      string   `json:"session_id"`
 }
 
 var mcpAnnotateInterceptionSchema = map[string]any{
@@ -68,16 +73,21 @@ var mcpAnnotateInterceptionSchema = map[string]any{
 			"type":        "string",
 			"description": "Git branch the work targets.",
 		},
+		"session_id": map[string]any{
+			"type":        "string",
+			"description": "AI Gateway session identifier supplied by the session context. Pass it verbatim whenever it is available so the annotation lands on this session rather than the most recent activity. Omit it when the context does not supply one, and never guess it.",
+		},
 	},
 	"required": []string{},
 }
 
 // registerMCPAnnotationTool registers the annotation tool on srv. The tool
-// annotates the most recent interception initiated by initiatorID, which is the
-// interception carrying the model turn that decided to call it. Database calls
-// run with the actor installed on the request context by the API key
-// middleware, so the caller's own permissions authorize both the read and the
-// write.
+// annotates the interception matching the supplied session ID, or the most
+// recent interception initiated by initiatorID when no session ID is given.
+// Every lookup is scoped to initiatorID, so a session ID supplied by the model
+// can only reach that user's own interceptions. The write runs with the actor
+// installed on the request context by the API key middleware, so the caller's
+// own permissions authorize it.
 func registerMCPAnnotationTool(srv *mcp.Server, db database.Store, initiatorID uuid.UUID) error {
 	if db == nil {
 		return xerrors.New("database cannot be nil")
@@ -114,15 +124,33 @@ func registerMCPAnnotationTool(srv *mcp.Server, db database.Store, initiatorID u
 			return mcpToolError(err), nil
 		}
 
-		interception, err := db.GetLatestAIBridgeInterceptionByInitiator(ctx, initiatorID)
+		sessionID := strings.TrimSpace(args.SessionID)
+		lookup := database.GetLatestAIBridgeInterceptionIDByInitiatorParams{
+			InitiatorID: initiatorID,
+		}
+		if sessionID != "" {
+			lookup.ClientSessionID = sql.NullString{String: sessionID, Valid: true}
+		}
+
+		// The lookup runs as the system because a user may annotate an
+		// interception without being allowed to read interceptions. It
+		// returns an identifier only, filtered to initiatorID.
+		//nolint:gocritic // See above.
+		interceptionID, err := db.GetLatestAIBridgeInterceptionIDByInitiator(dbauthz.AsSystemRestricted(ctx), lookup)
 		if errors.Is(err, sql.ErrNoRows) {
+			if sessionID != "" {
+				// A supplied session ID that matches nothing is reported
+				// rather than widened to the latest interception, so a
+				// wrong ID cannot annotate unrelated activity.
+				return mcpToolError(xerrors.Errorf("no AI Gateway interception for session %q", sessionID)), nil
+			}
 			return mcpToolError(xerrors.New("no AI Gateway interception to annotate")), nil
 		}
 		if err != nil {
 			return mcpToolError(xerrors.Errorf("load latest interception: %w", err)), nil
 		}
 
-		params.ID = interception.ID
+		params.ID = interceptionID
 		updated, err := db.UpdateAIBridgeInterceptionAnnotations(ctx, params)
 		if err != nil {
 			return mcpToolError(xerrors.Errorf("annotate interception: %w", err)), nil
