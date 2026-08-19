@@ -40,12 +40,10 @@ const LABEL_MAP: Record<GithubAlert, string> = {
 	CAUTION: "Caution",
 };
 
-// Match only GitHub's canonical alert marker: an uppercase type with no space
-// after `!` (`[!NOTE]`). This strictness is intentional. The canonical form is
-// the one GitHub documents, so keeping the matcher strict lets us normalize any
-// non-canonical markers (`[! WARNING]`, `[!Note]`) once at the source in the
-// docs corpus, rather than having this pipeline accept forms that can render
-// inconsistently elsewhere.
+// Strict on purpose: this matches only GitHub's canonical marker (uppercase
+// type, no space after `!`). Non-canonical markers (`[! WARNING]`, `[!Note]`)
+// are normalized at the source instead, so the matcher stays aligned with
+// GitHub's own rendering.
 const MARKER = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/;
 
 function toCallout(blockquote: MdastNode): MdastNode | null {

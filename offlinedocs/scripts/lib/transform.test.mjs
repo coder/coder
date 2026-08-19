@@ -128,6 +128,15 @@ test("normalizeAngleBrackets rewrites autolinks and escapes stray <", () => {
 		),
 		"[self-hosted](<https://en.wikipedia.org/wiki/Self-hosting_(web_services)>)",
 	);
+	// A plain parenthetical autolink has no `]` before the `(`, so the
+	// lookbehind does not fire and the autolink is still rewritten (the Maven
+	// URL on the admin setup page relies on this).
+	assert.equal(
+		normalizeAngleBrackets("(<https://x.dev>)"),
+		"([https://x.dev](https://x.dev))",
+	);
+	// The same lookbehind guards a bracketed email destination.
+	assert.equal(normalizeAngleBrackets("[me](<a@b.com>)"), "[me](<a@b.com>)");
 });
 
 test("escapeCurlyBraces escapes braces in prose but not code", () => {

@@ -443,10 +443,8 @@ export function parseFrontmatter(content) {
 	try {
 		({ matter, data } = parseYamlFrontmatter(content));
 	} catch (err) {
-		// js-yaml (via fumadocs-core) throws a YAMLException that names no source
-		// file. Re-throw as a FrontmatterError carrying the human-readable reason so
-		// the sync can attribute it to the file being parsed (collect-and-name)
-		// instead of surfacing an opaque parser stack trace.
+		// Convert js-yaml's file-less YAMLException into a FrontmatterError (see
+		// its definition above) so the sync can name the offending file.
 		throw new FrontmatterError(err?.reason ?? err?.message ?? String(err));
 	}
 	if (
