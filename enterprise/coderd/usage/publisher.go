@@ -218,11 +218,6 @@ func (p *tallymanPublisher) publish(ctx context.Context, deploymentID uuid.UUID)
 // publishOnce publishes up to tallymanPublishBatchSize usage events to
 // tallyman. It returns the number of successfully published events.
 func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.UUID) (int, error) {
-	// The pre-publish database reads run under their own bounded context so
-	// a stalled database cannot block the publish loop indefinitely.
-	selectCtx, selectCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
-	defer selectCtxCancel()
-
 	// Prune failure rows whose events aged out of the publish window on
 	// every cycle, before the license check, so the failures relation stays
 	// pruned even while publishing is disabled or idle. Without this a
@@ -231,11 +226,19 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	// walk would have to skip every one of them on the first refresh after
 	// re-enablement. Rejections need no idle prune: detection bounds them
 	// by a range on their index's leading column, so stale rows only
-	// occupy space until the next publishing cycle.
-	if err := p.db.PruneUsageEventsPublishFailures(selectCtx, dbtime.Time(p.clock.Now().Add(-usagePublishingWindow))); err != nil {
+	// occupy space until the next publishing cycle. The prune gets its own
+	// bounded context so stalled best-effort housekeeping cannot exhaust
+	// the deadline the operational reads below depend on.
+	pruneCtx, pruneCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
+	defer pruneCtxCancel()
+	if err := p.db.PruneUsageEventsPublishFailures(pruneCtx, dbtime.Time(p.clock.Now().Add(-usagePublishingWindow))); err != nil {
 		p.log.Warn(ctx, "prune usage events publish failures", slog.Error(err))
 	}
 
+	// The pre-publish database reads run under their own bounded context so
+	// a stalled database cannot block the publish loop indefinitely.
+	selectCtx, selectCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
+	defer selectCtxCancel()
 	licenseJwt, err := p.getBestLicenseJWT(selectCtx)
 	if xerrors.Is(err, errUsagePublishingDisabled) {
 		return 0, nil
