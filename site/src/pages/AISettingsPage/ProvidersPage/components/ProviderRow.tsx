@@ -10,7 +10,6 @@ import { TableCell, TableRow } from "#/components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
@@ -69,26 +68,24 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 						</Badge>
 					)}
 					{provider.status?.warnings && provider.status.warnings.length > 0 && (
-						<TooltipProvider>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Badge
-										variant="warning"
-										tabIndex={0}
-										aria-label={`Warning: ${provider.status.warnings.join("; ")}`}
-										onClick={(e) => e.stopPropagation()}
-										onKeyDown={(e) => e.stopPropagation()}
-									>
-										Warning
-									</Badge>
-								</TooltipTrigger>
-								<TooltipContent>
-									{provider.status.warnings.map((warning) => (
-										<p key={warning}>{warning}</p>
-									))}
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Badge
+									variant="warning"
+									tabIndex={0}
+									aria-label={`Warning: ${provider.status.warnings.join("; ")}`}
+									onClick={(e) => e.stopPropagation()}
+									onKeyDown={(e) => e.stopPropagation()}
+								>
+									Warning
+								</Badge>
+							</TooltipTrigger>
+							<TooltipContent>
+								{provider.status.warnings.map((warning) => (
+									<p key={warning}>{warning}</p>
+								))}
+							</TooltipContent>
+						</Tooltip>
 					)}
 				</div>
 			</TableCell>

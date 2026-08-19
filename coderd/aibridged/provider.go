@@ -26,8 +26,10 @@ const (
 )
 
 // ProviderOutcome classifies one ai_providers row, including
-// disabled rows (503 stubs) and errored rows (excluded from pool).
-// Err is set when Status is Error or ProxyExcluded.
+// disabled rows (503 stubs), errored rows (excluded from pool),
+// and proxy-excluded rows (excluded from proxy routing).
+// Err is set when Status is Error or ProxyExcluded; the build error
+// is already logged at the call site.
 type ProviderOutcome struct {
 	Name   string
 	Type   string
@@ -36,8 +38,9 @@ type ProviderOutcome struct {
 }
 
 // BaseURLHostname returns the normalized hostname from a provider
-// base URL, matching the normalization used by the proxy classifier.
-// Scheme-less inputs (from env-config seeding) get https:// prepended.
+// base URL. It is the canonical normalization used by the proxy
+// classifier and the API status check. Scheme-less inputs (from
+// env-config seeding) get https:// prepended.
 func BaseURLHostname(baseURL string) string {
 	baseURL = strings.TrimSpace(baseURL)
 	if baseURL == "" {

@@ -540,8 +540,9 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 	})
 
 	// DuplicateHostDirectPathRoutesBoth proves the core invariant of
-	// AIGOV-596: two providers sharing a hostname are both routable via
-	// the direct path even though the proxy can only route one.
+	// https://linear.app/codercom/issue/AIGOV-596: two providers
+	// sharing a hostname are both routable via the direct path even
+	// though the proxy can only route one.
 	t.Run("DuplicateHostDirectPathRoutesBoth", func(t *testing.T) {
 		t.Parallel()
 

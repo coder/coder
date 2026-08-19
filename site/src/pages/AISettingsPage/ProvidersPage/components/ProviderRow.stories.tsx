@@ -117,6 +117,11 @@ export const WithHostnameCollisionWarning: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText(/warning/i)).toBeInTheDocument();
+		const badge = canvas.getByText(/warning/i);
+		await expect(badge).toBeInTheDocument();
+		await expect(badge).toHaveAttribute(
+			"aria-label",
+			expect.stringContaining("api.openai.com"),
+		);
 	},
 };
