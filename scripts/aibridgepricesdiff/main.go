@@ -177,10 +177,11 @@ func render(d diff) string {
 		if len(keys) == 0 {
 			return
 		}
-		write("\n### %s\n\n", heading)
+		write("\n<details>\n<summary>%s</summary>\n\n", heading)
 		for _, k := range keys {
 			write("- %s\n", k)
 		}
+		write("</details>\n")
 	}
 	renderList("Added", d.added)
 	renderList("Removed", d.removed)

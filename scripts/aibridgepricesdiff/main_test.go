@@ -213,17 +213,23 @@ No price changes.
 
 1 model added, 1 model removed, 1 model changed.
 
-### Added
+<details>
+<summary>Added</summary>
 
 - anthropic/fresh
+</details>
 
-### Removed
+<details>
+<summary>Removed</summary>
 
 - anthropic/gone
+</details>
 
-### Changed
+<details>
+<summary>Changed</summary>
 
 - openai/gpt
+</details>
 `, out)
 	})
 }
@@ -249,7 +255,7 @@ func TestRun(t *testing.T) {
 
 		var out strings.Builder
 		require.NoError(t, run(oldPath, newPath, &out))
-		require.Contains(t, out.String(), "### Changed\n\n- openai/gpt\n")
+		require.Contains(t, out.String(), "<summary>Changed</summary>\n\n- openai/gpt\n")
 	})
 
 	t.Run("invalid json", func(t *testing.T) {
