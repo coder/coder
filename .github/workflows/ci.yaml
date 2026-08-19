@@ -1007,7 +1007,7 @@ jobs:
       - name: Get Playwright version
         id: playwright-version
         run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-        working-directory: site
+        working-directory: site/
 
       # Cache the browser to avoid relying on azure.archive.ubuntu.com, which
       # can be flakey. Only the default branch is trusted to write the cache,
@@ -1021,7 +1021,7 @@ jobs:
 
       - run: pnpm exec playwright install chromium
         timeout-minutes: 5
-        working-directory: site
+        working-directory: site/
 
       - name: Save Chromium cache
         if: github.ref == 'refs/heads/main' && steps.playwright-chromium-cache.outputs.cache-hit != 'true'
