@@ -730,11 +730,11 @@ export const PricingEstimateFields: FC<{
 				return (
 					<div key={label} className="flex min-w-0 flex-col gap-1.5">
 						<FieldLabel htmlFor={fieldId} label={label} />
-						<InputGroup>
+						<InputGroup className="cursor-not-allowed bg-surface-secondary">
 							<InputGroupAddon align="inline-start">$</InputGroupAddon>
 							<InputGroupInput
 								id={fieldId}
-								className="min-w-0 text-content-secondary"
+								className="min-w-0 cursor-not-allowed text-content-secondary"
 								value={displayValue}
 								readOnly
 							/>
