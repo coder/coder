@@ -2229,6 +2229,8 @@ func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
 		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
 		return generateCryptoKey(64)
+	case database.CryptoKeyFeatureChatFilesToken:
+		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureNATSCA:
 		return generateCACryptoKeySecret()
 	}

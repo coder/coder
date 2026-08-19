@@ -109,6 +109,30 @@ func TestGenericToolMCPAnnotations(t *testing.T) {
 			openWorldHint:   false,
 		},
 		{
+			name:            "DownloadChatFileIsReadOnly",
+			toolName:        toolsdk.ToolNameDownloadChatFile,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+		{
+			name:            "AwaitChatIsReadOnly",
+			toolName:        toolsdk.ToolNameAwaitChat,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+		{
+			name:            "ListChatsIsReadOnly",
+			toolName:        toolsdk.ToolNameListChats,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
+		{
 			name:            "DestructiveTool",
 			toolName:        toolsdk.ToolNameWorkspaceWriteFile,
 			readOnlyHint:    false,
@@ -309,6 +333,7 @@ func TestTools(t *testing.T) {
 		})
 		for i, template := range result {
 			require.Equal(t, expected[i].ID.String(), template.ID)
+			require.Equal(t, expected[i].AgentsAllowed, template.AgentsAllowed)
 		}
 	})
 
