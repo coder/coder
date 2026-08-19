@@ -91,10 +91,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		warnings := aiProviderHostnameWarnings(ctx, api.Database, row)
-		if len(warnings) > 0 {
-			sdk.Status = &codersdk.AIProviderStatus{Warnings: warnings}
-		}
+		sdk.Status = aiProviderHostnameWarnings(ctx, api.Database, row)
 		out = append(out, sdk)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, out)
@@ -136,10 +133,7 @@ func (api *API) aiProvidersGet(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	warnings := aiProviderHostnameWarnings(ctx, api.Database, row)
-	if len(warnings) > 0 {
-		sdk.Status = &codersdk.AIProviderStatus{Warnings: warnings}
-	}
+	sdk.Status = aiProviderHostnameWarnings(ctx, api.Database, row)
 	httpapi.Write(ctx, rw, http.StatusOK, sdk)
 }
 
@@ -261,10 +255,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	warnings := aiProviderHostnameWarnings(ctx, api.Database, row)
-	if len(warnings) > 0 {
-		sdk.Status = &codersdk.AIProviderStatus{Warnings: warnings}
-	}
+	sdk.Status = aiProviderHostnameWarnings(ctx, api.Database, row)
 	httpapi.Write(ctx, rw, http.StatusCreated, sdk)
 }
 
@@ -458,10 +449,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	warnings := aiProviderHostnameWarnings(ctx, api.Database, updated)
-	if len(warnings) > 0 {
-		sdk.Status = &codersdk.AIProviderStatus{Warnings: warnings}
-	}
+	sdk.Status = aiProviderHostnameWarnings(ctx, api.Database, updated)
 	httpapi.Write(ctx, rw, http.StatusOK, sdk)
 }
 
@@ -573,9 +561,9 @@ func lookupAIProvider(ctx context.Context, store database.Store, idOrName string
 	return store.GetAIProviderByName(ctx, idOrName)
 }
 
-// aiProviderHostnameWarnings returns a warning for each other
-// enabled provider sharing the same base URL hostname.
-func aiProviderHostnameWarnings(ctx context.Context, store database.Store, provider database.AIProvider) []string {
+// aiProviderHostnameWarnings returns a Status with warnings for each
+// other enabled provider sharing the same base URL hostname, or nil.
+func aiProviderHostnameWarnings(ctx context.Context, store database.Store, provider database.AIProvider) *codersdk.AIProviderStatus {
 	if !provider.Enabled {
 		return nil
 	}
@@ -583,22 +571,23 @@ func aiProviderHostnameWarnings(ctx context.Context, store database.Store, provi
 	if host == "" {
 		return nil
 	}
-	others, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{
-		IncludeDisabled: true,
-	})
+	others, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{})
 	if err != nil {
 		return nil
 	}
 	var warnings []string
 	for _, other := range others {
-		if other.ID == provider.ID || !other.Enabled {
+		if other.ID == provider.ID {
 			continue
 		}
 		if aibridged.BaseURLHostname(other.BaseUrl) == host {
 			warnings = append(warnings, fmt.Sprintf("hostname %q is also used by provider %q; not reachable via the AI Bridge Proxy, use direct routing (/api/v2/aibridge/%s/...) instead", host, other.Name, provider.Name))
 		}
 	}
-	return warnings
+	if len(warnings) == 0 {
+		return nil
+	}
+	return &codersdk.AIProviderStatus{Warnings: warnings}
 }
 
 // writeAIProviderError translates an error from the AI provider

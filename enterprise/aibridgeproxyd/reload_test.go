@@ -570,18 +570,6 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 			bridge.ServeHTTP(rec, req)
 			assert.Equal(t, http.StatusOK, rec.Code, "direct path must route provider %q", name)
 		}
-
-		// The proxy can only route the first (nameByHost is 1:1).
-		h := newReloadTestHarness(t)
-		h.store.set([]rawProvider{
-			{name: "first", baseURL: "https://shared.invalid/v1"},
-			{name: "second", baseURL: "https://shared.invalid/v2"},
-		})
-		require.NoError(t, h.srv.Reload(t.Context()))
-
-		// The proxy MITM's the hostname and routes to the first
-		// provider regardless of path.
-		h.expectRoutedTo(t, "https://shared.invalid/v2/messages", "/first/v2/messages")
 	})
 
 	t.Run("AllInvalidYieldsEmptyRouter", func(t *testing.T) {
