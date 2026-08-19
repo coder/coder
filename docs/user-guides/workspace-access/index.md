@@ -174,7 +174,6 @@ IDEs are supported for remote development:
 - Rider
 - RubyMine
 - WebStorm
-- [JetBrains Fleet](./jetbrains/fleet.md)
 
 Read our [docs on JetBrains](./jetbrains/index.md) for more information
 on connecting your JetBrains IDEs.
