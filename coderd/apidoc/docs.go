@@ -19207,6 +19207,13 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
                 },
+                "environment_variables": {
+                    "description": "EnvironmentVariables apply only to the turn started by this message.\nValues are not included in model prompts or API responses, but are\nstored unencrypted in the Coder database.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "mcp_server_ids": {
                     "type": "array",
                     "items": {
@@ -19268,6 +19275,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatInputPart"
+                    }
+                },
+                "environment_variables": {
+                    "description": "EnvironmentVariables are persisted with the initial user turn and\nprovided only to workspace command execution. Values are not included\nin model prompts or API responses, but are stored unencrypted in the\nCoder database.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
                     }
                 },
                 "labels": {

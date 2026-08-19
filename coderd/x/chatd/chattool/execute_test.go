@@ -268,6 +268,49 @@ func TestExecuteTool(t *testing.T) {
 		assert.Equal(t, "chat-123", capturedReq.Env["AGENT_BROWSER_SESSION"])
 	})
 
+	t.Run("TurnEnvironmentVariables", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		var capturedReq workspacesdk.StartProcessRequest
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				capturedReq = req
+				return workspacesdk.StartProcessResponse{ID: "proc-1"}, nil
+			})
+		exitCode := 0
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil)
+
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			AgentBrowserSession: "chat-123",
+			EnvironmentVariables: map[string]string{
+				"SCANNER_TOKEN":         "secret",
+				"CODER_CHAT_AGENT":      "false",
+				"AGENT_BROWSER_SESSION": "other-chat",
+				"TERM":                  "interactive",
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"scanner"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.Equal(t, "secret", capturedReq.Env["SCANNER_TOKEN"])
+		assert.Equal(t, "true", capturedReq.Env["CODER_CHAT_AGENT"])
+		assert.Equal(t, "chat-123", capturedReq.Env["AGENT_BROWSER_SESSION"])
+		assert.Equal(t, "dumb", capturedReq.Env["TERM"])
+	})
+
 	t.Run("ModelIntentIgnoredByExecution", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)

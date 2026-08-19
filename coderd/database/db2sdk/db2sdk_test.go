@@ -654,6 +654,31 @@ func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
 	require.True(t, result.Content[1].ProviderExecuted, "tool result should preserve ProviderExecuted")
 }
 
+func TestChatMessage_OmitsEnvironmentVariables(t *testing.T) {
+	t.Parallel()
+
+	environmentVariables := pqtype.NullRawMessage{
+		RawMessage: []byte(`{"SCANNER_TOKEN":"secret"}`),
+		Valid:      true,
+	}
+	message := db2sdk.ChatMessage(database.ChatMessage{
+		ID:                   1,
+		ChatID:               uuid.New(),
+		Role:                 database.ChatMessageRoleUser,
+		EnvironmentVariables: environmentVariables,
+	})
+	encoded, err := json.Marshal(message)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "SCANNER_TOKEN")
+	require.NotContains(t, string(encoded), "secret")
+
+	queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{EnvironmentVariables: environmentVariables})
+	encoded, err = json.Marshal(queued)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "SCANNER_TOKEN")
+	require.NotContains(t, string(encoded), "secret")
+}
+
 func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
 	t.Parallel()
 

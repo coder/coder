@@ -565,14 +565,19 @@ type ToolResult struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	OrganizationID  uuid.UUID         `json:"organization_id" format:"uuid"`
-	Content         []ChatInputPart   `json:"content"`
-	SystemPrompt    string            `json:"system_prompt,omitempty"`
-	WorkspaceID     *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
-	ModelConfigID   *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	ReasoningEffort *string           `json:"reasoning_effort,omitempty"`
-	MCPServerIDs    []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
-	Labels          map[string]string `json:"labels,omitempty"`
+	OrganizationID  uuid.UUID       `json:"organization_id" format:"uuid"`
+	Content         []ChatInputPart `json:"content"`
+	SystemPrompt    string          `json:"system_prompt,omitempty"`
+	WorkspaceID     *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
+	ModelConfigID   *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	ReasoningEffort *string         `json:"reasoning_effort,omitempty"`
+	// EnvironmentVariables are persisted with the initial user turn and
+	// provided only to workspace command execution. Values are not included
+	// in model prompts or API responses, but are stored unencrypted in the
+	// Coder database.
+	EnvironmentVariables map[string]string `json:"environment_variables,omitempty"`
+	MCPServerIDs         []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
+	Labels               map[string]string `json:"labels,omitempty"`
 	// UnsafeDynamicTools declares client-executed tools that the
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.
@@ -635,6 +640,10 @@ type CreateChatMessageRequest struct {
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`
 	ReasoningEffort *string       `json:"reasoning_effort,omitempty"`
+	// EnvironmentVariables apply only to the turn started by this message.
+	// Values are not included in model prompts or API responses, but are
+	// stored unencrypted in the Coder database.
+	EnvironmentVariables map[string]string `json:"environment_variables,omitempty"`
 }
 
 // EditChatMessageRequest is the request to edit a user message in a chat.

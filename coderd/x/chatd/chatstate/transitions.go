@@ -273,11 +273,12 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 		return database.ChatQueuedMessage{}, err
 	}
 	return tx.store.InsertChatQueuedMessageWithCreator(tx.ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:          tx.chatID,
-		Content:         rawContent,
-		ModelConfigID:   m.ModelConfigID,
-		ReasoningEffort: m.ReasoningEffort,
-		CreatedBy:       createdBy,
+		ChatID:               tx.chatID,
+		Content:              rawContent,
+		EnvironmentVariables: m.EnvironmentVariables,
+		ModelConfigID:        m.ModelConfigID,
+		ReasoningEffort:      m.ReasoningEffort,
+		CreatedBy:            createdBy,
 	})
 }
 
@@ -285,13 +286,14 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 // suitable for promoting into active history.
 func messageFromQueuedRow(q database.ChatQueuedMessage) Message {
 	return Message{
-		Role:            database.ChatMessageRoleUser,
-		Content:         pqtype.NullRawMessage{RawMessage: q.Content, Valid: q.Content != nil},
-		Visibility:      database.ChatMessageVisibilityBoth,
-		ModelConfigID:   q.ModelConfigID,
-		ReasoningEffort: q.ReasoningEffort,
-		CreatedBy:       uuid.NullUUID{UUID: q.CreatedBy, Valid: true},
-		ContentVersion:  chatprompt.CurrentContentVersion,
+		Role:                 database.ChatMessageRoleUser,
+		Content:              pqtype.NullRawMessage{RawMessage: q.Content, Valid: q.Content != nil},
+		EnvironmentVariables: q.EnvironmentVariables,
+		Visibility:           database.ChatMessageVisibilityBoth,
+		ModelConfigID:        q.ModelConfigID,
+		ReasoningEffort:      q.ReasoningEffort,
+		CreatedBy:            uuid.NullUUID{UUID: q.CreatedBy, Valid: true},
+		ContentVersion:       chatprompt.CurrentContentVersion,
 	}
 }
 
@@ -628,13 +630,14 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		reasoningEffort = input.ReasoningEffortOverride
 	}
 	replacement := Message{
-		Role:            database.ChatMessageRoleUser,
-		Content:         input.Content,
-		Visibility:      target.Visibility,
-		ModelConfigID:   modelConfig,
-		ReasoningEffort: reasoningEffort,
-		CreatedBy:       uuid.NullUUID{UUID: input.CreatedBy, Valid: true},
-		ContentVersion:  chatprompt.CurrentContentVersion,
+		Role:                 database.ChatMessageRoleUser,
+		Content:              input.Content,
+		EnvironmentVariables: target.EnvironmentVariables,
+		Visibility:           target.Visibility,
+		ModelConfigID:        modelConfig,
+		ReasoningEffort:      reasoningEffort,
+		CreatedBy:            uuid.NullUUID{UUID: input.CreatedBy, Valid: true},
+		ContentVersion:       chatprompt.CurrentContentVersion,
 	}
 	insertedReplacement, err := tx.insertMessages([]Message{replacement})
 	if err != nil {

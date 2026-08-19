@@ -3856,6 +3856,12 @@ export interface CreateChatMessageRequest {
 	 */
 	readonly plan_mode?: ChatPlanMode;
 	readonly reasoning_effort?: string;
+	/**
+	 * EnvironmentVariables apply only to the turn started by this message.
+	 * Values are not included in model prompts or API responses, but are
+	 * stored unencrypted in the Coder database.
+	 */
+	readonly environment_variables?: Record<string, string>;
 }
 
 // From codersdk/chats.go
@@ -3917,6 +3923,13 @@ export interface CreateChatRequest {
 	readonly workspace_id?: string;
 	readonly model_config_id?: string;
 	readonly reasoning_effort?: string;
+	/**
+	 * EnvironmentVariables are persisted with the initial user turn and
+	 * provided only to workspace command execution. Values are not included
+	 * in model prompts or API responses, but are stored unencrypted in the
+	 * Coder database.
+	 */
+	readonly environment_variables?: Record<string, string>;
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
 	/**

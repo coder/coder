@@ -280,6 +280,10 @@ Experimental: this endpoint is subject to change.
       "type": "text"
     }
   ],
+  "environment_variables": {
+    "property1": "string",
+    "property2": "string"
+  },
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -1873,6 +1877,10 @@ Experimental: this endpoint is subject to change.
       "type": "text"
     }
   ],
+  "environment_variables": {
+    "property1": "string",
+    "property2": "string"
+  },
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
