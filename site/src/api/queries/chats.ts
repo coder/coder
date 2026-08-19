@@ -548,12 +548,20 @@ export const mergeWatchedChatSummary = (
 		isContextDirtyEvent && watchedChat.context
 			? { ...cachedChat.context, ...watchedChat.context }
 			: cachedChat.context;
+	const nextQueuedForCapacity =
+		isStatusEvent && nextStatus !== "running"
+			? false
+			: (cachedChat.queued_for_capacity ?? false);
 	const nextWorkspaceId = isFreshEnough
 		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
 		: cachedChat.workspace_id;
-	const nextBuildId = isFreshEnough
-		? (watchedChat.build_id ?? cachedChat.build_id)
-		: cachedChat.build_id;
+	// Single-chat reads repair agent/build bindings response-only, so watch
+	// events can replay stale DB pairs. Adopting build_id with a mismatched
+	// agent would split the repaired pair because merge never adopts agent_id.
+	const nextBuildId =
+		isFreshEnough && watchedChat.agent_id === cachedChat.agent_id
+			? (watchedChat.build_id ?? cachedChat.build_id)
+			: cachedChat.build_id;
 	// All event types carry the current model config from the DB.
 	const nextLastModelConfigId = isFreshEnough
 		? watchedChat.last_model_config_id
@@ -590,7 +598,8 @@ export const mergeWatchedChatSummary = (
 		nextSummary === cachedChat.summary &&
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at &&
-		nextContext === cachedChat.context
+		nextContext === cachedChat.context &&
+		nextQueuedForCapacity === (cachedChat.queued_for_capacity ?? false)
 	) {
 		return cachedChat;
 	}
@@ -608,6 +617,7 @@ export const mergeWatchedChatSummary = (
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
 		context: nextContext,
+		queued_for_capacity: nextQueuedForCapacity,
 	};
 };
 
@@ -1144,6 +1154,18 @@ export const chat = (chatId: string) => ({
 	queryKey: chatEntityKey(chatId),
 	queryFn: () => API.experimental.getChat(chatId),
 });
+
+export const getOpenChatPollInterval = (
+	data: TypesGen.Chat | undefined,
+): number | false =>
+	data?.status === "running" && !data.archived ? 5_000 : false;
+
+export const openChat = (chatId: string) =>
+	queryOptions({
+		...chat(chatId),
+		refetchInterval: ({ state }) => getOpenChatPollInterval(state.data),
+		refetchIntervalInBackground: false,
+	});
 
 export const chatACLKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "acl"] as const;

@@ -111,10 +111,10 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
 
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                           |
-|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       |                                                  |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                                 | Description                 | Schema                                           |
+|--------|-------------------------------------------------------------------------|-----------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                          |                                                  |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 64 KiB | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -351,6 +351,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "mcp_tool_deny_regex": "string",
           "mcp_url": "string",
           "no_refresh": true,
+          "redirect_url": "string",
           "regex": "string",
           "revoke_url": "string",
           "scopes": [

@@ -950,6 +950,10 @@ The abandon chat goroutine is responsible for abandoning the chat. It is spawned
 
 When the manager cleans up a runner, the runner must cancel all goroutines it has spawned and unsubscribe from pubsub.
 
+## Concurrent agent limiter
+
+By default, chatd runs up to five top-level chats and ten subagent chats at once. Each limit applies across the entire deployment. Enterprise deployments can remove these limits when their plan permits it. Extra chats wait for capacity, but users can still interrupt active chats.
+
 ## Auto-archive loop
 
 The worker periodically archives old, unused chats.

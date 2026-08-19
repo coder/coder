@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"iter"
+	"runtime"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -872,6 +874,317 @@ func TestSanitizeAnthropicProviderToolContent(t *testing.T) {
 	}
 }
 
+type serialMarkerTool struct{ fantasy.AgentTool }
+
+func (serialMarkerTool) SerialToolCalls() bool { return true }
+
+type observerMarkerTool struct {
+	fantasy.AgentTool
+	observed func(names []string)
+}
+
+func (t observerMarkerTool) ObserveStepToolCalls(names []string) { t.observed(names) }
+
+func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var observedNames []string
+	observedBeforeRun := false
+	observer := observerMarkerTool{
+		AgentTool: fantasy.NewAgentTool(
+			"observer_tool",
+			"records sibling calls",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				mu.Lock()
+				observedBeforeRun = observedNames != nil
+				mu.Unlock()
+				return fantasy.NewTextResponse("ok"), nil
+			},
+		),
+		observed: func(names []string) {
+			mu.Lock()
+			defer mu.Unlock()
+			observedNames = append([]string{}, names...)
+		},
+	}
+	var uncalledObserved atomic.Bool
+	uncalledObserver := observerMarkerTool{
+		AgentTool: fantasy.NewAgentTool(
+			"uncalled_observer",
+			"never called this step",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.NewTextResponse("ok"), nil
+			},
+		),
+		observed: func([]string) { uncalledObserved.Store(true) },
+	}
+	other := fantasy.NewAgentTool(
+		"other_tool",
+		"plain tool",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextResponse("ok"), nil
+		},
+	)
+
+	executeTools(
+		context.Background(),
+		quartz.NewReal(),
+		[]fantasy.AgentTool{observer, uncalledObserver, other},
+		nil,
+		nil,
+		nil,
+		[]fantasy.ToolCallContent{
+			{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
+			{ToolCallID: "2", ToolName: "other_tool", Input: "{}"},
+		},
+		[]fantasy.ToolCallContent{
+			{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
+			{ToolCallID: "2", ToolName: "other_tool", Input: "{}"},
+			{ToolCallID: "3", ToolName: "denied_tool", Input: "{}"},
+		},
+		NewMetrics(prometheus.NewRegistry()),
+		slog.Make(),
+		"fake", "fake-model",
+		map[string]bool{},
+		defaultToolResultBytes,
+		map[string]string{"observer_alias": "observer_tool"},
+		nil,
+		nil,
+	)
+
+	require.Equal(t, []string{"observer_tool", "other_tool", "denied_tool"}, observedNames,
+		"a called observer sees every observed tool-call name, including calls denied before execution")
+	require.True(t, observedBeforeRun, "observers are notified before any tool call executes")
+	require.False(t, uncalledObserved.Load(), "tools not called this step are not notified")
+}
+
+type resultObserverMarkerTool struct {
+	fantasy.AgentTool
+	observedResults func(names []string, errored []bool)
+}
+
+func (t resultObserverMarkerTool) ObserveStepToolResults(names []string, errored []bool) {
+	t.observedResults(names, errored)
+}
+
+func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var gotNames []string
+	var gotErrored []bool
+	notifications := 0
+	observer := resultObserverMarkerTool{
+		AgentTool: fantasy.NewAgentTool(
+			"observer_tool",
+			"records sibling outcomes",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.NewTextResponse("ok"), nil
+			},
+		),
+		observedResults: func(names []string, errored []bool) {
+			mu.Lock()
+			defer mu.Unlock()
+			notifications++
+			gotNames = append([]string{}, names...)
+			gotErrored = append([]bool{}, errored...)
+		},
+	}
+	failing := fantasy.NewAgentTool(
+		"failing_tool",
+		"returns an error result",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextErrorResponse("remote error"), nil
+		},
+	)
+
+	executed := []fantasy.ToolCallContent{
+		{ToolCallID: "1", ToolName: "observer_alias", Input: "{}"},
+		{ToolCallID: "2", ToolName: "failing_tool", Input: "{}"},
+		{ToolCallID: "3", ToolName: "missing_tool", Input: "{}"},
+	}
+	executeTools(
+		context.Background(),
+		quartz.NewReal(),
+		[]fantasy.AgentTool{observer, failing},
+		nil,
+		nil,
+		nil,
+		executed,
+		append(slices.Clone(executed), fantasy.ToolCallContent{
+			ToolCallID: "4", ToolName: "rejected_tool", Input: "{not json",
+		}),
+		NewMetrics(prometheus.NewRegistry()),
+		slog.Make(),
+		"fake", "fake-model",
+		map[string]bool{},
+		defaultToolResultBytes,
+		map[string]string{"observer_alias": "observer_tool"},
+		nil,
+		nil,
+	)
+
+	require.Equal(t, 1, notifications, "each called observer is notified once per step")
+	require.Equal(t, []string{"observer_tool", "failing_tool", "missing_tool", "rejected_tool"}, gotNames,
+		"outcomes are reported per call in observed order with aliases resolved")
+	require.Equal(t, []bool{false, true, true, true}, gotErrored,
+		"error results, unresolvable tools, and observed calls rejected before execution all settle as errored outcomes")
+}
+
+type serialResultObserverTool struct {
+	fantasy.AgentTool
+	observedResults func(names []string, errored []bool)
+}
+
+func (serialResultObserverTool) SerialToolCalls() bool { return true }
+
+func (t serialResultObserverTool) ObserveStepToolResults(names []string, errored []bool) {
+	t.observedResults(names, errored)
+}
+
+func TestExecuteToolsReconcilesResultsBeforeSerialCalls(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var erroredAtNotify []string
+	var erroredAtRun []string
+	notified := false
+	serial := serialResultObserverTool{
+		AgentTool: fantasy.NewAgentTool(
+			"serial_observer",
+			"observes sibling outcomes before running",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				mu.Lock()
+				erroredAtRun = append([]string{}, erroredAtNotify...)
+				mu.Unlock()
+				return fantasy.NewTextResponse("ok"), nil
+			},
+		),
+		observedResults: func(names []string, errored []bool) {
+			mu.Lock()
+			defer mu.Unlock()
+			notified = true
+			erroredAtNotify = nil
+			for i, name := range names {
+				if errored[i] {
+					erroredAtNotify = append(erroredAtNotify, name)
+				}
+			}
+		},
+	}
+	failing := fantasy.NewAgentTool(
+		"failing_tool",
+		"returns an error result",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextErrorResponse("remote error"), nil
+		},
+	)
+
+	results := executeTools(
+		context.Background(),
+		quartz.NewReal(),
+		[]fantasy.AgentTool{serial, failing},
+		nil,
+		nil,
+		nil,
+		[]fantasy.ToolCallContent{
+			{ToolCallID: "1", ToolName: "serial_observer", Input: "{}"},
+			{ToolCallID: "2", ToolName: "failing_tool", Input: "{}"},
+		},
+		nil,
+		NewMetrics(prometheus.NewRegistry()),
+		slog.Make(),
+		"fake", "fake-model",
+		map[string]bool{},
+		defaultToolResultBytes,
+		nil,
+		nil,
+		nil,
+	)
+
+	require.True(t, notified)
+	require.Equal(t, []string{"failing_tool"}, erroredAtRun,
+		"a serial tool must see settled sibling outcomes before it executes")
+	require.Len(t, results, 2)
+	require.Equal(t, "1", results[0].ToolCallID, "results keep original call order")
+}
+
+func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var events []string
+	inFlight := 0
+	maxInFlight := 0
+	record := func(event string, delta int) {
+		mu.Lock()
+		defer mu.Unlock()
+		inFlight += delta
+		if inFlight > maxInFlight {
+			maxInFlight = inFlight
+		}
+		events = append(events, event)
+	}
+	serial := serialMarkerTool{AgentTool: fantasy.NewAgentTool(
+		"serial_tool",
+		"records call order",
+		func(_ context.Context, _ struct{}, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			record(call.ID+":start", 1)
+			runtime.Gosched()
+			record(call.ID+":end", -1)
+			return fantasy.NewTextResponse("ok"), nil
+		},
+	)}
+	parallelRan := make(chan struct{})
+	parallel := fantasy.NewAgentTool(
+		"parallel_tool",
+		"plain tool",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			close(parallelRan)
+			return fantasy.NewTextResponse("ok"), nil
+		},
+	)
+
+	calls := []fantasy.ToolCallContent{
+		{ToolCallID: "a", ToolName: "serial_tool", Input: "{}"},
+		{ToolCallID: "p", ToolName: "parallel_tool", Input: "{}"},
+		{ToolCallID: "b", ToolName: "serial_tool", Input: "{}"},
+		{ToolCallID: "c", ToolName: "serial_tool", Input: "{}"},
+	}
+	results := executeTools(
+		context.Background(),
+		quartz.NewReal(),
+		[]fantasy.AgentTool{serial, parallel},
+		nil,
+		nil,
+		nil,
+		calls,
+		nil,
+		NewMetrics(prometheus.NewRegistry()),
+		slog.Make(),
+		"fake", "fake-model",
+		map[string]bool{},
+		defaultToolResultBytes,
+		nil,
+		nil,
+		nil,
+	)
+
+	require.Equal(t, []string{"a:start", "a:end", "b:start", "b:end", "c:start", "c:end"}, events,
+		"serial tool calls must run one at a time in tool-call order")
+	require.Equal(t, 1, maxInFlight)
+	select {
+	case <-parallelRan:
+	default:
+		t.Fatal("parallel tool call did not run")
+	}
+	require.Len(t, results, len(calls))
+	for i, tc := range calls {
+		require.Equal(t, tc.ToolCallID, results[i].ToolCallID, "results keep original call order")
+	}
+}
+
 func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 	t.Parallel()
 
@@ -912,6 +1225,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			"fake", "fake-model",
 			map[string]bool{},
 			[]string{"screenshot"},
+			nil,
 			map[string]struct{}{},
 			nil,
 			defaultToolResultBytes,
@@ -961,6 +1275,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			"fake", "fake-model",
 			map[string]bool{},
 			[]string{"screenshot"},
+			nil,
 			map[string]struct{}{},
 			nil,
 			defaultToolResultBytes,
@@ -1005,6 +1320,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			"fake", "fake-model",
 			map[string]bool{},
 			[]string{"echo"},
+			nil,
 			map[string]struct{}{},
 			nil,
 			defaultToolResultBytes,
@@ -1053,6 +1369,7 @@ func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {
 		"fake", "fake-model",
 		map[string]bool{},
 		[]string{"interrupt_agent"},
+		nil,
 		map[string]struct{}{},
 		nil,
 		defaultToolResultBytes,
@@ -1093,6 +1410,7 @@ func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
 		"fake", "fake-model",
 		map[string]bool{},
 		[]string{"interrupt_agent"},
+		nil,
 		map[string]struct{}{},
 		nil,
 		defaultToolResultBytes,
@@ -1102,4 +1420,33 @@ func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
 	errOutput, ok := result.Result.(fantasy.ToolResultOutputContentError)
 	require.True(t, ok, "expected error output, got %T", result.Result)
 	require.Contains(t, errOutput.Error.Error(), "close_agent")
+}
+
+func TestExecuteSingleTool_AllowsDeferredDirectCall(t *testing.T) {
+	t.Parallel()
+	tool := fantasy.NewAgentTool(
+		"server__direct",
+		"direct",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextResponse("ok"), nil
+		},
+	)
+	result := executeSingleTool(
+		context.Background(),
+		map[string]fantasy.AgentTool{"server__direct": tool},
+		fantasy.ToolCallContent{ToolCallID: "call-direct", ToolName: "server__direct", Input: "{}"},
+		NewMetrics(prometheus.NewRegistry()),
+		slog.Make(),
+		"fake", "fake-model",
+		map[string]bool{},
+		[]string{"find_tools"},
+		map[string]bool{"server__direct": true},
+		map[string]struct{}{},
+		nil,
+		defaultToolResultBytes,
+		nil,
+	)
+	text, ok := result.Result.(fantasy.ToolResultOutputContentText)
+	require.True(t, ok)
+	require.Equal(t, "ok", text.Text)
 }
