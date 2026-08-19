@@ -25,9 +25,9 @@ Coder measures each invocation from immediately before the request to the model 
 Agent Time includes:
 
 - Assistant generation steps in top-level and subagent chats.
-- Context compaction model calls.
+- Context compaction (summarization) model calls.
 - Model-provider tool execution within a model response.
-- The portion of an interrupted generation that produced a partial assistant message.
+- The time streamed or spent executing tools before an interrupt, kept on the partial assistant messages.
 
 Agent Time excludes:
 
