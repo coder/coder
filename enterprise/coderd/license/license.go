@@ -76,6 +76,80 @@ type usagePublishingEnabledMarker struct {
 	LastSeen     time.Time `json:"last_seen"`
 }
 
+// UsagePublishingFailureStreakKey is the runtime config key recording the
+// publisher's current temporary-failure streak as a JSON
+// UsagePublishingFailureStreak. The publisher maintains it from batch
+// outcomes it already knows (see UpdateUsagePublishingFailureStreak), so
+// publish failure detection can report an active failure without scanning
+// the unpublished backlog for failed rows; the bounded queue-front probes
+// in GetUsagePublishStatus only cover events the publisher has not resolved.
+const UsagePublishingFailureStreakKey = "usage_publishing_failure_streak"
+
+// UsagePublishingFailureStreak is the JSON value stored under
+// UsagePublishingFailureStreakKey.
+type UsagePublishingFailureStreak struct {
+	// FirstFailedAt is when the current streak of publish batches with
+	// temporary failures started.
+	FirstFailedAt time.Time `json:"first_failed_at"`
+	// LastFailedAt is the most recent temporary failure in the streak.
+	LastFailedAt time.Time `json:"last_failed_at"`
+}
+
+// RecordUsagePublishingFailure extends (or starts) the failure streak after
+// a publish batch left events unpublished. It runs under the marker advisory
+// lock so concurrent publishers and entitlements refreshes cannot
+// interleave. The caller must pass a system-authorized context.
+func RecordUsagePublishingFailure(ctx context.Context, db database.Store, now time.Time) error {
+	return db.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, database.LockIDUsagePublishingEnabledMarker); err != nil {
+			return xerrors.Errorf("acquire usage publishing marker lock: %w", err)
+		}
+		var streak UsagePublishingFailureStreak
+		raw, err := tx.GetRuntimeConfig(ctx, UsagePublishingFailureStreakKey)
+		if err == nil {
+			if jsonErr := json.Unmarshal([]byte(raw), &streak); jsonErr != nil {
+				// A corrupted value is unrecoverable; start a new streak.
+				streak = UsagePublishingFailureStreak{}
+			}
+		} else if !xerrors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get usage publishing failure streak: %w", err)
+		}
+		if streak.FirstFailedAt.IsZero() {
+			streak.FirstFailedAt = now
+		}
+		streak.LastFailedAt = now
+		value, err := json.Marshal(streak)
+		if err != nil {
+			return xerrors.Errorf("marshal usage publishing failure streak: %w", err)
+		}
+		return tx.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+			Key:   UsagePublishingFailureStreakKey,
+			Value: string(value),
+		})
+	}, nil)
+}
+
+// ClearUsagePublishingFailureStreak clears the failure streak after a
+// publish batch where every event reached a terminal outcome (or nothing
+// was pending). It runs under the marker advisory lock so concurrent
+// publishers and entitlements refreshes cannot interleave. The caller must
+// pass a system-authorized context.
+func ClearUsagePublishingFailureStreak(ctx context.Context, db database.Store) error {
+	return db.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, database.LockIDUsagePublishingEnabledMarker); err != nil {
+			return xerrors.Errorf("acquire usage publishing marker lock: %w", err)
+		}
+		_, err := tx.GetRuntimeConfig(ctx, UsagePublishingFailureStreakKey)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return xerrors.Errorf("get usage publishing failure streak: %w", err)
+		}
+		return tx.DeleteRuntimeConfig(ctx, UsagePublishingFailureStreakKey)
+	}, nil)
+}
+
 // Entitlements processes licenses to return whether features are enabled or not.
 // TODO(@deansheather): This function and the related LicensesEntitlements
 // function should be refactored into smaller functions that:
@@ -187,13 +261,42 @@ func Entitlements(
 			if err != nil {
 				return database.GetUsagePublishStatusRow{}, err
 			}
-			return db.GetUsagePublishStatus(ctx, database.GetUsagePublishStatusParams{
+			stuckCutoff := now.Add(-UsagePublishingFailureThreshold)
+			status, err := db.GetUsagePublishStatus(ctx, database.GetUsagePublishStatusParams{
 				EnabledSince:         enabledSince,
 				WindowStart:          now.Add(-usagePublishingWindow),
-				StuckCutoff:          now.Add(-UsagePublishingFailureThreshold),
+				StuckCutoff:          stuckCutoff,
 				AttemptExpiredBefore: now.Add(-usagePublishAttemptExpiry),
 				RejectedAfter:        now.Add(-UsagePublishingFailureThreshold),
 			})
+			if err != nil {
+				return database.GetUsagePublishStatusRow{}, err
+			}
+			// Fold in the publisher-maintained failure streak, which covers
+			// active failures without scanning the backlog (see
+			// UsagePublishingFailureStreakKey). The enabled-since clamp and
+			// failure threshold apply the same as for stuck events.
+			raw, err := db.GetRuntimeConfig(ctx, UsagePublishingFailureStreakKey)
+			if err != nil {
+				if xerrors.Is(err, sql.ErrNoRows) {
+					return status, nil
+				}
+				return database.GetUsagePublishStatusRow{}, xerrors.Errorf("get usage publishing failure streak: %w", err)
+			}
+			var streak UsagePublishingFailureStreak
+			if jsonErr := json.Unmarshal([]byte(raw), &streak); jsonErr != nil || streak.FirstFailedAt.IsZero() {
+				// A corrupted streak is unrecoverable here; the publisher
+				// overwrites it on its next batch.
+				return status, nil
+			}
+			effective := streak.FirstFailedAt
+			if enabledSince.After(effective) {
+				effective = enabledSince
+			}
+			if effective.Before(stuckCutoff) && (status.OldestStuckAt.IsZero() || effective.Before(status.OldestStuckAt)) {
+				status.OldestStuckAt = effective
+			}
+			return status, nil
 		},
 	})
 	if err != nil {

@@ -210,7 +210,9 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		return 0, xerrors.Errorf("select usage events for publishing: %w", err)
 	}
 	if len(events) == 0 {
-		// No events to publish.
+		// No events to publish. Nothing pending means publishing is not
+		// failing, so clear any recorded failure streak.
+		p.clearFailureStreak(ctx)
 		return 0, nil
 	}
 
@@ -288,7 +290,16 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 			continue
 		}
 		if rejectedEvent, ok := rejectedEvents[event.ID]; ok {
-			dbUpdate.FailureMessages[i] = rejectedEvent.Message
+			message := rejectedEvent.Message
+			if message == "" {
+				// The stored failure_message discriminates rejections from
+				// successes (UpdateUsageEventsPostPublish turns an empty
+				// message into NULL), so an empty rejection message must
+				// not be stored verbatim or the rejection would be
+				// indistinguishable from a successful publish.
+				message = "tallyman rejected the event without a message"
+			}
+			dbUpdate.FailureMessages[i] = message
 			dbUpdate.SetPublishedAts[i] = rejectedEvent.Permanent
 			continue
 		}
@@ -324,11 +335,51 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		return 0, xerrors.Errorf("update usage events post publish: %w", err)
 	}
 
+	// Record the batch outcome in the failure-streak marker: a batch that
+	// leaves any event unpublished (temporary failure) extends the streak,
+	// and a batch where every event reached a terminal outcome clears it.
+	// Publish failure detection reads the marker instead of scanning the
+	// backlog for failed rows.
+	anyTemporaryFailure := false
+	for _, setPublishedAt := range dbUpdate.SetPublishedAts {
+		if !setPublishedAt {
+			anyTemporaryFailure = true
+			break
+		}
+	}
+	if anyTemporaryFailure {
+		p.recordFailureStreak(ctx)
+	} else {
+		p.clearFailureStreak(ctx)
+	}
+
 	var returnErr error
 	if len(resp.RejectedEvents) > 0 {
 		returnErr = xerrors.New("some events were rejected by tallyman")
 	}
 	return len(resp.AcceptedEvents), returnErr
+}
+
+// recordFailureStreak extends the failure-streak marker after a batch left
+// events unpublished. Best-effort: a missed update only delays the warning
+// by one publish cycle, and the next batch outcome overwrites it.
+func (p *tallymanPublisher) recordFailureStreak(ctx context.Context) {
+	// nolint:gocritic // Maintaining the usage publishing failure streak is a system function.
+	err := license.RecordUsagePublishingFailure(dbauthz.AsSystemRestricted(ctx), p.db, p.clock.Now())
+	if err != nil {
+		p.log.Warn(ctx, "record usage publishing failure streak", slog.Error(err))
+	}
+}
+
+// clearFailureStreak clears the failure-streak marker after a batch where
+// every event reached a terminal outcome or nothing was pending.
+// Best-effort, as recordFailureStreak.
+func (p *tallymanPublisher) clearFailureStreak(ctx context.Context) {
+	// nolint:gocritic // Maintaining the usage publishing failure streak is a system function.
+	err := license.ClearUsagePublishingFailureStreak(dbauthz.AsSystemRestricted(ctx), p.db)
+	if err != nil {
+		p.log.Warn(ctx, "clear usage publishing failure streak", slog.Error(err))
+	}
 }
 
 // getBestLicenseJWT returns the best license JWT to use for the request. The

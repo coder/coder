@@ -906,14 +906,15 @@ type sqlcQuerier interface {
 	//     event age would flag them as failing before publishing was ever
 	//     attempted.
 	//   - attempt_expired_before: now minus the publisher's 1-hour attempt
-	//     expiry (matching SelectUsageEventsForPublishing). In-flight first
-	//     attempts newer than this are skipped; older markers are from replicas
-	//     that exited mid-publish, and the publisher considers those rows
-	//     retryable, so the status scan must too or they could stay stuck
-	//     without warning. Already-failing events (failure_message set) stay
-	//     visible regardless of in-flight state via their own branch, so
-	//     neither a slow retry nor a flood of fresh backfills ahead of them in
-	//     the queue can clear an active warning.
+	//     expiry (matching SelectUsageEventsForPublishing). In-flight attempts
+	//     newer than this are skipped; older markers are from replicas that
+	//     exited mid-publish, and the publisher considers those rows retryable,
+	//     so the status scan must too or they could stay stuck without warning.
+	//     Events with an active publish failure need no queue-position
+	//     visibility here: the publisher records its temporary-failure streak
+	//     in a runtime config marker as part of each batch outcome (see
+	//     license.UsagePublishingFailureStreakKey), which failure detection
+	//     folds in without scanning the backlog for failed rows.
 	//   - rejected_after: now minus the failure threshold. Permanent rejections
 	//     that happened after this and within the current enabled period are
 	//     considered recent failures; rejections from a prior enabled period

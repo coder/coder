@@ -11341,31 +11341,17 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			want:           database.GetUsagePublishStatusRow{},
 		},
 		{
-			// More than 100 freshly backfilled heartbeats with historical
-			// created_at values sort ahead of an established failure in the
-			// publisher's queue. The failing event must stay visible via
-			// its own branch, not be displaced by the fresh batch.
-			name: "BackfillFloodDoesNotDisplaceEstablishedFailure",
+			// The query only probes the front of the publisher's queue;
+			// active failures displaced behind fresh backfills (or held
+			// in flight by a slow retry) are covered by the publisher's
+			// failure-streak marker instead, which license.Entitlements
+			// folds in. See UsagePublishingFailureStreakKey.
+			name: "DisplacedFailureCoveredByStreakMarkerNotQuery",
 			events: append(
 				backfillFlood(now),
 				usagePublishSeedEvent{id: "failing", createdAt: now.Add(-3 * time.Hour), insertedAt: now.Add(-40 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour)}},
 			),
-			want: database.GetUsagePublishStatusRow{
-				OldestStuckAt: now.Add(-30 * time.Hour),
-			},
-		},
-		{
-			// An in-flight retry of an already-failing event stays visible:
-			// a refresh racing a slow retry must not clear an active
-			// warning that the retry's failure would immediately re-raise.
-			name: "InFlightRetryOfFailingEventStillStuck",
-			events: []usagePublishSeedEvent{
-				{id: "1", createdAt: now.Add(-48 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour)}},
-			},
-			markInFlightAt: now,
-			want: database.GetUsagePublishStatusRow{
-				OldestStuckAt: now.Add(-30 * time.Hour),
-			},
+			want: database.GetUsagePublishStatusRow{},
 		},
 		{
 			// An in-flight attempt older than the publisher's 1-hour expiry

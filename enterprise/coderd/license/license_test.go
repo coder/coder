@@ -4143,6 +4143,35 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.Nil(t, entitlements.UsagePublishing.FailingSince)
 	})
 
+	t.Run("FailureStreakMarkerRaisesWarning", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
+
+		// The publisher records failure streaks in a runtime config marker;
+		// detection must warn from it without any stuck event rows.
+		now := time.Now()
+		//nolint:gocritic // Unit test.
+		err := license.RecordUsagePublishingFailure(dbauthz.AsSystemRestricted(ctx), db, now.Add(-25*time.Hour))
+		require.NoError(t, err)
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.Contains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.NotNil(t, entitlements.UsagePublishing.FailingSince)
+		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
+
+		// A resolved batch clears the streak and the warning.
+		//nolint:gocritic // Unit test.
+		err = license.ClearUsagePublishingFailureStreak(dbauthz.AsSystemRestricted(ctx), db)
+		require.NoError(t, err)
+		entitlements, err = license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.Nil(t, entitlements.UsagePublishing.FailingSince)
+	})
+
 	t.Run("StaleRefreshDoesNotMoveMarkerBackward", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()

@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -203,6 +204,16 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 	log := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	// Each publish batch records its outcome in the failure-streak
+	// marker inside a locked transaction.
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(db)
+		},
+	).AnyTimes()
+	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
+	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailureStreakKey).Return("", sql.ErrNoRows).AnyTimes()
+	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 
 	// Configure the deployment manually.
@@ -357,6 +368,16 @@ func TestPublisherMissingEvents(t *testing.T) {
 	log := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	// Each publish batch records its outcome in the failure-streak
+	// marker inside a locked transaction.
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(db)
+		},
+	).AnyTimes()
+	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
+	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailureStreakKey).Return("", sql.ErrNoRows).AnyTimes()
+	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	deploymentID, licenseJWT := configureMockDeployment(t, db)
 	clock := quartz.NewMock(t)
 	now := time.Now()
@@ -431,6 +452,16 @@ func TestPublisherLicenseSelection(t *testing.T) {
 	log := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	// Each publish batch records its outcome in the failure-streak
+	// marker inside a locked transaction.
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(db)
+		},
+	).AnyTimes()
+	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
+	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailureStreakKey).Return("", sql.ErrNoRows).AnyTimes()
+	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()
 
@@ -566,6 +597,16 @@ func TestPublisherTallymanError(t *testing.T) {
 	log := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	// Each publish batch records its outcome in the failure-streak
+	// marker inside a locked transaction.
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(db)
+		},
+	).AnyTimes()
+	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
+	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailureStreakKey).Return("", sql.ErrNoRows).AnyTimes()
+	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()
 	clock.Set(now)
