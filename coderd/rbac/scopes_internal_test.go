@@ -9,9 +9,9 @@ import (
 )
 
 var (
-	siteRead     = Permission{ResourceType: "workspace", Action: policy.ActionRead}
-	siteWildcard = Permission{ResourceType: "workspace", Action: policy.WildcardSymbol}
-	siteDeleteNo = Permission{ResourceType: "workspace", Action: policy.ActionDelete, Negate: true}
+	workspaceRead         = Permission{ResourceType: "workspace", Action: policy.ActionRead}
+	workspaceWildcard     = Permission{ResourceType: "workspace", Action: policy.WildcardSymbol}
+	workspaceDeleteNegate = Permission{ResourceType: "workspace", Action: policy.ActionDelete, Negate: true}
 )
 
 // coverableScope is the shape every ExpandScope result has: site permissions
@@ -67,28 +67,30 @@ func TestScopesCoverGuards(t *testing.T) {
 	}{
 		{
 			name:  "SitePermissionsOnly",
-			scope: coverableScope(siteRead),
+			scope: coverableScope(workspaceRead),
 		},
 		{
 			name: "UserPermission",
 			scope: Scope{
 				Role: Role{
-					Site: []Permission{siteRead},
-					User: []Permission{siteRead},
+					Site: []Permission{workspaceRead},
+					User: []Permission{workspaceRead},
 				},
 				AllowIDList: []AllowListElement{AllowListAll()},
 			},
 			wantErr: "grants org or user permissions",
 		},
 		{
-			// The permission coverage reads is harmless. The one it does not
-			// read carves an action back out, so comparing on Site alone would
-			// report authority the scope withholds.
+			// The case the guards were added for: a scope granting every
+			// workspace action except delete. The permission coverage reads is
+			// harmless, and the one it does not read carves delete back out, so
+			// comparing on Site alone would answer a request for
+			// workspace:delete from a wildcard the scope has already qualified.
 			name: "NegativeUserPermission",
 			scope: Scope{
 				Role: Role{
-					Site: []Permission{siteWildcard},
-					User: []Permission{siteDeleteNo},
+					Site: []Permission{workspaceWildcard},
+					User: []Permission{workspaceDeleteNegate},
 				},
 				AllowIDList: []AllowListElement{AllowListAll()},
 			},
@@ -98,7 +100,7 @@ func TestScopesCoverGuards(t *testing.T) {
 			name: "OrgPermission",
 			scope: Scope{
 				Role: Role{
-					Site:    []Permission{siteRead},
+					Site:    []Permission{workspaceRead},
 					ByOrgID: map[string]OrgPermissions{"00000000-0000-0000-0000-000000000001": {}},
 				},
 				AllowIDList: []AllowListElement{AllowListAll()},
@@ -107,13 +109,13 @@ func TestScopesCoverGuards(t *testing.T) {
 		},
 		{
 			name:    "NegativeSitePermission",
-			scope:   coverableScope(siteWildcard, siteDeleteNo),
+			scope:   coverableScope(workspaceWildcard, workspaceDeleteNegate),
 			wantErr: "carries a negative permission",
 		},
 		{
 			name: "NarrowedAllowList",
 			scope: Scope{
-				Role:        Role{Site: []Permission{siteRead}},
+				Role:        Role{Site: []Permission{workspaceRead}},
 				AllowIDList: []AllowListElement{{Type: "workspace", ID: "00000000-0000-0000-0000-000000000002"}},
 			},
 			wantErr: "carries a resource allow list",
@@ -129,8 +131,8 @@ func TestScopesCoverGuards(t *testing.T) {
 			// any request, and a workspace:read request is covered by any
 			// grant here. That keeps a guard error distinguishable from an
 			// ordinary uncovered result.
-			cleanGrant := namedScope{name: "clean_scope", scope: coverableScope(siteWildcard)}
-			cleanRequest := namedScope{name: "clean_scope", scope: coverableScope(siteRead)}
+			cleanGrant := namedScope{name: "clean_scope", scope: coverableScope(workspaceWildcard)}
+			cleanRequest := namedScope{name: "clean_scope", scope: coverableScope(workspaceRead)}
 			under := namedScope{name: "test_scope", scope: test.scope}
 
 			sides := []struct {
@@ -158,31 +160,4 @@ func TestScopesCoverGuards(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestScopesCoverAllowedNegativeDoesNotWiden is the case the guards were added
-// for. An allowed scope granting every workspace action except delete must not
-// answer a request for delete. Reading its Site permissions alone would, since
-// the wildcard matches and the anti-grant sits in a field coverage never reads.
-func TestScopesCoverAllowedNegativeDoesNotWiden(t *testing.T) {
-	t.Parallel()
-
-	everythingExceptDelete := namedScope{
-		name: "workspace_except_delete",
-		scope: Scope{
-			Role: Role{
-				Site: []Permission{siteWildcard},
-				User: []Permission{siteDeleteNo},
-			},
-			AllowIDList: []AllowListElement{AllowListAll()},
-		},
-	}
-	wantDelete := namedScope{
-		name:  "workspace:delete",
-		scope: coverableScope(Permission{ResourceType: "workspace", Action: policy.ActionDelete}),
-	}
-
-	got, err := scopesCoverExpanded([]namedScope{everythingExceptDelete}, wantDelete)
-	require.Error(t, err)
-	require.False(t, got)
 }
