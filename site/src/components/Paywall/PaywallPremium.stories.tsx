@@ -38,7 +38,9 @@ export const CanViewLicenses: Story = {
 		await expect(pricing).toHaveAttribute("target", "_blank");
 
 		await expect(
-			canvas.getByRole("heading", { name: /Workspace proxies provide/ }),
+			canvas.getByRole("heading", {
+				name: /You need a Premium license/,
+			}),
 		).toBeVisible();
 		await expect(canvas.getAllByRole("listitem")).toHaveLength(4);
 		await expect(

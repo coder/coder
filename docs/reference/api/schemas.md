@@ -2250,7 +2250,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
         }
       ],
       "has_unread": true,
@@ -2280,6 +2281,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
@@ -2344,7 +2346,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
     }
   ],
   "has_unread": true,
@@ -2374,6 +2377,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
@@ -2416,6 +2420,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `parent_chat_id`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `pin_order`             | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
 | `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `queued_for_capacity`   | boolean                                                         | false    |              | Queued for capacity reports that the chat is waiting for a concurrent agent slot. Single-chat reads derive it; list responses leave it false.                                                                                                                              |
 | `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `shared`                | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2790,6 +2795,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 
+## codersdk.ChatFileDownloadURLResponse
+
+```json
+{
+  "expires_at": "2019-08-24T14:15:22Z",
+  "mime_type": "string",
+  "name": "string",
+  "sha256": "string",
+  "size_bytes": 0,
+  "url": "http://example.com"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+|--------------|---------|----------|--------------|-------------|
+| `expires_at` | string  | false    |              |             |
+| `mime_type`  | string  | false    |              |             |
+| `name`       | string  | false    |              |             |
+| `sha256`     | string  | false    |              |             |
+| `size_bytes` | integer | false    |              |             |
+| `url`        | string  | false    |              |             |
+
 ## codersdk.ChatFileMetadata
 
 ```json
@@ -2799,20 +2828,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "mime_type": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "size_bytes": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description |
-|-------------------|--------|----------|--------------|-------------|
-| `created_at`      | string | false    |              |             |
-| `id`              | string | false    |              |             |
-| `mime_type`       | string | false    |              |             |
-| `name`            | string | false    |              |             |
-| `organization_id` | string | false    |              |             |
-| `owner_id`        | string | false    |              |             |
+| Name              | Type    | Required | Restrictions | Description |
+|-------------------|---------|----------|--------------|-------------|
+| `created_at`      | string  | false    |              |             |
+| `id`              | string  | false    |              |             |
+| `mime_type`       | string  | false    |              |             |
+| `name`            | string  | false    |              |             |
+| `organization_id` | string  | false    |              |             |
+| `owner_id`        | string  | false    |              |             |
+| `size_bytes`      | integer | false    |              |             |
 
 ## codersdk.ChatGroup
 
@@ -4173,7 +4204,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "mime_type": "string",
         "name": "string",
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+        "size_bytes": 0
       }
     ],
     "has_unread": true,
@@ -4203,6 +4235,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
+    "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
@@ -4481,12 +4514,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type                           | Required | Restrictions | Description                                                               |
-|----------------|--------------------------------|----------|--------------|---------------------------------------------------------------------------|
-| `slug_or_port` | string                         | false    |              |                                                                           |
-| `status_code`  | integer                        | false    |              | Status code is the HTTP status code of the request.                       |
-| `user`         | [codersdk.User](#codersdkuser) | false    |              | User is omitted if the connection event was from an unauthenticated user. |
-| `user_agent`   | string                         | false    |              |                                                                           |
+| Name           | Type                           | Required | Restrictions | Description                                                          |
+|----------------|--------------------------------|----------|--------------|----------------------------------------------------------------------|
+| `slug_or_port` | string                         | false    |              |                                                                      |
+| `status_code`  | integer                        | false    |              | Status code is the HTTP status code or tunnel authorization outcome. |
+| `user`         | [codersdk.User](#codersdkuser) | false    |              | User is omitted if the connection event was unauthenticated.         |
+| `user_agent`   | string                         | false    |              |                                                                      |
 
 ## codersdk.ConnectionType
 
@@ -5576,9 +5609,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                      |
-|-----------------------------------------------------------------------------------------------|
-| `nats_ca`, `oidc_convert`, `tailnet_resume`, `workspace_apps_api_key`, `workspace_apps_token` |
+| Value(s)                                                                                                          |
+|-------------------------------------------------------------------------------------------------------------------|
+| `chat_files_token`, `nats_ca`, `oidc_convert`, `tailnet_resume`, `workspace_apps_api_key`, `workspace_apps_token` |
 
 ## codersdk.CustomNotificationContent
 
@@ -7607,9 +7640,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                  |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                     |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -11515,9 +11548,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_instruction_settings`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 

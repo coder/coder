@@ -3074,6 +3074,28 @@ export const MockWebConnectionLog: TypesGen.ConnectionLog = {
 	},
 };
 
+const MockTunnelWebInfo: TypesGen.ConnectionLogWebInfo = {
+	user_agent: "coder-cli/2.0.0",
+	user: MockUserMember,
+	slug_or_port: "",
+	status_code: 101,
+};
+
+export const MockTunnelConnectionLog: TypesGen.ConnectionLog = {
+	...MockWebConnectionLog,
+	type: "tunnel",
+	web_info: MockTunnelWebInfo,
+};
+
+export const MockDeniedTunnelConnectionLog: TypesGen.ConnectionLog = {
+	...MockTunnelConnectionLog,
+	id: "09747acf-207f-4f53-a875-fde339924f60",
+	web_info: {
+		...MockTunnelWebInfo,
+		status_code: 403,
+	},
+};
+
 export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 	id: "7884a866-4ae1-4945-9fba-b2b8d2b7c5a9",
 	connect_time: "2022-05-19T16:45:57.122Z",

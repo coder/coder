@@ -504,6 +504,61 @@ func Test_diff(t *testing.T) {
 			},
 		},
 	})
+
+	runDiffTests(t, []diffTest{
+		{
+			// Prompt text is tracked, not secret: reviewers must see what
+			// agents are told to do (CODAGT-719). The system-prompt
+			// endpoint populates only its two fields; the untouched
+			// plan-mode field stays zero on both sides and never diffs.
+			name: "SystemPromptChangeTracked",
+			left: database.ChatInstructionSettings{
+				SystemPrompt:               "old instructions",
+				IncludeDefaultSystemPrompt: true,
+			},
+			right: database.ChatInstructionSettings{
+				ID:                         uuid.UUID{1},
+				SystemPrompt:               "new instructions",
+				IncludeDefaultSystemPrompt: false,
+			},
+			exp: audit.Map{
+				"system_prompt":                 audit.OldNew{Old: "old instructions", New: "new instructions"},
+				"include_default_system_prompt": audit.OldNew{Old: true, New: false},
+			},
+		},
+		{
+			// The plan-mode endpoint populates only its own field; the
+			// system-prompt fields stay zero on both sides, so a
+			// plan-mode change diffs exactly one field.
+			name: "PlanModeInstructionsChangeTracked",
+			left: database.ChatInstructionSettings{
+				PlanModeInstructions: "old plan guidance",
+			},
+			right: database.ChatInstructionSettings{
+				ID:                   uuid.UUID{1},
+				PlanModeInstructions: "new plan guidance",
+			},
+			exp: audit.Map{
+				"plan_mode_instructions": audit.OldNew{Old: "old plan guidance", New: "new plan guidance"},
+			},
+		},
+		{
+			// The artificial ID is ignored, so a value-identical write
+			// would diff empty. Handlers additionally suppress the entry
+			// entirely by leaving both resource IDs nil.
+			name: "ArtificialIDIgnored",
+			left: database.ChatInstructionSettings{
+				SystemPrompt:               "same",
+				IncludeDefaultSystemPrompt: true,
+			},
+			right: database.ChatInstructionSettings{
+				ID:                         uuid.UUID{1},
+				SystemPrompt:               "same",
+				IncludeDefaultSystemPrompt: true,
+			},
+			exp: audit.Map{},
+		},
+	})
 }
 
 func runDiffTests(t *testing.T, tests []diffTest) {

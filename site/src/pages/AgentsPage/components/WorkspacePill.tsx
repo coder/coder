@@ -149,7 +149,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								</span>
 								<ChevronDownIcon
 									className={cn(
-										"hidden size-3 shrink-0 opacity-60 transition-transform md:block",
+										"hidden size-3.5 shrink-0 transition-transform md:block",
 										open && "rotate-180",
 									)}
 								/>

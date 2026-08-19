@@ -5421,6 +5421,7 @@ const (
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
 	ExperimentOAuth2                    Experiment = "oauth2"                      // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
+	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
@@ -5474,6 +5475,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceUsage,
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
+	ExperimentMCPToolSearch,
 	ExperimentNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentWorkspaceCapableLicensing,
@@ -5715,6 +5717,7 @@ const (
 	//nolint:gosec // This denotes a type of key, not a literal.
 	CryptoKeyFeatureWorkspaceAppsToken CryptoKeyFeature = "workspace_apps_token"
 	CryptoKeyFeatureOIDCConvert        CryptoKeyFeature = "oidc_convert"
+	CryptoKeyFeatureChatFilesToken     CryptoKeyFeature = "chat_files_token"
 	CryptoKeyFeatureTailnetResume      CryptoKeyFeature = "tailnet_resume"
 	// CryptoKeyFeatureNATSCA is the CA that signs NATS cluster mTLS leaf
 	// certificates. Its secret is a PEM cert+key bundle (not a hex secret like
