@@ -91,7 +91,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		sdk.Status = aiProviderHostnameWarnings(ctx, api.Database, row)
+		sdk.Status = aiProviderHostnameWarnings(ctx, api.Logger, api.Database, row)
 		out = append(out, sdk)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, out)
@@ -133,7 +133,7 @@ func (api *API) aiProvidersGet(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	sdk.Status = aiProviderHostnameWarnings(ctx, api.Database, row)
+	sdk.Status = aiProviderHostnameWarnings(ctx, api.Logger, api.Database, row)
 	httpapi.Write(ctx, rw, http.StatusOK, sdk)
 }
 
@@ -255,7 +255,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	sdk.Status = aiProviderHostnameWarnings(ctx, api.Database, row)
+	sdk.Status = aiProviderHostnameWarnings(ctx, api.Logger, api.Database, row)
 	httpapi.Write(ctx, rw, http.StatusCreated, sdk)
 }
 
@@ -449,7 +449,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	sdk.Status = aiProviderHostnameWarnings(ctx, api.Database, updated)
+	sdk.Status = aiProviderHostnameWarnings(ctx, api.Logger, api.Database, updated)
 	httpapi.Write(ctx, rw, http.StatusOK, sdk)
 }
 
@@ -563,7 +563,7 @@ func lookupAIProvider(ctx context.Context, store database.Store, idOrName string
 
 // aiProviderHostnameWarnings returns a Status with warnings for each
 // other enabled provider sharing the same base URL hostname, or nil.
-func aiProviderHostnameWarnings(ctx context.Context, store database.Store, provider database.AIProvider) *codersdk.AIProviderStatus {
+func aiProviderHostnameWarnings(ctx context.Context, logger slog.Logger, store database.Store, provider database.AIProvider) *codersdk.AIProviderStatus {
 	if !provider.Enabled {
 		return nil
 	}
@@ -573,6 +573,7 @@ func aiProviderHostnameWarnings(ctx context.Context, store database.Store, provi
 	}
 	others, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{})
 	if err != nil {
+		logger.Error(ctx, "load AI providers for hostname warnings", slog.Error(err))
 		return nil
 	}
 	var warnings []string

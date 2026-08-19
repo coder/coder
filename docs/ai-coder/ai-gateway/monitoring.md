@@ -65,15 +65,15 @@ Standalone replicas do not export them.
 
 AI Gateway Proxy exports metrics from the `coderd` Prometheus listener.
 
-| Metric                                                                   | Type    | Labels                                     | Purpose                                                                                                         |
-|--------------------------------------------------------------------------|---------|--------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
-| `coder_ai_gateway_proxy_connect_sessions_total`                          | counter | `type`                                     | CONNECT sessions established, classified as `mitm` or `tunneled`.                                               |
-| `coder_ai_gateway_proxy_mitm_requests_total`                             | counter | `provider`                                 | MITM requests handled by AI Gateway Proxy.                                                                      |
-| `coder_ai_gateway_proxy_inflight_mitm_requests`                          | gauge   | `provider`                                 | MITM requests currently being processed.                                                                        |
-| `coder_ai_gateway_proxy_mitm_responses_total`                            | counter | `code`, `provider`                         | MITM responses by HTTP status code.                                                                             |
-| `coder_ai_gateway_proxy_provider_info`                                   | gauge   | `provider_name`, `provider_type`, `status` | Routing status of each configured provider. Value is always `1`; `status` is `enabled`, `disabled`, or `error`. |
-| `coder_ai_gateway_proxy_providers_last_reload_timestamp_seconds`         | gauge   |                                            | Unix timestamp of the last attempt to rebuild the proxy routing snapshot.                                       |
-| `coder_ai_gateway_proxy_providers_last_reload_success_timestamp_seconds` | gauge   |                                            | Unix timestamp of the last successful rebuild of the proxy routing snapshot.                                    |
+| Metric                                                                   | Type    | Labels                                     | Purpose                                                                                                                           |
+|--------------------------------------------------------------------------|---------|--------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `coder_ai_gateway_proxy_connect_sessions_total`                          | counter | `type`                                     | CONNECT sessions established, classified as `mitm` or `tunneled`.                                                                 |
+| `coder_ai_gateway_proxy_mitm_requests_total`                             | counter | `provider`                                 | MITM requests handled by AI Gateway Proxy.                                                                                        |
+| `coder_ai_gateway_proxy_inflight_mitm_requests`                          | gauge   | `provider`                                 | MITM requests currently being processed.                                                                                          |
+| `coder_ai_gateway_proxy_mitm_responses_total`                            | counter | `code`, `provider`                         | MITM responses by HTTP status code.                                                                                               |
+| `coder_ai_gateway_proxy_provider_info`                                   | gauge   | `provider_name`, `provider_type`, `status` | Routing status of each configured provider. Value is always `1`; `status` is `enabled`, `disabled`, `error`, or `proxy_excluded`. |
+| `coder_ai_gateway_proxy_providers_last_reload_timestamp_seconds`         | gauge   |                                            | Unix timestamp of the last attempt to rebuild the proxy routing snapshot.                                                         |
+| `coder_ai_gateway_proxy_providers_last_reload_success_timestamp_seconds` | gauge   |                                            | Unix timestamp of the last successful rebuild of the proxy routing snapshot.                                                      |
 
 Refer to the [Prometheus reference](../../admin/integrations/prometheus.md) for these metrics alongside the other metrics that Coder components export.
 
