@@ -336,13 +336,20 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 
 	// A batch that leaves any event unpublished (temporary failure) stamps
 	// the failure-streak marker; publish failure detection reads it instead
-	// of scanning the backlog for failed rows, and it expires by staleness
-	// once failures stop being stamped.
+	// of scanning the backlog for failed rows. A batch that publishes every
+	// event resolves the marker so the warning clears as soon as publishing
+	// recovers instead of waiting for the staleness fallback.
+	anyUnpublished := false
 	for _, setPublishedAt := range dbUpdate.SetPublishedAts {
 		if !setPublishedAt {
-			p.recordFailureStreak(ctx)
+			anyUnpublished = true
 			break
 		}
+	}
+	if anyUnpublished {
+		p.recordFailureStreak(ctx)
+	} else {
+		p.resolveFailureStreak(ctx)
 	}
 
 	var returnErr error
@@ -360,6 +367,18 @@ func (p *tallymanPublisher) recordFailureStreak(ctx context.Context) {
 	err := license.RecordUsagePublishingFailure(dbauthz.AsSystemRestricted(ctx), p.db, p.clock.Now())
 	if err != nil {
 		p.log.Warn(ctx, "record usage publishing failure streak", slog.Error(err))
+	}
+}
+
+// resolveFailureStreak resolves the failure-streak marker after a batch
+// published every event. Best-effort: a missed update only delays the
+// warning clearing by one publish cycle or, at worst, until the staleness
+// fallback.
+func (p *tallymanPublisher) resolveFailureStreak(ctx context.Context) {
+	// nolint:gocritic // Maintaining the usage publishing failure streak is a system function.
+	err := license.RecordUsagePublishingSuccess(dbauthz.AsSystemRestricted(ctx), p.db, p.clock.Now())
+	if err != nil {
+		p.log.Warn(ctx, "resolve usage publishing failure streak", slog.Error(err))
 	}
 }
 

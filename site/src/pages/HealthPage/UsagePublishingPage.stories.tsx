@@ -8,9 +8,16 @@ import {
 	within,
 } from "storybook/test";
 import { API } from "#/api/api";
-import { HEALTH_QUERY_KEY } from "#/api/queries/debug";
+import {
+	HEALTH_QUERY_KEY,
+	HEALTH_QUERY_SETTINGS_KEY,
+} from "#/api/queries/debug";
 import type { HealthcheckReport } from "#/api/typesGenerated";
-import { MockHealth, mockApiError } from "#/testHelpers/entities";
+import {
+	MockHealth,
+	MockHealthSettings,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { withToaster } from "#/testHelpers/storybook";
 import { generateMeta } from "./storybook";
 import UsagePublishingPage from "./UsagePublishingPage";
@@ -134,6 +141,43 @@ export const MuteFailsOnOlderReplica: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(
 			await canvas.findByRole("button", { name: /mute warnings/i }),
+		);
+		await waitFor(() => {
+			expect(
+				screen.getByText("Failed to validate health settings."),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+// Unmuting goes through its own mutation and catch block; an older
+// replica's rejection must surface as an error toast there too, not as an
+// unhandled rejection.
+export const UnmuteFailsOnOlderReplica: Story = {
+	decorators: [withToaster],
+	parameters: {
+		queries: [
+			...meta.parameters.queries,
+			{
+				key: HEALTH_QUERY_SETTINGS_KEY,
+				data: {
+					...MockHealthSettings,
+					dismissed_healthchecks: ["UsagePublishing"],
+				},
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "updateHealthSettings").mockRejectedValue(
+			mockApiError({
+				message: "Failed to validate health settings.",
+			}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /unmute warnings/i }),
 		);
 		await waitFor(() => {
 			expect(

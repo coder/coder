@@ -160,6 +160,17 @@ func TestIntegration(t *testing.T) {
 	// The publisher should have published the events once.
 	require.Equal(t, 1, calls)
 
+	// The batch left an event unpublished, so the publisher should have
+	// stamped the failure-streak marker.
+	//nolint:gocritic // Unit test.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	raw, err := db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailureStreakKey)
+	require.NoError(t, err)
+	var streak license.UsagePublishingFailureStreak
+	require.NoError(t, json.Unmarshal([]byte(raw), &streak))
+	require.False(t, streak.LastFailedAt.IsZero())
+	require.True(t, streak.LastFailedAt.After(streak.LastSucceededAt), "streak should be unresolved after a failing batch")
+
 	// Set the handler for the next publish call. This call should only include
 	// the temporarily rejected event from earlier. This time we'll accept it.
 	handler = func(req usagetypes.TallymanV1IngestRequest) any {
@@ -182,6 +193,13 @@ func TestIntegration(t *testing.T) {
 
 	// The publisher should have published the events again.
 	require.Equal(t, 2, calls)
+
+	// The batch published every event, so the publisher should have resolved
+	// the failure-streak marker.
+	raw, err = db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailureStreakKey)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal([]byte(raw), &streak))
+	require.False(t, streak.LastFailedAt.After(streak.LastSucceededAt), "streak should be resolved after a fully published batch")
 
 	// There should be no more publish calls after this, so set the handler to
 	// nil.

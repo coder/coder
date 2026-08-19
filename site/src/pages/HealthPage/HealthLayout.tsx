@@ -53,7 +53,7 @@ export const HealthLayout: FC = () => {
 		// upgrade serves this frontend alongside an older coderd. A falsy
 		// label hides the section instead of crashing the nav below.
 		usage_publishing: healthStatus?.usage_publishing
-			? ("Usage Publishing" as const)
+			? "Usage Publishing"
 			: undefined,
 	} as const;
 	const visibleSections = filterVisibleSections(sections);
