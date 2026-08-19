@@ -49,9 +49,10 @@ const (
 	// current usage publishing enabled period as a JSON
 	// usagePublishingEnabledMarker. Every entitlements refresh that observes
 	// publishing enabled stamps last_seen; a refresh that observes it
-	// disabled deletes the marker, so the next enabled refresh starts a new
-	// period. A refresh that finds last_seen older than
-	// usagePublishingEnabledMarkerStaleAfter also starts a new period,
+	// disabled tombstones the marker (zero enabled_since, fresh last_seen),
+	// so the next enabled refresh starts a new period while last_seen stays
+	// monotonic across the transition. A refresh that finds last_seen older
+	// than usagePublishingEnabledMarkerStaleAfter also starts a new period,
 	// covering disablement no refresh observed (e.g. coderd was down).
 	// Publish failure detection clamps failure ages to enabled_since,
 	// granting a fresh failure threshold after every (re-)enablement, while
@@ -78,12 +79,24 @@ type usagePublishingEnabledMarker struct {
 
 // UsagePublishingFailureStreakKey is the runtime config key recording the
 // publisher's current temporary-failure streak as a JSON
-// UsagePublishingFailureStreak. The publisher maintains it from batch
-// outcomes it already knows (see UpdateUsagePublishingFailureStreak), so
+// UsagePublishingFailureStreak. Every publish batch that leaves an event
+// unpublished stamps the streak (see RecordUsagePublishingFailure), so
 // publish failure detection can report an active failure without scanning
-// the unpublished backlog for failed rows; the bounded queue-front probes
-// in GetUsagePublishStatus only cover events the publisher has not resolved.
+// the unpublished backlog for failed rows. Nothing ever clears the streak;
+// while a failing event remains pending, some replica retries it every
+// publish cycle and re-stamps last_failed_at, and once no replica has
+// stamped it within usagePublishingFailureStreakStaleAfter the failure has
+// resolved (published or aged out of the window) and detection ignores the
+// stale marker. Expiring by staleness instead of clearing means no replica
+// ever needs a global pending-failure scan, and a clean batch on one
+// replica cannot erase a streak another replica's failing rows justify.
 const UsagePublishingFailureStreakKey = "usage_publishing_failure_streak"
+
+// usagePublishingFailureStreakStaleAfter is how old the streak's
+// last_failed_at may be before the streak counts as resolved. The publisher
+// retries pending events every 17 minutes, so an hour of silence means
+// several consecutive cycles saw no failure.
+const usagePublishingFailureStreakStaleAfter = time.Hour
 
 // UsagePublishingFailureStreak is the JSON value stored under
 // UsagePublishingFailureStreakKey.
@@ -95,9 +108,10 @@ type UsagePublishingFailureStreak struct {
 	LastFailedAt time.Time `json:"last_failed_at"`
 }
 
-// RecordUsagePublishingFailure extends (or starts) the failure streak after
-// a publish batch left events unpublished. It runs under the marker advisory
-// lock so concurrent publishers and entitlements refreshes cannot
+// RecordUsagePublishingFailure extends the failure streak after a publish
+// batch left events unpublished, starting a new streak when the previous
+// stamp is stale (the old failure resolved; this is a fresh one). It runs
+// under the marker advisory lock so concurrent publishers cannot
 // interleave. The caller must pass a system-authorized context.
 func RecordUsagePublishingFailure(ctx context.Context, db database.Store, now time.Time) error {
 	return db.InTx(func(tx database.Store) error {
@@ -114,7 +128,11 @@ func RecordUsagePublishingFailure(ctx context.Context, db database.Store, now ti
 		} else if !xerrors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("get usage publishing failure streak: %w", err)
 		}
-		if streak.FirstFailedAt.IsZero() {
+		if !now.After(streak.LastFailedAt) {
+			// A stalled replica must not move the stamp backward.
+			return nil
+		}
+		if streak.FirstFailedAt.IsZero() || now.Sub(streak.LastFailedAt) > usagePublishingFailureStreakStaleAfter {
 			streak.FirstFailedAt = now
 		}
 		streak.LastFailedAt = now
@@ -126,39 +144,6 @@ func RecordUsagePublishingFailure(ctx context.Context, db database.Store, now ti
 			Key:   UsagePublishingFailureStreakKey,
 			Value: string(value),
 		})
-	}, nil)
-}
-
-// ClearUsagePublishingFailureStreak clears the failure streak after a
-// publish batch where every event reached a terminal outcome (or nothing
-// was pending), unless failing unpublished events remain anywhere in the
-// window: a replica's local batch outcome says nothing about failing rows
-// another replica holds via FOR UPDATE SKIP LOCKED, so clearing checks the
-// global state instead. It runs under the marker advisory lock so
-// concurrent publishers and entitlements refreshes cannot interleave. The
-// caller must pass a system-authorized context.
-func ClearUsagePublishingFailureStreak(ctx context.Context, db database.Store, now time.Time) error {
-	return db.InTx(func(tx database.Store) error {
-		if err := tx.AcquireLock(ctx, database.LockIDUsagePublishingEnabledMarker); err != nil {
-			return xerrors.Errorf("acquire usage publishing marker lock: %w", err)
-		}
-		_, err := tx.GetRuntimeConfig(ctx, UsagePublishingFailureStreakKey)
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
-			return xerrors.Errorf("get usage publishing failure streak: %w", err)
-		}
-		pending, err := tx.HasPendingUsagePublishFailures(ctx, now.Add(-usagePublishingWindow))
-		if err != nil {
-			return xerrors.Errorf("check pending usage publish failures: %w", err)
-		}
-		if pending {
-			// Another batch or replica still has failing events; the streak
-			// stays until they resolve or age out of the window.
-			return nil
-		}
-		return tx.DeleteRuntimeConfig(ctx, UsagePublishingFailureStreakKey)
 	}, nil)
 }
 
@@ -298,7 +283,13 @@ func Entitlements(
 			var streak UsagePublishingFailureStreak
 			if jsonErr := json.Unmarshal([]byte(raw), &streak); jsonErr != nil || streak.FirstFailedAt.IsZero() {
 				// A corrupted streak is unrecoverable here; the publisher
-				// overwrites it on its next batch.
+				// overwrites it on its next failing batch.
+				return status, nil
+			}
+			if now.Sub(streak.LastFailedAt) > usagePublishingFailureStreakStaleAfter {
+				// No replica has stamped a failure for several publish
+				// cycles: the failure resolved, so the leftover marker is
+				// ignored (see UsagePublishingFailureStreakKey).
 				return status, nil
 			}
 			effective := streak.FirstFailedAt
@@ -316,15 +307,20 @@ func Entitlements(
 	}
 
 	if !entitlements.UsagePublishing.PublishingEnabled {
-		// This refresh observed publishing disabled; forget the marker so
-		// the next enablement starts a fresh grace period even when the
-		// disabled interval is shorter than the staleness window. The
-		// delete runs under the same advisory lock as marker updates and
-		// only when the marker is not newer than this refresh's license
-		// observation, so a stalled disabled refresh cannot erase the
-		// marker a concurrent replica just wrote for a newly enabled
-		// license. Best-effort: on failure the staleness fallback still
-		// catches longer intervals, and the next refresh retries.
+		// This refresh observed publishing disabled; tombstone the marker
+		// (zero enabled_since, fresh last_seen) so the next enablement
+		// starts a fresh grace period even when the disabled interval is
+		// shorter than the staleness window. A tombstone rather than a
+		// deletion keeps last_seen monotonic across the transition:
+		// deleting would let a stalled enabled refresh recreate the marker
+		// with its pre-disable enabled_since, silently shortening the
+		// re-enablement grace. The write runs under the same advisory lock
+		// as marker updates and only when the marker is not newer than this
+		// refresh's license observation, so a stalled disabled refresh
+		// cannot clobber the marker a concurrent replica just wrote for a
+		// newly enabled license. Best-effort: on failure the staleness
+		// fallback still catches longer intervals, and the next refresh
+		// retries.
 		// nolint:gocritic // Maintaining the usage publishing marker is a system function.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
 		err := db.InTx(func(tx database.Store) error {
@@ -336,6 +332,7 @@ func Entitlements(
 			}
 			raw, err := tx.GetRuntimeConfig(sysCtx, UsagePublishingEnabledSinceKey)
 			if xerrors.Is(err, sql.ErrNoRows) {
+				// Never enabled (e.g. air-gapped); avoid creating state.
 				return nil
 			}
 			if err != nil {
@@ -348,10 +345,17 @@ func Entitlements(
 				// observation wins.
 				return nil
 			}
-			return tx.DeleteRuntimeConfig(sysCtx, UsagePublishingEnabledSinceKey)
+			value, err := json.Marshal(usagePublishingEnabledMarker{LastSeen: now})
+			if err != nil {
+				return xerrors.Errorf("marshal usage publishing enabled-since tombstone: %w", err)
+			}
+			return tx.UpsertRuntimeConfig(sysCtx, database.UpsertRuntimeConfigParams{
+				Key:   UsagePublishingEnabledSinceKey,
+				Value: string(value),
+			})
 		}, nil)
 		if err != nil {
-			logger.Warn(ctx, "delete usage publishing enabled-since marker", slog.Error(err))
+			logger.Warn(ctx, "tombstone usage publishing enabled-since marker", slog.Error(err))
 		}
 	}
 
@@ -401,6 +405,13 @@ func resolveUsagePublishingEnabledSince(ctx context.Context, db database.Store, 
 			// recorded, or the next refresh could misread the marker as
 			// stale and spuriously reset the enabled period.
 			enabledSince = marker.EnabledSince
+			if enabledSince.IsZero() {
+				// A fresher refresh tombstoned the marker (observed
+				// publishing disabled); the enabled period is unknown, so
+				// grant the full grace without writing. The next fresh
+				// enabled refresh starts the real new period.
+				enabledSince = now
+			}
 			return nil
 		}
 		if marker.EnabledSince.IsZero() || now.Sub(marker.LastSeen) > usagePublishingEnabledMarkerStaleAfter {

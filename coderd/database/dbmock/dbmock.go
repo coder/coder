@@ -7425,21 +7425,6 @@ func (mr *MockStoreMockRecorder) GetWorkspacesForWorkspaceMetrics(ctx any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesForWorkspaceMetrics", reflect.TypeOf((*MockStore)(nil).GetWorkspacesForWorkspaceMetrics), ctx)
 }
 
-// HasPendingUsagePublishFailures mocks base method.
-func (m *MockStore) HasPendingUsagePublishFailures(ctx context.Context, windowStart time.Time) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasPendingUsagePublishFailures", ctx, windowStart)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// HasPendingUsagePublishFailures indicates an expected call of HasPendingUsagePublishFailures.
-func (mr *MockStoreMockRecorder) HasPendingUsagePublishFailures(ctx, windowStart any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasPendingUsagePublishFailures", reflect.TypeOf((*MockStore)(nil).HasPendingUsagePublishFailures), ctx, windowStart)
-}
-
 // HasTemplateVersionsUsingCachedModuleFileInOrg mocks base method.
 func (m *MockStore) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
 	m.ctrl.T.Helper()

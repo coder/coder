@@ -104,23 +104,6 @@ WHERE
     AND cardinality(@ids::text[]) = cardinality(@failure_messages::text[])
     AND cardinality(@ids::text[]) = cardinality(@set_published_ats::boolean[]);
 
--- name: HasPendingUsagePublishFailures :one
--- Reports whether any unpublished usage event inside the publisher's
--- selection window has a recorded publish failure, regardless of in-flight
--- state. Guards clearing the publisher's failure-streak marker: a replica's
--- local batch outcome says nothing about failing rows another replica holds
--- via FOR UPDATE SKIP LOCKED. The EXISTS short-circuits on the first failing
--- row whenever it reports true; the full-scan case (no failing rows among
--- unpublished ones) occurs once per streak resolution, after which the
--- absent marker skips this check entirely.
-SELECT EXISTS(
-    SELECT 1
-    FROM usage_events
-    WHERE published_at IS NULL
-        AND failure_message IS NOT NULL
-        AND created_at > @window_start::timestamptz
-)::bool AS has_pending_failures;
-
 -- name: GetUsagePublishStatus :one
 -- Returns the status of usage event publishing so callers can detect publish
 -- failures. NULL results are encoded as the zero timestamp because sqlc
