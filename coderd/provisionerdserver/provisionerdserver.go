@@ -2262,17 +2262,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return xerrors.Errorf("update workspace build deadline: %w", err)
 		}
 
-		// Agents can't connect to compute that a build tore down, so any agent
-		// Terraform still reports for these transitions would only surface as
-		// unhealthy. Template imports plan both transitions without building a
-		// workspace, so they keep their agents.
-		if workspaceBuild.Transition == database.WorkspaceTransitionStop ||
-			workspaceBuild.Transition == database.WorkspaceTransitionDelete {
-			for _, protoResource := range jobType.WorkspaceBuild.Resources {
-				protoResource.Agents = nil
-			}
-		}
-
 		appIDs := make([]string, 0)
 		agentIDByAppID := make(map[string]uuid.UUID)
 		agentTimeouts := make(map[time.Duration]bool) // A set of agent timeouts.
@@ -3048,7 +3037,14 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		appSlugs   = make(map[string]struct{})
 	)
 
-	for _, prAgent := range protoResource.Agents {
+	// Agents can't connect to compute that these transitions tore down, so any
+	// agent Terraform still reports for them would only surface as unhealthy.
+	protoAgents := protoResource.Agents
+	if transition == database.WorkspaceTransitionStop || transition == database.WorkspaceTransitionDelete {
+		protoAgents = nil
+	}
+
+	for _, prAgent := range protoAgents {
 		// Similar logic is duplicated in terraform/resources.go.
 		if prAgent.Name == "" {
 			return xerrors.Errorf("agent name cannot be empty")
