@@ -262,11 +262,6 @@
 							"path": "./user-guides/workspace-access/jetbrains/index.md",
 							"children": [
 								{
-									"title": "JetBrains Fleet",
-									"description": "Connect JetBrains Fleet, a lightweight multi-language IDE, to a Coder workspace over SSH.",
-									"path": "./user-guides/workspace-access/jetbrains/fleet.md"
-								},
-								{
 									"title": "JetBrains Gateway",
 									"description": "Use JetBrains Gateway to open and work in your Coder workspace from a full JetBrains IDE.",
 									"path": "./user-guides/workspace-access/jetbrains/gateway.md"
@@ -1270,6 +1265,12 @@
 											"title": "JetBrains",
 											"description": "Configure JetBrains AI Assistant to route model requests through AI Gateway.",
 											"path": "./ai-coder/ai-gateway/clients/jetbrains.md",
+											"state": ["premium"]
+										},
+										{
+											"title": "Junie",
+											"description": "Configure Junie CLI to route requests through AI Gateway with a custom model profile.",
+											"path": "./ai-coder/ai-gateway/clients/junie.md",
 											"state": ["premium"]
 										},
 										{

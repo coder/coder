@@ -12,6 +12,7 @@ import {
 	MockWorkspaceProxies,
 } from "#/testHelpers/entities";
 import { withAuthProvider, withProxyProvider } from "#/testHelpers/storybook";
+import { generateUUID } from "#/utils/random";
 import { TaskApps } from "./TaskApps";
 
 const mockExternalApp: WorkspaceApp = {
@@ -123,7 +124,7 @@ export const WithManyEmbeddedApps: Story = {
 function mockEmbeddedApp(name = MockWorkspaceApp.display_name): WorkspaceApp {
 	return {
 		...MockWorkspaceApp,
-		id: crypto.randomUUID(),
+		id: generateUUID(),
 		slug: kebabCase(name),
 		display_name: name,
 		external: false,
