@@ -1663,6 +1663,7 @@ export const TaskNameGenericRendering: Story = {
 const sampleMCPServers = [
 	{
 		id: "mcp-server-1",
+		organization_id: "00000000-0000-4000-8000-000000000001",
 		slug: "linear",
 		display_name: "Linear",
 		description: "Project management",

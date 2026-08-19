@@ -1,6 +1,12 @@
 # Migrating from the Tasks API to the Chats API
 
-The [Tasks API](../../reference/api/tasks.md) (`/api/v2/tasks`) and the
+> [!WARNING]
+> Coder Tasks is deprecated as of Coder v2.36 and is no longer available by
+> default. Coder Tasks product and API reference documentation is no longer
+> published in the current documentation. To read about Coder Tasks, use a
+> previous version of the Coder documentation, from a release before v2.36.
+
+The Tasks API (`/api/v2/tasks`) and the
 [Chats API](../../reference/api/chats.md) (`/api/v2/chats`) serve similar
 goals (programmatic access to AI-powered coding agents) but they differ
 significantly in architecture, capabilities, and usage patterns.
@@ -10,13 +16,13 @@ to the Chats API.
 
 ## When to migrate
 
-Coder Tasks is being deprecated. Support continues on the ESR release and
-through Coder v2.36. See the deprecation notice on the [Coder Tasks](../tasks.md) page for the full timeline.
+Migrate now. Coder Tasks was deprecated as of Coder v2.36 and is no longer
+available by default.
 
-If you currently run workflows on the Tasks API, you should plan to
-migrate to the Chats API and [Coder Agents](./index.md). Coder Agents
-runs the agent loop in the Coder control plane rather than inside the
-workspace, and is the supported path going forward.
+If you currently run workflows on the Tasks API, migrate to the Chats API and
+[Coder Agents](./index.md). Coder Agents runs the agent loop in the Coder
+control plane rather than inside the workspace, and is the supported path
+going forward.
 
 The two systems are not interchangeable. Tasks and Chats are separate
 resources with separate APIs, so plan to update your integrations rather
