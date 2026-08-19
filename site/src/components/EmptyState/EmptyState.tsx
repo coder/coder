@@ -34,7 +34,7 @@ export const EmptyState: FC<EmptyStateProps> = ({
 			)}
 			{...attrs}
 		>
-			<h5 className="m-0 font-medium text-content-primary text-base">
+			<h5 className="m-0 font-medium text-content-primary text-lg">
 				{message}
 			</h5>
 			{description && (
