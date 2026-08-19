@@ -290,17 +290,20 @@ sponsoring human's OAuth credentials never enter the guest. See
   calls return a JSON-RPC error whose data carries a `reauth_url`; opening
   that URL in a browser completes the provider login and unblocks the agent.
 
-### Session token delivery status
+### Session token delivery
 
-The managed embedded mode (`CODER_AI_SANDBOX_MICROVM=true`) delivers the
-scoped session token to the guest automatically. This declared two-agent
-template does not yet: no Terraform-visible session-token value exists, so
-`coder_script` cannot pass one. The wiring seam exists as
-`coder agent sandbox --session-token` (`CODER_SANDBOX_SESSION_TOKEN`); an
-operator can export that variable into the sandbox process environment
-manually for testing until a provider data source lands.
+The template declares `data.coder_workspace_ai_agent.me`, which opts the
+workspace into an AI agent identity: coderd detects the data source at
+template import and mints a scoped session token at every build, sponsored
+by the workspace owner. The template passes that token to
+`coder agent sandbox` as `CODER_SANDBOX_SESSION_TOKEN`, and the guest agent
+exposes it as `CODER_SESSION_TOKEN`. The token carries the AI identity's
+restricted scopes, including AI/MCP gateway access, and never the owner's
+full permissions. The managed embedded mode
+(`CODER_AI_SANDBOX_MICROVM=true`) delivers an equivalent token
+automatically.
 
-### MCP validation checklist (with a supplied token)
+### MCP validation checklist
 
 1. Configure an MCP server with external auth and at least one disabled
    tool rule.

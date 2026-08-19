@@ -543,19 +543,19 @@ In `ValidateAPIKey` / subject construction path:
   key per directly human-opted workspace (profile
   `WorkspaceAgentIdentityProfile`). AI-created resources reuse the requesting
   agent's identity, as specified in Vertical 2.
-- **Dependency flag**: exposing this to templates needs a
-  terraform-provider-coder change (e.g.
-  `data.coder_ai_agent.me.session_token` or equivalent). For the PoC,
-  gate on a template/workspace opt-in flag and document that templates
-  should point AI tooling env vars (e.g. `CODER_SESSION_TOKEN` for CLI
-  agents) at the agent key instead of the owner key. Do NOT change the
-  existing owner-token behavior; additive only.
-- **Implemented PoC convention**: the opt-in gate is a boolean rich
-  parameter named `coder_ai_agent` (opts in only when its stored build
-  value is exactly `"true"`); the minted token rides provisioner job
-  metadata as `workspace_ai_agent_session_token` and is exported to the
-  Terraform provider process as
-  `CODER_WORKSPACE_AI_AGENT_SESSION_TOKEN` (empty when opted out).
+- **Implemented provider surface**: `data.coder_workspace_ai_agent.me`
+  exposes `id` and `session_token`. Using the data source opts the
+  template in: coderd detects it in the template graph at import
+  (`template_versions.has_ai_agent`) and mints a fresh workspace-pinned
+  key at every build. The token rides provisioner job metadata and is
+  exported to the Terraform provider process as
+  `CODER_WORKSPACE_AI_AGENT_SESSION_TOKEN` alongside
+  `CODER_WORKSPACE_AI_AGENT_ID`. Template authors decide where to
+  inject it (e.g. `CODER_SESSION_TOKEN` for CLI agents); the existing
+  owner-token behavior is unchanged.
+- **Deprecated PoC convention**: a boolean rich parameter named
+  `coder_ai_agent` (opts in only when its stored build value is exactly
+  `"true"`) still triggers minting for older templates.
   Identity is reused across rebuilds; keys rotate per opted-in start
   build; stop/delete revoke keys best-effort; opted-in mint failures
   fail the build, opt-out paths never do. The

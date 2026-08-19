@@ -610,9 +610,16 @@ secrets being delivered into a workspace.
   removal.
 - **Model-route scope enforcement.** Non-MCP model routes still rely on
   `IsAuthorized`, whose scope authorization TODO remains open.
-- **Per-call gateway recording.** Gateway `tools/call` requests are not yet
-  written to `aibridge_tool_usages` or another dedicated table with sponsor
-  attribution.
-- **Reserved provider name.** AI provider creation does not yet explicitly
-  reject the provider name `mcp`. Reserve and validate that name before any
-  provider routing scheme can collide with the MCP path namespace.
+
+The following were gaps in earlier drafts and are now implemented:
+
+- **Per-call gateway recording.** Gateway `tools/call` requests, allowed and
+  denied alike, create an `mcp-gateway` interception with denormalized
+  sponsor attribution and per-call rows in `aibridge_tool_usages`.
+- **Reserved provider name.** AI provider creation rejects the name `mcp`
+  after trimming and case folding.
+- **Token delivery to declared templates.** The
+  `data.coder_workspace_ai_agent` data source opts a template into AI
+  identity minting at import time and exposes the scoped session token for
+  the author to inject; the `coder_ai_agent` rich-parameter opt-in remains
+  as a deprecated fallback.
