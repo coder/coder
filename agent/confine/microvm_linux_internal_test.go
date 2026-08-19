@@ -128,6 +128,7 @@ func TestEmbeddedMicroVMConfigWiresEvaluatorRecorderAndAgent(t *testing.T) {
 	require.Contains(t, config.agentCommand, "chmod 0700 '/var/lib/coder/bootstrap.sh'")
 	require.Contains(t, config.agentCommand, "CODER_AGENT_URL='https://coder.example.com'")
 	require.Contains(t, config.agentCommand, "CODER_AGENT_TOKEN='agent'\\''token'")
+	require.Contains(t, config.agentCommand, "CODER_PROC_PRIO_MGMT=1")
 	require.Contains(t, config.agentCommand, "CODER_SESSION_TOKEN='session-token'")
 	require.Contains(t, config.agentCommand, "setsid sh '/var/lib/coder/bootstrap.sh'")
 	require.Contains(t, config.agentCommand, "</dev/null >'/var/log/coder-agent.log' 2>&1 &")

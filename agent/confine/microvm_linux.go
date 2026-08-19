@@ -287,8 +287,14 @@ exec "./$CODER_BINARY_NAME" agent
 }
 
 func embeddedAgentCommand(guestBinaryPath, guestCAFile, agentURL, agentToken, sessionToken string) string {
+	// CODER_PROC_PRIO_MGMT makes the agent spawn workspace processes through
+	// the agentexec wrapper, which raises their oom_score_adj so the kernel
+	// OOM killer prefers workloads (for example a memory-hungry AI CLI) over
+	// the agent. The guest has a fixed memory budget and no swap, so without
+	// this the agent's control channel is starved before the OOM killer acts.
 	environment := "CODER_AGENT_URL=" + shellQuote(agentURL) +
-		" CODER_AGENT_TOKEN=" + shellQuote(agentToken)
+		" CODER_AGENT_TOKEN=" + shellQuote(agentToken) +
+		" CODER_PROC_PRIO_MGMT=1"
 	if sessionToken != "" {
 		environment += " CODER_SESSION_TOKEN=" + shellQuote(sessionToken)
 	}

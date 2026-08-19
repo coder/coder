@@ -28,9 +28,13 @@ variable "sandbox_image" {
 }
 
 variable "sandbox_memory_mib" {
-  description = "Guest memory for the embedded microVM, in MiB."
+  description = <<-EOT
+    Guest memory for the embedded microVM, in MiB. The guest has no swap,
+    so size it for the workload: Claude Code alone can exceed 1 GiB under
+    load, and undersizing leads to OOM kills and agent disconnects.
+  EOT
   type        = number
-  default     = 1024
+  default     = 4096
 }
 
 variable "mcp_server_slugs" {
