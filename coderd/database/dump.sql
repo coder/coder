@@ -371,12 +371,14 @@ CREATE TYPE chat_status AS ENUM (
 CREATE TYPE connection_log_file_action AS ENUM (
     'download',
     'upload',
-    'read_write',
+    'bidirectional',
     'mkdir',
     'remove',
     'rmdir',
     'rename',
-    'symlink'
+    'symlink',
+    'setattr',
+    'hardlink'
 );
 
 CREATE TYPE connection_log_file_protocol AS ENUM (

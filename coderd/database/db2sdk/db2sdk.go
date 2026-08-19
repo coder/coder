@@ -1039,8 +1039,8 @@ func ConnectionLogFileActionFromAgentProtoFileTransferAction(action agentproto.F
 		return database.ConnectionLogFileActionDownload, nil
 	case agentproto.FileTransferOperation_UPLOAD:
 		return database.ConnectionLogFileActionUpload, nil
-	case agentproto.FileTransferOperation_READ_WRITE:
-		return database.ConnectionLogFileActionReadWrite, nil
+	case agentproto.FileTransferOperation_BIDIRECTIONAL:
+		return database.ConnectionLogFileActionBidirectional, nil
 	case agentproto.FileTransferOperation_MKDIR:
 		return database.ConnectionLogFileActionMkdir, nil
 	case agentproto.FileTransferOperation_REMOVE:
@@ -1051,6 +1051,10 @@ func ConnectionLogFileActionFromAgentProtoFileTransferAction(action agentproto.F
 		return database.ConnectionLogFileActionRename, nil
 	case agentproto.FileTransferOperation_SYMLINK:
 		return database.ConnectionLogFileActionSymlink, nil
+	case agentproto.FileTransferOperation_SETATTR:
+		return database.ConnectionLogFileActionSetattr, nil
+	case agentproto.FileTransferOperation_HARDLINK:
+		return database.ConnectionLogFileActionHardlink, nil
 	default:
 		// Also FileTransferOperation_ACTION_UNSPECIFIED, no mapping.
 		return "", xerrors.Errorf("unknown file transfer action %q", action)

@@ -18,18 +18,22 @@ CREATE TYPE connection_log_file_protocol AS ENUM (
 
 -- The kind of file operation observed. 'download' is a transfer from
 -- the workspace to the client, 'upload' is a transfer from the client
--- to the workspace, and 'read_write' is a file opened for both reading
--- and writing at once. For SFTP these record the requested access mode
--- at open time, not bytes actually transferred.
+-- to the workspace, and 'bidirectional' is a file opened for both at
+-- once (e.g. in-place editing), where either direction may have
+-- occurred. For SFTP these record the requested access mode at open
+-- time, not bytes actually transferred. 'setattr' records attribute
+-- changes: truncation, permissions, ownership, and timestamps.
 CREATE TYPE connection_log_file_action AS ENUM (
 	'download',
 	'upload',
-	'read_write',
+	'bidirectional',
 	'mkdir',
 	'remove',
 	'rmdir',
 	'rename',
-	'symlink'
+	'symlink',
+	'setattr',
+	'hardlink'
 );
 
 ALTER TABLE connection_logs

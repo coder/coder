@@ -411,12 +411,14 @@ message FileTransferOperation {
 		ACTION_UNSPECIFIED = 0;
 		DOWNLOAD = 1;
 		UPLOAD = 2;
-		READ_WRITE = 3;
+		BIDIRECTIONAL = 3;
 		MKDIR = 4;
 		REMOVE = 5;
 		RMDIR = 6;
 		RENAME = 7;
 		SYMLINK = 8;
+		SETATTR = 9;
+		HARDLINK = 10;
 	}
 
 	bytes connection_id = 1;

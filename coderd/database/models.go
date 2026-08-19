@@ -1791,14 +1791,16 @@ func AllChatStatusValues() []ChatStatus {
 type ConnectionLogFileAction string
 
 const (
-	ConnectionLogFileActionDownload  ConnectionLogFileAction = "download"
-	ConnectionLogFileActionUpload    ConnectionLogFileAction = "upload"
-	ConnectionLogFileActionReadWrite ConnectionLogFileAction = "read_write"
-	ConnectionLogFileActionMkdir     ConnectionLogFileAction = "mkdir"
-	ConnectionLogFileActionRemove    ConnectionLogFileAction = "remove"
-	ConnectionLogFileActionRmdir     ConnectionLogFileAction = "rmdir"
-	ConnectionLogFileActionRename    ConnectionLogFileAction = "rename"
-	ConnectionLogFileActionSymlink   ConnectionLogFileAction = "symlink"
+	ConnectionLogFileActionDownload      ConnectionLogFileAction = "download"
+	ConnectionLogFileActionUpload        ConnectionLogFileAction = "upload"
+	ConnectionLogFileActionBidirectional ConnectionLogFileAction = "bidirectional"
+	ConnectionLogFileActionMkdir         ConnectionLogFileAction = "mkdir"
+	ConnectionLogFileActionRemove        ConnectionLogFileAction = "remove"
+	ConnectionLogFileActionRmdir         ConnectionLogFileAction = "rmdir"
+	ConnectionLogFileActionRename        ConnectionLogFileAction = "rename"
+	ConnectionLogFileActionSymlink       ConnectionLogFileAction = "symlink"
+	ConnectionLogFileActionSetattr       ConnectionLogFileAction = "setattr"
+	ConnectionLogFileActionHardlink      ConnectionLogFileAction = "hardlink"
 )
 
 func (e *ConnectionLogFileAction) Scan(src interface{}) error {
@@ -1840,12 +1842,14 @@ func (e ConnectionLogFileAction) Valid() bool {
 	switch e {
 	case ConnectionLogFileActionDownload,
 		ConnectionLogFileActionUpload,
-		ConnectionLogFileActionReadWrite,
+		ConnectionLogFileActionBidirectional,
 		ConnectionLogFileActionMkdir,
 		ConnectionLogFileActionRemove,
 		ConnectionLogFileActionRmdir,
 		ConnectionLogFileActionRename,
-		ConnectionLogFileActionSymlink:
+		ConnectionLogFileActionSymlink,
+		ConnectionLogFileActionSetattr,
+		ConnectionLogFileActionHardlink:
 		return true
 	}
 	return false
@@ -1855,12 +1859,14 @@ func AllConnectionLogFileActionValues() []ConnectionLogFileAction {
 	return []ConnectionLogFileAction{
 		ConnectionLogFileActionDownload,
 		ConnectionLogFileActionUpload,
-		ConnectionLogFileActionReadWrite,
+		ConnectionLogFileActionBidirectional,
 		ConnectionLogFileActionMkdir,
 		ConnectionLogFileActionRemove,
 		ConnectionLogFileActionRmdir,
 		ConnectionLogFileActionRename,
 		ConnectionLogFileActionSymlink,
+		ConnectionLogFileActionSetattr,
+		ConnectionLogFileActionHardlink,
 	}
 }
 
