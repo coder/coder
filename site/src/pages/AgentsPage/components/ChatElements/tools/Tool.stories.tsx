@@ -884,9 +884,7 @@ export const ProcessOutputRunningThenKilled: Story = {
 		expect(canvas.getByText("Checked npm start")).toBeVisible();
 		expect(canvas.queryByText(/Checking/)).not.toBeInTheDocument();
 		await userEvent.hover(canvas.getByText("Checked npm start"));
-		expect(
-			canvasElement.querySelector(".lucide-octagon-x"),
-		).not.toBeNull();
+		expect(canvasElement.querySelector(".lucide-octagon-x")).not.toBeNull();
 	},
 };
 
