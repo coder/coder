@@ -55,7 +55,7 @@ Intercepted requests are forwarded to the AI Gateway, configured via [`CODER_AI_
 By default, this is the embedded AI Gateway at `<coderd-access-url>/api/v2/ai-gateway`, and no configuration is needed.
 
 AI Gateway Proxy remains part of the `coder server` process when you [deploy AI Gateway as a standalone service](../standalone.md).
-To forward intercepted requests to the standalone Gateway, set:
+To forward intercepted requests to the standalone gateway, set the following:
 
 ```sh
 CODER_AI_GATEWAY_PROXY_TARGET=https://ai-gateway.example.com/

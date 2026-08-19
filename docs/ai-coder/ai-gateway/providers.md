@@ -38,9 +38,8 @@ After seeding, manage providers through the dashboard or API. A provider
 that has been edited or removed there is not recreated or overwritten
 from the environment on the next restart.
 
-Seeding is a `coderd` operation. A [standalone Gateway](./standalone.md)
-ignores the deprecated provider variables and fetches provider
-configuration from `coderd`.
+Seeding is a `coderd` operation.
+A [standalone gateway](./standalone.md) ignores the deprecated provider variables and fetches provider configuration from `coderd`.
 
 ## Provider types
 
@@ -303,14 +302,12 @@ attempt and each successful reload, exposed as Prometheus metrics:
 
 If you run the [external proxy](./ai-gateway-proxy/index.md), it exposes
 the same pair under the `coder_ai_gateway_proxy_` prefix.
-Each [standalone Gateway](./standalone.md) replica reloads providers
-independently.
+Each [standalone gateway](./standalone.md) replica reloads providers independently and replaces only its own provider snapshot.
+If a reload fails, that replica retains its previous provider snapshot and continues serving from it.
 
-A growing gap between the attempt and success timestamps means reloads
-are firing but failing to apply. Alert on that gap rather than on a
-single failure, which may resolve on the next change. See
-[Monitoring](./monitoring.md#prometheus-metrics) for the full metric list
-and sample alert queries.
+A growing gap between the attempt and success timestamps means reloads are firing but failing to apply.
+Alert on that gap rather than on a single failure, which may resolve on the next change.
+Refer to [Monitoring](./monitoring.md#prometheus-metrics) for the full metric list and sample alert queries.
 
 ## Key failover
 

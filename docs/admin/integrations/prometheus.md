@@ -72,12 +72,9 @@ scrape_configs:
           apps: "coder"
 ```
 
-If you run a [standalone AI Gateway](../../ai-coder/ai-gateway/standalone.md),
-each replica exports its own metrics on its own listener. Its Helm chart uses the
-same `0.0.0.0:2112` default as the `coder` chart, but sets up no scrape
-discovery. Refer to
-[AI Gateway monitoring](../../ai-coder/ai-gateway/monitoring.md#kubernetes-discovery)
-for more details.
+If you run a [standalone AI gateway](../../ai-coder/ai-gateway/standalone.md), each replica exports its own metrics on its own listener.
+Its Helm chart uses the same `0.0.0.0:2112` default as the `coder` chart, but sets up no scrape discovery.
+Refer to [AI gateway monitoring](../../ai-coder/ai-gateway/monitoring.md#kubernetes-discovery) for more details.
 
 To use the Kubernetes Prometheus operator to scrape metrics, you will need to
 create a `ServiceMonitor` in your Coder deployment namespace. The following is

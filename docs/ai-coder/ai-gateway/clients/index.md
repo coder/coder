@@ -26,10 +26,9 @@ The exact configuration method varies by client, some use environment variables,
 
 Replace `coder.example.com` with your actual Coder deployment URL.
 
-If you run a [standalone AI Gateway](../standalone.md), point clients at the
-Gateway endpoint and drop the `/api/v2/ai-gateway` prefix, for example
-`https://ai-gateway.example.com/openai/v1` or
-`https://ai-gateway.example.com/anthropic`.
+If you run a [standalone AI gateway](../standalone.md), point clients at the gateway endpoint.
+Standalone gateways support root routes such as `https://ai-gateway.example.com/openai/v1` and `https://ai-gateway.example.com/anthropic`.
+They also support compatibility-prefixed routes such as `https://ai-gateway.example.com/api/v2/ai-gateway/openai/v1` and `https://ai-gateway.example.com/api/v2/ai-gateway/anthropic`.
 
 ## Authentication
 
@@ -93,7 +92,8 @@ resource "coder_agent" "dev" {
 
 You can also configure AI tools running outside of a Coder workspace, such as local IDE extensions or desktop applications, to connect to AI Gateway. Use the same settings as the in-workspace case, configure the [base URL](#base-urls) and authenticate with a Coder API token.
 
-For base URL setup, the client machine must have network access to the AI Gateway endpoint on your Coder deployment. Clients using [AI Gateway Proxy](../ai-gateway-proxy/index.md) must be able to reach the proxy endpoint and trust its CA certificate.
+For base URL setup, the client machine must have network access to the gateway endpoint on your Coder deployment.
+Clients using [AI Gateway Proxy](../ai-gateway-proxy/index.md) must be able to reach the proxy endpoint and trust its CA certificate.
 
 Users can generate a long-lived API token from the Coder UI or CLI. Follow the instructions at [Sessions and API tokens](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) to create one.
 
