@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -564,9 +563,10 @@ func lookupAIProvider(ctx context.Context, store database.Store, idOrName string
 }
 
 // buildHostnameCollisionMap returns a map from normalized hostname to
-// the sorted names of enabled, non-deleted providers sharing that
-// hostname. The first name (alphabetically) is the proxy winner and
-// does not get a warning; later names do.
+// the names of enabled, non-deleted providers sharing that hostname,
+// in the order the database returned them (ORDER BY name ASC). The
+// first name is the proxy winner and does not get a warning; later
+// names do.
 func buildHostnameCollisionMap(rows []database.AIProvider) map[string][]string {
 	namesByHost := make(map[string][]string)
 	for _, row := range rows {
@@ -578,9 +578,6 @@ func buildHostnameCollisionMap(rows []database.AIProvider) map[string][]string {
 			continue
 		}
 		namesByHost[host] = append(namesByHost[host], row.Name)
-	}
-	for host := range namesByHost {
-		sort.Strings(namesByHost[host])
 	}
 	return namesByHost
 }
@@ -607,7 +604,7 @@ func aiProviderHostnameWarningFromMap(provider database.AIProvider, namesByHost 
 	}
 	winner := names[0]
 	return &codersdk.AIProviderStatus{Warnings: []string{
-		fmt.Sprintf("hostname %q is claimed by provider %q; not reachable via the AI Gateway, use direct routing (/api/v2/ai-gateway/%s/...) instead", host, winner, provider.Name),
+		fmt.Sprintf("hostname %q is claimed by provider %q; not reachable via the AI Gateway Proxy, use direct routing (/api/v2/ai-gateway/%s/...) instead", host, winner, provider.Name),
 	}}
 }
 

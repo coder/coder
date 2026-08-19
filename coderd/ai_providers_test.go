@@ -1919,7 +1919,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		require.NotNil(t, second.Status)
 		require.Len(t, second.Status.Warnings, 1)
 		require.Contains(t, second.Status.Warnings[0], `"first"`)
-		require.Contains(t, second.Status.Warnings[0], "AI Gateway")
+		require.Contains(t, second.Status.Warnings[0], "AI Gateway Proxy")
 		require.Contains(t, second.Status.Warnings[0], "/api/v2/ai-gateway/second/...")
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
@@ -1984,7 +1984,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		require.NotNil(t, updated.Status)
 		require.Len(t, updated.Status.Warnings, 1)
 		require.Contains(t, updated.Status.Warnings[0], `"first"`)
-		require.Contains(t, updated.Status.Warnings[0], "AI Gateway")
+		require.Contains(t, updated.Status.Warnings[0], "AI Gateway Proxy")
 		require.Contains(t, updated.Status.Warnings[0], "/api/v2/ai-gateway/second/...")
 	})
 

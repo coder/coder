@@ -166,7 +166,7 @@ func classifyProviderRow(row database.AIProvider, seenHost map[string]string) ai
 	}
 	if claimedBy, taken := seenHost[host]; taken {
 		out.Status = aibridged.ProviderStatusProxyExcluded
-		out.Err = xerrors.Errorf("hostname %q already claimed by provider %q; use direct routing (/api/v2/ai-gateway/%s/...) instead", host, claimedBy, row.Name)
+		out.Err = xerrors.Errorf("hostname %q already claimed by provider %q; not reachable via the AI Gateway Proxy, use direct routing (/api/v2/ai-gateway/%s/...) instead", host, claimedBy, row.Name)
 		return out
 	}
 	seenHost[host] = row.Name

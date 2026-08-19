@@ -129,7 +129,7 @@ func classifyRaw(p rawProvider, seenHost map[string]string) aibridgeproxyd.Reloa
 	}
 	if claimedBy, taken := seenHost[host]; taken {
 		out.Status = aibridged.ProviderStatusProxyExcluded
-		out.Err = xerrors.Errorf("hostname %q already claimed by provider %q; use direct routing (/api/v2/ai-gateway/%s/...) instead", host, claimedBy, p.name)
+		out.Err = xerrors.Errorf("hostname %q already claimed by provider %q; not reachable via the AI Gateway Proxy, use direct routing (/api/v2/ai-gateway/%s/...) instead", host, claimedBy, p.name)
 		return out
 	}
 	seenHost[host] = p.name
