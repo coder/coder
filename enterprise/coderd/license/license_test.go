@@ -4089,6 +4089,17 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	// markEventsInFlight stamps a fresh in-flight attempt on all eligible
+	// events, as a replica that just selected them for publishing would.
+	// The stuck probe skips non-expired in-flight rows, so this isolates
+	// the failing-events marker as the only warning source while keeping
+	// the rows pending for marker verification.
+	markEventsInFlight := func(ctx context.Context, t *testing.T, db database.Store, now time.Time) {
+		t.Helper()
+		_, err := db.SelectUsageEventsForPublishing(ctx, now)
+		require.NoError(t, err)
+	}
+
 	t.Run("FailingStuckEventsThenRecovers", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
@@ -4181,9 +4192,11 @@ func TestUsagePublishingStatus(t *testing.T) {
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 
 		// The publisher stamps failing events in a runtime config marker;
-		// detection must warn from an active entry without any stuck event
-		// rows.
+		// detection must warn from an active entry even while a fresh
+		// retry holds the row out of the stuck probe's view.
 		now := time.Now()
+		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), time.Time{}, "")
+		markEventsInFlight(ctx, t, db, now)
 		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
 			Events: map[string]license.UsagePublishingEventFailure{
 				"1": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
@@ -4197,19 +4210,69 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
 	})
 
-	t.Run("StaleFailingEventIgnored", func(t *testing.T) {
+	t.Run("DisplacedFailureKeepsWarningDespiteStaleStamp", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
 		db, _ := dbtestutil.NewDB(t)
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 
-		// No replica has stamped a failure for this event for several
-		// publish cycles, so its failure resolved and the leftover entry
-		// must not warn.
+		// A failing event can go unretried for hours (e.g. displaced
+		// behind fresh backfills), so no replica re-stamps its entry.
+		// Verification sees the row still pending, so the entry keeps
+		// warning regardless of the stamp's age.
+		now := time.Now()
+		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), time.Time{}, "")
+		markEventsInFlight(ctx, t, db, now)
+		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
+			Events: map[string]license.UsagePublishingEventFailure{
+				"1": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-5 * time.Hour)},
+			},
+		})
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.Contains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.NotNil(t, entitlements.UsagePublishing.FailingSince)
+		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
+	})
+
+	t.Run("LingeringEntryForPublishedEventIgnored", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
+
+		// A recovery batch published the event but its marker removal was
+		// missed (e.g. a transient write failure). Verification sees the
+		// row published, so the leftover entry must not warn even though
+		// its stamp is fresh.
+		now := time.Now()
+		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), now.Add(-5*time.Minute), "")
+		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
+			Events: map[string]license.UsagePublishingEventFailure{
+				"1": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+			},
+		})
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.Nil(t, entitlements.UsagePublishing.FailingSince)
+	})
+
+	t.Run("EntryWithoutRowIgnored", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
+
+		// An entry whose event no longer exists (or aged out of the
+		// publish window, where it can never be published) is not a
+		// pending failure.
 		now := time.Now()
 		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
 			Events: map[string]license.UsagePublishingEventFailure{
-				"1": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-2 * time.Hour)},
+				"gone": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
 			},
 		})
 
@@ -4228,6 +4291,8 @@ func TestUsagePublishingStatus(t *testing.T) {
 		// A replica's fully published batch only resolves its own events;
 		// a failure another replica's event justifies must keep warning.
 		now := time.Now()
+		seedEvent(ctx, t, db, "failing-elsewhere", now.Add(-25*time.Hour), time.Time{}, "")
+		markEventsInFlight(ctx, t, db, now)
 		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
 			Events: map[string]license.UsagePublishingEventFailure{
 				"failing-elsewhere": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
@@ -4253,6 +4318,7 @@ func TestUsagePublishingStatus(t *testing.T) {
 		// Publishing the long-failing event resolves its entry immediately;
 		// the remaining fresh entry is too young to warn.
 		now := time.Now()
+		seedEvent(ctx, t, db, "new", now.Add(-10*time.Minute), time.Time{}, "")
 		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
 			Events: map[string]license.UsagePublishingEventFailure{
 				"old": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
@@ -4278,6 +4344,8 @@ func TestUsagePublishingStatus(t *testing.T) {
 		// A stalled replica reporting an older failure for an event must
 		// not rewind the entry's evidence.
 		now := time.Now()
+		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), time.Time{}, "")
+		markEventsInFlight(ctx, t, db, now)
 		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
 			Events: map[string]license.UsagePublishingEventFailure{
 				"1": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
@@ -4322,6 +4390,8 @@ func TestUsagePublishingStatus(t *testing.T) {
 		// while an active retry keeps the row out of the stuck probe's
 		// view.
 		now := time.Now()
+		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), time.Time{}, "")
+		markEventsInFlight(ctx, t, db, now)
 		//nolint:gocritic // Unit test.
 		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now.Add(-10*time.Minute), nil, map[string]time.Time{"1": now.Add(-25 * time.Hour)})
 		require.NoError(t, err)
@@ -4342,6 +4412,7 @@ func TestUsagePublishingStatus(t *testing.T) {
 		// A failing event whose insertion age is still within the failure
 		// threshold does not warn yet.
 		now := time.Now()
+		seedEvent(ctx, t, db, "1", now.Add(-20*time.Minute), time.Time{}, "")
 		//nolint:gocritic // Unit test.
 		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now.Add(-10*time.Minute), nil, map[string]time.Time{"1": now.Add(-20 * time.Minute)})
 		require.NoError(t, err)
@@ -4390,6 +4461,7 @@ func TestUsagePublishingStatus(t *testing.T) {
 		now := time.Now()
 		//nolint:gocritic // Unit test.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		seedEvent(ctx, t, db, "oldest", now.Add(-25*time.Hour), time.Time{}, "")
 		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
 			Events: map[string]license.UsagePublishingEventFailure{
 				"oldest": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
@@ -4398,7 +4470,11 @@ func TestUsagePublishingStatus(t *testing.T) {
 		failed := make(map[string]time.Time, 150)
 		for i := range 150 {
 			// Fresh insertion times, newer than the seeded oldest entry.
-			failed[fmt.Sprintf("event-%d", i)] = now.Add(-time.Duration(i) * time.Minute)
+			// The rows must exist and stay pending or the batch outcome's
+			// verification would drop their entries.
+			insertedAt := now.Add(-time.Duration(i) * time.Minute)
+			seedEvent(ctx, t, db, fmt.Sprintf("event-%d", i), insertedAt, time.Time{}, "")
+			failed[fmt.Sprintf("event-%d", i)] = insertedAt
 		}
 		err := license.RecordUsagePublishingBatchOutcome(sysCtx, db, now, nil, failed)
 		require.NoError(t, err)

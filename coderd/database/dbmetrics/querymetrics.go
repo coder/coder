@@ -1049,6 +1049,14 @@ func (m queryMetricsStore) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.
 	return r0, r1
 }
 
+func (m queryMetricsStore) FilterPendingUsageEventIDs(ctx context.Context, arg database.FilterPendingUsageEventIDsParams) ([]string, error) {
+	start := time.Now()
+	r0, r1 := m.s.FilterPendingUsageEventIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("FilterPendingUsageEventIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "FilterPendingUsageEventIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) FinalizeStaleChatDebugRows(ctx context.Context, updatedBefore database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.FinalizeStaleChatDebugRows(ctx, updatedBefore)

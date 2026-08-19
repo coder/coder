@@ -98,6 +98,22 @@ WHERE
     AND cardinality(@ids::text[]) = cardinality(@failure_messages::text[])
     AND cardinality(@ids::text[]) = cardinality(@set_published_ats::boolean[]);
 
+-- name: FilterPendingUsageEventIDs :many
+-- Returns the subset of the given usage event IDs that are still pending
+-- publication: unpublished and within the publisher's 30-day selection
+-- window (window_start is now minus 30 days; older events are never
+-- published, so they no longer count as pending). Publish failure detection
+-- uses this to verify failing-events marker entries against the database
+-- before warning from them or expiring them. Bounded by the caller's ID
+-- list (the marker holds at most ~100 entries) and served by the primary
+-- key.
+SELECT id
+FROM usage_events
+WHERE
+    id = ANY(@ids::text[])
+    AND published_at IS NULL
+    AND created_at > @window_start::timestamptz;
+
 -- name: GetUsagePublishStatus :one
 -- Returns the status of usage event publishing so callers can detect publish
 -- failures. NULL results are encoded as the zero timestamp because sqlc

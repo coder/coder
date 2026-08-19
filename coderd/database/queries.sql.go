@@ -28701,6 +28701,51 @@ func (q *sqlQuerier) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	return err
 }
 
+const filterPendingUsageEventIDs = `-- name: FilterPendingUsageEventIDs :many
+SELECT id
+FROM usage_events
+WHERE
+    id = ANY($1::text[])
+    AND published_at IS NULL
+    AND created_at > $2::timestamptz
+`
+
+type FilterPendingUsageEventIDsParams struct {
+	IDs         []string  `db:"ids" json:"ids"`
+	WindowStart time.Time `db:"window_start" json:"window_start"`
+}
+
+// Returns the subset of the given usage event IDs that are still pending
+// publication: unpublished and within the publisher's 30-day selection
+// window (window_start is now minus 30 days; older events are never
+// published, so they no longer count as pending). Publish failure detection
+// uses this to verify failing-events marker entries against the database
+// before warning from them or expiring them. Bounded by the caller's ID
+// list (the marker holds at most ~100 entries) and served by the primary
+// key.
+func (q *sqlQuerier) FilterPendingUsageEventIDs(ctx context.Context, arg FilterPendingUsageEventIDsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, filterPendingUsageEventIDs, pq.Array(arg.IDs), arg.WindowStart)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTotalUsageDCManagedAgentsV1 = `-- name: GetTotalUsageDCManagedAgentsV1 :one
 SELECT
     -- The first cast is necessary since you can't sum strings, and the second

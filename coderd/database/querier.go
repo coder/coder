@@ -266,6 +266,15 @@ type sqlcQuerier interface {
 	FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error)
 	FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentVolumeResourceMonitor, error)
 	FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentVolumeResourceMonitor, error)
+	// Returns the subset of the given usage event IDs that are still pending
+	// publication: unpublished and within the publisher's 30-day selection
+	// window (window_start is now minus 30 days; older events are never
+	// published, so they no longer count as pending). Publish failure detection
+	// uses this to verify failing-events marker entries against the database
+	// before warning from them or expiring them. Bounded by the caller's ID
+	// list (the marker holds at most ~100 entries) and served by the primary
+	// key.
+	FilterPendingUsageEventIDs(ctx context.Context, arg FilterPendingUsageEventIDsParams) ([]string, error)
 	// Marks orphaned in-progress rows as interrupted so they do not stay
 	// in a non-terminal state forever. The NOT IN list must match the
 	// terminal statuses defined by ChatDebugStatus in codersdk/chats.go.

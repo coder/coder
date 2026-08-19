@@ -89,18 +89,24 @@ type usagePublishingEnabledMarker struct {
 // those exact rows publish. Each entry carries the event's insertion time
 // as its stuck base, mirroring GetUsagePublishStatus, so an event that
 // breached the failure threshold before its first failed attempt keeps
-// warning while an active retry holds its row out of the query's view. As
-// a fallback for replicas that die mid-streak or rows that age out of the
-// publish window, an entry whose last_failed_at is older than
-// usagePublishingFailureStaleAfter counts as resolved: while a failing
-// event remains pending, some replica retries it every publish cycle and
-// re-stamps it.
+// warning while an active retry holds its row out of the query's view.
+// Entries are never expired on wall-clock alone: both the batch outcome
+// and detection verify entries against the database with a bounded
+// primary-key lookup (FilterPendingUsageEventIDs), so an entry persists
+// exactly as long as its event stays pending. A failing event displaced
+// behind fresh backfills keeps warning even though no replica can retry
+// and re-stamp it, and an entry whose removal failed after its event
+// published stops warning on the next refresh. The unverifiable Overflow
+// aggregate is the exception: it expires once its last_failed_at is older
+// than usagePublishingFailureStaleAfter.
 const UsagePublishingFailingEventsKey = "usage_publishing_failing_events"
 
-// usagePublishingFailureStaleAfter is how old an entry's last_failed_at
-// may be before the entry counts as resolved. The publisher retries
-// pending events every 17 minutes, so an hour of silence means several
-// consecutive cycles saw no failure for that event.
+// usagePublishingFailureStaleAfter is how old the overflow aggregate's
+// last_failed_at may be before it counts as resolved. The publisher
+// retries pending events every 17 minutes, so an hour of silence means
+// several consecutive cycles saw no failure from the overflowed set.
+// Per-event entries do not use this: they are verified against the
+// database instead (see UsagePublishingFailingEventsKey).
 const usagePublishingFailureStaleAfter = time.Hour
 
 // usagePublishingFailingEventsCap bounds how many per-event entries the
@@ -188,12 +194,32 @@ func RecordUsagePublishingBatchOutcome(ctx context.Context, db database.Store, n
 			entry.LastFailedAt = now
 			marker.Events[id] = entry
 		}
-		// Entries whose last failure went stale are resolved (see
-		// UsagePublishingFailingEventsKey); drop them so the marker cannot
-		// grow without bound across distinct events over time.
-		for id, entry := range marker.Events {
-			if now.Sub(entry.LastFailedAt) > usagePublishingFailureStaleAfter {
-				delete(marker.Events, id)
+		// Drop entries whose events are no longer pending (published by a
+		// batch whose marker removal was missed, or aged out of the publish
+		// window). Verifying against the database rather than expiring on
+		// wall-clock keeps displaced failures warning however long they
+		// wait (see UsagePublishingFailingEventsKey); the lookup is bounded
+		// by the entry cap and served by the primary key.
+		if len(marker.Events) > 0 {
+			ids := make([]string, 0, len(marker.Events))
+			for id := range marker.Events {
+				ids = append(ids, id)
+			}
+			pendingIDs, err := tx.FilterPendingUsageEventIDs(ctx, database.FilterPendingUsageEventIDsParams{
+				IDs:         ids,
+				WindowStart: now.Add(-usagePublishingWindow),
+			})
+			if err != nil {
+				return xerrors.Errorf("filter pending usage event ids: %w", err)
+			}
+			pending := make(map[string]struct{}, len(pendingIDs))
+			for _, id := range pendingIDs {
+				pending[id] = struct{}{}
+			}
+			for id := range marker.Events {
+				if _, ok := pending[id]; !ok {
+					delete(marker.Events, id)
+				}
 			}
 		}
 		if marker.Overflow != nil && now.Sub(marker.Overflow.LastFailedAt) > usagePublishingFailureStaleAfter {
@@ -358,9 +384,10 @@ func Entitlements(
 			}
 			// Fold in the publisher-maintained failing-events marker, which
 			// covers active failures without scanning the backlog (see
-			// UsagePublishingFailingEventsKey). Entries whose last_failed_at
-			// went stale are resolved and ignored. The enabled-since clamp
-			// and failure threshold apply the same as for stuck events.
+			// UsagePublishingFailingEventsKey). Entries are verified against
+			// the database below rather than expired on wall-clock. The
+			// enabled-since clamp and failure threshold apply the same as
+			// for stuck events.
 			raw, err := db.GetRuntimeConfig(ctx, UsagePublishingFailingEventsKey)
 			if err != nil {
 				if xerrors.Is(err, sql.ErrNoRows) {
@@ -374,19 +401,47 @@ func Entitlements(
 				// overwrites it on its next failing batch.
 				return status, nil
 			}
+			// Only entries whose events are still pending count: a
+			// displaced failure keeps warning however long it waits for a
+			// retry, and an entry left behind by a missed removal stops
+			// warning as soon as this verification sees the row published.
+			// The lookup is bounded by the marker's entry cap and served by
+			// the primary key.
+			pending := map[string]struct{}{}
+			if len(marker.Events) > 0 {
+				ids := make([]string, 0, len(marker.Events))
+				for id := range marker.Events {
+					ids = append(ids, id)
+				}
+				pendingIDs, err := db.FilterPendingUsageEventIDs(ctx, database.FilterPendingUsageEventIDsParams{
+					IDs:         ids,
+					WindowStart: now.Add(-usagePublishingWindow),
+				})
+				if err != nil {
+					return database.GetUsagePublishStatusRow{}, xerrors.Errorf("filter pending usage event ids: %w", err)
+				}
+				for _, id := range pendingIDs {
+					pending[id] = struct{}{}
+				}
+			}
 			var oldestFailing time.Time
 			fold := func(entry UsagePublishingEventFailure) {
-				if entry.StuckSince.IsZero() || now.Sub(entry.LastFailedAt) > usagePublishingFailureStaleAfter {
+				if entry.StuckSince.IsZero() {
 					return
 				}
 				if oldestFailing.IsZero() || entry.StuckSince.Before(oldestFailing) {
 					oldestFailing = entry.StuckSince
 				}
 			}
-			for _, entry := range marker.Events {
+			for id, entry := range marker.Events {
+				if _, ok := pending[id]; !ok {
+					continue
+				}
 				fold(entry)
 			}
-			if marker.Overflow != nil {
+			// The overflow aggregate has no IDs to verify, so it alone
+			// expires by staleness.
+			if marker.Overflow != nil && now.Sub(marker.Overflow.LastFailedAt) <= usagePublishingFailureStaleAfter {
 				fold(*marker.Overflow)
 			}
 			if oldestFailing.IsZero() {

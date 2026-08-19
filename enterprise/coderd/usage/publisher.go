@@ -227,7 +227,9 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	}
 	if len(events) == 0 {
 		// No events to publish. The failing-events marker needs no update:
-		// entries expire by staleness once failures stop being stamped.
+		// failure detection verifies entries against the database, so any
+		// leftover entry for a published row is ignored without a write
+		// here.
 		return 0, nil
 	}
 
@@ -399,8 +401,10 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 
 // recordBatchOutcome reports a batch's per-event outcomes to the
 // failing-events marker after the batch's database update committed.
-// Best-effort: a missed update only delays the warning (or its clearing)
-// by one publish cycle, and unresolved entries expire by staleness.
+// Best-effort: a missed failure stamp only delays the warning by one
+// publish cycle, and a missed removal after a publish is harmless because
+// failure detection verifies entries against the database before warning
+// from them.
 func (p *tallymanPublisher) recordBatchOutcome(ctx context.Context, publishedIDs []string, failed map[string]time.Time) {
 	// nolint:gocritic // Maintaining the usage publishing failing-events marker is a system function.
 	err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), p.db, p.clock.Now(), publishedIDs, failed)

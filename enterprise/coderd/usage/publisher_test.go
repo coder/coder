@@ -235,6 +235,13 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 	).AnyTimes()
 	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
 	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
+	// The batch outcome verifies marker entries against the database;
+	// report every ID as still pending.
+	db.EXPECT().FilterPendingUsageEventIDs(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, arg database.FilterPendingUsageEventIDsParams) ([]string, error) {
+			return arg.IDs, nil
+		},
+	).AnyTimes()
 	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 
@@ -399,6 +406,13 @@ func TestPublisherMissingEvents(t *testing.T) {
 	).AnyTimes()
 	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
 	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
+	// The batch outcome verifies marker entries against the database;
+	// report every ID as still pending.
+	db.EXPECT().FilterPendingUsageEventIDs(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, arg database.FilterPendingUsageEventIDsParams) ([]string, error) {
+			return arg.IDs, nil
+		},
+	).AnyTimes()
 	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	deploymentID, licenseJWT := configureMockDeployment(t, db)
 	clock := quartz.NewMock(t)
@@ -483,6 +497,13 @@ func TestPublisherLicenseSelection(t *testing.T) {
 	).AnyTimes()
 	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
 	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
+	// The batch outcome verifies marker entries against the database;
+	// report every ID as still pending.
+	db.EXPECT().FilterPendingUsageEventIDs(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, arg database.FilterPendingUsageEventIDsParams) ([]string, error) {
+			return arg.IDs, nil
+		},
+	).AnyTimes()
 	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()
@@ -628,6 +649,13 @@ func TestPublisherTallymanError(t *testing.T) {
 	).AnyTimes()
 	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
 	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
+	// The batch outcome verifies marker entries against the database;
+	// report every ID as still pending.
+	db.EXPECT().FilterPendingUsageEventIDs(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, arg database.FilterPendingUsageEventIDsParams) ([]string, error) {
+			return arg.IDs, nil
+		},
+	).AnyTimes()
 	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()
@@ -706,6 +734,13 @@ func TestPublisherTallymanTimeout(t *testing.T) {
 	).AnyTimes()
 	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
 	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
+	// The batch outcome verifies marker entries against the database;
+	// report every ID as still pending.
+	db.EXPECT().FilterPendingUsageEventIDs(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, arg database.FilterPendingUsageEventIDsParams) ([]string, error) {
+			return arg.IDs, nil
+		},
+	).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()
 	clock.Set(now)

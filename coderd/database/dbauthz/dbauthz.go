@@ -2763,6 +2763,13 @@ func (q *querier) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, 
 	return q.db.FetchVolumesResourceMonitorsUpdatedAfter(ctx, updatedAt)
 }
 
+func (q *querier) FilterPendingUsageEventIDs(ctx context.Context, arg database.FilterPendingUsageEventIDsParams) ([]string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
+		return nil, err
+	}
+	return q.db.FilterPendingUsageEventIDs(ctx, arg)
+}
+
 func (q *querier) FinalizeStaleChatDebugRows(ctx context.Context, updatedBefore database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
 	// Background sweep operates across all chats.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {

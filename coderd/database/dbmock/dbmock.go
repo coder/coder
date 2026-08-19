@@ -1815,6 +1815,21 @@ func (mr *MockStoreMockRecorder) FetchVolumesResourceMonitorsUpdatedAfter(ctx, u
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchVolumesResourceMonitorsUpdatedAfter", reflect.TypeOf((*MockStore)(nil).FetchVolumesResourceMonitorsUpdatedAfter), ctx, updatedAt)
 }
 
+// FilterPendingUsageEventIDs mocks base method.
+func (m *MockStore) FilterPendingUsageEventIDs(ctx context.Context, arg database.FilterPendingUsageEventIDsParams) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FilterPendingUsageEventIDs", ctx, arg)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FilterPendingUsageEventIDs indicates an expected call of FilterPendingUsageEventIDs.
+func (mr *MockStoreMockRecorder) FilterPendingUsageEventIDs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilterPendingUsageEventIDs", reflect.TypeOf((*MockStore)(nil).FilterPendingUsageEventIDs), ctx, arg)
+}
+
 // FinalizeStaleChatDebugRows mocks base method.
 func (m *MockStore) FinalizeStaleChatDebugRows(ctx context.Context, arg database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
 	m.ctrl.T.Helper()
