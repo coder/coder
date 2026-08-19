@@ -2336,6 +2336,15 @@ export const mcpServerConfigs = (organization: string) => ({
 		API.experimental.getMCPServerConfigs(organization),
 });
 
+export const mcpServerConfigKey = (organization: string, id: string) =>
+	[...mcpServerConfigsKey(organization), "detail", id] as const;
+
+export const mcpServerConfig = (organization: string, id: string) => ({
+	queryKey: mcpServerConfigKey(organization, id),
+	queryFn: (): Promise<TypesGen.MCPServerConfig> =>
+		API.experimental.getMCPServerConfig(organization, id),
+});
+
 const invalidateMCPServerConfigQueries = async (queryClient: QueryClient) => {
 	await queryClient.invalidateQueries({ queryKey: mcpServersKey });
 };

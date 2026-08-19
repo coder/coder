@@ -3366,6 +3366,10 @@ export const MockPermissions: Permissions = {
 	editAnyGroups: true,
 	editAnySettings: true,
 	viewAnyIdpSyncSettings: true,
+	viewAnyMCPServerConfigs: true,
+	createAnyMCPServerConfig: true,
+	updateAnyMCPServerConfig: true,
+	deleteAnyMCPServerConfig: true,
 	viewAnyMembers: true,
 	viewAnyAIBridgeInterception: true,
 	viewAnyAIProvider: true,
@@ -3403,6 +3407,10 @@ export const MockNoPermissions: Permissions = {
 	editAnyGroups: false,
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
+	viewAnyMCPServerConfigs: false,
+	createAnyMCPServerConfig: false,
+	updateAnyMCPServerConfig: false,
+	deleteAnyMCPServerConfig: false,
 	viewAnyMembers: false,
 	viewAnyAIBridgeInterception: false,
 	viewAnyAIProvider: false,
@@ -3430,6 +3438,10 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	viewProvisionerJobs: true,
 	viewIdpSyncSettings: true,
 	editIdpSyncSettings: true,
+	viewMCPServerConfigs: true,
+	createMCPServerConfig: true,
+	updateMCPServerConfig: true,
+	deleteMCPServerConfig: true,
 };
 
 export const MockNoOrganizationPermissions: OrganizationPermissions = {
@@ -3448,6 +3460,10 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	viewProvisionerJobs: false,
 	viewIdpSyncSettings: false,
 	editIdpSyncSettings: false,
+	viewMCPServerConfigs: false,
+	createMCPServerConfig: false,
+	updateMCPServerConfig: false,
+	deleteMCPServerConfig: false,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {

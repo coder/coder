@@ -3921,6 +3921,16 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getMCPServerConfig = async (
+		organization: string,
+		id: string,
+	): Promise<TypesGen.MCPServerConfig> => {
+		const response = await this.axios.get<TypesGen.MCPServerConfig>(
+			mcpServerConfigPath(organization, id),
+		);
+		return response.data;
+	};
+
 	createMCPServerConfig = async (
 		organization: string,
 		req: TypesGen.CreateMCPServerConfigRequest,

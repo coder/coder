@@ -465,7 +465,7 @@ const AISettingsUpdateMCPServerPage = lazy(
 		),
 );
 
-const AISettingsIndexRedirect = () => {
+export const AISettingsIndexRedirect = () => {
 	const { permissions } = useAuthenticated();
 
 	if (permissions.viewAnyAIProvider) {
@@ -478,6 +478,18 @@ const AISettingsIndexRedirect = () => {
 
 	if (permissions.editDeploymentConfig) {
 		return <Navigate to="/ai/settings/models" replace />;
+	}
+
+	if (
+		permissions.viewAnyMCPServerConfigs ||
+		permissions.updateAnyMCPServerConfig ||
+		permissions.deleteAnyMCPServerConfig
+	) {
+		return <Navigate to="/ai/settings/mcp-servers" replace />;
+	}
+
+	if (permissions.createAnyMCPServerConfig) {
+		return <Navigate to="/ai/settings/mcp-servers/add" replace />;
 	}
 
 	return <Navigate to="/ai/settings/providers" replace />;

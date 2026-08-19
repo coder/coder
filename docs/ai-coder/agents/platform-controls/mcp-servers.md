@@ -7,8 +7,11 @@ servers are injected into or offered to users during chat depending on the
 availability policy.
 
 This is an admin-only feature accessible at **AI Settings** > **Coder Agents** > **MCP servers**
-(`/ai/settings/mcp-servers`). The settings page currently manages the default
-organization's servers; other organizations are managed through the API.
+(`/ai/settings/mcp-servers`). In multi-organization deployments, use the
+organization picker to choose which organization's servers to manage. The
+server list shows the picker when you can access more than one organization's
+servers. The add and update views always show the target organization, as a
+read-only field when only one organization is available.
 
 ## Add an MCP server
 
