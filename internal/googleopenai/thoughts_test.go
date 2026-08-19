@@ -131,10 +131,19 @@ func TestRewriteThoughtCompletion(t *testing.T) {
 
 	t.Run("ThoughtOnlyContent", func(t *testing.T) {
 		t.Parallel()
-		out := googleopenai.RewriteThoughtCompletion([]byte(`{"choices":[{"message":{"content":"<thought>All thought, no close marker."}}]}`))
+		out := googleopenai.RewriteThoughtCompletion([]byte(`{"choices":[{"message":{"content":"<thought>All thought, no close marker.","extra_content":{"google":{"thought":true}}}}]}`))
 		message := gjson.GetBytes(out, "choices.0.message")
 		require.Equal(t, "All thought, no close marker.", message.Get("reasoning_content").String())
 		require.Equal(t, "", message.Get("content").String())
+	})
+
+	t.Run("MarkerTextWithoutThoughtMetadataUnchanged", func(t *testing.T) {
+		t.Parallel()
+		// An answer that legitimately begins with the marker text must not
+		// be reclassified as reasoning; real thought output always carries
+		// extra_content.google.thought.
+		body := `{"choices":[{"message":{"content":"<thought>example XML</thought> is the requested format."}}]}`
+		require.Equal(t, body, string(googleopenai.RewriteThoughtCompletion([]byte(body))))
 	})
 
 	t.Run("NoThoughtsUnchanged", func(t *testing.T) {

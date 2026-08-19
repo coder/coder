@@ -78,7 +78,11 @@ func RewriteThoughtCompletion(body []byte) []byte {
 	out := body
 	for index, choice := range choices.Array() {
 		content := choice.Get("message.content")
-		if content.Type != gjson.String || !strings.HasPrefix(content.Str, thoughtOpenMarker) {
+		// The thought metadata gates the rewrite so an answer that
+		// legitimately begins with the marker text is left alone; Gemini sets
+		// it on every message that carries thought output.
+		if content.Type != gjson.String || !strings.HasPrefix(content.Str, thoughtOpenMarker) ||
+			!choice.Get("message.extra_content.google.thought").Bool() {
 			continue
 		}
 		reasoning := content.Str[len(thoughtOpenMarker):]
