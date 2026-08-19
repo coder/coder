@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/cryptorand"
 )
@@ -87,16 +88,10 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 	case len(params.Scopes) > 0:
 		scopes = params.Scopes
 	case params.Scope != "":
-		var scope database.APIKeyScope
-		switch params.Scope {
-		case "all":
-			scope = database.ApiKeyScopeCoderAll
-		case "application_connect":
-			scope = database.ApiKeyScopeCoderApplicationConnect
-		default:
-			scope = params.Scope
-		}
-		scopes = database.APIKeyScopes{scope}
+		// Callers may pass an alias spelling, which is not an api_key_scope enum
+		// member and so would fail the validity check below.
+		canonical := rbac.CanonicalScopeName(rbac.ScopeName(params.Scope))
+		scopes = database.APIKeyScopes{database.APIKeyScope(canonical)}
 	default:
 		// Default to coder:all scope for backward compatibility.
 		scopes = database.APIKeyScopes{database.ApiKeyScopeCoderAll}

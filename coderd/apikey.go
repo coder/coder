@@ -68,37 +68,32 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	// Map and validate requested scope.
 	// Accept legacy special scopes (all, application_connect) and external scopes.
 	// Default to coder:all scopes for backward compatibility.
+	// IsExternalScope accepts alias spellings that are not api_key_scope enum
+	// members, so every accepted name is canonicalized before it is stored.
 	scopes := database.APIKeyScopes{database.ApiKeyScopeCoderAll}
 	if len(createToken.Scopes) > 0 {
 		scopes = make(database.APIKeyScopes, 0, len(createToken.Scopes))
 		for _, s := range createToken.Scopes {
-			name := string(s)
-			if !rbac.IsExternalScope(rbac.ScopeName(name)) {
+			name := rbac.ScopeName(s)
+			if !rbac.IsExternalScope(name) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Failed to create API key.",
 					Detail:  fmt.Sprintf("invalid or unsupported API key scope: %q", name),
 				})
 				return
 			}
-			scopes = append(scopes, database.APIKeyScope(name))
+			scopes = append(scopes, database.APIKeyScope(rbac.CanonicalScopeName(name)))
 		}
 	} else if string(createToken.Scope) != "" {
-		name := string(createToken.Scope)
-		if !rbac.IsExternalScope(rbac.ScopeName(name)) {
+		name := rbac.ScopeName(createToken.Scope)
+		if !rbac.IsExternalScope(name) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Failed to create API key.",
 				Detail:  fmt.Sprintf("invalid or unsupported API key scope: %q", name),
 			})
 			return
 		}
-		switch name {
-		case "all":
-			scopes = database.APIKeyScopes{database.ApiKeyScopeCoderAll}
-		case "application_connect":
-			scopes = database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect}
-		default:
-			scopes = database.APIKeyScopes{database.APIKeyScope(name)}
-		}
+		scopes = database.APIKeyScopes{database.APIKeyScope(rbac.CanonicalScopeName(name))}
 	}
 
 	tokenName := namesgenerator.NameDigitWith("_")

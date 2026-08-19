@@ -180,6 +180,54 @@ func TestTokenLegacySingularScopeCompat(t *testing.T) {
 	}
 }
 
+// The plural Scopes field accepts the same legacy names as the singular Scope
+// field above: IsExternalScope validates both spellings, and codersdk still
+// exports APIKeyScopeAll and APIKeyScopeApplicationConnect for callers to pass.
+// Both must persist canonically, since the api_key_scope enum has no member for
+// either alias and convertAPIKey derives the deprecated singular field by
+// looking for the canonical value.
+func TestTokenLegacyPluralScopeCompat(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		requested codersdk.APIKeyScope
+		canonical codersdk.APIKeyScope
+	}{
+		{
+			name:      "all",
+			requested: codersdk.APIKeyScopeAll,
+			canonical: codersdk.APIKeyScopeCoderAll,
+		},
+		{
+			name:      "application_connect",
+			requested: codersdk.APIKeyScopeApplicationConnect,
+			canonical: codersdk.APIKeyScopeCoderApplicationConnect,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+			defer cancel()
+			client := coderdtest.New(t, nil)
+			_ = coderdtest.CreateFirstUser(t, client)
+
+			_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+				Scopes: []codersdk.APIKeyScope{tc.requested},
+			})
+			require.NoError(t, err)
+
+			keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
+			require.NoError(t, err)
+			require.Len(t, keys, 1)
+			require.Equal(t, []codersdk.APIKeyScope{tc.canonical}, keys[0].Scopes)
+			require.Equal(t, tc.requested, keys[0].Scope)
+		})
+	}
+}
+
 func TestUserSetTokenDuration(t *testing.T) {
 	t.Parallel()
 
