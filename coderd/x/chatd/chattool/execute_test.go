@@ -514,6 +514,31 @@ func TestExecuteTool(t *testing.T) {
 		}
 	})
 
+	t.Run("BackgroundedFlagOnlyOnIntentionalLaunch", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-bg"}, nil)
+
+		tool := newExecuteTool(t, mockConn)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"npm start","run_in_background":true}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.True(t, result.Backgrounded)
+		assert.Equal(t, "proc-bg", result.BackgroundProcessID)
+	})
+
 	t.Run("ProcessOutputStillRunningSetsRunningFlag", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)

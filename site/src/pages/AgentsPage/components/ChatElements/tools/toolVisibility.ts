@@ -46,9 +46,10 @@ export const getExecuteRenderData = (
 		? (asNumber(rec.wall_duration_ms, { parseString: true }) ??
 			asNumber(rec.duration_ms, { parseString: true }))
 		: undefined;
-	const isBackgrounded = Boolean(
-		rec && asString(rec.background_process_id).trim(),
-	);
+	// An intentional run_in_background=true launch is flagged
+	// explicitly; background_process_id alone is also set on
+	// foreground timeout results, so it cannot distinguish them.
+	const isBackgrounded = rec?.backgrounded === true;
 
 	return {
 		command,

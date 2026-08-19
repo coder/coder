@@ -14,6 +14,7 @@ describe("toolVisibility", () => {
 						output: " fetched ",
 						wall_duration_ms: "47200",
 						background_process_id: "process-1",
+						backgrounded: true,
 					},
 				),
 			).toEqual({
@@ -23,6 +24,23 @@ describe("toolVisibility", () => {
 				durationMs: 47200,
 				isBackgrounded: true,
 			});
+		});
+
+		it("does not treat a foreground timeout's process ID as backgrounded", () => {
+			// Foreground commands that exceed their timeout also return
+			// background_process_id so the caller can re-attach; only an
+			// explicit backgrounded flag marks an intentional launch.
+			expect(
+				getExecuteRenderData(
+					{ command: "make test" },
+					{
+						success: false,
+						error: "command timed out after 10s",
+						exit_code: -1,
+						background_process_id: "process-1",
+					},
+				).isBackgrounded,
+			).toBe(false);
 		});
 
 		it("normalizes execute error results into transcript blocks", () => {

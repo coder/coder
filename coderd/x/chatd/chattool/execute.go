@@ -94,6 +94,12 @@ type ExecuteResult struct {
 	// requested). The caller should keep polling; the UI uses it
 	// to avoid presenting the check as finished.
 	Running bool `json:"running,omitempty"`
+	// Backgrounded marks an intentional run_in_background=true
+	// launch. background_process_id is also set on foreground
+	// timeout results so the caller can re-attach, so its
+	// presence alone does not imply an intentional background
+	// launch; this flag does.
+	Backgrounded bool `json:"backgrounded,omitempty"`
 }
 
 // ExecuteOptions configures the execute tool.
@@ -209,6 +215,7 @@ func executeBackground(
 	result := ExecuteResult{
 		Success:             true,
 		BackgroundProcessID: resp.ID,
+		Backgrounded:        true,
 	}
 	data, err := json.Marshal(result)
 	if err != nil {

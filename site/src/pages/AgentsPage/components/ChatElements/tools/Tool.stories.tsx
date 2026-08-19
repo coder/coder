@@ -362,6 +362,7 @@ export const ExecuteModelIntentBackgrounded: Story = {
 			output: "",
 			wall_duration_ms: 2300,
 			background_process_id: "process-123",
+			backgrounded: true,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -596,6 +597,7 @@ export const ExecuteBackgrounded: Story = {
 		shellToolDisplayMode: "always_collapsed",
 		result: {
 			background_process_id: "process-123",
+			backgrounded: true,
 			output: "",
 			wall_duration_ms: 2100,
 		},
@@ -616,6 +618,7 @@ export const ExecuteBackgroundedNoIntent: Story = {
 		shellToolDisplayMode: "always_collapsed",
 		result: {
 			background_process_id: "process-123",
+			backgrounded: true,
 			output: "",
 			wall_duration_ms: 2100,
 		},
