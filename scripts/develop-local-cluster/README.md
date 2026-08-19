@@ -16,9 +16,9 @@ The command is for local development only. It does not run in CI.
 
 The command supports Docker servers running on `amd64` or `arm64`.
 
-## Bootstrap a Lima VM with mTLS
+## Bootstrap a Lima VM
 
-Use `setup-local-cluster-lima.sh` to prepare a fresh, apt-based Lima VM and deploy the complete local environment. The script expects rootful Docker, installs missing development tools, clones Coder into the guest's writable `~/src/coder` directory, creates the cluster, adds a license, and configures AI Gateway to connect to Coder with mTLS.
+Use `setup-local-cluster-lima.sh` to prepare a fresh, apt-based Lima VM and deploy the complete local environment. The script expects rootful Docker, installs missing development tools, clones Coder into the guest's writable `~/src/coder` directory, creates the cluster, and adds a license. mTLS between AI Gateway and Coder is optional and disabled by default.
 
 Create a Lima VM from macOS:
 
@@ -40,6 +40,14 @@ CODER_DEV_LICENSE_FILE="$HOME/coder-license.jwt" \
 
 You can instead set `CODER_DEV_LICENSE` or omit both variables to enter the license at a hidden interactive prompt. The script removes `CODER_DEV_LICENSE` from the subprocess environment before running installers and build commands.
 
+Enable AI Gateway-to-Coder mTLS explicitly:
+
+```console
+CODER_DEV_CLUSTER_MTLS=true \
+CODER_DEV_LICENSE_FILE="$HOME/coder-license.jwt" \
+  ./scripts/develop-local-cluster/setup-local-cluster-lima.sh
+```
+
 The bootstrap script:
 
 1. Installs missing base packages such as Git, Make, OpenSSL, jq, and vim.
@@ -48,9 +56,7 @@ The bootstrap script:
 4. Clones or updates Coder in `~/src/coder` and checks out `pawel/develop-local-cluster`.
 5. Runs `develop-local-cluster.sh` to deploy PostgreSQL and Coder.
 6. Adds the license before deploying the Premium provisioner and AI Gateway components.
-7. Generates a development CA, Coder server certificate, and AI Gateway client certificate.
-8. Configures AI Gateway to use Coder's HTTPS service with mTLS.
-9. Verifies that Coder rejects a client without a certificate, accepts the generated client certificate, and reports AI Gateway ready.
+7. When mTLS is enabled, generates certificates, configures AI Gateway to use Coder's HTTPS service, and verifies client certificate enforcement.
 
 Common bootstrap overrides:
 
@@ -63,6 +69,7 @@ Common bootstrap overrides:
 | `CODER_DEV_CLUSTER_NAMESPACE`    | `coder`                             |
 | `CODER_DEV_CLUSTER_GATEWAY_PORT` | `4001`                              |
 | `CODER_DEV_CLUSTER_BUILD_JOBS`   | `2`                                 |
+| `CODER_DEV_CLUSTER_MTLS`         | `false`                             |
 | `KUBECTL_VERSION`                | `v1.35.0`                           |
 | `K9S_VERSION`                    | Latest release at installation time |
 | `MTLS_CERT_DAYS`                 | `30`                                |
@@ -70,13 +77,13 @@ Common bootstrap overrides:
 
 Set `CODER_DEV_CLUSTER_BUILD_JOBS=1` if the VM is still under memory pressure during the Vite production build.
 
-The generated certificates and Helm values are stored under:
+When mTLS is enabled, the generated certificates and Helm values are stored under:
 
 ```text
 .coderv2/clusters/coder-local/mtls
 ```
 
-The mTLS validation uses a temporary loopback-only port-forward and removes it when validation completes. The normal development Coder URL remains `http://127.0.0.1:3000`; that HTTP endpoint does not require a client certificate. This setup validates and protects the AI Gateway-to-Coder HTTPS connection, but it does not disable Coder's HTTP service.
+The mTLS validation uses a temporary loopback-only port-forward and removes it when validation completes. The normal development Coder URL remains `http://127.0.0.1:3000`; that HTTP endpoint does not require a client certificate. Enabling mTLS validates and protects the AI Gateway-to-Coder HTTPS connection, but it does not disable Coder's HTTP service. Rerunning the script with `CODER_DEV_CLUSTER_MTLS=false` reconciles the deployment without mTLS and removes the generated mTLS resources.
 
 If a fresh bootstrap fails after creating the cluster, the script removes the new cluster and its local resources. It does not delete a cluster that existed before the script started.
 

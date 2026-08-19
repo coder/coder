@@ -12,6 +12,7 @@
 #   CODER_REPO_REF=pawel/develop-local-cluster
 #   CODER_REPO_DIR=$HOME/src/coder
 #   CODER_DEV_CLUSTER_NAME=coder-local
+#   CODER_DEV_CLUSTER_MTLS=true
 
 set -euo pipefail
 
@@ -22,6 +23,7 @@ CODER_DEV_CLUSTER_NAME="${CODER_DEV_CLUSTER_NAME:-coder-local}"
 CODER_DEV_CLUSTER_NAMESPACE="${CODER_DEV_CLUSTER_NAMESPACE:-coder}"
 CODER_DEV_CLUSTER_GATEWAY_PORT="${CODER_DEV_CLUSTER_GATEWAY_PORT:-4001}"
 CODER_DEV_CLUSTER_BUILD_JOBS="${CODER_DEV_CLUSTER_BUILD_JOBS:-2}"
+CODER_DEV_CLUSTER_MTLS="${CODER_DEV_CLUSTER_MTLS:-false}"
 CODER_DEV_LICENSE_FILE="${CODER_DEV_LICENSE_FILE:-}"
 coder_dev_license="${CODER_DEV_LICENSE:-}"
 unset CODER_DEV_LICENSE
@@ -35,6 +37,14 @@ export PATH="${HOME}/.local/bin:${PATH}"
 
 log() {
 	printf '\n==> %s\n' "$*"
+}
+
+normalize_bool() {
+	case "${1,,}" in
+	1 | true | yes) printf 'true\n' ;;
+	0 | false | no) printf 'false\n' ;;
+	*) fail "expected a boolean value, got: $1" ;;
+	esac
 }
 
 fail() {
@@ -372,6 +382,18 @@ apply_mtls_resources() {
 		--dry-run=client -o yaml | kubectl --context "${context}" apply -f -
 }
 
+remove_mtls_resources() {
+	local context="$1"
+	local namespace="${CODER_DEV_CLUSTER_NAMESPACE}"
+
+	kubectl --context "${context}" --namespace "${namespace}" delete \
+		secret/coder-server-tls \
+		secret/coder-client-ca \
+		secret/gateway-client-tls \
+		configmap/coder-mtls-config \
+		--ignore-not-found
+}
+
 validate_mtls() (
 	local context="$1"
 	local mtls_dir="$2"
@@ -433,6 +455,8 @@ main() {
 	local context="kind-${CODER_DEV_CLUSTER_NAME}"
 	local mtls_dir
 
+	CODER_DEV_CLUSTER_MTLS="$(normalize_bool "${CODER_DEV_CLUSTER_MTLS}")"
+
 	cleanup_failed_bootstrap() {
 		local exit_code="$?"
 		if [[ "${exit_code}" -ne 0 && "${cluster_existed:-false}" == false ]] && kind get clusters 2>/dev/null | grep -Fxq "${CODER_DEV_CLUSTER_NAME}"; then
@@ -460,25 +484,32 @@ main() {
 	add_license_if_needed
 
 	mtls_dir="${CODER_REPO_DIR}/.coderv2/clusters/${CODER_DEV_CLUSTER_NAME}/mtls"
-	generate_mtls_files "${mtls_dir}"
-	write_mtls_values "${mtls_dir}"
-	apply_mtls_resources "${context}" "${mtls_dir}"
+	if [[ "${CODER_DEV_CLUSTER_MTLS}" == true ]]; then
+		generate_mtls_files "${mtls_dir}"
+		write_mtls_values "${mtls_dir}"
+		apply_mtls_resources "${context}" "${mtls_dir}"
 
-	log "Deploying premium components with gateway-to-Coder mTLS"
-	cluster_command \
-		--coder-values "${mtls_dir}/coder-values.yaml" \
-		--gateway-values "${mtls_dir}/gateway-values.yaml" \
-		up --no-license-prompt
+		log "Deploying premium components with gateway-to-Coder mTLS"
+		cluster_command \
+			--coder-values "${mtls_dir}/coder-values.yaml" \
+			--gateway-values "${mtls_dir}/gateway-values.yaml" \
+			up --no-license-prompt
 
-	log "Restarting Coder and AI Gateway to load the applied certificates"
-	kubectl --context "${context}" --namespace "${CODER_DEV_CLUSTER_NAMESPACE}" rollout restart \
-		deployment/coder deployment/coder-ai-gateway
-	kubectl --context "${context}" --namespace "${CODER_DEV_CLUSTER_NAMESPACE}" rollout status \
-		deployment/coder --timeout=5m
-	kubectl --context "${context}" --namespace "${CODER_DEV_CLUSTER_NAMESPACE}" rollout status \
-		deployment/coder-ai-gateway --timeout=5m
+		log "Restarting Coder and AI Gateway to load the applied certificates"
+		kubectl --context "${context}" --namespace "${CODER_DEV_CLUSTER_NAMESPACE}" rollout restart \
+			deployment/coder deployment/coder-ai-gateway
+		kubectl --context "${context}" --namespace "${CODER_DEV_CLUSTER_NAMESPACE}" rollout status \
+			deployment/coder --timeout=5m
+		kubectl --context "${context}" --namespace "${CODER_DEV_CLUSTER_NAMESPACE}" rollout status \
+			deployment/coder-ai-gateway --timeout=5m
 
-	validate_mtls "${context}" "${mtls_dir}"
+		validate_mtls "${context}" "${mtls_dir}"
+	else
+		log "Deploying premium components without mTLS"
+		cluster_command up --no-license-prompt
+		remove_mtls_resources "${context}"
+		rm -rf "${mtls_dir}"
+	fi
 
 	log "Local cluster is ready"
 	cluster_command info
