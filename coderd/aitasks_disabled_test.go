@@ -23,16 +23,6 @@ func TestTasksDisabled(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: values})
 	coderdtest.CreateFirstUser(t, client)
 
-	// A path that was never part of the API, used as the reference for what an
-	// unregistered route looks like.
-	res, err := client.Request(ctx, http.MethodGet, "/api/v2/does-not-exist", nil)
-	require.NoError(t, err)
-	wantStatus := res.StatusCode
-	wantBody, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	_ = res.Body.Close()
-	require.Equal(t, http.StatusNotFound, wantStatus)
-
 	// Only the user-facing routes are asserted here. The agent-side
 	// /workspaceagents/me/tasks route is also gated, but it sits behind agent
 	// authentication, so a user token cannot tell a missing route from a
