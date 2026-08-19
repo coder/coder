@@ -102,12 +102,13 @@ WHERE
 -- Returns the subset of the given usage event IDs that are still pending
 -- publication: unpublished and within the publisher's 30-day selection
 -- window (window_start is now minus 30 days; older events are never
--- published, so they no longer count as pending). Publish failure detection
--- uses this to verify failing-events marker entries against the database
--- before warning from them or expiring them. Bounded by the caller's ID
--- list (the marker holds at most ~100 entries) and served by the primary
--- key.
-SELECT id
+-- published, so they no longer count as pending). Each pending ID is
+-- returned with its inserted_at, the event's effective stuck base (see
+-- GetUsagePublishStatus's stuck_cutoff doc). Publish failure detection uses
+-- this to verify failing-events marker entries against the database before
+-- warning from them or pruning them. Bounded by the caller's ID list and
+-- served by the primary key.
+SELECT id, inserted_at
 FROM usage_events
 WHERE
     id = ANY(@ids::text[])

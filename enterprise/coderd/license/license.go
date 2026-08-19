@@ -81,64 +81,45 @@ type usagePublishingEnabledMarker struct {
 // publisher's currently failing events as a JSON
 // UsagePublishingFailingEvents. Every publish batch reports its per-event
 // outcomes (see RecordUsagePublishingBatchOutcome): events left unpublished
-// gain or refresh an entry, and events confirmed published remove theirs.
+// add their IDs, and events confirmed published remove theirs.
 // Publish failure detection reads the marker instead of scanning the
-// unpublished backlog for failed rows, and because entries are keyed by
-// event ID, a fully published batch on one replica only resolves its own
-// events; failures another replica's rows justify stay recorded until
-// those exact rows publish. Each entry carries the event's insertion time
-// as its stuck base, mirroring GetUsagePublishStatus, so an event that
-// breached the failure threshold before its first failed attempt keeps
-// warning while an active retry holds its row out of the query's view.
-// Entries are never expired on wall-clock: both the batch outcome and
-// detection verify entries against the database with a bounded
-// primary-key lookup (FilterPendingUsageEventIDs), so an entry persists
-// exactly as long as its event stays pending. A failing event displaced
-// behind fresh backfills keeps warning even though no replica can retry
-// and re-stamp it, and an entry whose removal failed after its event
-// published stops warning on the next refresh.
+// unpublished backlog for failed rows, and because it tracks event IDs, a
+// fully published batch on one replica only resolves its own events;
+// failures another replica's rows justify stay recorded until those exact
+// rows publish. The marker holds only IDs, no timestamps or caps: both the
+// batch outcome and detection verify the IDs against the database with a
+// bounded primary-key lookup (FilterPendingUsageEventIDs) that also
+// returns each pending event's inserted_at, its effective stuck base
+// (mirroring GetUsagePublishStatus's insertion-age basis). An ID therefore
+// persists and warns exactly as long as its event stays pending: a failing
+// event displaced behind fresh backfills keeps warning even though no
+// replica can retry it, and an ID whose removal was missed after its event
+// published stops warning on the next refresh. Dropping IDs is never
+// safe (a displaced event might never be re-attempted to restore one), so
+// none are dropped; the marker stays bounded because every write prunes
+// IDs that are no longer pending, and pending events age out of the
+// publisher's 30-day window. Growth requires distinct attempted-and-failed
+// events, which arrive at most one publish batch per cycle.
 const UsagePublishingFailingEventsKey = "usage_publishing_failing_events"
-
-// usagePublishingFailingEventsCap bounds how many per-event entries the
-// marker holds so its JSON value stays small. It matches the publish batch
-// size. Beyond the cap the entries with the newest stuck_since are
-// dropped: they never determine the warning while an older entry is
-// tracked, and dropping loses no durable state because stuck_since is the
-// event's inserted_at, recomputed from the row, so a still-failing dropped
-// event is restored identically by its next failing batch (at most one
-// publish cycle later, immaterial against the 24-hour failure threshold).
-const usagePublishingFailingEventsCap = 100
-
-// UsagePublishingEventFailure records one failing event.
-type UsagePublishingEventFailure struct {
-	// StuckSince is the event's insertion time: the effective start of its
-	// publish failure, matching the stuck probe's insertion-age basis in
-	// GetUsagePublishStatus (detection clamps it to enabled_since the same
-	// way).
-	StuckSince time.Time `json:"stuck_since"`
-	// LastFailedAt is the most recent failed publish attempt for the event.
-	LastFailedAt time.Time `json:"last_failed_at"`
-}
 
 // UsagePublishingFailingEvents is the JSON value stored under
 // UsagePublishingFailingEventsKey.
 type UsagePublishingFailingEvents struct {
-	// Events maps a usage event ID to its failure record. Capped at
-	// usagePublishingFailingEventsCap entries, keeping the oldest
-	// stuck_since values because they determine the warning.
-	Events map[string]UsagePublishingEventFailure `json:"events"`
+	// EventIDs are the usage event IDs whose most recent publish attempt
+	// left them unpublished. Sorted, deduplicated, and verified against the
+	// database on every write.
+	EventIDs []string `json:"event_ids"`
 }
 
 // RecordUsagePublishingBatchOutcome updates the failing-events marker with
 // a publish batch's per-event outcomes after the batch's database update
 // committed. Published events (including permanent rejections, which are
-// terminal) remove their entries; events left unpublished (failed, keyed by
-// event ID with the event's insertion time as the value) gain or refresh
-// one. Per-entry stamps are monotonic so a stalled replica cannot move
-// evidence backward. It runs under the marker advisory lock so concurrent
-// publishers cannot interleave. The caller must pass a system-authorized
-// context.
-func RecordUsagePublishingBatchOutcome(ctx context.Context, db database.Store, now time.Time, publishedIDs []string, failed map[string]time.Time) error {
+// terminal) remove their IDs; events left unpublished add theirs. The
+// merged set is then verified against the database, keeping only IDs still
+// pending, so stalled replicas cannot resurrect resolved failures. It runs
+// under the marker advisory lock so concurrent publishers cannot
+// interleave. The caller must pass a system-authorized context.
+func RecordUsagePublishingBatchOutcome(ctx context.Context, db database.Store, now time.Time, publishedIDs, failedIDs []string) error {
 	return db.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, database.LockIDUsagePublishingEnabledMarker); err != nil {
 			return xerrors.Errorf("acquire usage publishing marker lock: %w", err)
@@ -152,80 +133,48 @@ func RecordUsagePublishingBatchOutcome(ctx context.Context, db database.Store, n
 				marker = UsagePublishingFailingEvents{}
 			}
 		case xerrors.Is(err, sql.ErrNoRows):
-			if len(failed) == 0 {
+			if len(failedIDs) == 0 {
 				// Healthy deployments have no marker and write nothing.
 				return nil
 			}
 		default:
 			return xerrors.Errorf("get usage publishing failing events: %w", err)
 		}
-		if marker.Events == nil {
-			marker.Events = map[string]UsagePublishingEventFailure{}
+		ids := make(map[string]struct{}, len(marker.EventIDs)+len(failedIDs))
+		for _, id := range marker.EventIDs {
+			ids[id] = struct{}{}
+		}
+		for _, id := range failedIDs {
+			ids[id] = struct{}{}
 		}
 		for _, id := range publishedIDs {
-			delete(marker.Events, id)
+			delete(ids, id)
 		}
-		for id, insertedAt := range failed {
-			if insertedAt.IsZero() || insertedAt.After(now) {
-				// Defensive: a missing insertion time falls back to the
-				// attempt time, which is never earlier than insertion.
-				insertedAt = now
+		marker.EventIDs = nil
+		if len(ids) > 0 {
+			// Keep only IDs still pending (unpublished and within the
+			// publish window). Verifying against the database rather than
+			// trusting the set keeps displaced failures warning however
+			// long they wait and drops IDs whose events were published by a
+			// batch that missed its removal (see
+			// UsagePublishingFailingEventsKey). The lookup is bounded by
+			// the set size and served by the primary key.
+			all := make([]string, 0, len(ids))
+			for id := range ids {
+				all = append(all, id)
 			}
-			entry, ok := marker.Events[id]
-			if ok && !now.After(entry.LastFailedAt) {
-				// A stalled replica must not move the stamp backward.
-				continue
-			}
-			// The stuck base is the event's insertion time, constant per
-			// row, so gaps between failed attempts never reset failure age
-			// (mirroring the stuck probe's insertion-age basis).
-			entry.StuckSince = insertedAt
-			entry.LastFailedAt = now
-			marker.Events[id] = entry
-		}
-		// Drop entries whose events are no longer pending (published by a
-		// batch whose marker removal was missed, or aged out of the publish
-		// window). Verifying against the database rather than expiring on
-		// wall-clock keeps displaced failures warning however long they
-		// wait (see UsagePublishingFailingEventsKey); the lookup is bounded
-		// by the entry cap and served by the primary key.
-		if len(marker.Events) > 0 {
-			ids := make([]string, 0, len(marker.Events))
-			for id := range marker.Events {
-				ids = append(ids, id)
-			}
-			pendingIDs, err := tx.FilterPendingUsageEventIDs(ctx, database.FilterPendingUsageEventIDsParams{
-				IDs:         ids,
+			pendingRows, err := tx.FilterPendingUsageEventIDs(ctx, database.FilterPendingUsageEventIDsParams{
+				IDs:         all,
 				WindowStart: now.Add(-usagePublishingWindow),
 			})
 			if err != nil {
 				return xerrors.Errorf("filter pending usage event ids: %w", err)
 			}
-			pending := make(map[string]struct{}, len(pendingIDs))
-			for _, id := range pendingIDs {
-				pending[id] = struct{}{}
+			marker.EventIDs = make([]string, 0, len(pendingRows))
+			for _, row := range pendingRows {
+				marker.EventIDs = append(marker.EventIDs, row.ID)
 			}
-			for id := range marker.Events {
-				if _, ok := pending[id]; !ok {
-					delete(marker.Events, id)
-				}
-			}
-		}
-		// Enforce the entry cap by dropping the entries with the newest
-		// stuck_since: they never determine the warning while an older
-		// entry is tracked, and a still-failing dropped event is restored
-		// identically by its next failing batch (see
-		// usagePublishingFailingEventsCap).
-		for len(marker.Events) > usagePublishingFailingEventsCap {
-			newestID := ""
-			var newestStuckSince time.Time
-			for id, entry := range marker.Events {
-				if newestID == "" || entry.StuckSince.After(newestStuckSince) {
-					newestID = id
-					newestStuckSince = entry.StuckSince
-				}
-			}
-			delete(marker.Events, newestID)
+			sort.Strings(marker.EventIDs)
 		}
 		value, err := json.Marshal(marker)
 		if err != nil {
@@ -379,43 +328,31 @@ func Entitlements(
 				// overwrites it on its next failing batch.
 				return status, nil
 			}
-			// Only entries whose events are still pending count: a
-			// displaced failure keeps warning however long it waits for a
-			// retry, and an entry left behind by a missed removal stops
-			// warning as soon as this verification sees the row published.
-			// The lookup is bounded by the marker's entry cap and served by
-			// the primary key.
-			pending := map[string]struct{}{}
-			if len(marker.Events) > 0 {
-				ids := make([]string, 0, len(marker.Events))
-				for id := range marker.Events {
-					ids = append(ids, id)
-				}
-				pendingIDs, err := db.FilterPendingUsageEventIDs(ctx, database.FilterPendingUsageEventIDsParams{
-					IDs:         ids,
-					WindowStart: now.Add(-usagePublishingWindow),
-				})
-				if err != nil {
-					return database.GetUsagePublishStatusRow{}, xerrors.Errorf("filter pending usage event ids: %w", err)
-				}
-				for _, id := range pendingIDs {
-					pending[id] = struct{}{}
-				}
+			if len(marker.EventIDs) == 0 {
+				return status, nil
+			}
+			// Only IDs whose events are still pending count: a displaced
+			// failure keeps warning however long it waits for a retry, and
+			// an ID left behind by a missed removal stops warning as soon
+			// as this verification sees the row published. Each pending
+			// event's inserted_at is its effective stuck base, mirroring
+			// the stuck probe. The lookup is bounded by the marker's size
+			// and served by the primary key.
+			pendingRows, err := db.FilterPendingUsageEventIDs(ctx, database.FilterPendingUsageEventIDsParams{
+				IDs:         marker.EventIDs,
+				WindowStart: now.Add(-usagePublishingWindow),
+			})
+			if err != nil {
+				return database.GetUsagePublishStatusRow{}, xerrors.Errorf("filter pending usage event ids: %w", err)
 			}
 			var oldestFailing time.Time
-			fold := func(entry UsagePublishingEventFailure) {
-				if entry.StuckSince.IsZero() {
-					return
-				}
-				if oldestFailing.IsZero() || entry.StuckSince.Before(oldestFailing) {
-					oldestFailing = entry.StuckSince
-				}
-			}
-			for id, entry := range marker.Events {
-				if _, ok := pending[id]; !ok {
+			for _, row := range pendingRows {
+				if row.InsertedAt.IsZero() {
 					continue
 				}
-				fold(entry)
+				if oldestFailing.IsZero() || row.InsertedAt.Before(oldestFailing) {
+					oldestFailing = row.InsertedAt
+				}
 			}
 			if oldestFailing.IsZero() {
 				return status, nil

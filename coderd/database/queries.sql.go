@@ -28702,7 +28702,7 @@ func (q *sqlQuerier) DisableForeignKeysAndTriggers(ctx context.Context) error {
 }
 
 const filterPendingUsageEventIDs = `-- name: FilterPendingUsageEventIDs :many
-SELECT id
+SELECT id, inserted_at
 FROM usage_events
 WHERE
     id = ANY($1::text[])
@@ -28715,27 +28715,33 @@ type FilterPendingUsageEventIDsParams struct {
 	WindowStart time.Time `db:"window_start" json:"window_start"`
 }
 
+type FilterPendingUsageEventIDsRow struct {
+	ID         string    `db:"id" json:"id"`
+	InsertedAt time.Time `db:"inserted_at" json:"inserted_at"`
+}
+
 // Returns the subset of the given usage event IDs that are still pending
 // publication: unpublished and within the publisher's 30-day selection
 // window (window_start is now minus 30 days; older events are never
-// published, so they no longer count as pending). Publish failure detection
-// uses this to verify failing-events marker entries against the database
-// before warning from them or expiring them. Bounded by the caller's ID
-// list (the marker holds at most ~100 entries) and served by the primary
-// key.
-func (q *sqlQuerier) FilterPendingUsageEventIDs(ctx context.Context, arg FilterPendingUsageEventIDsParams) ([]string, error) {
+// published, so they no longer count as pending). Each pending ID is
+// returned with its inserted_at, the event's effective stuck base (see
+// GetUsagePublishStatus's stuck_cutoff doc). Publish failure detection uses
+// this to verify failing-events marker entries against the database before
+// warning from them or pruning them. Bounded by the caller's ID list and
+// served by the primary key.
+func (q *sqlQuerier) FilterPendingUsageEventIDs(ctx context.Context, arg FilterPendingUsageEventIDsParams) ([]FilterPendingUsageEventIDsRow, error) {
 	rows, err := q.db.QueryContext(ctx, filterPendingUsageEventIDs, pq.Array(arg.IDs), arg.WindowStart)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []string
+	var items []FilterPendingUsageEventIDsRow
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var i FilterPendingUsageEventIDsRow
+		if err := rows.Scan(&i.ID, &i.InsertedAt); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

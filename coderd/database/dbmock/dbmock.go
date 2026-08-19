@@ -1816,10 +1816,10 @@ func (mr *MockStoreMockRecorder) FetchVolumesResourceMonitorsUpdatedAfter(ctx, u
 }
 
 // FilterPendingUsageEventIDs mocks base method.
-func (m *MockStore) FilterPendingUsageEventIDs(ctx context.Context, arg database.FilterPendingUsageEventIDsParams) ([]string, error) {
+func (m *MockStore) FilterPendingUsageEventIDs(ctx context.Context, arg database.FilterPendingUsageEventIDsParams) ([]database.FilterPendingUsageEventIDsRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FilterPendingUsageEventIDs", ctx, arg)
-	ret0, _ := ret[0].([]string)
+	ret0, _ := ret[0].([]database.FilterPendingUsageEventIDsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

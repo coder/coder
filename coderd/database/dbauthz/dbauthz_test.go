@@ -6586,7 +6586,7 @@ func (s *MethodTestSuite) TestUsageEvents() {
 	}))
 
 	s.Run("FilterPendingUsageEventIDs", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		db.EXPECT().FilterPendingUsageEventIDs(gomock.Any(), gomock.Any()).Return([]string{}, nil)
+		db.EXPECT().FilterPendingUsageEventIDs(gomock.Any(), gomock.Any()).Return([]database.FilterPendingUsageEventIDsRow{}, nil)
 		check.Args(database.FilterPendingUsageEventIDsParams{}).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
 	}))
 }

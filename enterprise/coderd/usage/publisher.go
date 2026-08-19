@@ -370,27 +370,18 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	// Report the batch's per-event outcomes to the failing-events marker;
 	// publish failure detection reads it instead of scanning the backlog
 	// for failed rows. Events confirmed published (including permanent
-	// rejections, which are terminal) resolve their own entries, so the
+	// rejections, which are terminal) resolve their own IDs, so the
 	// warning clears as soon as the actual failing events recover, while
 	// failures recorded for events outside this batch stay untouched.
-	// Failed events carry their insertion time: the marker mirrors the
-	// stuck probe's insertion-age basis so an event that breached the
-	// threshold before its first failed attempt keeps warning while its
-	// row is held in flight by a retry.
-	insertedAts := make(map[string]time.Time, len(events))
-	for _, event := range events {
-		insertedAts[event.ID] = event.InsertedAt
-	}
-	var publishedIDs []string
-	failed := map[string]time.Time{}
+	var publishedIDs, failedIDs []string
 	for i, id := range dbUpdate.IDs {
 		if dbUpdate.SetPublishedAts[i] {
 			publishedIDs = append(publishedIDs, id)
 		} else {
-			failed[id] = insertedAts[id]
+			failedIDs = append(failedIDs, id)
 		}
 	}
-	p.recordBatchOutcome(updateCtx, publishedIDs, failed)
+	p.recordBatchOutcome(updateCtx, publishedIDs, failedIDs)
 
 	var returnErr error
 	if len(resp.RejectedEvents) > 0 {
@@ -405,9 +396,9 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 // publish cycle, and a missed removal after a publish is harmless because
 // failure detection verifies entries against the database before warning
 // from them.
-func (p *tallymanPublisher) recordBatchOutcome(ctx context.Context, publishedIDs []string, failed map[string]time.Time) {
+func (p *tallymanPublisher) recordBatchOutcome(ctx context.Context, publishedIDs, failedIDs []string) {
 	// nolint:gocritic // Maintaining the usage publishing failing-events marker is a system function.
-	err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), p.db, p.clock.Now(), publishedIDs, failed)
+	err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), p.db, p.clock.Now(), publishedIDs, failedIDs)
 	if err != nil {
 		p.log.Warn(ctx, "record usage publishing batch outcome", slog.Error(err))
 	}

@@ -269,12 +269,13 @@ type sqlcQuerier interface {
 	// Returns the subset of the given usage event IDs that are still pending
 	// publication: unpublished and within the publisher's 30-day selection
 	// window (window_start is now minus 30 days; older events are never
-	// published, so they no longer count as pending). Publish failure detection
-	// uses this to verify failing-events marker entries against the database
-	// before warning from them or expiring them. Bounded by the caller's ID
-	// list (the marker holds at most ~100 entries) and served by the primary
-	// key.
-	FilterPendingUsageEventIDs(ctx context.Context, arg FilterPendingUsageEventIDsParams) ([]string, error)
+	// published, so they no longer count as pending). Each pending ID is
+	// returned with its inserted_at, the event's effective stuck base (see
+	// GetUsagePublishStatus's stuck_cutoff doc). Publish failure detection uses
+	// this to verify failing-events marker entries against the database before
+	// warning from them or pruning them. Bounded by the caller's ID list and
+	// served by the primary key.
+	FilterPendingUsageEventIDs(ctx context.Context, arg FilterPendingUsageEventIDsParams) ([]FilterPendingUsageEventIDsRow, error)
 	// Marks orphaned in-progress rows as interrupted so they do not stay
 	// in a non-terminal state forever. The NOT IN list must match the
 	// terminal statuses defined by ChatDebugStatus in codersdk/chats.go.

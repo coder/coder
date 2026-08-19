@@ -1049,7 +1049,7 @@ func (m queryMetricsStore) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.
 	return r0, r1
 }
 
-func (m queryMetricsStore) FilterPendingUsageEventIDs(ctx context.Context, arg database.FilterPendingUsageEventIDsParams) ([]string, error) {
+func (m queryMetricsStore) FilterPendingUsageEventIDs(ctx context.Context, arg database.FilterPendingUsageEventIDsParams) ([]database.FilterPendingUsageEventIDsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.FilterPendingUsageEventIDs(ctx, arg)
 	m.queryLatencies.WithLabelValues("FilterPendingUsageEventIDs").Observe(time.Since(start).Seconds())

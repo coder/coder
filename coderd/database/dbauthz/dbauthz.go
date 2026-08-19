@@ -2763,7 +2763,7 @@ func (q *querier) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, 
 	return q.db.FetchVolumesResourceMonitorsUpdatedAfter(ctx, updatedAt)
 }
 
-func (q *querier) FilterPendingUsageEventIDs(ctx context.Context, arg database.FilterPendingUsageEventIDsParams) ([]string, error) {
+func (q *querier) FilterPendingUsageEventIDs(ctx context.Context, arg database.FilterPendingUsageEventIDsParams) ([]database.FilterPendingUsageEventIDsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
 		return nil, err
 	}
