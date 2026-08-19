@@ -714,6 +714,8 @@ func TestPublisherPostPublishUpdateError(t *testing.T) {
 			return fn(db)
 		},
 	).AnyTimes()
+	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().PruneUsageEventsPublishRejections(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()
 	clock.Set(now)

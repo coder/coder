@@ -222,6 +222,20 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	// a stalled database cannot block the publish loop indefinitely.
 	selectCtx, selectCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
 	defer selectCtxCancel()
+
+	// Prune failure rows whose events aged out of the publish window on
+	// every cycle, before the license check, so the failures relation stays
+	// pruned even while publishing is disabled or idle. Without this a
+	// disabled interval longer than the window would accumulate stale rows
+	// that keep raising EUP01, and the detection probe's inserted_at index
+	// walk would have to skip every one of them on the first refresh after
+	// re-enablement. Rejections need no idle prune: detection bounds them
+	// by a range on their index's leading column, so stale rows only
+	// occupy space until the next publishing cycle.
+	if err := p.db.PruneUsageEventsPublishFailures(selectCtx, dbtime.Time(p.clock.Now().Add(-usagePublishingWindow))); err != nil {
+		p.log.Warn(ctx, "prune usage events publish failures", slog.Error(err))
+	}
+
 	licenseJwt, err := p.getBestLicenseJWT(selectCtx)
 	if xerrors.Is(err, errUsagePublishingDisabled) {
 		return 0, nil
@@ -234,14 +248,7 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		return 0, xerrors.Errorf("select usage events for publishing: %w", err)
 	}
 	if len(events) == 0 {
-		// No events to publish. Still prune failure rows whose events aged
-		// out of the publish window; without this an idle publisher would
-		// leave aged rows raising EUP01 forever. Rejections need no idle
-		// prune: detection bounds them by rejected_after, so stale rows
-		// only occupy space until the next non-empty cycle.
-		if err := p.db.PruneUsageEventsPublishFailures(selectCtx, dbtime.Time(p.clock.Now().Add(-usagePublishingWindow))); err != nil {
-			p.log.Warn(ctx, "prune usage events publish failures", slog.Error(err))
-		}
+		// No events to publish; the prune above already ran.
 		return 0, nil
 	}
 
