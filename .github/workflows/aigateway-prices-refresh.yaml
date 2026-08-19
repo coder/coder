@@ -156,7 +156,7 @@ jobs:
       - name: Send Slack notification
         if: failure() || steps.detect.outputs.changed == 'false'
         env:
-          REFRESH_STATUS: ${{ job.status }}
+          JOB_STATUS: ${{ job.status }}
           PRICE_BOOK_CHANGED: ${{ steps.detect.outputs.changed }}
           SLACK_WEBHOOK: ${{ secrets.AIGATEWAY_PRICES_SLACK_WEBHOOK }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -167,7 +167,7 @@ jobs:
             exit 1
           fi
 
-          if [ "${REFRESH_STATUS}" = "failure" ]; then
+          if [ "${JOB_STATUS}" = "failure" ]; then
             # printf, not a double-quoted literal: bash leaves \n as two
             # characters, and jq --arg then escapes the backslash, so Slack
             # would print \n as text instead of breaking the line.
@@ -175,7 +175,7 @@ jobs:
           elif [ "${PRICE_BOOK_CHANGED}" = "false" ]; then
             text=":white_check_mark: *AI Gateway price book refresh completed.* No generated changes were found. Run: ${RUN_URL}"
           else
-            echo "::error::Unexpected notification state: status=${REFRESH_STATUS}, changed=${PRICE_BOOK_CHANGED}"
+            echo "::error::Unexpected notification state: status=${JOB_STATUS}, changed=${PRICE_BOOK_CHANGED}"
             exit 1
           fi
 
