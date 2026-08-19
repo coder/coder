@@ -103,6 +103,18 @@ describe("toolVisibility", () => {
 			).toBe(false);
 		});
 
+		it("does not treat a failed background start as launched", () => {
+			// A failed StartProcess returns an error result with no
+			// process ID, so the legacy args alone must not mark it
+			// backgrounded.
+			expect(
+				getExecuteRenderData(
+					{ command: "npm start", run_in_background: true },
+					{ success: false, error: "start process: boom" },
+				).isBackgrounded,
+			).toBe(false);
+		});
+
 		it("normalizes execute error results into transcript blocks", () => {
 			const data = getExecuteRenderData(
 				{ command: "ls -la" },
