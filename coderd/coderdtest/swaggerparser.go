@@ -178,12 +178,6 @@ func isLegacyAIBridgeAlias(route string) bool {
 	return strings.HasPrefix(route, aibridge.AIBridgeRootPath+"/")
 }
 
-// isTaskEndpoint returns true for the Coder Tasks routes. Tasks is withdrawn
-// from the product and gated behind CODER_ENABLE_AI_TASKS, so its swagger
-// annotations were removed and it is deliberately absent from the published
-// API reference. The handlers still exist for deployments that opt back in, so
-// the routes are registered and must be skipped here. Remove this along with
-// the Tasks implementation.
 func isTaskEndpoint(route string) bool {
 	return route == "/api/v2/tasks" ||
 		strings.HasPrefix(route, "/api/v2/tasks/") ||
