@@ -1,5 +1,6 @@
 import type { FC } from "react";
 import { DateTimeRangeFilter } from "#/components/DateTimeRangeFilter/DateTimeRangeFilter";
+import type { TimeRange } from "#/components/DateTimeRangeFilter/timeRange";
 import {
 	Filter,
 	MenuSkeleton,
@@ -12,7 +13,6 @@ import {
 	ProviderFilter,
 	type ProviderFilterMenu,
 } from "../filters/ProviderFilter";
-import type { TimeRange } from "./timeRange";
 
 // Narrower than the SelectFilter default so the search input keeps most
 // of the row on wide viewports.

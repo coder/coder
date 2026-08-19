@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { fn } from "storybook/test";
+import type { TimeRange } from "#/components/DateTimeRangeFilter/timeRange";
 import {
 	getDefaultFilterProps,
 	MockMenu,
@@ -11,7 +12,6 @@ import {
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import { MockSession } from "#/testHelpers/entities";
 import { ListSessionsPageView } from "./ListSessionsPageView";
-import type { TimeRange } from "./timeRange";
 
 type FilterProps = ComponentProps<typeof ListSessionsPageView>["filterProps"];
 

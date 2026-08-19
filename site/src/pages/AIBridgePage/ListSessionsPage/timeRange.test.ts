@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { TimeRange } from "#/components/DateTimeRangeFilter/timeRange";
 import {
 	defaultTimeRange,
 	parseTimeRange,
 	setTimeRangeInQuery,
-	type TimeRange,
 	toRFC3339,
 	withDefaultTimeRange,
 } from "./timeRange";
@@ -52,6 +52,14 @@ describe("withDefaultTimeRange", () => {
 
 		const beforeOnly = 'started_before:"2026-08-01T00:00:00Z"';
 		expect(withDefaultTimeRange(beforeOnly, range)).toBe(beforeOnly);
+	});
+
+	it("does not mistake a quoted value containing the key for a bound", () => {
+		// A quoted value that mentions started_after is not a time bound.
+		const query = 'session_id:"started_after:2026-08-01"';
+		expect(withDefaultTimeRange(query, range)).toBe(
+			'session_id:"started_after:2026-08-01" started_after:"2026-08-12T15:00:00Z" started_before:"2026-08-13T15:00:00Z"',
+		);
 	});
 });
 

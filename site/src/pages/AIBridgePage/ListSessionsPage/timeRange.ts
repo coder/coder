@@ -1,11 +1,16 @@
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
 import type { TimeRange } from "#/components/DateTimeRangeFilter/timeRange";
-import { stringifyFilter } from "#/components/Filter/filterQuery";
+import {
+	parseFilterQuery,
+	stringifyFilter,
+} from "#/components/Filter/filterQuery";
 
-export type { TimeRange } from "#/components/DateTimeRangeFilter/timeRange";
+dayjs.extend(utc);
 
 /** Serializes a Date as RFC 3339 in UTC with second precision. */
 export const toRFC3339 = (date: Date): string => {
-	return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+	return dayjs(date).utc().format("YYYY-MM-DDTHH:mm:ss[Z]");
 };
 
 /** The default sessions window: the 24 hours ending at now. */
@@ -14,26 +19,29 @@ export const defaultTimeRange = (now: Date): TimeRange => ({
 	startedBefore: now,
 });
 
-const TIME_RANGE_KEY_PATTERN = /started_(after|before):/;
-
 /**
  * Appends the default time range to a filter query unless the query already
- * sets an explicit started_after or started_before. The default is kept in
- * memory instead of the URL so shared links resolve relative to the
- * viewer's current time.
+ * sets started_after or started_before. A deliberately one-sided query is
+ * left alone. The default is kept in memory instead of the URL so shared
+ * links resolve relative to the viewer's current time.
  */
 export const withDefaultTimeRange = (
 	query: string,
 	range: TimeRange,
 ): string => {
-	if (TIME_RANGE_KEY_PATTERN.test(query)) {
+	const values = parseFilterQuery(query);
+	if (
+		values.started_after !== undefined ||
+		values.started_before !== undefined
+	) {
 		return query;
 	}
 	const suffix = stringifyFilter({
+		...values,
 		started_after: toRFC3339(range.startedAfter),
 		started_before: toRFC3339(range.startedBefore),
 	});
-	return query === "" ? suffix : `${query} ${suffix}`;
+	return suffix;
 };
 
 /**

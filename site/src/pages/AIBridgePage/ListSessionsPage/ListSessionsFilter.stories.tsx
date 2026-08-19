@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { fn } from "storybook/test";
+import type { TimeRange } from "#/components/DateTimeRangeFilter/timeRange";
 import {
 	getDefaultFilterProps,
 	MockMenu,
 } from "#/components/Filter/storyHelpers";
 import { ListSessionsFilter } from "./ListSessionsFilter";
-import type { TimeRange } from "./timeRange";
 
 type FilterProps = ComponentProps<typeof ListSessionsFilter>;
 
