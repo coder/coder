@@ -265,6 +265,20 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		},
 	},
 	{
+		name: "find_tools",
+		args: { queries: ["github issues"] },
+		result: {
+			matches: [
+				{
+					name: "github__list_issues",
+					description: "List issues in a GitHub repository.",
+				},
+			],
+			activated: ["github__list_issues"],
+			total_deferred: 12,
+		},
+	},
+	{
 		name: "unknown_tool",
 		args: { example: true },
 		result: { ok: true },

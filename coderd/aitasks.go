@@ -1156,9 +1156,6 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	// Limit payload size to avoid excessive memory or data usage.
-	r.Body = http.MaxBytesReader(rw, r.Body, taskSnapshotMaxSize)
-
 	// Create envelope to store validated payload.
 	envelope := TaskLogSnapshotEnvelope{
 		Format: format,
@@ -1166,12 +1163,10 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 
 	switch format {
 	case "agentapi":
+		// Validate is a no-op here: agentapisdk.GetMessagesResponse has no
+		// validate tags.
 		var payload agentapisdk.GetMessagesResponse
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to decode request payload.",
-				Detail:  err.Error(),
-			})
+		if !httpapi.ReadLimit(ctx, rw, r, taskSnapshotMaxSize, &payload) {
 			return
 		}
 		// Verify messages field exists (can be empty array).

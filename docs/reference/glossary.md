@@ -24,12 +24,6 @@ It was previously named Agent Boundaries and uses a sandbox backend, `nsjail` by
 This feature requires a Premium license.
 Refer to [Agent Firewall](../ai-coder/agent-firewall/index.md).
 
-### Agent Workspace Build
-
-A metered workspace build performed on behalf of an AI agent.
-Community and Premium deployments include 1,000 for proof-of-concept use, and a Premium license expands the allowance.
-Refer to [AI Governance](../ai-coder/ai-governance.md).
-
 ### AI Gateway
 
 An LLM gateway in `coderd` that authenticates users, forwards traffic to providers such as OpenAI and Anthropic, audits prompts and tool invocations, and centralizes MCP administration.
@@ -45,7 +39,7 @@ Refer to [AI Gateway Proxy](../ai-coder/ai-gateway/ai-gateway-proxy/index.md).
 
 ### AI Governance
 
-Included with a Premium license, AI Governance unlocks AI Gateway and Agent Firewall and expands Agent Workspace Build allowances.
+Included with a Premium license, AI Governance unlocks AI Gateway and Agent Firewall.
 Refer to [AI Governance](../ai-coder/ai-governance.md).
 
 ### Air-gapped deployment
@@ -159,7 +153,7 @@ Refer to the [`codersdk` package](https://pkg.go.dev/github.com/coder/coder/v2/c
 
 ### Coding agent
 
-An AI agent that reads and writes code on a developer's behalf, such as Claude Code via AI Gateway.
+An AI agent that reads and writes code on a developer's behalf, such as Claude Code or Coder Agents.
 Refer to [AI in Coder](../ai-coder/index.md).
 
 ### Community
@@ -508,7 +502,7 @@ Refer to [Support bundle](../support/support-bundle.md).
 
 ### Supported editors and IDEs
 
-The editors and IDEs that connect to Coder workspaces, including [VS Code](../user-guides/workspace-access/vscode.md), [code-server](../user-guides/workspace-access/code-server.md), [Cursor](../user-guides/workspace-access/cursor.md), [Devin Desktop](../user-guides/workspace-access/devin-desktop.md), [Antigravity](../user-guides/workspace-access/antigravity.md), [Zed](../user-guides/workspace-access/zed.md), and JetBrains IDEs through [Gateway](../user-guides/workspace-access/jetbrains/gateway.md) and [Fleet](../user-guides/workspace-access/jetbrains/fleet.md).
+The editors and IDEs that connect to Coder workspaces, including [VS Code](../user-guides/workspace-access/vscode.md), [code-server](../user-guides/workspace-access/code-server.md), [Cursor](../user-guides/workspace-access/cursor.md), [Devin Desktop](../user-guides/workspace-access/devin-desktop.md), [Antigravity](../user-guides/workspace-access/antigravity.md), [Zed](../user-guides/workspace-access/zed.md), and JetBrains IDEs through [Gateway](../user-guides/workspace-access/jetbrains/gateway.md) and [Toolbox](../user-guides/workspace-access/jetbrains/toolbox.md).
 
 ### Swagger
 

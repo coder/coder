@@ -3,7 +3,9 @@ package coderd
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +13,7 @@ import (
 	"mime"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,6 +22,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -26,6 +30,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -36,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -1248,6 +1254,7 @@ func (api *API) validateExplicitChatModelConfigAvailable(
 // @Produce json
 // @Param request body codersdk.CreateChatRequest true "Create chat request"
 // @Success 201 {object} codersdk.Chat
+// @Failure 413 {object} codersdk.Response "Request body exceeds 256 KiB"
 // @Router /api/experimental/chats [post]
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
@@ -1259,10 +1266,8 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Limit memory used to decode dynamic tool schemas.
-	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
-
 	var req codersdk.CreateChatRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
 		return
 	}
 
@@ -1298,22 +1303,13 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 	// NOTE: This authorize check is intentionally placed after request
 	// parsing because we need req.OrganizationID to scope the RBAC check
-	// to the correct org. The request body is bounded by MaxBytesReader
-	// above, limiting the cost of parsing before rejection.
+	// to the correct org. The request body is bounded by the ReadLimit above,
+	// limiting the cost of parsing before rejection.
 	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String()).InOrg(req.OrganizationID)) {
 		httpapi.Forbidden(rw)
 		return
 	}
 
-	// Validate per-chat system prompt length.
-	const maxSystemPromptLen = 10000
-	if len(req.SystemPrompt) > maxSystemPromptLen {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "System prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("System prompt must be at most %d characters, got %d.", maxSystemPromptLen, len(req.SystemPrompt)),
-		})
-		return
-	}
 	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
@@ -1620,6 +1616,18 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 
 	sdkChat := db2sdk.Chat(chat, diffStatus, chatFiles)
+
+	if api.chatDaemon != nil {
+		queued, err := api.chatDaemon.ChatQueuedForCapacity(ctx, chat)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to derive chat queued-for-capacity state",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+		} else {
+			sdkChat.QueuedForCapacity = queued
+		}
+	}
 
 	// Enrich the lightweight context summary with the chat's pinned
 	// resources (metadata only). This detail is computed on read and only
@@ -4528,20 +4536,45 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// chatInstructionSettingsLockTimeout bounds how long a request waits for the
+// per-setting advisory lock. The only other holders are sibling requests
+// holding it for a single upsert, so a short bound cannot strand a waiter:
+// on expiry the request falls back to the unaudited write path instead of
+// hanging until the client deadline.
+const chatInstructionSettingsLockTimeout = 5 * time.Second
+
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	// Identity is assigned before the authorization check so a denied PUT
+	// records the attempt with status 403 and an empty diff. The body is
+	// never read before authorization, so no request content reaches that
+	// row.
+	aReq, commitAudit := audit.InitRequestWithCancel[database.ChatInstructionSettings](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit(true)
+	aReq.Old = database.ChatInstructionSettings{
+		ID:   audit.ChatInstructionSystemPromptID,
+		Name: audit.ChatInstructionSystemPromptName,
+	}
+	aReq.New = aReq.Old
+
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}
+
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
-	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
 	var req codersdk.UpdateChatSystemPromptRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
 		return
 	}
-	sanitizedPrompt := chatd.SanitizePromptText(req.SystemPrompt)
+	sanitizedPrompt := codersdk.SanitizePromptText(req.SystemPrompt)
 	// 128 KiB is generous for a system prompt while still
 	// preventing abuse or accidental pastes of large content.
 	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
@@ -4551,7 +4584,40 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	var (
+		noChange    bool
+		oldCaptured bool
+		oldReadErr  error
+		lockErr     error
+	)
+	// The per-setting advisory lock serializes the audit change-detection
+	// with the write: two concurrent identical PUTs both still succeed,
+	// but the second transaction's comparison sees the first's committed
+	// state and reports no change. The lock wait is bounded so a waiter
+	// cannot hang past the client's deadline.
+	lockCtx, lockCancel := context.WithTimeout(ctx, chatInstructionSettingsLockTimeout)
+	defer lockCancel()
 	err := api.Database.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(lockCtx, database.LockIDChatInstructionSystemPrompt); err != nil {
+			lockErr = err
+			return xerrors.Errorf("acquire chat instruction setting write lock: %w", err)
+		}
+
+		// Old capture is best effort: it runs after the lock but before
+		// the write, so abandoning the transaction on its error costs
+		// nothing and the handler writes directly below with no entry.
+		// The lock keeps the captured baseline serialized with the write.
+		oldConfig, oldErr := tx.GetChatSystemPromptConfig(ctx)
+		if oldErr != nil {
+			oldReadErr = oldErr
+			return oldErr
+		}
+		oldCaptured = true
+		aReq.Old.SystemPrompt = oldConfig.ChatSystemPrompt
+		aReq.Old.IncludeDefaultSystemPromptSet = oldConfig.IncludeDefaultSystemPromptSet
+		aReq.Old.IncludeDefaultSystemPrompt = oldConfig.IncludeDefaultSystemPrompt
+
 		if err := tx.UpsertChatSystemPrompt(ctx, sanitizedPrompt); err != nil {
 			return err
 		}
@@ -4561,16 +4627,82 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		// avoiding a backward-compatibility regression for older clients
 		// that only send system_prompt.
 		if req.IncludeDefaultSystemPrompt != nil {
-			return tx.UpsertChatIncludeDefaultSystemPrompt(ctx, *req.IncludeDefaultSystemPrompt)
+			if err := tx.UpsertChatIncludeDefaultSystemPrompt(ctx, *req.IncludeDefaultSystemPrompt); err != nil {
+				return err
+			}
 		}
+
+		// Derive New from what was written rather than re-reading: the
+		// upserts store $1 verbatim, so the stored prompt is the request
+		// value, and the effective include-default flag follows
+		// GetChatSystemPromptConfig's rule from the written toggle row
+		// and the written prompt. A post-write read would fail on
+		// query-local context cancellation even after a successful
+		// commit, silently discarding a change the client made.
+		newIncludeSet := oldConfig.IncludeDefaultSystemPromptSet
+		newIncludeValue := oldConfig.IncludeDefaultSystemPrompt
+		if req.IncludeDefaultSystemPrompt != nil {
+			newIncludeSet = true
+			newIncludeValue = *req.IncludeDefaultSystemPrompt
+		}
+		if !newIncludeSet {
+			// Legacy fallback: a non-empty custom prompt implies opting
+			// out; otherwise the setting defaults to true.
+			newIncludeValue = sanitizedPrompt == ""
+		}
+		aReq.New.SystemPrompt = sanitizedPrompt
+		aReq.New.IncludeDefaultSystemPromptSet = newIncludeSet
+		aReq.New.IncludeDefaultSystemPrompt = newIncludeValue
+		noChange = aReq.New.SystemPrompt == aReq.Old.SystemPrompt &&
+			aReq.New.IncludeDefaultSystemPromptSet == aReq.Old.IncludeDefaultSystemPromptSet &&
+			aReq.New.IncludeDefaultSystemPrompt == aReq.Old.IncludeDefaultSystemPrompt
 		return nil
 	}, nil)
 	if err != nil {
+		auditSetupErr := lockErr
+		if auditSetupErr == nil {
+			auditSetupErr = oldReadErr
+		}
+		if auditSetupErr != nil {
+			// The audit-added lock wait or Old capture failed before
+			// anything was written, so the transaction was abandoned at
+			// no cost: write directly exactly as main does, emit no
+			// entry, and warn.
+			api.Logger.Warn(ctx, "audit change detection failed, writing chat system prompt without an audit entry",
+				slog.Error(auditSetupErr))
+			commitAudit(false)
+			if mainErr := api.Database.InTx(func(tx database.Store) error {
+				if err := tx.UpsertChatSystemPrompt(ctx, sanitizedPrompt); err != nil {
+					return err
+				}
+				if req.IncludeDefaultSystemPrompt != nil {
+					return tx.UpsertChatIncludeDefaultSystemPrompt(ctx, *req.IncludeDefaultSystemPrompt)
+				}
+				return nil
+			}, nil); mainErr != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error updating chat system prompt configuration.",
+					Detail:  mainErr.Error(),
+				})
+				return
+			}
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
+		// This endpoint was transactional on main, so begin, write,
+		// commit and rollback errors all surface exactly as main's. The
+		// advisory lock is audit-added, so its failure falls back above
+		// instead of surfacing.
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating chat system prompt configuration.",
 			Detail:  err.Error(),
 		})
 		return
+	}
+	if oldCaptured && noChange {
+		// Stage the no-op decision until after the transaction commits,
+		// so a commit failure cannot suppress an attempt row.
+		commitAudit(false)
 	}
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -4602,6 +4734,24 @@ func (api *API) getChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	// Identity is assigned before the authorization check so a denied PUT
+	// records the attempt with status 403 and an empty diff. The body is
+	// never read before authorization, so no request content reaches that
+	// row.
+	aReq, commitAudit := audit.InitRequestWithCancel[database.ChatInstructionSettings](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit(true)
+	aReq.Old = database.ChatInstructionSettings{
+		ID:   audit.ChatInstructionPlanModeID,
+		Name: audit.ChatInstructionPlanModeName,
+	}
+	aReq.New = aReq.Old
+
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
@@ -4609,14 +4759,12 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
-	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
-
 	var req codersdk.UpdateChatPlanModeInstructionsRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
 		return
 	}
 
-	sanitizedInstructions := chatd.SanitizePromptText(req.PlanModeInstructions)
+	sanitizedInstructions := codersdk.SanitizePromptText(req.PlanModeInstructions)
 	if len(sanitizedInstructions) > maxSystemPromptLenBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Plan mode instructions exceed maximum length.",
@@ -4625,14 +4773,94 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := api.Database.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions); err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating plan mode instructions.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	// This endpoint was not transactional on main, so the audited
+	// transaction's lock, begin, commit and rollback failures run the
+	// direct write instead, matching main's non-transactional behavior.
+	// Only a failure of the write itself surfaces the transaction error
+	// (the raw write error, as main produced).
+	var (
+		noChange    bool
+		oldCaptured bool
+		oldReadErr  error
+	)
+	lockCtx, lockCancel := context.WithTimeout(ctx, chatInstructionSettingsLockTimeout)
+	defer lockCancel()
+	var writeErr error
+	err := api.Database.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(lockCtx, database.LockIDChatInstructionPlanMode); err != nil {
+			return xerrors.Errorf("acquire chat instruction setting write lock: %w", err)
+		}
 
+		// Old capture is best effort: it runs after the lock but before
+		// the write, so abandoning the transaction on its error costs
+		// nothing and the handler writes directly below with no entry;
+		// see putChatSystemPrompt for why New is derived from the write.
+		oldInstructions, oldErr := tx.GetChatPlanModeInstructions(ctx)
+		if oldErr != nil {
+			oldReadErr = oldErr
+			return oldErr
+		}
+		oldCaptured = true
+		aReq.Old.PlanModeInstructions = oldInstructions
+
+		if err := tx.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions); err != nil {
+			writeErr = err
+			return err
+		}
+		aReq.New.PlanModeInstructions = sanitizedInstructions
+		noChange = aReq.New.PlanModeInstructions == aReq.Old.PlanModeInstructions
+		return nil
+	}, nil)
+	if err != nil {
+		// Log the full InTx error first: the response below derives from
+		// the write error alone, so a rollback failure layered on it
+		// would otherwise vanish from response, audit row and logs
+		// simultaneously.
+		api.Logger.Warn(ctx, "plan mode instructions update transaction failed",
+			slog.Error(err))
+		if oldReadErr != nil {
+			// The Old capture failed before anything was written: fall
+			// through to the direct write below with no entry.
+			oldCaptured = false
+		} else if writeErr != nil {
+			// The write itself failed: respond with the raw error
+			// exactly as the endpoint did before the audit wiring
+			// existed.
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error updating plan mode instructions.",
+				Detail:  writeErr.Error(),
+			})
+			return
+		}
+		// Only the audit-added transaction machinery failed (lock,
+		// begin, commit, rollback, or the Old read), not the write.
+		// Main's non-transactional behavior is authoritative: run the
+		// direct upsert and derive the response from that.
+		if mainErr := api.Database.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions); mainErr != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error updating plan mode instructions.",
+				Detail:  mainErr.Error(),
+			})
+			return
+		}
+		if !oldCaptured {
+			// The lock wait or Old capture failed, so the write landed
+			// through the direct path with no baseline: no entry, warn,
+			// and finish with the success response. A commit failure
+			// keeps oldCaptured true and deliberately falls through so
+			// the attempt row with its real diff survives.
+			api.Logger.Warn(ctx, "audit change detection failed, writing plan mode instructions without an audit entry",
+				slog.Error(err))
+			commitAudit(false)
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
+	if oldCaptured && noChange {
+		// Stage the no-op decision until after the transaction commits,
+		// so a commit failure cannot suppress an attempt row.
+		commitAudit(false)
+	}
 	rw.WriteHeader(http.StatusNoContent)
 }
 
@@ -5590,14 +5818,12 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 	)
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
-	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
-
 	var params codersdk.UserChatCustomPrompt
-	if !httpapi.Read(ctx, rw, r, &params) {
+	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &params) {
 		return
 	}
 
-	sanitizedPrompt := chatd.SanitizePromptText(params.CustomPrompt)
+	sanitizedPrompt := codersdk.SanitizePromptText(params.CustomPrompt)
 	// Apply the same 128 KiB limit as the deployment system prompt.
 	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -5800,6 +6026,7 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
 // @Success 201 {object} codersdk.UploadChatFileResponse
+// @Failure 413 {object} codersdk.Response "Request body exceeds 10 MiB"
 // @Router /api/experimental/chats/files [post]
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
@@ -5860,6 +6087,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
+			httpapi.RecordRequestBodyLimit(ctx, codersdk.MaxChatFileSizeBytes)
 			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "File too large.",
 				Detail:  fmt.Sprintf("Maximum file size is %d bytes.", codersdk.MaxChatFileSizeBytes),
@@ -5932,6 +6160,145 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ChatFileDownloadClaims are the signed claims embedded in a chat file
+// download URL token.
+type ChatFileDownloadClaims struct {
+	jwtutils.RegisteredClaims
+	FileID uuid.UUID `json:"file_id"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+func (c ChatFileDownloadClaims) Validate(expected jwt.Expected) error {
+	if c.FileID == uuid.Nil {
+		return xerrors.New("file ID is required")
+	}
+	if c.UserID == uuid.Nil {
+		return xerrors.New("user ID is required")
+	}
+	return c.RegisteredClaims.Validate(expected)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Create chat file download URL
+// @ID create-chat-file-download-url
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param file path string true "File ID" format(uuid)
+// @Success 200 {object} codersdk.ChatFileDownloadURLResponse
+// @Router /api/experimental/chats/files/{file}/download-url [post]
+// @x-apidocgen {"skip": true}
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	fileID, err := uuid.Parse(chi.URLParam(r, "file"))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid file ID.",
+		})
+		return
+	}
+
+	chatFile, err := api.Database.GetChatFileByID(ctx, fileID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat file.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	now := time.Now()
+	// Truncate to whole seconds so the advertised expiry matches the JWT
+	// exp claim, which jwt.NewNumericDate stores at second precision.
+	expiresAt := now.Add(cryptokeys.ChatFilesTokenDuration).Truncate(time.Second)
+	claims := ChatFileDownloadClaims{
+		RegisteredClaims: jwtutils.RegisteredClaims{
+			Expiry:   jwt.NewNumericDate(expiresAt),
+			IssuedAt: jwt.NewNumericDate(now),
+		},
+		FileID: fileID,
+		UserID: httpmw.APIKey(r).UserID,
+	}
+	token, err := jwtutils.Sign(ctx, api.ChatFileTokenKeyCache, claims)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create chat file download URL.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	downloadURL := api.AccessURL.JoinPath("api", "experimental", "chats", "files", fileID.String(), "download")
+	downloadURL.RawQuery = url.Values{"token": {token}}.Encode()
+	digest := sha256.Sum256(chatFile.Data)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatFileDownloadURLResponse{
+		URL:       downloadURL.String(),
+		ExpiresAt: expiresAt,
+		SHA256:    hex.EncodeToString(digest[:]),
+		SizeBytes: int64(len(chatFile.Data)),
+		Name:      chatFile.Name,
+		MimeType:  chatFile.Mimetype,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Download chat file with signed token
+// @ID download-chat-file
+// @Tags Chats
+// @Produce image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Param file path string true "File ID" format(uuid)
+// @Param token query string true "Signed download token"
+// @Success 200
+// @Router /api/experimental/chats/files/{file}/download [get]
+// @x-apidocgen {"skip": true}
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	fileID, err := uuid.Parse(chi.URLParam(r, "file"))
+	if err != nil {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var claims ChatFileDownloadClaims
+	if err := jwtutils.Verify(ctx, api.ChatFileTokenKeyCache, r.URL.Query().Get("token"), &claims); err != nil || claims.FileID != fileID {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	subject, status, err := httpmw.UserRBACSubject(ctx, api.Database, claims.UserID, rbac.ScopeAll)
+	if err != nil || status != database.UserStatusActive {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	chatFile, err := api.Database.GetChatFileByID(dbauthz.As(ctx, subject), fileID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		// This endpoint is reachable without a session token, so internal
+		// error details stay in the logs rather than the response body.
+		api.Logger.Error(ctx, "failed to get chat file for signed download", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat file.",
+		})
+		return
+	}
+	// Never let private caches replay a signed URL past its expiry;
+	// revocation is re-checked only when the request reaches coderd.
+	rw.Header().Set("Cache-Control", "no-store")
+	api.serveChatFile(ctx, rw, chatFile)
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Get chat file
@@ -5968,6 +6335,14 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
+	api.serveChatFile(r.Context(), rw, chatFile)
+}
+
+// serveChatFile writes the file body and content headers; callers set
+// Cache-Control because signed and session-authenticated downloads have
+// different caching requirements.
+func (api *API) serveChatFile(ctx context.Context, rw http.ResponseWriter, chatFile database.ChatFile) {
 	rw.Header().Set("Content-Type", chatFile.Mimetype)
 	disposition := "attachment"
 	if chatfiles.IsInlineRenderableStoredMediaType(chatFile.Mimetype) {
@@ -5978,7 +6353,6 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	} else {
 		rw.Header().Set("Content-Disposition", disposition)
 	}
-	rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
 	rw.Header().Set("Content-Length", strconv.Itoa(len(chatFile.Data)))
 	rw.WriteHeader(http.StatusOK)
 	if _, err := rw.Write(chatFile.Data); err != nil {
@@ -7253,10 +7627,9 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Cap the raw request body to prevent excessive memory use.
-	r.Body = http.MaxBytesReader(rw, r.Body, int64(2*maxSystemPromptLenBytes))
 	var req codersdk.SubmitToolResultsRequest
 
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
 		return
 	}
 
