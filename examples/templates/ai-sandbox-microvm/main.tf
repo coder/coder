@@ -158,9 +158,11 @@ resource "coder_agent" "ai" {
     # regardless, but Claude Code only queries servers in its own
     # config. Registration failures must not fail the boot.
     %{~for slug in var.mcp_server_slugs~}
+    # --header is variadic and must follow the positional name and URL,
+    # otherwise it consumes them as additional header values.
     claude mcp add --transport http --scope user \
-      --header "Authorization: Bearer $CODER_SESSION_TOKEN" \
-      "${slug}" "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/mcp/${slug}" ||
+      "${slug}" "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/mcp/${slug}" \
+      --header "Authorization: Bearer $CODER_SESSION_TOKEN" ||
       echo "warning: failed to register MCP server ${slug}"
     %{~endfor~}
     claude mcp list || true
