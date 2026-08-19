@@ -311,6 +311,12 @@ sponsoring human's OAuth credentials never enter the guest. See
 - When the sponsoring human has not authenticated with the provider, tool
   calls return a JSON-RPC error whose data carries a `reauth_url`; opening
   that URL in a browser completes the provider login and unblocks the agent.
+- MCP is client-configured: configuring a server in the admin UI creates
+  the governed gateway endpoint, but each client must be pointed at it.
+  The startup script registers every slug in the `mcp_server_slugs`
+  template variable with Claude Code via `claude mcp add`, using the AI
+  identity session token as the bearer credential. Other MCP clients in
+  the sandbox can connect the same way.
 
 ### Session token delivery
 

@@ -33,6 +33,16 @@ variable "sandbox_memory_mib" {
   default     = 1024
 }
 
+variable "mcp_server_slugs" {
+  description = <<-EOT
+    Slugs of MCP servers (Admin settings, AI, MCP Servers) to register in
+    Claude Code inside the sandbox. Each connects through the Coder MCP
+    gateway using the AI agent identity's session token.
+  EOT
+  type        = list(string)
+  default     = ["github"]
+}
+
 variable "sandbox_cpus" {
   description = "Virtual CPU count for the embedded microVM."
   type        = number
@@ -140,6 +150,16 @@ resource "coder_agent" "ai" {
       ln -sf "$HOME/.local/bin/claude" /usr/local/bin/claude || true
     fi
     claude --version
+
+    # Register configured MCP servers through the Coder MCP gateway.
+    # MCP is client-configured: the gateway endpoint exists regardless,
+    # but Claude Code only queries servers listed in its own config.
+    %{~for slug in var.mcp_server_slugs~}
+    claude mcp add --transport http --scope user \
+      --header "Authorization: Bearer $CODER_SESSION_TOKEN" \
+      "${slug}" "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/mcp/${slug}" ||
+      echo "warning: failed to register MCP server ${slug}"
+    %{~endfor~}
   EOT
 }
 
