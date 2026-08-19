@@ -6001,9 +6001,14 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	firstKey, err := db.GetAPIKeyByID(ctx, keyID)
 	require.NoError(t, err)
 	require.Equal(t, agent.UserID, firstKey.UserID)
-	// The key must be pinned to exactly this workspace.
-	require.Len(t, firstKey.AllowList, 1)
-	require.Equal(t, workspace.ID.String(), firstKey.AllowList[0].ID)
+	// The key is pinned to exactly this workspace plus the MCP gateway.
+	allowed := make(map[string]string, len(firstKey.AllowList))
+	for _, entry := range firstKey.AllowList {
+		allowed[entry.Type] = entry.ID
+	}
+	require.Len(t, allowed, 2)
+	require.Equal(t, workspace.ID.String(), allowed["workspace"])
+	require.Contains(t, allowed, "mcp_gateway")
 
 	// Build 2: rebuild reuses the identity and rotates the key.
 	metadata = acquireBuild(t, database.WorkspaceTransitionStart, sdkproto.PrebuiltWorkspaceBuildStage_NONE, optIn)

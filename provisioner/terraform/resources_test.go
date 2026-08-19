@@ -1683,6 +1683,41 @@ func TestInstanceIDAssociation(t *testing.T) {
 	}
 }
 
+func TestWorkspaceAIAgentDataSource(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+
+	for _, tc := range []struct {
+		name     string
+		label    string
+		expected bool
+	}{
+		{
+			name:     "root module",
+			label:    "data.coder_workspace_ai_agent.me",
+			expected: true,
+		},
+		{
+			name:     "child module",
+			label:    "module.child.data.coder_workspace_ai_agent.me",
+			expected: true,
+		},
+		{
+			name:  "other data source",
+			label: "data.coder_workspace.me",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			state, err := terraform.ConvertState(ctx, nil, `digraph {
+				"[root] `+tc.label+` (expand)" [label = "`+tc.label+`", shape = "box"]
+			}`, logger)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, state.HasAIAgent)
+		})
+	}
+}
+
 func TestAITasks(t *testing.T) {
 	t.Parallel()
 	ctx, logger := ctxAndLogger(t)

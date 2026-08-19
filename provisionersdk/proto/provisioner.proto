@@ -386,9 +386,12 @@ message Metadata {
   string template_version_id = 24;
   string template_version_modules_file = 25;
   // workspace_ai_agent_session_token is a scoped API key for the workspace's
-  // AI agent identity. Populated only when the workspace opts in via the
-  // "coder_ai_agent" rich parameter; empty otherwise.
+  // AI agent identity. Populated when the template declares
+  // data.coder_workspace_ai_agent or uses the deprecated "coder_ai_agent"
+  // rich parameter; empty otherwise.
   string workspace_ai_agent_session_token = 26;
+  // workspace_ai_agent_id is the user ID of the workspace's AI agent identity.
+  string workspace_ai_agent_id = 27;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
@@ -498,6 +501,8 @@ message GraphComplete {
   bool has_ai_tasks = 7;
   repeated provisioner.AITask ai_tasks = 8;
   bool has_external_agents = 9;
+  // Whether the template declares data.coder_workspace_ai_agent.
+  bool has_ai_agent = 10;
 }
 
 message Timing {

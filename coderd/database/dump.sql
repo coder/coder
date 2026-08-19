@@ -3512,7 +3512,8 @@ CREATE TABLE template_versions (
     archived boolean DEFAULT false NOT NULL,
     source_example_id text,
     has_ai_task boolean,
-    has_external_agent boolean
+    has_external_agent boolean,
+    has_ai_agent boolean
 );
 
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
@@ -3535,6 +3536,7 @@ CREATE VIEW template_version_with_user AS
     template_versions.source_example_id,
     template_versions.has_ai_task,
     template_versions.has_external_agent,
+    template_versions.has_ai_agent,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name

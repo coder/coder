@@ -174,10 +174,25 @@ type State struct {
 	ExternalAuthProviders []*proto.ExternalAuthProviderResource
 	AITasks               []*proto.AITask
 	HasAITasks            bool
+	HasAIAgent            bool
 	HasExternalAgents     bool
 }
 
 var ErrInvalidTerraformAddr = xerrors.New("invalid terraform address")
+
+func hasWorkspaceAIAgentDataSource(graph *gographviz.Graph) bool {
+	for _, node := range graph.Nodes.Lookup {
+		if label, exists := node.Attrs["label"]; exists {
+			labelValue := strings.Trim(label, `"`)
+			// The first condition is for the root module. The second condition
+			// covers data sources declared in child modules.
+			if strings.HasPrefix(labelValue, "data.coder_workspace_ai_agent.") || strings.Contains(labelValue, ".data.coder_workspace_ai_agent.") {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 func hasExternalAgentResources(graph *gographviz.Graph) bool {
 	for _, node := range graph.Nodes.Lookup {
@@ -1079,6 +1094,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		ExternalAuthProviders: externalAuthProviders,
 		HasAITasks:            len(aiTasks) > 0,
 		AITasks:               aiTasks,
+		HasAIAgent:            hasWorkspaceAIAgentDataSource(graph),
 		HasExternalAgents:     hasExternalAgentResources(graph),
 	}, nil
 }

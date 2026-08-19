@@ -28568,7 +28568,7 @@ FROM
 			-- Scope an archive to a single template and ignore already archived template versions
 			(
 				SELECT
-					id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent
+					id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, has_ai_agent
 				FROM
 					template_versions
 				WHERE
@@ -28669,7 +28669,7 @@ func (q *sqlQuerier) ArchiveUnusedTemplateVersions(ctx context.Context, arg Arch
 
 const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, has_ai_agent, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -28709,6 +28709,7 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 		&i.SourceExampleID,
 		&i.HasAITask,
 		&i.HasExternalAgent,
+		&i.HasAIAgent,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -28718,7 +28719,7 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, has_ai_agent, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -28744,6 +28745,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.SourceExampleID,
 		&i.HasAITask,
 		&i.HasExternalAgent,
+		&i.HasAIAgent,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -28753,7 +28755,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, has_ai_agent, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -28779,6 +28781,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.SourceExampleID,
 		&i.HasAITask,
 		&i.HasExternalAgent,
+		&i.HasAIAgent,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -28788,7 +28791,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, has_ai_agent, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -28820,6 +28823,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.SourceExampleID,
 		&i.HasAITask,
 		&i.HasExternalAgent,
+		&i.HasAIAgent,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -28829,7 +28833,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, has_ai_agent, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -28861,6 +28865,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 			&i.SourceExampleID,
 			&i.HasAITask,
 			&i.HasExternalAgent,
+			&i.HasAIAgent,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -28880,7 +28885,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, has_ai_agent, created_by_avatar_url, created_by_username, created_by_name
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -28959,6 +28964,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.SourceExampleID,
 			&i.HasAITask,
 			&i.HasExternalAgent,
+			&i.HasAIAgent,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -28977,7 +28983,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 }
 
 const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
-SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, created_by_avatar_url, created_by_username, created_by_name FROM template_version_with_user AS template_versions WHERE created_at > $1
+SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, has_ai_agent, created_by_avatar_url, created_by_username, created_by_name FROM template_version_with_user AS template_versions WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
@@ -29005,6 +29011,7 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.SourceExampleID,
 			&i.HasAITask,
 			&i.HasExternalAgent,
+			&i.HasAIAgent,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -29172,7 +29179,8 @@ UPDATE
 SET
 	has_ai_task = $2,
 	has_external_agent = $3,
-	updated_at = $4
+	has_ai_agent = $4,
+	updated_at = $5
 WHERE
 	job_id = $1
 `
@@ -29181,6 +29189,7 @@ type UpdateTemplateVersionFlagsByJobIDParams struct {
 	JobID            uuid.UUID    `db:"job_id" json:"job_id"`
 	HasAITask        sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
 	HasExternalAgent sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
+	HasAIAgent       sql.NullBool `db:"has_ai_agent" json:"has_ai_agent"`
 	UpdatedAt        time.Time    `db:"updated_at" json:"updated_at"`
 }
 
@@ -29189,6 +29198,7 @@ func (q *sqlQuerier) UpdateTemplateVersionFlagsByJobID(ctx context.Context, arg 
 		arg.JobID,
 		arg.HasAITask,
 		arg.HasExternalAgent,
+		arg.HasAIAgent,
 		arg.UpdatedAt,
 	)
 	return err

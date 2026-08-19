@@ -623,6 +623,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				ModuleFilesHash:   []byte{},
 				HasAiTasks:        startProvision.HasAITasks,
 				HasExternalAgents: startProvision.HasExternalAgents,
+				HasAiAgent:        startProvision.HasAIAgent,
 			},
 		},
 	}, nil
@@ -685,6 +686,7 @@ type templateImportProvision struct {
 	Presets               []*sdkproto.Preset
 	Plan                  json.RawMessage
 	HasAITasks            bool
+	HasAIAgent            bool
 	HasExternalAgents     bool
 }
 
@@ -753,6 +755,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		Presets:               graphComplete.Presets,
 		Plan:                  planComplete.Plan,
 		HasAITasks:            graphComplete.HasAiTasks,
+		HasAIAgent:            graphComplete.HasAiAgent,
 		HasExternalAgents:     graphComplete.HasExternalAgents,
 	}, nil
 }

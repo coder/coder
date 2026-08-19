@@ -152,6 +152,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"archived":                ActionTrack,
 		"source_example_id":       ActionIgnore, // Never changes.
 		"has_ai_task":             ActionIgnore, // Never changes.
+		"has_ai_agent":            ActionIgnore, // Never changes.
 		"has_external_agent":      ActionIgnore, // Never changes.
 	},
 	&database.User{}: {

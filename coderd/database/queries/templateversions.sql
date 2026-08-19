@@ -232,6 +232,7 @@ UPDATE
 SET
 	has_ai_task = $2,
 	has_external_agent = $3,
-	updated_at = $4
+	has_ai_agent = $4,
+	updated_at = $5
 WHERE
 	job_id = $1;

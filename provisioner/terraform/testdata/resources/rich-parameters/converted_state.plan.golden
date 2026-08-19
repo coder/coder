@@ -115,5 +115,6 @@
   "ExternalAuthProviders": [],
   "AITasks": [],
   "HasAITasks": false,
+  "HasAIAgent": false,
   "HasExternalAgents": false
 }

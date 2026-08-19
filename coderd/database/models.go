@@ -6212,6 +6212,7 @@ type TemplateVersion struct {
 	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
 	HasAITask             sql.NullBool    `db:"has_ai_task" json:"has_ai_task"`
 	HasExternalAgent      sql.NullBool    `db:"has_external_agent" json:"has_external_agent"`
+	HasAIAgent            sql.NullBool    `db:"has_ai_agent" json:"has_ai_agent"`
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
@@ -6304,6 +6305,7 @@ type TemplateVersionTable struct {
 	SourceExampleID  sql.NullString `db:"source_example_id" json:"source_example_id"`
 	HasAITask        sql.NullBool   `db:"has_ai_task" json:"has_ai_task"`
 	HasExternalAgent sql.NullBool   `db:"has_external_agent" json:"has_external_agent"`
+	HasAIAgent       sql.NullBool   `db:"has_ai_agent" json:"has_ai_agent"`
 }
 
 type TemplateVersionTerraformValue struct {
