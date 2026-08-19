@@ -364,6 +364,18 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	defer updateCtxCancel()
 	err = p.db.UpdateUsageEventsPostPublish(updateCtx, dbUpdate)
 	if err != nil {
+		// The update failing leaves every batch row unpublished with a
+		// fresh in-flight attempt marker that hides it from the stuck
+		// probe, so record the whole batch as failing (on a fresh bounded
+		// context; the update may have consumed this one's deadline). The
+		// marker outcome verifies against the database: rows published by
+		// a later successful cycle prune their IDs then. Best-effort like
+		// every marker write, but a database problem specific to the
+		// events update (e.g. a statement timeout on the big UNNEST) must
+		// not also silence failure detection.
+		outcomeCtx, outcomeCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
+		defer outcomeCtxCancel()
+		p.recordBatchOutcome(outcomeCtx, nil, dbUpdate.IDs)
 		return 0, xerrors.Errorf("update usage events post publish: %w", err)
 	}
 

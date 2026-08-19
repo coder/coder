@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -731,6 +732,97 @@ func TestPublisherTallymanError(t *testing.T) {
 
 	// The publisher should have published the events once.
 	require.Equal(t, 1, calls)
+}
+
+func TestPublisherPostPublishUpdateError(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(db)
+		},
+	).AnyTimes()
+	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
+	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
+	db.EXPECT().FilterPendingUsageEventIDs(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, arg database.FilterPendingUsageEventIDsParams) ([]database.FilterPendingUsageEventIDsRow, error) {
+			rows := make([]database.FilterPendingUsageEventIDsRow, 0, len(arg.IDs))
+			for _, id := range arg.IDs {
+				rows = append(rows, database.FilterPendingUsageEventIDsRow{ID: id, InsertedAt: time.Now()})
+			}
+			return rows, nil
+		},
+	).AnyTimes()
+	clock := quartz.NewMock(t)
+	now := time.Now()
+	clock.Set(now)
+
+	deploymentID, licenseJWT := configureMockDeployment(t, db)
+	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), licenseJWT, func(req usagetypes.TallymanV1IngestRequest) any {
+		acceptedEvents := make([]usagetypes.TallymanV1IngestAcceptedEvent, 0, len(req.Events))
+		for _, event := range req.Events {
+			acceptedEvents = append(acceptedEvents, usagetypes.TallymanV1IngestAcceptedEvent{ID: event.ID})
+		}
+		return usagetypes.TallymanV1IngestResponse{
+			AcceptedEvents: acceptedEvents,
+			RejectedEvents: []usagetypes.TallymanV1IngestRejectedEvent{},
+		}
+	}))
+
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
+		usage.PublisherWithClock(clock),
+		usage.PublisherWithIngestURL(ingestURL),
+	)
+	defer publisher.Close()
+
+	// Start the publisher with a trap.
+	tickerTrap := clock.Trap().NewTicker()
+	defer tickerTrap.Close()
+	startErr := make(chan error)
+	go func() {
+		err := publisher.Start()
+		testutil.RequireSend(ctx, t, startErr, err)
+	}()
+	tickerCall := tickerTrap.MustWait(ctx)
+	tickerCall.MustRelease(ctx)
+	require.NoError(t, testutil.RequireReceive(ctx, t, startErr))
+
+	// Mock events to be published.
+	events := []database.UsageEvent{
+		{
+			ID:        uuid.New().String(),
+			EventType: string(usagetypes.UsageEventTypeDCManagedAgentsV1),
+			EventData: []byte(jsoninate(t, usagetypes.DCManagedAgentsV1{
+				Count: 1,
+			})),
+		},
+	}
+	db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), gomock.Any()).Return(events, nil).Times(1)
+	// The post-publish update fails, leaving the batch rows unpublished
+	// with fresh in-flight attempt markers that hide them from the stuck
+	// probe. The publisher must still record the whole batch in the
+	// failing-events marker or detection would go silent.
+	db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), gomock.Any()).Return(xerrors.New("update failed")).Times(1)
+	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, params database.UpsertRuntimeConfigParams) error {
+			assert.NoError(t, ctx.Err(), "marker update must not use the consumed update context")
+			assert.Equal(t, license.UsagePublishingFailingEventsKey, params.Key)
+			var marker license.UsagePublishingFailingEvents
+			if assert.NoError(t, json.Unmarshal([]byte(params.Value), &marker)) {
+				assert.Contains(t, marker.EventIDs, events[0].ID)
+			}
+			return nil
+		},
+	).Times(1)
+
+	// Tick and wait for the reset call.
+	tickerResetTrap := clock.Trap().TickerReset()
+	defer tickerResetTrap.Close()
+	clock.Advance(tickerCall.Duration)
+	tickerResetTrap.MustWait(ctx).MustRelease(ctx)
 }
 
 func TestPublisherTallymanTimeout(t *testing.T) {
