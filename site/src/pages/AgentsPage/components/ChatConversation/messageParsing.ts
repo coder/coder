@@ -1,5 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { asNumber, asRecord, asString } from "../ChatElements/runtimeTypeUtils";
+import { asRecord, asString } from "../ChatElements/runtimeTypeUtils";
 import {
 	getProvidedSubagentTitle,
 	getSubagentChatId,
@@ -410,90 +410,6 @@ export const parseMessagesWithMergedTools = (
 			}
 		}
 	}
-
-	// Annotate backgrounded execute calls with the live process
-	// state derived from their process_output observations. The
-	// execute row is the anchor readers scan for "is it still
-	// running"; poll rows stay chronological, and the row that
-	// owns the process flips in place as observations arrive.
-	const processStateByPid = new Map<
-		string,
-		{ state: "running" | "exited"; exitCode?: number }
-	>();
-	for (const { parsed } of rawParsed) {
-		for (const tool of parsed.tools) {
-			if (tool.name === "process_output") {
-				const rec = asRecord(tool.result);
-				const toolArgs = asRecord(tool.args);
-				const pid = toolArgs ? asString(toolArgs.process_id) : "";
-				if (!rec || !pid) continue;
-				// process_output reports running:true while alive; an
-				// exited process reports its final exit code.
-				if (rec.running === true) {
-					processStateByPid.set(pid, { state: "running" });
-				} else {
-					const exitCode = asNumber(rec.exit_code, { parseString: true });
-					processStateByPid.set(pid, {
-						state: "exited",
-						exitCode: exitCode ?? undefined,
-					});
-				}
-				continue;
-			}
-			// process_list returns a snapshot of every tracked
-			// process; it may be the only observation when the
-			// agent lists instead of polling a specific process.
-			if (tool.name === "process_list") {
-				const rec = asRecord(tool.result);
-				const processes = rec?.processes;
-				if (!Array.isArray(processes)) continue;
-				for (const proc of processes) {
-					const procRec = asRecord(proc);
-					if (!procRec) continue;
-					const pid = asString(procRec.id);
-					if (!pid) continue;
-					if (procRec.running === true) {
-						processStateByPid.set(pid, { state: "running" });
-					} else {
-						const exitCode = asNumber(procRec.exit_code, {
-							parseString: true,
-						});
-						processStateByPid.set(pid, {
-							state: "exited",
-							exitCode: exitCode ?? undefined,
-						});
-					}
-				}
-			}
-		}
-	}
-	for (const [pid, sig] of signaledProcesses) {
-		// A signal is terminal even without a later observation.
-		if (!processStateByPid.has(pid)) {
-			processStateByPid.set(pid, {
-				state: "exited",
-				exitCode: sig === "kill" ? 137 : 143,
-			});
-		}
-	}
-	if (processStateByPid.size > 0) {
-		for (const { message, parsed } of rawParsed) {
-			for (const tool of parsed.tools) {
-				if (tool.name !== "execute") continue;
-				const rec = asRecord(tool.result);
-				const pid = rec ? asString(rec.background_process_id) : "";
-				const state = pid ? processStateByPid.get(pid) : undefined;
-				if (state) {
-					const createdMs = Date.parse(message.created_at);
-					tool.backgroundProcess = {
-						...state,
-						startedAtMs: Number.isNaN(createdMs) ? undefined : createdMs,
-					};
-				}
-			}
-		}
-	}
-
 	return rawParsed;
 };
 

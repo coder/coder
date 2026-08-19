@@ -356,7 +356,6 @@ export const BlockList: FC<BlockListProps> = ({
 								status={tool.status}
 								isError={tool.isError}
 								killedBySignal={tool.killedBySignal}
-								backgroundProcess={tool.backgroundProcess}
 								shellToolDisplayMode={shellToolDisplayMode}
 								codeDiffDisplayMode={codeDiffDisplayMode}
 								subagentTitles={subagentTitles}

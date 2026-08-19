@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { chatModelConfigsKey } from "#/api/queries/chats";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
@@ -574,70 +574,12 @@ export const ExecuteBackgrounded: Story = {
 			output: "",
 			wall_duration_ms: 2100,
 		},
-		backgroundProcess: { state: "running" },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const chip = canvas.getByRole("status", { name: /Running in background/ });
-		expect(chip).toBeVisible();
-		expect(chip).toHaveTextContent("running");
 		// The backgrounded spawn duration is process noise, not shown.
 		expect(canvas.queryByText(/for 2\.1s/)).not.toBeInTheDocument();
-		await userEvent.hover(chip);
-		expect(await screen.findByRole("tooltip")).toHaveTextContent(
-			"Background process is still running",
-		);
-	},
-};
-
-export const ExecuteBackgroundedExited: Story = {
-	args: {
-		name: "execute",
-		status: "completed",
-		args: { command: "npm start" },
-		shellToolDisplayMode: "always_collapsed",
-		result: {
-			background_process_id: "process-123",
-			output: "",
-			wall_duration_ms: 2100,
-		},
-		backgroundProcess: { state: "exited", exitCode: 0 },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const status = canvas.getByRole("status", {
-			name: "Background process exited successfully",
-		});
-		expect(status).toBeInTheDocument();
-		// Quiet success: a check icon, no "exit 0" text.
-		expect(status.textContent).toBe("");
-		await userEvent.hover(status);
-		expect(await screen.findByRole("tooltip")).toHaveTextContent(
-			"Background process exited successfully",
-		);
-	},
-};
-
-export const ExecuteBackgroundedExitedNonZero: Story = {
-	args: {
-		name: "execute",
-		status: "completed",
-		args: { command: "npm start" },
-		shellToolDisplayMode: "always_collapsed",
-		result: {
-			background_process_id: "process-123",
-			output: "",
-			wall_duration_ms: 2100,
-		},
-		backgroundProcess: { state: "exited", exitCode: 1 },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("status", {
-				name: "Background process exited with code 1",
-			}),
-		).toHaveTextContent("exit 1");
+		expect(canvas.getByText(/npm start/)).toBeInTheDocument();
 	},
 };
 
