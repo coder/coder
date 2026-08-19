@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -270,13 +271,15 @@ const (
 )
 
 // AllOAuth2TokenEndpointAuthMethods returns every accepted token endpoint auth
-// method. Valid() derives from it, so what registration accepts cannot drift
-// from what this function reports. Discovery metadata does not yet derive
-// from it: coderd/oauth2provider/metadata.go's
-// TokenEndpointAuthMethodsSupported is hardcoded to {client_secret_basic,
-// client_secret_post} and does not advertise "none", even though "none" is
-// accepted here. A follow-up PR wires the token endpoint to honor "none";
-// only once that lands should discovery advertise it too.
+// method. Valid() is defined in terms of it, so what registration accepts
+// cannot drift from what this function reports.
+//
+// Discovery metadata does not yet derive from it:
+// coderd/oauth2provider/metadata.go's TokenEndpointAuthMethodsSupported is
+// hardcoded to {client_secret_basic, client_secret_post} and does not
+// advertise "none", even though "none" is accepted here. A follow-up PR
+// wires the token endpoint to honor "none"; only once that lands should
+// discovery advertise it too.
 func AllOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
 	return []OAuth2TokenEndpointAuthMethod{
 		OAuth2TokenEndpointAuthMethodClientSecretBasic,
@@ -286,13 +289,7 @@ func AllOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
 }
 
 func (m OAuth2TokenEndpointAuthMethod) Valid() bool {
-	switch m {
-	case OAuth2TokenEndpointAuthMethodClientSecretBasic,
-		OAuth2TokenEndpointAuthMethodClientSecretPost,
-		OAuth2TokenEndpointAuthMethodNone:
-		return true
-	}
-	return false
+	return slices.Contains(AllOAuth2TokenEndpointAuthMethods(), m)
 }
 
 // OAuth2ClientType is how a client authenticates at the token endpoint
