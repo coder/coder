@@ -1,6 +1,7 @@
 package chatprovider
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -19,7 +20,7 @@ import (
 // request shape untouched.
 func rewriteGoogleCompatThinkingConfig(payload map[string]any) bool {
 	modelID, _ := payload["model"].(string)
-	supported, capable := googleCompatThinkingSupport(modelID)
+	normalized, supported, capable := googleCompatThinkingSupport(modelID)
 	if !capable {
 		return false
 	}
@@ -29,7 +30,7 @@ func rewriteGoogleCompatThinkingConfig(payload map[string]any) bool {
 		if len(supported) > 0 {
 			level := clampGoogleThinkingLevel(googleThinkingLevel(effort), supported)
 			thinkingConfig["thinking_level"] = strings.ToLower(level)
-		} else if budget, ok := googleCompatThinkingBudget(effort); ok {
+		} else if budget, ok := googleCompatThinkingBudget(normalized, effort); ok {
 			thinkingConfig["thinking_budget"] = budget
 		} else {
 			// Unknown effort value: keep the request untouched rather than
@@ -69,19 +70,20 @@ func rewriteGoogleCompatThinkingConfig(payload map[string]any) bool {
 }
 
 // googleCompatThinkingSupport reports whether a model ID on the
-// OpenAI-compatible path is a thinking-capable Gemini model, returning its
-// supported thinking levels (empty for the budget-based 2.5 families).
-func googleCompatThinkingSupport(modelID string) ([]fantasygoogle.ThinkingLevel, bool) {
+// OpenAI-compatible path is a thinking-capable Gemini model, returning the
+// normalized model ID and its supported thinking levels (empty for the
+// budget-based 2.5 families).
+func googleCompatThinkingSupport(modelID string) (string, []fantasygoogle.ThinkingLevel, bool) {
 	normalized := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(modelID)), "models/")
 	normalized = strings.TrimPrefix(normalized, "google/")
 	if !strings.HasPrefix(normalized, "gemini-") {
-		return nil, false
+		return "", nil, false
 	}
 	supported := googleSupportedThinkingLevels(normalized)
 	if len(supported) == 0 && !googleSupportsThinkingBudget(normalized) {
-		return nil, false
+		return "", nil, false
 	}
-	return supported, true
+	return normalized, supported, true
 }
 
 // googleCompatExtraBodyFromThinkingConfig translates a config-pinned Google
@@ -97,7 +99,7 @@ func googleCompatExtraBodyFromThinkingConfig(
 	if config == nil {
 		return nil
 	}
-	supported, capable := googleCompatThinkingSupport(modelID)
+	_, supported, capable := googleCompatThinkingSupport(modelID)
 	if !capable {
 		return nil
 	}
@@ -154,10 +156,15 @@ func googleSupportsThinkingBudget(normalized string) bool {
 // googleCompatThinkingBudget maps the global reasoning effort scale onto the
 // thinking budgets Google's OpenAI-compatible endpoint uses when translating
 // reasoning_effort for pre-Gemini-3 models, keeping effort semantics intact
-// when reasoning_effort is replaced by an explicit thinking_config.
-func googleCompatThinkingBudget(effort string) (int, bool) {
+// when reasoning_effort is replaced by an explicit thinking_config. Pro
+// models cannot disable thinking (budget 0 is rejected: "This model only
+// works in thinking mode"), so "none" clamps up to the low budget for them.
+func googleCompatThinkingBudget(modelID string, effort string) (int, bool) {
 	switch effort {
 	case codersdk.ChatModelReasoningEffortNone:
+		if slices.Contains(strings.Split(strings.TrimPrefix(modelID, "gemini-"), "-"), "pro") {
+			return 1024, true
+		}
 		return 0, true
 	case codersdk.ChatModelReasoningEffortMinimal, codersdk.ChatModelReasoningEffortLow:
 		return 1024, true

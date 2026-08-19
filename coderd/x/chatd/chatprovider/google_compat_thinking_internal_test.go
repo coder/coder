@@ -48,6 +48,19 @@ func TestRewriteGoogleCompatThinkingConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("EffortNoneBudget", func(t *testing.T) {
+		t.Parallel()
+		// Flash can disable thinking; Pro rejects budget 0 ("This model only
+		// works in thinking mode", verified live) so none clamps to low.
+		payload := map[string]any{"model": "gemini-2.5-flash", "reasoning_effort": "none"}
+		require.True(t, rewriteGoogleCompatThinkingConfig(payload))
+		require.Equal(t, map[string]any{"include_thoughts": true, "thinking_budget": 0}, thinkingConfig(payload))
+
+		payload = map[string]any{"model": "gemini-2.5-pro", "reasoning_effort": "none"}
+		require.True(t, rewriteGoogleCompatThinkingConfig(payload))
+		require.Equal(t, map[string]any{"include_thoughts": true, "thinking_budget": 1024}, thinkingConfig(payload))
+	})
+
 	t.Run("NoEffortStillIncludesThoughts", func(t *testing.T) {
 		t.Parallel()
 		payload := map[string]any{"model": "gemini-2.5-flash"}
