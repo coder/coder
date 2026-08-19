@@ -72,6 +72,7 @@ endif
 	examples/examples.gen.json \
 	docs/manifest.json \
 	docs/admin/integrations/prometheus.md \
+	docs/ai-coder/ai-gateway/monitoring.md \
 	docs/admin/security/audit-logs.md \
 	docs/admin/setup/configuration-reference.md \
 	docs/reference/cli/index.md \
@@ -1015,6 +1016,7 @@ GEN_FILES := \
 	coderd/rbac/scopes_constants_gen.go \
 	codersdk/apikey_scopes_gen.go \
 	docs/admin/integrations/prometheus.md \
+	docs/ai-coder/ai-gateway/monitoring.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
 	docs/install/releases/feature-stages.md \
@@ -1114,6 +1116,7 @@ gen/mark-fresh:
 		site/src/api/countriesGenerated.ts \
 		site/src/api/chatModelOptionsGenerated.json \
 		docs/admin/integrations/prometheus.md \
+		docs/ai-coder/ai-gateway/monitoring.md \
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
 		docs/install/releases/feature-stages.md \
@@ -1331,6 +1334,16 @@ scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES) | _gen _gen/bin/metrics
 docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics scripts/metricsdocgen/generated_metrics | _gen _gen/bin/metricsdocgen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
 		_gen/bin/metricsdocgen --prometheus-doc-file="$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+
+docs/ai-coder/ai-gateway/monitoring.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics scripts/metricsdocgen/generated_metrics | _gen _gen/bin/metricsdocgen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
+		_gen/bin/metricsdocgen --prometheus-doc-file="$$tmpfile" \
+			--section='common=prefix:coder_ai_gateway_,!coder_ai_gateway_cost_control_,!coder_ai_gateway_proxy_' \
+			--section='cost-control=prefix:coder_ai_gateway_cost_control_' \
+			--section='proxy=prefix:coder_ai_gateway_proxy_' && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"

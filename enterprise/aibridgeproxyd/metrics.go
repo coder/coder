@@ -71,7 +71,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 
 		MITMResponsesTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Name: "mitm_responses_total",
-			Help: "Total number of MITM responses by HTTP status code class.",
+			Help: "Total number of MITM responses by complete HTTP status code.",
 		}, []string{"code", "provider"}),
 
 		ProviderInfo: factory.NewGaugeVec(prometheus.GaugeOpts{

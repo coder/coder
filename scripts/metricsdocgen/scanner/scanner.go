@@ -28,6 +28,7 @@ import (
 // Add or remove directories here to control the scanner's scope.
 var scanDirs = []string{
 	"agent",
+	"aibridge",
 	"coderd",
 	"enterprise",
 	"provisionerd",
@@ -36,14 +37,20 @@ var scanDirs = []string{
 
 // skipPaths lists files that should be excluded from scanning. Their metrics
 // must be maintained in the static metrics file instead.
-// TODO(ssncferreira): Add support for resolving WrapRegistererWithPrefix to
-//
-//	eliminate the need for this skip list.
 var skipPaths = []string{
-	"coderd/aibridged/metrics.go",
-	"coderd/aibridgedserver/metrics.go",
-	"enterprise/aibridgeproxyd/metrics.go",
 	"enterprise/scaletest/agentfake/metrics.go",
+}
+
+// metricPrefixes records canonical prefixes that are applied by registerers at
+// runtime. Keeping this mapping at the metric definition site avoids scanning
+// registration wiring and prevents deprecated alias prefixes from entering the
+// generated reference.
+var metricPrefixes = map[string]string{
+	"aibridge/keypool/state_collector.go":  "coder_ai_gateway_",
+	"aibridge/metrics/metrics.go":          "coder_ai_gateway_",
+	"coderd/aibridged/metrics.go":          "coder_ai_gateway_",
+	"coderd/aibridgedserver/metrics.go":    "coder_ai_gateway_",
+	"enterprise/aibridgeproxyd/metrics.go": "coder_ai_gateway_proxy_",
 }
 
 // MetricType represents the type of Prometheus metric.
@@ -109,25 +116,25 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to scan directories: %v", err)
 	}
+	metrics = prepareMetrics(metrics)
 
-	// Duplicates are not expected since Prometheus enforces unique metric names at registration.
+	writeMetrics(metrics, os.Stdout)
+	logf("Successfully parsed %d metrics", len(metrics))
+}
+
+func prepareMetrics(metrics []Metric) []Metric {
 	uniqueMetrics := make(map[string]Metric)
-	for _, m := range metrics {
-		uniqueMetrics[m.Name] = m
+	for _, metric := range metrics {
+		uniqueMetrics[metric.Name] = metric
 	}
 	metrics = make([]Metric, 0, len(uniqueMetrics))
-	for _, m := range uniqueMetrics {
-		metrics = append(metrics, m)
+	for _, metric := range uniqueMetrics {
+		metrics = append(metrics, metric)
 	}
-
-	// Sort metrics by name for consistent output across runs.
 	sort.Slice(metrics, func(i, j int) bool {
 		return metrics[i].Name < metrics[j].Name
 	})
-
-	writeMetrics(metrics, os.Stdout)
-
-	logf("Successfully parsed %d metrics", len(metrics))
+	return metrics
 }
 
 // scanAllDirs scans all configured directories for metric definitions.
@@ -214,6 +221,7 @@ func scanFile(path string) ([]Metric, error) {
 
 		metric, ok := extractMetricFromCall(call, decls)
 		if ok {
+			metric.Name = metricPrefixForPath(path) + metric.Name
 			if metric.Help == "" {
 				warnf("metric %q has no HELP description, skipping", metric.Name)
 				// Skip metrics without descriptions, they should be fixed in the source code
@@ -227,6 +235,16 @@ func scanFile(path string) ([]Metric, error) {
 	})
 
 	return metrics, nil
+}
+
+func metricPrefixForPath(path string) string {
+	path = filepath.ToSlash(filepath.Clean(path))
+	for sourcePath, prefix := range metricPrefixes {
+		if path == sourcePath || strings.HasSuffix(path, "/"+sourcePath) {
+			return prefix
+		}
+	}
+	return ""
 }
 
 // collectPackageConsts collects exported string constants from a file into
@@ -369,22 +387,29 @@ func collectDecls(file *ast.File) declarations {
 }
 
 // extractLabels extracts label names from an expression passed as an argument
-// to a metric constructor. Handles both inline []string literals and
-// variable references from decls.
-// Examples:
-//   - []string{"label1", "label2"}: ["label1", "label2"] (inline literal)
-//   - myLabels: resolved value of myLabels variable (variable reference)
+// to a metric constructor. It handles inline literals, variable references,
+// and append calls that extend a shared label slice.
 func extractLabels(expr ast.Expr, decls declarations) []string {
 	switch e := expr.(type) {
 	case *ast.CompositeLit:
-		// []string{"label1", "label2"}
 		return extractStringSlice(e, decls)
 	case *ast.Ident:
-		// Variable reference like 'labels'.
-		if labels, ok := decls.stringSlices[e.Name]; ok {
-			return labels
+		return append([]string(nil), decls.stringSlices[e.Name]...)
+	case *ast.CallExpr:
+		ident, ok := e.Fun.(*ast.Ident)
+		if !ok || ident.Name != "append" || len(e.Args) < 2 {
+			return nil
 		}
-		return nil
+
+		labels := extractLabels(e.Args[0], decls)
+		for _, arg := range e.Args[1:] {
+			if label := resolveStringExpr(arg, decls); label != "" {
+				labels = append(labels, label)
+				continue
+			}
+			labels = append(labels, extractLabels(arg, decls)...)
+		}
+		return labels
 	}
 	return nil
 }

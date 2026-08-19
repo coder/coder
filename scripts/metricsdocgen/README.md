@@ -1,6 +1,6 @@
 # Metrics Documentation Generator
 
-This tool generates the Prometheus metrics documentation at [`docs/admin/integrations/prometheus.md`](https://coder.com/docs/admin/integrations/prometheus#available-metrics).
+This tool generates Prometheus metric tables in [`docs/admin/integrations/prometheus.md`](https://coder.com/docs/admin/integrations/prometheus#available-metrics) and [`docs/ai-coder/ai-gateway/monitoring.md`](https://coder.com/docs/ai-coder/ai-gateway/monitoring#prometheus-metrics).
 
 ## How It Works
 
@@ -18,7 +18,6 @@ Contains metrics that are **not** directly defined in the coder source code:
 - `go_*`: Go runtime metrics
 - `process_*`: Process metrics from prometheus/client_golang
 - `promhttp_*`: Prometheus HTTP handler metrics
-- `coder_ai_gateway_*`: AI Gateway metrics are registered through prefixed registerer that the scanner does not resolve.
 
 > [!Note]
 > This file also contains edge cases where metric metadata cannot be accurately extracted by the scanner (e.g., labels determined by runtime logic).
@@ -43,10 +42,8 @@ To regenerate the documentation after code changes:
 
 ```bash
 make docs/admin/integrations/prometheus.md
+make docs/ai-coder/ai-gateway/monitoring.md
 ```
 
-This will:
-
-- Run the scanner to update `generated_metrics`
-- Merge `metrics` and `generated_metrics` metric files
-- Update the documentation file
+These targets merge the `metrics` and `generated_metrics` files and update the generated metric tables.
+Run `make scripts/metricsdocgen/generated_metrics` first when metric source definitions change.
