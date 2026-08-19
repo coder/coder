@@ -28701,55 +28701,17 @@ func (q *sqlQuerier) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	return err
 }
 
-const filterPendingUsageEventIDs = `-- name: FilterPendingUsageEventIDs :many
-SELECT id, inserted_at
-FROM usage_events
-WHERE
-    id = ANY($1::text[])
-    AND published_at IS NULL
-    AND created_at > $2::timestamptz
+const deleteUsageEventsPublishFailures = `-- name: DeleteUsageEventsPublishFailures :exec
+DELETE FROM usage_events_publish_failures
+WHERE event_id = ANY($1::text[])
 `
 
-type FilterPendingUsageEventIDsParams struct {
-	IDs         []string  `db:"ids" json:"ids"`
-	WindowStart time.Time `db:"window_start" json:"window_start"`
-}
-
-type FilterPendingUsageEventIDsRow struct {
-	ID         string    `db:"id" json:"id"`
-	InsertedAt time.Time `db:"inserted_at" json:"inserted_at"`
-}
-
-// Returns the subset of the given usage event IDs that are still pending
-// publication: unpublished and within the publisher's 30-day selection
-// window (window_start is now minus 30 days; older events are never
-// published, so they no longer count as pending). Each pending ID is
-// returned with its inserted_at, the event's effective stuck base (see
-// GetUsagePublishStatus's stuck_cutoff doc). Publish failure detection uses
-// this to verify failing-events marker entries against the database before
-// warning from them or pruning them. Bounded by the caller's ID list and
-// served by the primary key.
-func (q *sqlQuerier) FilterPendingUsageEventIDs(ctx context.Context, arg FilterPendingUsageEventIDsParams) ([]FilterPendingUsageEventIDsRow, error) {
-	rows, err := q.db.QueryContext(ctx, filterPendingUsageEventIDs, pq.Array(arg.IDs), arg.WindowStart)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []FilterPendingUsageEventIDsRow
-	for rows.Next() {
-		var i FilterPendingUsageEventIDsRow
-		if err := rows.Scan(&i.ID, &i.InsertedAt); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+// Resolves publish failures for the given usage event IDs after they were
+// published (including permanent rejections, which are terminal). Bounded
+// by the caller's ID list and served by the primary key.
+func (q *sqlQuerier) DeleteUsageEventsPublishFailures(ctx context.Context, ids []string) error {
+	_, err := q.db.ExecContext(ctx, deleteUsageEventsPublishFailures, pq.Array(ids))
+	return err
 }
 
 const getTotalUsageDCManagedAgentsV1 = `-- name: GetTotalUsageDCManagedAgentsV1 :one
@@ -28890,10 +28852,33 @@ WITH last_success AS (
             LIMIT 100
         )
     ) queued
+), failing AS (
+    -- The oldest event with an active publish failure, from the dedicated
+    -- failures relation the publisher maintains with each batch outcome
+    -- (see usage_events_publish_failures). Failing events need this
+    -- separate probe because the queue-front branches above cannot see
+    -- them while a fresh retry holds them in flight or newly inserted
+    -- backfills with older created_at displace them. Index-served: the
+    -- probe walks idx_usage_events_publish_failures_inserted_at from the
+    -- oldest entry, and pruning keeps rows past the window rare, so the
+    -- walk stops almost immediately. The enabled_since clamp grants the
+    -- post-(re-)enablement grace period as in the stuck CTE.
+    SELECT GREATEST(inserted_at, $3::timestamptz) AS oldest_failing_at
+    FROM usage_events_publish_failures
+    WHERE created_at > $4::timestamptz
+    ORDER BY inserted_at ASC
+    LIMIT 1
 )
 SELECT
     COALESCE((SELECT last_published_at FROM last_success), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS last_published_at,
-    COALESCE((SELECT oldest_stuck_at FROM stuck WHERE oldest_stuck_at < $1::timestamptz), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_at,
+    COALESCE((
+        SELECT MIN(oldest) FROM (
+            SELECT oldest_stuck_at AS oldest FROM stuck
+            UNION ALL
+            SELECT oldest_failing_at AS oldest FROM failing
+        ) candidates
+        WHERE oldest < $1::timestamptz
+    ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_at,
     -- The earliest recent permanent rejection. The probe walks
     -- idx_usage_events_select_for_publishing's leading published_at column
     -- from rejected_after forward, so its cost is bounded by the events
@@ -29052,6 +29037,27 @@ func (q *sqlQuerier) ListUsageEventCreatedAtsByTypeSince(ctx context.Context, ar
 	return items, nil
 }
 
+const pruneUsageEventsPublishFailures = `-- name: PruneUsageEventsPublishFailures :exec
+DELETE FROM usage_events_publish_failures
+WHERE event_id IN (
+    SELECT event_id
+    FROM usage_events_publish_failures
+    WHERE created_at <= $1::timestamptz
+    ORDER BY created_at ASC
+    LIMIT 1000
+)
+`
+
+// Deletes failure rows whose events aged out of the publisher's 30-day
+// selection window: they can never be published, so they no longer count
+// as pending failures. The LIMIT bounds each prune; the publisher runs one
+// per cycle, and rows age out no faster than they were once inserted, so
+// pruning keeps up.
+func (q *sqlQuerier) PruneUsageEventsPublishFailures(ctx context.Context, windowStart time.Time) error {
+	_, err := q.db.ExecContext(ctx, pruneUsageEventsPublishFailures, windowStart)
+	return err
+}
+
 const selectUsageEventsForPublishing = `-- name: SelectUsageEventsForPublishing :many
 WITH usage_events AS (
     UPDATE
@@ -29170,6 +29176,34 @@ func (q *sqlQuerier) UpdateUsageEventsPostPublish(ctx context.Context, arg Updat
 		pq.Array(arg.FailureMessages),
 		pq.Array(arg.SetPublishedAts),
 	)
+	return err
+}
+
+const upsertUsageEventsPublishFailures = `-- name: UpsertUsageEventsPublishFailures :exec
+INSERT INTO usage_events_publish_failures (event_id, inserted_at, created_at)
+SELECT id, inserted_at, created_at
+FROM usage_events
+WHERE
+    id = ANY($1::text[])
+    AND published_at IS NULL
+    AND created_at > $2::timestamptz
+ON CONFLICT (event_id) DO NOTHING
+`
+
+type UpsertUsageEventsPublishFailuresParams struct {
+	IDs         []string  `db:"ids" json:"ids"`
+	WindowStart time.Time `db:"window_start" json:"window_start"`
+}
+
+// Records publish failures for the given usage event IDs. Rows are copied
+// from usage_events so a stalled replica cannot record state that
+// contradicts the database: only events still unpublished and within the
+// publisher's 30-day selection window (window_start is now minus 30 days;
+// older events are never published) gain a failure row. Bounded by the
+// caller's ID list (at most one publish batch) and served by the primary
+// key.
+func (q *sqlQuerier) UpsertUsageEventsPublishFailures(ctx context.Context, arg UpsertUsageEventsPublishFailuresParams) error {
+	_, err := q.db.ExecContext(ctx, upsertUsageEventsPublishFailures, pq.Array(arg.IDs), arg.WindowStart)
 	return err
 }
 

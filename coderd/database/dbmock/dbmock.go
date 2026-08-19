@@ -1484,6 +1484,20 @@ func (mr *MockStoreMockRecorder) DeleteUnlinkedChatFilesByIDs(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUnlinkedChatFilesByIDs", reflect.TypeOf((*MockStore)(nil).DeleteUnlinkedChatFilesByIDs), ctx, arg)
 }
 
+// DeleteUsageEventsPublishFailures mocks base method.
+func (m *MockStore) DeleteUsageEventsPublishFailures(ctx context.Context, ids []string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUsageEventsPublishFailures", ctx, ids)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteUsageEventsPublishFailures indicates an expected call of DeleteUsageEventsPublishFailures.
+func (mr *MockStoreMockRecorder) DeleteUsageEventsPublishFailures(ctx, ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUsageEventsPublishFailures", reflect.TypeOf((*MockStore)(nil).DeleteUsageEventsPublishFailures), ctx, ids)
+}
+
 // DeleteUserAIBudgetOverride mocks base method.
 func (m *MockStore) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	m.ctrl.T.Helper()
@@ -1813,21 +1827,6 @@ func (m *MockStore) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context
 func (mr *MockStoreMockRecorder) FetchVolumesResourceMonitorsUpdatedAfter(ctx, updatedAt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchVolumesResourceMonitorsUpdatedAfter", reflect.TypeOf((*MockStore)(nil).FetchVolumesResourceMonitorsUpdatedAfter), ctx, updatedAt)
-}
-
-// FilterPendingUsageEventIDs mocks base method.
-func (m *MockStore) FilterPendingUsageEventIDs(ctx context.Context, arg database.FilterPendingUsageEventIDsParams) ([]database.FilterPendingUsageEventIDsRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FilterPendingUsageEventIDs", ctx, arg)
-	ret0, _ := ret[0].([]database.FilterPendingUsageEventIDsRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FilterPendingUsageEventIDs indicates an expected call of FilterPendingUsageEventIDs.
-func (mr *MockStoreMockRecorder) FilterPendingUsageEventIDs(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilterPendingUsageEventIDs", reflect.TypeOf((*MockStore)(nil).FilterPendingUsageEventIDs), ctx, arg)
 }
 
 // FinalizeStaleChatDebugRows mocks base method.
@@ -9446,6 +9445,20 @@ func (mr *MockStoreMockRecorder) PopNextQueuedMessage(ctx, chatID any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PopNextQueuedMessage", reflect.TypeOf((*MockStore)(nil).PopNextQueuedMessage), ctx, chatID)
 }
 
+// PruneUsageEventsPublishFailures mocks base method.
+func (m *MockStore) PruneUsageEventsPublishFailures(ctx context.Context, windowStart time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PruneUsageEventsPublishFailures", ctx, windowStart)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PruneUsageEventsPublishFailures indicates an expected call of PruneUsageEventsPublishFailures.
+func (mr *MockStoreMockRecorder) PruneUsageEventsPublishFailures(ctx, windowStart any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PruneUsageEventsPublishFailures", reflect.TypeOf((*MockStore)(nil).PruneUsageEventsPublishFailures), ctx, windowStart)
+}
+
 // ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate mocks base method.
 func (m *MockStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -12282,6 +12295,20 @@ func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context) error {
 func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx)
+}
+
+// UpsertUsageEventsPublishFailures mocks base method.
+func (m *MockStore) UpsertUsageEventsPublishFailures(ctx context.Context, arg database.UpsertUsageEventsPublishFailuresParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertUsageEventsPublishFailures", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertUsageEventsPublishFailures indicates an expected call of UpsertUsageEventsPublishFailures.
+func (mr *MockStoreMockRecorder) UpsertUsageEventsPublishFailures(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertUsageEventsPublishFailures", reflect.TypeOf((*MockStore)(nil).UpsertUsageEventsPublishFailures), ctx, arg)
 }
 
 // UpsertUserAIBudgetOverride mocks base method.

@@ -2529,6 +2529,13 @@ func (q *querier) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg database
 	return q.db.DeleteUnlinkedChatFilesByIDs(ctx, arg)
 }
 
+func (q *querier) DeleteUsageEventsPublishFailures(ctx context.Context, ids []string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUsageEvent); err != nil {
+		return err
+	}
+	return q.db.DeleteUsageEventsPublishFailures(ctx, ids)
+}
+
 func (q *querier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	// Removing a user's AI budget override affects both the user (clearing
 	// their per-user spend cap) and the group it was attributed to.
@@ -2761,13 +2768,6 @@ func (q *querier) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, 
 	}
 
 	return q.db.FetchVolumesResourceMonitorsUpdatedAfter(ctx, updatedAt)
-}
-
-func (q *querier) FilterPendingUsageEventIDs(ctx context.Context, arg database.FilterPendingUsageEventIDsParams) ([]database.FilterPendingUsageEventIDsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
-		return nil, err
-	}
-	return q.db.FilterPendingUsageEventIDs(ctx, arg)
 }
 
 func (q *querier) FinalizeStaleChatDebugRows(ctx context.Context, updatedBefore database.FinalizeStaleChatDebugRowsParams) (database.FinalizeStaleChatDebugRowsRow, error) {
@@ -7061,6 +7061,13 @@ func (q *querier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (d
 	return q.db.PopNextQueuedMessage(ctx, chatID)
 }
 
+func (q *querier) PruneUsageEventsPublishFailures(ctx context.Context, windowStart time.Time) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUsageEvent); err != nil {
+		return err
+	}
+	return q.db.PruneUsageEventsPublishFailures(ctx, windowStart)
+}
+
 func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	template, err := q.db.GetTemplateByID(ctx, templateID)
 	if err != nil {
@@ -9155,6 +9162,13 @@ func (q *querier) UpsertTemplateUsageStats(ctx context.Context) error {
 		return err
 	}
 	return q.db.UpsertTemplateUsageStats(ctx)
+}
+
+func (q *querier) UpsertUsageEventsPublishFailures(ctx context.Context, arg database.UpsertUsageEventsPublishFailuresParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUsageEvent); err != nil {
+		return err
+	}
+	return q.db.UpsertUsageEventsPublishFailures(ctx, arg)
 }
 
 func (q *querier) UpsertUserAIBudgetOverride(ctx context.Context, arg database.UpsertUserAIBudgetOverrideParams) (database.UserAIBudgetOverride, error) {

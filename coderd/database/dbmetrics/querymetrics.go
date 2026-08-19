@@ -865,6 +865,14 @@ func (m queryMetricsStore) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteUsageEventsPublishFailures(ctx context.Context, ids []string) error {
+	start := time.Now()
+	r0 := m.s.DeleteUsageEventsPublishFailures(ctx, ids)
+	m.queryLatencies.WithLabelValues("DeleteUsageEventsPublishFailures").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteUsageEventsPublishFailures").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteUserAIBudgetOverride(ctx, userID)
@@ -1046,14 +1054,6 @@ func (m queryMetricsStore) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.
 	r0, r1 := m.s.FetchVolumesResourceMonitorsUpdatedAfter(ctx, updatedAt)
 	m.queryLatencies.WithLabelValues("FetchVolumesResourceMonitorsUpdatedAfter").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "FetchVolumesResourceMonitorsUpdatedAfter").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) FilterPendingUsageEventIDs(ctx context.Context, arg database.FilterPendingUsageEventIDsParams) ([]database.FilterPendingUsageEventIDsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.FilterPendingUsageEventIDs(ctx, arg)
-	m.queryLatencies.WithLabelValues("FilterPendingUsageEventIDs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "FilterPendingUsageEventIDs").Inc()
 	return r0, r1
 }
 
@@ -4985,6 +4985,14 @@ func (m queryMetricsStore) PopNextQueuedMessage(ctx context.Context, chatID uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) PruneUsageEventsPublishFailures(ctx context.Context, windowStart time.Time) error {
+	start := time.Now()
+	r0 := m.s.PruneUsageEventsPublishFailures(ctx, windowStart)
+	m.queryLatencies.WithLabelValues("PruneUsageEventsPublishFailures").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PruneUsageEventsPublishFailures").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, templateID)
@@ -6550,6 +6558,14 @@ func (m queryMetricsStore) UpsertTemplateUsageStats(ctx context.Context) error {
 	r0 := m.s.UpsertTemplateUsageStats(ctx)
 	m.queryLatencies.WithLabelValues("UpsertTemplateUsageStats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertTemplateUsageStats").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertUsageEventsPublishFailures(ctx context.Context, arg database.UpsertUsageEventsPublishFailuresParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertUsageEventsPublishFailures(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertUsageEventsPublishFailures").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertUsageEventsPublishFailures").Inc()
 	return r0
 }
 

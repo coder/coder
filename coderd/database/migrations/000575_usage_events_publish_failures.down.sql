@@ -1,0 +1,1 @@
+DROP TABLE usage_events_publish_failures;

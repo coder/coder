@@ -39,6 +39,10 @@ const (
 	// iteration so a stalled database cannot block the single publish loop
 	// indefinitely.
 	usagePublishDBTimeout = 30 * time.Second
+	// usagePublishingWindow matches the 30-day selection window in
+	// SelectUsageEventsForPublishing: events older than this are never
+	// published, so their publish-failure rows are pruned.
+	usagePublishingWindow = 30 * 24 * time.Hour
 )
 
 var errUsagePublishingDisabled = xerrors.New("usage publishing is not enabled by any license")
@@ -226,10 +230,12 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		return 0, xerrors.Errorf("select usage events for publishing: %w", err)
 	}
 	if len(events) == 0 {
-		// No events to publish. The failing-events marker needs no update:
-		// failure detection verifies entries against the database, so any
-		// leftover entry for a published row is ignored without a write
-		// here.
+		// No events to publish. Still prune failure rows whose events aged
+		// out of the publish window; without this an idle publisher would
+		// leave aged rows raising EUP01 forever.
+		if err := p.db.PruneUsageEventsPublishFailures(selectCtx, dbtime.Time(p.clock.Now().Add(-usagePublishingWindow))); err != nil {
+			p.log.Warn(ctx, "prune usage events publish failures", slog.Error(err))
+		}
 		return 0, nil
 	}
 
@@ -356,40 +362,6 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		}
 	}
 
-	// The post-publish writes get their own bounded context, separate from
-	// the request's (see above) so a request that consumed its entire
-	// deadline still persists its failure, and separate from the loop's so
-	// a stalled database cannot block it indefinitely.
-	updateCtx, updateCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
-	defer updateCtxCancel()
-	err = p.db.UpdateUsageEventsPostPublish(updateCtx, dbUpdate)
-	if err != nil {
-		// The update failing leaves every batch row unpublished with a
-		// fresh in-flight attempt marker that hides it from the stuck
-		// probe, so record the whole batch as failing (on a fresh bounded
-		// context; the update may have consumed this one's deadline). The
-		// marker outcome verifies against the database: rows published by
-		// a later successful cycle prune their IDs then. Best-effort like
-		// every marker write, but a database problem specific to the
-		// events update (e.g. a statement timeout on the big UNNEST) must
-		// not also silence failure detection.
-		outcomeCtx, outcomeCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
-		defer outcomeCtxCancel()
-		p.recordBatchOutcome(outcomeCtx, nil, dbUpdate.IDs)
-		return 0, xerrors.Errorf("update usage events post publish: %w", err)
-	}
-
-	// Report the batch's per-event outcomes to the failing-events marker;
-	// publish failure detection reads it instead of scanning the backlog
-	// for failed rows. Events confirmed published (including permanent
-	// rejections, which are terminal) resolve their own IDs, so the
-	// warning clears as soon as the actual failing events recover, while
-	// failures recorded for events outside this batch stay untouched. The
-	// outcome gets its own bounded context: the update may have consumed
-	// most of its deadline, and while verification prunes stale IDs, it
-	// can never discover a failure ID that was never added.
-	outcomeCtx, outcomeCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
-	defer outcomeCtxCancel()
 	var publishedIDs, failedIDs []string
 	for i, id := range dbUpdate.IDs {
 		if dbUpdate.SetPublishedAts[i] {
@@ -398,27 +370,68 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 			failedIDs = append(failedIDs, id)
 		}
 	}
-	p.recordBatchOutcome(outcomeCtx, publishedIDs, failedIDs)
+
+	// The post-publish writes get their own bounded context, separate from
+	// the request's (see above) so a request that consumed its entire
+	// deadline still persists its outcome, and separate from the loop's so
+	// a stalled database cannot block it indefinitely. The row update and
+	// the publish-failure bookkeeping commit atomically: published events
+	// (including permanent rejections, which are terminal) delete their
+	// failure rows, events left unpublished record theirs, and rows past
+	// the publish window are pruned. Publish failure detection reads
+	// usage_events_publish_failures instead of scanning the unpublished
+	// backlog for failed rows, and because rows are keyed by event ID, a
+	// batch only ever resolves its own events; failures another replica's
+	// rows justify stay recorded until those exact rows publish.
+	updateCtx, updateCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
+	defer updateCtxCancel()
+	windowStart := dbtime.Time(p.clock.Now().Add(-usagePublishingWindow))
+	err = p.db.InTx(func(tx database.Store) error {
+		if err := tx.UpdateUsageEventsPostPublish(updateCtx, dbUpdate); err != nil {
+			return xerrors.Errorf("update usage events post publish: %w", err)
+		}
+		if err := tx.DeleteUsageEventsPublishFailures(updateCtx, publishedIDs); err != nil {
+			return xerrors.Errorf("delete usage events publish failures: %w", err)
+		}
+		// The insert copies inserted_at/created_at from usage_events and
+		// skips rows no longer unpublished, so a stalled replica cannot
+		// record state that contradicts the database.
+		if err := tx.UpsertUsageEventsPublishFailures(updateCtx, database.UpsertUsageEventsPublishFailuresParams{
+			IDs:         failedIDs,
+			WindowStart: windowStart,
+		}); err != nil {
+			return xerrors.Errorf("upsert usage events publish failures: %w", err)
+		}
+		if err := tx.PruneUsageEventsPublishFailures(updateCtx, windowStart); err != nil {
+			return xerrors.Errorf("prune usage events publish failures: %w", err)
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		// The transaction failing leaves every batch row unpublished with
+		// a fresh in-flight attempt marker that hides it from the stuck
+		// probe, so record the whole batch as failing on a fresh bounded
+		// context (the transaction may have consumed this one's deadline).
+		// The insert verifies against usage_events, so rows another cycle
+		// has since published are skipped. Best-effort: a database problem
+		// specific to the update must not also silence failure detection,
+		// and the next cycle retries.
+		failCtx, failCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
+		defer failCtxCancel()
+		if failErr := p.db.UpsertUsageEventsPublishFailures(failCtx, database.UpsertUsageEventsPublishFailuresParams{
+			IDs:         dbUpdate.IDs,
+			WindowStart: windowStart,
+		}); failErr != nil {
+			p.log.Warn(ctx, "record usage events publish failures", slog.Error(failErr))
+		}
+		return 0, err
+	}
 
 	var returnErr error
 	if len(resp.RejectedEvents) > 0 {
 		returnErr = xerrors.New("some events were rejected by tallyman")
 	}
 	return len(resp.AcceptedEvents), returnErr
-}
-
-// recordBatchOutcome reports a batch's per-event outcomes to the
-// failing-events marker after the batch's database update committed.
-// Best-effort: a missed failure stamp only delays the warning by one
-// publish cycle, and a missed removal after a publish is harmless because
-// failure detection verifies entries against the database before warning
-// from them.
-func (p *tallymanPublisher) recordBatchOutcome(ctx context.Context, publishedIDs, failedIDs []string) {
-	// nolint:gocritic // Maintaining the usage publishing failing-events marker is a system function.
-	err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), p.db, p.clock.Now(), publishedIDs, failedIDs)
-	if err != nil {
-		p.log.Warn(ctx, "record usage publishing batch outcome", slog.Error(err))
-	}
 }
 
 // getBestLicenseJWT returns the best license JWT to use for the request. The

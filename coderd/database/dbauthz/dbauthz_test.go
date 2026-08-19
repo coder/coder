@@ -6585,9 +6585,19 @@ func (s *MethodTestSuite) TestUsageEvents() {
 		check.Args(database.GetUsagePublishStatusParams{}).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
 	}))
 
-	s.Run("FilterPendingUsageEventIDs", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		db.EXPECT().FilterPendingUsageEventIDs(gomock.Any(), gomock.Any()).Return([]database.FilterPendingUsageEventIDsRow{}, nil)
-		check.Args(database.FilterPendingUsageEventIDsParams{}).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
+	s.Run("UpsertUsageEventsPublishFailures", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil)
+		check.Args(database.UpsertUsageEventsPublishFailuresParams{}).Asserts(rbac.ResourceUsageEvent, policy.ActionUpdate)
+	}))
+
+	s.Run("DeleteUsageEventsPublishFailures", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().DeleteUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil)
+		check.Args([]string{}).Asserts(rbac.ResourceUsageEvent, policy.ActionUpdate)
+	}))
+
+	s.Run("PruneUsageEventsPublishFailures", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil)
+		check.Args(time.Time{}).Asserts(rbac.ResourceUsageEvent, policy.ActionUpdate)
 	}))
 }
 

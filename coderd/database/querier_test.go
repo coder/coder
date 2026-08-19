@@ -11213,6 +11213,9 @@ type usagePublishSeedEvent struct {
 	// order. Empty means a single attempt failed at the event's insertion
 	// time.
 	failedAts []time.Time
+	// failureRow records the event in usage_events_publish_failures, as
+	// the publisher's batch outcome would after a failed attempt.
+	failureRow bool
 }
 
 // backfillFlood seeds more than 100 never-attempted events with historical
@@ -11309,6 +11312,15 @@ func TestGetUsagePublishStatus(t *testing.T) {
 					require.NoError(t, err)
 				}
 			}
+			if ev.failureRow {
+				// A wide window so tests can seed failure rows for events
+				// of any age; the query filters by its own window_start.
+				err = db.UpsertUsageEventsPublishFailures(ctx, database.UpsertUsageEventsPublishFailuresParams{
+					IDs:         []string{ev.id},
+					WindowStart: ev.createdAt.Add(-time.Hour),
+				})
+				require.NoError(t, err)
+			}
 		}
 	}
 
@@ -11341,17 +11353,58 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			want:           database.GetUsagePublishStatusRow{},
 		},
 		{
-			// The query only probes the front of the publisher's queue;
-			// active failures displaced behind fresh backfills (or held
-			// in flight by a slow retry) are covered by the publisher's
-			// failing-events marker instead, which license.Entitlements
-			// folds in. See UsagePublishingFailingEventsKey.
-			name: "DisplacedFailureCoveredByFailingEventsMarkerNotQuery",
+			// The queue-front branches only probe the front of the
+			// publisher's queue; an active failure displaced behind fresh
+			// backfills is covered by its usage_events_publish_failures
+			// row instead, which the failing CTE reads.
+			name: "DisplacedFailureCoveredByFailureRow",
+			events: append(
+				backfillFlood(now),
+				usagePublishSeedEvent{id: "failing", createdAt: now.Add(-3 * time.Hour), insertedAt: now.Add(-40 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour)}, failureRow: true},
+			),
+			want: database.GetUsagePublishStatusRow{
+				OldestStuckAt: now.Add(-40 * time.Hour),
+			},
+		},
+		{
+			// Without a failure row the displaced failure is invisible to
+			// the bounded queue-front probes; the publisher's batch outcome
+			// is responsible for recording it.
+			name: "DisplacedFailureWithoutRowInvisible",
 			events: append(
 				backfillFlood(now),
 				usagePublishSeedEvent{id: "failing", createdAt: now.Add(-3 * time.Hour), insertedAt: now.Add(-40 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour)}},
 			),
 			want: database.GetUsagePublishStatusRow{},
+		},
+		{
+			// A failure row young enough to be within the failure threshold
+			// does not warn yet.
+			name: "FailureRowWithinThresholdNotStuck",
+			events: []usagePublishSeedEvent{
+				{id: "1", createdAt: now.Add(-2 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-1 * time.Hour)}, failureRow: true},
+			},
+			want: database.GetUsagePublishStatusRow{},
+		},
+		{
+			// A failure row for an event that aged out of the publish
+			// window is ignored: the event can never be published, so it no
+			// longer counts as a pending failure.
+			name: "FailureRowPastWindowIgnored",
+			events: []usagePublishSeedEvent{
+				{id: "1", createdAt: now.Add(-31 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30*24*time.Hour - 12*time.Hour)}, failureRow: true},
+			},
+			want: database.GetUsagePublishStatusRow{},
+		},
+		{
+			// The failure row's insertion age is clamped to enabled_since,
+			// granting the post-(re-)enablement grace period.
+			name: "FailureRowClampedToEnabledSince",
+			events: []usagePublishSeedEvent{
+				{id: "1", createdAt: now.Add(-40 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour)}, failureRow: true},
+			},
+			enabledSinceOverride: now.Add(-1 * time.Hour),
+			want:                 database.GetUsagePublishStatusRow{},
 		},
 		{
 			// An in-flight attempt older than the publisher's 1-hour expiry

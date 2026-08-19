@@ -6177,6 +6177,13 @@ type UsageEventsDaily struct {
 	UsageData json.RawMessage `db:"usage_data" json:"usage_data"`
 }
 
+// Usage events whose most recent publish attempt left them unpublished. Maintained by the publisher with each batch outcome; read by publish failure detection to find the oldest failing event without scanning the usage_events backlog.
+type UsageEventsPublishFailure struct {
+	EventID    string    `db:"event_id" json:"event_id"`
+	InsertedAt time.Time `db:"inserted_at" json:"inserted_at"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+}
+
 type User struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	Email          string         `db:"email" json:"email"`

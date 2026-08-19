@@ -3587,6 +3587,14 @@ COMMENT ON TABLE usage_events_daily IS 'usage_events_daily is a daily rollup of 
 
 COMMENT ON COLUMN usage_events_daily.day IS 'The date of the summed usage events, always in UTC.';
 
+CREATE TABLE usage_events_publish_failures (
+    event_id text NOT NULL,
+    inserted_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE usage_events_publish_failures IS 'Usage events whose most recent publish attempt left them unpublished. Maintained by the publisher with each batch outcome; read by publish failure detection to find the oldest failing event without scanning the usage_events backlog.';
+
 CREATE TABLE user_ai_budget_overrides (
     user_id uuid NOT NULL,
     group_id uuid NOT NULL,
@@ -4553,6 +4561,9 @@ ALTER TABLE ONLY usage_events_daily
 ALTER TABLE ONLY usage_events
     ADD CONSTRAINT usage_events_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY usage_events_publish_failures
+    ADD CONSTRAINT usage_events_publish_failures_pkey PRIMARY KEY (event_id);
+
 ALTER TABLE ONLY user_ai_budget_overrides
     ADD CONSTRAINT user_ai_budget_overrides_pkey PRIMARY KEY (user_id);
 
@@ -4908,6 +4919,10 @@ CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btr
 CREATE UNIQUE INDEX idx_usage_events_agent_runtime ON usage_events USING btree (event_type, created_at) WHERE (event_type = 'hb_agent_runtime_v1'::text);
 
 CREATE INDEX idx_usage_events_ai_seats ON usage_events USING btree (event_type, created_at) WHERE (event_type = 'hb_ai_seats_v1'::text);
+
+CREATE INDEX idx_usage_events_publish_failures_created_at ON usage_events_publish_failures USING btree (created_at);
+
+CREATE INDEX idx_usage_events_publish_failures_inserted_at ON usage_events_publish_failures USING btree (inserted_at);
 
 CREATE INDEX idx_usage_events_select_for_publishing ON usage_events USING btree (published_at, publish_started_at, created_at);
 
@@ -5439,6 +5454,9 @@ ALTER TABLE ONLY templates
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY usage_events_publish_failures
+    ADD CONSTRAINT usage_events_publish_failures_event_id_fkey FOREIGN KEY (event_id) REFERENCES usage_events(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_ai_budget_overrides
     ADD CONSTRAINT user_ai_budget_overrides_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;

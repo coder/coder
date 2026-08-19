@@ -222,6 +222,10 @@ type sqlcQuerier interface {
 	DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error)
 	DeleteTask(ctx context.Context, arg DeleteTaskParams) (uuid.UUID, error)
 	DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg DeleteUnlinkedChatFilesByIDsParams) (int64, error)
+	// Resolves publish failures for the given usage event IDs after they were
+	// published (including permanent rejections, which are terminal). Bounded
+	// by the caller's ID list and served by the primary key.
+	DeleteUsageEventsPublishFailures(ctx context.Context, ids []string) error
 	DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	DeleteUserAIProviderKey(ctx context.Context, arg DeleteUserAIProviderKeyParams) error
 	DeleteUserAIProviderKeysByProviderID(ctx context.Context, aiProviderID uuid.UUID) error
@@ -266,16 +270,6 @@ type sqlcQuerier interface {
 	FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error)
 	FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentVolumeResourceMonitor, error)
 	FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentVolumeResourceMonitor, error)
-	// Returns the subset of the given usage event IDs that are still pending
-	// publication: unpublished and within the publisher's 30-day selection
-	// window (window_start is now minus 30 days; older events are never
-	// published, so they no longer count as pending). Each pending ID is
-	// returned with its inserted_at, the event's effective stuck base (see
-	// GetUsagePublishStatus's stuck_cutoff doc). Publish failure detection uses
-	// this to verify failing-events marker entries against the database before
-	// warning from them or pruning them. Bounded by the caller's ID list and
-	// served by the primary key.
-	FilterPendingUsageEventIDs(ctx context.Context, arg FilterPendingUsageEventIDsParams) ([]FilterPendingUsageEventIDsRow, error)
 	// Marks orphaned in-progress rows as interrupted so they do not stay
 	// in a non-terminal state forever. The NOT IN list must match the
 	// terminal statuses defined by ChatDebugStatus in codersdk/chats.go.
@@ -1376,6 +1370,12 @@ type sqlcQuerier interface {
 	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
+	// Deletes failure rows whose events aged out of the publisher's 30-day
+	// selection window: they can never be published, so they no longer count
+	// as pending failures. The LIMIT bounds each prune; the publisher runs one
+	// per cycle, and rows age out no faster than they were once inserted, so
+	// pruning keeps up.
+	PruneUsageEventsPublishFailures(ctx context.Context, windowStart time.Time) error
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
@@ -1735,6 +1735,14 @@ type sqlcQuerier interface {
 	// used to store the data, and the minutes are summed for each user and template
 	// combination. The result is stored in the template_usage_stats table.
 	UpsertTemplateUsageStats(ctx context.Context) error
+	// Records publish failures for the given usage event IDs. Rows are copied
+	// from usage_events so a stalled replica cannot record state that
+	// contradicts the database: only events still unpublished and within the
+	// publisher's 30-day selection window (window_start is now minus 30 days;
+	// older events are never published) gain a failure row. Bounded by the
+	// caller's ID list (at most one publish batch) and served by the primary
+	// key.
+	UpsertUsageEventsPublishFailures(ctx context.Context, arg UpsertUsageEventsPublishFailuresParams) error
 	UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAIBudgetOverride, error)
 	// UpsertUserAIProviderKey preserves the original id and created_at when the
 	// user/provider pair already exists. On conflict, callers provide id and

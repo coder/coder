@@ -28,7 +28,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -163,15 +162,22 @@ func TestIntegration(t *testing.T) {
 	require.Equal(t, 1, calls)
 
 	// The batch left an event unpublished, so the publisher should have
-	// recorded exactly that event's ID in the failing-events marker. The
-	// permanently rejected event is terminal and must not be tracked.
+	// recorded exactly that event's failure row atomically with the
+	// post-publish update; the permanently rejected event is terminal and
+	// must not be tracked. Detection folds the failure row's insertion age
+	// into the publish status even though the row itself is too fresh for
+	// the queue-front probe.
 	//nolint:gocritic // Unit test.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	raw, err := db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailingEventsKey)
+	publishStatus, err := db.GetUsagePublishStatus(sysCtx, database.GetUsagePublishStatusParams{
+		EnabledSince:         now.Add(-90 * 24 * time.Hour),
+		WindowStart:          now.Add(-30 * 24 * time.Hour),
+		StuckCutoff:          now.Add(48 * time.Hour),
+		AttemptExpiredBefore: now.Add(-time.Hour),
+		RejectedAfter:        now.Add(-24 * time.Hour),
+	})
 	require.NoError(t, err)
-	var marker license.UsagePublishingFailingEvents
-	require.NoError(t, json.Unmarshal([]byte(raw), &marker))
-	require.Equal(t, []string{temporarilyRejectedEventID}, marker.EventIDs)
+	require.False(t, publishStatus.OldestStuckAt.IsZero(), "the failing event's insertion age should be reported")
 
 	// Set the handler for the next publish call. This call should only include
 	// the temporarily rejected event from earlier. This time we'll accept it.
@@ -197,12 +203,19 @@ func TestIntegration(t *testing.T) {
 	require.Equal(t, 2, calls)
 
 	// The batch published the previously failing event, so the publisher
-	// should have removed its ID from the marker.
-	raw, err = db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailingEventsKey)
+	// should have deleted its failure row in the same transaction. With a
+	// future stuck cutoff, any surviving failure row (or unpublished
+	// queue-front row) would report; only the never-published 31-day-old
+	// event remains, which is outside the publish window.
+	publishStatus, err = db.GetUsagePublishStatus(sysCtx, database.GetUsagePublishStatusParams{
+		EnabledSince:         now.Add(-90 * 24 * time.Hour),
+		WindowStart:          now.Add(-30 * 24 * time.Hour),
+		StuckCutoff:          now.Add(48 * time.Hour),
+		AttemptExpiredBefore: now.Add(-time.Hour),
+		RejectedAfter:        now.Add(-24 * time.Hour),
+	})
 	require.NoError(t, err)
-	var resolvedMarker license.UsagePublishingFailingEvents
-	require.NoError(t, json.Unmarshal([]byte(raw), &resolvedMarker))
-	require.Empty(t, resolvedMarker.EventIDs)
+	require.True(t, publishStatus.OldestStuckAt.IsZero(), "the published event's failure row should be gone")
 
 	// There should be no more publish calls after this, so set the handler to
 	// nil.
@@ -225,27 +238,16 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 	log := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	// Each publish batch records its outcome in the failure-streak
-	// marker inside a locked transaction.
+	// Each publish batch maintains usage_events_publish_failures
+	// atomically with its post-publish row update.
 	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(fn func(database.Store) error, _ *database.TxOptions) error {
 			return fn(db)
 		},
 	).AnyTimes()
-	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
-	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
-	// The batch outcome verifies marker IDs against the database; report
-	// every ID as still pending.
-	db.EXPECT().FilterPendingUsageEventIDs(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, arg database.FilterPendingUsageEventIDsParams) ([]database.FilterPendingUsageEventIDsRow, error) {
-			rows := make([]database.FilterPendingUsageEventIDsRow, 0, len(arg.IDs))
-			for _, id := range arg.IDs {
-				rows = append(rows, database.FilterPendingUsageEventIDsRow{ID: id, InsertedAt: time.Now()})
-			}
-			return rows, nil
-		},
-	).AnyTimes()
-	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().DeleteUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 
 	// Configure the deployment manually.
@@ -400,27 +402,16 @@ func TestPublisherMissingEvents(t *testing.T) {
 	log := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	// Each publish batch records its outcome in the failure-streak
-	// marker inside a locked transaction.
+	// Each publish batch maintains usage_events_publish_failures
+	// atomically with its post-publish row update.
 	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(fn func(database.Store) error, _ *database.TxOptions) error {
 			return fn(db)
 		},
 	).AnyTimes()
-	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
-	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
-	// The batch outcome verifies marker IDs against the database; report
-	// every ID as still pending.
-	db.EXPECT().FilterPendingUsageEventIDs(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, arg database.FilterPendingUsageEventIDsParams) ([]database.FilterPendingUsageEventIDsRow, error) {
-			rows := make([]database.FilterPendingUsageEventIDsRow, 0, len(arg.IDs))
-			for _, id := range arg.IDs {
-				rows = append(rows, database.FilterPendingUsageEventIDsRow{ID: id, InsertedAt: time.Now()})
-			}
-			return rows, nil
-		},
-	).AnyTimes()
-	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().DeleteUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	deploymentID, licenseJWT := configureMockDeployment(t, db)
 	clock := quartz.NewMock(t)
 	now := time.Now()
@@ -495,27 +486,16 @@ func TestPublisherLicenseSelection(t *testing.T) {
 	log := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	// Each publish batch records its outcome in the failure-streak
-	// marker inside a locked transaction.
+	// Each publish batch maintains usage_events_publish_failures
+	// atomically with its post-publish row update.
 	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(fn func(database.Store) error, _ *database.TxOptions) error {
 			return fn(db)
 		},
 	).AnyTimes()
-	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
-	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
-	// The batch outcome verifies marker IDs against the database; report
-	// every ID as still pending.
-	db.EXPECT().FilterPendingUsageEventIDs(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, arg database.FilterPendingUsageEventIDsParams) ([]database.FilterPendingUsageEventIDsRow, error) {
-			rows := make([]database.FilterPendingUsageEventIDsRow, 0, len(arg.IDs))
-			for _, id := range arg.IDs {
-				rows = append(rows, database.FilterPendingUsageEventIDsRow{ID: id, InsertedAt: time.Now()})
-			}
-			return rows, nil
-		},
-	).AnyTimes()
-	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().DeleteUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()
 
@@ -651,27 +631,16 @@ func TestPublisherTallymanError(t *testing.T) {
 	log := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	// Each publish batch records its outcome in the failure-streak
-	// marker inside a locked transaction.
+	// Each publish batch maintains usage_events_publish_failures
+	// atomically with its post-publish row update.
 	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(fn func(database.Store) error, _ *database.TxOptions) error {
 			return fn(db)
 		},
 	).AnyTimes()
-	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
-	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
-	// The batch outcome verifies marker IDs against the database; report
-	// every ID as still pending.
-	db.EXPECT().FilterPendingUsageEventIDs(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, arg database.FilterPendingUsageEventIDsParams) ([]database.FilterPendingUsageEventIDsRow, error) {
-			rows := make([]database.FilterPendingUsageEventIDsRow, 0, len(arg.IDs))
-			for _, id := range arg.IDs {
-				rows = append(rows, database.FilterPendingUsageEventIDsRow{ID: id, InsertedAt: time.Now()})
-			}
-			return rows, nil
-		},
-	).AnyTimes()
-	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().DeleteUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()
 	clock.Set(now)
@@ -745,17 +714,6 @@ func TestPublisherPostPublishUpdateError(t *testing.T) {
 			return fn(db)
 		},
 	).AnyTimes()
-	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
-	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
-	db.EXPECT().FilterPendingUsageEventIDs(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, arg database.FilterPendingUsageEventIDsParams) ([]database.FilterPendingUsageEventIDsRow, error) {
-			rows := make([]database.FilterPendingUsageEventIDsRow, 0, len(arg.IDs))
-			for _, id := range arg.IDs {
-				rows = append(rows, database.FilterPendingUsageEventIDsRow{ID: id, InsertedAt: time.Now()})
-			}
-			return rows, nil
-		},
-	).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()
 	clock.Set(now)
@@ -801,19 +759,15 @@ func TestPublisherPostPublishUpdateError(t *testing.T) {
 		},
 	}
 	db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), gomock.Any()).Return(events, nil).Times(1)
-	// The post-publish update fails, leaving the batch rows unpublished
-	// with fresh in-flight attempt markers that hide them from the stuck
-	// probe. The publisher must still record the whole batch in the
-	// failing-events marker or detection would go silent.
+	// The post-publish transaction fails, leaving the batch rows
+	// unpublished with fresh in-flight attempt markers that hide them from
+	// the stuck probe. The publisher must still record the whole batch's
+	// failure rows or detection would go silent.
 	db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), gomock.Any()).Return(xerrors.New("update failed")).Times(1)
-	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, params database.UpsertRuntimeConfigParams) error {
-			assert.NoError(t, ctx.Err(), "marker update must not use the consumed update context")
-			assert.Equal(t, license.UsagePublishingFailingEventsKey, params.Key)
-			var marker license.UsagePublishingFailingEvents
-			if assert.NoError(t, json.Unmarshal([]byte(params.Value), &marker)) {
-				assert.Contains(t, marker.EventIDs, events[0].ID)
-			}
+	db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, params database.UpsertUsageEventsPublishFailuresParams) error {
+			assert.NoError(t, ctx.Err(), "failure recording must not use the consumed transaction context")
+			assert.Equal(t, []string{events[0].ID}, params.IDs)
 			return nil
 		},
 	).Times(1)
@@ -831,26 +785,15 @@ func TestPublisherTallymanTimeout(t *testing.T) {
 	log := slogtest.Make(t, nil)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	// Each publish batch records its outcome in the failing-events marker
-	// inside a locked transaction.
+	// Each publish batch maintains usage_events_publish_failures
+	// atomically with its post-publish row update.
 	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(fn func(database.Store) error, _ *database.TxOptions) error {
 			return fn(db)
 		},
 	).AnyTimes()
-	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
-	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
-	// The batch outcome verifies marker IDs against the database; report
-	// every ID as still pending.
-	db.EXPECT().FilterPendingUsageEventIDs(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, arg database.FilterPendingUsageEventIDsParams) ([]database.FilterPendingUsageEventIDsRow, error) {
-			rows := make([]database.FilterPendingUsageEventIDsRow, 0, len(arg.IDs))
-			for _, id := range arg.IDs {
-				rows = append(rows, database.FilterPendingUsageEventIDsRow{ID: id, InsertedAt: time.Now()})
-			}
-			return rows, nil
-		},
-	).AnyTimes()
+	db.EXPECT().DeleteUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()
 	clock.Set(now)
@@ -907,14 +850,10 @@ func TestPublisherTallymanTimeout(t *testing.T) {
 			return nil
 		},
 	).Times(1)
-	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, params database.UpsertRuntimeConfigParams) error {
-			assert.NoError(t, ctx.Err(), "marker update must not use the expired request context")
-			assert.Equal(t, license.UsagePublishingFailingEventsKey, params.Key)
-			var marker license.UsagePublishingFailingEvents
-			if assert.NoError(t, json.Unmarshal([]byte(params.Value), &marker)) {
-				assert.Contains(t, marker.EventIDs, events[0].ID)
-			}
+	db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, params database.UpsertUsageEventsPublishFailuresParams) error {
+			assert.NoError(t, ctx.Err(), "failure recording must not use the expired request context")
+			assert.Equal(t, []string{events[0].ID}, params.IDs)
 			return nil
 		},
 	).Times(1)

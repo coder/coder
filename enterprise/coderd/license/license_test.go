@@ -4075,16 +4075,15 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.Nil(t, entitlements.UsagePublishing.FailingSince)
 	})
 
-	// seedFailingEvents writes the failing-events marker directly, as the
-	// publisher's failing batches would have.
-	seedFailingEvents := func(ctx context.Context, t *testing.T, db database.Store, marker license.UsagePublishingFailingEvents) {
+	// recordFailures records publish failures for the given event IDs, as
+	// the publisher's failing batches would. The event rows must exist and
+	// be unpublished: the insert copies its timestamps from usage_events.
+	recordFailures := func(ctx context.Context, t *testing.T, db database.Store, now time.Time, ids ...string) {
 		t.Helper()
-		value, err := json.Marshal(marker)
-		require.NoError(t, err)
 		//nolint:gocritic // Unit test.
-		err = db.UpsertRuntimeConfig(dbauthz.AsSystemRestricted(ctx), database.UpsertRuntimeConfigParams{
-			Key:   license.UsagePublishingFailingEventsKey,
-			Value: string(value),
+		err := db.UpsertUsageEventsPublishFailures(dbauthz.AsSystemRestricted(ctx), database.UpsertUsageEventsPublishFailuresParams{
+			IDs:         ids,
+			WindowStart: now.Add(-30 * 24 * time.Hour),
 		})
 		require.NoError(t, err)
 	}
@@ -4092,8 +4091,7 @@ func TestUsagePublishingStatus(t *testing.T) {
 	// markEventsInFlight stamps a fresh in-flight attempt on all eligible
 	// events, as a replica that just selected them for publishing would.
 	// The stuck probe skips non-expired in-flight rows, so this isolates
-	// the failing-events marker as the only warning source while keeping
-	// the rows pending for marker verification.
+	// the publish-failure rows as the only warning source.
 	markEventsInFlight := func(ctx context.Context, t *testing.T, db database.Store, now time.Time) {
 		t.Helper()
 		_, err := db.SelectUsageEventsForPublishing(ctx, now)
@@ -4108,10 +4106,8 @@ func TestUsagePublishingStatus(t *testing.T) {
 		now := time.Now()
 		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), time.Time{}, "")
 		// The publisher's failing batches would have recorded the event's
-		// ID throughout the outage.
-		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
-			EventIDs: []string{"1"},
-		})
+		// failure row throughout the outage.
+		recordFailures(ctx, t, db, now, "1")
 
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
 		require.NoError(t, err)
@@ -4122,8 +4118,8 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
 
 		// Simulate the outage recovering: the event gets published, the
-		// batch outcome resolves its marker entry, and the next
-		// entitlements refresh clears the warning immediately.
+		// batch outcome deletes its failure row, and the next entitlements
+		// refresh clears the warning immediately.
 		err = db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
 			Now:             now,
 			IDs:             []string{"1"},
@@ -4132,7 +4128,7 @@ func TestUsagePublishingStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 		//nolint:gocritic // Unit test.
-		err = license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now, []string{"1"}, nil)
+		err = db.DeleteUsageEventsPublishFailures(dbauthz.AsSystemRestricted(ctx), []string{"1"})
 		require.NoError(t, err)
 
 		entitlements, err = license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
@@ -4183,23 +4179,21 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.Nil(t, entitlements.UsagePublishing.FailingSince)
 	})
 
-	t.Run("FailingEventsMarkerRaisesWarning", func(t *testing.T) {
+	t.Run("FailureRowRaisesWarningWhileInFlight", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
 		db, _ := dbtestutil.NewDB(t)
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 
-		// The publisher records failing events in a runtime config marker;
-		// detection must warn from a recorded ID even while a fresh retry
+		// The publisher records failing events in a dedicated relation;
+		// detection must warn from a failure row even while a fresh retry
 		// (or displacement behind fresh backfills) holds the row out of
-		// the stuck probe's view, with the pending row's insertion age as
-		// the stuck base.
+		// the stuck probe's view, with the event's insertion age as the
+		// stuck base.
 		now := time.Now()
 		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), time.Time{}, "")
+		recordFailures(ctx, t, db, now, "1")
 		markEventsInFlight(ctx, t, db, now)
-		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
-			EventIDs: []string{"1"},
-		})
 
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
 		require.NoError(t, err)
@@ -4208,39 +4202,18 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
 	})
 
-	t.Run("LingeringIDForPublishedEventIgnored", func(t *testing.T) {
+	t.Run("StalledReplicaCannotRecordPublishedEvent", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
 		db, _ := dbtestutil.NewDB(t)
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 
-		// A recovery batch published the event but its marker removal was
-		// missed (e.g. a transient write failure). Verification sees the
-		// row published, so the leftover ID must not warn.
+		// A stalled replica recording a failure for an event that has
+		// since published must not create a failure row: the insert copies
+		// only rows still unpublished from usage_events.
 		now := time.Now()
 		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), now.Add(-5*time.Minute), "")
-		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
-			EventIDs: []string{"1"},
-		})
-
-		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
-		require.NoError(t, err)
-		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
-		require.Nil(t, entitlements.UsagePublishing.FailingSince)
-	})
-
-	t.Run("IDWithoutRowIgnored", func(t *testing.T) {
-		t.Parallel()
-		ctx := context.Background()
-		db, _ := dbtestutil.NewDB(t)
-		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
-
-		// An ID whose event no longer exists (or aged out of the publish
-		// window, where it can never be published) is not a pending
-		// failure.
-		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
-			EventIDs: []string{"gone"},
-		})
+		recordFailures(ctx, t, db, now, "1")
 
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
 		require.NoError(t, err)
@@ -4254,16 +4227,15 @@ func TestUsagePublishingStatus(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 
-		// A replica's fully published batch only resolves its own events;
-		// a failure another replica's event justifies must keep warning.
+		// A replica's fully published batch only deletes its own events'
+		// failure rows; a failure another replica's event justifies must
+		// keep warning.
 		now := time.Now()
 		seedEvent(ctx, t, db, "failing-elsewhere", now.Add(-25*time.Hour), time.Time{}, "")
+		recordFailures(ctx, t, db, now, "failing-elsewhere")
 		markEventsInFlight(ctx, t, db, now)
-		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
-			EventIDs: []string{"failing-elsewhere"},
-		})
 		//nolint:gocritic // Unit test.
-		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now, []string{"other-event"}, nil)
+		err := db.DeleteUsageEventsPublishFailures(dbauthz.AsSystemRestricted(ctx), []string{"other-event"})
 		require.NoError(t, err)
 
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
@@ -4273,96 +4245,34 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
 	})
 
-	t.Run("PublishedEventResolvesOnlyItsEntry", func(t *testing.T) {
+	t.Run("PublishedEventResolvesOnlyItsRow", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
 		db, _ := dbtestutil.NewDB(t)
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 
-		// Publishing the long-failing event resolves its ID immediately;
-		// the remaining fresh failure is too young to warn.
+		// Publishing the long-failing event deletes its failure row
+		// immediately; the remaining fresh failure is too young to warn.
 		now := time.Now()
+		seedEvent(ctx, t, db, "old", now.Add(-25*time.Hour), time.Time{}, "")
 		seedEvent(ctx, t, db, "new", now.Add(-10*time.Minute), time.Time{}, "")
-		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
-			EventIDs: []string{"new", "old"},
+		recordFailures(ctx, t, db, now, "old", "new")
+		//nolint:gocritic // Unit test.
+		err := db.DeleteUsageEventsPublishFailures(dbauthz.AsSystemRestricted(ctx), []string{"old"})
+		require.NoError(t, err)
+		err = db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
+			Now:             now,
+			IDs:             []string{"old"},
+			FailureMessages: []string{""},
+			SetPublishedAts: []bool{true},
 		})
-		//nolint:gocritic // Unit test.
-		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now, []string{"old"}, nil)
 		require.NoError(t, err)
-
-		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
-		require.NoError(t, err)
-		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
-		require.Nil(t, entitlements.UsagePublishing.FailingSince)
-	})
-
-	t.Run("StalledReplicaCannotResurrectPublishedEvent", func(t *testing.T) {
-		t.Parallel()
-		ctx := context.Background()
-		db, _ := dbtestutil.NewDB(t)
-		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
-
-		// A stalled replica reporting a failure for an event that has
-		// since published must not add its ID back: the outcome's
-		// verification sees the row published and prunes it.
-		now := time.Now()
-		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), now.Add(-5*time.Minute), "")
-		//nolint:gocritic // Unit test.
-		sysCtx := dbauthz.AsSystemRestricted(ctx)
-		err := license.RecordUsagePublishingBatchOutcome(sysCtx, db, now.Add(-20*time.Minute), nil, []string{"1"})
-		require.NoError(t, err)
-
-		raw, err := db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailingEventsKey)
-		require.NoError(t, err)
-		var marker license.UsagePublishingFailingEvents
-		require.NoError(t, json.Unmarshal([]byte(raw), &marker))
-		require.Empty(t, marker.EventIDs)
-
-		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
-		require.NoError(t, err)
-		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
-		require.Nil(t, entitlements.UsagePublishing.FailingSince)
-	})
-
-	t.Run("CleanBatchWithoutMarkerWritesNothing", func(t *testing.T) {
-		t.Parallel()
-		ctx := context.Background()
-		db, _ := dbtestutil.NewDB(t)
-
-		// Healthy deployments publish successfully every cycle; a clean
-		// batch outcome must not create a marker when there is nothing to
-		// resolve.
-		//nolint:gocritic // Unit test.
-		sysCtx := dbauthz.AsSystemRestricted(ctx)
-		err := license.RecordUsagePublishingBatchOutcome(sysCtx, db, time.Now(), []string{"1"}, nil)
-		require.NoError(t, err)
-		_, err = db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailingEventsKey)
-		require.ErrorIs(t, err, sql.ErrNoRows)
-	})
-
-	t.Run("FailureCarriesInsertionAge", func(t *testing.T) {
-		t.Parallel()
-		ctx := context.Background()
-		db, _ := dbtestutil.NewDB(t)
-		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
-
-		// An event that waited past the failure threshold before its first
-		// failed attempt warns immediately: the stuck base is the pending
-		// row's insertion age, not the attempt time, so the warning holds
-		// even while an active retry keeps the row out of the stuck
-		// probe's view.
-		now := time.Now()
-		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), time.Time{}, "")
 		markEventsInFlight(ctx, t, db, now)
-		//nolint:gocritic // Unit test.
-		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now.Add(-10*time.Minute), nil, []string{"1"})
-		require.NoError(t, err)
 
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
 		require.NoError(t, err)
-		require.Contains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
-		require.NotNil(t, entitlements.UsagePublishing.FailingSince)
-		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
+		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.Nil(t, entitlements.UsagePublishing.FailingSince)
 	})
 
 	t.Run("FreshEventFailureWithinThresholdDoesNotWarn", func(t *testing.T) {
@@ -4375,8 +4285,32 @@ func TestUsagePublishingStatus(t *testing.T) {
 		// threshold does not warn yet.
 		now := time.Now()
 		seedEvent(ctx, t, db, "1", now.Add(-20*time.Minute), time.Time{}, "")
+		recordFailures(ctx, t, db, now, "1")
+		markEventsInFlight(ctx, t, db, now)
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.Nil(t, entitlements.UsagePublishing.FailingSince)
+	})
+
+	t.Run("WindowAgedFailureIgnored", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
+
+		// A failure row whose event aged out of the 30-day publish window
+		// can never be published, so it no longer counts as a pending
+		// failure. Recorded with a wider window so the row exists despite
+		// the event's age, as if it failed before aging out.
+		now := time.Now()
+		seedEvent(ctx, t, db, "1", now.Add(-31*24*time.Hour), time.Time{}, "")
 		//nolint:gocritic // Unit test.
-		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now.Add(-10*time.Minute), nil, []string{"1"})
+		err := db.UpsertUsageEventsPublishFailures(dbauthz.AsSystemRestricted(ctx), database.UpsertUsageEventsPublishFailuresParams{
+			IDs:         []string{"1"},
+			WindowStart: now.Add(-32 * 24 * time.Hour),
+		})
 		require.NoError(t, err)
 
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
@@ -4392,27 +4326,17 @@ func TestUsagePublishingStatus(t *testing.T) {
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 
 		// More failing events than a publish batch holds are all retained:
-		// dropping any ID could silently lose a displaced failure that is
-		// never re-attempted, so the marker keeps every pending failure's
-		// identity and detection warns from the oldest insertion age.
+		// each keeps its own failure row, so detection warns from the
+		// oldest insertion age however the failures accumulated.
 		now := time.Now()
-		//nolint:gocritic // Unit test.
-		sysCtx := dbauthz.AsSystemRestricted(ctx)
 		failedIDs := make([]string, 0, 150)
 		for i := range 150 {
 			id := fmt.Sprintf("event-%d", i)
 			seedEvent(ctx, t, db, id, now.Add(-25*time.Hour).Add(time.Duration(i)*time.Minute), time.Time{}, "")
 			failedIDs = append(failedIDs, id)
 		}
+		recordFailures(ctx, t, db, now, failedIDs...)
 		markEventsInFlight(ctx, t, db, now)
-		err := license.RecordUsagePublishingBatchOutcome(sysCtx, db, now, nil, failedIDs)
-		require.NoError(t, err)
-
-		raw, err := db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailingEventsKey)
-		require.NoError(t, err)
-		var marker license.UsagePublishingFailingEvents
-		require.NoError(t, json.Unmarshal([]byte(raw), &marker))
-		require.Len(t, marker.EventIDs, 150)
 
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
 		require.NoError(t, err)

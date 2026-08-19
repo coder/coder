@@ -98,22 +98,44 @@ WHERE
     AND cardinality(@ids::text[]) = cardinality(@failure_messages::text[])
     AND cardinality(@ids::text[]) = cardinality(@set_published_ats::boolean[]);
 
--- name: FilterPendingUsageEventIDs :many
--- Returns the subset of the given usage event IDs that are still pending
--- publication: unpublished and within the publisher's 30-day selection
--- window (window_start is now minus 30 days; older events are never
--- published, so they no longer count as pending). Each pending ID is
--- returned with its inserted_at, the event's effective stuck base (see
--- GetUsagePublishStatus's stuck_cutoff doc). Publish failure detection uses
--- this to verify failing-events marker entries against the database before
--- warning from them or pruning them. Bounded by the caller's ID list and
--- served by the primary key.
-SELECT id, inserted_at
+-- name: UpsertUsageEventsPublishFailures :exec
+-- Records publish failures for the given usage event IDs. Rows are copied
+-- from usage_events so a stalled replica cannot record state that
+-- contradicts the database: only events still unpublished and within the
+-- publisher's 30-day selection window (window_start is now minus 30 days;
+-- older events are never published) gain a failure row. Bounded by the
+-- caller's ID list (at most one publish batch) and served by the primary
+-- key.
+INSERT INTO usage_events_publish_failures (event_id, inserted_at, created_at)
+SELECT id, inserted_at, created_at
 FROM usage_events
 WHERE
     id = ANY(@ids::text[])
     AND published_at IS NULL
-    AND created_at > @window_start::timestamptz;
+    AND created_at > @window_start::timestamptz
+ON CONFLICT (event_id) DO NOTHING;
+
+-- name: DeleteUsageEventsPublishFailures :exec
+-- Resolves publish failures for the given usage event IDs after they were
+-- published (including permanent rejections, which are terminal). Bounded
+-- by the caller's ID list and served by the primary key.
+DELETE FROM usage_events_publish_failures
+WHERE event_id = ANY(@ids::text[]);
+
+-- name: PruneUsageEventsPublishFailures :exec
+-- Deletes failure rows whose events aged out of the publisher's 30-day
+-- selection window: they can never be published, so they no longer count
+-- as pending failures. The LIMIT bounds each prune; the publisher runs one
+-- per cycle, and rows age out no faster than they were once inserted, so
+-- pruning keeps up.
+DELETE FROM usage_events_publish_failures
+WHERE event_id IN (
+    SELECT event_id
+    FROM usage_events_publish_failures
+    WHERE created_at <= @window_start::timestamptz
+    ORDER BY created_at ASC
+    LIMIT 1000
+);
 
 -- name: GetUsagePublishStatus :one
 -- Returns the status of usage event publishing so callers can detect publish
@@ -222,10 +244,33 @@ WITH last_success AS (
             LIMIT 100
         )
     ) queued
+), failing AS (
+    -- The oldest event with an active publish failure, from the dedicated
+    -- failures relation the publisher maintains with each batch outcome
+    -- (see usage_events_publish_failures). Failing events need this
+    -- separate probe because the queue-front branches above cannot see
+    -- them while a fresh retry holds them in flight or newly inserted
+    -- backfills with older created_at displace them. Index-served: the
+    -- probe walks idx_usage_events_publish_failures_inserted_at from the
+    -- oldest entry, and pruning keeps rows past the window rare, so the
+    -- walk stops almost immediately. The enabled_since clamp grants the
+    -- post-(re-)enablement grace period as in the stuck CTE.
+    SELECT GREATEST(inserted_at, @enabled_since::timestamptz) AS oldest_failing_at
+    FROM usage_events_publish_failures
+    WHERE created_at > @window_start::timestamptz
+    ORDER BY inserted_at ASC
+    LIMIT 1
 )
 SELECT
     COALESCE((SELECT last_published_at FROM last_success), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS last_published_at,
-    COALESCE((SELECT oldest_stuck_at FROM stuck WHERE oldest_stuck_at < @stuck_cutoff::timestamptz), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_at,
+    COALESCE((
+        SELECT MIN(oldest) FROM (
+            SELECT oldest_stuck_at AS oldest FROM stuck
+            UNION ALL
+            SELECT oldest_failing_at AS oldest FROM failing
+        ) candidates
+        WHERE oldest < @stuck_cutoff::timestamptz
+    ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_at,
     -- The earliest recent permanent rejection. The probe walks
     -- idx_usage_events_select_for_publishing's leading published_at column
     -- from rejected_after forward, so its cost is bounded by the events
