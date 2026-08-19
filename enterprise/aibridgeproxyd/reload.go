@@ -49,19 +49,20 @@ func (s *Server) Reload(ctx context.Context) error {
 	}
 	s.providerRouter.Store(router)
 	for _, p := range reload.Providers {
-		var msg string
 		switch p.Status {
 		case aibridged.ProviderStatusError:
-			msg = "provider excluded from routing"
+			s.logger.Warn(s.ctx, "provider excluded from routing",
+				slog.F("provider", p.Name),
+				slog.Error(p.Err),
+			)
 		case aibridged.ProviderStatusProxyExcluded:
-			msg = "provider excluded from proxy routing"
+			s.logger.Info(s.ctx, "provider excluded from proxy routing",
+				slog.F("provider", p.Name),
+				slog.Error(p.Err),
+			)
 		default:
 			continue
 		}
-		s.logger.Warn(s.ctx, msg,
-			slog.F("provider", p.Name),
-			slog.Error(p.Err),
-		)
 	}
 	s.recordReloadSuccess(reload)
 	s.logger.Debug(s.ctx, "aibridgeproxyd router reloaded",

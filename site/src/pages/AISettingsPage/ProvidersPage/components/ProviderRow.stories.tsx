@@ -110,7 +110,7 @@ export const WithHostnameCollisionWarning: Story = {
 			enabled: true,
 			status: {
 				warnings: [
-					'hostname "api.openai.com" is also used by provider "second"; not reachable via the AI Bridge Proxy, use direct routing (/api/v2/aibridge/openai/...) instead',
+					'hostname "api.openai.com" is claimed by provider "first"; not reachable via the AI Gateway, use direct routing (/api/v2/ai-gateway/openai/...) instead',
 				],
 			},
 		},

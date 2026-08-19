@@ -141,6 +141,7 @@ func TestClassifyProviderRow(t *testing.T) {
 		second := classifyProviderRow(enabledRow("second", "https://shared.example.com/v2"), seen)
 		assert.Equal(t, aibridged.ProviderStatusProxyExcluded, second.Status)
 		assert.ErrorContains(t, second.Err, "already claimed by provider \"first\"")
+		assert.ErrorContains(t, second.Err, "/api/v2/ai-gateway/second/...")
 		assert.Equal(t, "first", seen["shared.example.com"], "first wins must not be overwritten")
 	})
 

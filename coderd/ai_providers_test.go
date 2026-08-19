@@ -1899,13 +1899,14 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
-		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+		first, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 			Type:    codersdk.AIProviderTypeOpenAI,
 			Name:    "first",
 			Enabled: true,
 			BaseURL: "https://api.openai.com/v1",
 		})
 		require.NoError(t, err)
+		require.Nil(t, first.Status, "alphabetical winner should not get a warning")
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		second, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
@@ -1918,6 +1919,8 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		require.NotNil(t, second.Status)
 		require.Len(t, second.Status.Warnings, 1)
 		require.Contains(t, second.Status.Warnings[0], `"first"`)
+		require.Contains(t, second.Status.Warnings[0], "AI Gateway")
+		require.Contains(t, second.Status.Warnings[0], "/api/v2/ai-gateway/second/...")
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		got, err := client.AIProvider(ctx, second.ID.String())
@@ -1926,17 +1929,26 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		require.Len(t, got.Status.Warnings, 1)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
+		winner, err := client.AIProvider(ctx, first.ID.String())
+		require.NoError(t, err)
+		require.Nil(t, winner.Status, "alphabetical winner should not get a warning on get")
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
 		providers, err := client.AIProviders(ctx)
 		require.NoError(t, err)
 		require.Len(t, providers, 2)
-		var listed codersdk.AIProvider
+		var firstListed, secondListed codersdk.AIProvider
 		for _, p := range providers {
-			if p.Name == "second" {
-				listed = p
+			switch p.Name {
+			case "first":
+				firstListed = p
+			case "second":
+				secondListed = p
 			}
 		}
-		require.NotNil(t, listed.Status)
-		require.Len(t, listed.Status.Warnings, 1)
+		require.Nil(t, firstListed.Status, "alphabetical winner should not get a warning in list")
+		require.NotNil(t, secondListed.Status)
+		require.Len(t, secondListed.Status.Warnings, 1)
 	})
 
 	t.Run("UpdateReturnsWarningOnEnable", func(t *testing.T) {
@@ -1972,6 +1984,8 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		require.NotNil(t, updated.Status)
 		require.Len(t, updated.Status.Warnings, 1)
 		require.Contains(t, updated.Status.Warnings[0], `"first"`)
+		require.Contains(t, updated.Status.Warnings[0], "AI Gateway")
+		require.Contains(t, updated.Status.Warnings[0], "/api/v2/ai-gateway/second/...")
 	})
 
 	t.Run("NoWarningWhenNoCollision", func(t *testing.T) {

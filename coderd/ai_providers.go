@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -80,6 +81,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	namesByHost := buildHostnameCollisionMap(rows)
 	out := make([]codersdk.AIProvider, 0, len(rows))
 	for _, row := range rows {
 		sdk, err := db2sdk.AIProvider(row, keysByProvider[row.ID])
@@ -91,7 +93,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		sdk.Status = aiProviderHostnameWarnings(ctx, api.Logger, api.Database, row)
+		sdk.Status = aiProviderHostnameWarningFromMap(row, namesByHost)
 		out = append(out, sdk)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, out)
@@ -133,7 +135,7 @@ func (api *API) aiProvidersGet(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	sdk.Status = aiProviderHostnameWarnings(ctx, api.Logger, api.Database, row)
+	sdk.Status = aiProviderHostnameWarningFromDB(ctx, api.Logger, api.Database, row)
 	httpapi.Write(ctx, rw, http.StatusOK, sdk)
 }
 
@@ -255,7 +257,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	sdk.Status = aiProviderHostnameWarnings(ctx, api.Logger, api.Database, row)
+	sdk.Status = aiProviderHostnameWarningFromDB(ctx, api.Logger, api.Database, row)
 	httpapi.Write(ctx, rw, http.StatusCreated, sdk)
 }
 
@@ -449,7 +451,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	sdk.Status = aiProviderHostnameWarnings(ctx, api.Logger, api.Database, updated)
+	sdk.Status = aiProviderHostnameWarningFromDB(ctx, api.Logger, api.Database, updated)
 	httpapi.Write(ctx, rw, http.StatusOK, sdk)
 }
 
@@ -561,10 +563,60 @@ func lookupAIProvider(ctx context.Context, store database.Store, idOrName string
 	return store.GetAIProviderByName(ctx, idOrName)
 }
 
-// aiProviderHostnameWarnings returns a Status with warnings for each
-// other enabled provider sharing the same base URL hostname, or nil.
-func aiProviderHostnameWarnings(ctx context.Context, logger slog.Logger, store database.Store, provider database.AIProvider) *codersdk.AIProviderStatus {
-	if !provider.Enabled {
+// buildHostnameCollisionMap returns a map from normalized hostname to
+// the sorted names of enabled, non-deleted providers sharing that
+// hostname. The first name (alphabetically) is the proxy winner and
+// does not get a warning; later names do.
+func buildHostnameCollisionMap(rows []database.AIProvider) map[string][]string {
+	namesByHost := make(map[string][]string)
+	for _, row := range rows {
+		if !row.Enabled || row.Deleted {
+			continue
+		}
+		host := aibridged.BaseURLHostname(row.BaseUrl)
+		if host == "" {
+			continue
+		}
+		namesByHost[host] = append(namesByHost[host], row.Name)
+	}
+	for host := range namesByHost {
+		sort.Strings(namesByHost[host])
+	}
+	return namesByHost
+}
+
+// aiProviderHostnameWarningFromMap is the pure helper for the list
+// handler. namesByHost is the pre-built collision map from the outer
+// rows. Only providers whose name sorts after another enabled provider
+// on the same hostname get a warning; the alphabetical winner does not.
+func aiProviderHostnameWarningFromMap(provider database.AIProvider, namesByHost map[string][]string) *codersdk.AIProviderStatus {
+	if !provider.Enabled || provider.Deleted {
+		return nil
+	}
+	host := aibridged.BaseURLHostname(provider.BaseUrl)
+	if host == "" {
+		return nil
+	}
+	names := namesByHost[host]
+	if len(names) < 2 {
+		return nil
+	}
+	// The first name (alphabetically) is the proxy winner.
+	if provider.Name == names[0] {
+		return nil
+	}
+	winner := names[0]
+	return &codersdk.AIProviderStatus{Warnings: []string{
+		fmt.Sprintf("hostname %q is claimed by provider %q; not reachable via the AI Gateway, use direct routing (/api/v2/ai-gateway/%s/...) instead", host, winner, provider.Name),
+	}}
+}
+
+// aiProviderHostnameWarningFromDB fetches all enabled, non-deleted
+// providers to determine whether the given provider is excluded from
+// proxy routing by hostname collision. Used by the single-row handlers
+// (Get, Create, Update) where one extra query is not N+1.
+func aiProviderHostnameWarningFromDB(ctx context.Context, logger slog.Logger, store database.Store, provider database.AIProvider) *codersdk.AIProviderStatus {
+	if !provider.Enabled || provider.Deleted {
 		return nil
 	}
 	host := aibridged.BaseURLHostname(provider.BaseUrl)
@@ -576,19 +628,8 @@ func aiProviderHostnameWarnings(ctx context.Context, logger slog.Logger, store d
 		logger.Error(ctx, "load AI providers for hostname warnings", slog.Error(err))
 		return nil
 	}
-	var warnings []string
-	for _, other := range others {
-		if other.ID == provider.ID {
-			continue
-		}
-		if aibridged.BaseURLHostname(other.BaseUrl) == host {
-			warnings = append(warnings, fmt.Sprintf("hostname %q is also used by provider %q; not reachable via the AI Bridge Proxy, use direct routing (/api/v2/aibridge/%s/...) instead", host, other.Name, provider.Name))
-		}
-	}
-	if len(warnings) == 0 {
-		return nil
-	}
-	return &codersdk.AIProviderStatus{Warnings: warnings}
+	namesByHost := buildHostnameCollisionMap(others)
+	return aiProviderHostnameWarningFromMap(provider, namesByHost)
 }
 
 // writeAIProviderError translates an error from the AI provider

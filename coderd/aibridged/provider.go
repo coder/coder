@@ -21,7 +21,7 @@ const (
 	ProviderStatusError ProviderStatus = "error"
 	// ProviderStatusProxyExcluded means another enabled provider
 	// already claimed its hostname. The provider is still routable via
-	// the direct path (/api/v2/aibridge/{name}/...).
+	// the direct path (/api/v2/ai-gateway/{name}/...).
 	ProviderStatusProxyExcluded ProviderStatus = "proxy_excluded"
 )
 

@@ -76,6 +76,8 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 										variant="warning"
 										tabIndex={0}
 										aria-label={`Warning: ${provider.status.warnings.join("; ")}`}
+										onClick={(e) => e.stopPropagation()}
+										onKeyDown={(e) => e.stopPropagation()}
 									>
 										Warning
 									</Badge>
