@@ -7,6 +7,8 @@ import {
 	LicenseAIGovernanceOverLimitWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
+	LicenseUsagePublishingFailingWarningText,
+	LicenseUsagePublishingStatusUnavailableErrorText,
 } from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
@@ -47,6 +49,7 @@ export const formatLicenseMessage = (
 const diagnosticMessages: readonly string[] = [
 	LicenseAgentRuntimeUsageUnavailableErrorText,
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
+	LicenseUsagePublishingStatusUnavailableErrorText,
 ];
 
 const isDiagnosticMessage = (message: string): boolean =>
@@ -153,6 +156,16 @@ const messageLink = (message: string): LicenseBannerLink | undefined => {
 	// does not get a sales link.
 	if (message.startsWith(agentRuntimeSoftLimitWarningPrefix)) {
 		return undefined;
+	}
+	// Publishing failures are operational (connectivity or service outage);
+	// the warning already routes to support, and the health page shows the
+	// failure details, so no sales CTA.
+	if (message === LicenseUsagePublishingFailingWarningText) {
+		return {
+			href: "/health/usage-publishing",
+			label: "View health details",
+			showExternalIcon: false,
+		};
 	}
 	return {
 		href: "mailto:sales@coder.com",

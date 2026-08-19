@@ -9,6 +9,8 @@ import {
 	LicenseAIGovernance90PercentWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
+	LicenseUsagePublishingFailingWarningText,
+	LicenseUsagePublishingStatusUnavailableErrorText,
 } from "#/api/typesGenerated";
 import {
 	MockAppearanceConfig,
@@ -402,6 +404,42 @@ export const AgentRuntimeHoursClaimsIgnored: Story = {
 			warnings: [LicenseAgentRuntimeHoursClaimsIgnoredWarningText],
 		}),
 	play: playMutedDiagnostic(LicenseAgentRuntimeHoursClaimsIgnoredWarningText),
+};
+
+// A failed publishing-status read arrives via entitlements.errors but is a
+// diagnostic, not a license error: muted, no exceedance heading, no sales
+// link.
+export const UsagePublishingStatusUnavailable: Story = {
+	render: () =>
+		renderLicenseBanner({
+			errors: [LicenseUsagePublishingStatusUnavailableErrorText],
+		}),
+	play: playMutedDiagnostic(LicenseUsagePublishingStatusUnavailableErrorText),
+};
+
+// The publishing-failure warning is operational: administrators need the
+// health page (and support, per the message), not sales.
+export const UsagePublishingFailing: Story = {
+	render: () =>
+		renderLicenseBanner({
+			warnings: [LicenseUsagePublishingFailingWarningText],
+		}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("status")).toHaveTextContent(
+			LicenseUsagePublishingFailingWarningText,
+		);
+		const healthLink = canvas.getByRole("link", {
+			name: /View health details/i,
+		});
+		await expect(healthLink).toHaveAttribute(
+			"href",
+			"/health/usage-publishing",
+		);
+		await expect(
+			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
+		).not.toBeInTheDocument();
+	},
 };
 
 // An all-diagnostic banner must not claim license limits were exceeded,
