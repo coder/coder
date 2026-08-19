@@ -104,6 +104,15 @@ resource "coder_agent" "ai" {
 
   ai_bound           = true
   egress_enforcement = "forced"
+
+  env = {
+    # Route Claude Code's model traffic through the Coder AI gateway,
+    # authenticated as the AI agent identity. No provider API key ever
+    # enters the sandbox; the gateway injects centralized credentials
+    # server-side and meters usage per identity.
+    ANTHROPIC_BASE_URL   = "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/anthropic"
+    ANTHROPIC_AUTH_TOKEN = data.coder_workspace_ai_agent.me.session_token
+  }
 }
 
 resource "coder_script" "sandbox" {
