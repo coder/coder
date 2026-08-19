@@ -123,6 +123,7 @@ export const WithHostnameCollisionWarning: Story = {
 			"aria-label",
 			expect.stringContaining("api.openai.com"),
 		);
+		await expect(badge).toHaveAttribute("tabIndex", "0");
 
 		// Keyboard activation must not navigate the row.
 		badge.focus();
