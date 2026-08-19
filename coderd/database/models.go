@@ -6167,8 +6167,6 @@ type UsageEvent struct {
 	FailureMessage sql.NullString `db:"failure_message" json:"failure_message"`
 	// The time the row was inserted into the database. Unlike created_at, this is always the wall-clock insertion time, so backfilled heartbeat events (whose created_at is the historical bucket start) are not misdetected as stuck by publish failure detection.
 	InsertedAt time.Time `db:"inserted_at" json:"inserted_at"`
-	// The time of the first failed publish attempt that left the row unpublished. Publish failure detection measures failure age from this timestamp (clamped to when usage publishing most recently became enabled), so failures start the failure threshold from the first failed attempt rather than from insertion.
-	FirstFailedAt sql.NullTime `db:"first_failed_at" json:"first_failed_at"`
 }
 
 // usage_events_daily is a daily rollup of usage events. It stores the total usage for each event type by day.

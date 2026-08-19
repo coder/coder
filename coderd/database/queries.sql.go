@@ -28815,14 +28815,11 @@ WITH last_success AS (
     SELECT MIN(
         -- The clamp to enabled_since grants the post-(re-)enablement grace
         -- period; see the enabled_since parameter doc.
-        GREATEST(
-            COALESCE(queued.first_failed_at, queued.inserted_at),
-            $3::timestamptz
-        )
+        GREATEST(queued.inserted_at, $3::timestamptz)
     ) AS oldest_stuck_at
     FROM (
         (
-            SELECT inserted_at, first_failed_at
+            SELECT inserted_at
             FROM usage_events
             WHERE published_at IS NULL
                 AND publish_started_at IS NULL
@@ -28832,7 +28829,7 @@ WITH last_success AS (
         )
         UNION ALL
         (
-            SELECT inserted_at, first_failed_at
+            SELECT inserted_at
             FROM usage_events
             WHERE published_at IS NULL
                 AND publish_started_at IS NOT NULL
@@ -28893,12 +28890,15 @@ type GetUsagePublishStatusRow struct {
 //     this are never published, so they must not trigger a failure forever.
 //   - stuck_cutoff: now minus the failure threshold. Events at the front of
 //     the publisher's queue whose effective stuck time is before this are
-//     considered stuck. Stuckness is measured against the first failed
-//     attempt (falling back to inserted_at for rows that failed before the
-//     column existed) rather than created_at because heartbeat events
-//     backfilled after downtime carry a historical created_at; measuring
-//     event age would flag them as failing before publishing was ever
-//     attempted.
+//     considered stuck. Stuckness is measured against inserted_at rather
+//     than created_at because heartbeat events backfilled after downtime
+//     carry a historical created_at; measuring event age would flag them as
+//     failing before publishing was ever attempted. Insertion age keeps the
+//     effective stuck time monotonic per row: a failed attempt cannot
+//     replace an already-breached insertion age with a newer timestamp and
+//     flap the warning off for another threshold, and whatever kept a row
+//     unattempted past the threshold (publisher outage, displacement behind
+//     failing rows) is itself a publish failure.
 //   - attempt_expired_before: now minus the publisher's 1-hour attempt
 //     expiry (matching SelectUsageEventsForPublishing). In-flight attempts
 //     newer than this are skipped; older markers are from replicas that
@@ -29039,9 +29039,9 @@ WITH usage_events AS (
             FOR UPDATE SKIP LOCKED
             LIMIT 100
         )
-    RETURNING id, event_type, event_data, created_at, publish_started_at, published_at, failure_message, inserted_at, first_failed_at
+    RETURNING id, event_type, event_data, created_at, publish_started_at, published_at, failure_message, inserted_at
 )
-SELECT id, event_type, event_data, created_at, publish_started_at, published_at, failure_message, inserted_at, first_failed_at
+SELECT id, event_type, event_data, created_at, publish_started_at, published_at, failure_message, inserted_at
 FROM usage_events
 ORDER BY created_at ASC
 `
@@ -29068,7 +29068,6 @@ func (q *sqlQuerier) SelectUsageEventsForPublishing(ctx context.Context, now tim
 			&i.PublishedAt,
 			&i.FailureMessage,
 			&i.InsertedAt,
-			&i.FirstFailedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -29089,13 +29088,7 @@ UPDATE
 SET
     publish_started_at = NULL,
     published_at = CASE WHEN input.set_published_at THEN $1::timestamptz ELSE NULL END,
-    failure_message = NULLIF(input.failure_message, ''),
-    -- An update that leaves the row unpublished is a failed attempt; record
-    -- the first one so publish failure detection can measure failure age.
-    first_failed_at = CASE
-        WHEN input.set_published_at THEN usage_events.first_failed_at
-        ELSE COALESCE(usage_events.first_failed_at, $1::timestamptz)
-    END
+    failure_message = NULLIF(input.failure_message, '')
 FROM (
     SELECT
         UNNEST($2::text[]) AS id,

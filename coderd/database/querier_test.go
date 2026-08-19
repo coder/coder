@@ -11490,25 +11490,38 @@ func TestGetUsagePublishStatus(t *testing.T) {
 		},
 		{
 			// A gap between failed attempts (e.g. coderd down for a day
-			// mid-outage) does not reset failure age: publishing has been
-			// failing the whole time.
+			// mid-outage) does not reset failure age: stuckness is measured
+			// from insertion, and the row has been pending the whole time.
 			name: "AttemptGapDoesNotResetFailureAge",
 			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-20 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour), now.Add(-10 * time.Minute)}},
 			},
 			want: database.GetUsagePublishStatusRow{
-				OldestStuckAt: now.Add(-30 * time.Hour),
+				OldestStuckAt: now.Add(-20 * 24 * time.Hour),
 			},
 		},
 		{
-			// Repeated failures keep the first failure as the effective
-			// stuck time.
-			name: "RepeatedFailuresKeepFirstFailure",
+			// Repeated failures keep the insertion age as the effective
+			// stuck time; retries do not move it forward.
+			name: "RepeatedFailuresKeepInsertionAge",
 			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-20 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour), now.Add(-20 * time.Hour), now.Add(-1 * time.Hour)}},
 			},
 			want: database.GetUsagePublishStatusRow{
-				OldestStuckAt: now.Add(-30 * time.Hour),
+				OldestStuckAt: now.Add(-20 * 24 * time.Hour),
+			},
+		},
+		{
+			// A row whose insertion age already breached the threshold keeps
+			// warning after its first failed attempt: the attempt's newer
+			// timestamp must not replace the breached insertion age and
+			// clear the warning for another threshold.
+			name: "FirstAttemptDoesNotResetInsertionAge",
+			events: []usagePublishSeedEvent{
+				{id: "1", createdAt: now.Add(-25 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-10 * time.Minute)}},
+			},
+			want: database.GetUsagePublishStatusRow{
+				OldestStuckAt: now.Add(-25 * time.Hour),
 			},
 		},
 		{
@@ -11542,14 +11555,15 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			},
 		},
 		{
-			// Once failures have been ongoing past the threshold, the first
-			// failure time is the effective stuck time.
-			name: "FailingSinceFirstFailure",
+			// Once failures have been ongoing past the threshold, the
+			// insertion age is the effective stuck time; retry timestamps
+			// never move it.
+			name: "FailingSinceInsertion",
 			events: []usagePublishSeedEvent{
 				{id: "1", createdAt: now.Add(-5 * 24 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-25 * time.Hour), now.Add(-2 * time.Hour)}},
 			},
 			want: database.GetUsagePublishStatusRow{
-				OldestStuckAt: now.Add(-25 * time.Hour),
+				OldestStuckAt: now.Add(-5 * 24 * time.Hour),
 			},
 		},
 		{

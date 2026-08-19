@@ -899,12 +899,15 @@ type sqlcQuerier interface {
 	//     this are never published, so they must not trigger a failure forever.
 	//   - stuck_cutoff: now minus the failure threshold. Events at the front of
 	//     the publisher's queue whose effective stuck time is before this are
-	//     considered stuck. Stuckness is measured against the first failed
-	//     attempt (falling back to inserted_at for rows that failed before the
-	//     column existed) rather than created_at because heartbeat events
-	//     backfilled after downtime carry a historical created_at; measuring
-	//     event age would flag them as failing before publishing was ever
-	//     attempted.
+	//     considered stuck. Stuckness is measured against inserted_at rather
+	//     than created_at because heartbeat events backfilled after downtime
+	//     carry a historical created_at; measuring event age would flag them as
+	//     failing before publishing was ever attempted. Insertion age keeps the
+	//     effective stuck time monotonic per row: a failed attempt cannot
+	//     replace an already-breached insertion age with a newer timestamp and
+	//     flap the warning off for another threshold, and whatever kept a row
+	//     unattempted past the threshold (publisher outage, displacement behind
+	//     failing rows) is itself a publish failure.
 	//   - attempt_expired_before: now minus the publisher's 1-hour attempt
 	//     expiry (matching SelectUsageEventsForPublishing). In-flight attempts
 	//     newer than this are skipped; older markers are from replicas that
