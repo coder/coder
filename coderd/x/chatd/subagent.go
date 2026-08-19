@@ -1284,7 +1284,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
 	}
-	childSystemPrompt := SanitizePromptText(opts.systemPrompt)
+	childSystemPrompt := codersdk.SanitizePromptText(opts.systemPrompt)
 	// Resolve the deployment prompt before opening the transaction so
 	// child chat creation does not hold one DB connection while waiting
 	// for another pool checkout.

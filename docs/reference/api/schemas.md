@@ -4516,12 +4516,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type                           | Required | Restrictions | Description                                                               |
-|----------------|--------------------------------|----------|--------------|---------------------------------------------------------------------------|
-| `slug_or_port` | string                         | false    |              |                                                                           |
-| `status_code`  | integer                        | false    |              | Status code is the HTTP status code of the request.                       |
-| `user`         | [codersdk.User](#codersdkuser) | false    |              | User is omitted if the connection event was from an unauthenticated user. |
-| `user_agent`   | string                         | false    |              |                                                                           |
+| Name           | Type                           | Required | Restrictions | Description                                                          |
+|----------------|--------------------------------|----------|--------------|----------------------------------------------------------------------|
+| `slug_or_port` | string                         | false    |              |                                                                      |
+| `status_code`  | integer                        | false    |              | Status code is the HTTP status code or tunnel authorization outcome. |
+| `user`         | [codersdk.User](#codersdkuser) | false    |              | User is omitted if the connection event was unauthenticated.         |
+| `user_agent`   | string                         | false    |              |                                                                      |
 
 ## codersdk.ConnectionType
 

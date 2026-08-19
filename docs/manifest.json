@@ -262,11 +262,6 @@
 							"path": "./user-guides/workspace-access/jetbrains/index.md",
 							"children": [
 								{
-									"title": "JetBrains Fleet",
-									"description": "Connect JetBrains Fleet, a lightweight multi-language IDE, to a Coder workspace over SSH.",
-									"path": "./user-guides/workspace-access/jetbrains/fleet.md"
-								},
-								{
 									"title": "JetBrains Gateway",
 									"description": "Use JetBrains Gateway to open and work in your Coder workspace from a full JetBrains IDE.",
 									"path": "./user-guides/workspace-access/jetbrains/gateway.md"
@@ -1126,7 +1121,7 @@
 						},
 						{
 							"title": "Licensing \u0026 Usage",
-							"description": "Licensing and usage details for Coder Agents.",
+							"description": "Compare Coder Agents licenses and learn how Coder measures and reports Agent Time usage.",
 							"path": "./ai-coder/agents/licensing-usage.md"
 						},
 						{
@@ -1273,6 +1268,12 @@
 											"state": ["premium"]
 										},
 										{
+											"title": "Junie",
+											"description": "Configure Junie CLI to route requests through AI Gateway with a custom model profile.",
+											"path": "./ai-coder/ai-gateway/clients/junie.md",
+											"state": ["premium"]
+										},
+										{
 											"title": "Zed",
 											"description": "Configure the Zed editor's language models to route requests through AI Gateway.",
 											"path": "./ai-coder/ai-gateway/clients/zed.md",
@@ -1342,12 +1343,6 @@
 									"state": ["premium"]
 								}
 							]
-						},
-						{
-							"title": "Usage Data Reporting",
-							"description": "Learn what AI usage data AI Governance reports to Coder for billing and reporting.",
-							"path": "./ai-coder/usage-data-reporting.md",
-							"state": ["premium"]
 						}
 					]
 				},

@@ -40,7 +40,7 @@ To remove sharing from a workspace:
 - `coder sharing remove <workspace> --group contractor`
   - Workspace is no longer shared with the group `contractor`.
 
-> [!Important]
+> [!IMPORTANT]
 > The workspace must be restarted for the user or group removal to take effect.
 
 To show who a workspace is shared with:
