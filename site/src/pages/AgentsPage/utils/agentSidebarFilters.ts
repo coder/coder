@@ -1,6 +1,7 @@
 import type { SetURLSearchParams } from "react-router";
 import {
 	CHAT_LIST_PR_STATUS_ORDER,
+	CHAT_SOURCE_ORDER,
 	type ChatListPRStatusFilter,
 	type ChatListStatusFilter,
 	canonicalizeChatListPRStatuses,
@@ -12,7 +13,7 @@ export const AGENT_CHAT_STATUS_ORDER = [
 	"read",
 ] as const satisfies readonly ChatListStatusFilter[];
 export const AGENT_PR_STATUS_ORDER = CHAT_LIST_PR_STATUS_ORDER;
-export const AGENT_SOURCE_ORDER = ["created_by_me", "shared_with_me"] as const;
+export const AGENT_SOURCE_ORDER = CHAT_SOURCE_ORDER;
 
 export type AgentArchiveStatusFilter =
 	(typeof AGENT_ARCHIVE_STATUS_ORDER)[number];

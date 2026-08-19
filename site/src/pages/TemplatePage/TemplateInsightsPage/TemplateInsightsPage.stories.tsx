@@ -1,11 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { chromatic } from "#/testHelpers/chromatic";
 import { mockApiError } from "#/testHelpers/entities";
 import { TemplateInsightsPageView } from "./TemplateInsightsPage";
 
 const meta: Meta<typeof TemplateInsightsPageView> = {
 	title: "pages/TemplatePage/TemplateInsightsPageView",
-	parameters: { chromatic },
 	component: TemplateInsightsPageView,
 };
 

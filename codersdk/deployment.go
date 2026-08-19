@@ -380,32 +380,42 @@ func (set FeatureSet) Features() []FeatureName {
 type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`
 	Enabled     bool        `json:"enabled"`
-	Limit       *int64      `json:"limit,omitempty"`
+	// Limit is the maximum value the license grants for the feature, in the
+	// feature's own unit. For FeatureAgentRuntimeHours, an enabled feature
+	// with Limit omitted means the license grants unlimited runtime hours.
+	Limit *int64 `json:"limit,omitempty"`
 	// SoftLimit is the advisory warning threshold that accompanies Limit for
 	// features whose license carries it. For these features, Limit carries
-	// the purchased allocation.
-	//
-	// Only certain features set this field:
-	// - FeatureAgentRuntimeHours
+	// the purchased allocation; an unlimited allocation has no thresholds,
+	// so SoftLimit is omitted alongside the omitted Limit. Only
+	// FeatureAgentRuntimeHours sets this field.
 	SoftLimit *int64 `json:"soft_limit,omitempty"`
 	// HardLimit is the enforcement threshold that accompanies Limit for
 	// features whose license carries it. See SoftLimit for the set of
 	// features that use these thresholds.
 	HardLimit *int64 `json:"hard_limit,omitempty"`
-	Actual    *int64 `json:"actual,omitempty"`
+	// Actual is the usage measured against Limit, when known: a
+	// point-in-time count for most features, or usage accumulated over
+	// UsagePeriod for features that set one. Its unit matches Limit's;
+	// FeatureAgentRuntimeHours reports whole hours floored from the
+	// recorded milliseconds, with the precise value available in
+	// ActualMs. FeatureAgentRuntimeHours usage can trail by roughly one
+	// hour because the current hour is not emitted, plus the entitlement
+	// refresh interval.
+	Actual *int64 `json:"actual,omitempty"`
+	// ActualMs is the precise usage backing Actual, in milliseconds, for
+	// features measured in time. It has the same freshness as Actual.
+	// Only FeatureAgentRuntimeHours sets this field.
+	ActualMs *int64 `json:"actual_ms,omitempty"`
 
 	// Below is only for features that use usage periods.
 
 	// UsagePeriod denotes that the usage is a counter that accumulates over
 	// this period (and most likely resets with the issuance of the next
-	// license).
-	//
-	// These dates are determined from the license that this entitlement comes
-	// from, see enterprise/coderd/license/license.go.
-	//
-	// Only certain features set these fields:
-	// - FeatureManagedAgentLimit
-	// - FeatureAgentRuntimeHours
+	// license). These dates are determined from the license that this
+	// entitlement comes from, see enterprise/coderd/license/license.go.
+	// Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this
+	// field.
 	UsagePeriod *UsagePeriod `json:"usage_period,omitempty"`
 }
 
@@ -425,7 +435,7 @@ type UsagePeriod struct {
 // 2. The usage period has a greater end date (note: only certain features use usage periods)
 // 3. Graceful & capable > Entitled & not capable (only if both have "Actual" values)
 // 4. The entitlement is greater
-// 5. The limit is greater
+// 5. The limit is greater (except a nil limit on a usage period feature means unlimited, outranking any set limit)
 // 6. Enabled is greater than disabled
 // 7. The actual is greater
 //
@@ -469,11 +479,19 @@ func (f Feature) Compare(b Feature) int {
 		return entitlementDifference
 	}
 
-	// If the entitlement is the same, then we can compare the limits.
+	// If the entitlement is the same, then we can compare the limits. A nil
+	// limit on a usage period feature means unlimited, so it outranks any set
+	// limit; on other features a nil limit loses to a set one.
 	if f.Limit == nil && b.Limit != nil {
+		if bothHaveUsagePeriod {
+			return 1
+		}
 		return -1
 	}
 	if f.Limit != nil && b.Limit == nil {
+		if bothHaveUsagePeriod {
+			return -1
+		}
 		return 1
 	}
 	if f.Limit != nil && b.Limit != nil {
@@ -579,7 +597,7 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 		return Entitlements{}, ReadBodyAsError(res)
 	}
 	var ent Entitlements
-	return ent, json.NewDecoder(res.Body).Decode(&ent)
+	return ent, ReadBodyAsJSON(res, &ent)
 }
 
 type PostgresAuth string
@@ -1016,7 +1034,7 @@ type OIDCConfig struct {
 
 	// RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
 	// situations where the OIDC callback domain is different from the ACCESS_URL
-	// domain.
+	// domain. The path component is ignored.
 	RedirectURL serpent.URL `json:"redirect_url" typescript:",notnull"`
 
 	AutoRepairLinks serpent.Bool `json:"auto_repair_links" typescript:",notnull"`
@@ -1170,10 +1188,14 @@ type ExternalAuthConfig struct {
 	ClientSecret string `json:"-" yaml:"client_secret"`
 	// ID is a unique identifier for the auth config.
 	// It defaults to `type` when not provided.
-	ID                  string   `json:"id" yaml:"id"`
-	AuthURL             string   `json:"auth_url" yaml:"auth_url"`
-	TokenURL            string   `json:"token_url" yaml:"token_url"`
-	ValidateURL         string   `json:"validate_url" yaml:"validate_url"`
+	ID          string `json:"id" yaml:"id"`
+	AuthURL     string `json:"auth_url" yaml:"auth_url"`
+	TokenURL    string `json:"token_url" yaml:"token_url"`
+	ValidateURL string `json:"validate_url" yaml:"validate_url"`
+	// RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
+	// situations where the OAuth callback domain is different from the ACCESS_URL
+	// domain. The path component is ignored.
+	RedirectURL         string   `json:"redirect_url" yaml:"redirect_url"`
 	RevokeURL           string   `json:"revoke_url" yaml:"revoke_url"`
 	AppInstallURL       string   `json:"app_install_url" yaml:"app_install_url"`
 	AppInstallationsURL string   `json:"app_installations_url" yaml:"app_installations_url"`
@@ -1954,7 +1976,7 @@ communicating directly.`,
 	}
 	aiGatewayBedrockRegion := serpent.Option{
 		Name:        "AI Gateway Bedrock Region",
-		Description: aiGatewayProviderSeedingDeprecated + "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.",
+		Description: aiGatewayProviderSeedingDeprecated + "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of `https://bedrock-runtime.<region>.amazonaws.com`.",
 		Flag:        "ai-gateway-bedrock-region",
 		Env:         "CODER_AI_GATEWAY_BEDROCK_REGION",
 		Value:       &c.AI.BridgeConfig.LegacyBedrock.Region,
@@ -3087,9 +3109,6 @@ communicating directly.`,
 			Value:      &c.OIDC.RedirectURL,
 			Group:      &deploymentGroupOIDC,
 			UseInstead: nil,
-			// In most deployments, this setting can only complicate and break OIDC.
-			// So hide it, and only surface it to the small number of users that need it.
-			Hidden: true,
 		},
 		{
 			Name: "OIDC Auto Repair Links",
@@ -4334,7 +4353,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Hook URL",
-			Description: "HTTPS URL to receive chat agent lifecycle hook events. Hooks are disabled when unset. Requires the agent-lifecycle-hooks experiment.",
+			Description: "HTTPS URL to receive chat agent lifecycle hook events (plain HTTP requires --chat-hook-allow-insecure). Hooks are disabled when unset. Requires the agent-lifecycle-hooks experiment.",
 			Flag:        "chat-hook-url",
 			Hidden:      true,
 			Env:         "CODER_CHAT_HOOK_URL",
@@ -4376,6 +4395,17 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "true",
 			Group:       &deploymentGroupChat,
 			YAML:        "hookEnabled",
+		},
+		{
+			Name:        "Chat: Hook Allow Insecure",
+			Description: "Allow the chat hook URL to use plain HTTP for any host. Plain HTTP exposes sensitive chat data and lets an on-path attacker forge hook responses that control agent execution, so only enable this on a network you fully trust.",
+			Flag:        "chat-hook-allow-insecure",
+			Hidden:      true,
+			Env:         "CODER_CHAT_HOOK_ALLOW_INSECURE",
+			Value:       &c.AI.Chat.HookAllowInsecure,
+			Default:     "false",
+			Group:       &deploymentGroupChat,
+			YAML:        "hookAllowInsecure",
 		},
 		{
 			Name:        "Chat: AI Gateway Routing Enabled",
@@ -4471,7 +4501,7 @@ Write out the current server config as YAML to stdout.`,
 		{
 			Name: "AI Bridge Bedrock Region",
 			Description: "Deprecated: use --ai-gateway-bedrock-region or CODER_AI_GATEWAY_BEDROCK_REGION instead. The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of " +
-				"'https://bedrock-runtime.<region>.amazonaws.com'.",
+				"`https://bedrock-runtime.<region>.amazonaws.com`.",
 			Flag:       "aibridge-bedrock-region",
 			Env:        "CODER_AIBRIDGE_BEDROCK_REGION",
 			Value:      &c.AI.BridgeConfig.LegacyBedrock.Region,
@@ -5065,6 +5095,7 @@ type ChatConfig struct {
 	HookSecret          serpent.String   `json:"hook_secret" typescript:",notnull"`
 	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
 	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
+	HookAllowInsecure   serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -5119,17 +5150,24 @@ func (c *DeploymentValues) Validate() error {
 	if c.AI.Chat.HookEnabled.Value() {
 		if c.AI.Chat.HookURL.String() != "" {
 			hookURL := c.AI.Chat.HookURL.Value()
-			if hookURL.Scheme != "https" {
-				return xerrors.New("chat hook URL must use HTTPS; set --chat-hook-url to an HTTPS URL")
+			allowInsecure := c.AI.Chat.HookAllowInsecure.Value()
+			switch {
+			case hookURL.Scheme == "https":
+			case hookURL.Scheme == "http" && allowInsecure:
+			default:
+				return xerrors.New("chat hook URL must use HTTPS; set --chat-hook-url to an HTTPS URL, or set --chat-hook-allow-insecure to allow plain HTTP")
 			}
-			if hookURL.Host == "" {
-				return xerrors.New("chat hook URL must include a host; set --chat-hook-url to a complete HTTPS URL")
+			// Hostname() instead of Host: a URL like http://:8080/hooks has a
+			// non-empty Host (":8080") but no hostname, and the dispatcher
+			// rejects it on every dispatch.
+			if hookURL.Hostname() == "" {
+				return xerrors.New("chat hook URL must include a host; set --chat-hook-url to a complete URL")
 			}
 			// The configured string is signed verbatim as the JWT audience,
 			// and neither component is ever transmitted, so a consumer
 			// configured with the URL it actually serves would never match.
 			if hookURL.Fragment != "" || hookURL.RawFragment != "" || hookURL.User != nil {
-				return xerrors.New("chat hook URL must not contain a fragment or userinfo; set --chat-hook-url to a plain HTTPS URL")
+				return xerrors.New("chat hook URL must not contain a fragment or userinfo; set --chat-hook-url to a URL without a fragment or userinfo")
 			}
 			if c.AI.Chat.HookSecret.Value() == "" {
 				return xerrors.New("chat hook secret is required when chat hook URL is set; set --chat-hook-secret")
@@ -5213,7 +5251,7 @@ func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentConfig, error
 		Values:  conf,
 		Options: conf.Options(),
 	}
-	return resp, json.NewDecoder(res.Body).Decode(resp)
+	return resp, ReadBodyAsJSON(res, resp)
 }
 
 func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
@@ -5228,7 +5266,7 @@ func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
 	}
 
 	var df DeploymentStats
-	return df, json.NewDecoder(res.Body).Decode(&df)
+	return df, ReadBodyAsJSON(res, &df)
 }
 
 type AppearanceConfig struct {
@@ -5272,7 +5310,7 @@ func (c *Client) Appearance(ctx context.Context) (AppearanceConfig, error) {
 		return AppearanceConfig{}, ReadBodyAsError(res)
 	}
 	var cfg AppearanceConfig
-	return cfg, json.NewDecoder(res.Body).Decode(&cfg)
+	return cfg, ReadBodyAsJSON(res, &cfg)
 }
 
 func (c *Client) UpdateAppearance(ctx context.Context, appearance UpdateAppearanceConfig) error {
@@ -5349,7 +5387,7 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 	}
 
 	var buildInfo BuildInfoResponse
-	return buildInfo, json.NewDecoder(res.Body).Decode(&buildInfo)
+	return buildInfo, ReadBodyAsJSON(res, &buildInfo)
 }
 
 type Experiment string
@@ -5362,9 +5400,9 @@ const (
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
 	ExperimentOAuth2                    Experiment = "oauth2"                      // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
+	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
-	ExperimentMinimumImplicitMember     Experiment = "minimum-implicit-member"     // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
@@ -5390,8 +5428,6 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Build Updates Channel"
 	case ExperimentNATSPubsub:
 		return "NATS Pubsub"
-	case ExperimentMinimumImplicitMember:
-		return "Gateway Accounts (minimum implicit member)"
 	case ExperimentWorkspaceCapableLicensing:
 		return "Workspace-Capable Licensing"
 	case ExperimentAIGatewaySeatExclusion:
@@ -5418,9 +5454,9 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceUsage,
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
+	ExperimentMCPToolSearch,
 	ExperimentNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
-	ExperimentMinimumImplicitMember,
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
 	ExperimentChatAdvisor,
@@ -5432,9 +5468,7 @@ var ExperimentsKnown = Experiments{
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsSafe = Experiments{
-	ExperimentMinimumImplicitMember,
-}
+var ExperimentsSafe = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
@@ -5460,7 +5494,7 @@ func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
 		return nil, ReadBodyAsError(res)
 	}
 	var exp []Experiment
-	return exp, json.NewDecoder(res.Body).Decode(&exp)
+	return exp, ReadBodyAsJSON(res, &exp)
 }
 
 // AvailableExperiments is an expandable type that returns all safe experiments
@@ -5479,7 +5513,7 @@ func (c *Client) SafeExperiments(ctx context.Context) (AvailableExperiments, err
 		return AvailableExperiments{}, ReadBodyAsError(res)
 	}
 	var exp AvailableExperiments
-	return exp, json.NewDecoder(res.Body).Decode(&exp)
+	return exp, ReadBodyAsJSON(res, &exp)
 }
 
 type DAUsResponse struct {
@@ -5544,7 +5578,7 @@ func (c *Client) DeploymentDAUs(ctx context.Context, tzOffset int) (*DAUsRespons
 	}
 
 	var resp DAUsResponse
-	return &resp, json.NewDecoder(res.Body).Decode(&resp)
+	return &resp, ReadBodyAsJSON(res, &resp)
 }
 
 type AppHostResponse struct {
@@ -5570,7 +5604,7 @@ func (c *Client) AppHost(ctx context.Context) (AppHostResponse, error) {
 	}
 
 	var host AppHostResponse
-	return host, json.NewDecoder(res.Body).Decode(&host)
+	return host, ReadBodyAsJSON(res, &host)
 }
 
 type WorkspaceConnectionLatencyMS struct {
@@ -5652,7 +5686,7 @@ func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error
 	}
 
 	var sshConfig SSHConfigResponse
-	return sshConfig, json.NewDecoder(res.Body).Decode(&sshConfig)
+	return sshConfig, ReadBodyAsJSON(res, &sshConfig)
 }
 
 type CryptoKeyFeature string
@@ -5662,6 +5696,7 @@ const (
 	//nolint:gosec // This denotes a type of key, not a literal.
 	CryptoKeyFeatureWorkspaceAppsToken CryptoKeyFeature = "workspace_apps_token"
 	CryptoKeyFeatureOIDCConvert        CryptoKeyFeature = "oidc_convert"
+	CryptoKeyFeatureChatFilesToken     CryptoKeyFeature = "chat_files_token"
 	CryptoKeyFeatureTailnetResume      CryptoKeyFeature = "tailnet_resume"
 	// CryptoKeyFeatureNATSCA is the CA that signs NATS cluster mTLS leaf
 	// certificates. Its secret is a PEM cert+key bundle (not a hex secret like

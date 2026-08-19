@@ -36,7 +36,10 @@ func EventMessages(result *Result, modelConfigID uuid.UUID) ([]chatstate.Message
 		})
 	}
 	if result.GetUserMessage() != "" {
-		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(result.UserMessage)})
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+			Type: codersdk.ChatMessagePartTypeHookNotice,
+			Text: result.UserMessage,
+		}})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal hook user message: %w", err)
 		}
@@ -156,6 +159,25 @@ func UserPromptParts(result *Result) []codersdk.ChatMessagePart {
 	return parts
 }
 
+func applyPromptOverride(parts []codersdk.ChatMessagePart, override string) []codersdk.ChatMessagePart {
+	userParts := make([]codersdk.ChatMessagePart, 0, len(parts)+1)
+	replaced := false
+	for _, part := range parts {
+		if part.Type != codersdk.ChatMessagePartTypeText {
+			userParts = append(userParts, part)
+			continue
+		}
+		if !replaced {
+			userParts = append(userParts, codersdk.ChatMessageText(override))
+			replaced = true
+		}
+	}
+	if !replaced {
+		userParts = append(userParts, codersdk.ChatMessageText(override))
+	}
+	return userParts
+}
+
 // ComposeUserPromptContent applies a user_prompt_submit result to the
 // submitted parts. The merge order is fixed: override-or-original user
 // parts first, then hook-context, then hook-notice. The composite
@@ -167,7 +189,7 @@ func ComposeUserPromptContent(parts []codersdk.ChatMessagePart, result *Result) 
 	}
 	userParts := parts
 	if overridden {
-		userParts = []codersdk.ChatMessagePart{codersdk.ChatMessageText(override)}
+		userParts = applyPromptOverride(parts, override)
 	}
 	hookParts := UserPromptParts(result)
 	if len(hookParts) == 0 {

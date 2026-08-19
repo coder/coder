@@ -3,6 +3,7 @@ import type { UserSkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	Dialog,
 	DialogContent,
@@ -11,7 +12,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import { ConfirmDeleteDialog } from "#/components/Dialogs/ConfirmDeleteDialog/ConfirmDeleteDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -73,6 +73,10 @@ export interface AgentSettingsPersonalSkillsPageViewProps {
 	onCreate: () => void;
 	onEdit: (name: string) => void;
 	onDelete: (skill: UserSkillMetadata) => void;
+	onDownload: (skill: UserSkillMetadata) => void;
+	onExportAll: () => void;
+	downloadingSkillName?: string;
+	isExportingAll?: boolean;
 	editorState?: PersonalSkillEditorState;
 	deleteState?: PersonalSkillDeleteState;
 }
@@ -168,35 +172,32 @@ const EditSkillDialog: FC<{
 const DeleteSkillDialog: FC<{ state: PersonalSkillDeleteState }> = ({
 	state,
 }) => {
-	const handleOpenChange = (open: boolean) => {
-		if (!open) {
-			state.onClose();
-		}
-	};
-
 	return (
-		<ConfirmDeleteDialog
+		<ConfirmDialog
+			type="delete"
 			open
-			onOpenChange={handleOpenChange}
-			entity="skill"
+			onClose={state.onClose}
+			title="Delete skill"
+			confirmText="Delete skill"
 			description={
 				<>
-					Delete {state.skill.name}? Agents will no longer be able to use this
-					skill. This action cannot be undone.
+					<p className="m-0">
+						Delete {state.skill.name}? Agents will no longer be able to use this
+						skill. This action cannot be undone.
+					</p>
+					{state.error && (
+						<Alert severity="error" className="mt-3">
+							<AlertDescription>
+								{state.error.message}
+								{state.error.detail ? ` ${state.error.detail}` : ""}
+							</AlertDescription>
+						</Alert>
+					)}
 				</>
 			}
 			onConfirm={state.onConfirm}
-			isPending={state.isDeleting}
-		>
-			{state.error && (
-				<Alert severity="error">
-					<AlertDescription>
-						{state.error.message}
-						{state.error.detail ? ` ${state.error.detail}` : ""}
-					</AlertDescription>
-				</Alert>
-			)}
-		</ConfirmDeleteDialog>
+			confirmLoading={state.isDeleting}
+		/>
 	);
 };
 
@@ -211,6 +212,10 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 	onCreate,
 	onEdit,
 	onDelete,
+	onDownload,
+	onExportAll,
+	downloadingSkillName,
+	isExportingAll = false,
 	editorState,
 	deleteState,
 }) => {
@@ -220,13 +225,27 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 			Add skill
 		</Button>
 	);
+	const headerActions = (
+		<div className="flex items-center gap-2">
+			<Button
+				size="sm"
+				variant="outline"
+				onClick={onExportAll}
+				disabled={isLoading || isExportingAll || skills.length === 0}
+			>
+				{isExportingAll && <Spinner className="size-4" loading />}
+				Export all
+			</Button>
+			{addSkillAction}
+		</div>
+	);
 
 	return (
 		<div className="flex flex-col gap-8">
 			<SectionHeader
 				label="Personal skills"
 				description="Reusable instructions your agents can pick when they need specialized guidance. Personal skills hold a single SKILL.md file. For richer skills with supporting files, add them to your repo under `.agents/skills/` or load them from a workspace."
-				action={addSkillAction}
+				action={headerActions}
 			/>
 
 			{isAtLimit && (
@@ -285,6 +304,17 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 								<TableCell>{formatUpdatedAt(skill.updated_at)}</TableCell>
 								<TableCell>
 									<div className="flex justify-end gap-2">
+										<Button
+											size="xs"
+											variant="outline"
+											onClick={() => onDownload(skill)}
+											disabled={downloadingSkillName === skill.name}
+										>
+											{downloadingSkillName === skill.name && (
+												<Spinner className="size-4" loading />
+											)}
+											Download
+										</Button>
 										<Button
 											size="xs"
 											variant="outline"

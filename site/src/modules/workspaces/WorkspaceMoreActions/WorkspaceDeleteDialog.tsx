@@ -1,15 +1,18 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Checkbox from "@mui/material/Checkbox";
-import Link from "@mui/material/Link";
-import TextField from "@mui/material/TextField";
 import dayjs from "dayjs";
 import { type FC, type FormEvent, useId, useState } from "react";
 import type {
 	CreateWorkspaceBuildRequest,
 	Workspace,
 } from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
+
+const warnBoxClassName =
+	"mt-6 flex gap-2 rounded-lg border border-solid border-border-warning bg-surface-orange p-3 leading-snug text-content-warning";
 
 interface WorkspaceDeleteDialogProps {
 	workspace: Workspace;
@@ -26,13 +29,19 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 	onCancel,
 	onConfirm,
 }) => {
-	const hookId = useId();
+	const confirmId = useId();
+	const errorId = `${confirmId}-error`;
+	const orphanId = `${confirmId}-orphan`;
+
 	const [userConfirmationText, setUserConfirmationText] = useState("");
 	const [orphanWorkspace, setOrphanWorkspace] =
 		useState<CreateWorkspaceBuildRequest["orphan"]>(false);
 	const [isFocused, setIsFocused] = useState(false);
 
 	const deletionConfirmed = workspace.name === userConfirmationText;
+	const hasError = !deletionConfirmed && userConfirmationText.length > 0;
+	const displayErrorMessage = hasError && !isFocused;
+
 	const onSubmit = (event: FormEvent) => {
 		event.preventDefault();
 		if (deletionConfirmed) {
@@ -40,9 +49,6 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 		}
 	};
 
-	const hasError = !deletionConfirmed && userConfirmationText.length > 0;
-	const displayErrorMessage = hasError && !isFocused;
-	const inputColor = hasError ? "error" : "primary";
 	// Orphaning is sort of a "last resort" that should really only
 	// be used under the following circumstances:
 	// a) Terraform is failing to apply while deleting, which
@@ -69,14 +75,18 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 			disabled={!deletionConfirmed}
 			description={
 				<>
-					<div css={styles.workspaceInfo}>
+					<div className="flex items-center justify-between rounded-md border border-solid border-border p-4 mb-5 leading-snug">
 						<div>
-							<p className="name">{workspace.name}</p>
-							<p className="label">workspace</p>
+							<p className="m-0 text-base font-semibold text-content-primary">
+								{workspace.name}
+							</p>
+							<p className="m-0 text-xs text-content-secondary">workspace</p>
 						</div>
 						<div className="text-right">
-							<p className="info">{dayjs(workspace.created_at).fromNow()}</p>
-							<p className="label">created</p>
+							<p className="m-0 text-xs font-medium text-content-primary">
+								{dayjs(workspace.created_at).fromNow()}
+							</p>
+							<p className="m-0 text-xs text-content-secondary">created</p>
 						</div>
 					</div>
 
@@ -86,39 +96,41 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 						confirm:
 					</p>
 
-					<form onSubmit={onSubmit}>
-						<TextField
-							fullWidth
-							autoFocus
-							className="mt-8"
+					<form className="mt-2 flex flex-col gap-2" onSubmit={onSubmit}>
+						<Label htmlFor={confirmId}>Workspace name</Label>
+						<Input
+							id={confirmId}
+							className="text-content-primary"
 							name="confirmation"
 							autoComplete="off"
-							id={`${hookId}-confirm`}
+							autoFocus
 							placeholder={workspace.name}
 							value={userConfirmationText}
 							onChange={(event) => setUserConfirmationText(event.target.value)}
 							onFocus={() => setIsFocused(true)}
 							onBlur={() => setIsFocused(false)}
-							label="Workspace name"
-							color={inputColor}
-							error={displayErrorMessage}
-							helperText={
-								displayErrorMessage &&
-								`${userConfirmationText} does not match the name of this workspace`
-							}
-							InputProps={{ color: inputColor }}
-							inputProps={{
-								"data-testid": "delete-dialog-name-confirmation",
-							}}
+							aria-invalid={displayErrorMessage}
+							aria-describedby={displayErrorMessage ? errorId : undefined}
+							data-testid="delete-dialog-name-confirmation"
 						/>
+						{displayErrorMessage && (
+							<span id={errorId} className="text-xs text-content-destructive">
+								{userConfirmationText} does not match the name of this workspace
+							</span>
+						)}
+
 						{hasTask && (
-							<div css={styles.warnContainer}>
-								<div className="flex-col">
-									<p className="info">This workspace is related to a task</p>
-									<span className="text-xs mt-1 block">
+							<div className={warnBoxClassName}>
+								<div>
+									<p className="m-0 text-sm font-semibold">
+										This workspace is related to a task
+									</p>
+									<span className="mt-1 block text-xs text-content-secondary">
 										Deleting this workspace will also delete{" "}
 										<Link
 											href={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
+											size="sm"
+											showExternalIcon={false}
 										>
 											this task
 										</Link>
@@ -127,39 +139,44 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 								</div>
 							</div>
 						)}
+
 						{canOrphan && (
-							<div css={styles.warnContainer}>
-								<div className="flex-col">
+							<div className={warnBoxClassName}>
+								<label
+									htmlFor={orphanId}
+									className="flex items-start gap-2 cursor-pointer"
+								>
 									<Checkbox
-										id="orphan_resources"
-										size="small"
-										color="warning"
-										onChange={() => {
-											setOrphanWorkspace(!orphanWorkspace);
-										}}
-										className="option"
+										id={orphanId}
 										name="orphan_resources"
 										checked={orphanWorkspace}
+										onCheckedChange={(checked) => {
+											setOrphanWorkspace(checked === true);
+										}}
 										data-testid="orphan-checkbox"
+										className="mt-0.5 border-content-warning hover:enabled:border-content-warning data-[state=checked]:bg-content-warning data-[state=checked]:border-content-warning data-[state=checked]:text-content-invert hover:data-[state=checked]:bg-content-warning hover:data-[state=checked]:border-content-warning"
 									/>
-								</div>
-								<div className="flex-col">
-									<p className="info">Orphan Resources</p>
-									<span className="text-xs mt-1 block">
-										As a Template Admin, you may skip resource cleanup to delete
-										a failed workspace. Resources such as volumes and virtual
-										machines will not be destroyed.&nbsp;
-										<Link
-											href={docs(
-												"/user-guides/workspace-management#workspace-resources",
-											)}
-											target="_blank"
-											rel="noreferrer"
-										>
-											Learn more...
-										</Link>
+									<span>
+										<span className="block text-sm font-semibold">
+											Orphan Resources
+										</span>
+										<span className="mt-1 block text-xs text-content-secondary">
+											As a Template Admin, you may skip resource cleanup to
+											delete a failed workspace. Resources such as volumes and
+											virtual machines will not be destroyed.{" "}
+											<Link
+												href={docs(
+													"/user-guides/workspace-management#workspace-resources",
+												)}
+												target="_blank"
+												rel="noreferrer"
+												size="sm"
+											>
+												Learn more
+											</Link>
+										</span>
 									</span>
-								</div>
+								</label>
 							</div>
 						)}
 					</form>
@@ -168,56 +185,3 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 		/>
 	);
 };
-
-const styles = {
-	workspaceInfo: (theme) => ({
-		display: "flex",
-		justifyContent: "space-between",
-		borderRadius: 6,
-		padding: 16,
-		marginBottom: 20,
-		lineHeight: "1.3em",
-		border: `1px solid ${theme.palette.divider}`,
-
-		"& .name": {
-			fontSize: 16,
-			fontWeight: 600,
-			color: theme.palette.text.primary,
-		},
-
-		"& .label": {
-			fontSize: 12,
-			color: theme.palette.text.secondary,
-		},
-
-		"& .info": {
-			fontSize: 12,
-			fontWeight: 500,
-			color: theme.palette.text.primary,
-		},
-	}),
-	warnContainer: (theme) => ({
-		marginTop: 24,
-		display: "flex",
-		backgroundColor: theme.roles.danger.background,
-		justifyContent: "space-between",
-		border: `1px solid ${theme.roles.danger.outline}`,
-		borderRadius: 8,
-		padding: 12,
-		gap: 8,
-		lineHeight: "18px",
-
-		"& .option": {
-			color: theme.roles.danger.fill.solid,
-			"&.Mui-checked": {
-				color: theme.roles.danger.fill.solid,
-			},
-		},
-
-		"& .info": {
-			fontSize: 14,
-			fontWeight: 600,
-			color: theme.roles.danger.text,
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

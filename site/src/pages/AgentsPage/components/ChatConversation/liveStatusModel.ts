@@ -1,5 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatDetailError } from "../../utils/usageLimitMessage";
+import type { ChatDetailError } from "./chatError";
 import { getErrorTitle } from "./chatStatusHelpers";
 import type { ReconnectState, RetryState, StreamState } from "./types";
 
@@ -14,6 +14,7 @@ export type LiveStatusModel =
 	| ({ phase: "idle" } & LiveStatusBase)
 	| ({ phase: "starting" } & LiveStatusBase)
 	| ({ phase: "streaming" } & LiveStatusBase)
+	| ({ phase: "interrupting" } & LiveStatusBase)
 	| ({
 			phase: "retrying";
 			title: string;
@@ -41,6 +42,16 @@ export type LiveStatusModel =
 			statusCode?: number;
 	  } & LiveStatusBase);
 
+export const shouldRenderLiveAssistant = (
+	liveStatus: LiveStatusModel,
+): boolean =>
+	liveStatus.phase === "streaming" ||
+	liveStatus.phase === "starting" ||
+	liveStatus.phase === "interrupting" ||
+	liveStatus.phase === "retrying" ||
+	liveStatus.phase === "reconnecting" ||
+	liveStatus.hasAccumulatedOutput;
+
 export type DeriveLiveStatusParams = {
 	streamState: StreamState | null;
 	retryState: RetryState | null;
@@ -48,6 +59,7 @@ export type DeriveLiveStatusParams = {
 	streamError: ChatDetailError | null;
 	persistedError: ChatDetailError | null;
 	isAwaitingFirstStreamChunk: boolean;
+	chatStatus: TypesGen.ChatStatus | null;
 };
 
 const getHasAccumulatedOutput = (streamState: StreamState | null): boolean =>
@@ -99,6 +111,7 @@ export const deriveLiveStatus = ({
 	streamError,
 	persistedError,
 	isAwaitingFirstStreamChunk,
+	chatStatus,
 }: DeriveLiveStatusParams): LiveStatusModel => {
 	const hasAccumulatedOutput = getHasAccumulatedOutput(streamState);
 
@@ -112,6 +125,13 @@ export const deriveLiveStatus = ({
 
 	if (reconnectState) {
 		return toReconnectingLiveStatus(reconnectState, { hasAccumulatedOutput });
+	}
+
+	// The interrupt outranks stream leftovers: while the worker drains and
+	// finalizes an interruption, the transcript must not claim the agent is
+	// still producing output.
+	if (chatStatus === "interrupting") {
+		return { phase: "interrupting", hasAccumulatedOutput };
 	}
 
 	if (isAwaitingFirstStreamChunk) {

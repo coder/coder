@@ -1,4 +1,5 @@
 import {
+	BotIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
@@ -150,6 +151,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		isChildChat: isChildNode,
 		hasWorkspace: Boolean(workspaceId),
 		isArchiving,
+		subagentCount: childIDs.length,
+		isSubagentsExpanded: isExpanded,
+		onToggleSubagents: () => toggleExpanded(chatID),
 		onPinAgent: () => onPinAgent(chat.id),
 		onUnpinAgent: () => onUnpinAgent(chat.id),
 		onArchiveAgent: () => onArchiveAgent(chat.id),
@@ -174,8 +178,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
 							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
 							"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
-							isChildNode &&
-								"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
 						)}
 					>
 						<div
@@ -240,6 +242,17 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										)}
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
+										{hasChildren && (
+											<span
+												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums text-content-secondary"
+												title={`${childIDs.length} ${
+													childIDs.length === 1 ? "subagent" : "subagents"
+												}`}
+											>
+												{childIDs.length}
+												<BotIcon className="size-3.5" aria-hidden="true" />
+											</span>
+										)}
 										{hasLinkedDiffStatus && hasLineStats && (
 											<span
 												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
@@ -294,7 +307,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											/>
 										) : (
 											<>
-												{/* Pin the ignored mask width so Chromatic does not diff bounding rect changes. */}
+												{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
 												<span
 													data-pixel="ignore"
 													className="inline-block w-7 text-right"
@@ -349,7 +362,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			</ContextMenu>
 
 			{hasChildren && isExpanded && (
-				<div className="relative ml-4 flex flex-col border-l border-border-default/60 pl-2.5">
+				<div className="relative ml-4 flex flex-col pl-2.5">
 					{childIDs.map((childID) => {
 						const childChat = chatById.get(childID);
 						if (!childChat) return null;

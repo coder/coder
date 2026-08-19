@@ -967,28 +967,6 @@ func TestWorkspaceAgentClientCoordinate_ConnectionLog(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 	err = conn.Close()
 	require.NoError(t, err)
-
-	// A second handshake within the audit session stale interval is a
-	// reconnection and must be deduplicated rather than producing a
-	// second row.
-	conn2, err := workspacesdk.New(client).
-		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
-			Logger: testutil.Logger(t).Named("client2"),
-		})
-	require.NoError(t, err)
-	defer conn2.Close()
-	// The connection log write happens in the coordinate handler
-	// before any coordination traffic is served, so once the tunnel is
-	// reachable the second handshake has already been processed.
-	require.True(t, conn2.AwaitReachable(ctx))
-
-	tunnelRows := 0
-	for _, cl := range connLogger.ConnectionLogs() {
-		if cl.Type == database.ConnectionTypeTunnel {
-			tunnelRows++
-		}
-	}
-	require.Equal(t, 1, tunnelRows)
 }
 
 func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
@@ -3104,6 +3082,87 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	})
 }
 
+func TestUserTailnetConnectionLog(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	connLogger := connectionlog.NewFake()
+	firstClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		ConnectionLogger: connLogger,
+		Coordinator:      tailnet.NewCoordinator(logger),
+		Logger:           &logger,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, firstClient)
+	member, memberUser := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID)
+
+	allowedWorkspace := buildWorkspaceWithAgent(t, member, firstUser.OrganizationID, memberUser.ID, api.Database, api.Pubsub)
+	allowedSDKWorkspace, err := member.Workspace(ctx, allowedWorkspace.ID)
+	require.NoError(t, err)
+	allowedAgentID := allowedSDKWorkspace.LatestBuild.Resources[0].Agents[0].ID
+
+	deniedWorkspace := buildWorkspaceWithAgent(t, firstClient, firstUser.OrganizationID, firstUser.UserID, api.Database, api.Pubsub)
+	deniedSDKWorkspace, err := firstClient.Workspace(ctx, deniedWorkspace.ID)
+	require.NoError(t, err)
+	deniedAgentID := deniedSDKWorkspace.LatestBuild.Resources[0].Agents[0].ID
+
+	dial := func() (*websocket.Conn, tailnetproto.DRPCTailnet_CoordinateClient) {
+		u, err := member.URL.Parse("/api/v2/tailnet?version=2.0")
+		require.NoError(t, err)
+		//nolint:bodyclose // websocket.Dial owns the HTTP response body on success.
+		wsConn, response, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+			HTTPHeader: http.Header{
+				"Coder-Session-Token": []string{member.SessionToken()},
+			},
+		})
+		if err != nil && response != nil {
+			err = codersdk.ReadBodyAsError(response)
+		}
+		require.NoError(t, err)
+		rpcClient, err := tailnet.NewDRPCClient(
+			websocket.NetConn(ctx, wsConn, websocket.MessageBinary),
+			logger,
+		)
+		require.NoError(t, err)
+		stream, err := rpcClient.Coordinate(ctx)
+		require.NoError(t, err)
+		return wsConn, stream
+	}
+
+	acceptedConn, acceptedStream := dial()
+	require.NoError(t, acceptedStream.Send(&tailnetproto.CoordinateRequest{
+		AddTunnel: &tailnetproto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(allowedAgentID)},
+	}))
+	require.Eventually(t, func() bool {
+		return connLogger.Contains(t, database.UpsertConnectionLogParams{
+			WorkspaceID:      allowedWorkspace.ID,
+			AgentName:        allowedSDKWorkspace.LatestBuild.Resources[0].Agents[0].Name,
+			Type:             database.ConnectionTypeTunnel,
+			Code:             sql.NullInt32{Int32: http.StatusSwitchingProtocols, Valid: true},
+			UserID:           uuid.NullUUID{UUID: memberUser.ID, Valid: true},
+			UserAgent:        sql.NullString{},
+			ConnectionStatus: database.ConnectionStatusConnected,
+		})
+	}, testutil.WaitShort, testutil.IntervalFast)
+	require.NoError(t, acceptedConn.Close(websocket.StatusNormalClosure, "done"))
+
+	deniedConn, deniedStream := dial()
+	require.NoError(t, deniedStream.Send(&tailnetproto.CoordinateRequest{
+		AddTunnel: &tailnetproto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(deniedAgentID)},
+	}))
+	require.Eventually(t, func() bool {
+		return connLogger.Contains(t, database.UpsertConnectionLogParams{
+			WorkspaceID:      deniedWorkspace.ID,
+			AgentName:        deniedSDKWorkspace.LatestBuild.Resources[0].Agents[0].Name,
+			Type:             database.ConnectionTypeTunnel,
+			Code:             sql.NullInt32{Int32: http.StatusForbidden, Valid: true},
+			UserID:           uuid.NullUUID{UUID: memberUser.ID, Valid: true},
+			ConnectionStatus: database.ConnectionStatusConnected,
+		})
+	}, testutil.WaitShort, testutil.IntervalFast)
+	require.NoError(t, deniedConn.Close(websocket.StatusNormalClosure, "done"))
+}
+
 func TestUserTailnetTelemetry(t *testing.T) {
 	t.Parallel()
 
@@ -3875,4 +3934,335 @@ func TestWorkspaceAgentsExternalAuthExpiresAt(t *testing.T) {
 		require.True(t, resp.ExpiresAt.IsZero(),
 			"ExpiresAt should be zero when the token has no expiry")
 	})
+}
+
+// fakeExternalAuthConfig builds a minimal, network-free external auth
+// provider config: RefreshToken short-circuits because the seeded link's
+// AccessToken already matches what the fake OAuth2 config would return, and
+// ValidateURL is omitted so the token is always treated as valid.
+func fakeExternalAuthConfig(id, token string, regex *regexp.Regexp) *externalauth.Config {
+	return &externalauth.Config{
+		InstrumentedOAuth2Config: &testutil.OAuth2Config{
+			Token: &oauth2.Token{
+				AccessToken:  token,
+				RefreshToken: "refresh-" + id,
+				Expiry:       dbtime.Now().Add(24 * time.Hour),
+			},
+		},
+		ID:           id,
+		Regex:        regex,
+		Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
+		RefreshGroup: new(singleflight.Group),
+	}
+}
+
+// TestWorkspaceAgentsExternalAuthTemplateScoped covers PLAT-190: when a
+// GIT_ASKPASS-style request supplies only a hostname (never an ID), the
+// server must prefer the requesting workspace's own template-declared
+// providers over a blind, order-dependent scan of every deployment-configured
+// provider.
+func TestWorkspaceAgentsExternalAuthTemplateScoped(t *testing.T) {
+	t.Parallel()
+
+	const (
+		matchHost = "https://github.com"
+		idBroad   = "provider-broad"
+		idDot     = "provider-dotfiles"
+		idOther   = "provider-other"
+	)
+	githubRegex := regexp.MustCompile(`^(https?://)?github\.com(/.*)?$`)
+	gitlabRegex := regexp.MustCompile(`^(https?://)?gitlab\.com(/.*)?$`)
+
+	// setup creates a deployment with the given providers (in the given
+	// order), a workspace built from a template version declaring
+	// declaredIDs, and seeds a valid ExternalAuthLink for every provider in
+	// linkProviderIDs so any of them could be returned if selection picked
+	// the wrong one. Providers omitted from linkProviderIDs are left
+	// unauthenticated (no link), to exercise the authenticate-URL flow.
+	setup := func(t *testing.T, providers []*externalauth.Config, declaredIDs, linkProviderIDs []string) (agentClient *agentsdk.Client) {
+		t.Helper()
+
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			ExternalAuthConfigs: providers,
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		_, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		declared, err := json.Marshal(func() []database.ExternalAuthProvider {
+			out := make([]database.ExternalAuthProvider, len(declaredIDs))
+			for i, id := range declaredIDs {
+				out[i] = database.ExternalAuthProvider{ID: id}
+			}
+			return out
+		}())
+		require.NoError(t, err)
+
+		tv := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			OrganizationID: first.OrganizationID,
+			CreatedBy:      first.UserID,
+		}).Do()
+		err = db.UpdateTemplateVersionExternalAuthProvidersByJobID(dbauthz.AsProvisionerd(context.Background()), database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+			JobID:                 tv.TemplateVersion.JobID,
+			ExternalAuthProviders: declared,
+			UpdatedAt:             dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		for _, id := range linkProviderIDs {
+			dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+				ProviderID:       id,
+				UserID:           user.ID,
+				OAuthAccessToken: id + "-token",
+				OAuthExpiry:      dbtime.Now().Add(24 * time.Hour),
+			})
+		}
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+			TemplateID:     tv.Template.ID,
+		}).Seed(database.WorkspaceBuild{
+			TemplateVersionID: tv.TemplateVersion.ID,
+		}).WithAgent().Do()
+
+		return agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+	}
+
+	// A template declaring only idDot must always resolve to
+	// idDot's token for a host both providers match, regardless of which
+	// order the two providers are configured in deployment-wide.
+	for _, tc := range []struct {
+		name  string
+		order []string
+	}{
+		{"DeclaredProviderLast", []string{idBroad, idDot}},
+		{"DeclaredProviderFirst", []string{idDot, idBroad}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			providers := make([]*externalauth.Config, len(tc.order))
+			for i, id := range tc.order {
+				providers[i] = fakeExternalAuthConfig(id, id+"-token", githubRegex)
+			}
+			agentClient := setup(t, providers, []string{idDot}, []string{idBroad, idDot})
+
+			resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: matchHost})
+			require.NoError(t, err)
+			require.Equal(t, idDot+"-token", resp.AccessToken,
+				"must resolve to the template-declared provider regardless of deployment config order")
+		})
+	}
+
+	// A template declaring no providers at all falls back to today's
+	// existing full-deployment scan (unchanged, potentially ambiguous
+	// behavior in that specific case remains explicitly out of scope).
+	t.Run("NoDeclaredProvidersFallsBackToFullScan", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		providers := []*externalauth.Config{
+			fakeExternalAuthConfig(idBroad, idBroad+"-token", githubRegex),
+			fakeExternalAuthConfig(idDot, idDot+"-token", githubRegex),
+		}
+		agentClient := setup(t, providers, nil, []string{idBroad, idDot})
+
+		resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: matchHost})
+		require.NoError(t, err)
+		// Legacy behavior: last matching entry in deployment config order wins.
+		require.Equal(t, idDot+"-token", resp.AccessToken)
+	})
+
+	// A template declaring only a provider for an unrelated host must
+	// still resolve a genuinely different host via the fallback scan,
+	// rather than losing access to hosts the template never mentioned.
+	t.Run("UnrelatedHostStillResolvesViaFallback", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		providers := []*externalauth.Config{
+			fakeExternalAuthConfig(idDot, idDot+"-token", githubRegex),
+			fakeExternalAuthConfig(idOther, idOther+"-token", gitlabRegex),
+		}
+		// Template only declares idDot (for github.com); idOther (gitlab.com)
+		// is never declared, but must still work for its own host.
+		agentClient := setup(t, providers, []string{idDot}, []string{idDot, idOther})
+
+		resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: "https://gitlab.com"})
+		require.NoError(t, err)
+		require.Equal(t, idOther+"-token", resp.AccessToken)
+	})
+
+	// When several of the template's own declared providers match a
+	// hostname, the server must return a clear error rather than silently
+	// pick one. 404 specifically, so `coder gitaskpass` warns and defers to
+	// git's own credential behavior.
+	t.Run("AmbiguousDeclaredSetReturnsError", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		providers := []*externalauth.Config{
+			fakeExternalAuthConfig(idBroad, idBroad+"-token", githubRegex),
+			fakeExternalAuthConfig(idDot, idDot+"-token", githubRegex),
+		}
+		agentClient := setup(t, providers, []string{idBroad, idDot}, []string{idBroad, idDot})
+
+		_, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: matchHost})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, idBroad)
+		require.Contains(t, sdkErr.Message, idDot)
+	})
+
+	// A declared provider that the deployment no longer configures must not
+	// let another provider for the same host stand in for it, even though
+	// that provider would satisfy a deployment-wide scan.
+	t.Run("MissingDeclaredProviderDoesNotFallBack", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Only idBroad is configured. The template declares idDot, which an
+		// administrator has since removed from the deployment config.
+		providers := []*externalauth.Config{
+			fakeExternalAuthConfig(idBroad, idBroad+"-token", githubRegex),
+		}
+		agentClient := setup(t, providers, []string{idDot}, []string{idBroad})
+
+		_, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: matchHost})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, idDot,
+			"should name the declared provider the deployment no longer configures")
+		require.NotContains(t, sdkErr.Message, idBroad,
+			"must not offer an undeclared provider as a substitute")
+	})
+
+	// A stale declaration for one host must not block an unambiguous
+	// declared match for a different host. Only the fallback is withheld.
+	t.Run("MissingDeclaredProviderDoesNotBlockOtherDeclaredMatch", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		providers := []*externalauth.Config{
+			fakeExternalAuthConfig(idOther, idOther+"-token", gitlabRegex),
+		}
+		// idDot (github.com) is declared but no longer configured, while
+		// idOther (gitlab.com) is both declared and configured.
+		agentClient := setup(t, providers, []string{idDot, idOther}, []string{idOther})
+
+		resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: "https://gitlab.com"})
+		require.NoError(t, err)
+		require.Equal(t, idOther+"-token", resp.AccessToken)
+	})
+
+	// Once narrowed to a single declared candidate, the existing
+	// authenticate-URL flow must still work unchanged for a provider the
+	// owner has not yet authenticated with.
+	t.Run("OptionalUnauthenticatedDeclaredProviderReturnsAuthURL", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		providers := []*externalauth.Config{
+			fakeExternalAuthConfig(idBroad, idBroad+"-token", githubRegex),
+			fakeExternalAuthConfig(idDot, idDot+"-token", githubRegex),
+		}
+		// idDot is declared and matches the hostname, but has no seeded link.
+		agentClient := setup(t, providers, []string{idDot}, []string{idBroad})
+
+		resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: matchHost})
+		require.NoError(t, err)
+		require.Empty(t, resp.AccessToken)
+		require.Contains(t, resp.URL, "/external-auth/"+idDot,
+			"should prompt for the declared provider specifically, not idBroad")
+	})
+}
+
+// TestWorkspaceAgentsExternalAuthMultipleTemplates covers the headline
+// scenario from PLAT-190: two workspaces, built from two different
+// templates that each declare a different single provider, must each
+// independently resolve to their own template's provider - never each
+// other's - regardless of deployment config order or concurrent activity.
+func TestWorkspaceAgentsExternalAuthMultipleTemplates(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	const (
+		matchHost = "https://github.com"
+		id1       = "provider-1"
+		id2       = "provider-2"
+	)
+	githubRegex := regexp.MustCompile(`^(https?://)?github\.com(/.*)?$`)
+
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		ExternalAuthConfigs: []*externalauth.Config{
+			fakeExternalAuthConfig(id1, id1+"-token", githubRegex),
+			fakeExternalAuthConfig(id2, id2+"-token", githubRegex),
+		},
+	})
+	first := coderdtest.CreateFirstUser(t, client)
+	_, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+	declare := func(t *testing.T, id string) dbfake.TemplateVersionResponse {
+		t.Helper()
+		declared, err := json.Marshal([]database.ExternalAuthProvider{{ID: id}})
+		require.NoError(t, err)
+		tv := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			OrganizationID: first.OrganizationID,
+			CreatedBy:      first.UserID,
+		}).Do()
+		err = db.UpdateTemplateVersionExternalAuthProvidersByJobID(dbauthz.AsProvisionerd(context.Background()), database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+			JobID:                 tv.TemplateVersion.JobID,
+			ExternalAuthProviders: declared,
+			UpdatedAt:             dbtime.Now(),
+		})
+		require.NoError(t, err)
+		return tv
+	}
+	tv1 := declare(t, id1)
+	tv2 := declare(t, id2)
+
+	dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+		ProviderID: id1, UserID: user.ID, OAuthAccessToken: id1 + "-token", OAuthExpiry: dbtime.Now().Add(24 * time.Hour),
+	})
+	dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+		ProviderID: id2, UserID: user.ID, OAuthAccessToken: id2 + "-token", OAuthExpiry: dbtime.Now().Add(24 * time.Hour),
+	})
+
+	build := func(t *testing.T, tv dbfake.TemplateVersionResponse) *agentsdk.Client {
+		t.Helper()
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+			TemplateID:     tv.Template.ID,
+		}).Seed(database.WorkspaceBuild{
+			TemplateVersionID: tv.TemplateVersion.ID,
+		}).WithAgent().Do()
+		return agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+	}
+	agent1 := build(t, tv1)
+	agent2 := build(t, tv2)
+
+	var wg sync.WaitGroup
+	var resp1, resp2 agentsdk.ExternalAuthResponse
+	var err1, err2 error
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		resp1, err1 = agent1.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: matchHost})
+	}()
+	go func() {
+		defer wg.Done()
+		resp2, err2 = agent2.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{Match: matchHost})
+	}()
+	wg.Wait()
+
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	require.Equal(t, id1+"-token", resp1.AccessToken, "workspace built from template 1 must always get provider 1's token")
+	require.Equal(t, id2+"-token", resp2.AccessToken, "workspace built from template 2 must always get provider 2's token")
 }

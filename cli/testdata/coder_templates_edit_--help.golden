@@ -14,6 +14,9 @@ OPTIONS:
           template will have their shutdown time bumped by this value when
           activity is detected. Maps to "Activity bump" in the UI.
 
+      --agents-allowed bool (default: true)
+          Allow Coder Agents to create workspaces using this template.
+
       --allow-user-autostart bool (default: true)
           Allow users to configure autostart for workspaces on this template.
           This can only be disabled in enterprise.

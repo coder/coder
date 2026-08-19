@@ -13,6 +13,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -21,7 +22,7 @@ import (
 func TestCompactionOverrideProviderOptions(t *testing.T) {
 	t.Parallel()
 
-	model := &chattest.FakeModel{ProviderName: "anthropic", ModelName: "claude-3-5-haiku"}
+	model := chatprovider.NewModel(&chattest.FakeModel{ProviderName: "anthropic", ModelName: "claude-3-5-haiku"}, nil)
 
 	t.Run("NoOptions", func(t *testing.T) {
 		t.Parallel()

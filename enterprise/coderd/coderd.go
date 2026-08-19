@@ -222,6 +222,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		},
 	})
 
+	options.Options.ChatAgentCapacityUnlock = entchatd.NewAgentCapacityUnlock(options.Entitlements)
+
 	api.AGPL = coderd.New(options.Options)
 	api.aiSeatTracker = aiseats.New(options.Database, api.Logger.Named("aiseats"), quartz.NewReal(), &api.AGPL.Auditor)
 	api.AGPL.AISeatTracker = api.aiSeatTracker
@@ -331,6 +333,17 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 			)
 			r.Get("/", api.aiGatewayServe)
+		})
+	})
+
+	api.AGPL.ExperimentalHandler.Group(func(r chi.Router) {
+		r.Route("/ai/model-prices", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/", api.listAIModelPrices)
+			r.Post("/", api.upsertAIModelPrices)
 		})
 	})
 
@@ -525,6 +538,14 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 					r.Get("/", api.groupMembersAISpendByOrganization)
 				})
 			})
+		})
+		r.Route("/organizations/{organization}/paginated-groups", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.templateRBACEnabledMW,
+				httpmw.ExtractOrganizationParam(api.Database),
+			)
+			r.Get("/", api.paginatedGroups)
 		})
 		r.Route("/organizations/{organization}/ai/spend", func(r chi.Router) {
 			// AI cost controls are a paid feature (AI Governance add-on).

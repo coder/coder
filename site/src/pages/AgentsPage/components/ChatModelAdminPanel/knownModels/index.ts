@@ -100,3 +100,22 @@ export const formatContextBadge = (contextLimit: number): string => {
 	}
 	return `${formatCompactNumber(contextLimit / 1_000_000)}M context`;
 };
+
+export const formatPricePerMillionTokens = (value: number): string => {
+	if (!Number.isFinite(value)) {
+		throw new Error("price must be a finite number");
+	}
+	if (Number.isInteger(value)) {
+		return `$${value}`;
+	}
+	// A positive price too small to show at four decimals would otherwise
+	// render as $0.00 and read as free, so show it as a threshold instead.
+	if (value > 0 && value < 0.0001) {
+		return "<$0.0001";
+	}
+	// Keep two decimals so cents read as cents ($0.10, not $0.1). Keep up to
+	// four so sub-cent prices stay visible ($0.075, $0.0036).
+	const [whole, decimals = ""] = value.toFixed(4).split(".");
+	const trimmed = decimals.slice(0, 2) + decimals.slice(2).replace(/0+$/, "");
+	return `$${whole}.${trimmed}`;
+};

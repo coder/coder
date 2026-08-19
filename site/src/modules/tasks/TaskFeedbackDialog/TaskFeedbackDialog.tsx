@@ -1,6 +1,6 @@
 import { useFormik } from "formik";
 import { FrownIcon, MehIcon, SmileIcon } from "lucide-react";
-import type { FC, HTMLProps, ReactNode } from "react";
+import type { ComponentProps, FC, HTMLProps, ReactNode } from "react";
 import { useMutation } from "react-query";
 import { toast } from "sonner";
 import {
@@ -19,7 +19,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import type { DialogProps } from "#/components/Dialogs/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 
@@ -28,7 +27,7 @@ type TaskFeedbackFormValues = {
 	comment: string;
 };
 
-type TaskFeedbackDialogProps = DialogProps & {
+type TaskFeedbackDialogProps = ComponentProps<typeof Dialog> & {
 	taskId: string;
 };
 

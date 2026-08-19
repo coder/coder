@@ -1,6 +1,5 @@
-import Stack from "@mui/material/Stack";
 import type { FC } from "react";
-import { Pill } from "#/components/Pill/Pill";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
@@ -14,17 +13,20 @@ interface PillListProps {
 
 export const IdpPillList: FC<PillListProps> = ({ roles }) => {
 	return (
-		<Stack direction="row" spacing={1}>
+		<div className="flex flex-row gap-2">
 			{roles.length > 0 ? (
-				<Pill className="w-fit" type={isUUID(roles[0]) ? "error" : "muted"}>
+				<Badge
+					className="w-fit"
+					variant={isUUID(roles[0]) ? "destructive" : "default"}
+				>
 					{roles[0]}
-				</Pill>
+				</Badge>
 			) : (
 				<p>None</p>
 			)}
 
 			{roles.length > 1 && <OverflowPill roles={roles.slice(1)} />}
-		</Stack>
+		</div>
 	);
 };
 
@@ -36,18 +38,21 @@ const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Pill type="muted" className="w-fit" data-testid="overflow-pill">
+				<Badge className="w-fit" data-testid="overflow-pill">
 					+{roles.length} more
-				</Pill>
+				</Badge>
 			</TooltipTrigger>
 
 			<TooltipContent className="px-4 py-3 border-surface-quaternary">
 				<ul className="flex flex-col gap-2 list-none my-0 pl-0">
 					{roles.map((role) => (
 						<li key={role}>
-							<Pill className="w-fit" type={isUUID(role) ? "error" : "muted"}>
+							<Badge
+								className="w-fit"
+								variant={isUUID(role) ? "destructive" : "default"}
+							>
 								{role}
-							</Pill>
+							</Badge>
 						</li>
 					))}
 				</ul>

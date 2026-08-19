@@ -195,7 +195,12 @@ SELECT
             WHERE key = 'agents_chat_system_prompt'
                 AND value != ''
         )
-    ) :: boolean AS include_default_system_prompt;
+    ) :: boolean AS include_default_system_prompt,
+    EXISTS (
+        SELECT 1
+        FROM site_configs
+        WHERE key = 'agents_chat_include_default_system_prompt'
+    ) :: boolean AS include_default_system_prompt_set;
 
 -- name: UpsertChatSystemPrompt :exec
 INSERT INTO site_configs (key, value) VALUES ('agents_chat_system_prompt', $1)
@@ -333,12 +338,6 @@ SET value = CASE
 END
 WHERE site_configs.key = 'agents_chat_personal_model_overrides_enabled';
 
--- GetChatTemplateAllowlist returns the JSON-encoded template allowlist.
--- Returns an empty string when no allowlist has been configured (all templates allowed).
--- name: GetChatTemplateAllowlist :one
-SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_template_allowlist'), '') :: text AS template_allowlist;
-
 -- GetChatIncludeDefaultSystemPrompt preserves the legacy default
 -- for deployments created before the explicit include-default toggle.
 -- When the toggle is unset, a non-empty custom prompt implies false;
@@ -379,10 +378,6 @@ SELECT
         (SELECT value FROM site_configs WHERE key = 'agents_workspace_ttl'),
         '0s'
     )::text AS workspace_ttl;
-
--- name: UpsertChatTemplateAllowlist :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_template_allowlist', @template_allowlist)
-ON CONFLICT (key) DO UPDATE SET value = @template_allowlist WHERE site_configs.key = 'agents_template_allowlist';
 
 -- name: UpsertChatWorkspaceTTL :exec
 INSERT INTO site_configs (key, value)
