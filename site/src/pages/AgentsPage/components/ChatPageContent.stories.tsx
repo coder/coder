@@ -175,6 +175,45 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 	},
 };
 
+// Matches the fixed terminal error path. A tool call streams without a
+// result, then the error clears the stream so the running row goes away
+// and the failure callout stays.
+export const ErrorClearsStreamingTool: Story = {
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages([
+			buildMessage(1, "user", [{ type: "text", text: "Create a workspace" }]),
+		]);
+		store.setChatStatus("running");
+		store.applyMessagePart({
+			type: "tool-call",
+			tool_call_id: "create-workspace-call",
+			tool_name: "create_workspace",
+			args: { name: "dev" },
+		});
+		store.applyServerChatStatus("error");
+		store.setStreamError({
+			kind: "generic",
+			message: "The chat session ended unexpectedly.",
+		});
+		store.clearStreamState();
+
+		return (
+			<ChatWorkspaceContext value={{ workspaceId: "workspace-1" }}>
+				<StoryChatPageTimeline store={store} />
+			</ChatWorkspaceContext>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText("Creating workspace…")).toBeNull();
+		expect(canvas.getByText("Request failed")).toBeInTheDocument();
+		expect(
+			canvas.getByText("The chat session ended unexpectedly."),
+		).toBeInTheDocument();
+	},
+};
+
 export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 	render: () => {
 		const store = createChatStore();

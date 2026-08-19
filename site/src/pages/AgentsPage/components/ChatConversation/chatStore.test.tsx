@@ -2997,7 +2997,6 @@ describe("useChatStore", () => {
 			),
 		).toMatchObject([{ id: "create-workspace-1", status: "running" }]);
 
-		// The session ends unexpectedly so the server emits an error.
 		act(() => {
 			mockSocket.emitData({
 				type: "error",
@@ -3018,7 +3017,6 @@ describe("useChatStore", () => {
 			});
 		});
 
-		// The partial stream is cleared so the tool stops spinning.
 		expect(result.current.streamState).toBeNull();
 		expect(result.current.hasStreamState).toBe(false);
 		expect(
@@ -3186,7 +3184,6 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
-		// The first turn errors out.
 		act(() => {
 			mockSocket.emitData({
 				type: "error",
@@ -3204,7 +3201,6 @@ describe("useChatStore", () => {
 			expect(result.current.streamState).toBeNull();
 		});
 
-		// The user sends again and the server starts a new turn.
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
@@ -3213,7 +3209,6 @@ describe("useChatStore", () => {
 			});
 		});
 
-		// Parts from the new turn must flow again.
 		act(() => {
 			mockSocket.emitData({
 				type: "message_part",
