@@ -70,6 +70,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 		durationLabel,
 		isRunning,
 		isError,
+		isBackgrounded,
 	});
 	const defaultView = resolveAgentDisplayState(
 		shellToolDisplayMode,
@@ -139,6 +140,7 @@ type ShellCommandLineInput = {
 	durationLabel: string;
 	isRunning: boolean;
 	isError: boolean;
+	isBackgrounded: boolean;
 };
 
 const getShellCommandLine = ({
@@ -148,16 +150,20 @@ const getShellCommandLine = ({
 	durationLabel,
 	isRunning,
 	isError,
+	isBackgrounded,
 }: ShellCommandLineInput): { commandLabel: string; durationSuffix: string } => {
-	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
 	const summary =
 		parsedCommands && parsedCommands.length > 0
 			? summarizeParsedCommands(parsedCommands)
 			: "";
 	const commandDisplay = summary || command;
+	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
 	let commandLabel = intentLabel
 		? `${intentLabel} using ${commandDisplay}`
 		: `Ran ${commandDisplay}`;
+	if (intentLabel && isBackgrounded) {
+		commandLabel = `${intentLabel} in the background using ${commandDisplay}`;
+	}
 	if (!isRunning && isError) {
 		commandLabel = `Failed to run ${commandDisplay}`;
 	}

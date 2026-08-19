@@ -349,6 +349,31 @@ export const ExecuteModelIntentRunning: Story = {
 	},
 };
 
+export const ExecuteModelIntentBackgrounded: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: {
+			command: executeIntentCommand,
+			model_intent: "Starting a sleep process",
+		},
+		modelIntent: "Starting a sleep process",
+		result: {
+			output: "",
+			wall_duration_ms: 2300,
+			background_process_id: "process-123",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(
+				`Starting a sleep process in the background using ${executeIntentCommand}`,
+			),
+		).toBeVisible();
+	},
+};
+
 export const ExecuteModelIntentLeadingUsing: Story = {
 	args: {
 		status: "completed",
@@ -752,13 +777,15 @@ export const ProcessOutputModelIntent: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		// Intent alone is the label; the command is not appended.
 		expect(
-			canvas.getByText("Waiting for the dev server to be ready on npm start"),
+			canvas.getByText("Waiting for the dev server to be ready"),
 		).toBeVisible();
+		expect(canvas.queryByText(/npm start/)).not.toBeInTheDocument();
 	},
 };
 
-/** Redundant "using <command>" suffixes are stripped from the intent. */
+/** Intent that restates the command is left as the model wrote it. */
 export const ProcessOutputModelIntentRedundant: Story = {
 	args: {
 		name: "process_output",
@@ -776,9 +803,8 @@ export const ProcessOutputModelIntentRedundant: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("Confirming the tests pass on npm start"),
-		).toBeVisible();
+		expect(canvas.getByText("Confirming the tests pass")).toBeVisible();
+		expect(canvas.queryByText(/npm start/)).not.toBeInTheDocument();
 	},
 };
 

@@ -44,7 +44,7 @@ const getProcessOutputLabel = ({
 		? sanitizeExecuteModelIntent(modelIntent, trimmedCommand)
 		: "";
 	if (intent) {
-		return trimmedCommand ? `${intent} on ${trimmedCommand}` : intent;
+		return intent;
 	}
 	if (!trimmedCommand) {
 		return "Process output";
