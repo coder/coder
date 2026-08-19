@@ -13,6 +13,7 @@ import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { useAuthenticated } from "./hooks/useAuthenticated";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { aiTasksEnabled } from "./modules/tasks/useAITasksEnabled";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import ConnectionLogPage from "./pages/ConnectionLogPage/ConnectionLogPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
@@ -599,7 +600,7 @@ export const router = createBrowserRouter(
 
 					<Route path="/connectionlog" element={<ConnectionLogPage />} />
 
-					<Route path="/tasks" element={<TasksPage />} />
+					{aiTasksEnabled() && <Route path="/tasks" element={<TasksPage />} />}
 
 					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
 						<Route path="new" element={<CreateOrganizationPage />} />
@@ -828,7 +829,9 @@ export const router = createBrowserRouter(
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/coder-cup" element={<CoderCupPage />} />
 				<Route path="/icons" element={<IconsPage />} />
-				<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
+				{aiTasksEnabled() && (
+					<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
+				)}
 				<Route
 					path="/agents"
 					element={

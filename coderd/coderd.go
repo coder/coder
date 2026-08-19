@@ -785,7 +785,7 @@ func New(options *Options) *API {
 		Entitlements:      options.Entitlements,
 		Telemetry:         options.Telemetry,
 		Logger:            options.Logger.Named("site"),
-		HideAITasks:       options.DeploymentValues.HideAITasks.Value(),
+		AITasksEnabled:    options.DeploymentValues.EnableAITasks.Value(),
 		AIGatewayEnabled:  options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
 	})
 	if err != nil {
@@ -1329,27 +1329,33 @@ func New(options *Options) *API {
 		// NOTE(DanielleMaywood):
 		// Tasks have been promoted to stable, but we have guaranteed a single release transition period
 		// where these routes must remain. These should be removed no earlier than Coder v2.30.0
-		r.Route("/tasks", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+		//
+		// Coder Tasks is hidden unless the deployment opts in, so the routes are
+		// only registered when CODER_ENABLE_AI_TASKS is set. Requests to an
+		// unregistered path fall through to the route not found handler above.
+		if options.DeploymentValues.EnableAITasks {
+			r.Route("/tasks", func(r chi.Router) {
+				r.Use(apiKeyMiddleware)
 
-			r.Get("/", api.tasksList)
+				r.Get("/", api.tasksList)
 
-			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
-				r.Post("/", api.tasksCreate)
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+					r.Post("/", api.tasksCreate)
 
-				r.Route("/{task}", func(r chi.Router) {
-					r.Use(httpmw.ExtractTaskParam(options.Database))
-					r.Get("/", api.taskGet)
-					r.Delete("/", api.taskDelete)
-					r.Patch("/input", api.taskUpdateInput)
-					r.Post("/send", api.taskSend)
-					r.Get("/logs", api.taskLogs)
-					r.Post("/pause", api.pauseTask)
-					r.Post("/resume", api.resumeTask)
+					r.Route("/{task}", func(r chi.Router) {
+						r.Use(httpmw.ExtractTaskParam(options.Database))
+						r.Get("/", api.taskGet)
+						r.Delete("/", api.taskDelete)
+						r.Patch("/input", api.taskUpdateInput)
+						r.Post("/send", api.taskSend)
+						r.Get("/logs", api.taskLogs)
+						r.Post("/pause", api.pauseTask)
+						r.Post("/resume", api.resumeTask)
+					})
 				})
 			})
-		})
+		}
 		r.Route("/users/{user}/skills", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1933,9 +1939,13 @@ func New(options *Options) *API {
 				r.Route("/experimental", func(r chi.Router) {
 					r.Post("/chat-context/refresh", api.workspaceAgentRefreshChatContext)
 				})
-				r.Route("/tasks/{task}", func(r chi.Router) {
-					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
-				})
+				// Agent-side Coder Tasks reporting, registered only when the
+				// deployment opts in, for the same reason as the /tasks trees.
+				if options.DeploymentValues.EnableAITasks {
+					r.Route("/tasks/{task}", func(r chi.Router) {
+						r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
+					})
+				}
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -2205,27 +2215,32 @@ func New(options *Options) *API {
 			r.Get("/{os}/{arch}", api.initScript)
 		})
 		r.Route("/ai/providers", aiProvidersHandler(api, apiKeyMiddleware))
-		r.Route("/tasks", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+		// Coder Tasks is hidden unless the deployment opts in, so the routes are
+		// only registered when CODER_ENABLE_AI_TASKS is set. Requests to an
+		// unregistered path fall through to the route not found handler above.
+		if options.DeploymentValues.EnableAITasks {
+			r.Route("/tasks", func(r chi.Router) {
+				r.Use(apiKeyMiddleware)
 
-			r.Get("/", api.tasksList)
+				r.Get("/", api.tasksList)
 
-			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
-				r.Post("/", api.tasksCreate)
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+					r.Post("/", api.tasksCreate)
 
-				r.Route("/{task}", func(r chi.Router) {
-					r.Use(httpmw.ExtractTaskParam(options.Database))
-					r.Get("/", api.taskGet)
-					r.Delete("/", api.taskDelete)
-					r.Patch("/input", api.taskUpdateInput)
-					r.Post("/send", api.taskSend)
-					r.Get("/logs", api.taskLogs)
-					r.Post("/pause", api.pauseTask)
-					r.Post("/resume", api.resumeTask)
+					r.Route("/{task}", func(r chi.Router) {
+						r.Use(httpmw.ExtractTaskParam(options.Database))
+						r.Get("/", api.taskGet)
+						r.Delete("/", api.taskDelete)
+						r.Patch("/input", api.taskUpdateInput)
+						r.Post("/send", api.taskSend)
+						r.Get("/logs", api.taskLogs)
+						r.Post("/pause", api.pauseTask)
+						r.Post("/resume", api.resumeTask)
+					})
 				})
 			})
-		})
+		}
 	})
 
 	if options.SwaggerEndpoint {

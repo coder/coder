@@ -1126,7 +1126,7 @@
 						},
 						{
 							"title": "Tasks to Chats API Migration",
-							"description": "Migrate your integrations from the Coder Tasks API to the newer Coder Agents Chats API.",
+							"description": "Migrate your integrations from the deprecated Coder Tasks API to the Coder Agents Chats API.",
 							"path": "./ai-coder/agents/tasks-to-chats-migration.md"
 						}
 					]
@@ -1351,53 +1351,6 @@
 					"description": "Connect external AI coding agents to Coder using its built-in Model Context Protocol server.",
 					"path": "./ai-coder/mcp-server.md",
 					"state": ["beta"]
-				},
-				{
-					"title": "Coder Tasks",
-					"description": "Run and manage coding agents like Claude Code and Codex on your own infrastructure with Coder Tasks.",
-					"path": "./ai-coder/tasks.md",
-					"children": [
-						{
-							"title": "Understanding Coder Tasks",
-							"description": "Understand the core principles and concepts behind Coder Tasks for managing coding agents.",
-							"path": "./ai-coder/tasks-core-principles.md"
-						},
-						{
-							"title": "Custom Agents",
-							"description": "Run custom coding agents beyond the Coder Registry defaults with Coder Tasks.",
-							"path": "./ai-coder/custom-agents.md"
-						},
-						{
-							"title": "Task Lifecycle",
-							"description": "Learn how Coder Tasks pause when idle and resume on interaction, and what state is preserved.",
-							"path": "./ai-coder/tasks-lifecycle.md"
-						},
-						{
-							"title": "Agent Compatibility",
-							"description": "See which AI coding agents support session persistence across workspace restarts in Coder Tasks.",
-							"path": "./ai-coder/agent-compatibility.md"
-						},
-						{
-							"title": "Tasks Migration Guide",
-							"description": "Migrate your task templates for the Coder Tasks changes introduced in version 2.28.0.",
-							"path": "./ai-coder/tasks-migration.md"
-						},
-						{
-							"title": "Security \u0026 Agent Firewall",
-							"description": "Learn about security and the Agent Firewall when running AI coding agents in Coder",
-							"path": "./ai-coder/security.md"
-						},
-						{
-							"title": "Create a GitHub to Coder Tasks Workflow",
-							"description": "Build a workflow that triggers Coder Tasks from GitHub issues and pull requests.",
-							"path": "./ai-coder/github-to-tasks.md"
-						},
-						{
-							"title": "Tasks to Chats API Migration",
-							"description": "Migrate your integrations from the Coder Tasks API to the newer Coder Agents Chats API.",
-							"path": "./ai-coder/agents/tasks-to-chats-migration.md"
-						}
-					]
 				}
 			]
 		},
@@ -1671,10 +1624,6 @@
 						{
 							"title": "Secrets",
 							"path": "./reference/api/secrets.md"
-						},
-						{
-							"title": "Tasks",
-							"path": "./reference/api/tasks.md"
 						},
 						{
 							"title": "TemplateBuilder",
@@ -2306,51 +2255,6 @@
 							"title": "support bundle",
 							"description": "Generate a support bundle to troubleshoot issues connecting to a workspace.",
 							"path": "reference/cli/support_bundle.md"
-						},
-						{
-							"title": "task",
-							"description": "Manage tasks",
-							"path": "reference/cli/task.md"
-						},
-						{
-							"title": "task create",
-							"description": "Create a task",
-							"path": "reference/cli/task_create.md"
-						},
-						{
-							"title": "task delete",
-							"description": "Delete tasks",
-							"path": "reference/cli/task_delete.md"
-						},
-						{
-							"title": "task list",
-							"description": "List tasks",
-							"path": "reference/cli/task_list.md"
-						},
-						{
-							"title": "task logs",
-							"description": "Show a task's logs",
-							"path": "reference/cli/task_logs.md"
-						},
-						{
-							"title": "task pause",
-							"description": "Pause a task",
-							"path": "reference/cli/task_pause.md"
-						},
-						{
-							"title": "task resume",
-							"description": "Resume a task",
-							"path": "reference/cli/task_resume.md"
-						},
-						{
-							"title": "task send",
-							"description": "Send input to a task",
-							"path": "reference/cli/task_send.md"
-						},
-						{
-							"title": "task status",
-							"description": "Show the status of a task.",
-							"path": "reference/cli/task_status.md"
 						},
 						{
 							"title": "templates",

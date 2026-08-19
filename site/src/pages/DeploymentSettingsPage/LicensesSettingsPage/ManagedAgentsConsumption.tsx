@@ -10,6 +10,7 @@ import {
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Link } from "#/components/Link/Link";
+import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 
@@ -20,6 +21,8 @@ interface ManagedAgentsConsumptionProps {
 export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 	managedAgentFeature,
 }) => {
+	const aiTasksEnabled = useAITasksEnabled();
+
 	// If no feature is provided or it's disabled, show disabled state
 	if (!managedAgentFeature?.enabled) {
 		return (
@@ -100,15 +103,17 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 						<p>
 							Today,{" "}
 							<Link
-								href={docs("/ai-coder/tasks")}
+								href={docs("/ai-coder/agents")}
 								target="_blank"
 								rel="noreferrer"
 							>
-								Coder Tasks (via UI, CLI, or API)
+								Coder Agents (via UI or API)
 							</Link>{" "}
-							is the only way to create agentic workspaces, but additional
-							protocols and APIs may be supported as standards emerge. Learn
-							more in{" "}
+							{aiTasksEnabled
+								? "and Coder Tasks (via UI, CLI, or API) are the only ways"
+								: "is the only way"}{" "}
+							to create agentic workspaces, but additional protocols and APIs
+							may be supported as standards emerge. Learn more in{" "}
 							<Link
 								href={docs("/ai-coder/ai-governance")}
 								target="_blank"
