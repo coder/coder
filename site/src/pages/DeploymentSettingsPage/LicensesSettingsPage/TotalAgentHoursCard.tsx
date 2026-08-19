@@ -46,13 +46,9 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	}
 
 	const meteredLimit = limit ?? 0;
-	// Floored to tenths so the displayed number and the reached states
-	// below flip together at the backend's whole-hour thresholds.
 	const usedTenths =
 		actualMs === undefined ? 0 : Math.floor(actualMs / 360_000);
 	const usedHours = usedTenths / 10;
-	// The backend guarantees hard >= allocation > 0; anything else comes
-	// from a decoding bug and is ignored the same way.
 	const hardCap =
 		!isUnlimited &&
 		hardLimit !== undefined &&
@@ -60,22 +56,16 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		hardLimit >= meteredLimit
 			? hardLimit
 			: undefined;
-	// The backend warns with >=, so reaching a threshold (not exceeding
-	// it) drives the warning copy and colors.
 	const reachedAllocation =
 		!isUnlimited && actualMs !== undefined && usedHours >= meteredLimit;
 	const reachedHardCap =
 		hardCap !== undefined && actualMs !== undefined && usedHours >= hardCap;
-	// Missing usage data must not count as reaching a zero soft limit,
-	// which is valid and reached by any known usage.
 	const reachedSoftLimit =
 		!isUnlimited &&
 		!reachedAllocation &&
 		actualMs !== undefined &&
 		softLimit !== undefined &&
 		usedHours >= softLimit;
-	// With a hard cap the track spans the hard-cap range and the
-	// allocation falls at an interior marker.
 	const barScale = hardCap ?? meteredLimit;
 	const usagePercentage = isUnlimited
 		? 100
@@ -91,9 +81,6 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		!isUnlimited && softLimit !== undefined && barScale > 0
 			? Math.min((softLimit / barScale) * 100, 100)
 			: undefined;
-	// The fill is a single color for the used range: green below the
-	// soft limit, warning once the soft limit is reached, and red at or
-	// past the allocation.
 	const fillClassName = reachedAllocation
 		? "bg-highlight-red"
 		: reachedSoftLimit
@@ -117,9 +104,6 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		: meteredLimit.toLocaleString("en-US");
 	const limitLabel = hardCap?.toLocaleString("en-US");
 
-	// The license period the usage covers. Shown under the heading so the
-	// bar is not read as a timeline. A missing or unparsable period omits
-	// the dates rather than replacing meaningful usage with an error.
 	const periodStart = usagePeriod ? dayjs(usagePeriod.start) : undefined;
 	const periodEnd = usagePeriod ? dayjs(usagePeriod.end) : undefined;
 	const usagePeriodLabel =
@@ -127,11 +111,6 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 			? `(${periodStart.format("MMMM D, YYYY")} - ${periodEnd.format("MMMM D, YYYY")})`
 			: undefined;
 
-	// Floored at one decimal so the shown percentage never crosses a
-	// threshold the underlying hours have not (99.9%, never a false 100%).
-	// Tenths are computed from integer hour (or tenths-of-hour) inputs so
-	// IEEE-754 ratios such as (29 / 100) * 100 === 28.999... are not
-	// floored to 28.9%.
 	const formatPercent = (numerator: number, denominator: number): string =>
 		(Math.floor((numerator * 1000) / denominator) / 10).toLocaleString("en-US");
 
@@ -150,9 +129,6 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 
 	let tooltip: string;
 	if (reachedAllocation) {
-		// Measured against the allocation even when a hard cap widens the
-		// bar. The zero-limit fallback is unreachable for well-formed
-		// licenses, which report zero-hour allocations as disabled.
 		const usedPercent =
 			meteredLimit > 0 ? formatPercent(usedTenths, meteredLimit * 10) : "100";
 		tooltip = reachedHardCap
