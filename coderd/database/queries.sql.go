@@ -2392,7 +2392,11 @@ SELECT
 	sp.last_active_at AS last_active_at,
 	COALESCE(bnc.total, 0)::bigint AS network_calls_total,
 	COALESCE(bnc.blocked, 0)::bigint AS network_calls_blocked,
-	COALESCE(sr.firewall_active, false) AS firewall_active
+	COALESCE(sr.firewall_active, false) AS firewall_active,
+	COALESCE(sli.linear_issue_ids, ARRAY[]::text[])::text[] AS linear_issue_ids,
+	COALESCE(sli.github_pr_urls, ARRAY[]::text[])::text[] AS github_pr_urls,
+	COALESCE(sr.repos, ARRAY[]::text[])::text[] AS repos,
+	COALESCE(sr.branches, ARRAY[]::text[])::text[] AS branches
 FROM
 	session_page sp
 JOIN
@@ -2404,7 +2408,13 @@ LEFT JOIN LATERAL (
 		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider) AS providers,
 		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model) AS models,
 		ARRAY_AGG(ai.id) AS interception_ids,
-		BOOL_OR(ai.agent_firewall_session_id IS NOT NULL) AS firewall_active
+		BOOL_OR(ai.agent_firewall_session_id IS NOT NULL) AS firewall_active,
+		-- Client-supplied annotations, absent on interceptions that were
+		-- never annotated.
+		ARRAY_AGG(DISTINCT ai.annotations ->> 'repo' ORDER BY ai.annotations ->> 'repo')
+			FILTER (WHERE ai.annotations ->> 'repo' IS NOT NULL) AS repos,
+		ARRAY_AGG(DISTINCT ai.annotations ->> 'branch' ORDER BY ai.annotations ->> 'branch')
+			FILTER (WHERE ai.annotations ->> 'branch' IS NOT NULL) AS branches
 	FROM aibridge_interceptions ai
 	WHERE ai.session_id = sp.session_id
 		AND ai.initiator_id = sp.initiator_id
@@ -2457,6 +2467,26 @@ LEFT JOIN LATERAL (
 		AND afi.agent_firewall_session_id IS NOT NULL
 		AND afi.agent_firewall_sequence_number IS NOT NULL
 ) bnc ON true
+LEFT JOIN LATERAL (
+	-- Flatten the per-interception arrays into one sorted set each for the
+	-- session. Kept out of the sr aggregate because expanding a JSONB array
+	-- there would multiply the rows it aggregates over.
+	SELECT
+		(
+			SELECT ARRAY_AGG(DISTINCT issue ORDER BY issue)
+			FROM aibridge_interceptions li
+			CROSS JOIN LATERAL jsonb_array_elements_text(li.annotations -> 'linear_issue_ids') AS issue
+			WHERE li.id = ANY(sr.interception_ids)
+				AND jsonb_typeof(li.annotations -> 'linear_issue_ids') = 'array'
+		) AS linear_issue_ids,
+		(
+			SELECT ARRAY_AGG(DISTINCT pr ORDER BY pr)
+			FROM aibridge_interceptions pi
+			CROSS JOIN LATERAL jsonb_array_elements_text(pi.annotations -> 'github_pr_urls') AS pr
+			WHERE pi.id = ANY(sr.interception_ids)
+				AND jsonb_typeof(pi.annotations -> 'github_pr_urls') = 'array'
+		) AS github_pr_urls
+) sli ON true
 ORDER BY
 	sp.last_active_at DESC,
 	sp.session_id DESC
@@ -2498,6 +2528,10 @@ type ListAIBridgeSessionsRow struct {
 	NetworkCallsTotal     int64           `db:"network_calls_total" json:"network_calls_total"`
 	NetworkCallsBlocked   int64           `db:"network_calls_blocked" json:"network_calls_blocked"`
 	FirewallActive        bool            `db:"firewall_active" json:"firewall_active"`
+	LinearIssueIds        []string        `db:"linear_issue_ids" json:"linear_issue_ids"`
+	GithubPrUrls          []string        `db:"github_pr_urls" json:"github_pr_urls"`
+	Repos                 []string        `db:"repos" json:"repos"`
+	Branches              []string        `db:"branches" json:"branches"`
 }
 
 // Returns paginated sessions with aggregated metadata, token counts, and
@@ -2556,6 +2590,10 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 			&i.NetworkCallsTotal,
 			&i.NetworkCallsBlocked,
 			&i.FirewallActive,
+			pq.Array(&i.LinearIssueIds),
+			pq.Array(&i.GithubPrUrls),
+			pq.Array(&i.Repos),
+			pq.Array(&i.Branches),
 		); err != nil {
 			return nil, err
 		}

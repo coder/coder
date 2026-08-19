@@ -680,8 +680,14 @@ title: Schemas
 
 ```json
 {
+  "branches": [
+    "string"
+  ],
   "client": "string",
   "ended_at": "2019-08-24T14:15:22Z",
+  "github_pr_urls": [
+    "string"
+  ],
   "id": "string",
   "initiator": {
     "avatar_url": "http://example.com",
@@ -689,6 +695,9 @@ title: Schemas
     "name": "string",
     "username": "string"
   },
+  "linear_issue_ids": [
+    "string"
+  ],
   "metadata": {
     "property1": null,
     "property2": null
@@ -724,6 +733,9 @@ title: Schemas
   "page_ended_at": "2019-08-24T14:15:22Z",
   "page_started_at": "2019-08-24T14:15:22Z",
   "providers": [
+    "string"
+  ],
+  "repos": [
     "string"
   ],
   "started_at": "2019-08-24T14:15:22Z",
@@ -806,10 +818,13 @@ title: Schemas
 
 | Name                   | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                           |
 |------------------------|------------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `branches`             | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `client`               | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `ended_at`             | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `github_pr_urls`       | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `id`                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `initiator`            | [codersdk.MinimalUser](#codersdkminimaluser)                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `linear_issue_ids`     | array of string                                                                          | false    |              | Linear issue ids lists the distinct Linear issue identifiers annotated on the session's interceptions, sorted ascending. Empty when no interception in the session was annotated with one. GitHubPRURLs, Repos, and Branches are the same for their respective annotations.                                                                           |
 | `metadata`             | object                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | » `[any property]`     | any                                                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `models`               | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
@@ -820,6 +835,7 @@ title: Schemas
 | `page_ended_at`        | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `page_started_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `providers`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
+| `repos`                | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `started_at`           | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `threads`              | array of [codersdk.AIBridgeThread](#codersdkaibridgethread)                              | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `token_usage_summary`  | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage)   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |

@@ -137,3 +137,83 @@ export const NetworkSingleDomain: Story = {
 		await expect(canvas.queryByText(/more$/)).toBeNull();
 	},
 };
+
+export const LinearIssues: Story = {
+	args: {
+		...Default.args,
+		linearIssueIds: ["ENG-1234", "ENG-5678"],
+	},
+	play: async ({ canvas }) => {
+		await expect(canvas.getByText("Linear issues")).toBeInTheDocument();
+		const first = canvas.getByRole("link", { name: "ENG-1234" });
+		await expect(first).toHaveAttribute(
+			"href",
+			"https://linear.app/codercom/issue/ENG-1234",
+		);
+		await expect(first).toHaveAttribute("target", "_blank");
+		first.focus();
+		await expect(first).toHaveFocus();
+		await expect(
+			canvas.getByRole("link", { name: "ENG-5678" }),
+		).toHaveAttribute("href", "https://linear.app/codercom/issue/ENG-5678");
+	},
+};
+
+// No annotated issues: the row is omitted entirely.
+export const NoLinearIssues: Story = {
+	args: {
+		...Default.args,
+		linearIssueIds: [],
+	},
+	play: async ({ canvas }) => {
+		await expect(canvas.queryByText("Linear issues")).toBeNull();
+	},
+};
+
+export const WorkContext: Story = {
+	args: {
+		...Default.args,
+		linearIssueIds: ["ENG-1234"],
+		repos: ["coder/coder"],
+		branches: ["main", "scott/x/annotations"],
+		githubPrUrls: [
+			"https://github.com/coder/coder/pull/28299",
+			"https://github.com/coder/coder/pull/28300",
+		],
+	},
+	play: async ({ canvas }) => {
+		await expect(canvas.getByText("Repository")).toBeInTheDocument();
+		await expect(canvas.getByText("coder/coder")).toBeInTheDocument();
+		await expect(canvas.getByText("Branch")).toBeInTheDocument();
+		await expect(canvas.getByText("main")).toBeInTheDocument();
+		await expect(canvas.getByText("scott/x/annotations")).toBeInTheDocument();
+
+		await expect(canvas.getByText("Pull requests")).toBeInTheDocument();
+		const pr = canvas.getByRole("link", { name: "coder/coder#28299" });
+		await expect(pr).toHaveAttribute(
+			"href",
+			"https://github.com/coder/coder/pull/28299",
+		);
+		await expect(pr).toHaveAttribute("target", "_blank");
+		await expect(
+			canvas.getByRole("link", { name: "coder/coder#28300" }),
+		).toBeInTheDocument();
+	},
+};
+
+// No annotations at all: none of the work context rows render.
+export const NoWorkContext: Story = {
+	args: {
+		...Default.args,
+		linearIssueIds: [],
+		repos: [],
+		branches: [],
+		githubPrUrls: [],
+	},
+	play: async ({ canvas }) => {
+		await expect(canvas.queryByText("Linear issues")).toBeNull();
+		await expect(canvas.queryByText("Repository")).toBeNull();
+		await expect(canvas.queryByText("Branch")).toBeNull();
+		await expect(canvas.queryByText("Pull requests")).toBeNull();
+	},
+};

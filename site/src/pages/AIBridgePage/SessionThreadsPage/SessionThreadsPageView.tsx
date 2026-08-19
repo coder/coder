@@ -126,6 +126,10 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 									totalCount: session.network_domain_count ?? 1,
 								}
 							}
+							linearIssueIds={session.linear_issue_ids}
+							githubPrUrls={session.github_pr_urls}
+							repos={session.repos}
+							branches={session.branches}
 						/>
 					)}
 				</aside>

@@ -15835,6 +15835,12 @@ const docTemplate = `{
         "codersdk.AIBridgeSessionThreadsResponse": {
             "type": "object",
             "properties": {
+                "branches": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "client": {
                     "type": "string"
                 },
@@ -15842,11 +15848,24 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "github_pr_urls": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "id": {
                     "type": "string"
                 },
                 "initiator": {
                     "$ref": "#/definitions/codersdk.MinimalUser"
+                },
+                "linear_issue_ids": {
+                    "description": "LinearIssueIDs lists the distinct Linear issue identifiers annotated on\nthe session's interceptions, sorted ascending. Empty when no interception\nin the session was annotated with one. GitHubPRURLs, Repos, and Branches\nare the same for their respective annotations.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "metadata": {
                     "type": "object",
@@ -15892,6 +15911,12 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "providers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "repos": {
                     "type": "array",
                     "items": {
                         "type": "string"

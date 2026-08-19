@@ -1659,6 +1659,47 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Equal(t, "sk-a...efgh", res.Threads[0].CredentialHint)
 	})
 
+	t.Run("AnnotationSummary", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		issues := func(ids ...string) *[]string { return &ids }
+		prs := func(urls ...string) *[]string { return &urls }
+		repo := "coder/coder"
+		branch := "main"
+
+		for i, annotations := range []database.AIBridgeInterceptionAnnotations{
+			{LinearIssueIDs: issues("ENG-5678"), Repo: &repo, Branch: &branch},
+			// Duplicates across interceptions collapse into one entry.
+			{
+				LinearIssueIDs: issues("ENG-1234", "ENG-5678"),
+				Repo:           &repo,
+				GitHubPRURLs:   prs("https://github.com/coder/coder/pull/28300"),
+			},
+			{},
+		} {
+			startedAt := now.Add(time.Duration(i) * time.Minute)
+			endedAt := startedAt.Add(time.Minute)
+			dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:     firstUser.UserID,
+				Provider:        "anthropic",
+				Model:           "claude-sonnet-5",
+				StartedAt:       startedAt,
+				ClientSessionID: sql.NullString{String: "annotated-session", Valid: true},
+				Annotations:     annotations,
+			}, &endedAt)
+		}
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "annotated-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, []string{"ENG-1234", "ENG-5678"}, res.LinearIssueIDs)
+		require.Equal(t, []string{"https://github.com/coder/coder/pull/28300"}, res.GitHubPRURLs)
+		require.Equal(t, []string{"coder/coder"}, res.Repos)
+		require.Equal(t, []string{"main"}, res.Branches)
+	})
+
 	t.Run("ThreadsWithAgentFirewallCorrelation", func(t *testing.T) {
 		t.Parallel()
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
