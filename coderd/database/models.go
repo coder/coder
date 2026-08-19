@@ -1794,7 +1794,6 @@ const (
 	ConnectionLogFileActionDownload      ConnectionLogFileAction = "download"
 	ConnectionLogFileActionUpload        ConnectionLogFileAction = "upload"
 	ConnectionLogFileActionBidirectional ConnectionLogFileAction = "bidirectional"
-	ConnectionLogFileActionMkdir         ConnectionLogFileAction = "mkdir"
 	ConnectionLogFileActionRemove        ConnectionLogFileAction = "remove"
 	ConnectionLogFileActionRmdir         ConnectionLogFileAction = "rmdir"
 	ConnectionLogFileActionRename        ConnectionLogFileAction = "rename"
@@ -1843,7 +1842,6 @@ func (e ConnectionLogFileAction) Valid() bool {
 	case ConnectionLogFileActionDownload,
 		ConnectionLogFileActionUpload,
 		ConnectionLogFileActionBidirectional,
-		ConnectionLogFileActionMkdir,
 		ConnectionLogFileActionRemove,
 		ConnectionLogFileActionRmdir,
 		ConnectionLogFileActionRename,
@@ -1860,7 +1858,6 @@ func AllConnectionLogFileActionValues() []ConnectionLogFileAction {
 		ConnectionLogFileActionDownload,
 		ConnectionLogFileActionUpload,
 		ConnectionLogFileActionBidirectional,
-		ConnectionLogFileActionMkdir,
 		ConnectionLogFileActionRemove,
 		ConnectionLogFileActionRmdir,
 		ConnectionLogFileActionRename,

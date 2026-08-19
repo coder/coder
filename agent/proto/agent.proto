@@ -412,13 +412,12 @@ message FileTransferOperation {
 		DOWNLOAD = 1;
 		UPLOAD = 2;
 		BIDIRECTIONAL = 3;
-		MKDIR = 4;
-		REMOVE = 5;
-		RMDIR = 6;
-		RENAME = 7;
-		SYMLINK = 8;
-		SETATTR = 9;
-		HARDLINK = 10;
+		REMOVE = 4;
+		RMDIR = 5;
+		RENAME = 6;
+		SYMLINK = 7;
+		SETATTR = 8;
+		HARDLINK = 9;
 	}
 
 	bytes connection_id = 1;

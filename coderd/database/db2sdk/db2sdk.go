@@ -1041,8 +1041,6 @@ func ConnectionLogFileActionFromAgentProtoFileTransferAction(action agentproto.F
 		return database.ConnectionLogFileActionUpload, nil
 	case agentproto.FileTransferOperation_BIDIRECTIONAL:
 		return database.ConnectionLogFileActionBidirectional, nil
-	case agentproto.FileTransferOperation_MKDIR:
-		return database.ConnectionLogFileActionMkdir, nil
 	case agentproto.FileTransferOperation_REMOVE:
 		return database.ConnectionLogFileActionRemove, nil
 	case agentproto.FileTransferOperation_RMDIR:

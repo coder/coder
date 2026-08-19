@@ -27,7 +27,6 @@ CREATE TYPE connection_log_file_action AS ENUM (
 	'download',
 	'upload',
 	'bidirectional',
-	'mkdir',
 	'remove',
 	'rmdir',
 	'rename',
