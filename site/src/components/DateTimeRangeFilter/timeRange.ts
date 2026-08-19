@@ -74,18 +74,18 @@ export const parseTimeExpression = (
 // as a frozen timestamp.
 const NOW_TOLERANCE_MS = 60 * 1000;
 
-/** Whether a bound is at (or very near) the current moment. */
+/** Whether a bound is at or near the current moment. */
 export const isLiveNow = (date: Date, now: Date): boolean =>
 	Math.abs(date.getTime() - now.getTime()) < NOW_TOLERANCE_MS;
 
 const MONTH_DAY = "MMM D";
 
 /**
- * Summarizes a resolved range the way the filter trigger displays it:
- * a single day, a range ending today, a range within one month, or a
- * full from-to range. A live "now" end bound reads as "Now" rather than
- * "Today". A partial range (only one bound) reads as "Custom". Callers
- * render "Last 24 hours" for the default range before falling back to this.
+ * Summarizes a resolved range the way the filter trigger displays it: a
+ * single day, a range ending today, a range within one month, or a full
+ * from-to range. A live "now" end bound reads as "Now" rather than "Today".
+ * A partial range (one bound) reads as "Custom". Callers render "Last 24
+ * hours" for the default range before falling back to this.
  */
 export const formatTriggerLabel = (range: TimeRange, now: Date): string => {
 	if (!range.startedAfter || !range.startedBefore) {

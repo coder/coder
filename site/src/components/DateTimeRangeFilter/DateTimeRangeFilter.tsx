@@ -55,10 +55,10 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 		value.startedAfter.getTime() === defaultValue.startedAfter?.getTime() &&
 		value.startedBefore.getTime() === defaultValue.startedBefore?.getTime();
 
-	// Text state is kept separate from the committed value so the user can
-	// adjust the expressions freely before applying; invalid text never
-	// leaks out. If this control grows more fields or validation rules,
-	// consider moving to formik and yup instead of hand-rolling state.
+	// Keep text state separate from the committed value so the user can edit
+	// freely before applying; invalid text never leaks out. If this control
+	// grows more fields or validation rules, consider formik and yup instead
+	// of hand-rolling state.
 	const [fromField, setFromField] = useState<FieldState>({
 		text: "",
 		touched: false,
@@ -68,8 +68,8 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 		touched: false,
 	});
 
-	// Hidden datetime-local inputs back the calendar buttons, so the free
-	// text grammar ("now", clock-only, ISO) and the native picker coexist.
+	// Hidden datetime-local inputs back the calendar buttons so the free-text
+	// grammar and the native picker coexist.
 	const fromPickerRef = useRef<HTMLInputElement>(null);
 	const toPickerRef = useRef<HTMLInputElement>(null);
 
@@ -77,9 +77,9 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 		if (!input) {
 			return;
 		}
-		// Seed the picker from the current text so it opens on the right
-		// moment; fall back to now for empty or non-absolute expressions. The
-		// native picker speaks "YYYY-MM-DDTHH:mm" in browser-local time.
+		// Seed the picker from the current text so it opens on the right moment;
+		// fall back to now for empty or non-absolute expressions. The picker
+		// uses "YYYY-MM-DDTHH:mm" in browser-local time.
 		const parsed = parseTimeExpression(seed, currentTime);
 		input.value = dayjs(parsed ?? currentTime).format("YYYY-MM-DDTHH:mm");
 		input.showPicker();
@@ -101,9 +101,8 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 
 	const handleOpenChange = useEffectEvent((next: boolean) => {
 		if (next) {
-			// Boundaries at (or very near) the current moment read better
-			// as "now" than as a frozen timestamp when the popover reopens.
-			// A missing bound stays empty so the popover reflects the query.
+			// Show a bound at (or near) the current moment as "now" rather than a
+			// frozen timestamp. A missing bound stays empty to reflect the query.
 			const toFieldText = (date: Date | undefined): string => {
 				if (!date) {
 					return "";
@@ -125,11 +124,10 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 	const parsedFrom = parseTimeExpression(fromField.text, currentTime);
 	const parsedTo = parseTimeExpression(toField.text, currentTime);
 
-	// Underspecified expressions resolve to absolute local timestamps when
-	// the input loses focus, so the user sees exactly what will be applied.
-	// "now" is left as-is because it is already unambiguous. Out-of-range
-	// values clamp against the other boundary so the committed range is
-	// always valid.
+	// On blur, resolve underspecified expressions to absolute local timestamps
+	// so the user sees exactly what will apply. Leave "now" as-is; it is
+	// already unambiguous. Clamp out-of-range values against the other bound
+	// so the committed range stays valid.
 	const normalizeFrom = useEffectEvent(() => {
 		setFromField((current) => {
 			if (isNowExpression(current.text) || parsedFrom === null) {
@@ -169,9 +167,8 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 			? "From must be before To"
 			: null;
 
-	// Apply is only useful when something actually changed; untouched
-	// fields resolve back to the committed range. Both bounds are required
-	// so the popover always commits a full range; a one-sided range is a
+	// Enable Apply only when something changed and both bounds are valid, so
+	// the popover always commits a full range. A one-sided range stays a
 	// deliberate free-text-only escape hatch.
 	const applyDisabled =
 		!(fromField.touched || toField.touched) ||
@@ -237,8 +234,8 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 								tabIndex={-1}
 								aria-hidden="true"
 								className="pointer-events-none absolute h-0 w-0 opacity-0"
-								// Chrome and WebKit both fire input per pick; change only
-								// fires on dismissal, which is too late for live feedback.
+								// Chrome and WebKit fire input per pick; change fires only
+								// on dismissal, which is too late for live feedback.
 								onInput={(event) => pickFrom(event.currentTarget.value)}
 							/>
 						</div>

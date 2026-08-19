@@ -303,7 +303,7 @@ export const PartialRangeShowsCustom: Story = {
 
 export const NowButtonFillsTo: Story = {
 	args: {
-		// A frozen To bound so the [now] button has something to change.
+		// A frozen To bound gives the [now] button something to change.
 		value: singleDayValue,
 		onChange: fn(),
 	},

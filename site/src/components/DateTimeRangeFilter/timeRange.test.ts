@@ -123,7 +123,7 @@ describe("formatTriggerLabel", () => {
 				now,
 			),
 		).toBe("Aug 11 - Now");
-		// Within the one-minute tolerance still reads as Now.
+		// Within the one-minute tolerance it still reads as Now.
 		expect(
 			formatTriggerLabel(
 				{
