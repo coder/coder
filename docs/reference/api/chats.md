@@ -97,7 +97,8 @@ Experimental: this endpoint is subject to change.
         "mime_type": "string",
         "name": "string",
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+        "size_bytes": 0
       }
     ],
     "has_unread": true,
@@ -203,6 +204,7 @@ Status Code **200**
 | `»» name`                 | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» organization_id`      | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» owner_id`             | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» size_bytes`           | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `» has_unread`            | boolean                                                                            | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
 | `» id`                    | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» labels`                | object                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
@@ -376,7 +378,8 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
         }
       ],
       "has_unread": true,
@@ -471,7 +474,8 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
     }
   ],
   "has_unread": true,
@@ -517,9 +521,10 @@ Experimental: this endpoint is subject to change.
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                   |
-|--------|--------------------------------------------------------------|-------------|------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Chat](schemas.md#codersdkchat) |
+| Status | Meaning                                                                 | Description                  | Schema                                           |
+|--------|-------------------------------------------------------------------------|------------------------------|--------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                      | [codersdk.Chat](schemas.md#codersdkchat)         |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 256 KiB | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -556,9 +561,10 @@ Experimental: this endpoint is subject to change.
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                                                       |
-|--------|--------------------------------------------------------------|-------------|------------------------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.UploadChatFileResponse](schemas.md#codersdkuploadchatfileresponse) |
+| Status | Meaning                                                                 | Description                 | Schema                                                                       |
+|--------|-------------------------------------------------------------------------|-----------------------------|------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                     | [codersdk.UploadChatFileResponse](schemas.md#codersdkuploadchatfileresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 10 MiB | [codersdk.Response](schemas.md#codersdkresponse)                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -723,7 +729,8 @@ Experimental: this endpoint is subject to change.
         "mime_type": "string",
         "name": "string",
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+        "size_bytes": 0
       }
     ],
     "has_unread": true,
@@ -872,7 +879,8 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
         }
       ],
       "has_unread": true,
@@ -967,7 +975,8 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
     }
   ],
   "has_unread": true,
@@ -1153,7 +1162,8 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
         }
       ],
       "has_unread": true,
@@ -1248,7 +1258,8 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
     }
   ],
   "has_unread": true,
@@ -1484,7 +1495,8 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
         }
       ],
       "has_unread": true,
@@ -1579,7 +1591,8 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
     }
   ],
   "has_unread": true,
@@ -2501,7 +2514,8 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
         }
       ],
       "has_unread": true,
@@ -2596,7 +2610,8 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
     }
   ],
   "has_unread": true,
@@ -3105,7 +3120,8 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
         }
       ],
       "has_unread": true,
@@ -3200,7 +3216,8 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
     }
   ],
   "has_unread": true,

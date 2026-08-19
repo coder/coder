@@ -41,6 +41,7 @@ import {
 } from "./AgentChatPageView";
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
+import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 
@@ -86,9 +87,6 @@ const buildEditing = (
 	editingFileBlocks: [] as readonly ChatMessagePart[],
 	handleEditUserMessage: fn(),
 	handleCancelHistoryEdit: fn(),
-	editingQueuedMessageID: null,
-	handleStartQueueEdit: fn(),
-	handleCancelQueueEdit: fn(),
 	handleSendFromInput: fn(),
 	handleContentChange: fn(),
 	...overrides,
@@ -1118,22 +1116,6 @@ export const NotFoundSidebarCollapsed: Story = {
 // Transcript scrolling stories
 // ---------------------------------------------------------------------------
 
-/** Generate a long conversation so the scroll container overflows. */
-const buildLongConversation = (count: number): TypesGen.ChatMessage[] => {
-	const messages: TypesGen.ChatMessage[] = [];
-	for (let i = 1; i <= count; i++) {
-		const role: TypesGen.ChatMessageRole = i % 2 === 1 ? "user" : "assistant";
-		const text =
-			role === "user"
-				? `Question ${Math.ceil(i / 2)}: Can you explain concept ${Math.ceil(i / 2)} in detail?`
-				: `Sure! Here is a detailed explanation of concept ${Math.floor(i / 2)}. `.repeat(
-						4,
-					);
-		messages.push(buildMessage(i, role, text));
-	}
-	return messages;
-};
-
 const scrollStoryDecorators: Decorator[] = [
 	(Story) => (
 		<div
@@ -1224,10 +1206,12 @@ export const UserPromptsRenderOnce: Story = {
 };
 
 const startEdgeStore = buildStoreWithMessages(
-	buildLongConversation(40).slice(1),
+	buildLongConversation(AGENT_ID, 40).slice(1),
 );
 
-const streamCompletionStore = buildStoreWithMessages(buildLongConversation(40));
+const streamCompletionStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 40),
+);
 
 let releaseStartEdgeFetch: (() => void) | undefined;
 let startEdgeFetchGate: Promise<void>;
@@ -1253,7 +1237,9 @@ export const ReachingTheStartLoadsEarlierMessages: Story = {
 		/>
 	),
 	play: async ({ canvasElement }) => {
-		startEdgeStore.replaceMessages(buildLongConversation(40).slice(1));
+		startEdgeStore.replaceMessages(
+			buildLongConversation(AGENT_ID, 40).slice(1),
+		);
 		startEdgeStore.setChatStatus("waiting");
 		startEdgeFetchSpy.mockClear();
 		const canvas = within(canvasElement);
@@ -1298,7 +1284,7 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={streamCompletionStore} />,
 	play: async ({ canvasElement }) => {
-		streamCompletionStore.replaceMessages(buildLongConversation(40));
+		streamCompletionStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
 		streamCompletionStore.setChatStatus("waiting");
 		const canvas = within(canvasElement);
 		const viewport = getViewport(canvas);
@@ -1349,6 +1335,69 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 
 		// The viewport never jumped back to the oldest message.
 		expect(oldestAboveViewport()).toBe(true);
+	},
+};
+
+const thinkingShiftStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 40),
+);
+
+/**
+ * The Thinking indicator must hand off to streaming text without collapsing
+ * the live row for a frame. The anchored prompt must not move.
+ */
+export const ThinkingHandoffKeepsPromptPosition: Story = {
+	parameters: { pixel: { exclude: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={thinkingShiftStore} />,
+	play: async ({ canvasElement }) => {
+		thinkingShiftStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
+		thinkingShiftStore.setChatStatus("waiting");
+		const canvas = within(canvasElement);
+		const viewport = getViewport(canvas);
+		await waitForScrollOverflow(viewport);
+		await settleScroller();
+		scrollTo(viewport, viewport.scrollHeight);
+		await settleScroller();
+
+		// Begin a turn: the prompt is appended and the chat goes running, so
+		// the live row shows the Thinking indicator with no stream output yet.
+		thinkingShiftStore.batch(() => {
+			thinkingShiftStore.upsertDurableMessages([
+				buildMessage(41, "user", "Follow-up question."),
+			]);
+			thinkingShiftStore.setChatStatus("running");
+		});
+		await canvas.findByTestId("chat-message-live-assistant");
+		await canvas.findByTestId("live-activity-slot");
+		await settleScroller();
+
+		const prompt = canvas.getByTestId("chat-message-message:41");
+		const liveRow = canvas.getByTestId("chat-message-live-assistant");
+		const promptTop = () =>
+			prompt.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+		// Capture the baseline while the Thinking indicator is shown: the bug
+		// shrank the live row below this for one frame when the first chunk
+		// arrived. Guard against a degenerate unpainted baseline so the height
+		// assertion below cannot silently become a tautology.
+		const anchoredTop = promptTop();
+		const thinkingHeight = liveRow.getBoundingClientRect().height;
+		expect(thinkingHeight).toBeGreaterThan(0);
+
+		// The first stream chunk replaces the Thinking indicator with text. The
+		// live row must never shrink below its Thinking-indicator height, so the
+		// anchored prompt and everything above it must stay put. Position uses a
+		// tolerance because rect tops are fractional; a 24px drop is 6x it.
+		thinkingShiftStore.applyMessageParts([
+			{ type: "text", text: "Here is the start of the answer." },
+		]);
+		for (let i = 0; i < 6; i++) {
+			expect(liveRow.getBoundingClientRect().height).toBeGreaterThanOrEqual(
+				thinkingHeight,
+			);
+			expect(Math.abs(promptTop() - anchoredTop)).toBeLessThan(4);
+			await new Promise<void>((r) => requestAnimationFrame(() => r()));
+		}
 	},
 };
 
@@ -1441,7 +1490,7 @@ const retryFetchSpy = fn();
 
 const RetryPaginationStory: FC = () => {
 	const store = useRef(
-		buildStoreWithMessages(buildLongConversation(40)),
+		buildStoreWithMessages(buildLongConversation(AGENT_ID, 40)),
 	).current;
 	const [hasError, setHasError] = useState(true);
 	const [isFetching, setIsFetching] = useState(false);

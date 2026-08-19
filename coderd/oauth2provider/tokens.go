@@ -288,7 +288,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	// The secret must belong to the app identified by the request's
 	// client_id, which is otherwise unauthenticated at this point (it is
 	// parsed straight from the request with no verification). Without this
-	// check, a valid secret for one app could mint a token attributed to a
+	// check, a valid secret for one app could issue a token attributed to a
 	// different app.
 	if dbSecret.AppID != app.ID {
 		return codersdk.OAuth2TokenResponse{}, errBadSecret

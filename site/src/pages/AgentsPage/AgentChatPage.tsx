@@ -509,12 +509,10 @@ export function useConversationEditingState(deps: {
 		attachments?: readonly PendingAttachment[],
 		editedMessageID?: number,
 	) => Promise<void>;
-	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	inputValueRef: React.RefObject<string>;
 }) {
-	const { chatID, onSend, onDeleteQueuedMessage, chatInputRef, inputValueRef } =
-		deps;
+	const { chatID, onSend, chatInputRef, inputValueRef } = deps;
 	const draftStorageKey = chatID
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
@@ -600,53 +598,6 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// -- Queue editing state --
-	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
-		number | null
-	>(null);
-	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] =
-		useState<ParsedDraft | null>(null);
-
-	const handleStartQueueEdit = (
-		id: number,
-		text: string,
-		fileBlocks: readonly ChatMessagePart[],
-	) => {
-		if (editingQueuedMessageID === null) {
-			const currentEditorState = draftStorageKey
-				? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
-				: undefined;
-			setDraftBeforeQueueEdit({
-				text: inputValueRef.current,
-				editorState: currentEditorState,
-			});
-		}
-		setEditingQueuedMessageID(id);
-		setDraftState({
-			editorInitialValue: text,
-			initialEditorState: undefined,
-		});
-		serializedEditorStateRef.current = undefined;
-		setRemountKey((k) => k + 1);
-		inputValueRef.current = text;
-		setEditingFileBlocks(fileBlocks);
-	};
-
-	const handleCancelQueueEdit = () => {
-		const savedText = draftBeforeQueueEdit?.text ?? "";
-		const savedState = draftBeforeQueueEdit?.editorState;
-		setDraftState({
-			editorInitialValue: savedText,
-			initialEditorState: savedState,
-		});
-		serializedEditorStateRef.current = savedState;
-		setRemountKey((k) => k + 1);
-		inputValueRef.current = savedText;
-		setEditingQueuedMessageID(null);
-		setDraftBeforeQueueEdit(null);
-		setEditingFileBlocks([]);
-	};
-
 	// Clears the composer for an in-flight history edit and
 	// returns a rollback function that restores the editing draft
 	// if the send fails.
@@ -675,10 +626,7 @@ export function useConversationEditingState(deps: {
 	};
 
 	// Clears all input and editing state after a successful send.
-	const finalizeSuccessfulSend = (
-		editedMessageID: number | undefined,
-		queueEditID: number | null,
-	) => {
+	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
 		chatInputRef.current?.clear();
 		if (!isMobileViewport()) {
 			chatInputRef.current?.focus();
@@ -692,23 +640,15 @@ export function useConversationEditingState(deps: {
 			setDraftBeforeHistoryEdit(null);
 			setEditingFileBlocks([]);
 		}
-		if (queueEditID !== null) {
-			setEditingQueuedMessageID(null);
-			setDraftBeforeQueueEdit(null);
-			setEditingFileBlocks([]);
-			void onDeleteQueuedMessage(queueEditID);
-		}
 	};
 
-	// Wraps the parent onSend to clear local input/editing state
-	// and handle queue-edit deletion.
+	// Wraps the parent onSend to clear local input/editing state.
 	const handleSendFromInput = async (
 		message: string,
 		attachments?: readonly PendingAttachment[],
 	) => {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
-		const queueEditID = editingQueuedMessageID;
 		const sendPromise = onSend(message, attachments, editedMessageID);
 
 		// For history edits, clear input immediately and prepare
@@ -728,7 +668,7 @@ export function useConversationEditingState(deps: {
 			throw error;
 		}
 
-		finalizeSuccessfulSend(editedMessageID, queueEditID);
+		finalizeSuccessfulSend(editedMessageID);
 	};
 
 	const handleContentChange = (
@@ -739,11 +679,9 @@ export function useConversationEditingState(deps: {
 		inputValueRef.current = content;
 		serializedEditorStateRef.current = serializedEditorState;
 
-		// Don't overwrite the persisted draft while editing a
-		// history or queued message, the original draft (possibly
-		// containing file-reference chips) is saved in React state
-		// and should survive a cancel.
-		if (editingMessageId !== null || editingQueuedMessageID !== null) {
+		// Don't overwrite the persisted draft while editing a history message.
+		// The original draft is saved in React state and should survive a cancel.
+		if (editingMessageId !== null) {
 			return;
 		}
 
@@ -786,9 +724,6 @@ export function useConversationEditingState(deps: {
 		editingFileBlocks,
 		handleEditUserMessage,
 		handleCancelHistoryEdit,
-		editingQueuedMessageID,
-		handleStartQueueEdit,
-		handleCancelQueueEdit,
 		handleSendFromInput,
 		handleContentChange,
 		handleLoadingDraftChange,
@@ -1501,7 +1436,6 @@ const AgentChatPage: FC = () => {
 	const editing = useConversationEditingState({
 		chatID: agentId,
 		onSend: handleSend,
-		onDeleteQueuedMessage: handleDeleteQueuedMessage,
 		chatInputRef,
 		inputValueRef,
 	});
@@ -1690,12 +1624,11 @@ const AgentChatPage: FC = () => {
 
 		// "/compact" on its own (no attachments or file references)
 		// requests a manual context compaction instead of sending a
-		// message. Only new sends are intercepted; history and queued
-		// edits keep their original meaning, and a personal or workspace
+		// message. Only new sends are intercepted; history edits keep their
+		// original meaning, and a personal or workspace
 		// skill named "compact" takes precedence so the command cannot shadow it.
 		const isExactCompactSubmission =
 			editedMessageID === undefined &&
-			editing.editingQueuedMessageID === null &&
 			content.length === 1 &&
 			content[0].type === "text" &&
 			content[0].text?.trim() ===
@@ -1705,14 +1638,6 @@ const AgentChatPage: FC = () => {
 				"Checking whether /compact is available. Try again in a moment.",
 			);
 			throw new CompactCommandPendingError();
-		}
-
-		// Sends and /compact are an explicit ask to be at the live edge,
-		// even one that appends no visible prompt. History edits scroll
-		// only after the mutation succeeds, so a rejected edit cannot
-		// pull a reader of older history to the live edge.
-		if (editedMessageID === undefined) {
-			scrollToEnd({ behavior: "smooth" });
 		}
 
 		if (isExactCompactSubmission && compactCommandResolution === "available") {
