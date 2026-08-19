@@ -70,9 +70,16 @@ CREATE FUNCTION record_usage_events_publish_outcome() RETURNS trigger
 BEGIN
     DELETE FROM usage_events_publish_failures WHERE event_id = NEW.id;
     IF NEW.failure_message IS NOT NULL THEN
+        -- A repeated rejection (after an operator re-armed the event by
+        -- clearing published_at) records the newest timestamp.
         INSERT INTO usage_events_publish_rejections (event_id, published_at)
         VALUES (NEW.id, NEW.published_at)
-        ON CONFLICT (event_id) DO NOTHING;
+        ON CONFLICT (event_id) DO UPDATE SET published_at = EXCLUDED.published_at;
+    ELSE
+        -- A successful publish clears any rejection recorded by an
+        -- earlier attempt, e.g. after an operator re-armed the event and
+        -- tallyman accepted the retry.
+        DELETE FROM usage_events_publish_rejections WHERE event_id = NEW.id;
     END IF;
     RETURN NULL;
 END;

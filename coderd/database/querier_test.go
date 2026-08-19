@@ -11737,6 +11737,55 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			require.WithinDuration(t, tc.want.EarliestRecentRejectionAt, row.EarliestRecentRejectionAt, time.Second)
 		})
 	}
+
+	// An operator can re-arm a permanently rejected event by clearing
+	// published_at (see the re-queue procedure documented on the usage
+	// generator). The outcome trigger must track the retry's result: a
+	// success clears the stale rejection row, and a repeated rejection
+	// records the newest timestamp.
+	t.Run("RearmedEventUpdatesRejection", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		seed(ctx, t, db, []usagePublishSeedEvent{
+			{id: "1", createdAt: now.Add(-3 * time.Hour), publishedAt: now.Add(-2 * time.Hour), failureMessage: "permanently rejected"},
+		})
+
+		rearm := func() {
+			_, err := sqlDB.ExecContext(ctx, `UPDATE usage_events SET published_at = NULL, publish_started_at = NULL, failure_message = NULL WHERE id = '1'`)
+			require.NoError(t, err)
+		}
+
+		// A repeated rejection after a re-arm records the newest timestamp.
+		rearm()
+		err := db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
+			Now:             now.Add(-1 * time.Hour),
+			IDs:             []string{"1"},
+			FailureMessages: []string{"permanently rejected"},
+			SetPublishedAts: []bool{true},
+		})
+		require.NoError(t, err)
+		//nolint:gocritic // Unit test.
+		row, err := db.GetUsagePublishStatus(dbauthz.AsSystemRestricted(ctx), params)
+		require.NoError(t, err)
+		require.WithinDuration(t, now.Add(-1*time.Hour), row.EarliestRecentRejectionAt, time.Second)
+
+		// A successful retry after a re-arm clears the rejection.
+		rearm()
+		err = db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
+			Now:             now,
+			IDs:             []string{"1"},
+			FailureMessages: []string{""},
+			SetPublishedAts: []bool{true},
+		})
+		require.NoError(t, err)
+		//nolint:gocritic // Unit test.
+		row, err = db.GetUsagePublishStatus(dbauthz.AsSystemRestricted(ctx), params)
+		require.NoError(t, err)
+		require.True(t, row.EarliestRecentRejectionAt.IsZero(), "the successful retry should clear the rejection")
+		require.WithinDuration(t, now, row.LastPublishedAt, time.Second)
+	})
 }
 
 func TestListTasks(t *testing.T) {
