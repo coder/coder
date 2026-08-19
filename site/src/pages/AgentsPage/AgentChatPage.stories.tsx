@@ -46,6 +46,7 @@ import {
 } from "#/testHelpers/storybook";
 import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
+import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.
@@ -3160,6 +3161,102 @@ const switchedChatMessage: TypesGen.ChatMessage = {
 	chat_id: SWITCHED_CHAT_ID,
 	role: "assistant",
 	content: [{ type: "text", text: "Current chat message" }],
+};
+
+export const SendingFromHistoryDoesNotSnapToBottom: Story = {
+	parameters: {
+		pixel: { exclude: true },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Long chat",
+				status: "waiting",
+			},
+			{
+				messages: buildLongConversation(CHAT_ID, 40),
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	decorators: [
+		(Story) => (
+			<div
+				style={{ height: "600px", display: "flex", flexDirection: "column" }}
+			>
+				<Story />
+			</div>
+		),
+	],
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		let releaseSend: (() => void) | undefined;
+		const sendGate = new Promise<void>((resolve) => {
+			releaseSend = resolve;
+		});
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockImplementation(async () => {
+			await sendGate;
+			return {
+				queued: false,
+				message: {
+					...MockChatMessage,
+					id: 41,
+					chat_id: CHAT_ID,
+					role: "user",
+					content: [{ type: "text", text: "Follow-up question." }],
+				},
+			};
+		});
+
+		// Rather than sampling native smooth-scroll progress (which depends on
+		// headless-browser scheduling and reduced-motion overrides), intercept the
+		// MessageScroller's own scroll calls. The eager scrollToEnd we regressed
+		// on reaches the viewport as a `scrollTo({ behavior: "smooth" })`.
+		const scrollToMock = spyOn(Element.prototype, "scrollTo");
+		try {
+			const editor = await canvas.findByTestId("chat-message-input");
+			await userEvent.click(editor);
+			await userEvent.type(editor, "Follow-up question.");
+			const viewport = canvas.getByRole("region", { name: "Messages" });
+			// Scroll the reader into history before sending, the repro starting
+			// point.
+			viewport.scrollTop = 0;
+
+			await userEvent.keyboard("{Enter}");
+			await waitFor(() => {
+				expect(sendSpy).toHaveBeenCalledTimes(1);
+			});
+
+			// While the send POST is still pending, the scroller must not be told
+			// to move anywhere: the new user row it anchors to does not exist yet.
+			// The gated mock keeps the POST in-flight until this runs, so a single
+			// assertion is deterministic without polling animation frames.
+			expect(scrollToMock).not.toHaveBeenCalled();
+
+			// Resolve the send and let the turn settle. The scroller re-anchors
+			// to the new prompt with a single non-smooth scroll.
+			releaseSend?.();
+			await canvas.findByTestId("chat-message-message:41");
+			await waitFor(() => {
+				expect(scrollToMock).toHaveBeenCalledTimes(1);
+				// The anchor re-position is a non-smooth scroll; a smooth call here
+				// would be the eager scrollToEnd regression resurfacing.
+				expect(scrollToMock.mock.calls[0]?.[0]).toMatchObject({
+					behavior: "auto",
+				});
+			});
+		} finally {
+			scrollToMock.mockRestore();
+		}
+	},
 };
 
 export const SendResponseAfterChatSwitch: Story = {

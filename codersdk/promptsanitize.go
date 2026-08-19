@@ -1,4 +1,4 @@
-package chatd
+package codersdk
 
 import (
 	"strings"
@@ -9,6 +9,9 @@ import (
 // hide prompt-injection content from human reviewers, normalizes line
 // endings, collapses excessive blank lines, and trims surrounding
 // whitespace.
+//
+// It lives in codersdk so API consumers, such as terraform-provider-coderd,
+// can compare prompt values the same way the server stores them.
 //
 // The stripped codepoints are truly invisible and have no legitimate
 // use in prompt text. An explicit codepoint list is used rather than

@@ -215,6 +215,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Chat"
                         }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 256 KiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -323,6 +329,12 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UploadChatFileResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 10 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -2454,7 +2466,7 @@ const docTemplate = `{
                         "description": "OK"
                     },
                     "413": {
-                        "description": "Request Entity Too Large",
+                        "description": "Request body exceeds 64 KiB",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -3251,6 +3263,12 @@ const docTemplate = `{
                         "description": "Returns newly created file",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UploadResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 100 MiB, or a .zip archive exceeds it once expanded",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -11526,7 +11544,7 @@ const docTemplate = `{
                         }
                     },
                     "413": {
-                        "description": "Request Entity Too Large",
+                        "description": "Request body exceeds 8 MiB",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
@@ -12398,6 +12416,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
+                    },
+                    "413": {
+                        "description": "Agent log storage limit exceeded",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -12510,6 +12534,12 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "413": {
+                        "description": "Request body exceeds 64 KiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -18965,11 +18995,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status_code": {
-                    "description": "StatusCode is the HTTP status code of the request.",
+                    "description": "StatusCode is the HTTP status code or tunnel authorization outcome.",
                     "type": "integer"
                 },
                 "user": {
-                    "description": "User is omitted if the connection event was from an unauthenticated user.",
+                    "description": "User is omitted if the connection event was unauthenticated.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.User"
@@ -24305,7 +24335,8 @@ const docTemplate = `{
                 "user_ai_budget_override",
                 "chat",
                 "user_secret",
-                "user_skill"
+                "user_skill",
+                "chat_instruction_settings"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -24343,7 +24374,8 @@ const docTemplate = `{
                 "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret",
-                "ResourceTypeUserSkill"
+                "ResourceTypeUserSkill",
+                "ResourceTypeChatInstructionSettings"
             ]
         },
         "codersdk.Response": {

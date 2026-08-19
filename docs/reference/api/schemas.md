@@ -4514,12 +4514,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type                           | Required | Restrictions | Description                                                               |
-|----------------|--------------------------------|----------|--------------|---------------------------------------------------------------------------|
-| `slug_or_port` | string                         | false    |              |                                                                           |
-| `status_code`  | integer                        | false    |              | Status code is the HTTP status code of the request.                       |
-| `user`         | [codersdk.User](#codersdkuser) | false    |              | User is omitted if the connection event was from an unauthenticated user. |
-| `user_agent`   | string                         | false    |              |                                                                           |
+| Name           | Type                           | Required | Restrictions | Description                                                          |
+|----------------|--------------------------------|----------|--------------|----------------------------------------------------------------------|
+| `slug_or_port` | string                         | false    |              |                                                                      |
+| `status_code`  | integer                        | false    |              | Status code is the HTTP status code or tunnel authorization outcome. |
+| `user`         | [codersdk.User](#codersdkuser) | false    |              | User is omitted if the connection event was unauthenticated.         |
+| `user_agent`   | string                         | false    |              |                                                                      |
 
 ## codersdk.ConnectionType
 
@@ -11542,9 +11542,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_instruction_settings`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
