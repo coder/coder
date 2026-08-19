@@ -397,15 +397,26 @@ func TestLogin(t *testing.T) {
 
 	t.Run("InitialUserTrialFlagsNonInteractiveEnv", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		var gotTrial codersdk.LicensorTrialRequest
+		trialCalled := false
+		client := coderdtest.New(t, &coderdtest.Options{
+			TrialGenerator: func(_ context.Context, req codersdk.LicensorTrialRequest) error {
+				trialCalled = true
+				gotTrial = req
+				return nil
+			},
+		})
 		inv, _ := clitest.New(
 			t, "login", client.URL.String(),
 			"--first-user-username", coderdtest.FirstUserParams.Username,
 			"--first-user-full-name", coderdtest.FirstUserParams.Name,
 			"--first-user-email", coderdtest.FirstUserParams.Email,
 			"--first-user-password", coderdtest.FirstUserParams.Password,
-			"--first-user-trial",
 		)
+		// Enabling the trial purely through the environment must suppress
+		// the interactive "Start a trial?" prompt and still collect the
+		// trial info from the environment.
+		inv.Environ.Set("CODER_FIRST_USER_TRIAL", "true")
 		inv.Environ.Set("CODER_FIRST_USER_TRIAL_FIRST_NAME", coderdtest.TrialUserParams.FirstName)
 		inv.Environ.Set("CODER_FIRST_USER_TRIAL_LAST_NAME", coderdtest.TrialUserParams.LastName)
 		inv.Environ.Set("CODER_FIRST_USER_TRIAL_PHONE_NUMBER", coderdtest.TrialUserParams.PhoneNumber)
@@ -416,6 +427,17 @@ func TestLogin(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
+		// The trial must actually be provisioned, proving the env toggle was
+		// honored and the prompt was skipped.
+		require.True(t, trialCalled)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, gotTrial.Email)
+		assert.Equal(t, coderdtest.TrialUserParams.FirstName, gotTrial.FirstName)
+		assert.Equal(t, coderdtest.TrialUserParams.LastName, gotTrial.LastName)
+		assert.Equal(t, coderdtest.TrialUserParams.PhoneNumber, gotTrial.PhoneNumber)
+		assert.Equal(t, coderdtest.TrialUserParams.JobTitle, gotTrial.JobTitle)
+		assert.Equal(t, coderdtest.TrialUserParams.CompanyName, gotTrial.CompanyName)
+		assert.Equal(t, coderdtest.TrialUserParams.Country, gotTrial.Country)
+		assert.Equal(t, coderdtest.TrialUserParams.Developers, gotTrial.Developers)
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    coderdtest.FirstUserParams.Email,
 			Password: coderdtest.FirstUserParams.Password,
