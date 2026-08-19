@@ -77,7 +77,7 @@ member can spend $200 USD and the group has a total spend limit of $2,000 USD.
 
 Budget values behave as follows:
 
-- An empty field means no limit. The field displays `unlimited`.
+- An empty field means no budget is set. The field displays `no budget`.
 - `$0 USD` blocks every request routed via AI Gateway from members whose
   effective group is this group.
 - The maximum is `$1,000,000 USD` per member per budget period.

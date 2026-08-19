@@ -42,7 +42,14 @@ export const WithAIBudget: Story = {
 			1000,
 		);
 		const helper = canvas.getByText(/month, based on/i);
-		await expect(helper).toHaveTextContent("$7,000/month, based on 7 members.");
+		await expect(helper).toHaveTextContent(
+			"This group's limit is $7,000/month, based on 7 members.",
+		);
+		await expect(
+			canvas.getByRole("link", {
+				name: /learn how budgets apply across groups/i,
+			}),
+		).toBeInTheDocument();
 	},
 };
 
@@ -55,11 +62,23 @@ export const AIBudgetUncapped: Story = {
 		const canvas = within(canvasElement);
 		await expect(
 			canvas.getByLabelText("Monthly limit per member"),
-		).toHaveAttribute("placeholder", "unlimited");
-		await expect(canvas.getByText("unlimited budget")).toBeInTheDocument();
+		).toHaveAttribute("placeholder", "no budget");
 		await expect(
-			canvas.getByText("Members in this group have no spending cap."),
+			canvas.getByText("This group doesn't have a budget set."),
 		).toBeInTheDocument();
+		await expect(
+			canvas.getByText(/Members will fall back to another group's limit/),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", {
+				name: /learn how budgets apply across groups/i,
+			}),
+		).toHaveAttribute(
+			"href",
+			expect.stringContaining(
+				"/ai-coder/ai-gateway/cost-controls#effective-group-resolution",
+			),
+		);
 	},
 };
 
@@ -74,9 +93,14 @@ export const AIBudgetDisabled: Story = {
 		await expect(canvas.getByLabelText("Monthly limit per member")).toHaveValue(
 			0,
 		);
-		await expect(canvas.getByText("no budget")).toBeInTheDocument();
+		const summary = canvas.getByText(/This group's limit has been set to/);
+		await expect(summary).toHaveTextContent(
+			"This group's limit has been set to $0.",
+		);
 		await expect(
-			canvas.getByText("A $0 limit disables AI access for this group."),
+			canvas.getByText(
+				/A \$0 limit blocks AI access for members that aren't in another group/,
+			),
 		).toBeInTheDocument();
 	},
 };
@@ -91,7 +115,9 @@ export const AIBudgetDecimal: Story = {
 		const canvas = within(canvasElement);
 		// Cents are kept when the amount is not a whole dollar.
 		const helper = canvas.getByText(/month, based on/i);
-		await expect(helper).toHaveTextContent("$99.99/month, based on 1 member.");
+		await expect(helper).toHaveTextContent(
+			"This group's limit is $99.99/month, based on 1 member.",
+		);
 	},
 };
 

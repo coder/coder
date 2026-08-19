@@ -2250,7 +2250,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
         }
       ],
       "has_unread": true,
@@ -2280,6 +2281,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
@@ -2344,7 +2346,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
     }
   ],
   "has_unread": true,
@@ -2374,6 +2377,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
@@ -2416,6 +2420,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `parent_chat_id`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `pin_order`             | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
 | `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `queued_for_capacity`   | boolean                                                         | false    |              | Queued for capacity reports that the chat is waiting for a concurrent agent slot. Single-chat reads derive it; list responses leave it false.                                                                                                                              |
 | `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `shared`                | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2790,6 +2795,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 
+## codersdk.ChatFileDownloadURLResponse
+
+```json
+{
+  "expires_at": "2019-08-24T14:15:22Z",
+  "mime_type": "string",
+  "name": "string",
+  "sha256": "string",
+  "size_bytes": 0,
+  "url": "http://example.com"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+|--------------|---------|----------|--------------|-------------|
+| `expires_at` | string  | false    |              |             |
+| `mime_type`  | string  | false    |              |             |
+| `name`       | string  | false    |              |             |
+| `sha256`     | string  | false    |              |             |
+| `size_bytes` | integer | false    |              |             |
+| `url`        | string  | false    |              |             |
+
 ## codersdk.ChatFileMetadata
 
 ```json
@@ -2799,20 +2828,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "mime_type": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "size_bytes": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description |
-|-------------------|--------|----------|--------------|-------------|
-| `created_at`      | string | false    |              |             |
-| `id`              | string | false    |              |             |
-| `mime_type`       | string | false    |              |             |
-| `name`            | string | false    |              |             |
-| `organization_id` | string | false    |              |             |
-| `owner_id`        | string | false    |              |             |
+| Name              | Type    | Required | Restrictions | Description |
+|-------------------|---------|----------|--------------|-------------|
+| `created_at`      | string  | false    |              |             |
+| `id`              | string  | false    |              |             |
+| `mime_type`       | string  | false    |              |             |
+| `name`            | string  | false    |              |             |
+| `organization_id` | string  | false    |              |             |
+| `owner_id`        | string  | false    |              |             |
+| `size_bytes`      | integer | false    |              |             |
 
 ## codersdk.ChatGroup
 
@@ -4173,7 +4204,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "mime_type": "string",
         "name": "string",
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+        "size_bytes": 0
       }
     ],
     "has_unread": true,
@@ -4203,6 +4235,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
+    "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
@@ -4481,12 +4514,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type                           | Required | Restrictions | Description                                                               |
-|----------------|--------------------------------|----------|--------------|---------------------------------------------------------------------------|
-| `slug_or_port` | string                         | false    |              |                                                                           |
-| `status_code`  | integer                        | false    |              | Status code is the HTTP status code of the request.                       |
-| `user`         | [codersdk.User](#codersdkuser) | false    |              | User is omitted if the connection event was from an unauthenticated user. |
-| `user_agent`   | string                         | false    |              |                                                                           |
+| Name           | Type                           | Required | Restrictions | Description                                                          |
+|----------------|--------------------------------|----------|--------------|----------------------------------------------------------------------|
+| `slug_or_port` | string                         | false    |              |                                                                      |
+| `status_code`  | integer                        | false    |              | Status code is the HTTP status code or tunnel authorization outcome. |
+| `user`         | [codersdk.User](#codersdkuser) | false    |              | User is omitted if the connection event was unauthenticated.         |
+| `user_agent`   | string                         | false    |              |                                                                      |
 
 ## codersdk.ConnectionType
 
@@ -5576,9 +5609,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                      |
-|-----------------------------------------------------------------------------------------------|
-| `nats_ca`, `oidc_convert`, `tailnet_resume`, `workspace_apps_api_key`, `workspace_apps_token` |
+| Value(s)                                                                                                          |
+|-------------------------------------------------------------------------------------------------------------------|
+| `chat_files_token`, `nats_ca`, `oidc_convert`, `tailnet_resume`, `workspace_apps_api_key`, `workspace_apps_token` |
 
 ## codersdk.CustomNotificationContent
 
@@ -6096,6 +6129,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "mcp_tool_deny_regex": "string",
           "mcp_url": "string",
           "no_refresh": true,
+          "redirect_url": "string",
           "regex": "string",
           "revoke_url": "string",
           "scopes": [
@@ -6723,6 +6757,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "mcp_tool_deny_regex": "string",
         "mcp_url": "string",
         "no_refresh": true,
+        "redirect_url": "string",
         "regex": "string",
         "revoke_url": "string",
         "scopes": [
@@ -7539,6 +7574,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "features": {
     "property1": {
       "actual": 0,
+      "actual_ms": 0,
       "enabled": true,
       "entitlement": "entitled",
       "hard_limit": 0,
@@ -7552,6 +7588,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "property2": {
       "actual": 0,
+      "actual_ms": 0,
       "enabled": true,
       "entitlement": "entitled",
       "hard_limit": 0,
@@ -7597,9 +7634,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                  |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                     |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -7724,6 +7761,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "mcp_tool_deny_regex": "string",
   "mcp_url": "string",
   "no_refresh": true,
+  "redirect_url": "string",
   "regex": "string",
   "revoke_url": "string",
   "scopes": [
@@ -7737,23 +7775,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                               | Type            | Required | Restrictions | Description                                                                                                                                                 |
-|------------------------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `api_base_url`                     | string          | false    |              | Api base URL is the base URL for provider REST API calls (e.g., "https://api.github.com" for GitHub). Derived from defaults when not explicitly configured. |
-| `app_install_url`                  | string          | false    |              |                                                                                                                                                             |
-| `app_installations_url`            | string          | false    |              |                                                                                                                                                             |
-| `auth_url`                         | string          | false    |              |                                                                                                                                                             |
-| `client_id`                        | string          | false    |              |                                                                                                                                                             |
-| `code_challenge_methods_supported` | array of string | false    |              | Code challenge methods supported lists the PKCE code challenge methods The only one supported by Coder is "S256".                                           |
-| `device_code_url`                  | string          | false    |              |                                                                                                                                                             |
-| `device_flow`                      | boolean         | false    |              |                                                                                                                                                             |
-| `display_icon`                     | string          | false    |              | Display icon is a URL to an icon to display in the UI.                                                                                                      |
-| `display_name`                     | string          | false    |              | Display name is shown in the UI to identify the auth config.                                                                                                |
-| `id`                               | string          | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided.                                                                     |
-| `mcp_tool_allow_regex`             | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                |
-| `mcp_tool_deny_regex`              | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                |
-| `mcp_url`                          | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                |
-| `no_refresh`                       | boolean         | false    |              |                                                                                                                                                             |
+| Name                               | Type            | Required | Restrictions | Description                                                                                                                                                                                   |
+|------------------------------------|-----------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api_base_url`                     | string          | false    |              | Api base URL is the base URL for provider REST API calls (e.g., "https://api.github.com" for GitHub). Derived from defaults when not explicitly configured.                                   |
+| `app_install_url`                  | string          | false    |              |                                                                                                                                                                                               |
+| `app_installations_url`            | string          | false    |              |                                                                                                                                                                                               |
+| `auth_url`                         | string          | false    |              |                                                                                                                                                                                               |
+| `client_id`                        | string          | false    |              |                                                                                                                                                                                               |
+| `code_challenge_methods_supported` | array of string | false    |              | Code challenge methods supported lists the PKCE code challenge methods The only one supported by Coder is "S256".                                                                             |
+| `device_code_url`                  | string          | false    |              |                                                                                                                                                                                               |
+| `device_flow`                      | boolean         | false    |              |                                                                                                                                                                                               |
+| `display_icon`                     | string          | false    |              | Display icon is a URL to an icon to display in the UI.                                                                                                                                        |
+| `display_name`                     | string          | false    |              | Display name is shown in the UI to identify the auth config.                                                                                                                                  |
+| `id`                               | string          | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided.                                                                                                       |
+| `mcp_tool_allow_regex`             | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                  |
+| `mcp_tool_deny_regex`              | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                  |
+| `mcp_url`                          | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                  |
+| `no_refresh`                       | boolean         | false    |              |                                                                                                                                                                                               |
+| `redirect_url`                     | string          | false    |              | Redirect URL is optional, defaulting to 'ACCESS_URL'. Only useful in niche situations where the OAuth callback domain is different from the ACCESS_URL domain. The path component is ignored. |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
 Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex.|
 |`revoke_url`|string|false|||
@@ -7837,6 +7876,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "actual": 0,
+  "actual_ms": 0,
   "enabled": true,
   "entitlement": "entitled",
   "hard_limit": 0,
@@ -7852,18 +7892,16 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name          | Type                                         | Required | Restrictions | Description                                                                                                                                                            |
-|---------------|----------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `actual`      | integer                                      | false    |              |                                                                                                                                                                        |
-| `enabled`     | boolean                                      | false    |              |                                                                                                                                                                        |
-| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |                                                                                                                                                                        |
-| `hard_limit`  | integer                                      | false    |              | Hard limit is the enforcement threshold that accompanies Limit for features whose license carries it. See SoftLimit for the set of features that use these thresholds. |
-| `limit`       | integer                                      | false    |              |                                                                                                                                                                        |
-|`soft_limit`|integer|false||Soft limit is the advisory warning threshold that accompanies Limit for features whose license carries it. For these features, Limit carries the purchased allocation.
-Only certain features set this field: - FeatureAgentRuntimeHours|
-|`usage_period`|[codersdk.UsagePeriod](#codersdkusageperiod)|false||Usage period denotes that the usage is a counter that accumulates over this period (and most likely resets with the issuance of the next license).
-These dates are determined from the license that this entitlement comes from, see enterprise/coderd/license/license.go.
-Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgentRuntimeHours|
+| Name           | Type                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+|----------------|----------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `actual`       | integer                                      | false    |              | Actual is the usage measured against Limit, when known: a point-in-time count for most features, or usage accumulated over UsagePeriod for features that set one. Its unit matches Limit's; FeatureAgentRuntimeHours reports whole hours floored from the recorded milliseconds, with the precise value available in ActualMs. FeatureAgentRuntimeHours usage can trail by roughly one hour because the current hour is not emitted, plus the entitlement refresh interval. |
+| `actual_ms`    | integer                                      | false    |              | Actual ms is the precise usage backing Actual, in milliseconds, for features measured in time. It has the same freshness as Actual. Only FeatureAgentRuntimeHours sets this field.                                                                                                                                                                                                                                                                                          |
+| `enabled`      | boolean                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `entitlement`  | [codersdk.Entitlement](#codersdkentitlement) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `hard_limit`   | integer                                      | false    |              | Hard limit is the enforcement threshold that accompanies Limit for features whose license carries it. See SoftLimit for the set of features that use these thresholds.                                                                                                                                                                                                                                                                                                      |
+| `limit`        | integer                                      | false    |              | Limit is the maximum value the license grants for the feature, in the feature's own unit. For FeatureAgentRuntimeHours, an enabled feature with Limit omitted means the license grants unlimited runtime hours.                                                                                                                                                                                                                                                             |
+| `soft_limit`   | integer                                      | false    |              | Soft limit is the advisory warning threshold that accompanies Limit for features whose license carries it. For these features, Limit carries the purchased allocation; an unlimited allocation has no thresholds, so SoftLimit is omitted alongside the omitted Limit. Only FeatureAgentRuntimeHours sets this field.                                                                                                                                                       |
+| `usage_period` | [codersdk.UsagePeriod](#codersdkusageperiod) | false    |              | Usage period denotes that the usage is a counter that accumulates over this period (and most likely resets with the issuance of the next license). These dates are determined from the license that this entitlement comes from, see enterprise/coderd/license/license.go. Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this field.                                                                                                                       |
 
 ## codersdk.FriendlyDiagnostic
 
@@ -9615,7 +9653,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 | `organization_field`                 | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `organization_mapping`               | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `redirect_allowed_hosts`             | array of string                  | false    |              | Redirect allowed hosts is an allowlist of hostnames that may be used as the host of the OIDC redirect_uri. When non-empty, the redirect_uri is constructed from the incoming request's Host header (validated against this list) instead of from AccessURL. Every listed host must also be registered as a valid redirect URI in the OIDC provider. This setting is mutually exclusive with RedirectURL: if RedirectURL is set, this allowlist is ignored. |
-| `redirect_url`                       | [serpent.URL](#serpenturl)       | false    |              | Redirect URL is optional, defaulting to 'ACCESS_URL'. Only useful in niche situations where the OIDC callback domain is different from the ACCESS_URL domain.                                                                                                                                                                                                                                                                                              |
+| `redirect_url`                       | [serpent.URL](#serpenturl)       | false    |              | Redirect URL is optional, defaulting to 'ACCESS_URL'. Only useful in niche situations where the OIDC callback domain is different from the ACCESS_URL domain. The path component is ignored.                                                                                                                                                                                                                                                               |
 | `scopes`                             | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `sign_in_text`                       | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `signups_disabled_text`              | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -11504,9 +11542,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_instruction_settings`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -19348,6 +19386,7 @@ None
       "mcp_tool_deny_regex": "string",
       "mcp_url": "string",
       "no_refresh": true,
+      "redirect_url": "string",
       "regex": "string",
       "revoke_url": "string",
       "scopes": [

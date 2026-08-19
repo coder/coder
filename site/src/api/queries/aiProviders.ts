@@ -10,6 +10,14 @@ import type {
 
 const aiProvidersListKey = ["ai", "providers"] as const;
 
+const aiModelPricesKey = ["ai", "model-prices"] as const;
+
+export const aiModelPrices = (provider: string, model: string) =>
+	queryOptions({
+		queryKey: [...aiModelPricesKey, provider, model] as const,
+		queryFn: () => API.experimental.getAIModelPrices({ provider, model }),
+	});
+
 export const aiProviderKeyFor = (idOrName: string) =>
 	[...aiProvidersListKey, idOrName] as const;
 

@@ -340,15 +340,15 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 		// a client confidential when it has no secret and no way to be issued
 		// one.
 		//
-		// The first conjunct only rejects an update that actually changes the
-		// auth method, which lets a legacy row whose two columns disagree still
-		// manage itself. IsPublic is the reader for the stored column so an
-		// unrecognized value is treated as confidential here exactly as it is at
-		// the token endpoint.
+		// Requiring authMethodChanged means an update that leaves the auth
+		// method alone is never rejected, so a legacy row whose two columns
+		// disagree can still manage itself. IsPublic is the reader for the
+		// stored column so an unrecognized value is treated as confidential
+		// here exactly as it is at the token endpoint.
 		storedMethod := codersdk.OAuth2TokenEndpointAuthMethod(existingApp.TokenEndpointAuthMethod.String)
-		requestedClientType := req.DetermineClientType()
-		if req.TokenEndpointAuthMethod != storedMethod &&
-			(requestedClientType == codersdk.OAuth2ClientTypePublic) != existingApp.IsPublic() {
+		authMethodChanged := req.TokenEndpointAuthMethod != storedMethod
+		clientTypeChanged := (req.DetermineClientType() == codersdk.OAuth2ClientTypePublic) != existingApp.IsPublic()
+		if authMethodChanged && clientTypeChanged {
 			logger.Warn(ctx, "rejected oauth2 client type change",
 				slog.F("client_id", clientID.String()),
 				slog.F("stored_token_endpoint_auth_method", existingApp.TokenEndpointAuthMethod.String),

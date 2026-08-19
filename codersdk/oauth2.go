@@ -271,8 +271,8 @@ const (
 )
 
 // AllOAuth2TokenEndpointAuthMethods returns every token endpoint auth method
-// registration accepts. Valid() derives from it, so what registration
-// accepts cannot drift from what this function reports.
+// registration accepts. Valid() is defined in terms of it, so what
+// registration accepts cannot drift from what this function reports.
 //
 // See AdvertisedOAuth2TokenEndpointAuthMethods for the set discovery
 // publishes, which is bounded by what the token endpoint honors.

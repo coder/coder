@@ -25,6 +25,9 @@ Each process exports metrics for the traffic that it handles:
 
 Refer to [provider configuration](./providers.md) for the provider reload lifecycle these metrics describe.
 
+The `provider` label is the provider instance name.
+Some metrics use the explicit `provider_name` or `provider_type` labels for clarity.
+
 | Metric                                                             | Type      | Labels                                                                     | Purpose                                                                                                                                            |
 |--------------------------------------------------------------------|-----------|----------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
 | `coder_ai_gateway_interceptions_total`                             | counter   | `client`, `initiator_id`, `method`, `model`, `provider`, `route`, `status` | Intercepted requests.                                                                                                                              |
@@ -195,12 +198,13 @@ curl -X GET "https://coder.example.com/api/v2/ai-gateway/sessions" \
 Available query filters:
 
 - `client` - Filter by client name.
-  <details>
-  <summary>Possible <code>client</code> values</summary>
 
   > [!NOTE]
   > Client classification is done on best effort basis using the `User-Agent` header;
-  not all clients send these headers in an easily-identifiable manner.
+  > not all clients send these headers in an easily-identifiable manner.
+
+  <br /><details>
+  <summary>Possible <code>client</code> values</summary>
 
   - `Claude Code`
   - `Codex`
@@ -214,7 +218,8 @@ Available query filters:
   - `OpenCode`
   - `Unknown`
 
-  </details><br>
+  </details>
+
 - `initiator` - Filter by user ID or username
 - `provider` - Filter by AI provider (e.g., `openai`, `anthropic`)
 - `model` - Filter by model name

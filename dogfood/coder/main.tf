@@ -328,7 +328,7 @@ module "git-clone" {
 module "personalize" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/personalize/coder"
-  version  = "1.0.32"
+  version  = "1.0.33"
   agent_id = coder_agent.dev.id
 }
 

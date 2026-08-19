@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/testutil"
@@ -138,6 +139,71 @@ func TestPrometheus(t *testing.T) {
 		require.True(t, ok, "coderd_api_requests_processed_total metric not found")
 		require.Equal(t, "STATIC", reqProcessed["path"])
 		require.Equal(t, "GET", reqProcessed["method"])
+	})
+
+	// An oversized body is counted per route so that a limit set too tight for a
+	// legitimate payload is visible without waiting for a user report. The
+	// counter is keyed on the response status, so it covers handlers that bound
+	// their own bodies as well as those going through httpapi.Read, and the
+	// reason label separates a body size rejection from the other reasons coderd
+	// answers 413.
+	t.Run("RequestTooLarge", func(t *testing.T) {
+		t.Parallel()
+		reg := prometheus.NewRegistry()
+		promMW := httpmw.Prometheus(reg, httpmw.NewWSMetrics(reg))
+
+		r := chi.NewRouter()
+		r.Use(httpmw.HTTPRoute)
+		r.Use(promMW)
+		// A body size rejection records the limit that tripped.
+		r.Post("/api/v2/users/{user}/secrets/batch", func(w http.ResponseWriter, r *http.Request) {
+			httpapi.RecordRequestBodyLimit(r.Context(), 8<<20)
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+		})
+		// Agent log storage overflow answers 413 for a reason that has nothing
+		// to do with the request body, and must not be attributed to one.
+		r.Post("/api/v2/workspaceagents/me/logs", func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+		})
+		r.Post("/api/v2/users/{user}/secrets", func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+		})
+
+		for _, path := range []string{
+			"/api/v2/users/john/secrets/batch",
+			"/api/v2/workspaceagents/me/logs",
+			// A route that does not reject must not be counted.
+			"/api/v2/users/john/secrets",
+		} {
+			sw := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
+			r.ServeHTTP(sw, httptest.NewRequest("POST", path, nil))
+		}
+
+		metrics, err := reg.Gather()
+		require.NoError(t, err)
+
+		counts := map[string]float64{}
+		var found bool
+		for _, family := range metrics {
+			if family.GetName() != "coderd_api_requests_too_large_total" {
+				continue
+			}
+			found = true
+			for _, metric := range family.GetMetric() {
+				labels := map[string]string{}
+				for _, pair := range metric.GetLabel() {
+					labels[pair.GetName()] = pair.GetValue()
+				}
+				require.Equal(t, "POST", labels["method"])
+				counts[labels["path"]+" "+labels["reason"]] = metric.GetCounter().GetValue()
+			}
+		}
+		require.True(t, found, "coderd_api_requests_too_large_total metric not found")
+
+		require.Equal(t, map[string]float64{
+			"/api/v2/users/{user}/secrets/batch request_body": 1,
+			"/api/v2/workspaceagents/me/logs other":           1,
+		}, counts)
 	})
 
 	t.Run("UnknownRoute", func(t *testing.T) {
