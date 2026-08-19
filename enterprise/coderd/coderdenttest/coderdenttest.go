@@ -542,9 +542,9 @@ func MustClaimPrebuild(
 ) codersdk.Workspace {
 	t.Helper()
 
-	startSchedule := new(string)
+	var startSchedule string
 	if len(autostartSchedule) > 0 {
-		*startSchedule = autostartSchedule[0]
+		startSchedule = autostartSchedule[0]
 	}
 
 	workspaceName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
@@ -552,7 +552,7 @@ func MustClaimPrebuild(
 		TemplateVersionID:       version.ID,
 		Name:                    workspaceName,
 		TemplateVersionPresetID: presetID,
-		AutostartSchedule:       startSchedule,
+		AutostartSchedule:       &startSchedule,
 	})
 	require.NoError(t, err)
 	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
