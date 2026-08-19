@@ -262,7 +262,7 @@ coder_ai_gateway_providers_last_reload_timestamp_seconds 0
 # HELP coder_ai_gateway_providers_last_reload_success_timestamp_seconds Unix timestamp of the last provider reload that successfully refreshed the pool. A gap against the providers_last_reload_timestamp_seconds gauge means the loop is firing but the refresh function is failing.
 # TYPE coder_ai_gateway_providers_last_reload_success_timestamp_seconds gauge
 coder_ai_gateway_providers_last_reload_success_timestamp_seconds 0
-# HELP coder_ai_gateway_proxy_provider_info One series per configured AI provider. Value is always 1; the status label (enabled, disabled, error) carries the alertable signal.
+# HELP coder_ai_gateway_proxy_provider_info One series per configured AI provider. Value is always 1; the status label (enabled, disabled, error, proxy_excluded) carries the alertable signal.
 # TYPE coder_ai_gateway_proxy_provider_info gauge
 coder_ai_gateway_proxy_provider_info{provider_name="",provider_type="",status=""} 0
 # HELP coder_ai_gateway_proxy_providers_last_reload_timestamp_seconds Unix timestamp of the last provider reload attempt, success or failure.
