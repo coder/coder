@@ -1268,6 +1268,12 @@
 											"state": ["premium"]
 										},
 										{
+											"title": "Junie",
+											"description": "Configure Junie CLI to route requests through AI Gateway with a custom model profile.",
+											"path": "./ai-coder/ai-gateway/clients/junie.md",
+											"state": ["premium"]
+										},
+										{
 											"title": "Zed",
 											"description": "Configure the Zed editor's language models to route requests through AI Gateway.",
 											"path": "./ai-coder/ai-gateway/clients/zed.md",
