@@ -9,6 +9,9 @@ import (
 var baseLabels = []string{"provider", "model"}
 
 const (
+	// PrometheusMetricPrefix is the canonical prefix applied to every metric
+	// defined in this package. The registration wiring wraps the registerer
+	// with it, so the metric options below omit it.
 	PrometheusMetricPrefix = "coder_ai_gateway_"
 
 	InterceptionCountStatusFailed    = "failed"
