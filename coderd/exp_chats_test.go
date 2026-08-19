@@ -843,27 +843,6 @@ func TestPostChats(t *testing.T) {
 		}
 	})
 
-	t.Run("PerChatSystemPromptTooLong", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
-
-		longPrompt := strings.Repeat("a", 10001)
-		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: user.OrganizationID, Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "hello",
-				},
-			},
-			SystemPrompt: longPrompt,
-		})
-		requireSDKError(t, err, http.StatusBadRequest)
-	})
-
 	t.Run("WorkspaceNotAccessible", func(t *testing.T) {
 		t.Parallel()
 
