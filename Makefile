@@ -1584,10 +1584,13 @@ test-js: site/node_modules/.installed
 	pnpm test:ci
 .PHONY: test-js
 
+# Recycle Chromium between shards to avoid long-lived browser disconnects.
 test-storybook: site/node_modules/.installed
 	cd site/
 	pnpm playwright:install
-	pnpm exec vitest run --project=storybook
+	for shard in 1 2 3 4; do \
+		pnpm exec vitest run --project=storybook --shard=$$shard/4 || exit $$?; \
+	done
 .PHONY: test-storybook
 
 # sqlc-cloud-is-setup will fail if no SQLc auth token is set. Use this as a
