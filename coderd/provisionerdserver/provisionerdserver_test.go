@@ -3608,7 +3608,8 @@ func TestCompleteJob(t *testing.T) {
 					},
 					isTask:           true,
 					expectTaskStatus: database.TaskStatusPaused,
-					expectAppID:      uuid.NullUUID{UUID: sidebarAppID, Valid: true},
+					// Stop builds don't create agents or apps.
+					expectAppID:      uuid.NullUUID{},
 					expectHasAiTask:  true,
 					expectUsageEvent: false,
 				},
