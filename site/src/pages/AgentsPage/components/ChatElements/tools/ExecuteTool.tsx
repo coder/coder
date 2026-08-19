@@ -86,7 +86,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	return (
 		<ToolCall.Root
 			key={`${shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
-			className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5"
+			className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start rounded-md bg-surface-primary font-sans font-normal text-xs leading-5"
 			status={status}
 			isError={isError}
 			errorMessage={errorText || "Command failed"}
