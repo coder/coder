@@ -30,7 +30,6 @@ import {
 	classifyThreadSearch,
 	matchesNetworkCallSearch,
 	splitMatchSegments,
-	windowAroundFirstMatch,
 } from "./sessionSearch";
 import { ToolCallTable } from "./ToolCallTable";
 
@@ -38,11 +37,13 @@ interface ExpandableTextProps {
 	maxHeight: number;
 	text: string;
 	className?: string;
-	/**
-	 * Matches render in bold. If the first match is below the collapse, the
-	 * preview shows a window around it instead.
-	 */
+	/** Matches render in bold. */
 	highlight?: string;
+	/**
+	 * True when the query matched this text. A match reveals the full text so
+	 * the reason it surfaced is visible. Explicit user toggles still win.
+	 */
+	expandToMatch?: boolean;
 }
 
 const ExpandableText: FC<ExpandableTextProps> = ({
@@ -50,70 +51,35 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 	text,
 	className,
 	highlight,
+	expandToMatch = false,
 }) => {
 	const contentRef = useRef<HTMLParagraphElement>(null);
-	// The observer writes the measured height tagged with the text and query
-	// it measured, so render can ignore a stale reading after either changes.
-	const [measurement, setMeasurement] = useState<{
-		height: number;
-		text: string;
-		highlight: string;
-	} | null>(null);
-	const [isExpanded, setIsExpanded] = useState(false);
-	const windowedRef = useRef(false);
+	// Only user toggles are stored, so expansion follows the search (FE8).
+	const [userToggled, setUserToggled] = useState<boolean | null>(null);
+	const isExpanded = userToggled ?? expandToMatch;
 
-	// Measure only while the full text is shown. A windowed paragraph is
-	// shorter, so its reads are ignored.
+	// Measure the full height so the collapse toggle knows whether the text
+	// exceeds maxHeight. The paragraph is never windowed, so one number
+	// suffices.
+	const [fullHeight, setFullHeight] = useState(0);
 	useEffect(() => {
 		const el = contentRef.current;
 		if (!el) return;
 
 		const observer = new ResizeObserver(() => {
-			if (!windowedRef.current) {
-				setMeasurement({
-					height: el.scrollHeight,
-					text,
-					highlight: highlight ?? "",
-				});
-			}
+			setFullHeight(el.scrollHeight);
 		});
-
 		observer.observe(el);
 
 		return () => observer.disconnect();
-	}, [text, highlight]);
+	}, []);
 
-	// Use the reading only if it was taken for the current text and query.
-	const fullScrollHeight =
-		measurement &&
-		measurement.text === text &&
-		measurement.highlight === (highlight ?? "")
-			? measurement.height
-			: 0;
+	const isExpandable = fullHeight > maxHeight;
 
-	const isExpandable = fullScrollHeight > maxHeight;
-
-	// Derive the window in render; it is a pure function of the fresh height.
-	const matchWindow =
-		highlight && isExpandable && !isExpanded
-			? windowAroundFirstMatch(
-					text,
-					highlight,
-					Math.max(1, Math.floor((maxHeight * text.length) / fullScrollHeight)),
-				)
-			: null;
-
-	// Refs can only be written in effects, not during render.
-	useEffect(() => {
-		windowedRef.current = matchWindow !== null;
-	}, [matchWindow]);
-	const visibleText = matchWindow
-		? text.slice(matchWindow.start, matchWindow.end)
-		: text;
-	const segments = splitMatchSegments(visibleText, highlight ?? "");
-	// Render plain text (no spans) when nothing is highlighted or windowed so
-	// the paragraph keeps a single text node for consumers that read it.
-	const plain = !matchWindow && segments.length === 1 && !segments[0].match;
+	const segments = splitMatchSegments(text, highlight ?? "");
+	// Render plain text (no spans) when nothing is highlighted so the
+	// paragraph keeps a single text node for consumers that read it.
+	const plain = segments.length === 1 && !segments[0].match;
 
 	return (
 		<div className="relative">
@@ -128,9 +94,8 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 				}
 				className={cn(className, "overflow-hidden", isExpanded && "pb-9")}
 			>
-				{matchWindow && matchWindow.start > 0 ? "… " : null}
 				{plain
-					? visibleText
+					? text
 					: segments.map((segment, i) =>
 							segment.match ? (
 								<strong key={i} className="text-content-primary font-semibold">
@@ -140,7 +105,6 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 								<span key={i}>{segment.text}</span>
 							),
 						)}
-				{matchWindow && matchWindow.end < text.length ? " …" : null}
 			</p>
 			{isExpandable && (
 				<div
@@ -154,7 +118,7 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 						size="sm"
 						variant="outline"
 						className="bg-surface-primary shadow-sm"
-						onClick={() => setIsExpanded((v) => !v)}
+						onClick={() => setUserToggled((prev) => !(prev ?? expandToMatch))}
 					>
 						{isExpanded ? "Collapse" : "Show more"}
 					</Button>
@@ -368,6 +332,10 @@ interface ThreadItemProps {
 	thread: AIBridgeThread;
 	initiator: MinimalUser;
 	/**
+	 * True when the query matched this thread's prompt.
+	 */
+	searchPromptMatch: boolean;
+	/**
 	 * True when the query matched a tool name or input in this thread.
 	 */
 	searchToolMatch: boolean;
@@ -377,7 +345,7 @@ interface ThreadItemProps {
 	 */
 	matchedToolCallIds?: Set<string>;
 	/**
-	 * The active query, passed to the prompt for bolding and windowing.
+	 * The active query, passed to the prompt for bolding.
 	 */
 	highlight: string;
 }
@@ -385,6 +353,7 @@ interface ThreadItemProps {
 const ThreadItem: FC<ThreadItemProps> = ({
 	thread,
 	initiator,
+	searchPromptMatch,
 	searchToolMatch,
 	matchedToolCallIds,
 	highlight,
@@ -460,6 +429,7 @@ const ThreadItem: FC<ThreadItemProps> = ({
 								maxHeight={200}
 								text={thread.prompt}
 								highlight={highlight}
+								expandToMatch={searchPromptMatch}
 								className="text-sm text-content-secondary font-normal bg-surface-secondary leading-relaxed rounded-md p-3 m-0 text-pretty"
 							/>
 						</>
@@ -713,6 +683,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 								key={thread.id}
 								thread={thread}
 								initiator={initiator}
+								searchPromptMatch={classification.promptMatch}
 								searchToolMatch={classification.toolCallIds.size > 0}
 								matchedToolCallIds={classification.toolCallIds}
 								highlight={searchQuery}

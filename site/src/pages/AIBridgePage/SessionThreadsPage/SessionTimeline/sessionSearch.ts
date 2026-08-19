@@ -142,26 +142,3 @@ export const splitMatchSegments = (
 	}
 	return segments;
 };
-
-/**
- * Returns the [start, end) indices of a window centered on the first match,
- * or null when there is no match or the text fits inside the window.
- */
-export const windowAroundFirstMatch = (
-	text: string,
-	query: string,
-	windowChars: number,
-): { start: number; end: number } | null => {
-	const q = normalizeQuery(query);
-	if (q === "" || text.length <= windowChars) {
-		return null;
-	}
-	const first = text.toLowerCase().indexOf(q);
-	if (first === -1) {
-		return null;
-	}
-	const center = first + q.length / 2;
-	let start = Math.round(center - windowChars / 2);
-	start = Math.max(0, Math.min(start, text.length - windowChars));
-	return { start, end: start + windowChars };
-};

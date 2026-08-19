@@ -67,11 +67,9 @@ A search input next to the Back button filters the events by prompt text,
 tool names, tool inputs, and network call destinations. While a query is
 active, the timeline shows only matching events and a result count below the
 input reports how many times the query occurs. Matches render in bold in
-prompts, tool names, and network call destinations. A prompt whose first
-match sits below the collapsed preview shows a window of text around the
-match instead of hiding it; select **Show more** to read the full prompt. A
-"No events match your search in the loaded events." message appears when
-nothing in the loaded events matches.
+prompts, tool names, and network call destinations, and a matching prompt
+expands to show the match. A "No events match your search in the loaded
+events." message appears when nothing in the loaded events matches.
 
 Within a thread, each step shows token usage, tool call details (including
 arguments and MCP server URLs), duration, and any errors or warnings.

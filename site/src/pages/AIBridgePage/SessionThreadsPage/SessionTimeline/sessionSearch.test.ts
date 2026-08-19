@@ -9,7 +9,6 @@ import {
 	countSessionSearchResults,
 	matchesNetworkCallSearch,
 	splitMatchSegments,
-	windowAroundFirstMatch,
 } from "./sessionSearch";
 
 describe("classifyThreadSearch", () => {
@@ -132,34 +131,6 @@ describe("splitMatchSegments", () => {
 		expect(splitMatchSegments("plain text", "nope")).toEqual([
 			{ text: "plain text", match: false },
 		]);
-	});
-});
-
-describe("windowAroundFirstMatch", () => {
-	it("returns null when the text fits inside the window", () => {
-		expect(windowAroundFirstMatch("short relay", "relay", 100)).toBeNull();
-	});
-
-	it("returns null when there is no match", () => {
-		const text = "a".repeat(100);
-		expect(windowAroundFirstMatch(text, "relay", 10)).toBeNull();
-	});
-
-	it("clamps to the start for an early match", () => {
-		const text = `relay ${"a".repeat(100)}`;
-		expect(windowAroundFirstMatch(text, "relay", 20)).toEqual({
-			start: 0,
-			end: 20,
-		});
-	});
-
-	it("centers the window on a deep match", () => {
-		const text = `${"a".repeat(50)}relay${"b".repeat(50)}`;
-		const window = windowAroundFirstMatch(text, "relay", 20);
-		expect(window).not.toBeNull();
-		// The match must sit inside the window, roughly centered.
-		expect(window!.start).toBeLessThanOrEqual(50);
-		expect(window!.end).toBeGreaterThanOrEqual(55);
 	});
 });
 

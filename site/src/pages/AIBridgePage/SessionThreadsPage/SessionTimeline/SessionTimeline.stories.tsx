@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor } from "storybook/test";
+import { expect, fn, userEvent } from "storybook/test";
 import type { AIBridgeThread } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
@@ -126,14 +126,14 @@ export const WithNetworkCalls: Story = {
 };
 
 // A thread whose prompt is long enough to collapse past 200px, with the only
-// match near the end so the preview must window around it.
-const windowedFiller =
+// match near the end so a search must expand the full prompt to reveal it.
+const longFiller =
 	"Review the deployment pipeline, inspect staging, confirm feature flags, validate the rollout plan, check dashboards, and review escalation paths. ";
-const mockThreadWindowed: AIBridgeThread = {
+const mockThreadLongPrompt: AIBridgeThread = {
 	...MockAIBridgeThread,
 	id: "thread-3",
 	prompt:
-		windowedFiller.repeat(16) +
+		longFiller.repeat(16) +
 		"Finally, coordinate the cutover using zebra-relay.",
 	agentic_actions: [],
 };
@@ -142,25 +142,20 @@ export const MultipleThreads: Story = {
 	args: { threads: [mockThread, mockThreadLong] },
 };
 
-// A match past the 200px prompt cutoff windows the preview around the match,
-// ellipsizing both ends, instead of hiding it behind the collapse.
-export const SearchWindowsPromptOnMatch: Story = {
+// A match past the 200px prompt cutoff expands the full prompt so the bolded
+// match is revealed instead of staying hidden behind the collapse.
+export const SearchExpandsPromptOnMatch: Story = {
 	args: {
-		threads: [mockThreadWindowed],
+		threads: [mockThreadLongPrompt],
 		searchQuery: "zebra-relay",
 	},
-	play: async ({ canvas, canvasElement }) => {
-		// The bolded match is revealed even though it sits past the cutoff.
+	play: async ({ canvas }) => {
+		// The bolded match is revealed even though it sits past the cutoff, and
+		// the expanded prompt exposes the Collapse toggle.
 		await expect(canvas.getByText("zebra-relay")).toBeInTheDocument();
-		// Once the full height is measured, the preview windows around the
-		// match: the paragraph leads with an ellipsis and no longer starts at
-		// the prompt head.
-		await waitFor(() => {
-			const para = Array.from(canvasElement.querySelectorAll("p")).find((el) =>
-				el.textContent?.includes("zebra-relay"),
-			);
-			expect(para?.textContent?.trimStart().startsWith("…")).toBe(true);
-		});
+		await expect(
+			canvas.getByRole("button", { name: "Collapse" }),
+		).toBeInTheDocument();
 	},
 };
 
