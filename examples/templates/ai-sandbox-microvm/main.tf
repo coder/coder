@@ -133,33 +133,37 @@ resource "coder_agent" "ai" {
     set -eu
     if command -v claude >/dev/null 2>&1; then
       echo "Claude Code already installed: $(claude --version)"
-      exit 0
+    else
+      # The stock ubuntu guest ships without curl. Package installs work
+      # because apt honors the proxy environment and the sandbox host
+      # process holds CAP_CHOWN.
+      if ! command -v curl >/dev/null 2>&1; then
+        echo "Installing curl..."
+        apt-get update -qq && apt-get install -y -qq curl ca-certificates
+      fi
+      echo "Installing Claude Code..."
+      curl -fsSL https://claude.ai/install.sh | bash
+      # The installer targets ~/.local/bin, which is not on PATH for
+      # login shells in the minimal guest image.
+      if [ -x "$HOME/.local/bin/claude" ]; then
+        ln -sf "$HOME/.local/bin/claude" /usr/local/bin/claude || true
+      fi
+      claude --version
     fi
-    # The stock ubuntu guest ships without curl. Package installs work
-    # because apt honors the proxy environment and the sandbox host
-    # process holds CAP_CHOWN.
-    if ! command -v curl >/dev/null 2>&1; then
-      echo "Installing curl..."
-      apt-get update -qq && apt-get install -y -qq curl ca-certificates
-    fi
-    echo "Installing Claude Code..."
-    curl -fsSL https://claude.ai/install.sh | bash
-    # The installer targets ~/.local/bin, which is not on PATH for
-    # login shells in the minimal guest image.
-    if [ -x "$HOME/.local/bin/claude" ]; then
-      ln -sf "$HOME/.local/bin/claude" /usr/local/bin/claude || true
-    fi
-    claude --version
 
-    # Register configured MCP servers through the Coder MCP gateway.
-    # MCP is client-configured: the gateway endpoint exists regardless,
-    # but Claude Code only queries servers listed in its own config.
+    # Register configured MCP servers through the Coder MCP gateway,
+    # ALWAYS, not only on fresh installs: the guest rootfs is rebuilt
+    # from the OCI image on every boot, so client config does not
+    # persist. MCP is client-configured; the gateway endpoint exists
+    # regardless, but Claude Code only queries servers in its own
+    # config. Registration failures must not fail the boot.
     %{~for slug in var.mcp_server_slugs~}
     claude mcp add --transport http --scope user \
       --header "Authorization: Bearer $CODER_SESSION_TOKEN" \
       "${slug}" "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/mcp/${slug}" ||
       echo "warning: failed to register MCP server ${slug}"
     %{~endfor~}
+    claude mcp list || true
   EOT
 }
 
