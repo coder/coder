@@ -340,4 +340,3 @@ are the case that matters.
 
 These are old code paths. The credential handling dates to 2022. Check for
 existing issues before reporting any of this as new.
-

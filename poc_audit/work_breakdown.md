@@ -1,3 +1,8 @@
+<!-- markdownlint-disable-file MD036 -->
+<!-- Bold labels stand in for level 4 headings inside a work package, so the
+     heading index stays a usable table of contents. Scoped to the proof of
+     concept. Revisit if this document outlives it. -->
+
 # Work Breakdown
 
 Recorded 2026-08-12. This document breaks the coding work into **work
