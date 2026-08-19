@@ -529,6 +529,19 @@ func (server *Server) prepareGeneration(
 		builtinToolNames[t.Info().Name] = true
 	}
 
+	mcpConfigByID := make(map[uuid.UUID]database.MCPServerConfig, len(mcpConnectConfigs))
+	for _, config := range mcpConnectConfigs {
+		mcpConfigByID[config.ID] = config
+	}
+	deferredCandidates := collectDeferredMCPCandidates(deferredMCPCandidateInput{
+		mcpTools:              mcpTools,
+		workspaceMCPTools:     workspaceMCPTools,
+		mcpConfigByID:         mcpConfigByID,
+		planMode:              currentPlanMode,
+		parentChatID:          chat.ParentChatID,
+		approvedMCPConfigIDs:  approvedPlanMCPConfigIDs,
+		includeWorkspaceTools: !isExploreSubagent,
+	})
 	tools = append(tools, mcpTools...)
 	if !isExploreSubagent {
 		tools = append(tools, workspaceMCPTools...)
@@ -589,6 +602,51 @@ func (server *Server) prepareGeneration(
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
 		activeToolNames = allowedExploreToolNames(tools)
+	}
+	var allowInactiveTools map[string]bool
+	if decideMCPToolSearch(mcpToolSearchInput{
+		experimentEnabled: server.experiments.Enabled(codersdk.ExperimentMCPToolSearch),
+		candidates:        deferredCandidates,
+		dynamicToolNames:  dynamicToolNames,
+	}) {
+		activationTokenBudget := float64(modelConfig.ContextLimit) / mcpToolSearchBudgetDivisor
+		findTools := chattool.FindTools(chattool.FindToolsOptions{
+			Entries:            deferredMCPToolEntries(deferredCandidates),
+			SchemaTokenBudget:  activationTokenBudget,
+			CatalogTokenBudget: activationTokenBudget,
+			// Calls total is counted in executeLocalTools, which also
+			// sees calls rejected before the tool runs; OnCall covers
+			// only calls that reach the handler or its decode.
+			OnCall: func(callCtx context.Context, call chattool.FindToolsCall) {
+				if call.Rejection == "" {
+					server.metrics.FindToolsMatchCount.Observe(float64(call.MatchCount))
+					server.metrics.FindToolsActivationsTotal.Add(float64(len(call.Activated)))
+					if call.MatchCount == 0 {
+						server.metrics.FindToolsEmptyTotal.Inc()
+					}
+				}
+				// Queries and names are model output that can echo
+				// prompt content, so standard logs carry only
+				// aggregate fields; raw values are visible through
+				// the opt-in chat debug logging path.
+				logger.Info(callCtx, "deferred MCP tool search",
+					slog.F("query_count", len(call.Queries)),
+					slog.F("name_count", len(call.Names)),
+					slog.F("match_count", call.MatchCount),
+					slog.F("activated_count", len(call.Activated)),
+					slog.F("total_deferred", call.TotalDeferred),
+					slog.F("rejection", call.Rejection),
+				)
+			},
+		})
+		tools, activeToolNames, allowInactiveTools = configureDeferredMCPToolSearch(
+			tools,
+			activeToolNames,
+			deferredCandidates,
+			findTools,
+			deriveDeferredMCPActivations(promptRows, deferredCandidates, activationTokenBudget),
+		)
+		builtinToolNames[chattool.FindToolsName] = true
 	}
 
 	toolNameToConfigID := make(map[string]uuid.UUID)
@@ -675,6 +733,7 @@ func (server *Server) prepareGeneration(
 		Prompt:               prompt,
 		Tools:                tools,
 		ActiveTools:          activeToolNames,
+		AllowInactiveTools:   allowInactiveTools,
 		ProviderTools:        providerTools,
 		ModelRoute:           modelRoute,
 		ModelBuildOptions:    modelOpts,

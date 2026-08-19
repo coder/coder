@@ -365,6 +365,12 @@ type Claims = {
 	license_expires: number;
 	// nbf is a standard JWT claim for "not before" - the license valid from date
 	nbf?: number;
+	// iat is a standard JWT claim for "issued at"; the merged
+	// usage_period.issued_at is stamped from the winning license's iat.
+	iat?: number;
+	// exp is a standard JWT claim for "expires at" (end of grace period);
+	// it stamps usage_period.end, and nbf stamps usage_period.start.
+	exp?: number;
 	account_type?: string;
 	account_id?: string;
 	trial: boolean;
@@ -3474,6 +3480,17 @@ class ExperimentalApiMethods {
 	getChatModels = async (): Promise<TypesGen.ChatModelsResponse> => {
 		const response = await this.axios.get<TypesGen.ChatModelsResponse>(
 			"/api/experimental/chats/models",
+		);
+		return response.data;
+	};
+
+	getAIModelPrices = async (filter: {
+		provider?: string;
+		model?: string;
+	}): Promise<TypesGen.AIModelPrice[]> => {
+		const response = await this.axios.get<TypesGen.AIModelPrice[]>(
+			"/api/experimental/ai/model-prices",
+			{ params: filter },
 		);
 		return response.data;
 	};
