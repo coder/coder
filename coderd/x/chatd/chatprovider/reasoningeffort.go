@@ -146,6 +146,9 @@ func applyReasoningEffort(
 		}
 	case fantasyopenaicompat.Name:
 		providerEffort := fantasyopenai.ReasoningEffort(*effort)
+		if compatEffort, ok := googleCompatReasoningEffort(model.ModelID(), *effort); ok {
+			providerEffort = fantasyopenai.ReasoningEffort(compatEffort)
+		}
 		providerOptions := ensureProviderOptions[fantasyopenaicompat.ProviderOptions](options, fantasyopenaicompat.Name)
 		providerOptions.ReasoningEffort = &providerEffort
 	case fantasyopenrouter.Name:
@@ -164,6 +167,41 @@ func applyReasoningEffort(
 		providerOptions.Reasoning.Effort = &providerEffort
 	}
 	return options
+}
+
+// googleCompatReasoningEffort maps the global reasoning effort scale onto the
+// reasoning_effort values a Gemini model accepts behind an OpenAI-compatible
+// endpoint, reporting ok=false for non-Gemini model IDs. Google's compat
+// layer translates reasoning_effort into the model's thinking configuration
+// but validates instead of clamping, so out-of-range values (including the
+// Coder-only xhigh and max) fail the whole request with HTTP 400.
+func googleCompatReasoningEffort(modelID, effort string) (string, bool) {
+	normalized := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(modelID)), "models/")
+	normalized = strings.TrimPrefix(normalized, "google/")
+	if !strings.HasPrefix(normalized, "gemini-") {
+		return "", false
+	}
+	if supported := googleSupportedThinkingLevels(normalized); len(supported) > 0 {
+		level := clampGoogleThinkingLevel(googleThinkingLevel(effort), supported)
+		return strings.ToLower(level), true
+	}
+	// Pre-Gemini-3 models translate reasoning_effort into a thinking budget
+	// and accept only none/low/medium/high. Pro models cannot disable
+	// thinking, so "none" is rejected for them and clamps up to low.
+	isPro := slices.Contains(strings.Split(strings.TrimPrefix(normalized, "gemini-"), "-"), "pro")
+	switch effort {
+	case codersdk.ChatModelReasoningEffortNone:
+		if isPro {
+			return codersdk.ChatModelReasoningEffortLow, true
+		}
+		return codersdk.ChatModelReasoningEffortNone, true
+	case codersdk.ChatModelReasoningEffortMinimal, codersdk.ChatModelReasoningEffortLow:
+		return codersdk.ChatModelReasoningEffortLow, true
+	case codersdk.ChatModelReasoningEffortMedium:
+		return codersdk.ChatModelReasoningEffortMedium, true
+	default:
+		return codersdk.ChatModelReasoningEffortHigh, true
+	}
 }
 
 // googleThinkingLevelsAscending orders Google thinking levels from least to

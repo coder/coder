@@ -212,6 +212,72 @@ func TestApplyReasoningEffort(t *testing.T) {
 			tt.assert(t, got)
 		})
 	}
+
+	t.Run("OpenAICompatClampsGeminiEffort", func(t *testing.T) {
+		t.Parallel()
+
+		got := applyReasoningEffort(
+			NewModel(&chattest.FakeModel{ProviderName: fantasyopenaicompat.Name, ModelName: "gemini-3-pro-preview"}, nil),
+			nil,
+			new(codersdk.ChatModelReasoningEffortMedium),
+		)
+		providerOptions, ok := got[fantasyopenaicompat.Name].(*fantasyopenaicompat.ProviderOptions)
+		require.True(t, ok, "%T", got[fantasyopenaicompat.Name])
+		require.NotNil(t, providerOptions.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffortHigh, *providerOptions.ReasoningEffort)
+	})
+}
+
+func TestGoogleCompatReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		modelID string
+		effort  string
+		want    string
+		wantOK  bool
+	}{
+		// Gemini 3.1 Pro supports LOW/MEDIUM/HIGH; Google rejects
+		// out-of-range values instead of clamping.
+		{modelID: "gemini-3.1-pro-preview", effort: "none", want: "low", wantOK: true},
+		{modelID: "gemini-3.1-pro-preview", effort: "minimal", want: "low", wantOK: true},
+		{modelID: "gemini-3.1-pro-preview", effort: "low", want: "low", wantOK: true},
+		{modelID: "gemini-3.1-pro-preview", effort: "medium", want: "medium", wantOK: true},
+		{modelID: "gemini-3.1-pro-preview", effort: "high", want: "high", wantOK: true},
+		{modelID: "gemini-3.1-pro-preview", effort: "xhigh", want: "high", wantOK: true},
+		{modelID: "gemini-3.1-pro-preview", effort: "max", want: "high", wantOK: true},
+		// Gemini 3.0 Pro supports only LOW/HIGH.
+		{modelID: "gemini-3-pro-preview", effort: "medium", want: "high", wantOK: true},
+		{modelID: "gemini-3-pro-preview", effort: "minimal", want: "low", wantOK: true},
+		// The Gemini 3 Flash family supports all four levels.
+		{modelID: "gemini-3-flash-preview", effort: "minimal", want: "minimal", wantOK: true},
+		{modelID: "gemini-3-flash-preview", effort: "medium", want: "medium", wantOK: true},
+		{modelID: "gemini-3-flash-preview", effort: "max", want: "high", wantOK: true},
+		// Pre-Gemini-3 models accept none/low/medium/high; none stays
+		// usable on Flash but clamps to low on Pro, which cannot
+		// disable thinking.
+		{modelID: "gemini-2.5-flash", effort: "none", want: "none", wantOK: true},
+		{modelID: "gemini-2.5-flash", effort: "minimal", want: "low", wantOK: true},
+		{modelID: "gemini-2.5-flash", effort: "xhigh", want: "high", wantOK: true},
+		{modelID: "gemini-2.5-pro", effort: "none", want: "low", wantOK: true},
+		{modelID: "gemini-2.5-pro", effort: "high", want: "high", wantOK: true},
+		// Model ID prefixes used by gateways and the Google API.
+		{modelID: "models/gemini-3.1-pro-preview", effort: "xhigh", want: "high", wantOK: true},
+		{modelID: "google/gemini-3.1-pro-preview", effort: "xhigh", want: "high", wantOK: true},
+		// Non-Gemini models keep the caller's effort untouched.
+		{modelID: "gpt-5", effort: "xhigh", wantOK: false},
+		{modelID: "deepseek/deepseek-v4", effort: "high", wantOK: false},
+		{modelID: "", effort: "high", wantOK: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.modelID+"/"+tt.effort, func(t *testing.T) {
+			t.Parallel()
+			got, ok := googleCompatReasoningEffort(tt.modelID, tt.effort)
+			require.Equal(t, tt.wantOK, ok)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestGoogleSupportedThinkingLevels(t *testing.T) {
