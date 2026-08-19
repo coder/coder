@@ -2865,6 +2865,8 @@ const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel 
 SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source
 FROM ai_model_prices
 WHERE provider = $1 AND model = $2
+ORDER BY CASE WHEN source = 'custom' THEN 0 ELSE 1 END
+LIMIT 1
 `
 
 type GetAIModelPriceByProviderModelParams struct {
@@ -2872,6 +2874,8 @@ type GetAIModelPriceByProviderModelParams struct {
 	Model    string `db:"model" json:"model"`
 }
 
+// Returns the price in effect for the model, preferring a custom price over
+// the price book.
 func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error) {
 	row := q.db.QueryRowContext(ctx, getAIModelPriceByProviderModel, arg.Provider, arg.Model)
 	var i AIModelPrice
@@ -2890,7 +2894,7 @@ func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg Get
 }
 
 const getAIModelPrices = `-- name: GetAIModelPrices :many
-SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source
+SELECT DISTINCT ON (provider, model) provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source
 FROM ai_model_prices
     -- Filter by provider
 WHERE CASE
@@ -2904,7 +2908,7 @@ WHERE CASE
             model = $2
         ELSE true
     END
-ORDER BY provider, model
+ORDER BY provider, model, CASE WHEN source = 'custom' THEN 0 ELSE 1 END
 `
 
 type GetAIModelPricesParams struct {
@@ -2912,6 +2916,8 @@ type GetAIModelPricesParams struct {
 	Model    string `db:"model" json:"model"`
 }
 
+// Returns the price in effect for each model, preferring a custom price over
+// the price book.
 func (q *sqlQuerier) GetAIModelPrices(ctx context.Context, arg GetAIModelPricesParams) ([]AIModelPrice, error) {
 	rows, err := q.db.QueryContext(ctx, getAIModelPrices, arg.Provider, arg.Model)
 	if err != nil {
@@ -3511,32 +3517,23 @@ SELECT
 	(elem->>'cache_write_price')::bigint,
 	$1::ai_model_price_source
 FROM jsonb_array_elements($2::jsonb) AS elem
-ON CONFLICT (provider, model) DO UPDATE SET
+ON CONFLICT (provider, model, source) DO UPDATE SET
 	input_price       = EXCLUDED.input_price,
 	output_price      = EXCLUDED.output_price,
 	cache_read_price  = EXCLUDED.cache_read_price,
 	cache_write_price = EXCLUDED.cache_write_price,
-	source            = EXCLUDED.source,
 	updated_at        = NOW()
-WHERE CASE
-		-- A custom price claims any row, including one the price book wrote.
-		WHEN $1::ai_model_price_source = 'custom' THEN true
-		-- The price book leaves custom rows alone.
-		ELSE ai_model_prices.source <> 'custom'
-	END
-	AND (
-		ai_model_prices.input_price,
-		ai_model_prices.output_price,
-		ai_model_prices.cache_read_price,
-		ai_model_prices.cache_write_price,
-		ai_model_prices.source
-	) IS DISTINCT FROM (
-		EXCLUDED.input_price,
-		EXCLUDED.output_price,
-		EXCLUDED.cache_read_price,
-		EXCLUDED.cache_write_price,
-		EXCLUDED.source
-	)
+WHERE (
+	ai_model_prices.input_price,
+	ai_model_prices.output_price,
+	ai_model_prices.cache_read_price,
+	ai_model_prices.cache_write_price
+) IS DISTINCT FROM (
+	EXCLUDED.input_price,
+	EXCLUDED.output_price,
+	EXCLUDED.cache_read_price,
+	EXCLUDED.cache_write_price
+)
 `
 
 type UpsertAIModelPricesParams struct {
@@ -3544,13 +3541,13 @@ type UpsertAIModelPricesParams struct {
 	Seed   json.RawMessage    `db:"seed" json:"seed"`
 }
 
-// Upsert a batch of (provider, model) rows from a JSON array, recording them
-// under source. Each element must have provider, model, and the four price
+// Upsert a batch of model prices from a JSON array, all recorded under the
+// given source. Each element must have provider, model, and the four price
 // fields, and null prices are written as SQL NULL.
-// A default write skips rows a custom price owns. Otherwise a conflicting row
-// is only rewritten when a price or the source differs, so updated_at records
-// when the row last changed. Prices are nullable and a NULL on either side
-// counts as a difference.
+// Each source keeps its own row, so the price book and a custom price never
+// overwrite each other. A conflicting row is only rewritten when a price
+// differs, so updated_at records when a price last changed. Prices are
+// nullable and a NULL on either side counts as a difference.
 func (q *sqlQuerier) UpsertAIModelPrices(ctx context.Context, arg UpsertAIModelPricesParams) error {
 	_, err := q.db.ExecContext(ctx, upsertAIModelPrices, arg.Source, arg.Seed)
 	return err

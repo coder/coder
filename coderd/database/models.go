@@ -4885,7 +4885,7 @@ type AIModelPrice struct {
 	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
 	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
-	// Where the price came from: default for the embedded price book, custom for a price an operator set. The startup seeder never overwrites a custom row.
+	// Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.
 	Source AIModelPriceSource `db:"source" json:"source"`
 }
 

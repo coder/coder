@@ -1731,7 +1731,6 @@ func TestRecordTokenUsage(t *testing.T) {
 					// No override
 					expectTokenUsageCostLookups(db, intc, nil, group, nil, price)
 
-					// input 300 + output 1200 + cache read 15 + cache write 40.
 					const wantCost int64 = 1555
 
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
@@ -2197,7 +2196,6 @@ func TestRecordTokenUsage(t *testing.T) {
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
 
-					// input 300 + output 1200 + cache read 15 + cache write 40.
 					const wantCost int64 = 1555
 
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
@@ -2559,7 +2557,6 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 6_000_000, Valid: true}, tokenUsage.OutputPriceMicros, "output price")
 	require.Equal(t, sql.NullInt64{Int64: 300_000, Valid: true}, tokenUsage.CacheReadPriceMicros, "cache read price")
 	require.Equal(t, sql.NullInt64{Int64: 4_000_000, Valid: true}, tokenUsage.CacheWritePriceMicros, "cache write price")
-	// input 300 + output 1200 + cache read 15 + cache write 40.
 	const wantCost int64 = 1555
 	require.Equal(t, sql.NullInt64{Int64: wantCost, Valid: true}, tokenUsage.CostMicros, "cost")
 
@@ -2575,6 +2572,133 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 	require.Equal(t, group.ID, spend.EffectiveGroupID, "effective group ID")
 	require.True(t, today.Equal(spend.PeriodStart), "period start: want %s, got %s", today, spend.PeriodStart)
 	require.Equal(t, wantCost, spend.SpendMicros, "spend micros")
+}
+
+// TestRecordTokenUsageModelPriceResolution covers which price an interception
+// snapshots when a model carries a price from the embedded book, a price set
+// through the API, or both.
+func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
+	t.Parallel()
+
+	const provider, model = "anthropic", "claude-sonnet-4-6"
+
+	priceSeed := func(input, output, cacheRead, cacheWrite int64) json.RawMessage {
+		seed, err := json.Marshal([]map[string]any{{
+			"provider":          provider,
+			"model":             model,
+			"input_price":       input,
+			"output_price":      output,
+			"cache_read_price":  cacheRead,
+			"cache_write_price": cacheWrite,
+		}})
+		require.NoError(t, err)
+		return seed
+	}
+
+	tests := []struct {
+		name        string
+		defaultSeed json.RawMessage
+		customSeed  json.RawMessage
+		want        database.AIBridgeTokenUsage
+	}{
+		{
+			name:        "DefaultOnly",
+			defaultSeed: priceSeed(3_000_000, 6_000_000, 300_000, 4_000_000),
+			want: database.AIBridgeTokenUsage{
+				InputPriceMicros:      sql.NullInt64{Int64: 3_000_000, Valid: true},
+				OutputPriceMicros:     sql.NullInt64{Int64: 6_000_000, Valid: true},
+				CacheReadPriceMicros:  sql.NullInt64{Int64: 300_000, Valid: true},
+				CacheWritePriceMicros: sql.NullInt64{Int64: 4_000_000, Valid: true},
+				// 100 input, 200 output, 50 cache read, and 10 cache write
+				// tokens, priced per million: 300 + 1200 + 15 + 40.
+				CostMicros: sql.NullInt64{Int64: 1555, Valid: true},
+			},
+		},
+		{
+			name:        "CustomWinsOverDefault",
+			defaultSeed: priceSeed(3_000_000, 6_000_000, 300_000, 4_000_000),
+			customSeed:  priceSeed(9_000_000, 12_000_000, 900_000, 8_000_000),
+			want: database.AIBridgeTokenUsage{
+				InputPriceMicros:      sql.NullInt64{Int64: 9_000_000, Valid: true},
+				OutputPriceMicros:     sql.NullInt64{Int64: 12_000_000, Valid: true},
+				CacheReadPriceMicros:  sql.NullInt64{Int64: 900_000, Valid: true},
+				CacheWritePriceMicros: sql.NullInt64{Int64: 8_000_000, Valid: true},
+				// 100 input, 200 output, 50 cache read, and 10 cache write
+				// tokens, priced per million: 900 + 2400 + 45 + 80.
+				CostMicros: sql.NullInt64{Int64: 3425, Valid: true},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := testutil.Logger(t)
+
+			rawDB, _ := dbtestutil.NewDB(t)
+			authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+
+			org := dbgen.Organization(t, rawDB, database.Organization{})
+			user := dbgen.User(t, rawDB, database.User{})
+			dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+
+			require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+				Seed:   tt.defaultSeed,
+				Source: database.AIModelPriceSourceDefault,
+			}), "seed model prices")
+			if tt.customSeed != nil {
+				require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+					Seed:   tt.customSeed,
+					Source: database.AIModelPriceSourceCustom,
+				}), "set custom model price")
+			}
+
+			aiProvider := dbgen.AIProvider(t, rawDB, database.AIProvider{
+				Name: "anthropic-eu",
+				Type: database.AIProviderTypeAnthropic,
+			})
+			intc := dbgen.AIBridgeInterception(t, rawDB, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:  user.ID,
+				Provider:     provider,
+				ProviderName: aiProvider.Name,
+				Model:        model,
+			}, nil)
+
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         authzDB,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Logger:        logger,
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+				InterceptionId:        intc.ID.String(),
+				MsgId:                 "msg_price_resolution",
+				InputTokens:           100,
+				OutputTokens:          200,
+				CacheReadInputTokens:  50,
+				CacheWriteInputTokens: 10,
+				CreatedAt:             timestamppb.New(time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)),
+			})
+			require.NoError(t, err, "record token usage")
+
+			tokenUsages, err := rawDB.GetAIBridgeTokenUsagesByInterceptionID(ctx, intc.ID)
+			require.NoError(t, err)
+			require.Len(t, tokenUsages, 1)
+
+			tokenUsage := tokenUsages[0]
+			require.Equal(t, tt.want.InputPriceMicros, tokenUsage.InputPriceMicros, "input price")
+			require.Equal(t, tt.want.OutputPriceMicros, tokenUsage.OutputPriceMicros, "output price")
+			require.Equal(t, tt.want.CacheReadPriceMicros, tokenUsage.CacheReadPriceMicros, "cache read price")
+			require.Equal(t, tt.want.CacheWritePriceMicros, tokenUsage.CacheWritePriceMicros, "cache write price")
+			require.Equal(t, tt.want.CostMicros, tokenUsage.CostMicros, "cost")
+		})
+	}
 }
 
 // TestRecordTokenUsageProviderResolution covers provider resolution against a real

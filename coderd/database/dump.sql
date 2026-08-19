@@ -1587,7 +1587,7 @@ CREATE TABLE ai_model_prices (
 
 COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to compute interception cost.';
 
-COMMENT ON COLUMN ai_model_prices.source IS 'Where the price came from: default for the embedded price book, custom for a price an operator set. The startup seeder never overwrites a custom row.';
+COMMENT ON COLUMN ai_model_prices.source IS 'Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.';
 
 CREATE TABLE ai_provider_keys (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -4323,7 +4323,7 @@ ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY ai_model_prices
-    ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
+    ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model, source);
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_pkey PRIMARY KEY (id);
