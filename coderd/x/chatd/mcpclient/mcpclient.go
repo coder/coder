@@ -59,6 +59,13 @@ const connectTimeout = 10 * time.Second
 // take before being canceled.
 const toolCallTimeout = 60 * time.Second
 
+const (
+	maxPrivateMCPTools                = 64
+	maxPrivateMCPToolDefinitionBytes  = 64 << 10
+	maxPrivateMCPToolDefinitionsBytes = 256 << 10
+	maxPrivateMCPToolResultBytes      = 256 << 10
+)
+
 // UserOIDCTokenSource resolves the OIDC access token for the calling
 // user. Implementations attempt to refresh tokens that are expired
 // or close to expiring and MUST return ("", nil) when the user has
@@ -104,6 +111,7 @@ func ConnectPrivate(
 	if httpClient == nil {
 		panic("mcpclient: ConnectPrivate called with nil guarded HTTP client")
 	}
+	httpClient = privateMCPHTTPClient(httpClient)
 	tools, cleanup := connectConfigured(
 		ctx,
 		logger,
@@ -350,6 +358,16 @@ func connectOne(
 		return nil, nil, xerrors.Errorf("list tools: %w", err)
 	}
 
+	redactor := newSecretRedactor(sensitiveValues)
+	maxResultBytes := 0
+	if kind == connectionKindPrivate {
+		if err := validatePrivateMCPToolDefinitions(toolsResult.Tools); err != nil {
+			_ = session.Close()
+			return nil, nil, err
+		}
+		maxResultBytes = maxPrivateMCPToolResultBytes
+	}
+
 	var tools []fantasy.AgentTool
 	for _, mcpTool := range toolsResult.Tools {
 		if !isToolAllowed(
@@ -357,15 +375,19 @@ func connectOne(
 			cfg.ToolAllowList,
 			cfg.ToolDenyList,
 		) {
+			toolName := mcpTool.Name
+			if kind == connectionKindPrivate {
+				toolName = redactor.redactString(toolName)
+			}
 			logger.Debug(ctx, "skipping denied MCP tool",
 				slog.F("server_slug", cfg.Slug),
-				slog.F("tool_name", mcpTool.Name),
+				slog.F("tool_name", toolName),
 			)
 			continue
 		}
 
 		tools = append(
-			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, session, cfg.ModelIntent, sensitiveValues),
+			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, session, cfg.ModelIntent, sensitiveValues, maxResultBytes),
 		)
 	}
 
@@ -375,6 +397,41 @@ func connectOne(
 	}
 
 	return tools, session, nil
+}
+
+func validatePrivateMCPToolDefinitions(tools []*mcp.Tool) error {
+	if len(tools) > maxPrivateMCPTools {
+		return xerrors.Errorf(
+			"private MCP server returned %d tools, maximum is %d",
+			len(tools),
+			maxPrivateMCPTools,
+		)
+	}
+
+	totalBytes := 0
+	for _, tool := range tools {
+		if tool == nil {
+			return xerrors.New("private MCP server returned a null tool definition")
+		}
+		definition, err := json.Marshal(tool)
+		if err != nil {
+			return xerrors.Errorf("marshal private MCP tool definition: %w", err)
+		}
+		if len(definition) > maxPrivateMCPToolDefinitionBytes {
+			return xerrors.Errorf(
+				"private MCP tool definition exceeds maximum size of %d bytes",
+				maxPrivateMCPToolDefinitionBytes,
+			)
+		}
+		totalBytes += len(definition)
+		if totalBytes > maxPrivateMCPToolDefinitionsBytes {
+			return xerrors.Errorf(
+				"private MCP tool definitions exceed maximum total size of %d bytes",
+				maxPrivateMCPToolDefinitionsBytes,
+			)
+		}
+	}
+	return nil
 }
 
 func createTransport(
@@ -694,6 +751,7 @@ type mcpToolWrapper struct {
 	modelIntent     bool
 	session         *mcp.ClientSession
 	redactor        secretRedactor
+	maxResultBytes  int
 	providerOptions fantasy.ProviderOptions
 }
 
@@ -712,19 +770,21 @@ func newMCPTool(
 	session *mcp.ClientSession,
 	modelIntent bool,
 	sensitiveValues []string,
+	maxResultBytes int,
 ) *mcpToolWrapper {
 	properties, required := splitInputSchema(tool.InputSchema)
 	redactor := newSecretRedactor(sensitiveValues)
 	return &mcpToolWrapper{
-		configID:     configID,
-		prefixedName: truncateToolName(aidmcp.SanitizeToolName(serverSlug) + toolNameSep + aidmcp.SanitizeToolName(redactor.redactString(tool.Name))),
-		originalName: tool.Name,
-		description:  tool.Description,
-		parameters:   properties,
-		required:     required,
-		modelIntent:  modelIntent,
-		session:      session,
-		redactor:     redactor,
+		configID:       configID,
+		prefixedName:   truncateToolName(aidmcp.SanitizeToolName(serverSlug) + toolNameSep + aidmcp.SanitizeToolName(redactor.redactString(tool.Name))),
+		originalName:   tool.Name,
+		description:    tool.Description,
+		parameters:     properties,
+		required:       required,
+		modelIntent:    modelIntent,
+		session:        session,
+		redactor:       redactor,
+		maxResultBytes: maxResultBytes,
 	}
 }
 
@@ -825,6 +885,19 @@ func (t *mcpToolWrapper) Run(
 	)
 	if err != nil {
 		return fantasy.NewTextErrorResponse(t.redactor.redactString(err.Error())), nil
+	}
+
+	if t.maxResultBytes > 0 {
+		resultJSON, err := json.Marshal(result)
+		if err != nil {
+			return fantasy.NewTextErrorResponse("private MCP tool result could not be validated"), nil
+		}
+		if len(resultJSON) > t.maxResultBytes {
+			return fantasy.NewTextErrorResponse(fmt.Sprintf(
+				"private MCP tool result exceeded maximum size of %d bytes",
+				t.maxResultBytes,
+			)), nil
+		}
 	}
 
 	return t.redactor.redactResponse(convertCallResult(result)), nil

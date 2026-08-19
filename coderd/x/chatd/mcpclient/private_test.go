@@ -3,8 +3,11 @@ package mcpclient_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -13,6 +16,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
@@ -26,6 +30,34 @@ type countingRoundTripper struct {
 func (r *countingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	r.calls.Add(1)
 	return r.base.RoundTrip(req)
+}
+
+type recordingSink struct {
+	mu      sync.Mutex
+	entries []slog.SinkEntry
+}
+
+func (s *recordingSink) LogEntry(_ context.Context, entry slog.SinkEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entries = append(s.entries, entry)
+}
+
+func (*recordingSink) Sync() {}
+
+func (s *recordingSink) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var output strings.Builder
+	for _, entry := range s.entries {
+		_, _ = output.WriteString(entry.Message)
+		for _, field := range entry.Fields {
+			_, _ = fmt.Fprintf(&output, " %s=%v", field.Name, field.Value)
+		}
+		_ = output.WriteByte('\n')
+	}
+	return output.String()
 }
 
 func TestConnectPrivate(t *testing.T) {
@@ -162,4 +194,185 @@ func TestConnectPrivateDoesNotForwardHeadersAcrossOrigins(t *testing.T) {
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 	require.False(t, leaked.Load(), "private headers must not be sent to a redirected origin")
+}
+
+func TestConnectPrivateRejectsTooManyTools(t *testing.T) {
+	t.Parallel()
+
+	serverTools := make([]testTool, 65)
+	for i := range serverTools {
+		serverTools[i] = testTool{
+			tool: &mcp.Tool{
+				Name:        fmt.Sprintf("tool_%02d", i),
+				Description: "tool",
+				InputSchema: map[string]any{"type": "object"},
+			},
+			handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				return textToolResult("ok"), nil
+			},
+		}
+	}
+	server := newTestMCPServer(t, serverTools...)
+	configID := uuid.New()
+	tools, cleanup := mcpclient.ConnectPrivate(
+		t.Context(),
+		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		[]database.MCPServerConfig{{
+			ID:        configID,
+			Slug:      "private",
+			Url:       server.URL,
+			Transport: "streamable_http",
+			Enabled:   true,
+		}},
+		http.DefaultClient,
+		map[uuid.UUID][]string{configID: {server.URL}},
+	)
+	t.Cleanup(cleanup)
+	require.Empty(t, tools)
+}
+
+func TestConnectPrivateRejectsOversizedToolMetadata(t *testing.T) {
+	t.Parallel()
+
+	server := newTestMCPServer(t, testTool{
+		tool: &mcp.Tool{
+			Name:        "oversized",
+			Description: strings.Repeat("x", 65<<10),
+			InputSchema: map[string]any{"type": "object"},
+		},
+		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	})
+	configID := uuid.New()
+	tools, cleanup := mcpclient.ConnectPrivate(
+		t.Context(),
+		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		[]database.MCPServerConfig{{
+			ID:        configID,
+			Slug:      "private",
+			Url:       server.URL,
+			Transport: "streamable_http",
+			Enabled:   true,
+		}},
+		http.DefaultClient,
+		map[uuid.UUID][]string{configID: {server.URL}},
+	)
+	t.Cleanup(cleanup)
+	require.Empty(t, tools)
+}
+
+func TestConnectPrivateRejectsOversizedAggregateToolMetadata(t *testing.T) {
+	t.Parallel()
+
+	serverTools := make([]testTool, 5)
+	for i := range serverTools {
+		serverTools[i] = testTool{
+			tool: &mcp.Tool{
+				Name:        fmt.Sprintf("large_tool_%d", i),
+				Description: strings.Repeat("x", 55<<10),
+				InputSchema: map[string]any{"type": "object"},
+			},
+			handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				return textToolResult("ok"), nil
+			},
+		}
+	}
+	server := newTestMCPServer(t, serverTools...)
+	configID := uuid.New()
+	tools, cleanup := mcpclient.ConnectPrivate(
+		t.Context(),
+		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		[]database.MCPServerConfig{{
+			ID:        configID,
+			Slug:      "private",
+			Url:       server.URL,
+			Transport: "streamable_http",
+			Enabled:   true,
+		}},
+		http.DefaultClient,
+		map[uuid.UUID][]string{configID: {server.URL}},
+	)
+	t.Cleanup(cleanup)
+	require.Empty(t, tools)
+}
+
+func TestConnectPrivateRejectsOversizedToolResult(t *testing.T) {
+	t.Parallel()
+
+	server := newTestMCPServer(t, testTool{
+		tool: &mcp.Tool{
+			Name:        "oversized",
+			Description: "returns a large result",
+			InputSchema: map[string]any{"type": "object"},
+		},
+		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult(strings.Repeat("x", 257<<10)), nil
+		},
+	})
+	configID := uuid.New()
+	tools, cleanup := mcpclient.ConnectPrivate(
+		t.Context(),
+		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		[]database.MCPServerConfig{{
+			ID:        configID,
+			Slug:      "private",
+			Url:       server.URL,
+			Transport: "streamable_http",
+			Enabled:   true,
+		}},
+		http.DefaultClient,
+		map[uuid.UUID][]string{configID: {server.URL}},
+	)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	response, err := tools[0].Run(t.Context(), fantasy.ToolCall{
+		ID:    "oversized-result",
+		Name:  "private__oversized",
+		Input: `{}`,
+	})
+	require.NoError(t, err)
+	require.True(t, response.IsError)
+	require.Contains(t, response.Content, "exceeded maximum size")
+	require.Less(t, len(response.Content), 1024)
+}
+
+func TestConnectPrivateRedactsDeniedToolNameInLogs(t *testing.T) {
+	t.Parallel()
+
+	const sensitiveToolName = "private_canary_value_12345"
+	server := newTestMCPServer(t, testTool{
+		tool: &mcp.Tool{
+			Name:        sensitiveToolName,
+			Description: "denied",
+			InputSchema: map[string]any{"type": "object"},
+		},
+		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	})
+	configID := uuid.New()
+	sink := &recordingSink{}
+	logger := slog.Make(sink).Leveled(slog.LevelDebug)
+	tools, cleanup := mcpclient.ConnectPrivate(
+		t.Context(),
+		logger,
+		[]database.MCPServerConfig{{
+			ID:           configID,
+			Slug:         "private",
+			Url:          server.URL,
+			Transport:    "streamable_http",
+			ToolDenyList: []string{sensitiveToolName},
+			Enabled:      true,
+		}},
+		http.DefaultClient,
+		map[uuid.UUID][]string{configID: {server.URL, sensitiveToolName}},
+	)
+	t.Cleanup(cleanup)
+	require.Empty(t, tools)
+
+	logs := sink.String()
+	require.NotContains(t, logs, sensitiveToolName)
+	require.Contains(t, logs, "tool_name=[REDACTED]")
 }
