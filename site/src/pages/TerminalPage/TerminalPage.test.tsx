@@ -16,8 +16,7 @@ import TerminalPage from "./TerminalPage";
 
 const reconnectToken = "terminal-page-test-reconnect-token";
 
-vi.mock("#/utils/random", async (importActual) => ({
-	...(await importActual<typeof import("#/utils/random")>()),
+vi.mock("#/utils/random", () => ({
 	generateUUID: () => "terminal-page-test-reconnect-token",
 }));
 vi.stubGlobal("jest", vi);
