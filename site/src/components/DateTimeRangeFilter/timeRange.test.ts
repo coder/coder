@@ -14,7 +14,7 @@ describe("parseTimeExpression", () => {
 		expect(parseTimeExpression("15:43", now)).toEqual(
 			new Date(2026, 7, 13, 15, 43, 0),
 		);
-		expect(parseTimeExpression("9:05:09", now)).toEqual(
+		expect(parseTimeExpression("09:05:09", now)).toEqual(
 			new Date(2026, 7, 13, 9, 5, 9),
 		);
 	});
@@ -32,6 +32,11 @@ describe("parseTimeExpression", () => {
 		expect(parseTimeExpression("2026-08-13 11:43:21", now)).toEqual(
 			new Date(2026, 7, 13, 11, 43, 21),
 		);
+	});
+
+	it("rejects single-digit hours", () => {
+		expect(parseTimeExpression("9:05", now)).toBeNull();
+		expect(parseTimeExpression("2026-08-13 7:23:00", now)).toBeNull();
 	});
 
 	it("rejects out-of-range clocks and dates", () => {

@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
+import { DATE_FORMAT } from "#/utils/time";
 
 dayjs.extend(customParseFormat);
 
@@ -8,15 +9,14 @@ export type TimeRange = {
 	startedBefore: Date;
 };
 
-// dayjs strict tokens are width-exact, so both digit widths are listed.
+// dayjs strict parsing is width-exact, so the format tokens are
+// zero-padded only (e.g. "09:45" parses, "9:45" does not).
 const DATE_FORMATS = [
-	"YYYY-MM-DD",
-	"YYYY-MM-DD HH:mm",
-	"YYYY-MM-DD HH:mm:ss",
-	"YYYY-MM-DD H:mm",
-	"YYYY-MM-DD H:mm:ss",
+	DATE_FORMAT.ISO_DATE,
+	DATE_FORMAT.ISO_DATETIME,
+	DATE_FORMAT.ISO_DATETIME_MINUTE,
 ];
-const TIME_FORMATS = ["HH:mm", "HH:mm:ss", "H:mm", "H:mm:ss"];
+const TIME_FORMATS = [DATE_FORMAT.TIME_24H, DATE_FORMAT.TIME_24H_MINUTE];
 
 /**
  * Parses a human-friendly time expression in browser-local time:

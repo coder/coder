@@ -58,7 +58,8 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 
 	// Text state is kept separate from the committed value so the user can
 	// adjust the expressions freely before applying; invalid text never
-	// leaks out.
+	// leaks out. If this control grows more fields or validation rules,
+	// consider moving to formik and yup instead of hand-rolling state.
 	const [fromField, setFromField] = useState<FieldState>({
 		text: "",
 		touched: false,
@@ -96,28 +97,31 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 	// "now" is left as-is because it is already unambiguous. Out-of-range
 	// values clamp against the other boundary so the committed range is
 	// always valid.
-	const normalize = useEffectEvent(
-		(
-			setField: (updater: (field: FieldState) => FieldState) => void,
-			parsed: Date | null,
-			sibling: Date | null,
-			clampBelowSibling: boolean,
-		) => {
-			setField((current) => {
-				if (isNowExpression(current.text) || parsed === null) {
-					return current;
-				}
-				const clamped =
-					sibling !== null &&
-					(clampBelowSibling
-						? parsed.getTime() >= sibling.getTime()
-						: parsed.getTime() <= sibling.getTime())
-						? new Date(sibling.getTime() + (clampBelowSibling ? -1000 : 1000))
-						: parsed;
-				return { ...current, text: formatDateTime(clamped) };
-			});
-		},
-	);
+	const normalizeFrom = useEffectEvent(() => {
+		setFromField((current) => {
+			if (isNowExpression(current.text) || parsedFrom === null) {
+				return current;
+			}
+			const clamped =
+				parsedTo !== null && parsedFrom.getTime() >= parsedTo.getTime()
+					? new Date(parsedTo.getTime() - 1000)
+					: parsedFrom;
+			return { ...current, text: formatDateTime(clamped) };
+		});
+	});
+
+	const normalizeTo = useEffectEvent(() => {
+		setToField((current) => {
+			if (isNowExpression(current.text) || parsedTo === null) {
+				return current;
+			}
+			const clamped =
+				parsedFrom !== null && parsedTo.getTime() <= parsedFrom.getTime()
+					? new Date(parsedFrom.getTime() + 1000)
+					: parsedTo;
+			return { ...current, text: formatDateTime(clamped) };
+		});
+	});
 
 	const fromError =
 		fromField.text !== "" && parsedFrom === null ? INVALID_TIME_MESSAGE : null;
@@ -173,7 +177,7 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 							onChange={(event) => {
 								setFromField({ text: event.target.value, touched: true });
 							}}
-							onBlur={() => normalize(setFromField, parsedFrom, parsedTo, true)}
+							onBlur={normalizeFrom}
 						/>
 						{fromError !== null && (
 							<span className="text-sm text-content-destructive">
@@ -195,7 +199,7 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 							onChange={(event) => {
 								setToField({ text: event.target.value, touched: true });
 							}}
-							onBlur={() => normalize(setToField, parsedTo, parsedFrom, false)}
+							onBlur={normalizeTo}
 						/>
 						{toError !== null && (
 							<span className="text-sm text-content-destructive">
