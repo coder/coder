@@ -138,13 +138,25 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 	)
 
 	if c.usage {
-		agentUsageStats, err := c.database.GetDeploymentWorkspaceAgentUsageStats(ctx, from)
+		agentUsageStats, err := c.database.GetDeploymentWorkspaceAgentUsageStats(ctx, database.GetDeploymentWorkspaceAgentUsageStatsParams{
+			CreatedAt:           from,
+			VscodeApps:          codersdk.AppNamesInFamily(codersdk.AppFamilyVSCode),
+			SshApps:             codersdk.AppNamesInFamily(codersdk.AppFamilySSH),
+			JetbrainsApps:       codersdk.AppNamesInFamily(codersdk.AppFamilyJetBrains),
+			ReconnectingPtyApps: codersdk.AppNamesInFamily(codersdk.AppFamilyReconnectingPTY),
+		})
 		if err != nil {
 			return err
 		}
 		agentStats = database.GetDeploymentWorkspaceAgentStatsRow(agentUsageStats)
 	} else {
-		agentStats, err = c.database.GetDeploymentWorkspaceAgentStats(ctx, from)
+		agentStats, err = c.database.GetDeploymentWorkspaceAgentStats(ctx, database.GetDeploymentWorkspaceAgentStatsParams{
+			CreatedAt:           from,
+			VscodeApps:          codersdk.AppNamesInFamily(codersdk.AppFamilyVSCode),
+			SshApps:             codersdk.AppNamesInFamily(codersdk.AppFamilySSH),
+			JetbrainsApps:       codersdk.AppNamesInFamily(codersdk.AppFamilyJetBrains),
+			ReconnectingPtyApps: codersdk.AppNamesInFamily(codersdk.AppFamilyReconnectingPTY),
+		})
 		if err != nil {
 			return err
 		}

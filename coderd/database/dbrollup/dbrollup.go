@@ -10,6 +10,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -106,7 +107,12 @@ func (r *Rolluper) start(ctx context.Context) {
 				}
 
 				ev.TemplateUsageStats = true
-				return tx.UpsertTemplateUsageStats(ctx)
+				return tx.UpsertTemplateUsageStats(ctx, database.UpsertTemplateUsageStatsParams{
+					VscodeApps:          codersdk.AppNamesInFamily(codersdk.AppFamilyVSCode),
+					SshApps:             codersdk.AppNamesInFamily(codersdk.AppFamilySSH),
+					JetbrainsApps:       codersdk.AppNamesInFamily(codersdk.AppFamilyJetBrains),
+					ReconnectingPtyApps: codersdk.AppNamesInFamily(codersdk.AppFamilyReconnectingPTY),
+				})
 			}, database.DefaultTXOptions().WithID("db_rollup"))
 		})
 
