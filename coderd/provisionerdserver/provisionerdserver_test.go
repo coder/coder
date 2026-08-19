@@ -522,7 +522,7 @@ func TestAcquireJob(t *testing.T) {
 					OAuthExpiry:      dbtime.Now().Add(time.Hour),
 					OAuthAccessToken: "access-token",
 				})
-				dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+				ealink := dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
 					ProviderID: gitAuthProvider.Id,
 					UserID:     user.ID,
 				})
@@ -768,7 +768,7 @@ func TestAcquireJob(t *testing.T) {
 						},
 						ExternalAuthProviders: []*sdkproto.ExternalAuthProvider{{
 							Id:          gitAuthProvider.Id,
-							AccessToken: "access_token",
+							AccessToken: ealink.OAuthAccessToken,
 						}},
 						Metadata: wantedMetadata,
 					},
