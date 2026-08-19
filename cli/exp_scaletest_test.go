@@ -116,6 +116,40 @@ func TestScaleTestCreateUsers(t *testing.T) {
 	require.Equal(t, 1, templateAdmins)
 }
 
+// TestScaleTestNotifications_ReuseUsersInsufficient verifies that --reuse-users
+// checks the pool up front and exits with an actionable error when not enough
+// scaletest users (or template admins) exist, rather than creating any.
+func TestScaleTestNotifications_ReuseUsersInsufficient(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "notifications",
+		"--user-count", "2",
+		"--template-admin-percentage", "50",
+		"--reuse-users",
+		"--dial-timeout", "5s",
+		"--notification-timeout", "5s",
+		"--scaletest-prometheus-address", "127.0.0.1:0",
+		"--scaletest-prometheus-wait", "0s",
+		"--output", "text",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "not enough scaletest users to reuse")
+}
+
 // This test just validates that the CLI command accepts its known arguments.
 // A more comprehensive test is performed in workspacetraffic/run_test.go
 func TestScaleTestWorkspaceTraffic(t *testing.T) {
