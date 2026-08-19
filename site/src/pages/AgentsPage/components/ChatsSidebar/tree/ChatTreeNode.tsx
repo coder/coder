@@ -297,14 +297,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											// keep the timestamp visible.
 											hasMenuActions &&
 												"[@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden",
-											// The active chat keeps the actions trigger visible, so
-											// the timestamp stays hidden there.
 											hasMenuActions && isActiveChat && "hidden",
 										)}
 									>
 										{chat.has_unread && !isActiveChat ? (
-											// The w-3.5 box matches the kebab icon's width so the
-											// dot centers on the same axis as the ellipsis glyph.
 											<span className="flex w-3.5 shrink-0 justify-center">
 												<span
 													className="size-2 rounded-full bg-content-link"
@@ -340,8 +336,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											variant="subtle"
 											className={cn(
 												"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
-												// Keep the trigger visible on the active chat so it is
-												// reachable without hovering.
 												isActiveChat && "opacity-100",
 											)}
 											aria-label={`Open actions for ${chat.title}`}
