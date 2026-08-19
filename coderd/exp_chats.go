@@ -1310,15 +1310,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate per-chat system prompt length.
-	const maxSystemPromptLen = 10000
-	if len(req.SystemPrompt) > maxSystemPromptLen {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "System prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("System prompt must be at most %d characters, got %d.", maxSystemPromptLen, len(req.SystemPrompt)),
-		})
-		return
-	}
 	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
@@ -4583,7 +4574,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
 		return
 	}
-	sanitizedPrompt := chatd.SanitizePromptText(req.SystemPrompt)
+	sanitizedPrompt := codersdk.SanitizePromptText(req.SystemPrompt)
 	// 128 KiB is generous for a system prompt while still
 	// preventing abuse or accidental pastes of large content.
 	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
@@ -4773,7 +4764,7 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	sanitizedInstructions := chatd.SanitizePromptText(req.PlanModeInstructions)
+	sanitizedInstructions := codersdk.SanitizePromptText(req.PlanModeInstructions)
 	if len(sanitizedInstructions) > maxSystemPromptLenBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Plan mode instructions exceed maximum length.",
@@ -5832,7 +5823,7 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	sanitizedPrompt := chatd.SanitizePromptText(params.CustomPrompt)
+	sanitizedPrompt := codersdk.SanitizePromptText(params.CustomPrompt)
 	// Apply the same 128 KiB limit as the deployment system prompt.
 	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
