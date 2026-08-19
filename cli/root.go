@@ -29,6 +29,8 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
+	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/propagation"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
@@ -38,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/cli/sessionstore"
 	"github.com/coder/coder/v2/cli/telemetry"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/pretty"
@@ -578,6 +581,12 @@ type RootCmd struct {
 	disableDirect bool
 	debugHTTP     bool
 
+	// clientSessionID, when set, is attached to every request made by the
+	// client as client_session_id W3C baggage so coderd and agent middleware
+	// can correlate logs, spans, and telemetry by session. It is set by the
+	// ssh sub-command per the connection-log RFC.
+	clientSessionID string
+
 	disableNetworkTelemetry    bool
 	noVersionCheck             bool
 	noFeatureWarning           bool
@@ -853,6 +862,9 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	transport = wrapTransportWithUserAgentHeader(transport, inv)
+	if r.clientSessionID != "" {
+		transport = wrapTransportWithSessionIDHeader(transport, r.clientSessionID)
+	}
 	if !r.noVersionCheck {
 		buildInfoTransport, err := newHTTPTransport(r.tlsConfig)
 		if err != nil {
@@ -1730,6 +1742,28 @@ func wrapTransportWithUserAgentHeader(transport http.RoundTripper, inv *serpent.
 			userAgent = fmt.Sprintf("coder-cli/%s (%s/%s; %s)", buildinfo.Version(), runtime.GOOS, runtime.GOARCH, inv.Command.FullName())
 		})
 		req.Header.Set("User-Agent", userAgent)
+		return transport.RoundTrip(req)
+	})
+}
+
+// wrapTransportWithSessionIDHeader attaches the client session ID to every
+// request as W3C baggage under the client_session_id key, so coderd and agent
+// middleware can correlate logs, spans, and telemetry by session. It is set
+// regardless of whether tracing is enabled, and merges with any baggage
+// already present on the request rather than overwriting it.
+func wrapTransportWithSessionIDHeader(transport http.RoundTripper, sessionID string) http.RoundTripper {
+	member, err := baggage.NewMemberRaw(tracing.SessionIDBaggageKey, sessionID)
+	if err != nil {
+		// An invalid session ID should never reach here. If it somehow does,
+		// skip attaching baggage rather than failing every request.
+		return transport
+	}
+	return roundTripper(func(req *http.Request) (*http.Response, error) {
+		ctx := propagation.Baggage{}.Extract(req.Context(), propagation.HeaderCarrier(req.Header))
+		if bag, err := baggage.FromContext(ctx).SetMember(member); err == nil {
+			ctx = baggage.ContextWithBaggage(ctx, bag)
+			propagation.Baggage{}.Inject(ctx, propagation.HeaderCarrier(req.Header))
+		}
 		return transport.RoundTrip(req)
 	})
 }
