@@ -1906,7 +1906,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 			BaseURL: "https://api.openai.com/v1",
 		})
 		require.NoError(t, err)
-		require.Nil(t, first.Status, "alphabetical winner should not get a warning")
+		require.Nil(t, first.Status, "first provider in database order should not get a warning")
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		second, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
@@ -1931,7 +1931,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		winner, err := client.AIProvider(ctx, first.ID.String())
 		require.NoError(t, err)
-		require.Nil(t, winner.Status, "alphabetical winner should not get a warning on get")
+		require.Nil(t, winner.Status, "first provider in database order should not get a warning on get")
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		providers, err := client.AIProviders(ctx)
@@ -1946,7 +1946,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 				secondListed = p
 			}
 		}
-		require.Nil(t, firstListed.Status, "alphabetical winner should not get a warning in list")
+		require.Nil(t, firstListed.Status, "first provider in database order should not get a warning in list")
 		require.NotNil(t, secondListed.Status)
 		require.Len(t, secondListed.Status.Warnings, 1)
 	})
