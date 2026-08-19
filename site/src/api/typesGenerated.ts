@@ -3727,12 +3727,12 @@ export const ConnectionLogStatuses: ConnectionLogStatus[] = [
 export interface ConnectionLogWebInfo {
 	readonly user_agent: string;
 	/**
-	 * User is omitted if the connection event was from an unauthenticated user.
+	 * User is omitted if the connection event was unauthenticated.
 	 */
 	readonly user: User | null;
 	readonly slug_or_port: string;
 	/**
-	 * StatusCode is the HTTP status code of the request.
+	 * StatusCode is the HTTP status code or tunnel authorization outcome.
 	 */
 	readonly status_code: number;
 }
