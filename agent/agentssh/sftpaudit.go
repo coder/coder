@@ -80,15 +80,15 @@ var _ io.ReadWriteCloser = &sftpAuditSession{}
 //
 // Packet framing: uint32 length, byte type, payload of length-1 bytes.
 type sftpRequestDecoder struct {
-	emit func(FileTransferOperation)
+	emitter *fileTransferOpEmitter
 
 	buf      []byte
 	skip     uint64
 	disabled bool
 }
 
-func newSFTPRequestDecoder(emit func(FileTransferOperation)) *sftpRequestDecoder {
-	return &sftpRequestDecoder{emit: emit}
+func newSFTPRequestDecoder(emitter *fileTransferOpEmitter) *sftpRequestDecoder {
+	return &sftpRequestDecoder{emitter: emitter}
 }
 
 // feed consumes a chunk of the client-to-server byte stream. It never
@@ -254,7 +254,7 @@ func (d *sftpRequestDecoder) parsePacket(typ byte, payload []byte) {
 }
 
 func (d *sftpRequestDecoder) emitOp(action FileTransferAction, path, target string) {
-	d.emit(FileTransferOperation{
+	d.emitter.Emit(FileTransferOperation{
 		Protocol: FileTransferProtocolSFTP,
 		Action:   action,
 		Path:     path,

@@ -519,12 +519,11 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	// Emit file operations only for sessions reported as file transfers
 	// so every operation row groups under a file_transfer session row in
 	// the connection log. The transfer was permitted if we got here.
-	var emitOp func(FileTransferOperation)
+	var opEmitter *fileTransferOpEmitter
 	if reportSession && reportAsFileTransfer {
-		emitter := newFileTransferOpEmitter(logger, id, s.config.ReportFileTransfer)
-		emitOp = emitter.Emit
+		opEmitter = newFileTransferOpEmitter(logger, id, s.config.ReportFileTransfer)
 		if fileTransfer.InitialOperation != nil {
-			emitOp(*fileTransfer.InitialOperation)
+			opEmitter.Emit(*fileTransfer.InitialOperation)
 		}
 	}
 
@@ -544,7 +543,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			_ = session.Exit(1)
 			return
 		}
-		err := s.sftpHandler(logger, session, emitOp)
+		err := s.sftpHandler(logger, session, opEmitter)
 		if err != nil {
 			closeCause(err.Error())
 		}
@@ -889,7 +888,7 @@ func handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signa
 	}
 }
 
-func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session, emitOp func(FileTransferOperation)) error {
+func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session, opEmitter *fileTransferOpEmitter) error {
 	s.metrics.sftpConnectionsTotal.Add(1)
 
 	ctx := session.Context()
@@ -922,8 +921,8 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session, emitOp fun
 	// bounded and fail-open: on malformed input it stops decoding
 	// without affecting the SFTP session.
 	var rwc io.ReadWriteCloser = session
-	if emitOp != nil {
-		rwc = newSFTPAuditSession(session, newSFTPRequestDecoder(emitOp))
+	if opEmitter != nil {
+		rwc = newSFTPAuditSession(session, newSFTPRequestDecoder(opEmitter))
 	}
 
 	server, err := sftp.NewServer(rwc, opts...)

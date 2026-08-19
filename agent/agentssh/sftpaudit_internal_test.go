@@ -4,7 +4,10 @@ import (
 	"encoding/binary"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/v3"
 )
 
 // buildSFTPPacket constructs a wire-format SFTP packet: uint32 length,
@@ -215,31 +218,42 @@ func TestSFTPRequestDecoder(t *testing.T) {
 			t.Parallel()
 
 			// Feed the whole input at once.
-			var got []FileTransferOperation
-			dec := newSFTPRequestDecoder(func(op FileTransferOperation) {
-				got = append(got, op)
-			})
+			rec := &opRecorder{}
+			dec := newSFTPRequestDecoder(rec.emitter())
 			dec.feed(tt.input)
-			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.want, rec.ops)
 
 			// Feed byte-by-byte to exercise incremental buffering.
-			got = nil
-			dec = newSFTPRequestDecoder(func(op FileTransferOperation) {
-				got = append(got, op)
-			})
+			rec = &opRecorder{}
+			dec = newSFTPRequestDecoder(rec.emitter())
 			for _, b := range tt.input {
 				dec.feed([]byte{b})
 			}
-			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.want, rec.ops)
 		})
 	}
+}
+
+// opRecorder collects operations reported through a
+// fileTransferOpEmitter, so decoder tests exercise the emitter path the
+// production wiring uses.
+type opRecorder struct {
+	ops []FileTransferOperation
+}
+
+func (r *opRecorder) report(_ uuid.UUID, op FileTransferOperation) {
+	r.ops = append(r.ops, op)
+}
+
+func (r *opRecorder) emitter() *fileTransferOpEmitter {
+	return newFileTransferOpEmitter(slog.Logger{}, uuid.New(), r.report)
 }
 
 func TestSFTPRequestDecoderDisabledStaysDisabled(t *testing.T) {
 	t.Parallel()
 
-	count := 0
-	dec := newSFTPRequestDecoder(func(FileTransferOperation) { count++ })
+	rec := &opRecorder{}
+	dec := newSFTPRequestDecoder(rec.emitter())
 	// A zero-length packet is invalid and disables the decoder.
 	dec.feed([]byte{0x00, 0x00, 0x00, 0x00, 0x00})
 	require.True(t, dec.disabled)
@@ -249,5 +263,5 @@ func TestSFTPRequestDecoderDisabledStaysDisabled(t *testing.T) {
 	payload = append(payload, sftpString("/etc/passwd")...)
 	payload = append(payload, sftpUint32(sshFxfRead)...)
 	dec.feed(buildSFTPPacket(sshFxpOpen, payload))
-	require.Zero(t, count)
+	require.Empty(t, rec.ops)
 }
