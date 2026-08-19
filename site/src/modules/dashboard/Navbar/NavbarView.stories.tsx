@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import type { TasksFilter } from "#/api/typesGenerated";
 import {
 	MockBuildInfo,
@@ -40,6 +40,8 @@ const meta: Meta<typeof NavbarView> = {
 			canViewHealth: true,
 		},
 		canCreateChat: true,
+		canViewWorkspaces: true,
+		canViewTemplates: true,
 		supportLinks: [],
 	},
 	decorators: [withDashboardProvider],
@@ -119,6 +121,57 @@ export const ForMemberWithAgentsAccess: Story = {
 		user: MockUserMember,
 		adminPermissions: {},
 		canCreateChat: true,
+	},
+};
+
+export const WithoutWorkspaceAccess: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
+	args: {
+		user: MockUserMember,
+		adminPermissions: {},
+		canCreateChat: true,
+		canViewWorkspaces: false,
+		canViewTemplates: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		for (const label of ["Workspaces", "Templates", "Tasks"]) {
+			expect(
+				canvas.queryByRole("link", { name: label }),
+			).not.toBeInTheDocument();
+		}
+		// Agents only needs chat access.
+		canvas.getByRole("link", { name: "Agents" });
+
+		await userEvent.hover(canvas.getByText("Workspaces"));
+		const body = within(canvasElement.ownerDocument.body);
+		const tooltip = await body.findByRole("tooltip");
+		expect(tooltip).toHaveTextContent(/workspaces are not available/i);
+
+		// The message describes the label rather than naming it.
+		canvas.getByRole("button", { name: "Workspaces" });
+	},
+};
+
+// An auditor can read templates while holding no workspace permission.
+export const TemplatesOnly: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
+	args: {
+		user: MockUserMember,
+		adminPermissions: { canViewAuditLog: true },
+		canCreateChat: false,
+		canViewWorkspaces: false,
+		canViewTemplates: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await canvas.findByRole("link", { name: "Templates" });
+		canvas.getByRole("button", { name: "Workspaces" });
+		expect(
+			canvas.queryByRole("link", { name: "Workspaces" }),
+		).not.toBeInTheDocument();
 	},
 };
 

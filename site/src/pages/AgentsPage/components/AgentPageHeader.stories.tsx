@@ -222,6 +222,46 @@ export const MobileActionsExcludeAnalytics: Story = {
 	},
 };
 
+export const MobileLogoLinksToDashboardRoot: Story = {
+	beforeEach: () => {
+		const originalMatchMedia = window.matchMedia;
+		window.matchMedia = createMatchMediaController(false).matchMedia;
+
+		return () => {
+			window.matchMedia = originalMatchMedia;
+		};
+	},
+	render: () => <HeaderStateHarness />,
+	parameters: {
+		layout: "fullscreen",
+		viewport: { defaultViewport: "mobile1" },
+		reactRouter: {
+			location: {
+				path: "/agents",
+			},
+			routing: [
+				{
+					path: "/",
+					element: (
+						<Outlet
+							context={{
+								isSidebarCollapsed: false,
+								onExpandSidebar: () => undefined,
+							}}
+						/>
+					),
+					children: [{ path: "agents", useStoryElement: true }],
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const [logoLink] = await canvas.findAllByRole("link");
+		await expect(logoLink).toHaveAttribute("href", "/");
+	},
+};
+
 export const ToggleStateStaysInSyncAcrossBreakpoints: Story = {
 	render: () => <HeaderStateHarness />,
 	parameters: {

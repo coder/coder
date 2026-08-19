@@ -5,7 +5,11 @@ import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { canViewDeploymentSettings } from "#/modules/permissions";
+import {
+	canViewDeploymentSettings,
+	canViewTemplates,
+	canViewWorkspaces,
+} from "#/modules/permissions";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 
@@ -31,6 +35,8 @@ export const Navbar: React.FC = () => {
 		permissions.viewAIGatewayKeys ||
 		permissions.editDeploymentConfig;
 	const canCreateChat = permissions.createChat;
+	const canViewWorkspacesNav = canViewWorkspaces(permissions);
+	const canViewTemplatesNav = canViewTemplates(permissions);
 
 	const uniqueLinks = new Map<string, LinkConfig>();
 	for (const link of appearance.support_links ?? []) {
@@ -54,6 +60,8 @@ export const Navbar: React.FC = () => {
 				canViewHealth,
 			}}
 			canCreateChat={canCreateChat}
+			canViewWorkspaces={canViewWorkspacesNav}
+			canViewTemplates={canViewTemplatesNav}
 			proxyContextValue={proxyContextValue}
 		/>
 	);

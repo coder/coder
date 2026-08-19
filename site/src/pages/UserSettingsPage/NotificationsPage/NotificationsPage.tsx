@@ -38,7 +38,7 @@ import {
 	notificationIsDisabled,
 	selectDisabledPreferences,
 } from "#/modules/notifications/utils";
-import type { Permissions } from "#/modules/permissions";
+import { canViewWorkspaces, type Permissions } from "#/modules/permissions";
 import { pageTitle } from "#/utils/page";
 
 const NotificationsPage: FC = () => {
@@ -283,6 +283,7 @@ function canSeeNotificationGroup(
 			return permissions.createUser;
 		case "Workspace Events":
 		case "Task Events":
+			return canViewWorkspaces(permissions);
 		case "Chat Events":
 		case "Custom Events":
 		case "AI Cost Control Events":

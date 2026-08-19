@@ -15,6 +15,10 @@
 		"object": { "resource_type": "template", "any_org": true },
 		"action": "create"
 	},
+	"viewTemplates": {
+		"object": { "resource_type": "template", "any_org": true },
+		"action": "read"
+	},
 	"createWorkspace": {
 		"object": {
 			"resource_type": "workspace",
@@ -22,6 +26,14 @@
 			"owner_id": "me"
 		},
 		"action": "create"
+	},
+	"viewWorkspaces": {
+		"object": {
+			"resource_type": "workspace",
+			"any_org": true,
+			"owner_id": "me"
+		},
+		"action": "read"
 	},
 	"updateTemplates": {
 		"object": { "resource_type": "template" },

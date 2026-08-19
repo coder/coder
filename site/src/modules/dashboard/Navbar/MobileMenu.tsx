@@ -34,6 +34,7 @@ import {
 	canViewAdminSettings,
 } from "./AdminSettings";
 import { sortProxiesByLatency } from "./proxyUtils";
+import { restrictedNavMessages } from "./RestrictedNavItem";
 
 const itemStyles = {
 	default: "px-9 h-10 no-underline",
@@ -44,6 +45,8 @@ const itemStyles = {
 type MobileMenuProps = {
 	proxyContextValue?: ProxyContextValue;
 	adminPermissions: AdminSettingsPermissions;
+	canViewWorkspaces: boolean;
+	canViewTemplates: boolean;
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
@@ -53,12 +56,28 @@ type MobileMenuProps = {
 export const MobileMenu: FC<MobileMenuProps> = ({
 	adminPermissions,
 	proxyContextValue,
+	canViewWorkspaces,
+	canViewTemplates,
 	user,
 	supportLinks,
 	onSignOut,
 	isDefaultOpen,
 }) => {
 	const [open, setOpen] = useState(isDefaultOpen);
+	const navItems = [
+		{
+			label: "Workspaces",
+			to: "/workspaces",
+			enabled: canViewWorkspaces,
+			message: restrictedNavMessages.workspaces,
+		},
+		{
+			label: "Templates",
+			to: "/templates",
+			enabled: canViewTemplates,
+			message: restrictedNavMessages.templates,
+		},
+	];
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
@@ -78,17 +97,28 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				className="w-screen border-0 border-b border-solid p-0 py-2"
 				sideOffset={17}
 			>
-				<DropdownMenuItem asChild className={itemStyles.default}>
-					<Link to="/workspaces">Workspaces</Link>
-				</DropdownMenuItem>
-				<DropdownMenuItem asChild className={itemStyles.default}>
-					<Link to="/templates">Templates</Link>
-				</DropdownMenuItem>
+				{navItems.map(({ label, to, enabled, message }) =>
+					enabled ? (
+						<DropdownMenuItem
+							key={label}
+							asChild
+							className={itemStyles.default}
+						>
+							<Link to={to}>{label}</Link>
+						</DropdownMenuItem>
+					) : (
+						<RestrictedMenuItem key={label} label={label} message={message} />
+					),
+				)}
 				<DropdownMenuItem asChild className={itemStyles.default}>
 					<Link to="/agents">Agents</Link>
 				</DropdownMenuItem>
-				<DropdownMenuSeparator />
-				<ProxySettingsSub proxyContextValue={proxyContextValue} />
+				{canViewWorkspaces && (
+					<>
+						<DropdownMenuSeparator />
+						<ProxySettingsSub proxyContextValue={proxyContextValue} />
+					</>
+				)}
 
 				{canViewAdminSettings(adminPermissions) && (
 					<>
@@ -104,6 +134,40 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				/>
 			</DropdownMenuContent>
 		</DropdownMenu>
+	);
+};
+
+type RestrictedMenuItemProps = {
+	label: string;
+	message: string;
+};
+
+const RestrictedMenuItem: FC<RestrictedMenuItemProps> = ({
+	label,
+	message,
+}) => {
+	const [open, setOpen] = useState(false);
+
+	return (
+		<Collapsible open={open} onOpenChange={setOpen}>
+			<CollapsibleTrigger asChild>
+				<DropdownMenuItem
+					aria-label={`${label} (unavailable)`}
+					className={cn(itemStyles.default, open && itemStyles.open)}
+					onSelect={(event) => event.preventDefault()}
+					onClick={(event) => {
+						event.preventDefault();
+						setOpen((prev) => !prev);
+					}}
+				>
+					<span className="opacity-50">{label}</span>
+					<CircleHelpIcon className="ml-auto opacity-50" />
+				</DropdownMenuItem>
+			</CollapsibleTrigger>
+			<CollapsibleContent className="px-9 pb-2 text-xs text-content-secondary">
+				{message}
+			</CollapsibleContent>
+		</Collapsible>
 	);
 };
 

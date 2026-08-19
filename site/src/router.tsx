@@ -13,6 +13,7 @@ import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { useAuthenticated } from "./hooks/useAuthenticated";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { DashboardRedirect } from "./modules/dashboard/DashboardRedirect";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import ConnectionLogPage from "./pages/ConnectionLogPage/ConnectionLogPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
@@ -561,7 +562,7 @@ export const router = createBrowserRouter(
 			{/* Dashboard routes */}
 			<Route element={<RequireAuth />}>
 				<Route element={<DashboardLayout />}>
-					<Route index element={<Navigate to="/workspaces" replace />} />
+					<Route index element={<DashboardRedirect />} />
 
 					<Route
 						path="/external-auth/:provider"
@@ -682,8 +683,8 @@ export const router = createBrowserRouter(
 						<Route path="account" element={<AccountPage />} />
 						<Route path="appearance" element={<AppearancePage />} />
 						<Route path="schedule" element={<SchedulePage />} />
-						<Route path="security" element={<SecurityPage />} />
 						<Route path="ssh-keys" element={<SSHKeysPage />} />
+						<Route path="security" element={<SecurityPage />} />
 						<Route
 							path="external-auth"
 							element={<UserExternalAuthSettingsPage />}

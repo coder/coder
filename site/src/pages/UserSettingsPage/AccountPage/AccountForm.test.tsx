@@ -24,6 +24,7 @@ describe("AccountForm", () => {
 					email={MockUserMember.email}
 					initialValues={mockInitialValues}
 					isLoading={false}
+					showTemplateNameHelperText
 					onSubmit={vi.fn()}
 				/>,
 			);
@@ -53,6 +54,7 @@ describe("AccountForm", () => {
 				email={MockUserMember.email}
 				initialValues={mockInitialValues}
 				isLoading={false}
+				showTemplateNameHelperText
 				onSubmit={vi.fn()}
 			/>,
 		);
@@ -77,6 +79,7 @@ describe("AccountForm", () => {
 					email={MockUserMember.email}
 					initialValues={mockInitialValues}
 					isLoading={false}
+					showTemplateNameHelperText
 					onSubmit={vi.fn()}
 				/>,
 			);
