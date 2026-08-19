@@ -258,8 +258,9 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 		: null;
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
 	// The process may outlive the poll that produced this result
-	// (wait timeout); the result flags it explicitly.
-	const processRunning = rec?.running === true;
+	// (wait timeout); the result flags it explicitly. A later
+	// successful kill overrides the stale running snapshot.
+	const processRunning = rec?.running === true && !killedBySignal;
 
 	return (
 		<ProcessOutputTool

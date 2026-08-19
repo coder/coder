@@ -865,6 +865,31 @@ export const ProcessOutputStillRunningResult: Story = {
 	},
 };
 
+/** A later kill overrides the stale running snapshot. */
+export const ProcessOutputRunningThenKilled: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		killedBySignal: "kill",
+		args: { process_id: "process-123" },
+		result: {
+			command: "npm start",
+			output: "> Starting Vite dev server...",
+			running: true,
+			note: "process is still running",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Checked npm start")).toBeVisible();
+		expect(canvas.queryByText(/Checking/)).not.toBeInTheDocument();
+		await userEvent.hover(canvas.getByText("Checked npm start"));
+		expect(
+			canvasElement.querySelector(".lucide-octagon-x"),
+		).not.toBeNull();
+	},
+};
+
 /** Older transcripts carry no command; the label falls back. */
 export const ProcessOutputNoCommand: Story = {
 	args: {
