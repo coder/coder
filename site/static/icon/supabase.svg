@@ -1,17 +1,15 @@
 <svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <g transform="translate(73.5, 71.5) scale(2.265)">
-    <path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#paint0_linear)"/>
-    <path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#paint1_linear)" fill-opacity="0.2"/>
-    <path d="M45.317 2.07103C48.1765 -1.53037 53.9745 0.442937 54.0434 5.041L54.4849 72.2922H9.83113C1.64038 72.2922 -2.92775 62.8321 2.1655 56.4175L45.317 2.07103Z" fill="#3ECF8E"/>
-  </g>
-  <defs>
-    <linearGradient id="paint0_linear" x1="53.9738" y1="54.974" x2="94.1635" y2="71.8295" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#249361"/>
-      <stop offset="1" stop-color="#3ECF8E"/>
-    </linearGradient>
-    <linearGradient id="paint1_linear" x1="36.1558" y1="30.578" x2="54.4844" y2="65.0806" gradientUnits="userSpaceOnUse">
-      <stop/>
-      <stop offset="1" stop-opacity="0"/>
-    </linearGradient>
-  </defs>
+<path d="M148.867 249.758C141.986 255.922 128.837 252.678 128.681 242.777L126.394 90.696H228.994C247.574 90.696 257.959 111.104 246.397 124.881L148.867 249.758Z" fill="url(#paint0_linear)"/>
+<path d="M148.867 249.758C141.986 255.922 128.837 252.678 128.681 242.777L126.697 90.696H228.994C247.574 90.696 257.959 111.104 246.397 124.881L148.867 249.758Z" fill="url(#paint1_linear)" fill-opacity="0.2"/>
+<path d="M107.133 4.691C114.014 -1.473 127.163 1.771 127.319 11.672L128.161 163.753H26.817C8.237 163.753 -2.148 143.345 9.414 129.568L107.133 4.691Z" fill="#3ECF8E"/>
+<defs>
+<linearGradient id="paint0_linear" x1="126.697" y1="124.503" x2="217.786" y2="162.717" gradientUnits="userSpaceOnUse">
+<stop stop-color="#249361"/>
+<stop offset="1" stop-color="#3ECF8E"/>
+</linearGradient>
+<linearGradient id="paint1_linear" x1="86.340" y1="69.279" x2="127.894" y2="147.440" gradientUnits="userSpaceOnUse">
+<stop/>
+<stop offset="1" stop-opacity="0"/>
+</linearGradient>
+</defs>
 </svg>
