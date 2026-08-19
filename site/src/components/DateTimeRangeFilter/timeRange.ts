@@ -18,6 +18,12 @@ const DATE_FORMATS = [
 ];
 const TIME_FORMATS = [DATE_FORMAT.TIME_24H, DATE_FORMAT.TIME_24H_MINUTE];
 
+const NOW_PATTERN = /^now$/i;
+
+/** Whether an expression is the literal "now" (case-insensitive). */
+export const isNowExpression = (expression: string): boolean =>
+	NOW_PATTERN.test(expression.trim());
+
 /**
  * Parses a human-friendly time expression in browser-local time:
  * "now", a clock time (current day), a date (midnight), or a date
@@ -31,7 +37,7 @@ export const parseTimeExpression = (
 	if (trimmed === "") {
 		return null;
 	}
-	if (/^now$/i.test(trimmed)) {
+	if (isNowExpression(trimmed)) {
 		return new Date(now.getTime());
 	}
 

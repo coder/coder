@@ -1,7 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { formatTriggerLabel, parseTimeExpression } from "./timeRange";
+import {
+	formatTriggerLabel,
+	isNowExpression,
+	parseTimeExpression,
+} from "./timeRange";
 
 const now = new Date(2026, 7, 13, 15, 0, 0);
+
+describe("isNowExpression", () => {
+	it("matches now case-insensitively with surrounding whitespace", () => {
+		expect(isNowExpression("now")).toBe(true);
+		expect(isNowExpression("Now")).toBe(true);
+		expect(isNowExpression(" NOW ")).toBe(true);
+	});
+
+	it("rejects other input", () => {
+		expect(isNowExpression("now ")).toBe(true);
+		expect(isNowExpression("not-now")).toBe(false);
+		expect(isNowExpression("")).toBe(false);
+		expect(isNowExpression("2026-08-13")).toBe(false);
+	});
+});
 
 describe("parseTimeExpression", () => {
 	it("parses now case-insensitively", () => {

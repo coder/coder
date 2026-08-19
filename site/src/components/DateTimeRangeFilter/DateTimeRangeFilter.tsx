@@ -12,6 +12,7 @@ import { cn } from "#/utils/cn";
 import { formatDateTime } from "#/utils/time";
 import {
 	formatTriggerLabel,
+	isNowExpression,
 	parseTimeExpression,
 	type TimeRange,
 } from "./timeRange";
@@ -39,9 +40,6 @@ const EXAMPLES = ["Now", "15:43", "2026-08-13 11:43"];
 const INVALID_TIME_MESSAGE = "Enter a valid time, e.g. 2026-08-13 11:43";
 
 const NOW_TOLERANCE_MS = 60 * 1000;
-
-const isNowExpression = (text: string): boolean =>
-	text.trim().toLowerCase() === "now";
 
 export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 	value,
