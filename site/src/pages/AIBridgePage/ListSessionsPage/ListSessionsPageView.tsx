@@ -1,10 +1,7 @@
 import { InfoIcon } from "lucide-react";
 import type { ComponentProps, FC, PropsWithChildren } from "react";
 import type { AIBridgeSession } from "#/api/typesGenerated";
-import {
-	PaginationContainer,
-	type PaginationResult,
-} from "#/components/PaginationWidget/PaginationContainer";
+import { LoadMoreSentinel } from "#/components/LoadMoreSentinel/LoadMoreSentinel";
 import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
 import {
 	Table,
@@ -28,11 +25,12 @@ import { ListSessionsRow } from "./ListSessionsRow";
 
 interface ListSessionsPageViewProps {
 	isLoading: boolean;
-	isFetching: boolean;
 	isAISessionsEntitled: boolean;
 	isAISessionsEnabled: boolean;
 	sessions?: readonly AIBridgeSession[];
-	sessionsQuery: PaginationResult;
+	hasNextPage: boolean;
+	isFetchingNextPage: boolean;
+	onFetchNextPage: () => void;
 	filterProps: ComponentProps<typeof ListSessionsFilter>;
 	onSessionRowClick?: (sessionId: string) => void;
 }
@@ -55,11 +53,12 @@ const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
 
 export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 	isLoading,
-	isFetching,
 	isAISessionsEntitled,
 	isAISessionsEnabled,
 	sessions,
-	sessionsQuery,
+	hasNextPage,
+	isFetchingNextPage,
+	onFetchNextPage,
 	filterProps,
 	onSessionRowClick,
 }) => {
@@ -77,44 +76,48 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 		<>
 			<ListSessionsFilter {...filterProps} />
 
-			<PaginationContainer query={sessionsQuery} paginationUnitLabel="sessions">
-				<Table className="text-sm font-normal">
-					<TableHeader>
-						<TableRow>
-							<TableHead className="text-nowrap">Last Prompt</TableHead>
-							<TableHead className="text-nowrap">User</TableHead>
-							<TableHead className="text-nowrap">Provider</TableHead>
-							<TableHead className="text-nowrap">Client</TableHead>
-							<TableHead className="text-nowrap">In/Out Tokens</TableHead>
-							<TableHead className="text-nowrap">Network Requests</TableHead>
-							<TableHead className="flex items-center flex-nowrap gap-1">
-								Threads
-								<ThreadTooltip>
-									<InfoIcon className="size-icon-xs" />
-								</ThreadTooltip>
-							</TableHead>
-							<TableHead className="text-nowrap">
-								Last Prompt At [UTC{utcOffset}]
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isLoading || isFetching ? (
-							<TableLoader />
-						) : sessions?.length === 0 ? (
-							<TableEmpty message="No session logs available" />
-						) : (
-							sessions?.map((session) => (
-								<ListSessionsRow
-									session={session}
-									key={session.id}
-									onClick={() => onSessionRowClick?.(session.id)}
-								/>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</PaginationContainer>
+			<Table className="text-sm font-normal">
+				<TableHeader>
+					<TableRow>
+						<TableHead className="text-nowrap">Last Prompt</TableHead>
+						<TableHead className="text-nowrap">User</TableHead>
+						<TableHead className="text-nowrap">Provider</TableHead>
+						<TableHead className="text-nowrap">Client</TableHead>
+						<TableHead className="text-nowrap">In/Out Tokens</TableHead>
+						<TableHead className="text-nowrap">Network Requests</TableHead>
+						<TableHead className="flex items-center flex-nowrap gap-1">
+							Threads
+							<ThreadTooltip>
+								<InfoIcon className="size-icon-xs" />
+							</ThreadTooltip>
+						</TableHead>
+						<TableHead className="text-nowrap">
+							Last Prompt At [UTC{utcOffset}]
+						</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{isLoading ? (
+						<TableLoader />
+					) : sessions?.length === 0 ? (
+						<TableEmpty message="No session logs available" />
+					) : (
+						sessions?.map((session) => (
+							<ListSessionsRow
+								session={session}
+								key={session.id}
+								onClick={() => onSessionRowClick?.(session.id)}
+							/>
+						))
+					)}
+				</TableBody>
+			</Table>
+			{hasNextPage && (
+				<LoadMoreSentinel
+					onLoadMore={onFetchNextPage}
+					isFetchingNextPage={isFetchingNextPage}
+				/>
+			)}
 		</>
 	);
 };

@@ -3141,7 +3141,9 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getAIBridgeSessionList = async (options: SearchParamOptions) => {
+	getAIBridgeSessionList = async (
+		options: SearchParamOptions & { after_session_id?: string },
+	) => {
 		const url = getURLWithSearchParams(`${aiGatewayPath}/sessions`, options);
 		const response =
 			await this.axios.get<TypesGen.AIBridgeListSessionsResponse>(url);

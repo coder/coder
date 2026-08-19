@@ -4,27 +4,31 @@ import type {
 	AIBridgeListSessionsResponse,
 	AIBridgeSessionThreadsResponse,
 } from "#/api/typesGenerated";
-import { useFilterParamsKey } from "#/components/Filter/Filter";
-import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 
+const SESSIONS_INFINITE_PAGE_SIZE = 25;
 const SESSION_THREADS_INFINITE_PAGE_SIZE = 20;
 
-export const paginatedSessions = (
-	searchParams: URLSearchParams,
-): UsePaginatedQueryOptions<AIBridgeListSessionsResponse, string> => {
+export const infiniteSessions = (filterQuery: string) => {
 	return {
-		searchParams,
-		queryPayload: () => searchParams.get(useFilterParamsKey) ?? "",
-		queryKey: ({ limit, offset, payload }) => {
-			return ["aiBridgeSessions", limit, offset, payload] as const;
+		queryKey: ["aiBridgeSessions", filterQuery],
+		// Without a staleTime, a remount would refetch every loaded cursor
+		// page sequentially. One minute matches usePaginatedQuery's default.
+		staleTime: 60_000,
+		getNextPageParam: (lastPage: AIBridgeListSessionsResponse) => {
+			const sessions = lastPage.sessions;
+			if (sessions.length < SESSIONS_INFINITE_PAGE_SIZE) {
+				return undefined;
+			}
+			return sessions.at(-1)?.id;
 		},
-		queryFn: ({ limit, offset, payload }) =>
+		initialPageParam: undefined as string | undefined,
+		queryFn: ({ pageParam }) =>
 			API.getAIBridgeSessionList({
-				offset,
-				limit,
-				q: payload,
+				limit: SESSIONS_INFINITE_PAGE_SIZE,
+				after_session_id: pageParam as string | undefined,
+				q: filterQuery,
 			}),
-	};
+	} satisfies UseInfiniteQueryOptions<AIBridgeListSessionsResponse>;
 };
 
 export const infiniteSessionThreads = (sessionId: string) => {
