@@ -156,9 +156,6 @@ this:
 > PR deployment will be re-deployed automatically when the PR is updated.
 > It will use the last values automatically for redeployment.
 
-Once the deployment is finished, a unique link and credentials will be posted
-in the internal `#pr-deployments` Slack channel.
-
 ## Styling
 
 - [Documentation style guide](./documentation.md)
