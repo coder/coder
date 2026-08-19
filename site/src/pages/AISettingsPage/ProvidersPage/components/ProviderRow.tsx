@@ -30,6 +30,14 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 	});
 	const displayName = provider.display_name || provider.name;
 
+	// Stop activation from bubbling to a parent `useClickableTableRow`
+	// row, which navigates on click, Enter (onKeyDown), and Space
+	// (onKeyUp). Radix composes its own click handler, so the tooltip
+	// still opens.
+	const stopPropagation = (event: React.SyntheticEvent) => {
+		event.stopPropagation();
+	};
+
 	return (
 		<TableRow key={provider.name} {...clickableProps}>
 			<TableCell className="min-w-0 px-4 py-3">
@@ -74,9 +82,9 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 									variant="warning"
 									tabIndex={0}
 									aria-label={`Warning: ${provider.status.warnings.join("; ")}`}
-									onClick={(e) => e.stopPropagation()}
-									onKeyDown={(e) => e.stopPropagation()}
-									onKeyUp={(e) => e.stopPropagation()}
+									onClick={stopPropagation}
+									onKeyDown={stopPropagation}
+									onKeyUp={stopPropagation}
 								>
 									Warning
 								</Badge>

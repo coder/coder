@@ -65,7 +65,12 @@ Standalone replicas do not export them.
 
 AI Gateway Proxy exports metrics from the `coderd` Prometheus listener.
 
-A `proxy_excluded` status means another enabled provider with the same base URL hostname claimed the proxy route first. The proxy classifier uses first-wins by name sort order (`ORDER BY name ASC`), so the alphabetically first provider wins and subsequent providers with the same hostname are excluded from proxy routing. They remain reachable via direct routing at `/api/v2/ai-gateway/{name}/...`.
+A `proxy_excluded` status means another enabled provider with the same base URL hostname claimed the proxy route first. The proxy classifier uses first-wins by database name sort order (`ORDER BY name ASC`), so the first provider in that order wins and subsequent providers with the same hostname are excluded from proxy routing. They remain reachable via direct routing at `/api/v2/ai-gateway/{name}/...`.
+
+When alerting on `coder_ai_gateway_proxy_provider_info`, exclude
+`proxy_excluded` from the alert expression unless you want to be
+notified of intended duplicate-hostname configurations:
+`status!="enabled",status!="proxy_excluded"`.
 
 | Metric                                                                   | Type    | Labels                                     | Purpose                                                                                                                           |
 |--------------------------------------------------------------------------|---------|--------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|

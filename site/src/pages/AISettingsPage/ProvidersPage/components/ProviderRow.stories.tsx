@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	Table,
 	TableBody,
@@ -123,5 +123,12 @@ export const WithHostnameCollisionWarning: Story = {
 			"aria-label",
 			expect.stringContaining("api.openai.com"),
 		);
+
+		// Keyboard activation must not navigate the row.
+		badge.focus();
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard(" ");
+		// If the row navigated, the badge would unmount.
+		await expect(badge).toBeInTheDocument();
 	},
 };
