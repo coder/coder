@@ -143,10 +143,6 @@ func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request)
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		if dbauthz.IsNotAuthorizedError(err) {
-			httpapi.Forbidden(rw)
-			return
-		}
 		httpapi.InternalServerError(rw, err)
 		return
 	}
