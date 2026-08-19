@@ -49,14 +49,18 @@ WHERE
 	AND (refresh_lease_expires_at = $3 OR $3 IS NULL)
 RETURNING *;
 
--- name: SetExternalAuthLinkRefreshLease :exec
--- If an old lease is set, the row will be only updated if it matches the
--- current lease.
+-- name: AcquireExternalAuthLinkRefreshLease :one
+-- Set the lease to expire according to the provided timeout.  If there is
+-- already a lease, an exception is raised.
+SELECT * from acquire_external_auth_link_refresh_lease(@provider_id, @user_id, @timeout_ms);
+
+-- name: ReleaseExternalAuthLinkRefreshLease :exec
+-- The lease is only removed if it is the current lease.
 UPDATE
 	external_auth_links
 SET
-	refresh_lease_expires_at = @refresh_lease_expires_at
+	refresh_lease_expires_at = NULL
 WHERE
 	provider_id = @provider_id
 	AND user_id = @user_id
-	AND (refresh_lease_expires_at = @old_refresh_lease_expires_at OR @old_refresh_lease_expires_at IS NULL);
+	AND refresh_lease_expires_at = @refresh_lease_expires_at;

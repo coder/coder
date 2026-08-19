@@ -3202,13 +3202,22 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().UpdateExternalAuthLink(gomock.Any(), arg).Return(link, nil).AnyTimes()
 		check.Args(arg).Asserts(link, policy.ActionUpdatePersonal).Returns(link)
 	}))
-	s.Run("SetExternalAuthLinkRefreshLease", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("AcquireExternalAuthLinkRefreshLease", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		link := testutil.Fake(s.T(), faker, database.ExternalAuthLink{})
 		dbm.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{ProviderID: link.ProviderID, UserID: link.UserID}).Return(link, nil).AnyTimes()
-		link.RefreshLeaseExpiresAt = sql.NullTime{Time: dbtime.Now().Add(time.Minute), Valid: true}
-		arg := database.SetExternalAuthLinkRefreshLeaseParams{ProviderID: link.ProviderID, UserID: link.UserID, RefreshLeaseExpiresAt: link.RefreshLeaseExpiresAt}
-		dbm.EXPECT().SetExternalAuthLinkRefreshLease(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(link, policy.ActionUpdatePersonal)
+		timeout := 10 * time.Second
+		arg := database.AcquireExternalAuthLinkRefreshLeaseParams{ProviderID: link.ProviderID, UserID: link.UserID, TimeoutMs: timeout.Milliseconds()}
+		dbm.EXPECT().AcquireExternalAuthLinkRefreshLease(gomock.Any(), arg).Return(link, nil).AnyTimes()
+		check.Args(arg).Asserts(link, policy.ActionUpdatePersonal).Returns(link)
+	}))
+	s.Run("ReleaseExternalAuthLinkRefreshLease", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		link := testutil.Fake(s.T(), faker, database.ExternalAuthLink{
+			RefreshLeaseExpiresAt: sql.NullTime{Time: dbtime.Now().Add(time.Minute), Valid: true},
+		})
+		dbm.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{ProviderID: link.ProviderID, UserID: link.UserID}).Return(link, nil).AnyTimes()
+		arg := database.ReleaseExternalAuthLinkRefreshLeaseParams{ProviderID: link.ProviderID, UserID: link.UserID, RefreshLeaseExpiresAt: link.RefreshLeaseExpiresAt}
+		dbm.EXPECT().ReleaseExternalAuthLinkRefreshLease(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(link, policy.ActionUpdatePersonal).Returns()
 	}))
 	s.Run("UpdateUserLink", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		link := testutil.Fake(s.T(), faker, database.UserLink{})

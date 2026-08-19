@@ -13,6 +13,9 @@ import (
 )
 
 type sqlcQuerier interface {
+	// Set the lease to expire according to the provided timeout.  If there is
+	// already a lease, an exception is raised.
+	AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg AcquireExternalAuthLinkRefreshLeaseParams) (ExternalAuthLink, error)
 	// Blocks until the lock is acquired.
 	//
 	// This must be called from within a transaction. The lock will be automatically
@@ -1315,6 +1318,8 @@ type sqlcQuerier interface {
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
+	// The lease is only removed if it is the current lease.
+	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	// Mutates only created_at on the target row; ids are unchanged so
 	// consumers can keep tracking queued messages by id.
@@ -1333,9 +1338,6 @@ type sqlcQuerier interface {
 	// refresh endpoint. Does not bump updated_at: context pinning is
 	// background state and must not reorder chat lists.
 	SetChatContextSnapshot(ctx context.Context, arg SetChatContextSnapshotParams) error
-	// If an old lease is set, the row will be only updated if it matches the
-	// current lease.
-	SetExternalAuthLinkRefreshLease(ctx context.Context, arg SetExternalAuthLinkRefreshLeaseParams) error
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
 	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error

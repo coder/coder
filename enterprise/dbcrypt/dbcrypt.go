@@ -242,6 +242,20 @@ func (db *dbCrypt) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid
 	return links, nil
 }
 
+func (db *dbCrypt) AcquireExternalAuthLinkRefreshLease(ctx context.Context, params database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
+	link, err := db.Store.AcquireExternalAuthLinkRefreshLease(ctx, params)
+	if err != nil {
+		return database.ExternalAuthLink{}, err
+	}
+	if err := db.decryptField(&link.OAuthAccessToken, link.OAuthAccessTokenKeyID); err != nil {
+		return database.ExternalAuthLink{}, err
+	}
+	if err := db.decryptField(&link.OAuthRefreshToken, link.OAuthRefreshTokenKeyID); err != nil {
+		return database.ExternalAuthLink{}, err
+	}
+	return link, nil
+}
+
 func (db *dbCrypt) UpdateExternalAuthLink(ctx context.Context, params database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := db.encryptField(&params.OAuthAccessToken, &params.OAuthAccessTokenKeyID); err != nil {
 		return database.ExternalAuthLink{}, err

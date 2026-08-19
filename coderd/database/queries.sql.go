@@ -13956,6 +13956,38 @@ func (q *sqlQuerier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest strin
 	return err
 }
 
+const acquireExternalAuthLinkRefreshLease = `-- name: AcquireExternalAuthLinkRefreshLease :one
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at from acquire_external_auth_link_refresh_lease($1, $2, $3)
+`
+
+type AcquireExternalAuthLinkRefreshLeaseParams struct {
+	ProviderID string    `db:"provider_id" json:"provider_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	TimeoutMs  int64     `db:"timeout_ms" json:"timeout_ms"`
+}
+
+// Set the lease to expire according to the provided timeout.  If there is
+// already a lease, an exception is raised.
+func (q *sqlQuerier) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg AcquireExternalAuthLinkRefreshLeaseParams) (ExternalAuthLink, error) {
+	row := q.db.QueryRowContext(ctx, acquireExternalAuthLinkRefreshLease, arg.ProviderID, arg.UserID, arg.TimeoutMs)
+	var i ExternalAuthLink
+	err := row.Scan(
+		&i.ProviderID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
+		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
+	)
+	return i, err
+}
+
 const deleteExternalAuthLink = `-- name: DeleteExternalAuthLink :exec
 DELETE FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
 `
@@ -14109,33 +14141,26 @@ func (q *sqlQuerier) InsertExternalAuthLink(ctx context.Context, arg InsertExter
 	return i, err
 }
 
-const setExternalAuthLinkRefreshLease = `-- name: SetExternalAuthLinkRefreshLease :exec
+const releaseExternalAuthLinkRefreshLease = `-- name: ReleaseExternalAuthLinkRefreshLease :exec
 UPDATE
 	external_auth_links
 SET
-	refresh_lease_expires_at = $1
+	refresh_lease_expires_at = NULL
 WHERE
-	provider_id = $2
-	AND user_id = $3
-	AND (refresh_lease_expires_at = $4 OR $4 IS NULL)
+	provider_id = $1
+	AND user_id = $2
+	AND refresh_lease_expires_at = $3
 `
 
-type SetExternalAuthLinkRefreshLeaseParams struct {
-	RefreshLeaseExpiresAt    sql.NullTime `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
-	ProviderID               string       `db:"provider_id" json:"provider_id"`
-	UserID                   uuid.UUID    `db:"user_id" json:"user_id"`
-	OldRefreshLeaseExpiresAt sql.NullTime `db:"old_refresh_lease_expires_at" json:"old_refresh_lease_expires_at"`
+type ReleaseExternalAuthLinkRefreshLeaseParams struct {
+	ProviderID            string       `db:"provider_id" json:"provider_id"`
+	UserID                uuid.UUID    `db:"user_id" json:"user_id"`
+	RefreshLeaseExpiresAt sql.NullTime `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
 }
 
-// If an old lease is set, the row will be only updated if it matches the
-// current lease.
-func (q *sqlQuerier) SetExternalAuthLinkRefreshLease(ctx context.Context, arg SetExternalAuthLinkRefreshLeaseParams) error {
-	_, err := q.db.ExecContext(ctx, setExternalAuthLinkRefreshLease,
-		arg.RefreshLeaseExpiresAt,
-		arg.ProviderID,
-		arg.UserID,
-		arg.OldRefreshLeaseExpiresAt,
-	)
+// The lease is only removed if it is the current lease.
+func (q *sqlQuerier) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error {
+	_, err := q.db.ExecContext(ctx, releaseExternalAuthLinkRefreshLease, arg.ProviderID, arg.UserID, arg.RefreshLeaseExpiresAt)
 	return err
 }
 

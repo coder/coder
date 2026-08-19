@@ -64,6 +64,10 @@ const (
 	// defaultRefreshLeaseMaxBackoff is the maximum wait between polls to check
 	// whether another replica has finished refreshing.
 	defaultRefreshLeaseMaxBackoff = 500 * time.Millisecond
+
+	// externalAuthLinkActiveLeaseConstraint indicates the lease could not be
+	// acquired because something else has an active lease.
+	externalAuthLinkActiveLeaseConstraint database.CheckConstraint = "external_auth_link_active_lease"
 )
 
 // SingleflightGroup exposes a subset of singleflight.Group for easier testing.
@@ -281,11 +285,9 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 // concurrency protection between multiple instances by using a lease column on
 // the link's row.
 func (c *Config) refreshAndValidateWithLease(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink, timeout time.Duration) (newLink database.ExternalAuthLink, refreshErr error) {
-	lease := dbtime.Now().Add(timeout)
-
 	// There may be other replicas also wanting to refresh; try to get a lease
 	// on the row.  This also ensures we have the latest link.
-	var dblink database.ExternalAuthLink
+	var leasedLink database.ExternalAuthLink
 	initial := defaultRefreshLeaseInitialBackoff
 	if c.RefreshLeaseInitialBackoff > 0 {
 		initial = c.RefreshLeaseInitialBackoff
@@ -295,88 +297,51 @@ func (c *Config) refreshAndValidateWithLease(ctx context.Context, db database.St
 		maximum = c.RefreshLeaseMaxBackoff
 	}
 	r := retry.New(initial, maximum)
-	lockID := database.GenLockID(fmt.Sprintf("external-auth-refresh:%s-%s", c.ID, externalAuthLink.UserID.String()))
-	gotLease := false
-	for !gotLease {
-		// A refresh can take an arbitrary amount of time, so to avoid holding a
-		// connection to the database during that time, we only lock temporarily to
-		// mark the row as being refreshed if not already being refreshed.
-		err := db.InTx(func(tx database.Store) error {
-			ok, err := tx.TryAcquireLock(ctx, lockID)
-			if err != nil {
-				return xerrors.Errorf("try acquire external auth lock: %w", err)
-			}
-			// Link is being refreshed by something else.
-			if !ok {
-				return nil
-			}
-			// Fetch the latest link so we have up-to-date lease information.
-			dblink, err = tx.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+	// Make sure to release the lease if we manage to get one before returning.
+	defer func() {
+		if leasedLink.RefreshLeaseExpiresAt.Valid {
+			refreshErr = errors.Join(refreshErr, db.ReleaseExternalAuthLinkRefreshLease(ctx, database.ReleaseExternalAuthLinkRefreshLeaseParams{
 				ProviderID: externalAuthLink.ProviderID,
 				UserID:     externalAuthLink.UserID,
-			})
-			if err != nil {
-				return err
-			}
-			// Link is being refreshed by something else.
-			if dblink.RefreshLeaseExpiresAt.Valid &&
-				dblink.RefreshLeaseExpiresAt.Time.After(dbtime.Now()) {
-				return nil
-			}
-			// Link was refreshed while we waited.
-			if dblink.OAuthRefreshToken != externalAuthLink.OAuthRefreshToken {
-				return nil
-			}
-			// Acquire the lease.
-			err = tx.SetExternalAuthLinkRefreshLease(ctx, database.SetExternalAuthLinkRefreshLeaseParams{
-				ProviderID:            externalAuthLink.ProviderID,
-				UserID:                externalAuthLink.UserID,
-				RefreshLeaseExpiresAt: sql.NullTime{Time: lease, Valid: true},
-			})
-			if err != nil {
-				return err
-			}
-			gotLease = true
-			return nil
-		}, nil)
+				// The row will only update if we hold the current lease.  This is
+				// somewhat redundant since if we lost the lease our context would be
+				// expired anyway, so it is not actually possible to get the sql.ErrNoRows
+				// that would result from this.
+				RefreshLeaseExpiresAt: leasedLink.RefreshLeaseExpiresAt,
+			}))
+		}
+	}()
+	for !leasedLink.RefreshLeaseExpiresAt.Valid {
+		// Acquiring the lease also returns the link, so we can get the expiry date
+		// that the database sets and check to see if it was refreshed in the
+		// meantime.
+		var err error
+		leasedLink, err = db.AcquireExternalAuthLinkRefreshLease(ctx, database.AcquireExternalAuthLinkRefreshLeaseParams{
+			ProviderID: externalAuthLink.ProviderID,
+			UserID:     externalAuthLink.UserID,
+			TimeoutMs:  timeout.Milliseconds(),
+		})
 		switch {
-		case gotLease:
-			// We now hold the lock.
-			break
-		case err != nil:
-			// Some kind of DB error.
-			return externalAuthLink, err
-		// If we got a different token, it means something else refreshed either
-		// while we were waiting or before we got a hold of the lease but after we
-		// initially fetched the link.
-		case dblink.OAuthRefreshToken != externalAuthLink.OAuthRefreshToken:
-			if dblink.OauthRefreshFailureReason != "" {
-				return externalAuthLink, refreshError(dblink, dblink.OauthRefreshFailureReason)
-			}
-			return dblink, nil
-		default:
-			// Something still holds the lock; keep waiting.
+		// Something still holds the lock; keep waiting.
+		case database.IsCheckViolation(err, externalAuthLinkActiveLeaseConstraint):
 			if !r.Wait(ctx) {
 				return externalAuthLink, ctx.Err()
 			}
+		// Some kind of DB error or the row does not exist.
+		case err != nil:
+			return externalAuthLink, err
+		// Something else refreshed either while we were waiting or before we got a
+		// hold of the lease but after we initially fetched the link.
+		case leasedLink.OAuthRefreshToken != externalAuthLink.OAuthRefreshToken:
+			if leasedLink.OauthRefreshFailureReason != "" {
+				return externalAuthLink, refreshError(leasedLink, leasedLink.OauthRefreshFailureReason)
+			}
+			return leasedLink, nil
 		}
 	}
 
-	defer func() {
-		refreshErr = errors.Join(refreshErr, db.SetExternalAuthLinkRefreshLease(ctx, database.SetExternalAuthLinkRefreshLeaseParams{
-			ProviderID:            externalAuthLink.ProviderID,
-			UserID:                externalAuthLink.UserID,
-			RefreshLeaseExpiresAt: sql.NullTime{},
-			// The row will only update if we hold the current lease.  This is
-			// somewhat redundant since if we lost the lease our context would be
-			// expired anyway, so it is not actually possible to get the sql.ErrNoRows
-			// that would result from this.
-			OldRefreshLeaseExpiresAt: sql.NullTime{Time: lease, Valid: true},
-		}))
-	}()
-
 	// Otherwise the token has still not been updated; refresh it now.
-	newLink, refreshErr = c.refreshAndValidateToken(ctx, db, dblink, lease)
+	newLink, refreshErr = c.refreshAndValidateToken(ctx, db, leasedLink)
 	return newLink, refreshErr
 }
 
@@ -391,8 +356,9 @@ func refreshError(link database.ExternalAuthLink, reason string) error {
 }
 
 // refreshAndValidateToken does the actual token refresh, persists the result to
-// the database, then validates the token.
-func (c *Config) refreshAndValidateToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink, lease time.Time) (database.ExternalAuthLink, error) {
+// the database, then validates the token.  The provided link must be up to date
+// with the currently held lease.
+func (c *Config) refreshAndValidateToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
 	existingToken := externalAuthLink.OAuthToken()
 
 	// This is additional defensive programming. Because TokenSource is an
@@ -449,7 +415,7 @@ func (c *Config) refreshAndValidateToken(ctx context.Context, db database.Store,
 				// somewhat redundant since if we lost the lease our context would be
 				// expired anyway, so it is not actually possible to get the
 				// sql.ErrNoRows that would result from this.
-				RefreshLeaseExpiresAt: sql.NullTime{Time: lease, Valid: true},
+				RefreshLeaseExpiresAt: externalAuthLink.RefreshLeaseExpiresAt,
 			})
 			if updateErr != nil {
 				// This error should be rare.
@@ -506,7 +472,7 @@ func (c *Config) refreshAndValidateToken(ctx context.Context, db database.Store,
 		// redundant since if we lost the lease our context would be expired anyway,
 		// so it is not actually possible to get the sql.ErrNoRows that would result
 		// from this.
-		RefreshLeaseExpiresAt: sql.NullTime{Time: lease, Valid: true},
+		RefreshLeaseExpiresAt: externalAuthLink.RefreshLeaseExpiresAt,
 	})
 	if err != nil {
 		return updatedAuthLink, xerrors.Errorf("persist refreshed token: %w", err)
