@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -269,11 +270,44 @@ const (
 	OAuth2TokenEndpointAuthMethodNone              OAuth2TokenEndpointAuthMethod = "none"
 )
 
-func (m OAuth2TokenEndpointAuthMethod) Valid() bool {
-	switch m {
-	case OAuth2TokenEndpointAuthMethodClientSecretBasic,
+// AllOAuth2TokenEndpointAuthMethods returns every accepted token endpoint auth
+// method. Valid() is defined in terms of it, so what registration accepts
+// cannot drift from what this function reports.
+//
+// Discovery metadata does not yet derive from it:
+// coderd/oauth2provider/metadata.go's TokenEndpointAuthMethodsSupported is
+// hardcoded to {client_secret_basic, client_secret_post} and does not
+// advertise "none", even though "none" is accepted here. A follow-up PR
+// wires the token endpoint to honor "none"; only once that lands should
+// discovery advertise it too.
+func AllOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
+	return []OAuth2TokenEndpointAuthMethod{
+		OAuth2TokenEndpointAuthMethodClientSecretBasic,
 		OAuth2TokenEndpointAuthMethodClientSecretPost,
-		OAuth2TokenEndpointAuthMethodNone:
+		OAuth2TokenEndpointAuthMethodNone,
+	}
+}
+
+func (m OAuth2TokenEndpointAuthMethod) Valid() bool {
+	return slices.Contains(AllOAuth2TokenEndpointAuthMethods(), m)
+}
+
+// OAuth2ClientType is how a client authenticates at the token endpoint
+// (RFC 7591 §2, OAuth 2.1 §2.1). A confidential client authenticates with a
+// secret; a public client authenticates with PKCE alone. It is derived from
+// the requested token_endpoint_auth_method and stored on the app. A
+// follow-up PR wires the token endpoint to read it when deciding whether to
+// require a client secret.
+type OAuth2ClientType string
+
+const (
+	OAuth2ClientTypeConfidential OAuth2ClientType = "confidential"
+	OAuth2ClientTypePublic       OAuth2ClientType = "public"
+)
+
+func (t OAuth2ClientType) Valid() bool {
+	switch t {
+	case OAuth2ClientTypeConfidential, OAuth2ClientTypePublic:
 		return true
 	}
 	return false
@@ -527,14 +561,19 @@ func (req OAuth2ClientRegistrationRequest) ApplyDefaults() OAuth2ClientRegistrat
 	return req
 }
 
-// DetermineClientType determines if client is public or confidential
-func (*OAuth2ClientRegistrationRequest) DetermineClientType() string {
-	// For now, default to confidential
-	// In the future, we might detect based on:
-	// - token_endpoint_auth_method == "none" -> public
-	// - application_type == "native" -> might be public
-	// - Other heuristics
-	return "confidential"
+// DetermineClientType determines if client is public or confidential, based
+// on the requested token_endpoint_auth_method (RFC 7591 §2, OAuth 2.1 §2.1).
+//
+// Only "none" reads as public; every other value, including an omitted one,
+// reads as confidential, so this is safe to call before ApplyDefaults(). A
+// caller that also compares the request's auth method against a stored one must
+// apply defaults first, or an omitted field compares as "" and looks like a
+// change the client did not request.
+func (req *OAuth2ClientRegistrationRequest) DetermineClientType() OAuth2ClientType {
+	if req.TokenEndpointAuthMethod == OAuth2TokenEndpointAuthMethodNone {
+		return OAuth2ClientTypePublic
+	}
+	return OAuth2ClientTypeConfidential
 }
 
 // GenerateClientName generates a client name if not provided
