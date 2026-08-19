@@ -2615,6 +2615,20 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 			},
 		},
 		{
+			// A model the price book does not cover, priced through the API.
+			name:       "CustomOnly",
+			customSeed: priceSeed(2_000_000, 4_000_000, 200_000, 1_000_000),
+			want: database.AIBridgeTokenUsage{
+				InputPriceMicros:      sql.NullInt64{Int64: 2_000_000, Valid: true},
+				OutputPriceMicros:     sql.NullInt64{Int64: 4_000_000, Valid: true},
+				CacheReadPriceMicros:  sql.NullInt64{Int64: 200_000, Valid: true},
+				CacheWritePriceMicros: sql.NullInt64{Int64: 1_000_000, Valid: true},
+				// 100 input, 200 output, 50 cache read, and 10 cache write
+				// tokens, priced per million: 200 + 800 + 10 + 10.
+				CostMicros: sql.NullInt64{Int64: 1020, Valid: true},
+			},
+		},
+		{
 			name:        "CustomWinsOverDefault",
 			defaultSeed: priceSeed(3_000_000, 6_000_000, 300_000, 4_000_000),
 			customSeed:  priceSeed(9_000_000, 12_000_000, 900_000, 8_000_000),
@@ -2643,10 +2657,12 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 			user := dbgen.User(t, rawDB, database.User{})
 			dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
 
-			require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
-				Seed:   tt.defaultSeed,
-				Source: database.AIModelPriceSourceDefault,
-			}), "seed model prices")
+			if tt.defaultSeed != nil {
+				require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+					Seed:   tt.defaultSeed,
+					Source: database.AIModelPriceSourceDefault,
+				}), "seed model prices")
+			}
 			if tt.customSeed != nil {
 				require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
 					Seed:   tt.customSeed,
