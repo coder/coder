@@ -144,6 +144,13 @@ func applyReasoningEffort(
 			level := clampGoogleThinkingLevel(googleThinkingLevel(*effort), supported)
 			providerOptions.ThinkingConfig.ThinkingLevel = &level
 		}
+		// Google returns thought summaries only when they are requested, so
+		// default them on for reasoning-effort generations; an explicitly
+		// configured include_thoughts (either value) is preserved.
+		if providerOptions.ThinkingConfig.IncludeThoughts == nil {
+			includeThoughts := true
+			providerOptions.ThinkingConfig.IncludeThoughts = &includeThoughts
+		}
 	case fantasyopenaicompat.Name:
 		providerEffort := fantasyopenai.ReasoningEffort(*effort)
 		if compatEffort, ok := googleCompatReasoningEffort(model.ModelID(), *effort); ok {

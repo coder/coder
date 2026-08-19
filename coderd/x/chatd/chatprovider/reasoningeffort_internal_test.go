@@ -104,6 +104,10 @@ func TestApplyReasoningEffort(t *testing.T) {
 				require.NotNil(t, providerOptions.ThinkingConfig)
 				require.NotNil(t, providerOptions.ThinkingConfig.ThinkingLevel)
 				require.Equal(t, fantasygoogle.ThinkingLevelHigh, *providerOptions.ThinkingConfig.ThinkingLevel)
+				// Google returns thought summaries only when requested, so
+				// effort generations default include_thoughts on.
+				require.NotNil(t, providerOptions.ThinkingConfig.IncludeThoughts)
+				require.True(t, *providerOptions.ThinkingConfig.IncludeThoughts)
 			},
 		},
 		{
@@ -127,6 +131,18 @@ func TestApplyReasoningEffort(t *testing.T) {
 				providerOptions := got[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
 				require.Equal(t, int64(1024), *providerOptions.ThinkingConfig.ThinkingBudget)
 				require.Nil(t, providerOptions.ThinkingConfig.ThinkingLevel)
+			},
+		},
+		{
+			name:      "GoogleExplicitThoughtsOffPreserved",
+			provider:  fantasygoogle.Name,
+			modelName: "gemini-3.7-flash",
+			options:   fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{IncludeThoughts: ptr.Ref(false)}}},
+			assert: func(t *testing.T, got fantasy.ProviderOptions) {
+				providerOptions := got[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+				require.NotNil(t, providerOptions.ThinkingConfig.IncludeThoughts)
+				require.False(t, *providerOptions.ThinkingConfig.IncludeThoughts)
+				require.Equal(t, fantasygoogle.ThinkingLevelHigh, *providerOptions.ThinkingConfig.ThinkingLevel)
 			},
 		},
 		{
