@@ -1351,21 +1351,6 @@
 					"description": "Connect external AI coding agents to Coder using its built-in Model Context Protocol server.",
 					"path": "./ai-coder/mcp-server.md",
 					"state": ["beta"]
-				},
-				{
-					"title": "Custom Agents",
-					"description": "Run custom coding agents beyond the Coder Registry defaults in your workspaces.",
-					"path": "./ai-coder/custom-agents.md"
-				},
-				{
-					"title": "Agent Compatibility",
-					"description": "See which AI coding agents support session persistence across workspace restarts.",
-					"path": "./ai-coder/agent-compatibility.md"
-				},
-				{
-					"title": "Security \u0026 Agent Firewall",
-					"description": "Learn about security and the Agent Firewall when running AI coding agents in Coder",
-					"path": "./ai-coder/security.md"
 				}
 			]
 		},

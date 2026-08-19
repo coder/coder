@@ -175,11 +175,6 @@ Refer to [Connection logs](../admin/monitoring/connection-logs.md).
 The collective term for `coderd`, its provisioners, and its database.
 The control plane also runs the agent loop for [Coder Agents](#coder-agents).
 
-### Custom agent
-
-A coding agent you integrate with Coder yourself, beyond the built-in options.
-Refer to [Custom agents](../ai-coder/custom-agents.md).
-
 ### Custom roles
 
 Deployment-defined roles composed of specific RBAC actions.
