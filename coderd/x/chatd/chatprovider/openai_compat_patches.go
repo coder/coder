@@ -64,7 +64,11 @@ func (t *openAICompatRequestPatchTransport) RoundTrip(req *http.Request) (*http.
 		return io.NopCloser(bytes.NewReader(patched)), nil
 	}
 
-	return base.RoundTrip(patchedReq)
+	resp, err := base.RoundTrip(patchedReq)
+	if err == nil && googleopenai.ShouldPatchOpenAICompatRequest(t.BaseURL, t.ModelID) {
+		googleopenai.RewriteThoughtResponse(resp)
+	}
+	return resp, err
 }
 
 func (t *openAICompatRequestPatchTransport) base() http.RoundTripper {
@@ -90,6 +94,7 @@ func patchOpenAICompatChatCompletionsBody(body []byte, baseURL string, modelID s
 	changed := rewriteOpenAICompatSingleToolChoice(payload)
 	if googleopenai.ShouldPatchOpenAICompatRequest(baseURL, modelID) {
 		changed = googleopenai.AddThoughtSignaturesToLatestTurn(payload) || changed
+		changed = rewriteGoogleCompatThinkingConfig(payload) || changed
 	}
 	if !changed {
 		return body

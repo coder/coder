@@ -3,7 +3,6 @@
 package googleopenai
 
 import (
-	"encoding/json"
 	"net/url"
 	"strings"
 )
@@ -70,23 +69,6 @@ func parseBaseURL(baseURL string) (*url.URL, bool) {
 func isGeminiModelID(modelID string) bool {
 	modelID = strings.ToLower(strings.TrimSpace(modelID))
 	return strings.HasPrefix(modelID, "gemini-") || strings.Contains(modelID, "/gemini-")
-}
-
-// PatchThoughtSignatures adds fallback thought signatures to Gemini tool-call
-// history in body. It returns changed=false when no patch is needed.
-func PatchThoughtSignatures(body []byte) ([]byte, bool, error) {
-	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil, false, err
-	}
-	if !AddThoughtSignaturesToLatestTurn(payload) {
-		return body, false, nil
-	}
-	patched, err := json.Marshal(payload)
-	if err != nil {
-		return nil, false, err
-	}
-	return patched, true, nil
 }
 
 // AddThoughtSignaturesToLatestTurn patches only the current turn because
