@@ -50,7 +50,7 @@ export const withDefaultTimeRange = (
  * stringifyFilter quotes the RFC 3339 values because the backend query
  * parser treats unquoted colons as key/value separators.
  */
-export const setTimeRangeInQuery = (
+export const queryWithTimeRange = (
 	values: Record<string, string | undefined>,
 	range: TimeRange,
 ): string => {

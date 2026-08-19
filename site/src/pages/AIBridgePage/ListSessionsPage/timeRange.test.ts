@@ -3,7 +3,7 @@ import type { TimeRange } from "#/components/DateTimeRangeFilter/timeRange";
 import {
 	defaultTimeRange,
 	parseTimeRange,
-	setTimeRangeInQuery,
+	queryWithTimeRange,
 	toRFC3339,
 	withDefaultTimeRange,
 } from "./timeRange";
@@ -63,7 +63,7 @@ describe("withDefaultTimeRange", () => {
 	});
 });
 
-describe("setTimeRangeInQuery", () => {
+describe("queryWithTimeRange", () => {
 	const range: TimeRange = {
 		startedAfter: new Date(Date.UTC(2026, 7, 12, 15, 0, 0)),
 		startedBefore: new Date(Date.UTC(2026, 7, 13, 15, 0, 0)),
@@ -71,7 +71,7 @@ describe("setTimeRangeInQuery", () => {
 
 	it("preserves other filters and replaces the time range", () => {
 		expect(
-			setTimeRangeInQuery(
+			queryWithTimeRange(
 				{
 					initiator: "me",
 					started_after: "2026-01-01T00:00:00Z",

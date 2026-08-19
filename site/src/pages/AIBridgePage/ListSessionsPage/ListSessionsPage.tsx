@@ -17,7 +17,7 @@ import { ListSessionsPageView } from "./ListSessionsPageView";
 import {
 	defaultTimeRange,
 	parseTimeRange,
-	setTimeRangeInQuery,
+	queryWithTimeRange,
 	withDefaultTimeRange,
 } from "./timeRange";
 
@@ -121,7 +121,7 @@ const AISessionListPage: FC = () => {
 					timeRange,
 					defaultTimeRange: defaultRange,
 					onTimeRangeChange: (range) =>
-						filter.update(setTimeRangeInQuery(filter.values, range)),
+						filter.update(queryWithTimeRange(filter.values, range)),
 				}}
 			/>
 		</RequirePermission>
