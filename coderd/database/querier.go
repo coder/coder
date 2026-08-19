@@ -96,6 +96,9 @@ type sqlcQuerier interface {
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
+	// Excluding the candidate keeps ownership takeover capacity-neutral.
+	CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error)
+	CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
 	// whether the chat is in a "1" sub-state.
 	CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error)
@@ -480,6 +483,8 @@ type sqlcQuerier interface {
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
+	// Pool fullness distinguishes capacity waits from worker pickup delays.
+	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
 	// Returns the queue head (lowest position, then lowest id).
 	GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
@@ -510,17 +515,9 @@ type sqlcQuerier interface {
 	// jsonb_array_elements never raises "cannot extract elements from a
 	// scalar". Backed by idx_chat_messages_user_prompts.
 	GetChatUserPromptsByChatID(ctx context.Context, arg GetChatUserPromptsByChatIDParams) ([]GetChatUserPromptsByChatIDRow, error)
-	// Returns chats that workers may try to acquire. Candidates must be:
-	//   - in a worker-runnable execution status;
-	//   - unarchived; and
-	//   - missing ownership, carrying inconsistent ownership, or lacking a
-	//     fresh heartbeat for the assigned runner.
-	//
-	// Missing ownership is worker_id IS NULL. Inconsistent ownership is
-	// runner_id IS NULL while worker_id is set. Stale ownership is no
-	// heartbeat row for (chat_id, runner_id), or one older than
-	// @stale_seconds by database time. Candidates are ordered by oldest
-	// updated_at first so workers drain stale runnable chats predictably.
+	// Returns a bounded, pool-interleaved set of chats that workers may acquire.
+	// Interrupting chats finish active work first. Requires-action chats follow so
+	// their runner can enforce the action deadline before new generations start.
 	GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error)
 	// Returns the global TTL for chat workspaces as a Go duration string.
 	// Returns "0s" (disabled) when no value has been configured.
@@ -873,6 +870,20 @@ type sqlcQuerier interface {
 	// the events that happened on and between the two dates. Both dates are
 	// inclusive.
 	GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg GetTotalUsageDCManagedAgentsV1Params) (int64, error)
+	// Gets the total Coder Agent runtime in milliseconds between two timestamps.
+	// The start bound is inclusive and the end bound is exclusive.
+	//
+	// Unlike GetTotalUsageDCManagedAgentsV1 this reads usage_events directly
+	// rather than the usage_events_daily rollup: hb_agent_runtime_v1 is exactly
+	// one row per hourly bucket deployment-wide, with created_at at the bucket
+	// start, enforced by the unique partial index
+	// idx_usage_events_agent_runtime (which also keeps SUM from counting a
+	// bucket twice and serves this query). The result is bucket-granular: a
+	// bucket counts entirely against the period containing its start. See
+	// enterprise/coderd/usage/generator.go for what a bucket holds. If a
+	// usage_events retention policy ever lands, this must move to the daily
+	// rollup and accept day-granularity bounds.
+	GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAIProviderKey, error)

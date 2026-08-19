@@ -70,7 +70,7 @@ Do not use first-person plural for:
 The first **Don't** uses "we" to mean the product rather than the company.
 Rewrite with the product, release, or feature as the subject ("Each release includes ...").
 The second **Don't** uses "we" to refer to the product's release behavior.
-The third **Don't** uses "we" to mean "the docs and the reader together", which obscures who runs the command.
+The third **Don't** uses "we" to mean "the docs and the reader together," which obscures who runs the command.
 
 *Enforced by `Coder.FirstPersonPlural`.*
 
@@ -212,7 +212,8 @@ Expand a contraction only when one of the following exceptions applies.
 >
 > If you are using PostgreSQL, set the connection string before starting `coder server`.
 
-**Auxiliary contractions need a complement.** `you'd`, `there's`, `it's`, `we'd`, and `they're` carry an unspoken verb form, participle, or adjective.
+**Auxiliary contractions need a complement.**
+`you'd`, `there's`, `it's`, `we'd`, and `they're` carry an unspoken verb form, participle, or adjective.
 They can't end a sentence because the elided word goes missing with them.
 Negation contractions like `don't`, `won't`, and `can't` end sentences fine because the elided `not` is itself the complement.
 
@@ -228,7 +229,8 @@ Negation contractions like `don't`, `won't`, and `can't` end sentences fine beca
 >
 > The agent reattaches whenever there's.
 
-**One contraction joins exactly two words.** Triple-word contractions like `you'd've`, `wouldn't've`, and `shouldn't've` cram three words into one apostrophe-laden form.
+**One contraction joins exactly two words.**
+Triple-word contractions like `you'd've`, `wouldn't've`, and `shouldn't've` compress three words into one apostrophe-laden form.
 Expand one of the two contractions, keeping whichever reads more naturally in context.
 
 **Do**:
@@ -241,7 +243,8 @@ Expand one of the two contractions, keeping whichever reads more naturally in co
 
 > If you'd've finished the upgrade earlier, the migration wouldn't've failed.
 
-**Spell out for emphasis and high-stakes operations.** Data loss, security warnings, and irreversible operations like deletions deserve the full visual weight of `do not`, `cannot`, and `will not`.
+**Spell out for emphasis and high-stakes operations.**
+Data loss, security warnings, and irreversible operations like deletions deserve the full visual weight of `do not`, `cannot`, and `will not`.
 The contracted forms read fast and let a busy reader skip past the warning.
 
 **Do**:
@@ -258,9 +261,10 @@ The contracted forms read fast and let a busy reader skip past the warning.
 >
 > You can't undo `coder delete`.
 
-**The default trades against the international audience.** Plain-language guidance for non-native readers, including [ASD-STE100](https://www.asd-ste100.org/), bans contractions because the expanded forms are easier to parse and to machine-translate.
+**The default trades against the international audience.**
+Plain-language guidance for non-native readers, including [ASD-STE100](https://www.asd-ste100.org/), bans contractions because the expanded forms are simpler to parse and to machine-translate.
 The Coder docs keep contractions because the genre reads conversationally and the [reading-level target](./accessibility-and-inclusion.md#reading-level) already bounds sentence complexity.
-The high-stakes exception above applies the STE logic exactly where a misreading costs the most.
+The high-stakes exception earlier in this section applies the STE logic exactly where a misreading costs the most.
 
 *Documentation-only.
 No Vale rule.*
@@ -269,10 +273,10 @@ No Vale rule.*
 
 A sentence that ends with a preposition (`with`, `to`, `from`, `for`, `on`, `of`, `at`, `by`, `into`, `over`, `under`, `about`) can leave its object implicit, which adds a small comprehension cost.
 Avoiding the trailing preposition, though, can produce a more awkward sentence.
-There's no one-size-fits-all rule.
+No single rule covers every case.
 Read both versions and keep the one that reads more naturally.
 
-Lean toward rewriting when the trailing preposition is redundant, or when the reordered version is still easy to read:
+Lean toward rewriting when the trailing preposition is redundant, or when the reordered version still reads naturally:
 
 **Do**:
 
@@ -293,25 +297,25 @@ Keep the trailing preposition when avoiding it contorts the sentence:
 
 **Do**:
 
-> This is some nonsense that I will not put up with.
+> That's an error you can't recover from.
 >
 > Open the repository you want to clone from.
 
 **Don't**:
 
-> This is some nonsense up with which I will not put.
+> That's an error from which you can't recover.
 >
 > Open the repository from which you want to clone.
 
 The first **Don't** is the classic over-correction: the rewrite is harder to read than the preposition it avoids.
 
 When both versions read equally well, the writer chooses.
-Treat avoiding a trailing preposition as a default to reach for, not a rule to enforce.
+Treat avoiding a trailing preposition as a default to prefer, not a rule to enforce.
 
 *Documentation-only.
 No Vale rule.*
 
-## Related
+## Learn more
 
 - [Style guide landing page](./README.md)
 - [Word choice](./word-choice.md)

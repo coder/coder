@@ -5930,7 +5930,8 @@ func (q *sqlQuerier) GetChatFileDataPrefixesByIDs(ctx context.Context, arg GetCh
 }
 
 const getChatFileMetadataByChatID = `-- name: GetChatFileMetadataByChatID :many
-SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, cf.created_at
+SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, cf.created_at,
+	octet_length(cf.data)::bigint AS size_bytes
 FROM chat_files cf
 JOIN chat_file_links cfl ON cfl.file_id = cf.id
 WHERE cfl.chat_id = $1::uuid
@@ -5944,6 +5945,7 @@ type GetChatFileMetadataByChatIDRow struct {
 	Name           string    `db:"name" json:"name"`
 	Mimetype       string    `db:"mimetype" json:"mimetype"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	SizeBytes      int64     `db:"size_bytes" json:"size_bytes"`
 }
 
 // GetChatFileMetadataByChatID returns lightweight file metadata for
@@ -5965,6 +5967,7 @@ func (q *sqlQuerier) GetChatFileMetadataByChatID(ctx context.Context, chatID uui
 			&i.Name,
 			&i.Mimetype,
 			&i.CreatedAt,
+			&i.SizeBytes,
 		); err != nil {
 			return nil, err
 		}
@@ -7046,6 +7049,69 @@ type BatchUpsertChatHeartbeatsParams struct {
 func (q *sqlQuerier) BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUpsertChatHeartbeatsParams) error {
 	_, err := q.db.ExecContext(ctx, batchUpsertChatHeartbeats, pq.Array(arg.ChatIds), pq.Array(arg.RunnerIds))
 	return err
+}
+
+const countChatCapacityActiveByPool = `-- name: CountChatCapacityActiveByPool :one
+SELECT
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS active_root_count,
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS active_subagent_count
+FROM chat_heartbeats hb
+JOIN chats c
+  ON c.id = hb.chat_id
+ AND c.runner_id = hb.runner_id
+WHERE c.worker_id IS NOT NULL
+  AND c.id != $1::uuid
+  AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * $2::int)
+`
+
+type CountChatCapacityActiveByPoolParams struct {
+	ExcludeChatID uuid.UUID `db:"exclude_chat_id" json:"exclude_chat_id"`
+	StaleSeconds  int32     `db:"stale_seconds" json:"stale_seconds"`
+}
+
+type CountChatCapacityActiveByPoolRow struct {
+	ActiveRootCount     int64 `db:"active_root_count" json:"active_root_count"`
+	ActiveSubagentCount int64 `db:"active_subagent_count" json:"active_subagent_count"`
+}
+
+// Excluding the candidate keeps ownership takeover capacity-neutral.
+func (q *sqlQuerier) CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error) {
+	row := q.db.QueryRowContext(ctx, countChatCapacityActiveByPool, arg.ExcludeChatID, arg.StaleSeconds)
+	var i CountChatCapacityActiveByPoolRow
+	err := row.Scan(&i.ActiveRootCount, &i.ActiveSubagentCount)
+	return i, err
+}
+
+const countChatCapacityQueuedByPool = `-- name: CountChatCapacityQueuedByPool :one
+SELECT
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS queued_root_count,
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS queued_subagent_count
+FROM chats c
+WHERE c.status = 'running'::chat_status
+  AND c.archived = false
+  AND (
+      c.worker_id IS NULL
+      OR c.runner_id IS NULL
+      OR NOT EXISTS (
+          SELECT 1
+          FROM chat_heartbeats hb
+          WHERE hb.chat_id = c.id
+            AND hb.runner_id = c.runner_id
+            AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
+      )
+  )
+`
+
+type CountChatCapacityQueuedByPoolRow struct {
+	QueuedRootCount     int64 `db:"queued_root_count" json:"queued_root_count"`
+	QueuedSubagentCount int64 `db:"queued_subagent_count" json:"queued_subagent_count"`
+}
+
+func (q *sqlQuerier) CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error) {
+	row := q.db.QueryRowContext(ctx, countChatCapacityQueuedByPool, staleSeconds)
+	var i CountChatCapacityQueuedByPoolRow
+	err := row.Scan(&i.QueuedRootCount, &i.QueuedSubagentCount)
+	return i, err
 }
 
 const countChatQueuedMessages = `-- name: CountChatQueuedMessages :one
@@ -8507,6 +8573,62 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 	return items, nil
 }
 
+const getChatQueuedForCapacity = `-- name: GetChatQueuedForCapacity :one
+WITH active AS (
+    SELECT
+        COUNT(*) FILTER (WHERE a.parent_chat_id IS NULL)::bigint AS root_count,
+        COUNT(*) FILTER (WHERE a.parent_chat_id IS NOT NULL)::bigint AS subagent_count
+    FROM chat_heartbeats hb
+    JOIN chats a
+      ON a.id = hb.chat_id
+     AND a.runner_id = hb.runner_id
+    WHERE a.worker_id IS NOT NULL
+      AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
+)
+SELECT (
+    c.status = 'running'::chat_status
+    AND c.archived = false
+    AND (
+        c.worker_id IS NULL
+        OR c.runner_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1
+            FROM chat_heartbeats hb
+            WHERE hb.chat_id = c.id
+              AND hb.runner_id = c.runner_id
+              AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
+        )
+    )
+    AND CASE
+        WHEN c.parent_chat_id IS NULL THEN active.root_count >= $2::bigint
+        ELSE active.subagent_count >= $3::bigint
+    END
+)::boolean AS queued_for_capacity
+FROM chats c
+CROSS JOIN active
+WHERE c.id = $4::uuid
+`
+
+type GetChatQueuedForCapacityParams struct {
+	StaleSeconds     int32     `db:"stale_seconds" json:"stale_seconds"`
+	RootCapacity     int64     `db:"root_capacity" json:"root_capacity"`
+	SubagentCapacity int64     `db:"subagent_capacity" json:"subagent_capacity"`
+	ChatID           uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+// Pool fullness distinguishes capacity waits from worker pickup delays.
+func (q *sqlQuerier) GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getChatQueuedForCapacity,
+		arg.StaleSeconds,
+		arg.RootCapacity,
+		arg.SubagentCapacity,
+		arg.ChatID,
+	)
+	var queued_for_capacity bool
+	err := row.Scan(&queued_for_capacity)
+	return queued_for_capacity, err
+}
+
 const getChatQueuedMessageByID = `-- name: GetChatQueuedMessageByID :one
 SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort FROM chat_queued_messages
 WHERE id = $1::bigint AND chat_id = $2::uuid
@@ -8759,108 +8881,80 @@ func (q *sqlQuerier) GetChatUserPromptsByChatID(ctx context.Context, arg GetChat
 }
 
 const getChatWorkerAcquisitionCandidates = `-- name: GetChatWorkerAcquisitionCandidates :many
+WITH candidate_partitions AS (
+    SELECT true AS is_root, 'interrupting'::chat_status AS status, 0 AS status_priority, 0 AS pool_priority
+    UNION ALL
+    SELECT false, 'interrupting'::chat_status, 0, 1
+    UNION ALL
+    SELECT true, 'requires_action'::chat_status, 1, 0
+    UNION ALL
+    SELECT false, 'requires_action'::chat_status, 1, 1
+    UNION ALL
+    SELECT true, 'running'::chat_status, 2, 0
+    UNION ALL
+    SELECT false, 'running'::chat_status, 2, 1
+),
+candidates AS (
+    SELECT
+        candidate.id,
+        candidate_partitions.status_priority,
+        candidate_partitions.pool_priority,
+        ROW_NUMBER() OVER (
+            PARTITION BY candidate_partitions.status_priority, candidate_partitions.is_root
+            ORDER BY candidate.updated_at ASC, candidate.id ASC
+        ) AS pool_position
+    FROM candidate_partitions
+    CROSS JOIN LATERAL (
+        SELECT chats.id, chats.updated_at
+        FROM chats
+        WHERE (chats.parent_chat_id IS NULL) = candidate_partitions.is_root
+          AND chats.status = candidate_partitions.status
+          AND chats.archived = false
+          AND (
+              chats.worker_id IS NULL
+              OR chats.runner_id IS NULL
+              OR NOT EXISTS (
+                  SELECT 1
+                  FROM chat_heartbeats current_lease
+                  WHERE current_lease.chat_id = chats.id
+                    AND current_lease.runner_id = chats.runner_id
+                    AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * $2::int)
+              )
+          )
+        ORDER BY chats.updated_at ASC, chats.id ASC
+        LIMIT $1::int
+    ) candidate
+)
 SELECT
-    chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
-    chat_heartbeats.heartbeat_at AS current_heartbeat_at,
-    NOT EXISTS (
-        SELECT 1
-        FROM chat_heartbeats current_lease
-        WHERE current_lease.chat_id = chats_expanded.id
-          AND current_lease.runner_id = chats_expanded.runner_id
-          AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
-    ) AS heartbeat_stale
-FROM chats_expanded
-LEFT JOIN chat_heartbeats
-    ON chat_heartbeats.chat_id = chats_expanded.id
-    AND chat_heartbeats.runner_id = chats_expanded.runner_id
-WHERE
-    chats_expanded.status IN ('running'::chat_status, 'interrupting'::chat_status, 'requires_action'::chat_status)
-    AND chats_expanded.archived = false
-    AND (
-        chats_expanded.worker_id IS NULL
-        OR chats_expanded.runner_id IS NULL
-        OR NOT EXISTS (
-            SELECT 1
-            FROM chat_heartbeats current_lease
-            WHERE current_lease.chat_id = chats_expanded.id
-              AND current_lease.runner_id = chats_expanded.runner_id
-              AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
-        )
-    )
-ORDER BY chats_expanded.updated_at ASC, chats_expanded.id ASC
-LIMIT $2::int
+    chats.id,
+    chats.status,
+    chats.parent_chat_id
+FROM candidates
+JOIN chats ON chats.id = candidates.id
+ORDER BY
+    candidates.status_priority ASC,
+    candidates.pool_position ASC,
+    candidates.pool_priority ASC,
+    chats.id ASC
+LIMIT $1::int
 `
 
 type GetChatWorkerAcquisitionCandidatesParams struct {
-	StaleSeconds int32 `db:"stale_seconds" json:"stale_seconds"`
 	LimitCount   int32 `db:"limit_count" json:"limit_count"`
+	StaleSeconds int32 `db:"stale_seconds" json:"stale_seconds"`
 }
 
 type GetChatWorkerAcquisitionCandidatesRow struct {
-	ID                       uuid.UUID               `db:"id" json:"id"`
-	OwnerID                  uuid.UUID               `db:"owner_id" json:"owner_id"`
-	WorkspaceID              uuid.NullUUID           `db:"workspace_id" json:"workspace_id"`
-	Title                    string                  `db:"title" json:"title"`
-	Status                   ChatStatus              `db:"status" json:"status"`
-	WorkerID                 uuid.NullUUID           `db:"worker_id" json:"worker_id"`
-	StartedAt                sql.NullTime            `db:"started_at" json:"started_at"`
-	HeartbeatAt              sql.NullTime            `db:"heartbeat_at" json:"heartbeat_at"`
-	CreatedAt                time.Time               `db:"created_at" json:"created_at"`
-	UpdatedAt                time.Time               `db:"updated_at" json:"updated_at"`
-	ParentChatID             uuid.NullUUID           `db:"parent_chat_id" json:"parent_chat_id"`
-	RootChatID               uuid.NullUUID           `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID        uuid.UUID               `db:"last_model_config_id" json:"last_model_config_id"`
-	LastReasoningEffort      NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
-	Archived                 bool                    `db:"archived" json:"archived"`
-	LastError                pqtype.NullRawMessage   `db:"last_error" json:"last_error"`
-	Mode                     NullChatMode            `db:"mode" json:"mode"`
-	MCPServerIDs             []uuid.UUID             `db:"mcp_server_ids" json:"mcp_server_ids"`
-	Labels                   StringMap               `db:"labels" json:"labels"`
-	BuildID                  uuid.NullUUID           `db:"build_id" json:"build_id"`
-	AgentID                  uuid.NullUUID           `db:"agent_id" json:"agent_id"`
-	PinOrder                 int32                   `db:"pin_order" json:"pin_order"`
-	LastReadMessageID        sql.NullInt64           `db:"last_read_message_id" json:"last_read_message_id"`
-	DynamicTools             pqtype.NullRawMessage   `db:"dynamic_tools" json:"dynamic_tools"`
-	OrganizationID           uuid.UUID               `db:"organization_id" json:"organization_id"`
-	PlanMode                 NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
-	ClientType               ChatClientType          `db:"client_type" json:"client_type"`
-	LastTurnSummary          sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
-	Summary                  sql.NullString          `db:"summary" json:"summary"`
-	SummaryGeneratedAt       sql.NullTime            `db:"summary_generated_at" json:"summary_generated_at"`
-	SnapshotVersion          int64                   `db:"snapshot_version" json:"snapshot_version"`
-	HistoryVersion           int64                   `db:"history_version" json:"history_version"`
-	QueueVersion             int64                   `db:"queue_version" json:"queue_version"`
-	GenerationAttempt        int64                   `db:"generation_attempt" json:"generation_attempt"`
-	RetryState               pqtype.NullRawMessage   `db:"retry_state" json:"retry_state"`
-	RetryStateVersion        int64                   `db:"retry_state_version" json:"retry_state_version"`
-	RunnerID                 uuid.NullUUID           `db:"runner_id" json:"runner_id"`
-	RequiresActionDeadlineAt sql.NullTime            `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
-	UserACL                  ChatACL                 `db:"user_acl" json:"user_acl"`
-	GroupACL                 ChatACL                 `db:"group_acl" json:"group_acl"`
-	OwnerUsername            string                  `db:"owner_username" json:"owner_username"`
-	OwnerName                string                  `db:"owner_name" json:"owner_name"`
-	ContextAggregateHash     []byte                  `db:"context_aggregate_hash" json:"context_aggregate_hash"`
-	ContextDirtySince        sql.NullTime            `db:"context_dirty_since" json:"context_dirty_since"`
-	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
-	ContextError             string                  `db:"context_error" json:"context_error"`
-	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
-	CurrentHeartbeatAt       sql.NullTime            `db:"current_heartbeat_at" json:"current_heartbeat_at"`
-	HeartbeatStale           bool                    `db:"heartbeat_stale" json:"heartbeat_stale"`
+	ID           uuid.UUID     `db:"id" json:"id"`
+	Status       ChatStatus    `db:"status" json:"status"`
+	ParentChatID uuid.NullUUID `db:"parent_chat_id" json:"parent_chat_id"`
 }
 
-// Returns chats that workers may try to acquire. Candidates must be:
-//   - in a worker-runnable execution status;
-//   - unarchived; and
-//   - missing ownership, carrying inconsistent ownership, or lacking a
-//     fresh heartbeat for the assigned runner.
-//
-// Missing ownership is worker_id IS NULL. Inconsistent ownership is
-// runner_id IS NULL while worker_id is set. Stale ownership is no
-// heartbeat row for (chat_id, runner_id), or one older than
-// @stale_seconds by database time. Candidates are ordered by oldest
-// updated_at first so workers drain stale runnable chats predictably.
+// Returns a bounded, pool-interleaved set of chats that workers may acquire.
+// Interrupting chats finish active work first. Requires-action chats follow so
+// their runner can enforce the action deadline before new generations start.
 func (q *sqlQuerier) GetChatWorkerAcquisitionCandidates(ctx context.Context, arg GetChatWorkerAcquisitionCandidatesParams) ([]GetChatWorkerAcquisitionCandidatesRow, error) {
-	rows, err := q.db.QueryContext(ctx, getChatWorkerAcquisitionCandidates, arg.StaleSeconds, arg.LimitCount)
+	rows, err := q.db.QueryContext(ctx, getChatWorkerAcquisitionCandidates, arg.LimitCount, arg.StaleSeconds)
 	if err != nil {
 		return nil, err
 	}
@@ -8868,57 +8962,7 @@ func (q *sqlQuerier) GetChatWorkerAcquisitionCandidates(ctx context.Context, arg
 	var items []GetChatWorkerAcquisitionCandidatesRow
 	for rows.Next() {
 		var i GetChatWorkerAcquisitionCandidatesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.OwnerID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.Status,
-			&i.WorkerID,
-			&i.StartedAt,
-			&i.HeartbeatAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ParentChatID,
-			&i.RootChatID,
-			&i.LastModelConfigID,
-			&i.LastReasoningEffort,
-			&i.Archived,
-			&i.LastError,
-			&i.Mode,
-			pq.Array(&i.MCPServerIDs),
-			&i.Labels,
-			&i.BuildID,
-			&i.AgentID,
-			&i.PinOrder,
-			&i.LastReadMessageID,
-			&i.DynamicTools,
-			&i.OrganizationID,
-			&i.PlanMode,
-			&i.ClientType,
-			&i.LastTurnSummary,
-			&i.Summary,
-			&i.SummaryGeneratedAt,
-			&i.SnapshotVersion,
-			&i.HistoryVersion,
-			&i.QueueVersion,
-			&i.GenerationAttempt,
-			&i.RetryState,
-			&i.RetryStateVersion,
-			&i.RunnerID,
-			&i.RequiresActionDeadlineAt,
-			&i.UserACL,
-			&i.GroupACL,
-			&i.OwnerUsername,
-			&i.OwnerName,
-			&i.ContextAggregateHash,
-			&i.ContextDirtySince,
-			&i.ContextDirtyResources,
-			&i.ContextError,
-			&i.CompactionRequestedAt,
-			&i.CurrentHeartbeatAt,
-			&i.HeartbeatStale,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.Status, &i.ParentChatID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -25069,12 +25113,18 @@ SELECT
             WHERE key = 'agents_chat_system_prompt'
                 AND value != ''
         )
-    ) :: boolean AS include_default_system_prompt
+    ) :: boolean AS include_default_system_prompt,
+    EXISTS (
+        SELECT 1
+        FROM site_configs
+        WHERE key = 'agents_chat_include_default_system_prompt'
+    ) :: boolean AS include_default_system_prompt_set
 `
 
 type GetChatSystemPromptConfigRow struct {
-	ChatSystemPrompt           string `db:"chat_system_prompt" json:"chat_system_prompt"`
-	IncludeDefaultSystemPrompt bool   `db:"include_default_system_prompt" json:"include_default_system_prompt"`
+	ChatSystemPrompt              string `db:"chat_system_prompt" json:"chat_system_prompt"`
+	IncludeDefaultSystemPrompt    bool   `db:"include_default_system_prompt" json:"include_default_system_prompt"`
+	IncludeDefaultSystemPromptSet bool   `db:"include_default_system_prompt_set" json:"include_default_system_prompt_set"`
 }
 
 // GetChatSystemPromptConfig returns both chat system prompt settings in a
@@ -25085,7 +25135,7 @@ type GetChatSystemPromptConfigRow struct {
 func (q *sqlQuerier) GetChatSystemPromptConfig(ctx context.Context) (GetChatSystemPromptConfigRow, error) {
 	row := q.db.QueryRowContext(ctx, getChatSystemPromptConfig)
 	var i GetChatSystemPromptConfigRow
-	err := row.Scan(&i.ChatSystemPrompt, &i.IncludeDefaultSystemPrompt)
+	err := row.Scan(&i.ChatSystemPrompt, &i.IncludeDefaultSystemPrompt, &i.IncludeDefaultSystemPromptSet)
 	return i, err
 }
 
@@ -28701,6 +28751,44 @@ func (q *sqlQuerier) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg Get
 	var total_count int64
 	err := row.Scan(&total_count)
 	return total_count, err
+}
+
+const getTotalUsageHBAgentRuntimeV1 = `-- name: GetTotalUsageHBAgentRuntimeV1 :one
+SELECT
+    -- The first cast is necessary since you can't sum strings, and the second
+    -- cast is necessary to make sqlc happy.
+    COALESCE(SUM((event_data->>'runtime_ms')::bigint), 0)::bigint AS total_runtime_ms
+FROM
+    usage_events
+WHERE
+    event_type = 'hb_agent_runtime_v1'
+    AND created_at >= $1::timestamptz
+    AND created_at < $2::timestamptz
+`
+
+type GetTotalUsageHBAgentRuntimeV1Params struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+// Gets the total Coder Agent runtime in milliseconds between two timestamps.
+// The start bound is inclusive and the end bound is exclusive.
+//
+// Unlike GetTotalUsageDCManagedAgentsV1 this reads usage_events directly
+// rather than the usage_events_daily rollup: hb_agent_runtime_v1 is exactly
+// one row per hourly bucket deployment-wide, with created_at at the bucket
+// start, enforced by the unique partial index
+// idx_usage_events_agent_runtime (which also keeps SUM from counting a
+// bucket twice and serves this query). The result is bucket-granular: a
+// bucket counts entirely against the period containing its start. See
+// enterprise/coderd/usage/generator.go for what a bucket holds. If a
+// usage_events retention policy ever lands, this must move to the daily
+// rollup and accept day-granularity bounds.
+func (q *sqlQuerier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalUsageHBAgentRuntimeV1, arg.StartTime, arg.EndTime)
+	var total_runtime_ms int64
+	err := row.Scan(&total_runtime_ms)
+	return total_runtime_ms, err
 }
 
 const insertUsageEvent = `-- name: InsertUsageEvent :exec

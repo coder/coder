@@ -81,6 +81,7 @@ func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 			"CODER_EXTERNAL_AUTH_1_CLIENT_SECRET=hunter12",
 			"CODER_EXTERNAL_AUTH_1_TOKEN_URL=google.com",
 			"CODER_EXTERNAL_AUTH_1_VALIDATE_URL=bing.com",
+			"CODER_EXTERNAL_AUTH_1_REDIRECT_URL=coder.com",
 			"CODER_EXTERNAL_AUTH_1_REVOKE_URL=revoke.url",
 			"CODER_EXTERNAL_AUTH_1_SCOPES=repo:read repo:write",
 			"CODER_EXTERNAL_AUTH_1_NO_REFRESH=true",
@@ -101,6 +102,7 @@ func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 		assert.Equal(t, "hunter12", providers[1].ClientSecret)
 		assert.Equal(t, "google.com", providers[1].TokenURL)
 		assert.Equal(t, "bing.com", providers[1].ValidateURL)
+		assert.Equal(t, "coder.com", providers[1].RedirectURL)
 		assert.Equal(t, "revoke.url", providers[1].RevokeURL)
 		assert.Equal(t, []string{"repo:read", "repo:write"}, providers[1].Scopes)
 		assert.Equal(t, true, providers[1].NoRefresh)
@@ -193,6 +195,7 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 			"CODER_GITAUTH_1_CLIENT_SECRET=hunter12",
 			"CODER_GITAUTH_1_TOKEN_URL=google.com",
 			"CODER_GITAUTH_1_VALIDATE_URL=bing.com",
+			"CODER_GITAUTH_1_REDIRECT_URL=coder.com",
 			"CODER_GITAUTH_1_SCOPES=repo:read repo:write",
 			"CODER_GITAUTH_1_NO_REFRESH=true",
 		})
@@ -209,6 +212,7 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 		assert.Equal(t, "hunter12", providers[1].ClientSecret)
 		assert.Equal(t, "google.com", providers[1].TokenURL)
 		assert.Equal(t, "bing.com", providers[1].ValidateURL)
+		assert.Equal(t, "coder.com", providers[1].RedirectURL)
 		assert.Equal(t, []string{"repo:read", "repo:write"}, providers[1].Scopes)
 		assert.Equal(t, true, providers[1].NoRefresh)
 	})

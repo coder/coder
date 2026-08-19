@@ -9,6 +9,7 @@ import {
 	MonitorIcon,
 	PowerIcon,
 	RouteIcon,
+	SearchIcon,
 	ServerIcon,
 	TerminalIcon,
 	WrenchIcon,
@@ -44,6 +45,7 @@ export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	ask_user_question: BadgeQuestionMarkIcon,
 	advisor: CompassIcon,
 	computer: MonitorIcon,
+	find_tools: SearchIcon,
 };
 
 export const ToolIcon: React.FC<{

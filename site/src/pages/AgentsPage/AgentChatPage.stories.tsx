@@ -26,6 +26,7 @@ import {
 	MockChat,
 	MockChatMessage,
 	MockChatQueuedMessage,
+	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
@@ -45,6 +46,7 @@ import {
 } from "#/testHelpers/storybook";
 import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
+import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.
@@ -255,7 +257,10 @@ const buildChatAuthorizationQuery = (
 const buildQueries = (
 	chat: TypesGen.Chat,
 	messagesData: TypesGen.ChatMessagesResponse,
-	opts?: { diffUrl?: string },
+	opts?: {
+		diffUrl?: string;
+		mcpServers?: readonly TypesGen.MCPServerConfig[];
+	},
 ) => {
 	const diffStatus: TypesGen.ChatDiffStatus = {
 		chat_id: CHAT_ID,
@@ -301,7 +306,7 @@ const buildQueries = (
 		},
 		{ key: chatModelsKey, data: mockModelCatalog },
 		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
-		{ key: mcpServersKey, data: [] },
+		{ key: mcpServersKey, data: opts?.mcpServers ?? [] },
 		buildChatAuthorizationQuery(chat, {
 			canShareChat: {
 				action: "share",
@@ -1355,6 +1360,49 @@ export const Loading: Story = {
 	},
 };
 
+const capacityPollingChat: TypesGen.Chat = {
+	id: CHAT_ID,
+	...baseChatFields,
+	title: "Capacity polling",
+	status: "running",
+	queued_for_capacity: false,
+};
+
+export const QueuedForCapacityAfterPolling: Story = {
+	parameters: {
+		queries: [
+			{ key: chatEntityKey(CHAT_ID), data: capacityPollingChat },
+			{
+				key: chatMessagesKey(CHAT_ID),
+				data: {
+					pages: [{ messages: [], queued_messages: [], has_more: false }],
+					pageParams: [undefined],
+				},
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue({
+			...capacityPollingChat,
+			queued_for_capacity: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByText(/This agent is queued and will start automatically/),
+		).not.toBeInTheDocument();
+
+		const callout = await canvas.findByRole("alert", undefined, {
+			timeout: 7_000,
+		});
+		expect(API.experimental.getChat).toHaveBeenCalledWith(CHAT_ID);
+		expect(callout).toHaveTextContent(
+			"This agent is queued and will start automatically when capacity is available.",
+		);
+	},
+};
+
 export const OtherUserChatReadOnly: Story = {
 	parameters: {
 		queries: buildQueries(
@@ -2399,6 +2447,65 @@ export const DurableUpdateFansOutToOlderPage: Story = {
 };
 
 /**
+ * The streamed thinking block is asserted via its disclosure header
+ * because smoothed body text never reveals in the test iframe
+ * (requestAnimationFrame is suspended).
+ */
+export const StreamedPartWhileStatusWaiting: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Stale status stream",
+				status: "waiting",
+			},
+			{
+				messages: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:05:00.000Z",
+						role: "user",
+						content: [{ type: "text", text: "Start the next turn" }],
+					},
+				],
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: JSON.stringify([
+						{
+							type: "message_part",
+							chat_id: CHAT_ID,
+							message_part: {
+								part: {
+									type: "reasoning",
+									text: "Streaming while the chat still reads waiting",
+								},
+							},
+						},
+					] satisfies TypesGen.ChatStreamEvent[]),
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Start the next turn");
+		// The disclosure header is the only "Thinking" text in the DOM
+		// at this point: the generic indicator is suppressed at status
+		// "waiting".
+		expect(await canvas.findByText("Thinking")).toBeVisible();
+	},
+};
+
+/**
  * Live agent turn with streaming reasoning and a back-to-back flurry of
  * in-progress file tool calls. The persisted history establishes context
  * (an earlier completed read+write pair); the WebSocket then streams an
@@ -2838,26 +2945,6 @@ const compactCommandMessages: TypesGen.ChatMessagesResponse = {
 	has_more: false,
 };
 
-const compactQueuedEditChat: TypesGen.Chat = {
-	id: CHAT_ID,
-	...baseChatFields,
-	title: "Compact queued edit",
-	status: "running",
-};
-
-const compactQueuedEditMessages: TypesGen.ChatMessagesResponse = {
-	messages: compactCommandMessages.messages,
-	queued_messages: [
-		{
-			...MockChatQueuedMessage,
-			id: 3,
-			chat_id: CHAT_ID,
-			content: [{ type: "text", text: "Queued follow-up" }],
-		},
-	],
-	has_more: false,
-};
-
 /** Submitting "/compact" alone requests a manual compaction instead of
  *  sending a chat message. */
 export const SlashCompactCommandSubmits: Story = {
@@ -2904,61 +2991,6 @@ export const SlashCompactCommandSubmits: Story = {
 		});
 		expect(compactSpy).toHaveBeenCalledWith(CHAT_ID);
 		expect(sendSpy).not.toHaveBeenCalled();
-	},
-};
-
-export const SlashCompactQueuedEditSaves: Story = {
-	parameters: {
-		queries: buildQueries(compactQueuedEditChat, compactQueuedEditMessages, {
-			diffUrl: undefined,
-		}),
-	},
-	beforeEach: () => {
-		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const compactSpy = spyOn(API.experimental, "compactChat");
-		const sendSpy = spyOn(
-			API.experimental,
-			"createChatMessage",
-		).mockResolvedValue({
-			queued: true,
-			queued_message: {
-				...MockChatQueuedMessage,
-				id: 4,
-				chat_id: CHAT_ID,
-				content: [{ type: "text", text: "/compact" }],
-			},
-		});
-		const deleteSpy = spyOn(
-			API.experimental,
-			"deleteChatQueuedMessage",
-		).mockResolvedValue();
-		spyOn(API.experimental, "getChat").mockResolvedValue(compactQueuedEditChat);
-		spyOn(API.experimental, "getChatMessages").mockResolvedValue({
-			...compactQueuedEditMessages,
-			queued_messages: [],
-		});
-
-		await userEvent.click(await canvas.findByRole("button", { name: "Edit" }));
-		const editor = await canvas.findByTestId("chat-message-input");
-		await userEvent.clear(editor);
-		await userEvent.type(editor, "/compact");
-		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
-
-		await waitFor(() => {
-			expect(sendSpy).toHaveBeenCalledTimes(1);
-			expect(deleteSpy).toHaveBeenCalledTimes(1);
-		});
-		expect(sendSpy).toHaveBeenCalledWith(
-			CHAT_ID,
-			expect.objectContaining({
-				content: [{ type: "text", text: "/compact" }],
-			}),
-		);
-		expect(deleteSpy).toHaveBeenCalledWith(CHAT_ID, 3);
-		expect(compactSpy).not.toHaveBeenCalled();
 	},
 };
 
@@ -3011,10 +3043,14 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 		await userEvent.click(editor);
 		await userEvent.keyboard("/compact");
 		// The menu offers only the personal skill (the built-in command
-		// yields); first Enter accepts it, second Enter submits.
-		expect(
-			await within(document.body).findByText("Personal compact skill"),
-		).toBeVisible();
+		// yields); first Enter accepts it, second Enter submits. The menu item
+		// exists before the popover finishes positioning, so wait for
+		// visibility rather than asserting it once.
+		await waitFor(() => {
+			expect(
+				within(document.body).getByText("Personal compact skill"),
+			).toBeVisible();
+		});
 		await userEvent.keyboard("{Enter}");
 		await userEvent.keyboard("{Enter}");
 
@@ -3127,6 +3163,102 @@ const switchedChatMessage: TypesGen.ChatMessage = {
 	content: [{ type: "text", text: "Current chat message" }],
 };
 
+export const SendingFromHistoryDoesNotSnapToBottom: Story = {
+	parameters: {
+		pixel: { exclude: true },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Long chat",
+				status: "waiting",
+			},
+			{
+				messages: buildLongConversation(CHAT_ID, 40),
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	decorators: [
+		(Story) => (
+			<div
+				style={{ height: "600px", display: "flex", flexDirection: "column" }}
+			>
+				<Story />
+			</div>
+		),
+	],
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		let releaseSend: (() => void) | undefined;
+		const sendGate = new Promise<void>((resolve) => {
+			releaseSend = resolve;
+		});
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockImplementation(async () => {
+			await sendGate;
+			return {
+				queued: false,
+				message: {
+					...MockChatMessage,
+					id: 41,
+					chat_id: CHAT_ID,
+					role: "user",
+					content: [{ type: "text", text: "Follow-up question." }],
+				},
+			};
+		});
+
+		// Rather than sampling native smooth-scroll progress (which depends on
+		// headless-browser scheduling and reduced-motion overrides), intercept the
+		// MessageScroller's own scroll calls. The eager scrollToEnd we regressed
+		// on reaches the viewport as a `scrollTo({ behavior: "smooth" })`.
+		const scrollToMock = spyOn(Element.prototype, "scrollTo");
+		try {
+			const editor = await canvas.findByTestId("chat-message-input");
+			await userEvent.click(editor);
+			await userEvent.type(editor, "Follow-up question.");
+			const viewport = canvas.getByRole("region", { name: "Messages" });
+			// Scroll the reader into history before sending, the repro starting
+			// point.
+			viewport.scrollTop = 0;
+
+			await userEvent.keyboard("{Enter}");
+			await waitFor(() => {
+				expect(sendSpy).toHaveBeenCalledTimes(1);
+			});
+
+			// While the send POST is still pending, the scroller must not be told
+			// to move anywhere: the new user row it anchors to does not exist yet.
+			// The gated mock keeps the POST in-flight until this runs, so a single
+			// assertion is deterministic without polling animation frames.
+			expect(scrollToMock).not.toHaveBeenCalled();
+
+			// Resolve the send and let the turn settle. The scroller re-anchors
+			// to the new prompt with a single non-smooth scroll.
+			releaseSend?.();
+			await canvas.findByTestId("chat-message-message:41");
+			await waitFor(() => {
+				expect(scrollToMock).toHaveBeenCalledTimes(1);
+				// The anchor re-position is a non-smooth scroll; a smooth call here
+				// would be the eager scrollToEnd regression resurfacing.
+				expect(scrollToMock.mock.calls[0]?.[0]).toMatchObject({
+					behavior: "auto",
+				});
+			});
+		} finally {
+			scrollToMock.mockRestore();
+		}
+	},
+};
+
 export const SendResponseAfterChatSwitch: Story = {
 	render: () => <AgentChatSwitchHarness />,
 	parameters: {
@@ -3203,7 +3335,13 @@ export const SendResponseAfterChatSwitch: Story = {
 
 		await userEvent.click(canvas.getByRole("button", { name: "Switch chat" }));
 		const timeline = within(await canvas.findByTestId("conversation-timeline"));
-		expect(await timeline.findByText("Current chat message")).toBeVisible();
+		// The switched chat's messages render slowly under pixel's parallel
+		// load, so extend the default 1s lookup timeout.
+		expect(
+			await timeline.findByText("Current chat message", undefined, {
+				timeout: 10_000,
+			}),
+		).toBeVisible();
 
 		releaseSend?.();
 		await waitFor(() => {
@@ -3214,6 +3352,53 @@ export const SendResponseAfterChatSwitch: Story = {
 				canvas.queryByTestId("live-activity-slot"),
 			).not.toBeInTheDocument();
 		});
+	},
+};
+
+export const RemoveLastMCPServer: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Remove last MCP server",
+				status: "waiting",
+				mcp_server_ids: [MockMCPServerConfig.id],
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{
+				diffUrl: undefined,
+				mcpServers: [MockMCPServerConfig],
+			},
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({ queued: false });
+
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Remove MCP Server" }),
+		);
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Send without MCP tools");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(sendSpy).toHaveBeenCalledWith(
+			CHAT_ID,
+			expect.objectContaining({
+				mcp_server_ids: [],
+			}),
+		);
 	},
 };
 

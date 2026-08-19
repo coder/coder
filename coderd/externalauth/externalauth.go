@@ -127,6 +127,10 @@ type Config struct {
 	// (e.g., "https://api.github.com" for GitHub). Derived from
 	// defaults when not explicitly configured.
 	APIBaseURL string
+	// If nil, http.DefaultClient is used. The value is read once at
+	// the first successful Git() call; later assignments have no
+	// effect because the provider is memoized.
+	HTTPClient *http.Client
 	// AppInstallURL is for GitHub App's (and hopefully others eventually)
 	// to provide a link to install the app. There's installation
 	// of the application, and user authentication. It's possible
@@ -180,18 +184,40 @@ type Config struct {
 	// RefreshLeaseMaxBackoff is the maximum wait between polls to check whether
 	// another replica has finished refreshing.
 	RefreshLeaseMaxBackoff time.Duration
+
+	gitProviderMu sync.Mutex
+	// gitProvider memoizes the provider so the GitHub ETag response
+	// cache survives across Git calls.
+	gitProvider gitprovider.Provider
 }
 
-// Git returns a Provider for this config if the provider type is a
-// supported git hosting provider. Returns (nil, nil) for non-git
-// providers (e.g. Slack, JFrog). Returns a non-nil error if provider
-// construction fails.
-func (c *Config) Git(client *http.Client) (gitprovider.Provider, error) {
+// Git returns a Provider for this config. It returns (nil, nil) when
+// this config's type has no provider implementation, which covers both
+// non-git types (e.g. Slack, JFrog) and git types that are not
+// implemented yet (bitbucket-*, azure-devops*, gitea). Callers cannot
+// distinguish the two cases from the return values. Returns a non-nil
+// error if provider construction fails.
+//
+// The provider is built on the first successful call and cached for
+// the lifetime of the Config, so its in-memory response cache
+// survives across calls. The provider uses c.HTTPClient for API
+// requests; if c.HTTPClient is nil, http.DefaultClient is used.
+func (c *Config) Git() (gitprovider.Provider, error) {
 	norm := strings.ToLower(c.Type)
 	if !codersdk.EnhancedExternalAuthProvider(norm).Git() {
 		return nil, nil //nolint:nilnil // nil provider means non-git type, not an error
 	}
-	return gitprovider.New(norm, c.APIBaseURL, client)
+	c.gitProviderMu.Lock()
+	defer c.gitProviderMu.Unlock()
+	if c.gitProvider != nil {
+		return c.gitProvider, nil
+	}
+	p, err := gitprovider.New(norm, c.APIBaseURL, c.HTTPClient)
+	if err != nil {
+		return nil, err
+	}
+	c.gitProvider = p
+	return c.gitProvider, nil
 }
 
 // GenerateTokenExtra generates the extra token data to store in the database.
@@ -1012,7 +1038,8 @@ func (c *DeviceAuth) formatDeviceCodeURL() (string, error) {
 
 // ConvertConfig converts the SDK configuration entry format
 // to the parsed and ready-to-consume in coderd provider type.
-func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
+// If httpClient is nil, http.DefaultClient is used.
+func ConvertConfig(ctx context.Context, logger slog.Logger, instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL, httpClient *http.Client) ([]*Config, error) {
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
@@ -1020,6 +1047,8 @@ func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []
 		// This allows users to very simply state that they type is "GitHub",
 		// apply their client secret and ID, and have the UI appear nicely.
 		applyDefaultsToConfig(&entry)
+
+		logger := logger.Named("externalauth").With(slog.F("provider_id", entry.ID), slog.F("provider_type", entry.Type))
 
 		valid := codersdk.NameValid(entry.ID)
 		if valid != nil {
@@ -1038,9 +1067,18 @@ func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []
 		}
 		ids[entry.ID] = struct{}{}
 
-		authRedirect, err := accessURL.Parse(fmt.Sprintf("/external-auth/%s/callback", entry.ID))
+		baseRedirectURL := accessURL
+		if entry.RedirectURL != "" {
+			var err error
+			baseRedirectURL, err = url.Parse(entry.RedirectURL)
+			if err != nil {
+				return nil, xerrors.Errorf("parse redirect url override for external auth provider %q: %w", entry.ID, err)
+			}
+			logger.Warn(ctx, "custom redirect URL used instead of 'access_url', ensure this matches the value configured in your provider")
+		}
+		authRedirect, err := baseRedirectURL.Parse(fmt.Sprintf("/external-auth/%s/callback", entry.ID))
 		if err != nil {
-			return nil, xerrors.Errorf("parse external auth callback url: %w", err)
+			return nil, xerrors.Errorf("parse callback url for external auth provider %q: %w", entry.ID, err)
 		}
 
 		var regex *regexp.Regexp
@@ -1096,12 +1134,13 @@ func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []
 
 		cfg := &Config{
 			InstrumentedOAuth2Config:      instrumented,
-			Logger:                        logger.Named("externalauth").With(slog.F("provider_id", entry.ID), slog.F("provider_type", entry.Type)),
+			Logger:                        logger,
 			ID:                            entry.ID,
 			ClientID:                      entry.ClientID,
 			ClientSecret:                  entry.ClientSecret,
 			Regex:                         regex,
 			APIBaseURL:                    entry.APIBaseURL,
+			HTTPClient:                    httpClient,
 			Type:                          entry.Type,
 			NoRefresh:                     entry.NoRefresh,
 			ValidateURL:                   entry.ValidateURL,
@@ -1191,6 +1230,9 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	}
 	if config.ValidateURL == "" {
 		config.ValidateURL = defaults.ValidateURL
+	}
+	if config.RedirectURL == "" {
+		config.RedirectURL = defaults.RedirectURL
 	}
 	if config.RevokeURL == "" {
 		config.RevokeURL = defaults.RevokeURL

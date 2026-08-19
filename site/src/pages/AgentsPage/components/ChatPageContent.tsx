@@ -105,6 +105,7 @@ interface ChatPageTimelineProps {
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	footer?: ReactNode;
 }
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
@@ -122,6 +123,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	onSendAskUserQuestionResponse,
 	urlTransform,
 	mcpServers,
+	footer,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
@@ -149,6 +151,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		streamError,
 		persistedError: persistedError ?? null,
 		isAwaitingFirstStreamChunk,
+		chatStatus,
 	});
 	const streamTools = buildStreamTools(
 		streamState?.toolCalls,
@@ -220,6 +223,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					isTranscriptEmpty={parsedMessages.length === 0}
 					liveStatus={liveStatus}
 				/>
+				{footer}
 			</div>
 		</Profiler>
 	);
@@ -274,14 +278,6 @@ interface ChatPageInputProps {
 		hasFileReferences: boolean,
 	) => void;
 	isEditing: boolean;
-	editingQueuedMessageID: number | null;
-	onStartQueueEdit: (
-		id: number,
-		text: string,
-		fileBlocks: readonly TypesGen.ChatMessagePart[],
-	) => void;
-	onCancelQueueEdit: () => void;
-	isEditingHistoryMessage: boolean;
 	onCancelHistoryEdit: () => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
@@ -344,10 +340,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	remountKey,
 	onContentChange,
 	isEditing,
-	editingQueuedMessageID,
-	onStartQueueEdit,
-	onCancelQueueEdit,
-	isEditingHistoryMessage,
 	onCancelHistoryEdit,
 	editingFileBlocks,
 	mcpServers,
@@ -505,7 +497,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		wasEditingRef.current = isEditing;
 	}, [isEditing, resetEditAttachments]);
 
-	const isStreaming = hasStreamState || chatStatus === "running";
+	const isStreaming =
+		hasStreamState || chatStatus === "running" || chatStatus === "interrupting";
 
 	const inputElement = (
 		<AgentChatInput
@@ -571,17 +564,14 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			queuedMessages={queuedMessages}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
-			editingQueuedMessageID={editingQueuedMessageID}
-			onStartQueueEdit={onStartQueueEdit}
-			onCancelQueueEdit={onCancelQueueEdit}
-			isEditingHistoryMessage={isEditingHistoryMessage}
+			isEditingHistoryMessage={isEditing}
 			onCancelHistoryEdit={onCancelHistoryEdit}
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}
-			isInterruptPending={isInterruptPending}
+			isInterruptPending={isInterruptPending || chatStatus === "interrupting"}
 			contextUsage={latestContextUsage}
 			onRefreshContext={handleRefreshContext}
 			isRefreshingContext={refreshContextMutation.isPending}
@@ -617,11 +607,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			unsupportedProviderNames={unsupportedProviderNames}
 			aiGatewayDisabled={aiGatewayDisabled}
 			// Commands act on the whole chat, so they only make sense
-			// for new sends: hide them while editing a history or
-			// queued message.
-			slashCommands={
-				isEditing || isEditingHistoryMessage ? undefined : CHAT_SLASH_COMMANDS
-			}
+			// for new sends: hide them while editing a history message.
+			slashCommands={isEditing ? undefined : CHAT_SLASH_COMMANDS}
 		/>
 	);
 
