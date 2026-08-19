@@ -598,7 +598,7 @@ func aiProviderHostnameWarningFromMap(provider database.AIProvider, namesByHost 
 	if len(names) < 2 {
 		return nil
 	}
-	// The first name (alphabetically) is the proxy winner.
+	// The first name in database order is the proxy winner.
 	if provider.Name == names[0] {
 		return nil
 	}
