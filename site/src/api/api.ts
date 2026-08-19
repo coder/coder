@@ -361,21 +361,16 @@ const userAIProviderKeysPath = (user = "me") =>
 	`/api/experimental/users/${encodeURIComponent(user)}/ai-provider-keys`;
 const mcpServerConfigsPath = "/api/experimental/mcp/servers";
 
-type ChatCostDateParams = {
-	start_date?: string;
-	end_date?: string;
-};
-
-type ChatCostUsersParams = ChatCostDateParams & {
-	username?: string;
-	limit?: number;
-	offset?: number;
-};
-
 type Claims = {
 	license_expires: number;
 	// nbf is a standard JWT claim for "not before" - the license valid from date
 	nbf?: number;
+	// iat is a standard JWT claim for "issued at"; the merged
+	// usage_period.issued_at is stamped from the winning license's iat.
+	iat?: number;
+	// exp is a standard JWT claim for "expires at" (end of grace period);
+	// it stamps usage_period.end, and nbf stamps usage_period.start.
+	exp?: number;
 	account_type?: string;
 	account_id?: string;
 	trial: boolean;
@@ -1177,19 +1172,18 @@ class ApiMethods {
 		return response.data;
 	};
 
-	archiveTemplateVersion = async (templateVersionId: string) => {
-		const response = await this.axios.post<TypesGen.TemplateVersion>(
+	archiveTemplateVersion = async (templateVersionId: string): Promise<void> => {
+		await this.axios.post(
 			`/api/v2/templateversions/${templateVersionId}/archive`,
 		);
-
-		return response.data;
 	};
 
-	unarchiveTemplateVersion = async (templateVersionId: string) => {
-		const response = await this.axios.post<TypesGen.TemplateVersion>(
+	unarchiveTemplateVersion = async (
+		templateVersionId: string,
+	): Promise<void> => {
+		await this.axios.post(
 			`/api/v2/templateversions/${templateVersionId}/unarchive`,
 		);
-		return response.data;
 	};
 
 	/**
@@ -1615,7 +1609,7 @@ class ApiMethods {
 		userId: TypesGen.User["id"],
 	): Promise<TypesGen.UserAIBudgetOverride> => {
 		const response = await this.axios.get<TypesGen.UserAIBudgetOverride>(
-			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget`,
+			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget/override`,
 		);
 
 		return response.data;
@@ -1626,7 +1620,7 @@ class ApiMethods {
 		data: TypesGen.UpsertUserAIBudgetOverrideRequest,
 	): Promise<TypesGen.UserAIBudgetOverride> => {
 		const response = await this.axios.put<TypesGen.UserAIBudgetOverride>(
-			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget`,
+			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget/override`,
 			data,
 		);
 
@@ -1637,7 +1631,7 @@ class ApiMethods {
 		userId: TypesGen.User["id"],
 	): Promise<void> => {
 		await this.axios.delete(
-			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget`,
+			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget/override`,
 		);
 	};
 
@@ -2035,6 +2029,24 @@ class ApiMethods {
 		await this.axios.delete(`/oauth2/tokens?client_id=${appId}`);
 	};
 
+	getOAuth2ProviderSettings =
+		async (): Promise<TypesGen.OAuth2ProviderSettings> => {
+			const resp = await this.axios.get<TypesGen.OAuth2ProviderSettings>(
+				"/api/v2/oauth2-provider/settings",
+			);
+			return resp.data;
+		};
+
+	putOAuth2ProviderSettings = async (
+		data: TypesGen.OAuth2ProviderSettings,
+	): Promise<TypesGen.OAuth2ProviderSettings> => {
+		const resp = await this.axios.put<TypesGen.OAuth2ProviderSettings>(
+			"/api/v2/oauth2-provider/settings",
+			data,
+		);
+		return resp.data;
+	};
+
 	getAuditLogs = async (
 		options: TypesGen.AuditLogsRequest,
 	): Promise<TypesGen.AuditLogResponse> => {
@@ -2222,6 +2234,22 @@ class ApiMethods {
 			...responses[0],
 			members: responses.flatMap((r) => r.members),
 		};
+	};
+
+	/**
+	 * @param organization Can be the organization's ID or name
+	 * @param options Pagination and search options
+	 */
+	getOrganizationPaginatedGroups = async (
+		organization: string,
+		options?: TypesGen.PaginatedGroupsRequest,
+	): Promise<TypesGen.PaginatedGroupsResponse> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organization}/paginated-groups`,
+			options,
+		);
+		const response = await this.axios.get(url);
+		return response.data;
 	};
 
 	/**
@@ -3393,9 +3421,9 @@ class ExperimentalApiMethods {
 	};
 
 	/**
-	 * Requests a manual context compaction on an idle chat. The
-	 * compaction runs asynchronously through the chat worker and
-	 * bypasses the automatic usage threshold.
+	 * Requests a manual context compaction on an idle or errored chat,
+	 * clearing any stored error. The compaction runs asynchronously
+	 * through the chat worker and bypasses the automatic usage threshold.
 	 */
 	compactChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.post<TypesGen.Chat>(
@@ -3688,14 +3716,6 @@ class ExperimentalApiMethods {
 			return response.data;
 		};
 
-	getChatTemplateAllowlist =
-		async (): Promise<TypesGen.ChatTemplateAllowlist> => {
-			const response = await this.axios.get<TypesGen.ChatTemplateAllowlist>(
-				"/api/experimental/chats/config/template-allowlist",
-			);
-			return response.data;
-		};
-
 	updateChatWorkspaceTTL = async (
 		req: TypesGen.UpdateChatWorkspaceTTLRequest,
 	): Promise<void> => {
@@ -3748,15 +3768,6 @@ class ExperimentalApiMethods {
 	): Promise<void> => {
 		await this.axios.put(
 			"/api/experimental/chats/config/auto-archive-days",
-			req,
-		);
-	};
-
-	updateChatTemplateAllowlist = async (
-		req: TypesGen.ChatTemplateAllowlist,
-	): Promise<void> => {
-		await this.axios.put(
-			"/api/experimental/chats/config/template-allowlist",
 			req,
 		);
 	};
@@ -3923,94 +3934,6 @@ class ExperimentalApiMethods {
 			await this.axios.delete<TypesGen.MCPServerOAuth2DisconnectResponse>(
 				`${mcpServerConfigsPath}/${encodeURIComponent(id)}/oauth2/disconnect`,
 			);
-		return response.data;
-	};
-
-	getChatCostSummary = async (
-		user = "me",
-		params?: ChatCostDateParams,
-	): Promise<TypesGen.ChatCostSummary> => {
-		const url = getURLWithSearchParams(
-			`/api/experimental/chats/cost/${encodeURIComponent(user)}/summary`,
-			params,
-		);
-		const response = await this.axios.get<TypesGen.ChatCostSummary>(url);
-		return response.data;
-	};
-
-	getChatCostUsers = async (
-		params?: ChatCostUsersParams,
-	): Promise<TypesGen.ChatCostUsersResponse> => {
-		const url = getURLWithSearchParams(
-			"/api/experimental/chats/cost/users",
-			params,
-		);
-		const response = await this.axios.get<TypesGen.ChatCostUsersResponse>(url);
-		return response.data;
-	};
-
-	getChatUsageLimitConfig =
-		async (): Promise<TypesGen.ChatUsageLimitConfigResponse> => {
-			const response =
-				await this.axios.get<TypesGen.ChatUsageLimitConfigResponse>(
-					"/api/experimental/chats/usage-limits",
-				);
-			return response.data;
-		};
-
-	getChatUsageLimitStatus =
-		async (): Promise<TypesGen.ChatUsageLimitStatus> => {
-			const response = await this.axios.get<TypesGen.ChatUsageLimitStatus>(
-				"/api/experimental/chats/usage-limits/status",
-			);
-			return response.data;
-		};
-
-	updateChatUsageLimitConfig = async (
-		req: TypesGen.ChatUsageLimitConfig,
-	): Promise<TypesGen.ChatUsageLimitConfig> => {
-		const response = await this.axios.put<TypesGen.ChatUsageLimitConfig>(
-			"/api/experimental/chats/usage-limits",
-			req,
-		);
-		return response.data;
-	};
-
-	upsertChatUsageLimitOverride = async (
-		userID: string,
-		req: TypesGen.UpsertChatUsageLimitOverrideRequest,
-	): Promise<TypesGen.ChatUsageLimitOverride> => {
-		const response = await this.axios.put<TypesGen.ChatUsageLimitOverride>(
-			`/api/experimental/chats/usage-limits/overrides/${encodeURIComponent(userID)}`,
-			req,
-		);
-		return response.data;
-	};
-
-	deleteChatUsageLimitOverride = async (userID: string): Promise<void> => {
-		const response = await this.axios.delete(
-			`/api/experimental/chats/usage-limits/overrides/${encodeURIComponent(userID)}`,
-		);
-		return response.data;
-	};
-
-	upsertChatUsageLimitGroupOverride = async (
-		groupID: string,
-		req: TypesGen.UpsertChatUsageLimitGroupOverrideRequest,
-	): Promise<TypesGen.ChatUsageLimitGroupOverride> => {
-		const response = await this.axios.put<TypesGen.ChatUsageLimitGroupOverride>(
-			`/api/experimental/chats/usage-limits/group-overrides/${encodeURIComponent(groupID)}`,
-			req,
-		);
-		return response.data;
-	};
-
-	deleteChatUsageLimitGroupOverride = async (
-		groupID: string,
-	): Promise<void> => {
-		const response = await this.axios.delete(
-			`/api/experimental/chats/usage-limits/group-overrides/${encodeURIComponent(groupID)}`,
-		);
 		return response.data;
 	};
 }

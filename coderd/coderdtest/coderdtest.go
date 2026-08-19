@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -118,27 +119,31 @@ type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
 	// server's URL. Setting this may result in unexpected behavior (especially
 	// with running agents).
-	AccessURL                      *url.URL
-	AppHostname                    string
-	AWSCertificates                awsidentity.Certificates
-	Authorizer                     rbac.Authorizer
-	AzureCertificates              azureidentity.Options
-	GithubOAuth2Config             *coderd.GithubOAuth2Config
-	RealIPConfig                   *httpmw.RealIPConfig
-	OIDCConfig                     *coderd.OIDCConfig
-	GoogleTokenValidator           *idtoken.Validator
-	SSHKeygenAlgorithm             gitsshkey.Algorithm
-	AutobuildTicker                <-chan time.Time
-	AutobuildStats                 chan<- autobuild.Stats
-	Auditor                        audit.Auditor
-	TLSCertificates                []tls.Certificate
-	ExternalAuthConfigs            []*externalauth.Config
-	TrialGenerator                 func(ctx context.Context, body codersdk.LicensorTrialRequest) error
-	RefreshEntitlements            func(ctx context.Context) error
-	TemplateScheduleStore          schedule.TemplateScheduleStore
-	Coordinator                    tailnet.Coordinator
-	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
-	ConnectionLogger               connectionlog.ConnectionLogger
+	AccessURL            *url.URL
+	AppHostname          string
+	AWSCertificates      awsidentity.Certificates
+	Authorizer           rbac.Authorizer
+	AzureCertificates    azureidentity.Options
+	GithubOAuth2Config   *coderd.GithubOAuth2Config
+	RealIPConfig         *httpmw.RealIPConfig
+	OIDCConfig           *coderd.OIDCConfig
+	GoogleTokenValidator *idtoken.Validator
+	SSHKeygenAlgorithm   gitsshkey.Algorithm
+	AutobuildTicker      <-chan time.Time
+	AutobuildStats       chan<- autobuild.Stats
+	Auditor              audit.Auditor
+	TLSCertificates      []tls.Certificate
+	ExternalAuthConfigs  []*externalauth.Config
+	TrialGenerator       func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	// MCPOAuth2DiscoveryAllowedIPRanges exempts IP ranges from the MCP
+	// OAuth2 discovery SSRF guard. Defaults to loopback so tests can
+	// serve mock MCP servers via httptest.
+	MCPOAuth2DiscoveryAllowedIPRanges []netip.Prefix
+	RefreshEntitlements               func(ctx context.Context) error
+	TemplateScheduleStore             schedule.TemplateScheduleStore
+	Coordinator                       tailnet.Coordinator
+	CoordinatorResumeTokenProvider    tailnet.ResumeTokenProvider
+	ConnectionLogger                  connectionlog.ConnectionLogger
 
 	HealthcheckFunc    func(ctx context.Context, apiKey string, progress *healthcheck.Progress) *healthsdk.HealthcheckReport
 	HealthcheckTimeout time.Duration
@@ -199,6 +204,7 @@ type Options struct {
 	NotificationsEnqueuer              notifications.Enqueuer
 	APIKeyEncryptionCache              cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
+	ChatFileTokenKeyCache              cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
 	Acquirer                           *provisionerdserver.Acquirer
 	TelemetryReporter                  telemetry.Reporter
@@ -316,6 +322,17 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.CoordinatorResumeTokenProvider == nil {
 		options.CoordinatorResumeTokenProvider = tailnet.NewInsecureTestResumeTokenProvider()
+	}
+
+	if options.MCPOAuth2DiscoveryAllowedIPRanges == nil {
+		// Tests serve their mock MCP and authorization servers on
+		// loopback, which the MCP OAuth2 discovery SSRF guard blocks
+		// by default. Tests exercising the guard itself pass a
+		// narrower (possibly empty, non-nil) allowlist.
+		options.MCPOAuth2DiscoveryAllowedIPRanges = []netip.Prefix{
+			netip.MustParsePrefix("127.0.0.0/8"),
+			netip.MustParsePrefix("::1/128"),
+		}
 	}
 
 	if options.NotificationsEnqueuer == nil {
@@ -612,21 +629,22 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 			// Force a long disconnection timeout to ensure
 			// agents are not marked as disconnected during slow tests.
-			AgentInactiveDisconnectTimeout: testutil.WaitShort,
-			ChatdInstructionLookupTimeout:  options.ChatdInstructionLookupTimeout,
-			ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
-			ChatWorkerDisabled:             options.ChatWorkerDisabled,
-			AccessURL:                      accessURL,
-			AppHostname:                    options.AppHostname,
-			AppHostnameRegex:               appHostnameRegex,
-			Logger:                         *options.Logger,
-			CacheDir:                       cacheDir,
-			RuntimeConfig:                  runtimeManager,
-			Database:                       options.Database,
-			Pubsub:                         options.Pubsub,
-			ReplicaSyncPubsub:              options.ReplicaSyncPubsub,
-			ExternalAuthConfigs:            options.ExternalAuthConfigs,
-			UsageInserter:                  usageInserter,
+			AgentInactiveDisconnectTimeout:    testutil.WaitShort,
+			ChatdInstructionLookupTimeout:     options.ChatdInstructionLookupTimeout,
+			MCPOAuth2DiscoveryAllowedIPRanges: options.MCPOAuth2DiscoveryAllowedIPRanges,
+			ChatProviderAPIKeys:               options.ChatProviderAPIKeys,
+			ChatWorkerDisabled:                options.ChatWorkerDisabled,
+			AccessURL:                         accessURL,
+			AppHostname:                       options.AppHostname,
+			AppHostnameRegex:                  appHostnameRegex,
+			Logger:                            *options.Logger,
+			CacheDir:                          cacheDir,
+			RuntimeConfig:                     runtimeManager,
+			Database:                          options.Database,
+			Pubsub:                            options.Pubsub,
+			ReplicaSyncPubsub:                 options.ReplicaSyncPubsub,
+			ExternalAuthConfigs:               options.ExternalAuthConfigs,
+			UsageInserter:                     usageInserter,
 
 			Auditor:                            options.Auditor,
 			ConnectionLogger:                   options.ConnectionLogger,
@@ -676,6 +694,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Acquirer:                           options.Acquirer,
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
+			ChatFileTokenKeyCache:              options.ChatFileTokenKeyCache,
 			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
 			WorkspaceBuilderMetrics:            options.WorkspaceBuilderMetrics,
 		}

@@ -13,31 +13,31 @@
 		"format:check": "prettier --cache --check './**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'"
 	},
 	"dependencies": {
-		"@chakra-ui/react": "2.10.9",
+		"@chakra-ui/react": "2.10.10",
 		"@emotion/react": "11.14.0",
 		"@emotion/styled": "11.14.1",
 		"archiver": "8.0.0",
 		"framer-motion": "^10.18.0",
 		"front-matter": "4.0.2",
 		"lodash": "4.18.1",
-		"next": "15.5.21",
+		"next": "15.5.23",
 		"react": "18.3.1",
 		"react-dom": "18.3.1",
 		"react-icons": "5.7.0",
 		"react-markdown": "10.1.0",
 		"rehype-raw": "7.0.0",
 		"remark-gfm": "4.0.1",
-		"sanitize-html": "2.17.5"
+		"sanitize-html": "2.17.6"
 	},
 	"devDependencies": {
-		"@types/lodash": "4.17.24",
-		"@types/node": "22.20.0",
+		"@types/lodash": "4.17.25",
+		"@types/node": "22.20.1",
 		"@types/react": "18.3.12",
 		"@types/react-dom": "18.3.1",
 		"@types/sanitize-html": "2.16.1",
 		"eslint": "8.57.1",
 		"eslint-config-next": "14.2.35",
-		"prettier": "3.9.4",
+		"prettier": "3.9.6",
 		"typescript": "6.0.3"
 	},
 	"engines": {

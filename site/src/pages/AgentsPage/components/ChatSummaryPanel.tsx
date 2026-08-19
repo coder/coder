@@ -2,6 +2,8 @@ import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { chat, chatCost } from "#/api/queries/chats";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
 import { ChatSummary } from "./ChatSummary";
 
 type ChatSummaryPanelProps = {
@@ -14,10 +16,15 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 	chatId,
 	isVisible,
 }) => {
+	const showCost = Boolean(useFeatureVisibility().aibridge);
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
-	const costQuery = useQuery({ ...chatCost(chatId), enabled: isVisible });
 
 	const chatData = chatQuery.data;
+	const rootChatId = getChatCostTreeID(chatData) ?? chatId;
+	const costQuery = useQuery({
+		...chatCost(rootChatId),
+		enabled: isVisible && showCost && chatData !== undefined,
+	});
 
 	let content: ReactNode = null;
 	if (chatQuery.isError) {
@@ -30,9 +37,8 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 				createdAt={chatData.created_at}
 				updatedAt={chatData.updated_at}
 				costMicros={costQuery.data?.total_cost_micros}
-				unpricedMessagesHavingUsageCount={
-					costQuery.data?.unpriced_messages_having_usage_count
-				}
+				unpricedRequestCount={costQuery.data?.unpriced_request_count}
+				showCost={showCost}
 				isCostLoading={costQuery.isLoading}
 				costError={costQuery.isError}
 			/>

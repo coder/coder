@@ -2,7 +2,8 @@
 
 Coder documentation uses bold for UI elements, italics for emphasis, and code font for identifiers.
 Code blocks declare a language.
-The rules on this page set those defaults and the conventions for callouts, tabs, lists, tables, links, and images.
+The rules on this page set those defaults.
+The page also covers callouts and tabs, lists and tables, and links and images.
 
 For descriptive link text and image alt text, refer to [Accessibility and inclusion](./accessibility-and-inclusion.md).
 The accessibility-driven rules live on that page so heading structure, language, link text, and alt text stay together.
@@ -12,9 +13,9 @@ The accessibility-driven rules live on that page so heading structure, language,
 Write each sentence on its own Markdown source line.
 Don't split a sentence across multiple lines, and don't wrap to a fixed column width.
 
-The payoff is cleaner diffs and easier authoring.
+The convention produces cleaner diffs and faster authoring.
 A sentence-level edit changes one line, not a paragraph reflow, so reviewers see exactly which sentence moved.
-The rule is straightforward to apply for both humans and LLMs: end a sentence, start a new line.
+The rule applies the same way for humans and LLMs: end a sentence, start a new line.
 
 What counts as a single line:
 
@@ -27,22 +28,33 @@ What doesn't get its own line:
 - Source inside fenced code blocks, where the language's own conventions apply.
 - Table rows, which are governed by `markdown-table-formatter`.
 
+The examples show Markdown source, not rendered output, because the convention governs how the source lines are laid out.
+
 **Do**:
 
-> The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
+```md
+The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
+```
 
 **Don't** (mid-sentence clause breaks):
 
-> The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
+```md
+The Coder agent connects to the workspace,
+opens a Tailscale tunnel,
+and forwards SSH and IDE traffic over the tunnel.
+```
 
 **Don't** (fixed column wrap):
 
-> The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
+```md
+The Coder agent connects to the workspace, opens a Tailscale
+tunnel, and forwards SSH and IDE traffic over the tunnel.
+```
 
-Both **Don't** versions add noise to the source and produce diff churn on small edits.
+Both **Don't** versions make the source harder to scan and cause spurious diffs on small edits.
 
 `markdownlint`'s `MD013` (line length) is already disabled, so the convention is editorial.
-Editors that auto-wrap on save should be configured to leave the source alone.
+Configure editors that auto-wrap on save to leave the source alone.
 
 *Documentation-only.
 No Vale rule.*
@@ -54,7 +66,7 @@ The rules in this section cover inline formatting that lives inside a paragraph.
 ### Bold for UI elements
 
 Use bold for the literal text of UI elements the reader interacts with: buttons, menu items, page titles, field labels, tab names.
-Bold tells the reader "this is the thing you select or read".
+Bold tells the reader "this is the thing you select or read."
 
 When the reader navigates across multiple UI elements, join each element with a greater-than sign (`>`) surrounded by spaces.
 The separator makes the navigation path scannable and matches the convention in Microsoft and Google developer documentation.
@@ -138,26 +150,33 @@ Use the most specific language tag available:
   Prefix each typed line with `$`.
 - `ps1` for Windows command-line blocks.
   PowerShell is the default Windows shell in the Coder docs.
-  `pwsh` and `powershell` are not the canonical tag; use `ps1`.
-  `ps1` is Shiki's PowerShell alias, and it's also GitHub's `.ps1` file extension, which its markdown renderer falls back to when a fence label isn't a recognized language name; `ps` isn't registered either way and won't highlight on GitHub today.
+  `pwsh` and `powershell` are not the canonical tag. Use `ps1`.
+  `ps1` is Shiki's PowerShell alias.
+  It's also GitHub's `.ps1` file extension, which GitHub's Markdown renderer falls back to when a fence label isn't a recognized language name.
+  `ps` isn't registered either way and won't highlight on GitHub today.
 - `tf` for Terraform and HCL.
-  `terraform` and `hcl` are not the canonical tag; use `tf`.
-  Shiki ships `terraform` and `hcl` as two distinct grammars; `tf` is an alias of the more specific `terraform` grammar (not `hcl`), and matches what nearly every Coder docs code block actually is.
+  `terraform` and `hcl` are not the canonical tag. Use `tf`.
+  Shiki ships `terraform` and `hcl` as two distinct grammars.
+  `tf` aliases the more specific `terraform` grammar (not `hcl`) and matches what nearly every Coder docs code block contains.
 - `yaml` for YAML.
-  `yml` is not the canonical tag; use `yaml`.
+  `yml` is not the canonical tag. Use `yaml`.
 - `go` for Go.
 - `json` for JSON.
-  `jsonc` is a distinct Shiki grammar for JSON that permits comments; use it only for blocks that actually contain comments, otherwise use `json`.
+  `jsonc` is a distinct Shiki grammar for JSON that permits comments.
+  Use it only for blocks that contain comments.
+  Otherwise use `json`.
 - `dotenv` for `.env`-style `KEY=VALUE` blocks.
 - `txt` for command output shown on its own, and for any block with no syntax to highlight.
-  `text`, `output`, `none`, and `url` are not the canonical tag; use `txt`.
+  `text`, `output`, `none`, and `url` are not the canonical tag. Use `txt`.
 - `dockerfile` for Dockerfiles, lowercase.
   `Dockerfile` (capitalized) is not a valid tag.
 - `md` for Markdown, including Markdown shown as a fenced example inside another Markdown file.
-  `markdown` is not the canonical tag; use `md`.
+  `markdown` is not the canonical tag. Use `md`.
 - `tsx` for TypeScript, including plain (non-JSX) TypeScript.
-  `ts` and `typescript` are not the canonical tag; use `tsx`.
-  `tsx` mis-tokenizes the legacy angle-bracket type-assertion syntax (`<Type>value`), which is invalid in real `.tsx` files anyway; write casts as `value as Type` instead, which is unambiguous under both grammars and is already the idiomatic style.
+  `ts` and `typescript` are not the canonical tag. Use `tsx`.
+  `tsx` mis-tokenizes the legacy angle-bracket type-assertion syntax (`<Type>value`), which is invalid in real `.tsx` files anyway.
+  Write casts as `value as Type` instead.
+  That form is unambiguous under both grammars and is already the idiomatic style.
 
 `bash` and `shell` are aliases of `sh`.
 Use `sh` so the corpus stays consistent.
@@ -170,10 +189,11 @@ That output is generated.
 Do not copy the pattern into hand-written pages.
 
 The docs site highlights code with [Speed-Highlight](https://github.com/speed-highlight/core), which detects the language from the code content, not from the fence label.
-The fence label still drives highlighting on GitHub and in most editors, and `markdownlint` rule `MD040` requires one, so always declare the most specific language.
+The fence label still drives highlighting on GitHub and in code editors, and `markdownlint` rule `MD040` requires one, so always declare the most specific language.
 A future docs renderer may adopt [Shiki](https://shiki.style), which fails the build on a fence label it doesn't recognize as a language or alias, so use only tags Shiki supports.
 For content with no sensible language tag, fall back to `txt`.
-A fence label needing a grammar Shiki doesn't bundle (for example `promql` or `caddyfile`) stays as-is; register it as a custom grammar when the site adopts Shiki, rather than degrading it to `txt`.
+A fence label needing a grammar Shiki doesn't bundle (for example `promql` or `caddyfile`) stays as-is.
+Register it as a custom grammar when the site adopts Shiki, rather than degrading it to `txt`.
 
 **Do**:
 
@@ -183,7 +203,9 @@ coder templates push -d ~/coder-quickstart -y quickstart
 ```
 
 ```console
-$ coder templates list NAME        LAST UPDATED quickstart  2 minutes ago
+$ coder templates list
+NAME        LAST UPDATED
+quickstart  2 minutes ago
 ```
 ````
 
@@ -257,16 +279,16 @@ winget install Coder.Coder
 </div>
 ````
 
-Leave a blank line after the opening `<div>` and before the closing `</div>` so the markdown processor parses the inner content as markdown rather than HTML.
+Leave a blank line after the opening `<div>` and before the closing `</div>` so the Markdown processor parses the inner content as Markdown rather than HTML.
 
 *Documentation-only.
 No Vale rule.*
 
 ### Lists
 
-If a sentence enumerates more than five items, rewrite as a bulleted list.
-A prose list of six or more items reads as a wall of commas.
-A bulleted list is easier to scan and to maintain.
+If a sentence enumerates more than 5 items, rewrite it as a bulleted list.
+A prose list of 6 or more items is hard to scan.
+A bulleted list scans faster and takes less effort to maintain.
 
 Unordered lists are for items that have no required order.
 Ordered lists are for sequential steps the reader follows in order.
@@ -324,7 +346,7 @@ The provisioner supports:
 The first **Don't** mixes punctuation styles and uses non-imperative leads.
 The second mixes punctuation inside one list and uses periods on single-word labels.
 
-For a "Learn more" or "See also" list of links, treat each item as a label: no terminal period, and no leading "And" or "Or".
+For a "Learn more" list of links, treat each item as a label: no terminal period, and no leading "And" or "Or."
 When such a list needs a lead-in, end the lead-in with a colon on a clause that stands on its own, rather than dangling the colon off a sentence the bullets then finish.
 
 **Do**:
@@ -352,7 +374,7 @@ Install it where it persists across rebuilds:
 - Or bake it into the workspace image.
 ```
 
-The **Don't** dangles the colon off a sentence and starts a bullet with "Or".
+The **Don't** dangles the colon off a sentence and starts a bullet with "Or."
 
 *Documentation-only.
 No Vale rule.*
@@ -365,7 +387,7 @@ Avoid nested formatting and avoid tables that would read better as prose.
 
 Keep tables narrow enough that they fit the readable text column without horizontal scrolling.
 If a column needs more than a short phrase, rewrite the cell into the page body or break the table into two narrower tables.
-A table that crushes column widths so words split across lines reads worse than the equivalent prose.
+A table that forces columns so narrow that words split across lines reads worse than the equivalent prose.
 
 If a table needs many columns to capture the data, reconsider whether a table is the right structure.
 A definition list or a sequence of subsections may serve the reader better.
@@ -414,15 +436,15 @@ Alt-text requirement enforced by `markdownlint` rule `MD045`.*
 ### Screenshots sparingly
 
 Use screenshots only when a sighted reader would be confused without the visual aid.
-A worked example, a code block, or a precise written instruction is almost always better than a screenshot.
+Prefer a worked example, a code block, or a precise written instruction over a screenshot.
 
 > If a picture is worth a thousand words, then a good example is worth at least twice that amount.
 >
 > Adapted from Lorna Jane Mitchell's [Short tech writing style guide for developers](https://lornajane.net/posts/2024/short-tech-writing-style-guide-for-developers).
 
 Screenshots carry an ongoing maintenance burden.
-The product UI changes, strings get renamed, themes get retuned, and a screenshot that was accurate at merge time silently rots.
-Readers who hit a stale screenshot lose confidence in the page, and a reader using a screen reader can't use the screenshot at all.
+The product UI changes, strings get renamed, themes get retuned, and a screenshot that was accurate at merge time goes stale without warning.
+Readers who encounter a stale screenshot lose confidence in the page, and a reader using a screen reader can't use the screenshot at all.
 The writer who adds a screenshot owns the cost of replacing it every time the captured surface changes.
 
 When a screenshot is the right answer:
@@ -431,7 +453,7 @@ When a screenshot is the right answer:
   Crop to the smallest region that resolves the confusion the page is addressing.
 - Provide alt text that conveys the purpose of the screenshot, per [Alt text for images](./accessibility-and-inclusion.md#alt-text-for-images).
 - Pair the screenshot with the written instruction.
-  The written instruction is the source of truth.
+  The written instruction is authoritative.
   The screenshot is a check on the reader's understanding, not a replacement for the words.
 
 **Do**:
@@ -450,7 +472,7 @@ The authoritative screenshot policy, including the obfuscation, PHI, and PII rul
 *Documentation-only.
 Enforcement is editorial.*
 
-## Related
+## Learn more
 
 - [Style guide landing page](./README.md)
 - [Accessibility and inclusion](./accessibility-and-inclusion.md)

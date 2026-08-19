@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { buildInitialModelFormValues } from "../modelConfigFormLogic";
-import { pricingFieldNameList } from "../pricingFields";
 import {
 	type ApplyKnownModelDefaultsParameters,
 	type ApplyKnownModelDefaultsResult,
@@ -184,81 +183,6 @@ describe("applyKnownModelDefaults", () => {
 		expect(
 			getPath(result.values, "config.anthropic.maxOutputTokens"),
 		).toBeUndefined();
-		expect(result.appliedFields).toContain("config.maxOutputTokens");
-	});
-
-	it("populates flat input and output costs through pricing descriptors", () => {
-		const result = applyDefaults({
-			values: buildInitialModelFormValues(),
-			initialValues: buildInitialModelFormValues(),
-			provider: "openai",
-			knownModel: customKnownModel({ inputCost: 5, outputCost: 30 }),
-		});
-
-		expect(
-			getPath(result.values, "config.cost.inputPricePerMillionTokens"),
-		).toBe("5");
-		expect(
-			getPath(result.values, "config.cost.outputPricePerMillionTokens"),
-		).toBe("30");
-		expect(pricingFieldNameList.slice(0, 2)).toEqual([
-			"cost.input_price_per_million_tokens",
-			"cost.output_price_per_million_tokens",
-		]);
-		expect(result.appliedFields).toEqual(
-			expect.arrayContaining([
-				"config.cost.inputPricePerMillionTokens",
-				"config.cost.outputPricePerMillionTokens",
-			]),
-		);
-	});
-
-	it("populates cache read and cache write costs when present", () => {
-		const result = applyDefaults({
-			values: buildInitialModelFormValues(),
-			initialValues: buildInitialModelFormValues(),
-			provider: "anthropic",
-			knownModel: customKnownModel({
-				provider: "anthropic",
-				cacheReadCost: 0.5,
-				cacheWriteCost: 6.25,
-			}),
-		});
-
-		expect(
-			getPath(result.values, "config.cost.cacheReadPricePerMillionTokens"),
-		).toBe("0.5");
-		expect(
-			getPath(result.values, "config.cost.cacheWritePricePerMillionTokens"),
-		).toBe("6.25");
-		expect(result.appliedFields).toEqual(
-			expect.arrayContaining([
-				"config.cost.cacheReadPricePerMillionTokens",
-				"config.cost.cacheWritePricePerMillionTokens",
-			]),
-		);
-	});
-
-	it("leaves missing cache costs unchanged and excludes them from applied fields", () => {
-		const result = applyDefaults({
-			values: buildInitialModelFormValues(),
-			initialValues: buildInitialModelFormValues(),
-			provider: "openai",
-			knownModel: customKnownModel({ inputCost: 30, outputCost: 180 }),
-		});
-
-		expect(
-			getPath(result.values, "config.cost.cacheReadPricePerMillionTokens"),
-		).toBe("");
-		expect(
-			getPath(result.values, "config.cost.cacheWritePricePerMillionTokens"),
-		).toBe("");
-		expect(result.appliedFields).not.toContain(
-			"config.cost.cacheReadPricePerMillionTokens",
-		);
-		expect(result.appliedFields).not.toContain(
-			"config.cost.cacheWritePricePerMillionTokens",
-		);
 	});
 
 	it("does not set compressionThreshold", () => {

@@ -2,6 +2,7 @@ package messages
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,7 +11,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/google/uuid"
-	mcplib "github.com/mark3labs/mcp-go/mcp"
+	mcplib "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/tidwall/sjson"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -257,7 +258,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			var hasValidResult bool
 			for _, content := range res.Content {
 				switch cb := content.(type) {
-				case mcplib.TextContent:
+				case *mcplib.TextContent:
 					toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.ToolResultBlockParamContentUnion{
 						OfText: &anthropic.TextBlockParam{
 							Text: cb.Text,
@@ -265,20 +266,23 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 					})
 					hasValidResult = true
 				// TODO: is there a more correct way of handling these non-text content responses?
-				case mcplib.EmbeddedResource:
-					switch resource := cb.Resource.(type) {
-					case mcplib.TextResourceContents:
-						val := fmt.Sprintf("Binary resource (MIME: %s, URI: %s): %s",
-							resource.MIMEType, resource.URI, resource.Text)
+				case *mcplib.EmbeddedResource:
+					resource := cb.Resource
+					switch {
+					case resource == nil:
+						i.logger.Warn(ctx, "embedded resource with no contents")
 						toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.ToolResultBlockParamContentUnion{
 							OfText: &anthropic.TextBlockParam{
-								Text: val,
+								Text: "Error: embedded resource with no contents",
 							},
 						})
+						toolResult.OfToolResult.IsError = anthropic.Bool(true)
 						hasValidResult = true
-					case mcplib.BlobResourceContents:
+					case resource.Blob != nil:
+						// The SDK decodes base64 during unmarshal; re-encode
+						// the bytes for model-facing text.
 						val := fmt.Sprintf("Binary resource (MIME: %s, URI: %s): %s",
-							resource.MIMEType, resource.URI, resource.Blob)
+							resource.MIMEType, resource.URI, base64.StdEncoding.EncodeToString(resource.Blob))
 						toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.ToolResultBlockParamContentUnion{
 							OfText: &anthropic.TextBlockParam{
 								Text: val,
@@ -286,13 +290,13 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 						})
 						hasValidResult = true
 					default:
-						i.logger.Warn(ctx, "unknown embedded resource type", slog.F("type", fmt.Sprintf("%T", resource)))
+						val := fmt.Sprintf("Binary resource (MIME: %s, URI: %s): %s",
+							resource.MIMEType, resource.URI, resource.Text)
 						toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.ToolResultBlockParamContentUnion{
 							OfText: &anthropic.TextBlockParam{
-								Text: "Error: unknown embedded resource type",
+								Text: val,
 							},
 						})
-						toolResult.OfToolResult.IsError = anthropic.Bool(true)
 						hasValidResult = true
 					}
 				default:

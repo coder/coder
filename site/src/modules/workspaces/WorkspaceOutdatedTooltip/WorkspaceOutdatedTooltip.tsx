@@ -1,5 +1,3 @@
-import { useTheme } from "@emotion/react";
-import Link from "@mui/material/Link";
 import { CircleAlertIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { useQuery } from "react-query";
@@ -17,6 +15,7 @@ import {
 	HelpPopoverTitle,
 	HelpPopoverTrigger,
 } from "#/components/HelpPopover/HelpPopover";
+import { Link } from "#/components/Link/Link";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import {
@@ -80,7 +79,6 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 	isOpen,
 }) => {
 	const getLink = useLinks();
-	const theme = useTheme();
 	const { data: activeVersion } = useQuery({
 		...templateVersion(workspace.template_active_version_id),
 		enabled: isOpen,
@@ -106,13 +104,13 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 		<>
 			<HelpPopoverContent disablePortal={false}>
 				<HelpPopoverTitle>Outdated</HelpPopoverTitle>
-				<HelpPopoverText>
+				<HelpPopoverText className="text-xs font-normal">
 					This workspace version is outdated and a newer version is available.
 				</HelpPopoverText>
 
-				<div className="flex flex-col gap-2 py-2 text-[13px]">
+				<div className="flex flex-col gap-2 py-2 text-xs font-normal">
 					<div className="leading-[1.6]">
-						<div className="text-content-primary font-semibold">
+						<div className="text-content-primary text-sm font-semibold">
 							New version
 						</div>
 						<div>
@@ -120,7 +118,10 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 								<Link
 									href={`${versionLink}/versions/${activeVersion.name}`}
 									target="_blank"
-									css={{ color: theme.palette.primary.light }}
+									rel="noreferrer"
+									size="sm"
+									className="p-0"
+									showExternalIcon={false}
 								>
 									{activeVersion.name}
 								</Link>
@@ -131,7 +132,9 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 					</div>
 
 					<div className="leading-[1.6]">
-						<div className="text-content-primary font-semibold">Message</div>
+						<div className="text-content-primary text-sm font-semibold">
+							Message
+						</div>
 						<div>
 							{activeVersion ? (
 								activeVersion.message || "No message"

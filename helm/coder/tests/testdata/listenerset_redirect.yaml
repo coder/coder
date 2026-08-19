@@ -9,6 +9,7 @@ coder:
     host: coder.example.com
     httpsRedirect:
       enable: true
+      statusCode: 301
       parentRefs:
       - name: fake-gateway
         port: 80

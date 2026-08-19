@@ -48,7 +48,7 @@ func (a *AzureSessionTokenExchanger) exchange(ctx context.Context) (Authenticate
 	defer res.Body.Close()
 
 	var token AzureInstanceIdentityToken
-	err = json.NewDecoder(res.Body).Decode(&token)
+	err = json.NewDecoder(res.Body).Decode(&token) //nolint:gocritic // Azure IMDS attested document response, not the Coder API.
 	if err != nil {
 		return AuthenticateResponse{}, err
 	}
@@ -63,5 +63,5 @@ func (a *AzureSessionTokenExchanger) exchange(ctx context.Context) (Authenticate
 		return AuthenticateResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp AuthenticateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, codersdk.ReadBodyAsJSON(res, &resp)
 }

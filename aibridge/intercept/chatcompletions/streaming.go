@@ -270,9 +270,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			prompt = nil
 		}
 
-		if lastUsage := processor.getLastUsage(); lastUsage.CompletionTokens > 0 {
-			// If the usage information is set, track it.
-			// The API will send usage information when the response terminates, which will happen if a tool call is invoked.
+		if lastUsage := processor.lastUsage; lastUsage.CompletionTokens > 0 {
 			i.recordTokenUsage(streamCtx, processor.getMsgID(), lastUsage)
 		}
 
@@ -412,24 +410,19 @@ func (i *StreamingInterception) getInjectedToolByName(name string) *mcp.Tool {
 	return i.mcpProxy.GetTool(name)
 }
 
-// Mashals received stream chunk.
-// Overrides id (since proxy obscures injected tool call invocations).
-// If usage field was set in original chunk overrides it to culminative usage.
-//
 // sjson is used instead of normal struct marshaling so forwarded data
 // is as close to the original as possible. Structs from openai library lack
 // `omitzero/omitempty` annotations which adds additional empty fields
 // when marshaling structs. Those additional empty fields can break Codex client.
 func (i *StreamingInterception) marshalChunk(chunk *openai.ChatCompletionChunk, id uuid.UUID, prc *streamProcessor) ([]byte, error) {
+	// Normalize the response ID because injected tool calls span multiple upstream invocations.
 	sj, err := sjson.Set(chunk.RawJSON(), "id", id.String())
 	if err != nil {
 		return nil, xerrors.Errorf("marshal chunk id failed: %w", err)
 	}
 
-	// If usage information is available, relay the cumulative usage once all tool invocations have completed.
 	if chunk.JSON.Usage.Valid() {
-		u := prc.getCumulativeUsage()
-		sj, err = sjson.Set(sj, "usage", u)
+		sj, err = sjson.Set(sj, "usage", prc.lastUsage)
 		if err != nil {
 			return nil, xerrors.Errorf("marshal chunk usage failed: %w", err)
 		}
@@ -503,9 +496,7 @@ type streamProcessor struct {
 	pendingToolCall     bool
 	getInjectedToolFunc func(string) *mcp.Tool
 
-	// Token handling.
-	lastUsage       openai.CompletionUsage
-	cumulativeUsage openai.CompletionUsage
+	lastUsage openai.CompletionUsage
 }
 
 func newStreamProcessor(ctx context.Context, logger slog.Logger, isToolInjectedFunc func(string) *mcp.Tool) *streamProcessor {
@@ -525,9 +516,11 @@ func (s *streamProcessor) process(chunk openai.ChatCompletionChunk) bool {
 		// Potentially not fatal, move along in best effort...
 	}
 
-	// Accumulate token usage.
-	s.lastUsage = chunk.Usage
-	s.cumulativeUsage = sumUsage(s.cumulativeUsage, chunk.Usage)
+	// Some providers emit cumulative usage snapshots on every chunk, so the
+	// latest valid usage is authoritative. Never sum across chunks.
+	if chunk.JSON.Usage.Valid() {
+		s.lastUsage = chunk.Usage
+	}
 
 	// If the stream has reached a terminal state (i.e. call a tool), and this tool is injected,
 	// then it must not be relayed.
@@ -614,14 +607,6 @@ func (s *streamProcessor) getLastCompletion() *openai.ChatCompletionMessage {
 	}
 
 	return &s.acc.Choices[0].Message
-}
-
-func (s *streamProcessor) getLastUsage() openai.CompletionUsage {
-	return s.lastUsage
-}
-
-func (s *streamProcessor) getCumulativeUsage() openai.CompletionUsage {
-	return s.cumulativeUsage
 }
 
 // compactToolCalls removes nil/empty tool call entries (without an ID).

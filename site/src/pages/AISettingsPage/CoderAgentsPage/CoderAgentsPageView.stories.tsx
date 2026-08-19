@@ -225,7 +225,7 @@ const selectModelInSection = async (
 	section: HTMLElement,
 	canvasElement: HTMLElement,
 	currentSelectionName: string | RegExp,
-	optionName: string,
+	optionName: string | RegExp,
 ) => {
 	const trigger = within(section).getByRole("combobox", {
 		name: currentSelectionName,
@@ -389,7 +389,7 @@ export const EachOverrideSetToEnabledModel: Story = {
 			generalSection,
 			canvasElement,
 			/gpt 4\.1 mini/i,
-			"Claude Sonnet 4",
+			/^Claude Sonnet 4\b/,
 		);
 		const generalSaveButton = within(generalSection).getByRole("button", {
 			name: "Save",
@@ -409,7 +409,7 @@ export const EachOverrideSetToEnabledModel: Story = {
 			titleSection,
 			canvasElement,
 			/gpt 4o mini/i,
-			"Claude Sonnet 4",
+			/^Claude Sonnet 4\b/,
 		);
 		const titleSaveButton = within(titleSection).getByRole("button", {
 			name: "Save",
@@ -429,7 +429,7 @@ export const EachOverrideSetToEnabledModel: Story = {
 			compactionSection,
 			canvasElement,
 			/claude sonnet 4/i,
-			"GPT 4o Mini",
+			/^GPT 4o Mini\b/,
 		);
 		const compactionSaveButton = within(compactionSection).getByRole("button", {
 			name: "Save",

@@ -80,7 +80,9 @@ const meta: Meta<typeof ProxyMenu> = {
 	decorators: [
 		(Story) => (
 			<AuthProvider>
-				<Story />
+				<div className="flex justify-end">
+					<Story />
+				</div>
 			</AuthProvider>
 		),
 		withDesktopViewport,
@@ -102,6 +104,53 @@ export default meta;
 type Story = StoryObj<typeof ProxyMenu>;
 
 export const Closed: Story = {};
+
+export const ClosedWarningLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: {
+				...MockProxyLatencies,
+				[MockWorkspaceProxies[0].id]: {
+					accurate: true,
+					latencyMS: 224,
+					at: new Date(),
+					nextHopProtocol: "h2",
+				},
+			},
+		},
+	},
+};
+
+export const ClosedCriticalLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: {
+				...MockProxyLatencies,
+				[MockWorkspaceProxies[0].id]: {
+					accurate: true,
+					latencyMS: 471,
+					at: new Date(),
+					nextHopProtocol: "h2",
+				},
+			},
+		},
+	},
+};
+
+export const ClosedNoLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: Object.fromEntries(
+				Object.entries(MockProxyLatencies).filter(
+					([id]) => id !== MockWorkspaceProxies[0].id,
+				),
+			),
+		},
+	},
+};
 
 export const Opened: Story = {
 	play: async ({ canvasElement }) => {

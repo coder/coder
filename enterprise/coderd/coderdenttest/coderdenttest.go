@@ -237,6 +237,17 @@ func (opts *LicenseOptions) ManagedAgentLimit(limit int64) *LicenseOptions {
 	return opts.Feature(codersdk.FeatureManagedAgentLimit, limit)
 }
 
+func (opts *LicenseOptions) AgentRuntimeHours(allocation int64, softLimit, hardLimit *int64) *LicenseOptions {
+	opts.Feature(license.ClaimAgentRuntimeHoursAllocation, allocation)
+	if softLimit != nil {
+		opts.Feature(license.ClaimAgentRuntimeHoursLimitSoft, *softLimit)
+	}
+	if hardLimit != nil {
+		opts.Feature(license.ClaimAgentRuntimeHoursLimitHard, *hardLimit)
+	}
+	return opts
+}
+
 func (opts *LicenseOptions) Feature(name codersdk.FeatureName, value int64) *LicenseOptions {
 	if opts.Features == nil {
 		opts.Features = license.Features{}

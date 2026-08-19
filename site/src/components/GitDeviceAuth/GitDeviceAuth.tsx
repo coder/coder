@@ -146,9 +146,9 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 				<br />
 				Then open the link below and paste it:
 			</p>
-			<div className="m-4 flex flex-col gap-1">
+			<div className="m-4 flex justify-center">
 				<Link
-					className="flex items-center justify-center gap-2 text-base"
+					className="inline-flex items-center gap-2 p-0 text-base font-medium [&_svg]:size-icon-xs [&_svg]:p-0"
 					href={externalAuthDevice.verification_uri}
 					target="_blank"
 					rel="noreferrer"

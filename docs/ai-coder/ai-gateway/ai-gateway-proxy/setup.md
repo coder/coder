@@ -5,7 +5,7 @@ Once enabled, `coderd` runs the AI Gateway Proxy in-process and intercepts traff
 
 **Required:**
 
-1. AI Gateway must be enabled and configured (requires the [AI Governance Add-On](../../ai-governance.md)). See [AI Gateway Setup](../setup.md) for further information.
+1. AI Gateway must be enabled and configured (requires a Premium license, which includes [AI Governance](../../ai-governance.md)). See [AI Gateway Setup](../setup.md) for further information.
 1. AI Gateway Proxy must be [enabled](#proxy-configuration) using the server flag.
 1. A [CA certificate](#ca-certificate) must be configured for MITM interception.
 1. [Clients](#client-configuration) must be configured to use the proxy and trust the CA certificate.
@@ -54,7 +54,8 @@ All other traffic is tunneled through without decryption.
 Intercepted requests are forwarded to the AI Gateway, configured via [`CODER_AI_GATEWAY_PROXY_TARGET`](../../../reference/cli/server.md#--ai-gateway-proxy-target).
 By default, this is the embedded AI Gateway at `<coderd-access-url>/api/v2/ai-gateway`, and no configuration is needed.
 
-To forward intercepted requests to an AI Gateway that is not embedded in this Coder deployment, set:
+AI Gateway Proxy remains part of the `coder server` process when you [deploy AI Gateway as a standalone service](../standalone.md).
+To forward intercepted requests to the standalone Gateway, set:
 
 ```sh
 CODER_AI_GATEWAY_PROXY_TARGET=https://ai-gateway.example.com/

@@ -13,6 +13,7 @@ import (
 	"math"
 	"net/http"
 	httppprof "net/http/pprof"
+	"net/netip"
 	"net/url"
 	"path/filepath"
 	"regexp"
@@ -98,6 +99,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wsbuildorchestrator"
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
@@ -260,10 +262,19 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
+	// MCPOAuth2DiscoveryAllowedIPRanges exempts IP ranges from the
+	// SSRF guard applied to MCP OAuth2 metadata discovery and dynamic
+	// client registration, which refuse private/internal destinations
+	// by default. This is a seam for tests, which serve their mock MCP
+	// servers on loopback; there is intentionally no user-facing
+	// configuration for it.
+	MCPOAuth2DiscoveryAllowedIPRanges []netip.Prefix
 	// ChatStreamPartsDialer dials remote chat stream parts.
 	// Set by enterprise for HA deployments. Nil uses chatd's local
 	// in-process channel dialer.
 	ChatStreamPartsDialer chatd.StreamPartsDialer
+	// Nil keeps the default chat agent caps active.
+	ChatAgentCapacityUnlock chatd.AgentCapacityUnlock
 	// ChatProviderAPIKeys overrides deployment-derived provider keys.
 	// Test harnesses use this to route chat models to local providers.
 	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
@@ -314,6 +325,7 @@ type Options struct {
 	AppSigningKeyCache    cryptokeys.SigningKeycache
 	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache   cryptokeys.SigningKeycache
+	ChatFileTokenKeyCache cryptokeys.SigningKeycache
 	// NATSCACache serves the NATS cluster mTLS CA via the generic signing key
 	// cache for the nats_ca feature. SigningKey returns the active CA
 	// (a *NATSCA); VerifyingKey returns a specific CA by sequence. The key
@@ -350,7 +362,7 @@ type Options struct {
 
 // @securitydefinitions.apiKey Authorization
 // @in header
-// @name Authorizaiton
+// @name Authorization
 
 // @securitydefinitions.apiKey CoderSessionToken
 // @in header
@@ -383,13 +395,17 @@ func New(options *Options) *API {
 		options.Logger, options.DeploymentValues.Experiments.Value(),
 	)
 
-	if bool(options.DeploymentValues.DisableOwnerWorkspaceExec) || bool(options.DeploymentValues.DisableWorkspaceSharing) || bool(options.DeploymentValues.DisableChatSharing) || experiments.Enabled(codersdk.ExperimentMinimumImplicitMember) {
-		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
-			NoOwnerWorkspaceExec:  bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
-			NoWorkspaceSharing:    bool(options.DeploymentValues.DisableWorkspaceSharing),
-			NoChatSharing:         bool(options.DeploymentValues.DisableChatSharing),
-			MinimumImplicitMember: experiments.Enabled(codersdk.ExperimentMinimumImplicitMember),
-		})
+	// Only reload when an option deviates from the defaults so the zero
+	// value keeps the stock builtin roles. Constructing the full options
+	// struct here (rather than mirroring individual fields in the guard)
+	// ensures a newly added RoleOptions field cannot be silently ignored.
+	roleOptions := rbac.RoleOptions{
+		NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
+		NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
+		NoChatSharing:        bool(options.DeploymentValues.DisableChatSharing),
+	}
+	if roleOptions != (rbac.RoleOptions{}) {
+		rbac.ReloadBuiltinRoles(&roleOptions)
 	}
 
 	if options.DeploymentValues.DisableWorkspaceSharing {
@@ -577,6 +593,17 @@ func New(options *Options) *API {
 		)
 		if err != nil {
 			options.Logger.Fatal(ctx, "failed to properly instantiate oidc convert signing cache", slog.Error(err))
+		}
+	}
+
+	if options.ChatFileTokenKeyCache == nil {
+		options.ChatFileTokenKeyCache, err = cryptokeys.NewSigningCache(ctx,
+			options.Logger.Named("chat_file_token_keycache"),
+			fetcher,
+			codersdk.CryptoKeyFeatureChatFilesToken,
+		)
+		if err != nil {
+			options.Logger.Fatal(ctx, "failed to properly instantiate chat file token signing cache", slog.Error(err))
 		}
 	}
 
@@ -879,6 +906,33 @@ func New(options *Options) *API {
 		// the chat daemon stays nil and chat HTTP handlers return a
 		// service-unavailable error with a clear remediation message.
 		if options.DeploymentValues.AI.BridgeConfig.Enabled.Value() {
+			var hookDispatcher *dispatch.Dispatcher
+			chatConfig := options.DeploymentValues.AI.Chat
+			hooksConfigured := chatConfig.HookURL.String() != "" && chatConfig.HookEnabled.Value()
+			hooksExperimentEnabled := experiments.Enabled(codersdk.ExperimentAgentLifecycleHooks)
+			if hooksConfigured && !hooksExperimentEnabled {
+				options.Logger.Warn(ctx, "chat lifecycle hooks are configured but inactive; enable the agent-lifecycle-hooks experiment to activate them",
+					slog.F("experiment", codersdk.ExperimentAgentLifecycleHooks),
+				)
+			}
+			if hooksConfigured && hooksExperimentEnabled {
+				if chatConfig.HookAllowInsecure.Value() && chatConfig.HookURL.Value().Scheme == "http" {
+					options.Logger.Warn(ctx, "chat hooks use a plain HTTP URL; hook traffic is unencrypted and hook responses controlling agent execution can be forged on the network",
+						slog.F("hook_url", mcpclient.RedactURL(chatConfig.HookURL.String())),
+					)
+				}
+				hookDispatcher = dispatch.New(
+					options.Logger,
+					nil,
+					chatConfig.HookURL.String(),
+					chatConfig.HookAllowInsecure.Value(),
+					chatConfig.HookSecret.Value(),
+					chatConfig.HookTimeout.Value(),
+					api.DeploymentID,
+					buildinfo.Version(),
+					options.PrometheusRegistry,
+				)
+			}
 			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
 				Logger:                         options.Logger.Named("chatd"),
 				Database:                       options.Database,
@@ -898,8 +952,10 @@ func New(options *Options) *API {
 				StartWorkspace:                 api.chatStartWorkspace,
 				StopWorkspace:                  api.chatStopWorkspace,
 				WebpushDispatcher:              options.WebPushDispatcher,
+				HookDispatcher:                 hookDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
+				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
@@ -1202,6 +1258,11 @@ func New(options *Options) *API {
 	r.Route("/oauth2", func(r chi.Router) {
 		r.Use(
 			httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
+			// Every response from this tree may carry a credential, so none of
+			// them may be retained by an intermediary cache. Mounted after
+			// the gate, so a request the gate rejects gets no headers. That
+			// rejection carries no credential, so it needs none.
+			httpmw.NoStore,
 		)
 		r.Route("/authorize", func(r chi.Router) {
 			r.Use(
@@ -1313,6 +1374,10 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserAIProviderKey)
 			})
 		})
+		r.Group(func(r chi.Router) {
+			r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
+			r.Get("/chats/files/{file}/download", api.downloadChatFile)
+		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1322,16 +1387,10 @@ func New(options *Options) *API {
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)
 			r.Get("/watch", api.watchChats)
-			r.Route("/cost", func(r chi.Router) {
-				r.Get("/users", api.chatCostUsers)
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Get("/summary", api.chatCostSummary)
-				})
-			})
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
 				r.Post("/", api.postChatFile)
+				r.Post("/{file}/download-url", api.postChatFileDownloadURL)
 				r.Get("/{file}", api.chatFileByID)
 			})
 			r.Route("/config", func(r chi.Router) {
@@ -1372,8 +1431,6 @@ func New(options *Options) *API {
 				r.Put("/debug-retention-days", api.putChatDebugRetentionDays)
 				r.Get("/auto-archive-days", api.getChatAutoArchiveDays)
 				r.Put("/auto-archive-days", api.putChatAutoArchiveDays)
-				r.Get("/template-allowlist", api.getChatTemplateAllowlist)
-				r.Put("/template-allowlist", api.putChatTemplateAllowlist)
 			})
 			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/providers", func(r chi.Router) {
@@ -1391,19 +1448,6 @@ func New(options *Options) *API {
 				r.Route("/{modelConfig}", func(r chi.Router) {
 					r.Patch("/", api.updateChatModelConfig)
 					r.Delete("/", api.deleteChatModelConfig)
-				})
-			})
-			r.Route("/usage-limits", func(r chi.Router) {
-				r.Get("/", api.getChatUsageLimitConfig)
-				r.Put("/", api.updateChatUsageLimitConfig)
-				r.Get("/status", api.getMyChatUsageLimitStatus)
-				r.Route("/overrides/{user}", func(r chi.Router) {
-					r.Put("/", api.upsertChatUsageLimitOverride)
-					r.Delete("/", api.deleteChatUsageLimitOverride)
-				})
-				r.Route("/group-overrides/{group}", func(r chi.Router) {
-					r.Put("/", api.upsertChatUsageLimitGroupOverride)
-					r.Delete("/", api.deleteChatUsageLimitGroupOverride)
 				})
 			})
 			r.Route("/user-provider-configs", func(r chi.Router) {
@@ -2089,6 +2133,10 @@ func New(options *Options) *API {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
+				// POST /apps/{app}/secrets returns a plaintext client secret,
+				// so this tree falls under the same RFC 6749 §5.1 requirement
+				// as /oauth2.
+				httpmw.NoStore,
 			)
 			r.Route("/apps", func(r chi.Router) {
 				r.Get("/", api.oAuth2ProviderApps())
@@ -2465,6 +2513,7 @@ func (api *API) Close() error {
 	}
 	_ = api.NetworkTelemetryBatcher.Close()
 	_ = api.OIDCConvertKeyCache.Close()
+	_ = api.ChatFileTokenKeyCache.Close()
 	_ = api.AppSigningKeyCache.Close()
 	_ = api.AppEncryptionKeyCache.Close()
 	if api.NATSCACache != nil {

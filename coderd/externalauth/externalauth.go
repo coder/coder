@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -22,11 +23,13 @@ import (
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/util/xhttp"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
@@ -63,6 +66,10 @@ type SingleflightGroup interface {
 // Config is used for authentication for Git operations.
 type Config struct {
 	promoauth.InstrumentedOAuth2Config
+	// Logs rate-limited validation warnings. Zero value discards output.
+	Logger slog.Logger
+	// rateLimitLogThrottle throttles rate-limited validation warnings.
+	rateLimitLogThrottle logThrottle
 	// ID is a unique identifier for the authenticator.
 	ID string
 	// Type is the type of provider.
@@ -107,6 +114,10 @@ type Config struct {
 	// (e.g., "https://api.github.com" for GitHub). Derived from
 	// defaults when not explicitly configured.
 	APIBaseURL string
+	// If nil, http.DefaultClient is used. The value is read once at
+	// the first successful Git() call; later assignments have no
+	// effect because the provider is memoized.
+	HTTPClient *http.Client
 	// AppInstallURL is for GitHub App's (and hopefully others eventually)
 	// to provide a link to install the app. There's installation
 	// of the application, and user authentication. It's possible
@@ -152,18 +163,40 @@ type Config struct {
 
 	// RefreshGroup deduplicates concurrent requests.
 	RefreshGroup SingleflightGroup
+
+	gitProviderMu sync.Mutex
+	// gitProvider memoizes the provider so the GitHub ETag response
+	// cache survives across Git calls.
+	gitProvider gitprovider.Provider
 }
 
-// Git returns a Provider for this config if the provider type is a
-// supported git hosting provider. Returns (nil, nil) for non-git
-// providers (e.g. Slack, JFrog). Returns a non-nil error if provider
-// construction fails.
-func (c *Config) Git(client *http.Client) (gitprovider.Provider, error) {
+// Git returns a Provider for this config. It returns (nil, nil) when
+// this config's type has no provider implementation, which covers both
+// non-git types (e.g. Slack, JFrog) and git types that are not
+// implemented yet (bitbucket-*, azure-devops*, gitea). Callers cannot
+// distinguish the two cases from the return values. Returns a non-nil
+// error if provider construction fails.
+//
+// The provider is built on the first successful call and cached for
+// the lifetime of the Config, so its in-memory response cache
+// survives across calls. The provider uses c.HTTPClient for API
+// requests; if c.HTTPClient is nil, http.DefaultClient is used.
+func (c *Config) Git() (gitprovider.Provider, error) {
 	norm := strings.ToLower(c.Type)
 	if !codersdk.EnhancedExternalAuthProvider(norm).Git() {
 		return nil, nil //nolint:nilnil // nil provider means non-git type, not an error
 	}
-	return gitprovider.New(norm, c.APIBaseURL, client)
+	c.gitProviderMu.Lock()
+	defer c.gitProviderMu.Unlock()
+	if c.gitProvider != nil {
+		return c.gitProvider, nil
+	}
+	p, err := gitprovider.New(norm, c.APIBaseURL, c.HTTPClient)
+	if err != nil {
+		return nil, err
+	}
+	c.gitProvider = p
+	return c.gitProvider, nil
 }
 
 // GenerateTokenExtra generates the extra token data to store in the database.
@@ -520,7 +553,8 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		// validation endpoint is rejecting for a transient reason.
 		// Treat it as optimistically valid rather than discarding
 		// the token.
-		if isRateLimited(res) {
+		if xhttp.IsRateLimited(res) {
+			c.logRateLimitedValidation(ctx, http.StatusForbidden, "rate_limit_headers")
 			return true, nil, nil
 		}
 		// No rate-limit headers: genuine token revocation or
@@ -532,6 +566,7 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		// Treat 429 the same as a rate-limited 403: optimistically
 		// valid. The token was likely just issued by the IDP; the
 		// validation endpoint is transiently overloaded.
+		c.logRateLimitedValidation(ctx, http.StatusTooManyRequests, "status_code")
 		return true, nil, nil
 
 	case http.StatusOK:
@@ -558,6 +593,57 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 	}
 
 	return true, user, nil
+}
+
+// rateLimitLogInterval is the minimum time between rate-limited validation
+// warnings emitted per Config.
+const rateLimitLogInterval = time.Minute
+
+// logRateLimitedValidation warns that a token was kept valid without
+// provider confirmation due to a rate-limited response. At most one
+// warning is emitted per Config per rateLimitLogInterval; the line
+// carries the number of occurrences suppressed since the previous one.
+func (c *Config) logRateLimitedValidation(ctx context.Context, statusCode int, reason string) {
+	suppressed, ok := c.rateLimitLogThrottle.shouldLog(time.Now(), rateLimitLogInterval)
+	if !ok {
+		return
+	}
+	c.Logger.Warn(ctx, "external auth validation endpoint rate-limited; keeping token without provider confirmation",
+		slog.F("status_code", statusCode),
+		slog.F("reason", reason),
+		slog.F("suppressed", suppressed),
+	)
+}
+
+// logThrottle allows one event per interval and counts the events
+// suppressed in between. Safe for concurrent use; the zero value is
+// ready for use.
+type logThrottle struct {
+	mu         sync.Mutex
+	lastLog    time.Time
+	suppressed int64
+}
+
+// shouldLog reports whether an event occurring at now may be logged,
+// allowing at most one event per interval. When it returns true, it also
+// returns the number of events suppressed since the last allowed one;
+// if two or more intervals have elapsed, the stale count is discarded
+// and zero is returned.
+func (t *logThrottle) shouldLog(now time.Time, interval time.Duration) (int64, bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	sinceLast := now.Sub(t.lastLog)
+	if sinceLast < interval {
+		t.suppressed++
+		return 0, false
+	}
+	n := t.suppressed
+	if sinceLast >= 2*interval {
+		n = 0
+	}
+	t.suppressed = 0
+	t.lastLog = now
+	return n, true
 }
 
 type AppInstallation struct {
@@ -852,7 +938,8 @@ func (c *DeviceAuth) formatDeviceCodeURL() (string, error) {
 
 // ConvertConfig converts the SDK configuration entry format
 // to the parsed and ready-to-consume in coderd provider type.
-func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
+// If httpClient is nil, http.DefaultClient is used.
+func ConvertConfig(ctx context.Context, logger slog.Logger, instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL, httpClient *http.Client) ([]*Config, error) {
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
@@ -860,6 +947,8 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 		// This allows users to very simply state that they type is "GitHub",
 		// apply their client secret and ID, and have the UI appear nicely.
 		applyDefaultsToConfig(&entry)
+
+		logger := logger.Named("externalauth").With(slog.F("provider_id", entry.ID), slog.F("provider_type", entry.Type))
 
 		valid := codersdk.NameValid(entry.ID)
 		if valid != nil {
@@ -878,9 +967,18 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 		}
 		ids[entry.ID] = struct{}{}
 
-		authRedirect, err := accessURL.Parse(fmt.Sprintf("/external-auth/%s/callback", entry.ID))
+		baseRedirectURL := accessURL
+		if entry.RedirectURL != "" {
+			var err error
+			baseRedirectURL, err = url.Parse(entry.RedirectURL)
+			if err != nil {
+				return nil, xerrors.Errorf("parse redirect url override for external auth provider %q: %w", entry.ID, err)
+			}
+			logger.Warn(ctx, "custom redirect URL used instead of 'access_url', ensure this matches the value configured in your provider")
+		}
+		authRedirect, err := baseRedirectURL.Parse(fmt.Sprintf("/external-auth/%s/callback", entry.ID))
 		if err != nil {
-			return nil, xerrors.Errorf("parse external auth callback url: %w", err)
+			return nil, xerrors.Errorf("parse callback url for external auth provider %q: %w", entry.ID, err)
 		}
 
 		var regex *regexp.Regexp
@@ -936,11 +1034,13 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 
 		cfg := &Config{
 			InstrumentedOAuth2Config:      instrumented,
+			Logger:                        logger,
 			ID:                            entry.ID,
 			ClientID:                      entry.ClientID,
 			ClientSecret:                  entry.ClientSecret,
 			Regex:                         regex,
 			APIBaseURL:                    entry.APIBaseURL,
+			HTTPClient:                    httpClient,
 			Type:                          entry.Type,
 			NoRefresh:                     entry.NoRefresh,
 			ValidateURL:                   entry.ValidateURL,
@@ -1030,6 +1130,9 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	}
 	if config.ValidateURL == "" {
 		config.ValidateURL = defaults.ValidateURL
+	}
+	if config.RedirectURL == "" {
+		config.RedirectURL = defaults.RedirectURL
 	}
 	if config.RevokeURL == "" {
 		config.RevokeURL = defaults.RevokeURL
@@ -1483,32 +1586,6 @@ func IsGithubDotComURL(str string) bool {
 	return ghURL.Host == "github.com"
 }
 
-// isRateLimited checks whether an HTTP response indicates a rate
-// limit rather than a genuine authorization failure. It returns
-// true if either X-RateLimit-Remaining is "0" (primary) or
-// Retry-After is present (secondary). OR logic is intentional:
-// GitHub secondary limits can include Retry-After without
-// X-RateLimit-Remaining: 0 (the remaining count tracks the
-// primary quota, not secondary).
-//
-// Does not catch every secondary rate limit. GitHub can return
-// 403 with positive X-RateLimit-Remaining and no Retry-After.
-// Reliable detection of those requires response body inspection.
-// Missing them is not a regression since all 403s were previously
-// treated as invalid.
-func isRateLimited(resp *http.Response) bool {
-	if resp == nil {
-		return false
-	}
-	if resp.Header.Get("Retry-After") != "" {
-		return true
-	}
-	if resp.Header.Get("X-RateLimit-Remaining") == "0" {
-		return true
-	}
-	return false
-}
-
 // isFailedRefresh returns true if the error returned by the refresh attempt
 // is due to a failed refresh. The failure being the refresh token itself.
 // If this returns true, no amount of retries will fix the issue.
@@ -1553,7 +1630,7 @@ func isFailedRefresh(existingToken *oauth2.Token, err error) bool {
 			// previous 403 case caused token destruction on
 			// rate-limited refresh attempts.
 			return true
-		case http.StatusInternalServerError, http.StatusTooManyRequests:
+		case http.StatusInternalServerError, http.StatusTooManyRequests, http.StatusServiceUnavailable:
 			// These do not indicate a failed refresh, but could be a temporary issue.
 			return false
 		}
