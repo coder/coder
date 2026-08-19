@@ -132,7 +132,7 @@ describe("deriveLiveStatus", () => {
 		).toEqual({ phase: "streaming", hasAccumulatedOutput: false });
 	});
 
-	it("tracks accumulated output on failed streams", () => {
+	it("suppresses accumulated output on failed streams", () => {
 		expect(
 			derive({
 				streamState: buildStreamState({
@@ -142,7 +142,7 @@ describe("deriveLiveStatus", () => {
 			}),
 		).toEqual({
 			...failedStatus,
-			hasAccumulatedOutput: true,
+			hasAccumulatedOutput: false,
 		});
 	});
 

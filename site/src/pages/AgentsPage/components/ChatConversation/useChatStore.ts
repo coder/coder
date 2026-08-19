@@ -628,6 +628,7 @@ export const useChatStore = (
 							}
 							if (nextStatus !== "error") {
 								clearChatErrorReasonEvent(chatID);
+								store.clearStreamError();
 							}
 							updateSidebarChat((chat) =>
 								chat.status === nextStatus

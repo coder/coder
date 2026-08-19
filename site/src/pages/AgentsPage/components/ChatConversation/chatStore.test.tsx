@@ -3233,6 +3233,83 @@ describe("useChatStore", () => {
 		});
 	});
 
+	// A non-error status means a new turn began, so the prior error must be
+	// cleared for the new stream to render.
+	it("clears streamError when a non-error status arrives after an error", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+
+		const chatID = "chat-error-clears-on-running";
+		const existingMessage = buildMessage(
+			chatID,
+			1,
+			"user",
+			"create a workspace",
+		);
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					chatStatus: useChatSelector(store, selectChatStatus),
+					streamError: useChatSelector(store, selectStreamError),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "error",
+				chat_id: chatID,
+				error: {
+					message: "The chat session ended unexpectedly.",
+					kind: "generic",
+					retryable: false,
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamError).not.toBeNull();
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamError).toBeNull();
+		});
+		expect(result.current.chatStatus).toBe("running");
+	});
+
 	it("uses fallback message when error event has no message", async () => {
 		immediateAnimationFrame();
 

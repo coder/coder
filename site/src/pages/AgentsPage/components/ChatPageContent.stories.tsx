@@ -179,6 +179,7 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 const errorClearsStreamStore = createChatStore();
 export const ErrorClearsStreamingTool: Story = {
 	render: () => {
+		errorClearsStreamStore.resetTransientState();
 		errorClearsStreamStore.replaceMessages([
 			buildMessage(1, "user", [{ type: "text", text: "Create a workspace" }]),
 		]);

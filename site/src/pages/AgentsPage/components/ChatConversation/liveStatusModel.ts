@@ -120,7 +120,11 @@ export const deriveLiveStatus = ({
 	}
 
 	if (streamError) {
-		return toFailedLiveStatus(streamError, { hasAccumulatedOutput });
+		// The error handler clears the stream, so output and an error
+		// only coexist when a stale part repopulates the stream after
+		// the clear. Suppress that leftover so it does not render as a
+		// live row under the callout.
+		return toFailedLiveStatus(streamError, { hasAccumulatedOutput: false });
 	}
 
 	if (reconnectState) {
