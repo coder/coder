@@ -53,6 +53,12 @@ describe("parseTimeExpression", () => {
 		);
 	});
 
+	it("parses T-separated datetimes from the native picker and ISO paste", () => {
+		expect(parseTimeExpression("2026-08-13T11:43", now)).toEqual(
+			new Date(2026, 7, 13, 11, 43, 0),
+		);
+	});
+
 	it("rejects single-digit hours", () => {
 		expect(parseTimeExpression("9:05", now)).toBeNull();
 		expect(parseTimeExpression("2026-08-13 7:23:00", now)).toBeNull();
@@ -70,7 +76,6 @@ describe("parseTimeExpression", () => {
 		expect(parseTimeExpression("", now)).toBeNull();
 		expect(parseTimeExpression("30d", now)).toBeNull();
 		expect(parseTimeExpression("13/08/2026", now)).toBeNull();
-		expect(parseTimeExpression("2026-08-13T11:43", now)).toBeNull();
 	});
 });
 
@@ -106,6 +111,28 @@ describe("formatTriggerLabel", () => {
 				now,
 			),
 		).toBe("Aug 11 - Today");
+	});
+
+	it("labels a live now end bound as Now", () => {
+		expect(
+			formatTriggerLabel(
+				{
+					startedAfter: new Date(2026, 7, 11, 23, 59, 59),
+					startedBefore: new Date(now.getTime()),
+				},
+				now,
+			),
+		).toBe("Aug 11 - Now");
+		// Within the one-minute tolerance still reads as Now.
+		expect(
+			formatTriggerLabel(
+				{
+					startedAfter: new Date(2026, 7, 11, 23, 59, 59),
+					startedBefore: new Date(now.getTime() - 30 * 1000),
+				},
+				now,
+			),
+		).toBe("Aug 11 - Now");
 	});
 
 	it("shortens ranges within one month", () => {

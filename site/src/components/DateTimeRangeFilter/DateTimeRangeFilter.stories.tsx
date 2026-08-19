@@ -62,6 +62,22 @@ export const RangeEndingTodayLabel: Story = {
 	},
 };
 
+export const RangeEndingNowLabel: Story = {
+	args: {
+		// A live To bound (at fixedNow) reads as "Now", not "Today".
+		value: {
+			startedAfter: new Date(2026, 7, 11, 23, 59, 59),
+			startedBefore: fixedNow,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: "Filter by time range" }),
+		).toHaveTextContent("Aug 11 - Now");
+	},
+};
+
 export const SameMonthLabel: Story = {
 	args: {
 		value: {
@@ -87,12 +103,6 @@ export const OpenPrefillsExpressions: Story = {
 		const toInput = body.getByLabelText("End of time range");
 		expect(fromInput).toHaveValue("2026-04-10 07:23:00");
 		expect(toInput).toHaveValue("2026-04-10 09:30:00");
-
-		// The examples footer explains the accepted grammar.
-		expect(body.getByText("Examples:")).toBeInTheDocument();
-		expect(
-			body.getByText("Defaults to midnight if no time is provided."),
-		).toBeInTheDocument();
 
 		// Apply stays disabled until the selection changes.
 		expect(body.getByRole("button", { name: "Apply" })).toBeDisabled();
@@ -291,8 +301,10 @@ export const PartialRangeShowsCustom: Story = {
 	},
 };
 
-export const ClickableExamplesFillFields: Story = {
+export const NowButtonFillsTo: Story = {
 	args: {
+		// A frozen To bound so the [now] button has something to change.
+		value: singleDayValue,
 		onChange: fn(),
 	},
 	play: async ({ canvasElement }) => {
@@ -302,19 +314,12 @@ export const ClickableExamplesFillFields: Story = {
 			canvas.getByRole("button", { name: "Filter by time range" }),
 		);
 
-		// The datetime example evaluates to 24 hours before now and fills From.
-		const datetimeExample = formatDateTime(
-			new Date(fixedNow.getTime() - 24 * 60 * 60 * 1000),
-		);
-		await userEvent.click(body.getByRole("button", { name: datetimeExample }));
-		const fromInput = body.getByLabelText("Start of time range");
-		expect(fromInput).toHaveValue(datetimeExample);
+		const toInput = await body.findByLabelText("End of time range");
+		expect(toInput).toHaveValue("2026-04-10 09:30:00");
 
-		// The Now example fills To with the literal expression.
-		await userEvent.click(body.getByRole("button", { name: "Now" }));
-		expect(body.getByLabelText("End of time range")).toHaveValue("now");
-
-		// Both fields touched and valid, so Apply is enabled.
+		// The [now] shortcut fills To with the literal live expression.
+		await userEvent.click(body.getByRole("button", { name: "[now]" }));
+		expect(toInput).toHaveValue("now");
 		expect(body.getByRole("button", { name: "Apply" })).toBeEnabled();
 	},
 };

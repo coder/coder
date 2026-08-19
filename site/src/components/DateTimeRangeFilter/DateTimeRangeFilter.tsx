@@ -1,5 +1,6 @@
+import dayjs from "dayjs";
 import { CalendarIcon } from "lucide-react";
-import { type FC, useEffectEvent, useState } from "react";
+import { type FC, useEffectEvent, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
@@ -9,10 +10,11 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { cn } from "#/utils/cn";
-import { DATE_FORMAT, formatDateTime } from "#/utils/time";
+import { formatDateTime } from "#/utils/time";
 import {
 	type FullTimeRange,
 	formatTriggerLabel,
+	isLiveNow,
 	isNowExpression,
 	parseTimeExpression,
 	type TimeRange,
@@ -37,8 +39,6 @@ interface FieldState {
 }
 
 const INVALID_TIME_MESSAGE = "Enter a valid time, e.g. 2026-08-13 11:43";
-
-const NOW_TOLERANCE_MS = 60 * 1000;
 
 export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 	value,
@@ -68,6 +68,37 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 		touched: false,
 	});
 
+	// Hidden datetime-local inputs back the calendar buttons, so the free
+	// text grammar ("now", clock-only, ISO) and the native picker coexist.
+	const fromPickerRef = useRef<HTMLInputElement>(null);
+	const toPickerRef = useRef<HTMLInputElement>(null);
+
+	const openPicker = (input: HTMLInputElement | null, seed: string) => {
+		if (!input) {
+			return;
+		}
+		// Seed the picker from the current text so it opens on the right
+		// moment; fall back to now for empty or non-absolute expressions. The
+		// native picker speaks "YYYY-MM-DDTHH:mm" in browser-local time.
+		const parsed = parseTimeExpression(seed, currentTime);
+		input.value = dayjs(parsed ?? currentTime).format("YYYY-MM-DDTHH:mm");
+		input.showPicker();
+	};
+
+	const pickFrom = useEffectEvent((value: string) => {
+		const parsed = parseTimeExpression(value, currentTime);
+		if (parsed !== null) {
+			setFromField({ text: formatDateTime(parsed), touched: true });
+		}
+	});
+
+	const pickTo = useEffectEvent((value: string) => {
+		const parsed = parseTimeExpression(value, currentTime);
+		if (parsed !== null) {
+			setToField({ text: formatDateTime(parsed), touched: true });
+		}
+	});
+
 	const handleOpenChange = useEffectEvent((next: boolean) => {
 		if (next) {
 			// Boundaries at (or very near) the current moment read better
@@ -77,10 +108,7 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 				if (!date) {
 					return "";
 				}
-				return Math.abs(date.getTime() - currentTime.getTime()) <
-					NOW_TOLERANCE_MS
-					? "now"
-					: formatDateTime(date);
+				return isLiveNow(date, currentTime) ? "now" : formatDateTime(date);
 			};
 			setFromField({
 				text: toFieldText(value.startedAfter),
@@ -176,18 +204,44 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 						<Label htmlFor="time-range-from" className="text-content-primary">
 							From
 						</Label>
-						<Input
-							id="time-range-from"
-							aria-label="Start of time range"
-							aria-invalid={fromError !== null}
-							placeholder="now"
-							className={cn(fromError !== null && "border-border-destructive")}
-							value={fromField.text}
-							onChange={(event) => {
-								setFromField({ text: event.target.value, touched: true });
-							}}
-							onBlur={normalizeFrom}
-						/>
+						<div className="relative">
+							<Input
+								id="time-range-from"
+								aria-label="Start of time range"
+								aria-invalid={fromError !== null}
+								placeholder="now"
+								className={cn(
+									"pr-9",
+									fromError !== null && "border-border-destructive",
+								)}
+								value={fromField.text}
+								onChange={(event) => {
+									setFromField({ text: event.target.value, touched: true });
+								}}
+								onBlur={normalizeFrom}
+							/>
+							<button
+								type="button"
+								tabIndex={-1}
+								aria-label="Pick start date and time"
+								className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-content-secondary hover:text-content-primary"
+								onClick={() =>
+									openPicker(fromPickerRef.current, fromField.text)
+								}
+							>
+								<CalendarIcon className="size-4" />
+							</button>
+							<input
+								ref={fromPickerRef}
+								type="datetime-local"
+								tabIndex={-1}
+								aria-hidden="true"
+								className="pointer-events-none absolute h-0 w-0 opacity-0"
+								// Chrome and WebKit both fire input per pick; change only
+								// fires on dismissal, which is too late for live feedback.
+								onInput={(event) => pickFrom(event.currentTarget.value)}
+							/>
+						</div>
 						{fromError !== null && (
 							<span className="text-sm text-content-destructive">
 								{fromError}
@@ -195,21 +249,53 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 						)}
 					</div>
 					<div className="flex flex-col gap-1.5">
-						<Label htmlFor="time-range-to" className="text-content-primary">
-							To
-						</Label>
-						<Input
-							id="time-range-to"
-							aria-label="End of time range"
-							aria-invalid={toError !== null}
-							placeholder="now"
-							className={cn(toError !== null && "border-border-destructive")}
-							value={toField.text}
-							onChange={(event) => {
-								setToField({ text: event.target.value, touched: true });
-							}}
-							onBlur={normalizeTo}
-						/>
+						<div className="flex items-center justify-between">
+							<Label htmlFor="time-range-to" className="text-content-primary">
+								To
+							</Label>
+							<button
+								type="button"
+								tabIndex={-1}
+								className="cursor-pointer border-none bg-transparent p-0 text-xs font-normal text-content-secondary hover:text-content-primary"
+								onClick={() => setToField({ text: "now", touched: true })}
+							>
+								[now]
+							</button>
+						</div>
+						<div className="relative">
+							<Input
+								id="time-range-to"
+								aria-label="End of time range"
+								aria-invalid={toError !== null}
+								placeholder="now"
+								className={cn(
+									"pr-9",
+									toError !== null && "border-border-destructive",
+								)}
+								value={toField.text}
+								onChange={(event) => {
+									setToField({ text: event.target.value, touched: true });
+								}}
+								onBlur={normalizeTo}
+							/>
+							<button
+								type="button"
+								tabIndex={-1}
+								aria-label="Pick end date and time"
+								className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-content-secondary hover:text-content-primary"
+								onClick={() => openPicker(toPickerRef.current, toField.text)}
+							>
+								<CalendarIcon className="size-4" />
+							</button>
+							<input
+								ref={toPickerRef}
+								type="datetime-local"
+								tabIndex={-1}
+								aria-hidden="true"
+								className="pointer-events-none absolute h-0 w-0 opacity-0"
+								onInput={(event) => pickTo(event.currentTarget.value)}
+							/>
+						</div>
 						{toError !== null && (
 							<span className="text-sm text-content-destructive">
 								{toError}
@@ -238,51 +324,6 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 							Apply
 						</Button>
 					</div>
-				</div>
-				<div className="flex flex-col gap-2 border-t border-border-default p-4 text-sm text-content-secondary">
-					<span className="font-semibold text-content-primary">Examples:</span>
-					<div className="flex gap-1">
-						<button
-							type="button"
-							className="cursor-pointer rounded border-none bg-transparent px-1 py-0.5 text-content-secondary hover:bg-surface-secondary hover:text-content-primary"
-							onClick={() => setToField({ text: "now", touched: true })}
-						>
-							Now
-						</button>
-						<button
-							type="button"
-							className="cursor-pointer rounded border-none bg-transparent px-1 py-0.5 text-content-secondary hover:bg-surface-secondary hover:text-content-primary"
-							onClick={() =>
-								setFromField({
-									text: formatDateTime(
-										currentTime,
-										DATE_FORMAT.TIME_24H_MINUTE,
-									),
-									touched: true,
-								})
-							}
-						>
-							{formatDateTime(currentTime, DATE_FORMAT.TIME_24H_MINUTE)}
-						</button>
-						<button
-							type="button"
-							className="cursor-pointer rounded border-none bg-transparent px-1 py-0.5 text-content-secondary hover:bg-surface-secondary hover:text-content-primary"
-							onClick={() =>
-								setFromField({
-									text: formatDateTime(
-										new Date(currentTime.getTime() - 24 * 60 * 60 * 1000),
-									),
-									touched: true,
-								})
-							}
-						>
-							{formatDateTime(
-								new Date(currentTime.getTime() - 24 * 60 * 60 * 1000),
-							)}
-						</button>
-					</div>
-					<span>Defaults to midnight if no time is provided.</span>
-					<span>Defaults to current day if no date is provided.</span>
 				</div>
 			</PopoverContent>
 		</Popover>
