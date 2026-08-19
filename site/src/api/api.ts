@@ -3477,6 +3477,17 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getAIModelPrices = async (filter: {
+		provider?: string;
+		model?: string;
+	}): Promise<TypesGen.AIModelPrice[]> => {
+		const response = await this.axios.get<TypesGen.AIModelPrice[]>(
+			"/api/experimental/ai/model-prices",
+			{ params: filter },
+		);
+		return response.data;
+	};
+
 	listAIProviders = async (): Promise<TypesGen.AIProvider[]> => {
 		const response = await this.axios.get<TypesGen.AIProvider[]>(
 			aiProviderConfigsPath,
