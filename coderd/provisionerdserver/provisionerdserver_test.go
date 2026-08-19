@@ -3507,9 +3507,7 @@ func TestCompleteJob(t *testing.T) {
 					},
 					isTask:           true,
 					expectTaskStatus: database.TaskStatusPaused,
-					// Stop builds don't create agents or apps, so there is nothing
-					// to link the task to. Paused tasks read from snapshots rather
-					// than the app.
+					// Stop builds don't create agents or apps.
 					expectAppID:      uuid.NullUUID{},
 					expectHasAiTask:  true,
 					expectUsageEvent: false,
