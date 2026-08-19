@@ -669,3 +669,142 @@ func TestUpdateClientConfiguration_LegacyAuthMethodMismatch(t *testing.T) {
 		})
 	}
 }
+
+// TestClientConfiguration_ReportedAuthMethod covers the
+// token_endpoint_auth_method that RFC 7592 client configuration reports for a
+// row whose stored method contradicts its stored client type.
+//
+// The token endpoint enforces on the client type, so echoing the stored method
+// back verbatim would tell the client to authenticate in a way the server
+// refuses: a confidential row storing "none" would tell its client to drop the
+// secret the exchange still requires, and a public row storing a secret-based
+// method would tell its client to send credentials that are rejected. Both
+// directions are asserted from the response body, which is the only place the
+// choice is observable.
+//
+// Registration now derives the client type from the method and can no longer
+// produce these rows, so the fixtures are seeded directly. They stand in for
+// clients registered before that derivation existed and for rows predating the
+// column.
+func TestClientConfiguration_ReportedAuthMethod(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		clientType string
+		// stored is the persisted token_endpoint_auth_method. A row predating
+		// the column reads back as the empty string whether it is NULL or "".
+		stored sql.NullString
+		// resend is the method the client sends on PUT. It must either match
+		// the stored value or agree with the stored client type, otherwise the
+		// type-change guard rejects the update before the response is built.
+		resend codersdk.OAuth2TokenEndpointAuthMethod
+		want   codersdk.OAuth2TokenEndpointAuthMethod
+	}{
+		{
+			// The read-modify-write shape from a client that echoes back the
+			// raw stored method rather than the reported one.
+			name:       "ConfidentialStoringNoneResendingStored",
+			clientType: database.OAuth2ProviderAppClientTypeConfidential,
+			stored:     sql.NullString{String: string(codersdk.OAuth2TokenEndpointAuthMethodNone), Valid: true},
+			resend:     codersdk.OAuth2TokenEndpointAuthMethodNone,
+			want:       codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+		},
+		{
+			// Echoing back the reported method instead, which is what a client
+			// driven by GET sends. The write leaves the two columns agreeing.
+			name:       "ConfidentialStoringNoneResendingReported",
+			clientType: database.OAuth2ProviderAppClientTypeConfidential,
+			stored:     sql.NullString{String: string(codersdk.OAuth2TokenEndpointAuthMethodNone), Valid: true},
+			resend:     codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+			want:       codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+		},
+		{
+			name:       "PublicStoringSecretMethodResendingStored",
+			clientType: database.OAuth2ProviderAppClientTypePublic,
+			stored:     sql.NullString{String: string(codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic), Valid: true},
+			resend:     codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+			want:       codersdk.OAuth2TokenEndpointAuthMethodNone,
+		},
+		{
+			name:       "PublicStoringSecretMethodResendingReported",
+			clientType: database.OAuth2ProviderAppClientTypePublic,
+			stored:     sql.NullString{String: string(codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic), Valid: true},
+			resend:     codersdk.OAuth2TokenEndpointAuthMethodNone,
+			want:       codersdk.OAuth2TokenEndpointAuthMethodNone,
+		},
+		{
+			// A row carrying no method at all. RFC 7591 section 2 defaults an
+			// unspecified method to client_secret_basic, which is also what
+			// ApplyDefaults substitutes into the update request.
+			name:       "ConfidentialStoringNothing",
+			clientType: database.OAuth2ProviderAppClientTypeConfidential,
+			stored:     sql.NullString{String: "", Valid: true},
+			resend:     codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+			want:       codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			db, _ := dbtestutil.NewDB(t)
+
+			app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+				CallbackURL:             "https://example.com/callback",
+				RedirectUris:            []string{"https://example.com/callback"},
+				ClientType:              tt.clientType,
+				TokenEndpointAuthMethod: tt.stored,
+				DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
+			})
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("client_id", app.ID.String())
+			getReq := httptest.NewRequest(http.MethodGet, "/oauth2/clients/"+app.ID.String(), nil).
+				WithContext(context.WithValue(ctx, chi.RouteCtxKey, rctx))
+			getRW := httptest.NewRecorder()
+
+			oauth2provider.GetClientConfiguration(db).ServeHTTP(getRW, getReq)
+			require.Equal(t, http.StatusOK, getRW.Code, "body: %s", getRW.Body.String())
+
+			var got codersdk.OAuth2ClientConfiguration
+			require.NoError(t, json.NewDecoder(getRW.Body).Decode(&got))
+			require.Equal(t, tt.want, got.TokenEndpointAuthMethod)
+
+			logger := slogtest.Make(t, nil)
+			auditor := audit.NewNop()
+			handler := tracing.StatusWriterMiddleware(oauth2provider.UpdateClientConfiguration(db, &auditor, logger))
+
+			body, err := json.Marshal(codersdk.OAuth2ClientRegistrationRequest{
+				RedirectURIs:            []string{"https://example.com/callback"},
+				TokenEndpointAuthMethod: tt.resend,
+			})
+			require.NoError(t, err)
+
+			putRCtx := chi.NewRouteContext()
+			putRCtx.URLParams.Add("client_id", app.ID.String())
+			putReq := httptest.NewRequest(http.MethodPut, "/oauth2/clients/"+app.ID.String(),
+				bytes.NewReader(body)).WithContext(context.WithValue(ctx, chi.RouteCtxKey, putRCtx))
+			putReq.Header.Set("Content-Type", "application/json")
+			putRW := httptest.NewRecorder()
+
+			handler.ServeHTTP(putRW, putReq)
+			require.Equal(t, http.StatusOK, putRW.Code, "body: %s", putRW.Body.String())
+
+			var updated codersdk.OAuth2ClientConfiguration
+			require.NoError(t, json.NewDecoder(putRW.Body).Decode(&updated))
+			require.Equal(t, tt.want, updated.TokenEndpointAuthMethod)
+
+			// The row keeps exactly what the client sent, so the response can
+			// still disagree with it. That is what lets the divergence heal: a
+			// client that resends the reported method writes back a row whose
+			// two columns agree.
+			stored, err := db.GetOAuth2ProviderAppByClientID(ctx, app.ID)
+			require.NoError(t, err)
+			require.Equal(t, string(tt.resend), stored.TokenEndpointAuthMethod.String)
+			require.Equal(t, tt.clientType, stored.ClientType)
+		})
+	}
+}
