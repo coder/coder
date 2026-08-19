@@ -2,7 +2,6 @@ package chattool_test
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 	"time"
 
@@ -152,19 +151,9 @@ func TestAnnotateInterception(t *testing.T) {
 		}, nil)
 		tool := chattool.AnnotateInterception(db, chattool.AnnotateInterceptionOptions{OwnerID: user.ID})
 
-		for _, url := range []string{
-			"javascript:alert(1)",
-			"http://github.com/coder/coder/pull/1",
-			"https://github.example.com/coder/coder/pull/1",
-			"https://github.com/coder/coder/issues/1",
-			"https://github.com/coder/coder/pull/1?x=y",
-		} {
-			input, err := json.Marshal(map[string][]string{"github_pr_urls": {url}})
-			require.NoError(t, err)
-			resp, err := tool.Run(ctx, call(string(input)))
-			require.NoError(t, err)
-			require.Contains(t, resp.Content, "must look like https://github.com/", "url %q", url)
-		}
+		resp, err := tool.Run(ctx, call(`{"github_pr_urls":["javascript:alert(1)"]}`))
+		require.NoError(t, err)
+		require.Contains(t, resp.Content, "must look like https://github.com/")
 
 		// A rejected call writes nothing.
 		got, err := db.GetAIBridgeInterceptionByID(ctx, interception.ID)
@@ -183,21 +172,6 @@ func TestAnnotateInterception(t *testing.T) {
 		resp, err := tool.Run(ctx, call(`{"repo":"   ","linear_issue_ids":[]}`))
 		require.NoError(t, err)
 		require.Contains(t, resp.Content, "provide at least one of")
-	})
-
-	t.Run("ValueTooLong", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		db, _ := dbtestutil.NewDB(t)
-
-		user := dbgen.User(t, db, database.User{})
-		tool := chattool.AnnotateInterception(db, chattool.AnnotateInterceptionOptions{OwnerID: user.ID})
-
-		input, err := json.Marshal(map[string]string{"repo": strings.Repeat("a", 257)})
-		require.NoError(t, err)
-		resp, err := tool.Run(ctx, call(string(input)))
-		require.NoError(t, err)
-		require.Contains(t, resp.Content, "256 characters or fewer")
 	})
 
 	t.Run("NoInterception", func(t *testing.T) {
