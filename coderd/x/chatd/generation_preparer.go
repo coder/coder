@@ -100,7 +100,7 @@ func (server *Server) prepareGeneration(
 	if err := g.Wait(); err != nil {
 		return generationPrepared{}, err
 	}
-	turnEnvironmentVariables, err := currentTurnEnvironmentVariables(promptRows)
+	turnEnvironmentVariables, err := currentTurnEnvironmentVariables(chat, input.Messages)
 	if err != nil {
 		return generationPrepared{}, err
 	}
@@ -744,7 +744,10 @@ func (server *Server) prepareGeneration(
 	}, nil
 }
 
-func currentTurnEnvironmentVariables(messages []database.ChatMessage) (map[string]string, error) {
+func currentTurnEnvironmentVariables(chat database.Chat, messages []database.ChatMessage) (map[string]string, error) {
+	if chat.CompactionRequestedAt.Valid {
+		return map[string]string{}, nil
+	}
 	index := lastUserPromptIndex(messages)
 	if index < 0 || !messages[index].EnvironmentVariables.Valid {
 		return map[string]string{}, nil
