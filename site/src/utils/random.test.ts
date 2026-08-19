@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
 import { isUUID } from "#/utils/uuid";
 
 describe("generateUUID", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
 	it("outputs a valid UUID", () => {
 		expect(isUUID(generateUUID())).toBe(true);
 	});
@@ -16,18 +20,10 @@ describe("generateUUID", () => {
 	});
 
 	it("produces a valid UUID without crypto.randomUUID (insecure context)", () => {
-		const descriptor = Object.getOwnPropertyDescriptor(crypto, "randomUUID");
-		Object.defineProperty(crypto, "randomUUID", {
-			configurable: true,
-			value: undefined,
+		vi.stubGlobal("crypto", {
+			getRandomValues: crypto.getRandomValues.bind(crypto),
 		});
-		try {
-			expect(isUUID(generateUUID())).toBe(true);
-		} finally {
-			if (descriptor) {
-				Object.defineProperty(crypto, "randomUUID", descriptor);
-			}
-		}
+		expect(isUUID(generateUUID())).toBe(true);
 	});
 });
 
