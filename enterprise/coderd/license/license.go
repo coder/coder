@@ -68,6 +68,13 @@ const (
 	// Disabled intervals no refresh observed that are shorter than this
 	// count as continuous.
 	usagePublishingEnabledMarkerStaleAfter = time.Hour
+	// usagePublishingMarkerTimeout bounds the marker transactions,
+	// including the wait for the marker advisory lock. Callers pass
+	// long-lived service contexts (startup, the periodic entitlements
+	// loop), so without this a transaction stuck holding the lock would
+	// stall entitlements refreshes, and coderd initialization at startup,
+	// indefinitely.
+	usagePublishingMarkerTimeout = 30 * time.Second
 )
 
 // usagePublishingEnabledMarker is the JSON value stored under
@@ -222,6 +229,10 @@ func Entitlements(
 		// retries.
 		// nolint:gocritic // Maintaining the usage publishing marker is a system function.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		// Bounded like resolveUsagePublishingEnabledSince: the advisory
+		// lock wait must not stall the refresh indefinitely.
+		sysCtx, sysCtxCancel := context.WithTimeout(sysCtx, usagePublishingMarkerTimeout)
+		defer sysCtxCancel()
 		err := db.InTx(func(tx database.Store) error {
 			// Block as in resolveUsagePublishingEnabledSince so the
 			// marker-freshness check below runs against committed state.
@@ -270,6 +281,11 @@ func Entitlements(
 // skips its write and uses the winner's marker. The caller must pass a
 // system-authorized context.
 func resolveUsagePublishingEnabledSince(ctx context.Context, db database.Store, now time.Time) (time.Time, error) {
+	// Bound the transaction, including the advisory lock wait: callers
+	// pass long-lived service contexts, and an unbounded wait here would
+	// stall the entitlements refresh (and coderd startup) indefinitely.
+	ctx, cancel := context.WithTimeout(ctx, usagePublishingMarkerTimeout)
+	defer cancel()
 	var enabledSince time.Time
 	err := db.InTx(func(tx database.Store) error {
 		var marker usagePublishingEnabledMarker
