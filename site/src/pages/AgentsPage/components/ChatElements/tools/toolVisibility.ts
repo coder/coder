@@ -47,9 +47,14 @@ export const getExecuteRenderData = (
 			asNumber(rec.duration_ms, { parseString: true }))
 		: undefined;
 	// An intentional run_in_background=true launch is flagged
-	// explicitly; background_process_id alone is also set on
-	// foreground timeout results, so it cannot distinguish them.
-	const isBackgrounded = rec?.backgrounded === true;
+	// explicitly in the result; background_process_id alone is
+	// also set on foreground timeout results, so it cannot
+	// distinguish them. Transcripts recorded before the flag
+	// existed carry the intent in the call args instead, so fall
+	// back to that when the result predates the field.
+	const isBackgrounded =
+		rec?.backgrounded === true ||
+		(rec?.backgrounded === undefined && parsedArgs?.run_in_background === true);
 
 	return {
 		command,

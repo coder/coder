@@ -43,6 +43,36 @@ describe("toolVisibility", () => {
 			).toBe(false);
 		});
 
+		it("reads legacy background launches from the call args", () => {
+			// Transcripts recorded before the backgrounded flag existed
+			// carry the launch intent in the persisted args.
+			expect(
+				getExecuteRenderData(
+					{ command: "npm start", run_in_background: true },
+					{
+						success: true,
+						background_process_id: "process-1",
+					},
+				).isBackgrounded,
+			).toBe(true);
+		});
+
+		it("does not let legacy args override an explicit negative result", () => {
+			// A new-backend foreground timeout has backgrounded omitted
+			// (not false), so the args fallback must not resurrect it.
+			expect(
+				getExecuteRenderData(
+					{ command: "make test", run_in_background: true },
+					{
+						success: false,
+						error: "command timed out after 10s",
+						background_process_id: "process-1",
+						backgrounded: false,
+					},
+				).isBackgrounded,
+			).toBe(false);
+		});
+
 		it("normalizes execute error results into transcript blocks", () => {
 			const data = getExecuteRenderData(
 				{ command: "ls -la" },
