@@ -24,9 +24,12 @@ import (
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
+	agplcoderd "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	mcpserver "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -1368,5 +1371,187 @@ func TestMCPHTTP_E2E_TransportIsolation(t *testing.T) {
 
 		require.Equal(t, int64(0), sentinel.hits.Load(),
 			"isolated client must NOT route requests through http.DefaultTransport")
+	})
+}
+
+func TestMCPHTTP_E2E_AnnotationsToolset(t *testing.T) {
+	t.Parallel()
+
+	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
+	t.Cleanup(func() {
+		_ = closer.Close()
+	})
+
+	firstUser := coderdtest.CreateFirstUser(t, coderClient)
+	interception := dbgen.AIBridgeInterception(t, api.Database, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: firstUser.UserID,
+		Annotations: database.AIBridgeInterceptionCapabilities([]string{"workspace"}),
+	}, nil)
+
+	annotationsURL := api.AccessURL.String() + mcpserver.MCPEndpoint + "?toolset=annotations"
+
+	t.Run("OnlyExposesTheAnnotationTool", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		session, err := newIsolatedMCPClient(ctx, annotationsURL, "test-client-annotations-list", map[string]string{
+			"Authorization": "Bearer " + coderClient.SessionToken(),
+		})
+		require.NoError(t, err)
+		defer func() {
+			_ = session.Close()
+		}()
+
+		require.Contains(t, session.InitializeResult().Instructions, agplcoderd.MCPToolNameAnnotateInterception)
+
+		tools, err := session.ListTools(ctx, nil)
+		require.NoError(t, err)
+		require.Len(t, tools.Tools, 1)
+		require.Equal(t, agplcoderd.MCPToolNameAnnotateInterception, tools.Tools[0].Name)
+	})
+
+	t.Run("StandardToolsetAlsoExposesIt", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		session, err := newIsolatedMCPClient(ctx, api.AccessURL.String()+mcpserver.MCPEndpoint, "test-client-annotations-standard", map[string]string{
+			"Authorization": "Bearer " + coderClient.SessionToken(),
+		})
+		require.NoError(t, err)
+		defer func() {
+			_ = session.Close()
+		}()
+
+		require.Equal(t, mcpserver.MCPServerInstructions, session.InitializeResult().Instructions)
+
+		tools, err := session.ListTools(ctx, nil)
+		require.NoError(t, err)
+		names := make([]string, 0, len(tools.Tools))
+		for _, tool := range tools.Tools {
+			names = append(names, tool.Name)
+		}
+		require.Contains(t, names, agplcoderd.MCPToolNameAnnotateInterception)
+		require.Greater(t, len(names), 1)
+	})
+
+	t.Run("AnnotatesAndAccumulates", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		session, err := newIsolatedMCPClient(ctx, annotationsURL, "test-client-annotations-call", map[string]string{
+			"Authorization": "Bearer " + coderClient.SessionToken(),
+		})
+		require.NoError(t, err)
+		defer func() {
+			_ = session.Close()
+		}()
+
+		result, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name: agplcoderd.MCPToolNameAnnotateInterception,
+			Arguments: map[string]any{
+				"linear_issue_ids": []string{" ENG-1234 "},
+				"github_pr_urls":   []string{"https://github.com/coder/coder/pull/28300"},
+				"repo":             "coder/coder",
+				"branch":           "main",
+			},
+		})
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		require.Len(t, result.Content, 1)
+		text, ok := result.Content[0].(*mcp.TextContent)
+		require.True(t, ok, "expected TextContent, got %T", result.Content[0])
+		// Server-derived annotations stay out of the model's view.
+		require.NotContains(t, text.Text, "capabilities")
+
+		var payload struct {
+			Annotated      bool   `json:"annotated"`
+			InterceptionID string `json:"interception_id"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(text.Text), &payload))
+		require.True(t, payload.Annotated)
+		require.Equal(t, interception.ID.String(), payload.InterceptionID)
+
+		result, err = session.CallTool(ctx, &mcp.CallToolParams{
+			Name: agplcoderd.MCPToolNameAnnotateInterception,
+			Arguments: map[string]any{
+				"linear_issue_ids": []string{"PLAT-988"},
+				"github_pr_urls":   []string{"https://github.com/coder/coder/pull/28299"},
+				"branch":           "scott/feature",
+			},
+		})
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		got, err := api.Database.GetAIBridgeInterceptionByID(dbauthz.AsSystemRestricted(ctx), interception.ID) //nolint:gocritic // The test asserts on stored annotations.
+		require.NoError(t, err)
+		require.NotNil(t, got.Annotations.LinearIssueIDs)
+		require.Equal(t, []string{"ENG-1234", "PLAT-988"}, *got.Annotations.LinearIssueIDs)
+		require.NotNil(t, got.Annotations.GitHubPRURLs)
+		require.Equal(t, []string{
+			"https://github.com/coder/coder/pull/28299",
+			"https://github.com/coder/coder/pull/28300",
+		}, *got.Annotations.GitHubPRURLs)
+		require.Equal(t, "coder/coder", *got.Annotations.Repo)
+		require.Equal(t, "scott/feature", *got.Annotations.Branch)
+		// The update merges, so the server-derived key survives.
+		require.NotNil(t, got.Annotations.Capabilities)
+		require.Equal(t, []string{"workspace"}, *got.Annotations.Capabilities)
+	})
+
+	t.Run("RejectsInvalidPullRequestURL", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		session, err := newIsolatedMCPClient(ctx, annotationsURL, "test-client-annotations-invalid", map[string]string{
+			"Authorization": "Bearer " + coderClient.SessionToken(),
+		})
+		require.NoError(t, err)
+		defer func() {
+			_ = session.Close()
+		}()
+
+		result, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name:      agplcoderd.MCPToolNameAnnotateInterception,
+			Arguments: map[string]any{"github_pr_urls": []string{"javascript:alert(1)"}},
+		})
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		text, ok := result.Content[0].(*mcp.TextContent)
+		require.True(t, ok, "expected TextContent, got %T", result.Content[0])
+		require.Contains(t, text.Text, "must look like https://github.com/")
+	})
+
+	t.Run("NoInterception", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		otherClient, _ := coderdtest.CreateAnotherUser(t, coderClient, firstUser.OrganizationID)
+		session, err := newIsolatedMCPClient(ctx, annotationsURL, "test-client-annotations-empty", map[string]string{
+			"Authorization": "Bearer " + otherClient.SessionToken(),
+		})
+		require.NoError(t, err)
+		defer func() {
+			_ = session.Close()
+		}()
+
+		result, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name:      agplcoderd.MCPToolNameAnnotateInterception,
+			Arguments: map[string]any{"repo": "coder/coder"},
+		})
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		text, ok := result.Content[0].(*mcp.TextContent)
+		require.True(t, ok, "expected TextContent, got %T", result.Content[0])
+		require.Contains(t, text.Text, "no AI Gateway interception to annotate")
+	})
+
+	t.Run("UnknownToolset", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		res, err := coderClient.Request(ctx, http.MethodPost, mcpserver.MCPEndpoint+"?toolset=bogus", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 }
