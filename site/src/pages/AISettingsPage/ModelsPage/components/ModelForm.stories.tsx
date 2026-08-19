@@ -564,7 +564,7 @@ export const CostEstimateRowWinsOverCatalog: Story = {
 };
 
 // Without the AI Gateway entitlement the price endpoint is not queried, so
-// an uncatalogued model gets the empty state.
+// a model with no catalog entry gets the empty state.
 export const CostEstimateUnavailableForUnknownModel: Story = {
 	args: {
 		editingModel: mockGPT5,
@@ -586,7 +586,7 @@ export const CostEstimateUnavailableForUnknownModel: Story = {
 };
 
 // The entitlement gate means the endpoint is not called at all without the
-// AI Gateway feature. A catalogued model still shows catalog prices.
+// AI Gateway feature. A catalog model still shows catalog prices.
 export const CostEstimateCatalogOnlyWhenNotEntitled: Story = {
 	args: {
 		editingModel: mockClaude,
