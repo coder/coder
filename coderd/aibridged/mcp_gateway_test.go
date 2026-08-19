@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -128,6 +129,77 @@ func TestServeHTTP_MCPGatewayPolicy(t *testing.T) {
 	require.JSONEq(t, "null", toolUsages[1].GetInput())
 	require.Equal(t, upstream.URL, toolUsages[1].GetServerUrl())
 	require.Contains(t, toolUsages[1].GetInvocationError(), `tool "write" denied`)
+}
+
+// TestServeHTTP_MCPGatewaySSEFiltering exercises a strict Streamable HTTP
+// upstream, modeled on GitHub's MCP server, which rejects POSTs whose Accept
+// header does not list both JSON and SSE and answers with an SSE stream.
+func TestServeHTTP_MCPGatewaySSEFiltering(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		accept := r.Header.Get("Accept")
+		if !strings.Contains(accept, "application/json") || !strings.Contains(accept, "text/event-stream") {
+			http.Error(rw, "Accept must contain both 'application/json' and 'text/event-stream'", http.StatusNotAcceptable)
+			return
+		}
+		rw.Header().Set("Content-Type", "text/event-stream")
+		rw.Header().Set("Mcp-Session-Id", "session-1")
+		rw.WriteHeader(http.StatusOK)
+		_, _ = rw.Write([]byte(": stream comment\n\n"))
+		_, _ = rw.Write([]byte("event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/message\",\"params\":{\"level\":\"info\",\"data\":\"working\"}}\n\n"))
+		_, _ = rw.Write([]byte("event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"tools\":[{\"name\":\"read\"},{\"name\":\"write\"}]}}\n\n"))
+	}))
+	t.Cleanup(upstream.Close)
+
+	srv, client, _ := newTestServer(t)
+	initiatorID := uuid.NewString()
+	client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{
+		OwnerId:  initiatorID,
+		ApiKeyId: "key-id",
+		Username: "agent",
+	}, nil)
+	client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
+	client.EXPECT().GetMCPGatewayServerConfig(gomock.Any(), &proto.GetMCPGatewayServerConfigRequest{Slug: "github"}).AnyTimes().Return(&proto.GetMCPGatewayServerConfigResponse{
+		Found: true,
+		Config: &proto.MCPGatewayServerConfig{
+			Id:            uuid.NewString(),
+			Slug:          "github",
+			Url:           upstream.URL,
+			Transport:     "streamable_http",
+			ToolAllowList: []string{"read"},
+		},
+	}, nil)
+	client.EXPECT().AuthorizeMCPGateway(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.AuthorizeMCPGatewayResponse{
+		Authorized:  true,
+		InitiatorId: initiatorID,
+		ApiKeyId:    "key-id",
+		Username:    "agent",
+	}, nil)
+
+	gateway := httptest.NewServer(srv)
+	t.Cleanup(gateway.Close)
+
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, gateway.URL+"/mcp/github", bytes.NewBufferString(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+	require.NoError(t, err)
+	request.Header.Set("Authorization", "Bearer coder-token")
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "application/json, text/event-stream")
+	response, err := http.DefaultClient.Do(request)
+	require.NoError(t, err)
+	defer response.Body.Close()
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	require.Contains(t, response.Header.Get("Content-Type"), "text/event-stream")
+	require.Equal(t, "session-1", response.Header.Get("Mcp-Session-Id"))
+
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	events := string(body)
+	require.Contains(t, events, ": stream comment", "comment events must pass through")
+	require.Contains(t, events, `"notifications/message"`, "notification events must pass through")
+	require.Contains(t, events, `{"name":"read"}`)
+	require.NotContains(t, events, `"write"`, "denied tool must be filtered from tools/list")
+	require.Contains(t, events, "event: message\ndata: ", "SSE event framing must be preserved")
 }
 
 func TestServeHTTP_MCPGatewayRecording(t *testing.T) {

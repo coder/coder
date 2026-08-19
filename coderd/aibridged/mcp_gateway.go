@@ -1,6 +1,7 @@
 package aibridged
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -69,13 +70,13 @@ type mcpGatewayPolicy struct {
 }
 
 type mcpGatewayPlan struct {
-	forward      []json.RawMessage
-	local        []json.RawMessage
-	toolCalls    []mcpGatewayToolCall
-	toolsListIDs map[string]struct{}
-	forceJSON    bool
-	batch        bool
-	policy       mcpGatewayPolicy
+	forward        []json.RawMessage
+	local          []json.RawMessage
+	toolCalls      []mcpGatewayToolCall
+	toolsListIDs   map[string]struct{}
+	filterResponse bool
+	batch          bool
+	policy         mcpGatewayPolicy
 }
 
 type mcpGatewayToolCall struct {
@@ -210,7 +211,7 @@ func planMCPGatewayRequest(request mcpGatewayRequest, policy mcpGatewayPolicy) (
 			plan.forward = append(plan.forward, item.Raw)
 			if key, ok := mcpGatewayIDKey(item.Envelope.ID); ok {
 				plan.toolsListIDs[key] = struct{}{}
-				plan.forceJSON = true
+				plan.filterResponse = true
 			}
 		case mcp.MethodToolsCall:
 			call := mcpGatewayToolCall{JSONRPCID: mcpGatewayIDValue(item.Envelope.ID)}
@@ -256,7 +257,7 @@ func planMCPGatewayRequest(request mcpGatewayRequest, policy mcpGatewayPolicy) (
 		}
 	}
 	if len(plan.local) > 0 {
-		plan.forceJSON = true
+		plan.filterResponse = true
 	}
 	return plan, nil
 }
@@ -486,8 +487,12 @@ func (s *Server) forwardMCPGatewayResponse(
 	responseID json.RawMessage,
 ) {
 	acceptOverride := ""
-	if plan != nil && plan.forceJSON {
-		acceptOverride = "application/json"
+	if plan != nil && plan.filterResponse {
+		// Streamable HTTP upstreams require POST requests to accept both
+		// JSON and SSE; strict servers such as GitHub's MCP server reject
+		// requests that list only one. Send both and filter whichever
+		// representation the upstream chooses.
+		acceptOverride = "application/json, text/event-stream"
 	}
 
 	authHeaders, externalAuth, failure, err := s.resolveMCPGatewayUpstreamAuth(r.Context(), client, token, initiatorID, cfg)
@@ -528,7 +533,7 @@ func (s *Server) forwardMCPGatewayResponse(
 	}
 	defer response.Body.Close()
 
-	if plan == nil || (!plan.forceJSON && len(plan.toolsListIDs) == 0) {
+	if plan == nil || (!plan.filterResponse && len(plan.toolsListIDs) == 0) {
 		copyMCPGatewayResponse(rw, response)
 		return
 	}
@@ -536,8 +541,13 @@ func (s *Server) forwardMCPGatewayResponse(
 		copyMCPGatewayResponse(rw, response)
 		return
 	}
-	if !strings.Contains(strings.ToLower(response.Header.Get("Content-Type")), "application/json") {
-		writeMCPGatewayJSON(rw, http.StatusOK, marshalMCPGatewayError(nil, mcp.INTERNAL_ERROR, "upstream MCP server did not return JSON for a policy-filtered request", nil))
+	contentType := strings.ToLower(response.Header.Get("Content-Type"))
+	if strings.Contains(contentType, "text/event-stream") {
+		s.relayFilteredMCPGatewaySSE(r.Context(), rw, response, *plan, cfg.GetSlug())
+		return
+	}
+	if !strings.Contains(contentType, "application/json") {
+		writeMCPGatewayJSON(rw, http.StatusOK, marshalMCPGatewayError(nil, mcp.INTERNAL_ERROR, "upstream MCP server did not return JSON or SSE for a policy-filtered request", nil))
 		return
 	}
 	responseBody, err := io.ReadAll(response.Body)
@@ -726,6 +736,138 @@ func filterMCPGatewayResponse(body []byte, plan mcpGatewayPlan) ([]byte, error) 
 		return nil, err
 	}
 	return updated, nil
+}
+
+// relayFilteredMCPGatewaySSE relays an upstream Streamable HTTP SSE response
+// to the client, rewriting tools/list results according to the gateway tool
+// policy. Locally-generated responses (for example denied tool calls in a
+// batch) are emitted as leading message events because the upstream never saw
+// those requests.
+func (s *Server) relayFilteredMCPGatewaySSE(ctx context.Context, rw http.ResponseWriter, response *http.Response, plan mcpGatewayPlan, slug string) {
+	copyMCPGatewayHeaders(rw.Header(), response.Header)
+	rw.WriteHeader(response.StatusCode)
+	controller := http.NewResponseController(rw)
+
+	for _, local := range plan.local {
+		_, _ = fmt.Fprintf(rw, "event: message\ndata: %s\n\n", local)
+	}
+	if len(plan.local) > 0 {
+		_ = controller.Flush()
+	}
+
+	reader := bufio.NewReader(response.Body)
+	var lines []string
+	emit := func() {
+		if len(lines) == 0 {
+			return
+		}
+		for _, line := range s.filterMCPGatewaySSEEvent(ctx, lines, plan, slug) {
+			_, _ = io.WriteString(rw, line+"\n")
+		}
+		_, _ = io.WriteString(rw, "\n")
+		_ = controller.Flush()
+		lines = lines[:0]
+	}
+	for {
+		line, err := reader.ReadString('\n')
+		line = strings.TrimRight(line, "\r\n")
+		if line == "" {
+			emit()
+		} else {
+			lines = append(lines, line)
+		}
+		if err != nil {
+			emit()
+			return
+		}
+	}
+}
+
+// filterMCPGatewaySSEEvent rewrites a single SSE event's data payload when it
+// carries a JSON-RPC response subject to tools/list filtering. Events without
+// a data field, or whose payload is not subject to filtering, pass through
+// unchanged. Filter failures fail closed: the event's payload is replaced
+// with a JSON-RPC error rather than forwarded unfiltered.
+func (s *Server) filterMCPGatewaySSEEvent(ctx context.Context, lines []string, plan mcpGatewayPlan, slug string) []string {
+	var data []string
+	for _, line := range lines {
+		if value, ok := mcpGatewaySSEFieldValue(line, "data"); ok {
+			data = append(data, value)
+		}
+	}
+	if len(data) == 0 {
+		return lines
+	}
+	payload := []byte(strings.Join(data, "\n"))
+	filtered, err := filterMCPGatewaySSEPayload(payload, plan)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to filter upstream MCP SSE event", slog.F("server_slug", slug), slog.Error(err))
+		filtered = marshalMCPGatewayError(nil, mcp.INTERNAL_ERROR, "failed to filter upstream MCP response", nil)
+	}
+	if bytes.Equal(bytes.TrimSpace(payload), bytes.TrimSpace(filtered)) {
+		return lines
+	}
+	rewritten := make([]string, 0, len(lines))
+	replaced := false
+	for _, line := range lines {
+		if _, ok := mcpGatewaySSEFieldValue(line, "data"); ok {
+			if !replaced {
+				rewritten = append(rewritten, "data: "+string(filtered))
+				replaced = true
+			}
+			continue
+		}
+		rewritten = append(rewritten, line)
+	}
+	return rewritten
+}
+
+// filterMCPGatewaySSEPayload applies tools/list filtering to a JSON-RPC
+// message (or batch of messages) carried in an SSE data payload. Payloads
+// that are not JSON objects or arrays pass through unchanged.
+func filterMCPGatewaySSEPayload(payload []byte, plan mcpGatewayPlan) ([]byte, error) {
+	trimmed := bytes.TrimSpace(payload)
+	if len(trimmed) == 0 || (trimmed[0] != '{' && trimmed[0] != '[') {
+		return payload, nil
+	}
+	if trimmed[0] == '[' {
+		var responses []json.RawMessage
+		if err := json.Unmarshal(trimmed, &responses); err != nil {
+			return payload, nil
+		}
+		changed := false
+		filtered := make([]json.RawMessage, 0, len(responses))
+		for _, response := range responses {
+			updated, err := filterMCPGatewayResponseObject(response, plan)
+			if err != nil {
+				return nil, err
+			}
+			if !bytes.Equal(updated, response) {
+				changed = true
+			}
+			filtered = append(filtered, updated)
+		}
+		if !changed {
+			return payload, nil
+		}
+		return json.Marshal(filtered)
+	}
+	return filterMCPGatewayResponseObject(trimmed, plan)
+}
+
+// mcpGatewaySSEFieldValue extracts the value of an SSE field line such as
+// "data: {...}". Per the SSE specification a single space after the colon is
+// stripped; field names are case-sensitive.
+func mcpGatewaySSEFieldValue(line, field string) (string, bool) {
+	rest, ok := strings.CutPrefix(line, field)
+	if !ok {
+		return "", false
+	}
+	value, ok := strings.CutPrefix(rest, ":")
+	if !ok {
+		return "", false
+	}
+	return strings.TrimPrefix(value, " "), true
 }
 
 func filterMCPGatewayResponseObject(body []byte, plan mcpGatewayPlan) ([]byte, error) {

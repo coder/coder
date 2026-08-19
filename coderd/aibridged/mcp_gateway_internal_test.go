@@ -65,7 +65,7 @@ func TestPlanMCPGatewayRequest(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, plan.forward, 3)
 	require.Len(t, plan.local, 1)
-	require.True(t, plan.forceJSON)
+	require.True(t, plan.filterResponse)
 	require.Contains(t, string(plan.local[0]), `"id":2`)
 	require.Contains(t, string(plan.local[0]), `denied`)
 }
