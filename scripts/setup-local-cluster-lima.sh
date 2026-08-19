@@ -389,7 +389,7 @@ validate_mtls() (
 
 	log "Validating that Coder rejects clients without a certificate"
 	kubectl --context "${context}" --namespace "${CODER_DEV_CLUSTER_NAMESPACE}" \
-		port-forward service/coder "127.0.0.1:${MTLS_VALIDATION_PORT}:443" >"${port_forward_log}" 2>&1 &
+		port-forward --address 127.0.0.1 service/coder "${MTLS_VALIDATION_PORT}:443" >"${port_forward_log}" 2>&1 &
 	port_forward_pid=$!
 
 	for _ in {1..30}; do
