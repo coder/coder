@@ -50,7 +50,7 @@ func (api *API) listAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	}
 	sdkPrices := db2sdk.AIModelPrices(dbPrices)
 	for i := range sdkPrices {
-		sdkPrices[i].IsDefault = prices.IsDefaultPriced(sdkPrices[i].Provider, sdkPrices[i].Model)
+		sdkPrices[i].Default = prices.IsDefaultPriced(sdkPrices[i].Provider, sdkPrices[i].Model)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, sdkPrices)
 }

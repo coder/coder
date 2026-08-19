@@ -370,10 +370,10 @@ export interface AIModelPrice {
 	readonly cache_read_price: number | null;
 	readonly cache_write_price: number | null;
 	/**
-	 * IsDefault is true when the model is in Coder's embedded price book.
+	 * Default is true when the model is in Coder's embedded price book.
 	 * Default prices cannot be customized through the model prices API.
 	 */
-	readonly is_default: boolean;
+	readonly default: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 }

@@ -38,7 +38,7 @@ describe("model pricing", () => {
 			output_price: Number.MAX_SAFE_INTEGER - 1,
 			cache_read_price: 1,
 			cache_write_price: 1_000_001,
-			is_default: false,
+			default: false,
 			created_at: "2026-08-18T12:00:00.000Z",
 			updated_at: "2026-08-18T12:00:00.000Z",
 		};

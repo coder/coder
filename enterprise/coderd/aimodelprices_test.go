@@ -230,7 +230,7 @@ func TestUpsertAIModelPrices(t *testing.T) {
 		require.Nil(t, prices[0].OutputPrice)
 		require.Nil(t, prices[0].CacheReadPrice)
 		require.Nil(t, prices[0].CacheWritePrice)
-		require.False(t, prices[0].IsDefault)
+		require.False(t, prices[0].Default)
 	})
 
 	t.Run("UpdatesAPriceItSet", func(t *testing.T) {
@@ -317,7 +317,7 @@ func TestListAIModelPrices(t *testing.T) {
 		require.Equal(t, int64(25_000_000), *seeded[0].OutputPrice)
 		require.Equal(t, int64(500_000), *seeded[0].CacheReadPrice)
 		require.Equal(t, int64(6_250_000), *seeded[0].CacheWritePrice)
-		require.True(t, seeded[0].IsDefault)
+		require.True(t, seeded[0].Default)
 	})
 
 	t.Run("Filters", func(t *testing.T) {

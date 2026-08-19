@@ -85,7 +85,7 @@ export const ModelPricingSection: FC<ModelPricingSectionProps> = ({
 			? submitted.values
 			: null;
 	const values = draft ?? submittedValues ?? storedValues;
-	const priceBookManaged = price?.is_default === true;
+	const priceBookManaged = price?.default === true;
 	const editable =
 		isFeatureAvailable &&
 		isProviderSupported &&

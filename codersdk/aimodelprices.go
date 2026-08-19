@@ -20,9 +20,9 @@ type AIModelPrice struct {
 	OutputPrice     *int64 `json:"output_price"`
 	CacheReadPrice  *int64 `json:"cache_read_price"`
 	CacheWritePrice *int64 `json:"cache_write_price"`
-	// IsDefault is true when the model is in Coder's embedded price book.
+	// Default is true when the model is in Coder's embedded price book.
 	// Default prices cannot be customized through the model prices API.
-	IsDefault bool      `json:"is_default"`
+	Default   bool      `json:"default"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
 }

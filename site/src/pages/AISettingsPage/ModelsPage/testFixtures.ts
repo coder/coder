@@ -50,7 +50,7 @@ export const mockGPT5Pricing: AIModelPrice = {
 	output_price: 10_000_000,
 	cache_read_price: 125_000,
 	cache_write_price: null,
-	is_default: true,
+	default: true,
 	created_at: now,
 	updated_at: now,
 };
@@ -70,7 +70,7 @@ export const mockCustomModelPricing: AIModelPrice = {
 	output_price: 8_000_000,
 	cache_read_price: null,
 	cache_write_price: 3_125_000,
-	is_default: false,
+	default: false,
 };
 
 export const mockRefetchedCustomModelPricing: AIModelPrice = {
