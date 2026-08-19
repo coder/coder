@@ -84,6 +84,13 @@ export const AIBridgeClientIcon = ({
 					className={cn(iconClassName, className)}
 				/>
 			);
+		case "Junie":
+			return (
+				<ExternalImage
+					src="/icon/junie.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
 		case "GitHub Copilot (VS Code)":
 		case "GitHub Copilot (CLI)":
 			return (
