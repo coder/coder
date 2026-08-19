@@ -123,7 +123,7 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	const periodEnd = usagePeriod ? dayjs(usagePeriod.end) : undefined;
 	const usagePeriodLabel =
 		periodStart?.isValid() && periodEnd?.isValid()
-			? `(${periodStart.format("MMMM D, YYYY")} – ${periodEnd.format("MMMM D, YYYY")})`
+			? `(${periodStart.format("MMMM D, YYYY")} - ${periodEnd.format("MMMM D, YYYY")})`
 			: undefined;
 
 	// Floored at one decimal so the shown percentage never crosses a
@@ -196,9 +196,20 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 
 					{reachedHardCap && (
 						<div className="flex items-center justify-end">
-							<Badge variant="destructive" size="sm" className="rounded-full">
+							{/* The concurrency cap re-engages at usage equal to the
+							    hard cap, so the badge shows at the inclusive boundary
+							    and reads "reached" (still true above it) rather than
+							    "exceeded" (false at equality). The sentence outgrows
+							    narrow cards, so this instance wraps instead of
+							    keeping the shared Badge's single-line layout. */}
+							<Badge
+								variant="destructive"
+								size="sm"
+								className="h-auto rounded-full text-wrap"
+							>
 								<BanIcon />
-								Agent hours exceeded. Concurrent chats are now limited to 5.
+								Agent hours limit reached. Concurrent chats are now limited to
+								5.
 							</Badge>
 						</div>
 					)}

@@ -48,7 +48,7 @@ export const Default: Story = {
 		await expect(canvas.getByText("1,000")).toBeInTheDocument();
 		await expect(canvas.queryByText(/Limit:/)).not.toBeInTheDocument();
 		await expect(
-			canvas.getByText("(June 1, 2026 – May 31, 2027)"),
+			canvas.getByText("(June 1, 2026 - May 31, 2027)"),
 		).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
@@ -224,7 +224,7 @@ export const MissingUsagePeriod: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("400.0")).toBeInTheDocument();
 		await expect(
-			canvas.queryByText("(June 1, 2026 – May 31, 2027)"),
+			canvas.queryByText("(June 1, 2026 - May 31, 2027)"),
 		).not.toBeInTheDocument();
 	},
 };
@@ -247,7 +247,7 @@ export const HardCap: Story = {
 		await expect(canvas.getByText("1,500")).toBeInTheDocument();
 		await expect(
 			canvas.queryByText(
-				"Agent hours exceeded. Concurrent chats are now limited to 5.",
+				"Agent hours limit reached. Concurrent chats are now limited to 5.",
 			),
 		).not.toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
@@ -272,7 +272,7 @@ export const HardCapBetweenSoftLimitAndLimit: Story = {
 		await expect(canvas.getByText("900.0")).toBeInTheDocument();
 		await expect(
 			canvas.queryByText(
-				"Agent hours exceeded. Concurrent chats are now limited to 5.",
+				"Agent hours limit reached. Concurrent chats are now limited to 5.",
 			),
 		).not.toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
@@ -297,7 +297,7 @@ export const HardCapBetweenLimitAndHardCap: Story = {
 		await expect(canvas.getByText("1,200.0")).toBeInTheDocument();
 		await expect(
 			canvas.queryByText(
-				"Agent hours exceeded. Concurrent chats are now limited to 5.",
+				"Agent hours limit reached. Concurrent chats are now limited to 5.",
 			),
 		).not.toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
@@ -322,7 +322,7 @@ export const ReachedHardCap: Story = {
 		await expect(canvas.getByText("1,600.0")).toBeInTheDocument();
 		await expect(
 			canvas.getByText(
-				"Agent hours exceeded. Concurrent chats are now limited to 5.",
+				"Agent hours limit reached. Concurrent chats are now limited to 5.",
 			),
 		).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
@@ -348,7 +348,7 @@ export const ReachedCoincidentHardCap: Story = {
 		await expect(canvas.getByText("1,000.0")).toBeInTheDocument();
 		await expect(
 			canvas.getByText(
-				"Agent hours exceeded. Concurrent chats are now limited to 5.",
+				"Agent hours limit reached. Concurrent chats are now limited to 5.",
 			),
 		).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
