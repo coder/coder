@@ -681,12 +681,16 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					return nil, failJob(fmt.Sprintf("regenerate AI agent session token: %s", err))
 				}
 			case templateUsesAIAgent || aiAgentOptedIn(workspaceBuildParameters):
+				// Minting a token is NOT designation. The workspace stays
+				// human-owned and undesignated: designation would bind every
+				// agent in the build, including the human's supervisor
+				// agents, and impose the AI RBAC boundary on the whole
+				// workspace. Only AI-created workspaces are designated, at
+				// creation time. Declared ai_bound agents are bound to this
+				// identity individually at build completion.
 				originAgent, oerr := s.resolveWorkspaceOriginAIAgent(ctx, workspace)
 				if oerr != nil {
 					return nil, failJob(fmt.Sprintf("resolve workspace AI agent identity: %s", oerr))
-				}
-				if oerr := s.designateWorkspaceAIAgent(ctx, workspace, originAgent); oerr != nil {
-					return nil, failJob(fmt.Sprintf("designate workspace AI agent: %s", oerr))
 				}
 				aiAgentID = originAgent.UserID.String()
 				aiAgentSessionToken, err = s.regenerateAIAgentSessionToken(ctx, workspace, originAgent)
@@ -3321,21 +3325,6 @@ func (s *server) resolveDesignatedAIAgent(ctx context.Context, workspace databas
 		return database.AIAgent{}, false, xerrors.Errorf("get designated AI agent: %w", err)
 	}
 	return agent, true, nil
-}
-
-// designateWorkspaceAIAgent records the marker for a human opt-in workspace
-// that does not carry one yet. Chat-created workspaces are designated at
-// creation with the requesting chat's identity, so they already have one.
-func (s *server) designateWorkspaceAIAgent(ctx context.Context, workspace database.Workspace, agent database.AIAgent) error {
-	//nolint:gocritic // Setting the internal designation marker requires system access.
-	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	if _, err := s.Database.SetWorkspaceAIAgentID(systemCtx, database.SetWorkspaceAIAgentIDParams{
-		ID:        workspace.ID,
-		AIAgentID: uuid.NullUUID{UUID: agent.UserID, Valid: true},
-	}); err != nil {
-		return xerrors.Errorf("set workspace AI designation: %w", err)
-	}
-	return nil
 }
 
 // regenerateAIAgentSessionToken mints a fresh workspace-pinned key for the

@@ -1016,10 +1016,10 @@ An unbound workspace agent retains normal behavior.
 
 The same binding has two shapes:
 
-| Shape                   | Binding                                                                                                   | Use case                                                                                             |
-|-------------------------|-----------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
-| AI-designated workspace | Every workspace agent in the workspace is bound to the same AI identity                                   | Workspaces created for or by AI, including chat-created workspaces and direct human workspace opt-in |
-| Sandboxed agent         | Only a child agent with `workspace_agents.parent_id` is bound; the parent workspace agent remains unbound | A confined AI sandbox inside a normal human workspace                                                |
+| Shape                   | Binding                                                                                                   | Use case                                                                                              |
+|-------------------------|-----------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| AI-designated workspace | Every workspace agent in the workspace is bound to the same AI identity                                   | Workspaces created for or by AI, such as chat-created workspaces; never set by the human token opt-in |
+| Sandboxed agent         | Only a child agent with `workspace_agents.parent_id` is bound; the parent workspace agent remains unbound | A confined AI sandbox inside a normal human workspace                                                 |
 
 Design for N sandboxed child agents per workspace. The data model already
 supports multiple children through `workspace_agents.parent_id`; the PoC
@@ -1145,9 +1145,15 @@ Two events set the marker, and nothing clears it:
    designates the new workspace with the requesting identity before its
    first build, regardless of what the template declares
    (`coderd/workspaces.go:776-782`).
-2. **Human opt-in.** A start build carrying `coder_ai_agent = true`
-   designates a not-yet-marked workspace with its workspace-origin
-   identity (`provisionerdserver.go:3292-3305`).
+2. **Human opt-in mints without designating.** A start build whose
+   template uses `data.coder_workspace_ai_agent` (or carries the
+   deprecated `coder_ai_agent = true` parameter) mints a scoped token
+   for the workspace-origin identity but does NOT designate the
+   workspace. Designation would bind every agent in the build,
+   including the human's supervisor agents, and impose the AI RBAC
+   boundary and owner-credential starvation on a human-owned
+   workspace. Declared `ai_bound` agents are bound individually at
+   build completion instead.
 
 The marker is deliberately a one-way ratchet, not a per-build derivation
 from the template declaration. Template version and build parameters are
@@ -2247,47 +2253,30 @@ terraform-provider-coder work), SERVER-SIDE ONLY (deliberately not
 expressible in HCL). Egress rules appear in NO example: they live in
 template settings and are managed dynamically outside Terraform.
 
-#### Example 1: AI-designated workspace via direct human opt-in
+#### Example 1: human workspace with a scoped AI token
 
 ```hcl
-# EXISTS TODAY: parameter detection, workspace-origin identity mint, and
-# the scoped-token provisioner export (V1).
-# SERVER-SIDE V2: per-agent binding, owner-token suppression, and
-# confinement are added on top of the same signal.
-data "coder_parameter" "coder_ai_agent" {
-  name    = "coder_ai_agent"
-  type    = "bool"
-  default = "false"
-  mutable = false
-}
-
-# PROVIDER CHANGE: reads the existing
-# CODER_WORKSPACE_AI_AGENT_SESSION_TOKEN provisioner export. Empty when
-# the workspace is not AI-designated.
-data "coder_ai_agent" "me" {}
-
-# Templates serving both normal and AI-designated workspaces select
-# whichever token is present. In an AI-designated workspace the owner
-# token is empty by suppression (SERVER-SIDE ONLY).
-locals {
-  session_token = (
-    data.coder_ai_agent.me.session_token != ""
-    ? data.coder_ai_agent.me.session_token
-    : data.coder_workspace_owner.me.session_token
-  )
-}
+# EXISTS TODAY: using the data source opts the template into AI identity
+# minting at import time; the scoped token is minted every build and
+# exposed at the author's discretion. The workspace is NOT designated:
+# it stays human-owned, the owner token flows normally, and only
+# declared ai_bound agents are bound.
+data "coder_workspace_ai_agent" "me" {}
 
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
 
-  # PROVIDER CHANGE: stored on the workspace_agents row, like
+  # PROVIDER CHANGE (planned): stored on the workspace_agents row, like
   # api_key_scope today. The server clamps it; "injected" additionally
   # requires sponsor consent.
-  ai_credential_mode = "none"
+  # ai_credential_mode = "none"
 
   env = {
-    CODER_SESSION_TOKEN = local.session_token
+    # The author decides where the scoped token goes. It carries the AI
+    # identity's restricted scopes, including AI/MCP gateway access,
+    # never the owner's permissions.
+    CODER_SESSION_TOKEN = data.coder_workspace_ai_agent.me.session_token
     ANTHROPIC_BASE_URL  = "https://ai-gateway.example.com/anthropic"
   }
 }
