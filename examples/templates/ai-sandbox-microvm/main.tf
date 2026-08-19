@@ -113,6 +113,42 @@ resource "coder_agent" "ai" {
     ANTHROPIC_BASE_URL   = "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/anthropic"
     ANTHROPIC_AUTH_TOKEN = data.coder_workspace_ai_agent.me.session_token
   }
+
+  # Installs Claude Code inside the microVM guest. The installer runs
+  # through the sandbox egress proxy, so the AI egress policy must allow
+  # the download hosts (claude.ai and storage.googleapis.com); the README
+  # lists the rules. Failure leaves the agent usable; the app below just
+  # reports the missing binary.
+  startup_script = <<-EOT
+    set -eu
+    if command -v claude >/dev/null 2>&1; then
+      echo "Claude Code already installed: $(claude --version)"
+      exit 0
+    fi
+    # The stock ubuntu guest ships without curl. Package installs work
+    # because apt honors the proxy environment and the sandbox host
+    # process holds CAP_CHOWN.
+    if ! command -v curl >/dev/null 2>&1; then
+      echo "Installing curl..."
+      apt-get update -qq && apt-get install -y -qq curl ca-certificates
+    fi
+    echo "Installing Claude Code..."
+    curl -fsSL https://claude.ai/install.sh | bash
+    # The installer targets ~/.local/bin, which is not on PATH for
+    # login shells in the minimal guest image.
+    if [ -x "$HOME/.local/bin/claude" ]; then
+      ln -sf "$HOME/.local/bin/claude" /usr/local/bin/claude || true
+    fi
+    claude --version
+  EOT
+}
+
+resource "coder_app" "claude_code" {
+  agent_id     = coder_agent.ai.id
+  slug         = "claude-code"
+  display_name = "Claude Code"
+  icon         = "/icon/claude.svg"
+  command      = "claude"
 }
 
 resource "coder_script" "sandbox" {

@@ -271,6 +271,28 @@ The default Ubuntu guest may not include `curl`. For the HTTP checks, select a
 Linux amd64 guest image that already contains it. This is a validation tool in
 the guest image, not a host runtime dependency.
 
+## Claude Code in the sandbox
+
+The `ai` agent installs Claude Code at startup and exposes a `Claude Code`
+app on the workspace page that opens it in the guest. Model traffic routes
+through the Coder AI gateway (`ANTHROPIC_BASE_URL`) authenticated as the AI
+agent identity (`ANTHROPIC_AUTH_TOKEN`), so no provider API key enters the
+guest and every request is metered per identity. An Anthropic provider must
+be configured under Admin settings, AI, Providers.
+
+The installer downloads through the sandbox egress proxy, so the template's
+AI egress policy must allow the download and package hosts:
+
+| Host                       | Ports | Purpose                    |
+|----------------------------|-------|----------------------------|
+| `claude.ai`                | 443   | Claude Code installer      |
+| `storage.googleapis.com`   | 443   | Claude Code binary         |
+| `archive.ubuntu.com`       | 80    | curl package (first boot)  |
+| `security.ubuntu.com`      | 80    | curl package (first boot)  |
+
+If installation fails (policy denials appear in the sandbox log), the agent
+stays usable; rerun by restarting the workspace after fixing the policy.
+
 ## MCP gateway access
 
 Sandboxed agents reach MCP servers through the Coder MCP gateway instead of
