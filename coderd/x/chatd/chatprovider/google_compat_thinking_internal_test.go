@@ -33,10 +33,17 @@ func TestRewriteGoogleCompatThinkingConfig(t *testing.T) {
 
 	t.Run("PreGemini3EffortBecomesThinkingBudget", func(t *testing.T) {
 		t.Parallel()
-		payload := map[string]any{"model": "gemini-2.5-flash", "reasoning_effort": "medium"}
-		require.True(t, rewriteGoogleCompatThinkingConfig(payload))
-		require.NotContains(t, payload, "reasoning_effort")
-		require.Equal(t, map[string]any{"include_thoughts": true, "thinking_budget": 8192}, thinkingConfig(payload))
+		for _, modelID := range []string{
+			"gemini-2.5-flash",
+			"gemini-2.5-flash-lite",
+			"gemini-2.5-flash-preview-09-2025",
+			"gemini-2.5-pro-preview-06-05",
+		} {
+			payload := map[string]any{"model": modelID, "reasoning_effort": "medium"}
+			require.True(t, rewriteGoogleCompatThinkingConfig(payload), modelID)
+			require.NotContains(t, payload, "reasoning_effort", modelID)
+			require.Equal(t, map[string]any{"include_thoughts": true, "thinking_budget": 8192}, thinkingConfig(payload), modelID)
+		}
 	})
 
 	t.Run("NoEffortStillIncludesThoughts", func(t *testing.T) {
@@ -90,6 +97,14 @@ func TestRewriteGoogleCompatThinkingConfig_NonThinkingModelsUntouched(t *testing
 		"gemini-1.5-flash",
 		"gemini-2.0-flash",
 		"gemini-exp-1206",
+		// Specialized 2.5 variants reject thinking_config ("Thinking is not
+		// enabled for this model") even though their version matches the
+		// thinking-capable 2.5 chat families.
+		"gemini-2.5-flash-image",
+		"gemini-2.5-flash-image-preview",
+		"gemini-2.5-flash-preview-tts",
+		"gemini-2.5-flash-native-audio-preview-09-2025",
+		"gemini-2.5-computer-use-preview-10-2025",
 	} {
 		t.Run(modelID, func(t *testing.T) {
 			t.Parallel()

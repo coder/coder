@@ -1,6 +1,7 @@
 package chatprovider
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -61,16 +62,34 @@ func rewriteGoogleCompatThinkingConfig(payload map[string]any) bool {
 }
 
 // googleSupportsThinkingBudget reports whether a Gemini model predating
-// thinking_level supports thinking via thinking_budget. Gemini 2.5 is the
-// only such family; older and unrecognized variants have no thinking support
-// and reject or ignore thinking_config.
+// thinking_level thinks via thinking_budget. Only the Gemini 2.5 Pro, Flash,
+// and Flash-Lite chat families qualify; specialized 2.5 variants such as
+// image and TTS models reject thinking_config outright ("Thinking is not
+// enabled for this model", verified live). Unrecognized name tokens fail
+// closed so new specialized variants keep their previous request shape.
 func googleSupportsThinkingBudget(normalized string) bool {
 	rest, ok := strings.CutPrefix(normalized, "gemini-")
 	if !ok {
 		return false
 	}
-	major, minor, hasVersion := parseGoogleModelVersion(strings.Split(rest, "-")[0])
-	return hasVersion && major == 2 && minor >= 5
+	segments := strings.Split(rest, "-")
+	major, minor, hasVersion := parseGoogleModelVersion(segments[0])
+	if !hasVersion || major != 2 || minor != 5 {
+		return false
+	}
+	family := false
+	for _, segment := range segments[1:] {
+		switch segment {
+		case "pro", "flash":
+			family = true
+		case "lite", "preview", "exp", "latest":
+		default:
+			if _, err := strconv.Atoi(segment); err != nil {
+				return false
+			}
+		}
+	}
+	return family
 }
 
 // googleCompatThinkingBudget maps the global reasoning effort scale onto the
