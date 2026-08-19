@@ -23,6 +23,12 @@ Two pieces of configuration make that work:
 | `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` | Claude Code sends Anthropic traffic through the AI Gateway as the workspace owner, so each request is recorded as an interception. |
 | MCP server `coder-ai-gateway`                   | Registers `coder_annotate_interception` with Claude Code so it can attach a repository, branch, Linear issues, and GitHub pull requests to the interception. |
 
+The gateway serves each provider under its configured name, so
+`ANTHROPIC_BASE_URL` is `<access-url>/api/v2/ai-gateway/<provider-name>`. Set
+`ai_gateway_provider` to the provider name on the deployment; a request to a
+name the gateway does not serve returns 404, which Claude Code reports as a
+problem with the selected model.
+
 The MCP server is registered against the `annotations` toolset:
 
 ```text
@@ -36,7 +42,8 @@ describing when to call it, so no prompt file or `CLAUDE.md` is needed.
 
 - A Premium license with AI Governance. `/api/v2/ai-gateway/*` requires the
   AI Bridge entitlement, and no interceptions are recorded without it.
-- At least one Anthropic AI Gateway provider configured on the deployment.
+- At least one Anthropic AI Gateway provider configured on the deployment,
+  with its name set in `ai_gateway_provider`.
 - The `oauth2` and `mcp-server-http` experiments enabled. Development
   builds bypass this check.
 - An access URL the workspace container can reach. The template rewrites
@@ -45,11 +52,13 @@ describing when to call it, so no prompt file or `CLAUDE.md` is needed.
 
 ## Variables
 
-| Variable              | Default   | Purpose                                          |
-|-----------------------|-----------|--------------------------------------------------|
-| `docker_socket`       | `""`      | Docker socket URI.                               |
-| `claude_code_version` | `latest`  | Version passed to the Claude Code installer.     |
-| `access_url_override` | `""`      | Deployment URL to use inside the container.      |
+| Variable              | Default     | Purpose                                          |
+|-----------------------|-------------|--------------------------------------------------|
+| `docker_socket`       | `""`        | Docker socket URI.                               |
+| `claude_code_version` | `latest`    | Version passed to the Claude Code installer.     |
+| `ai_gateway_provider` | `anthropic` | AI Gateway provider name serving Anthropic.      |
+| `claude_model`        | `""`        | Pins `ANTHROPIC_MODEL` when set.                 |
+| `access_url_override` | `""`        | Deployment URL to use inside the container.      |
 
 ## Verifying
 
