@@ -315,11 +315,15 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										)}
 									>
 										{chat.has_unread && !isActiveChat ? (
-											<span
-												className="size-2 shrink-0 rounded-full bg-content-link pr-1"
-												data-testid={`unread-indicator-${chat.id}`}
-												aria-hidden="true"
-											/>
+											// The w-3.5 box matches the kebab icon's width so the
+											// dot centers on the same axis as the ellipsis glyph.
+											<span className="flex w-3.5 shrink-0 justify-center">
+												<span
+													className="size-2 rounded-full bg-content-link"
+													data-testid={`unread-indicator-${chat.id}`}
+													aria-hidden="true"
+												/>
+											</span>
 										) : (
 											<>
 												{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
