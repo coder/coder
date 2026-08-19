@@ -11,12 +11,17 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { FormField } from "#/components/FormField/FormField";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { PasswordField } from "#/components/PasswordField/PasswordField";
+import { PREMIUM_PRICING_LINK } from "#/components/Paywall/Paywall";
 import { SelectItem } from "#/components/Select/Select";
 import { SelectField } from "#/components/SelectField/SelectField";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { PrivacyPolicyNotice } from "#/modules/licenses/PrivacyPolicyNotice";
 import {
-	CODER_PRIVACY_POLICY_LINK,
+	CONTACT_SALES_LINK,
 	numberOfDevelopersOptions,
+	TRIAL_OFFER_DESCRIPTION,
+	TRIAL_OFFER_TITLE,
+	trialInfoValidationSchema,
 } from "#/modules/licenses/trialLicense";
 import {
 	getFormHelpers,
@@ -50,18 +55,7 @@ const validationSchema = Yup.object({
 	trial: Yup.bool(),
 	trial_info: Yup.object().when("trial", {
 		is: true,
-		then: (schema) =>
-			schema.shape({
-				first_name: Yup.string().required("Please enter your first name."),
-				last_name: Yup.string().required("Please enter your last name."),
-				phone_number: Yup.string().required("Please enter your phone number."),
-				job_title: Yup.string().required("Please enter your job title."),
-				company_name: Yup.string().required("Please enter your company name."),
-				country: Yup.string().required("Please select your country."),
-				developers: Yup.string().required(
-					"Please select the number of developers in your company.",
-				),
-			}),
+		then: () => trialInfoValidationSchema,
 	}),
 	onboarding_info: Yup.object().shape({
 		newsletter_marketing: Yup.bool(),
@@ -185,15 +179,12 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							disabled={isLoading}
 						/>
 						<div className="flex flex-col items-start gap-0.5">
-							<span className="text-sm font-semibold">
-								Start a 30-day trial of Premium
-							</span>
+							<span className="text-sm font-semibold">{TRIAL_OFFER_TITLE}</span>
 							<span className="text-xs text-content-secondary leading-relaxed">
-								Get access to high availability, template RBAC, audit logging,
-								quotas, and more.
+								{TRIAL_OFFER_DESCRIPTION}
 							</span>
 							<a
-								href="https://coder.com/pricing"
+								href={PREMIUM_PRICING_LINK}
 								target="_blank"
 								rel="noreferrer"
 								className="text-xs text-content-link hover:underline mt-0.5"
@@ -330,17 +321,8 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 						{/* Privacy policy notice */}
 						<p className="text-xs text-content-secondary leading-relaxed">
-							Subscribe for the latest product and news updates from Coder. The
-							information you provide will be treated in accordance with the{" "}
-							<a
-								href={CODER_PRIVACY_POLICY_LINK}
-								target="_blank"
-								rel="noreferrer"
-								className="text-content-link hover:underline"
-							>
-								Coder Privacy Policy
-							</a>
-							.
+							Subscribe for the latest product and news updates from Coder.{" "}
+							<PrivacyPolicyNotice /> Opt-out at any time.
 						</p>
 					</div>
 
@@ -355,7 +337,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 									<a
 										target="_blank"
 										rel="noreferrer"
-										href="https://coder.com/contact/sales"
+										href={CONTACT_SALES_LINK}
 										className="text-content-link hover:underline"
 									>
 										Contact Sales

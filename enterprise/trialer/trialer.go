@@ -23,45 +23,18 @@ import (
 
 // Creates a handler that can issue trial licenses
 func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(ctx context.Context, body codersdk.LicensorTrialRequest) error {
+	client := &http.Client{Timeout: licenseRequestTimeout}
 	return func(ctx context.Context, body codersdk.LicensorTrialRequest) error {
 		deploymentID, err := db.GetDeploymentID(ctx)
 		if err != nil {
 			return xerrors.Errorf("get deployment id: %w", err)
 		}
 		body.DeploymentID = deploymentID
-		data, err := json.Marshal(body)
+		raw, err := requestLicense(ctx, client, url, body)
 		if err != nil {
-			return xerrors.Errorf("marshal: %w", err)
+			return err
 		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
-		if err != nil {
-			return xerrors.Errorf("create license request: %w", err)
-		}
-		res, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return xerrors.Errorf("perform license request: %w", err)
-		}
-		defer res.Body.Close()
-		if res.StatusCode > 300 {
-			body, err := io.ReadAll(res.Body)
-			if err != nil {
-				return xerrors.Errorf("read license response: %w", err)
-			}
-			// This is the format of the error response from the license server.
-			var msg struct {
-				Error string `json:"error"`
-			}
-			err = json.Unmarshal(body, &msg)
-			if err != nil {
-				return xerrors.Errorf("unmarshal error: %w", err)
-			}
-			return xerrors.New(msg.Error)
-		}
-		raw, err := io.ReadAll(res.Body)
-		if err != nil {
-			return xerrors.Errorf("read license: %w", err)
-		}
-		rawClaims, err := license.ParseRaw(string(raw), keys)
+		rawClaims, err := license.ParseRaw(raw, keys)
 		if err != nil {
 			return xerrors.Errorf("parse license: %w", err)
 		}
@@ -71,7 +44,7 @@ func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(
 		}
 		expTime := time.Unix(int64(exp), 0)
 
-		claims, err := license.ParseClaims(string(raw), keys)
+		claims, err := license.ParseClaims(raw, keys)
 		if err != nil {
 			return xerrors.Errorf("parse claims: %w", err)
 		}
@@ -81,7 +54,7 @@ func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(
 		}
 		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
 			UploadedAt: dbtime.Now(),
-			JWT:        string(raw),
+			JWT:        raw,
 			Exp:        expTime,
 			UUID:       id,
 		})
@@ -110,22 +83,6 @@ func (e *LicensorError) Error() string {
 	return e.Message
 }
 
-// licenseRequest is the licensor's wire format for a trial request.
-type licenseRequest struct {
-	DeploymentID string `json:"deployment_id"`
-	Email        string `json:"email"`
-	Source       string `json:"source"`
-
-	// Personal details.
-	FirstName   string `json:"first_name"`
-	LastName    string `json:"last_name"`
-	PhoneNumber string `json:"phone_number"`
-	JobTitle    string `json:"job_title"`
-	CompanyName string `json:"company_name"`
-	Country     string `json:"country"`
-	Developers  string `json:"developers"`
-}
-
 // NewLicenseRequester creates a handler that requests a trial license and
 // returns the raw signed JWT. Unlike New, it does not touch the database, so
 // the caller installs the license and therefore keeps auditing and entitlement
@@ -133,10 +90,9 @@ type licenseRequest struct {
 func NewLicenseRequester(url string) func(ctx context.Context, deploymentID string, req codersdk.CreateTrialLicenseRequest) (string, error) {
 	client := &http.Client{Timeout: licenseRequestTimeout}
 	return func(ctx context.Context, deploymentID string, req codersdk.CreateTrialLicenseRequest) (string, error) {
-		data, err := json.Marshal(licenseRequest{
+		return requestLicense(ctx, client, url, codersdk.LicensorTrialRequest{
 			DeploymentID: deploymentID,
 			Email:        req.Email,
-			Source:       licenseRequestSource,
 			FirstName:    req.FirstName,
 			LastName:     req.LastName,
 			PhoneNumber:  req.PhoneNumber,
@@ -145,32 +101,37 @@ func NewLicenseRequester(url string) func(ctx context.Context, deploymentID stri
 			Country:      req.Country,
 			Developers:   req.Developers,
 		})
-		if err != nil {
-			return "", xerrors.Errorf("marshal: %w", err)
-		}
-		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
-		if err != nil {
-			return "", xerrors.Errorf("create license request: %w", err)
-		}
-		httpReq.Header.Set("Content-Type", "application/json")
-		res, err := client.Do(httpReq)
-		if err != nil {
-			return "", xerrors.Errorf("perform license request: %w", err)
-		}
-		defer res.Body.Close()
-		body, err := io.ReadAll(res.Body)
-		if err != nil {
-			return "", xerrors.Errorf("read license response: %w", err)
-		}
-		if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
-			return "", &LicensorError{Message: licenseRequestErrorMessage(body, res.Status)}
-		}
-		raw := strings.TrimSpace(string(body))
-		if raw == "" {
-			return "", xerrors.New("licensor returned an empty license")
-		}
-		return raw, nil
 	}
+}
+
+func requestLicense(ctx context.Context, client *http.Client, url string, body codersdk.LicensorTrialRequest) (string, error) {
+	body.Source = licenseRequestSource
+	data, err := json.Marshal(body)
+	if err != nil {
+		return "", xerrors.Errorf("marshal: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return "", xerrors.Errorf("create license request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	res, err := client.Do(req)
+	if err != nil {
+		return "", xerrors.Errorf("perform license request: %w", err)
+	}
+	defer res.Body.Close()
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return "", xerrors.Errorf("read license response: %w", err)
+	}
+	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+		return "", &LicensorError{Message: licenseRequestErrorMessage(resBody, res.Status)}
+	}
+	raw := strings.TrimSpace(string(resBody))
+	if raw == "" {
+		return "", xerrors.New("licensor returned an empty license")
+	}
+	return raw, nil
 }
 
 // licenseRequestErrorMessage reads the licensor's error message, falling back to

@@ -21,7 +21,18 @@ func TestTrialer(t *testing.T) {
 	license := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 		Trial: true,
 	})
+	type capture struct {
+		contentType string
+		body        map[string]any
+	}
+	captured := make(chan capture, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c := capture{contentType: r.Header.Get("Content-Type")}
+		if err := json.NewDecoder(r.Body).Decode(&c.body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		captured <- c
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(license))
 	}))
@@ -31,11 +42,36 @@ func TestTrialer(t *testing.T) {
 	require.NoError(t, err)
 
 	gen := trialer.New(db, srv.URL, coderdenttest.Keys)
-	err = gen(context.Background(), codersdk.LicensorTrialRequest{Email: "kyle+colin@coder.com"})
+	err = gen(context.Background(), codersdk.LicensorTrialRequest{
+		Email:       "kyle+colin@coder.com",
+		FirstName:   "Kyle",
+		LastName:    "Carberry",
+		PhoneNumber: "+1 555 0100",
+		JobTitle:    "Platform Engineer",
+		CompanyName: "Coder",
+		Country:     "United States",
+		Developers:  "51 - 100",
+	})
 	require.NoError(t, err)
 	licenses, err := db.GetLicenses(context.Background())
 	require.NoError(t, err)
 	require.Len(t, licenses, 1)
+
+	require.Len(t, captured, 1)
+	got := <-captured
+	require.Equal(t, "application/json", got.contentType)
+	require.Equal(t, map[string]any{
+		"deployment_id": "test-deployment",
+		"source":        "Product",
+		"email":         "kyle+colin@coder.com",
+		"first_name":    "Kyle",
+		"last_name":     "Carberry",
+		"phone_number":  "+1 555 0100",
+		"job_title":     "Platform Engineer",
+		"company_name":  "Coder",
+		"country":       "United States",
+		"developers":    "51 - 100",
+	}, got.body)
 }
 
 func TestNewLicenseRequester(t *testing.T) {

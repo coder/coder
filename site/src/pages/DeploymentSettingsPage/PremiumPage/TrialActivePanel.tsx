@@ -1,11 +1,9 @@
 import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
-
-const CONTACT_SALES_LINK = "https://coder.com/contact/sales";
+import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 
 interface TrialActivePanelProps {
 	daysRemaining: number | undefined;
-	isLoading: boolean;
 }
 
 export const TrialActivePanel: FC<TrialActivePanelProps> = ({

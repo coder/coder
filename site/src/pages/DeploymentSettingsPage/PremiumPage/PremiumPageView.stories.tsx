@@ -10,7 +10,6 @@ const meta: Meta<typeof PremiumPageView> = {
 		isTrial: false,
 		canRequestTrial: true,
 		trialDaysRemaining: undefined,
-		isLoadingLicenses: false,
 		isSubmitting: false,
 		onSubmit: fn(),
 	},
@@ -73,11 +72,10 @@ export const TrialActive: Story = {
 
 		await expect(
 			canvas.getByRole("heading", {
-				name: "Your Premium trial is active",
+				name: "23 days remaining",
 				level: 1,
 			}),
 		).toBeVisible();
-		await expect(canvas.getByText("23 days remaining")).toBeVisible();
 		await expect(
 			canvas.getByRole("link", { name: /talk to sales/i }),
 		).toHaveAttribute("href", "https://coder.com/contact/sales");
@@ -108,22 +106,6 @@ export const TrialActiveSingleDay: Story = {
 	},
 };
 
-export const TrialActiveLoading: Story = {
-	args: {
-		hasLicense: true,
-		isTrial: true,
-		trialDaysRemaining: undefined,
-		isLoadingLicenses: true,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await expect(canvas.getByTestId("trial-remaining-skeleton")).toBeVisible();
-		// A missing expiry must never surface as NaN.
-		await expect(canvas.queryByText(/NaN/)).not.toBeInTheDocument();
-	},
-};
-
 export const TrialExpiryUnavailable: Story = {
 	args: {
 		hasLicense: true,
@@ -133,13 +115,8 @@ export const TrialExpiryUnavailable: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await expect(
-			canvas.getByRole("heading", {
-				name: "Your Premium trial is active",
-				level: 1,
-			}),
-		).toBeVisible();
-		// Without a readable expiry there is no count, so no subline is rendered.
+		// The count is the heading, so an unreadable expiry leaves no heading.
+		await expect(canvas.queryByRole("heading")).not.toBeInTheDocument();
 		await expect(canvas.queryByText(/remaining/)).not.toBeInTheDocument();
 		await expect(canvas.queryByText(/NaN|undefined/)).not.toBeInTheDocument();
 		await expect(

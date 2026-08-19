@@ -9,11 +9,17 @@ import { FormField } from "#/components/FormField/FormField";
 import { SelectItem } from "#/components/Select/Select";
 import { SelectField } from "#/components/SelectField/SelectField";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { PrivacyPolicyNotice } from "#/modules/licenses/PrivacyPolicyNotice";
 import {
-	CODER_PRIVACY_POLICY_LINK,
 	DATABASE_DOCS_LINK,
+	MAX_COMPANY_NAME_LENGTH,
+	MAX_EMAIL_LENGTH,
+	MAX_JOB_TITLE_LENGTH,
+	MAX_NAME_LENGTH,
 	numberOfDevelopersOptions,
+	trialInfoValidationSchema,
 } from "#/modules/licenses/trialLicense";
+import { docs } from "#/utils/docs";
 import { getFormHelpers, onChangeTrimmed } from "#/utils/formUtils";
 
 type TrialFormValues = TypesGen.CreateTrialLicenseRequest & {
@@ -21,31 +27,7 @@ type TrialFormValues = TypesGen.CreateTrialLicenseRequest & {
 	acknowledged: boolean;
 };
 
-// REMARK: Keep these consts in sync with codersdk.CreateTrialLicenseRequest.
-const MAX_EMAIL_LENGTH = 254;
-const MAX_NAME_LENGTH = 60;
-const MIN_JOB_TITLE_LENGTH = 2;
-const MAX_JOB_TITLE_LENGTH = 100;
-const MIN_COMPANY_NAME_LENGTH = 2;
-const MAX_COMPANY_NAME_LENGTH = 100;
-const PHONE_NUMBER_RE = /^\+?[\d\s\-.()]{7,20}$/;
-
-const DisclaimerText = () => (
-	<p className="m-0 text-xs text-content-secondary leading-relaxed">
-		The information you provide will be treated in accordance with the{" "}
-		<a
-			href={CODER_PRIVACY_POLICY_LINK}
-			target="_blank"
-			rel="noreferrer"
-			className="text-content-link hover:underline"
-		>
-			Coder Privacy Policy
-		</a>
-		. Opt-out at any time.
-	</p>
-);
-
-const validationSchema = Yup.object({
+const validationSchema = trialInfoValidationSchema.shape({
 	email: Yup.string()
 		.trim()
 		.email("Please enter a valid email address.")
@@ -54,49 +36,6 @@ const validationSchema = Yup.object({
 			`Email address should be no longer than ${MAX_EMAIL_LENGTH} characters.`,
 		)
 		.required("Please enter an email address."),
-	first_name: Yup.string()
-		.max(
-			MAX_NAME_LENGTH,
-			`First name should be no longer than ${MAX_NAME_LENGTH} characters.`,
-		)
-		.required("Please enter your first name."),
-	last_name: Yup.string()
-		.max(
-			MAX_NAME_LENGTH,
-			`Last name should be no longer than ${MAX_NAME_LENGTH} characters.`,
-		)
-		.required("Please enter your last name."),
-	phone_number: Yup.string()
-		.matches(PHONE_NUMBER_RE, {
-			message:
-				"Phone number should be in international format (e.g. +14155552671).",
-			excludeEmptyString: true,
-		})
-		.required("Please enter your phone number."),
-	job_title: Yup.string()
-		.min(
-			MIN_JOB_TITLE_LENGTH,
-			`Job title should be at least ${MIN_JOB_TITLE_LENGTH} characters.`,
-		)
-		.max(
-			MAX_JOB_TITLE_LENGTH,
-			`Job title should be no longer than ${MAX_JOB_TITLE_LENGTH} characters.`,
-		)
-		.required("Please enter your job title."),
-	company_name: Yup.string()
-		.min(
-			MIN_COMPANY_NAME_LENGTH,
-			`Company name should be at least ${MIN_COMPANY_NAME_LENGTH} characters.`,
-		)
-		.max(
-			MAX_COMPANY_NAME_LENGTH,
-			`Company name should be no longer than ${MAX_COMPANY_NAME_LENGTH} characters.`,
-		)
-		.required("Please enter your company name."),
-	country: Yup.string().required("Please select your country."),
-	developers: Yup.string().required(
-		"Please select the number of developers in your company.",
-	),
 	acknowledged: Yup.bool().oneOf(
 		[true],
 		"Please acknowledge the database requirements.",
@@ -200,6 +139,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 
 				<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 					<FormField
+						type="tel"
 						label="Phone number"
 						placeholder="+1 415 5552671"
 						field={getFieldHelpers("phone_number")}
@@ -254,7 +194,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 						deployments.
 					</label>{" "}
 					<a
-						href={DATABASE_DOCS_LINK}
+						href={docs(DATABASE_DOCS_LINK)}
 						target="_blank"
 						rel="noreferrer"
 						className="text-content-link hover:underline"
@@ -274,7 +214,9 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 					<Spinner loading={isSubmitting} />
 					Start a trial
 				</Button>
-				<DisclaimerText />
+				<p className="m-0 text-xs text-content-secondary leading-relaxed">
+					<PrivacyPolicyNotice /> Opt-out at any time.
+				</p>
 			</div>
 		</form>
 	);

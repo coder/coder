@@ -16,6 +16,7 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { DATABASE_DOCS_LINK } from "#/modules/licenses/trialLicense";
+import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { PremiumPageView } from "./PremiumPageView";
 
@@ -47,7 +48,7 @@ const PremiumPage: FC = () => {
 
 			<SettingsHeader
 				actions={
-					<SettingsHeaderDocsLink href={DATABASE_DOCS_LINK}>
+					<SettingsHeaderDocsLink href={docs(DATABASE_DOCS_LINK)}>
 						Review Coder system requirements
 					</SettingsHeaderDocsLink>
 				}
@@ -73,7 +74,6 @@ const PremiumPage: FC = () => {
 				isTrial={isTrial}
 				canRequestTrial={permissions.viewAllLicenses}
 				trialDaysRemaining={trialDaysRemaining}
-				isLoadingLicenses={licensesQuery.isLoading}
 				isSubmitting={trialMutation.isPending}
 				error={trialMutation.error}
 				onSubmit={(request) => {
