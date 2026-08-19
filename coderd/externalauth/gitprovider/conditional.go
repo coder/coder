@@ -1,6 +1,7 @@
 package gitprovider
 
 import (
+	"bytes"
 	"container/list"
 	"crypto/sha256"
 	"encoding/hex"
@@ -13,7 +14,10 @@ import (
 const (
 	// defaultResponseCacheEntries is the maximum number of cached
 	// responses retained. Once exceeded, the least-recently-used
-	// entry is evicted.
+	// entry is evicted. Sized above the gitsync worker's steady-state
+	// working set: defaultBatchSize (50) rows re-acquired every
+	// DiffStatusTTL (120s) over defaultInterval (10s) ticks, at 2-3
+	// cache keys per row. See coderd/x/gitsync.
 	defaultResponseCacheEntries = 2048
 
 	// maxCachedBodyBytes is the largest response body that will be
@@ -60,7 +64,8 @@ func newResponseCache(maxSize int) *responseCache {
 }
 
 // load returns the cached ETag and body for key, if present, and
-// marks the entry as most-recently-used.
+// marks the entry as most-recently-used. The returned body aliases
+// the cache's copy and must not be mutated.
 func (c *responseCache) load(key string) (etag string, body []byte, ok bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -82,6 +87,7 @@ func (c *responseCache) store(key, etag string, body []byte) {
 		return
 	}
 
+	stored := bytes.Clone(body)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -89,14 +95,13 @@ func (c *responseCache) store(key, etag string, body []byte) {
 		c.ll.MoveToFront(elem)
 		cr := elem.Value.(*cachedResponse)
 		cr.etag = etag
-		cr.body = body
+		// Replace the body slice entirely; never write into the
+		// existing slice in place. A concurrent reader may hold a
+		// reference to the old slice while json.Unmarshal is reading
+		// it.
+		cr.body = stored
 		return
 	}
-
-	// Copy the body so we never retain a slice that the caller may
-	// later reuse or mutate.
-	stored := make([]byte, len(body))
-	copy(stored, body)
 
 	elem := c.ll.PushFront(&cachedResponse{key: key, etag: etag, body: stored})
 	c.entries[key] = elem
@@ -123,5 +128,5 @@ func (c *responseCache) evictOldest() {
 // another, without keeping raw credentials in memory.
 func responseCacheKey(requestURL, token string) string {
 	sum := sha256.Sum256([]byte(token))
-	return requestURL + "\x00" + hex.EncodeToString(sum[:8])
+	return requestURL + "\x00" + hex.EncodeToString(sum[:])
 }

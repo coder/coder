@@ -1979,6 +1979,11 @@ export interface Chat {
 	 * Nil when the chat has no pinned context yet.
 	 */
 	readonly context?: ChatContext;
+	/**
+	 * QueuedForCapacity reports that the chat is waiting for a concurrent
+	 * agent slot. Single-chat reads derive it; list responses leave it false.
+	 */
+	readonly queued_for_capacity?: boolean;
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**
@@ -2475,6 +2480,19 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 
 // From codersdk/chats.go
 /**
+ * ChatFileDownloadURLResponse contains a short-lived URL for downloading a chat file.
+ */
+export interface ChatFileDownloadURLResponse {
+	readonly url: string;
+	readonly expires_at: string;
+	readonly sha256: string;
+	readonly size_bytes: number;
+	readonly name: string;
+	readonly mime_type: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatFileMetadata contains lightweight metadata about a file
  * associated with a chat, excluding the file content itself.
  */
@@ -2484,6 +2502,7 @@ export interface ChatFileMetadata {
 	readonly organization_id: string;
 	readonly name: string;
 	readonly mime_type: string;
+	readonly size_bytes: number;
 	readonly created_at: string;
 }
 
@@ -4416,6 +4435,7 @@ export interface CryptoKey {
 
 // From codersdk/deployment.go
 export type CryptoKeyFeature =
+	| "chat_files_token"
 	| "nats_ca"
 	| "oidc_convert"
 	| "tailnet_resume"
@@ -4423,6 +4443,7 @@ export type CryptoKeyFeature =
 	| "workspace_apps_token";
 
 export const CryptoKeyFeatures: CryptoKeyFeature[] = [
+	"chat_files_token",
 	"nats_ca",
 	"oidc_convert",
 	"tailnet_resume",
@@ -4986,6 +5007,7 @@ export type Experiment =
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
+	| "mcp-tool-search"
 	| "nats_pubsub"
 	| "notifications"
 	| "oauth2"
@@ -5001,6 +5023,7 @@ export const Experiments: Experiment[] = [
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",
+	"mcp-tool-search",
 	"nats_pubsub",
 	"notifications",
 	"oauth2",
@@ -5069,6 +5092,12 @@ export interface ExternalAuthConfig {
 	readonly auth_url: string;
 	readonly token_url: string;
 	readonly validate_url: string;
+	/**
+	 * RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
+	 * situations where the OAuth callback domain is different from the ACCESS_URL
+	 * domain. The path component is ignored.
+	 */
+	readonly redirect_url: string;
 	readonly revoke_url: string;
 	readonly app_install_url: string;
 	readonly app_installations_url: string;
@@ -5181,14 +5210,18 @@ export interface ExternalAuthUser {
 export interface Feature {
 	readonly entitlement: Entitlement;
 	readonly enabled: boolean;
+	/**
+	 * Limit is the maximum value the license grants for the feature, in the
+	 * feature's own unit. For FeatureAgentRuntimeHours, an enabled feature
+	 * with Limit omitted means the license grants unlimited runtime hours.
+	 */
 	readonly limit?: number;
 	/**
 	 * SoftLimit is the advisory warning threshold that accompanies Limit for
 	 * features whose license carries it. For these features, Limit carries
-	 * the purchased allocation.
-	 *
-	 * Only certain features set this field:
-	 * - FeatureAgentRuntimeHours
+	 * the purchased allocation; an unlimited allocation has no thresholds,
+	 * so SoftLimit is omitted alongside the omitted Limit. Only
+	 * FeatureAgentRuntimeHours sets this field.
 	 */
 	readonly soft_limit?: number;
 	/**
@@ -5197,18 +5230,30 @@ export interface Feature {
 	 * features that use these thresholds.
 	 */
 	readonly hard_limit?: number;
+	/**
+	 * Actual is the usage measured against Limit, when known: a
+	 * point-in-time count for most features, or usage accumulated over
+	 * UsagePeriod for features that set one. Its unit matches Limit's;
+	 * FeatureAgentRuntimeHours reports whole hours floored from the
+	 * recorded milliseconds, with the precise value available in
+	 * ActualMs. FeatureAgentRuntimeHours usage can trail by roughly one
+	 * hour because the current hour is not emitted, plus the entitlement
+	 * refresh interval.
+	 */
 	readonly actual?: number;
+	/**
+	 * ActualMs is the precise usage backing Actual, in milliseconds, for
+	 * features measured in time. It has the same freshness as Actual.
+	 * Only FeatureAgentRuntimeHours sets this field.
+	 */
+	readonly actual_ms?: number;
 	/**
 	 * UsagePeriod denotes that the usage is a counter that accumulates over
 	 * this period (and most likely resets with the issuance of the next
-	 * license).
-	 *
-	 * These dates are determined from the license that this entitlement comes
-	 * from, see enterprise/coderd/license/license.go.
-	 *
-	 * Only certain features set these fields:
-	 * - FeatureManagedAgentLimit
-	 * - FeatureAgentRuntimeHours
+	 * license). These dates are determined from the license that this
+	 * entitlement comes from, see enterprise/coderd/license/license.go.
+	 * Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this
+	 * field.
 	 */
 	readonly usage_period?: UsagePeriod;
 }
@@ -5756,6 +5801,28 @@ export const LicenseAIGovernance90PercentWarningText =
 // From codersdk/licenses.go
 export const LicenseAIGovernanceOverLimitWarningText =
 	"Your organization is using %d of %d AI Governance add-on seats (%d over the limit).";
+
+// From codersdk/licenses.go
+export const LicenseAgentRuntimeHoursAllocationReachedWarningText =
+	"Your deployment has used %d of the %d Coder Agent runtime hours included in the current license term.";
+
+// From codersdk/licenses.go
+export const LicenseAgentRuntimeHoursClaimsIgnoredWarningText =
+	"A license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of that license is unaffected. Check the coderd logs for the affected license and claims, and contact support to have the license re-issued.";
+
+// From codersdk/licenses.go
+/**
+ * The dashboard's LicenseBanner matches this text's pre-placeholder
+ * prefix to render it muted and without a sales link, so the license
+ * warning texts must stay pairwise distinct before their first
+ * placeholder. See TestLicenseAgentRuntimeHoursWarningTexts.
+ */
+export const LicenseAgentRuntimeHoursSoftLimitWarningText =
+	"Your deployment is approaching its Coder Agent runtime hours allocation: %d of the %d hours included in the current license term are used, at or above the advisory soft limit of %d hours.";
+
+// From codersdk/licenses.go
+export const LicenseAgentRuntimeUsageUnavailableErrorText =
+	"Unable to determine Coder Agent runtime usage. Reported runtime hours are unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details.";
 
 // From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
@@ -6804,7 +6871,7 @@ export interface OIDCConfig {
 	/**
 	 * RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
 	 * situations where the OIDC callback domain is different from the ACCESS_URL
-	 * domain.
+	 * domain. The path component is ignored.
 	 */
 	readonly redirect_url: string;
 	readonly auto_repair_links: boolean;
@@ -7877,6 +7944,7 @@ export type ResourceType =
 	| "ai_seat"
 	| "api_key"
 	| "chat"
+	| "chat_instruction_settings"
 	| "convert_login"
 	| "custom_role"
 	| "git_ssh_key"
@@ -7915,6 +7983,7 @@ export const ResourceTypes: ResourceType[] = [
 	"ai_seat",
 	"api_key",
 	"chat",
+	"chat_instruction_settings",
 	"convert_login",
 	"custom_role",
 	"git_ssh_key",

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -270,8 +271,8 @@ const (
 )
 
 // AllOAuth2TokenEndpointAuthMethods returns every token endpoint auth method
-// registration accepts. Valid() derives from it, so what registration
-// accepts cannot drift from what this function reports.
+// registration accepts. Valid() is defined in terms of it, so what
+// registration accepts cannot drift from what this function reports.
 //
 // Discovery does not advertise this list verbatim; see
 // AdvertisedOAuth2TokenEndpointAuthMethods for why.
@@ -299,13 +300,7 @@ func AdvertisedOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod 
 }
 
 func (m OAuth2TokenEndpointAuthMethod) Valid() bool {
-	switch m {
-	case OAuth2TokenEndpointAuthMethodClientSecretBasic,
-		OAuth2TokenEndpointAuthMethodClientSecretPost,
-		OAuth2TokenEndpointAuthMethodNone:
-		return true
-	}
-	return false
+	return slices.Contains(AllOAuth2TokenEndpointAuthMethods(), m)
 }
 
 // OAuth2ClientType is how a client authenticates at the token endpoint
