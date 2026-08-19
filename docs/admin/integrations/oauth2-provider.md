@@ -141,8 +141,6 @@ A client's type is fixed when it registers. An RFC 7592 update that would move a
 
 Clients registered with `token_endpoint_auth_method: none` before Coder honored it are stored as confidential and still require their `client_secret`. Coder reports `client_secret_basic` for those clients so that what it reports matches what it enforces, and the mismatch clears itself the next time the client updates its registration.
 
-Redirect URIs are matched exactly, so register every URI the client will use, including any that differ only by port.
-
 If client authentication fails, the token endpoint returns **HTTP 401** with an OAuth2 `invalid_client` error and a `WWW-Authenticate: Basic realm="coder"` response header.
 
 ### Standard OAuth2 Flow
