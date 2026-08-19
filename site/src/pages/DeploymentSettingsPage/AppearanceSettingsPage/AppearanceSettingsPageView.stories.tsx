@@ -45,7 +45,7 @@ export const Entitled: Story = {
 			canvas.getByRole("heading", { name: "Announcement Banners" }),
 		).toBeVisible();
 		await expect(
-			canvas.queryByRole("link", { name: "Learn about Premium" }),
+			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -54,7 +54,7 @@ export const NotEntitled: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const cta = canvas.getByRole("link", { name: "Learn about Premium" });
+		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
 		await expect(
 			canvas.queryByRole("form", { name: "Appearance settings" }),
@@ -76,7 +76,7 @@ export const NotEntitledWithoutLicenseAccess: Story = {
 			canvas.getByText(/contact your deployment administrator/i),
 		).toBeVisible();
 		await expect(
-			canvas.queryByRole("link", { name: "Learn about Premium" }),
+			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
 	},
 };

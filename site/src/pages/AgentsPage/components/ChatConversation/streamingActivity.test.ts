@@ -38,6 +38,8 @@ const liveStatus = (phase: LiveStatusModel["phase"]): LiveStatusModel => {
 				title: "Failed",
 				message: "Failed",
 			};
+		case "interrupting":
+			return { phase: "interrupting", hasAccumulatedOutput: false };
 	}
 };
 

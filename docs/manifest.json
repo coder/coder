@@ -1034,29 +1034,9 @@
 							"path": "./ai-coder/agents/getting-started.md"
 						},
 						{
-							"title": "Search Syntax",
-							"description": "Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.",
-							"path": "./ai-coder/agents/chat-search-syntax.md"
-						},
-						{
 							"title": "Architecture",
 							"description": "Learn how the Coder Agents control-plane agent communicates with your workspaces.",
 							"path": "./ai-coder/agents/architecture.md"
-						},
-						{
-							"title": "Chat Sharing",
-							"description": "Give other users and groups read-only access to a Coder Agents conversation with chat sharing.",
-							"path": "./ai-coder/agents/chat-sharing.md"
-						},
-						{
-							"title": "Models",
-							"description": "Configure the LLM providers and models that power Coder Agents from Admin settings.",
-							"path": "./ai-coder/agents/models.md"
-						},
-						{
-							"title": "Tools",
-							"description": "How Coder Agents uses tool calls to select templates and create workspaces",
-							"path": "./ai-coder/agents/tools/index.md"
 						},
 						{
 							"title": "Platform Controls",
@@ -1123,6 +1103,31 @@
 							"title": "Extending Agents",
 							"description": "Extend Coder Agents with custom skills and MCP tools defined in your workspace templates.",
 							"path": "./ai-coder/agents/extending-agents.md"
+						},
+						{
+							"title": "Models",
+							"description": "Configure the LLM providers and models that power Coder Agents from Admin settings.",
+							"path": "./ai-coder/agents/models.md"
+						},
+						{
+							"title": "Tools",
+							"description": "How Coder Agents uses tool calls to select templates and create workspaces",
+							"path": "./ai-coder/agents/tools/index.md"
+						},
+						{
+							"title": "Chat Sharing",
+							"description": "Give other users and groups read-only access to a Coder Agents conversation with chat sharing.",
+							"path": "./ai-coder/agents/chat-sharing.md"
+						},
+						{
+							"title": "Search Syntax",
+							"description": "Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.",
+							"path": "./ai-coder/agents/chat-search-syntax.md"
+						},
+						{
+							"title": "Licensing \u0026 Usage",
+							"description": "Licensing and usage details for Coder Agents.",
+							"path": "./ai-coder/agents/licensing-usage.md"
 						},
 						{
 							"title": "Tasks to Chats API Migration",
