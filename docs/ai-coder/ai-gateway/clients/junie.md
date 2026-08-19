@@ -5,7 +5,7 @@
 > included with a Premium license.
 
 [Junie CLI](https://junie.jetbrains.com/docs/junie-cli.html) supports AI Gateway
-through [custom model profiles](https://www.jetbrains.com/help/junie/custom-llm-models.html).
+through [custom model profiles](https://junie.jetbrains.com/docs/custom-llm-models.html#using-custom-models).
 
 | Provider  | API type          | Endpoint                 |
 |-----------|-------------------|--------------------------|
@@ -124,4 +124,4 @@ Reference the deployment URL in the profile with
 `${data.coder_workspace.me.access_url}/api/v2/ai-gateway/openai/v1/responses`
 if you generate the file from the template instead of committing it.
 
-**References:** [Junie custom LLMs](https://www.jetbrains.com/help/junie/custom-llm-models.html)
+**References:** [Junie custom LLMs](https://junie.jetbrains.com/docs/custom-llm-models.html#using-custom-models)
