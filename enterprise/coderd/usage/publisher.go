@@ -384,7 +384,12 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	// for failed rows. Events confirmed published (including permanent
 	// rejections, which are terminal) resolve their own IDs, so the
 	// warning clears as soon as the actual failing events recover, while
-	// failures recorded for events outside this batch stay untouched.
+	// failures recorded for events outside this batch stay untouched. The
+	// outcome gets its own bounded context: the update may have consumed
+	// most of its deadline, and while verification prunes stale IDs, it
+	// can never discover a failure ID that was never added.
+	outcomeCtx, outcomeCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
+	defer outcomeCtxCancel()
 	var publishedIDs, failedIDs []string
 	for i, id := range dbUpdate.IDs {
 		if dbUpdate.SetPublishedAts[i] {
@@ -393,7 +398,7 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 			failedIDs = append(failedIDs, id)
 		}
 	}
-	p.recordBatchOutcome(updateCtx, publishedIDs, failedIDs)
+	p.recordBatchOutcome(outcomeCtx, publishedIDs, failedIDs)
 
 	var returnErr error
 	if len(resp.RejectedEvents) > 0 {
