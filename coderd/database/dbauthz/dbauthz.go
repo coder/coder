@@ -3651,7 +3651,6 @@ func (q *querier) GetChildChatsByParentIDs(ctx context.Context, arg database.Get
 }
 
 func (q *querier) GetCodernautsEnabled(ctx context.Context) (bool, error) {
-	// No authz checks
 	return q.db.GetCodernautsEnabled(ctx)
 }
 

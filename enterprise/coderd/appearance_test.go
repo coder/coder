@@ -58,11 +58,10 @@ func TestCustomLogoAndCompanyName(t *testing.T) {
 func TestCodernautsEnabled(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
 	adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 	basicUserClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// With no stored setting, as after an upgrade, the game defaults to
 	// enabled. This deployment has no license, so the default appearance
