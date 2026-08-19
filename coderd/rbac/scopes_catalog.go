@@ -97,9 +97,10 @@ var scopeAliases = map[ScopeName]ScopeName{
 	"application_connect": ScopeApplicationConnect,
 }
 
-// IsExternalScope returns true if the scope is public, including the
-// `all` and `application_connect` special scopes and the curated
-// low-level resource:action scopes.
+// IsExternalScope returns true if the scope is public: the `all` and
+// `application_connect` aliases, the canonical `coder:all` and
+// `coder:application_connect`, a curated low-level resource:action scope, or a
+// curated composite `coder:*` scope.
 func IsExternalScope(name ScopeName) bool {
 	if _, ok := scopeAliases[name]; ok {
 		return true
