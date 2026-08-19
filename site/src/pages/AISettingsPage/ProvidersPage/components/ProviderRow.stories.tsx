@@ -102,3 +102,21 @@ export const SupportedHasNoAgentsLabel: Story = {
 		).not.toBeInTheDocument();
 	},
 };
+
+export const WithHostnameCollisionWarning: Story = {
+	args: {
+		provider: {
+			...MockAIProviderOpenAI,
+			enabled: true,
+			status: {
+				warnings: [
+					'hostname "api.openai.com" is also used by provider "second"; not reachable via the AI Bridge Proxy, use direct routing (/api/v2/aibridge/openai/...) instead',
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(/warning/i)).toBeInTheDocument();
+	},
+};
