@@ -9,8 +9,9 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { cn } from "#/utils/cn";
-import { formatDateTime } from "#/utils/time";
+import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import {
+	type FullTimeRange,
 	formatTriggerLabel,
 	isNowExpression,
 	parseTimeExpression,
@@ -23,8 +24,8 @@ interface DateTimeRangeFilterProps {
 	 * The range the page falls back to when no explicit filter is set.
 	 * The trigger labels it as "Last 24 hours" while the value equals it.
 	 */
-	defaultValue: TimeRange;
-	onChange: (value: TimeRange) => void;
+	defaultValue: FullTimeRange;
+	onChange: (value: FullTimeRange) => void;
 	now?: Date;
 	/** Matches the SelectFilter trigger metrics in the filter row. */
 	width?: number;
@@ -34,8 +35,6 @@ interface FieldState {
 	text: string;
 	touched: boolean;
 }
-
-const EXAMPLES = ["Now", "15:43", "2026-08-13 11:43"];
 
 const INVALID_TIME_MESSAGE = "Enter a valid time, e.g. 2026-08-13 11:43";
 
@@ -51,8 +50,10 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 	const [open, setOpen] = useState(false);
 	const currentTime = now ?? new Date();
 	const isDefault =
-		value.startedAfter.getTime() === defaultValue.startedAfter.getTime() &&
-		value.startedBefore.getTime() === defaultValue.startedBefore.getTime();
+		value.startedAfter !== undefined &&
+		value.startedBefore !== undefined &&
+		value.startedAfter.getTime() === defaultValue.startedAfter?.getTime() &&
+		value.startedBefore.getTime() === defaultValue.startedBefore?.getTime();
 
 	// Text state is kept separate from the committed value so the user can
 	// adjust the expressions freely before applying; invalid text never
@@ -71,10 +72,16 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 		if (next) {
 			// Boundaries at (or very near) the current moment read better
 			// as "now" than as a frozen timestamp when the popover reopens.
-			const toFieldText = (date: Date): string =>
-				Math.abs(date.getTime() - currentTime.getTime()) < NOW_TOLERANCE_MS
+			// A missing bound stays empty so the popover reflects the query.
+			const toFieldText = (date: Date | undefined): string => {
+				if (!date) {
+					return "";
+				}
+				return Math.abs(date.getTime() - currentTime.getTime()) <
+					NOW_TOLERANCE_MS
 					? "now"
 					: formatDateTime(date);
+			};
 			setFromField({
 				text: toFieldText(value.startedAfter),
 				touched: false,
@@ -135,9 +142,13 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 			: null;
 
 	// Apply is only useful when something actually changed; untouched
-	// fields resolve back to the committed range.
+	// fields resolve back to the committed range. Both bounds are required
+	// so the popover always commits a full range; a one-sided range is a
+	// deliberate free-text-only escape hatch.
 	const applyDisabled =
 		!(fromField.touched || toField.touched) ||
+		fromField.text === "" ||
+		toField.text === "" ||
 		fromError !== null ||
 		toError !== null ||
 		rangeError !== null;
@@ -230,7 +241,46 @@ export const DateTimeRangeFilter: FC<DateTimeRangeFilterProps> = ({
 				</div>
 				<div className="flex flex-col gap-2 border-t border-border-default p-4 text-sm text-content-secondary">
 					<span className="font-semibold text-content-primary">Examples:</span>
-					<span>{EXAMPLES.join(" | ")}</span>
+					<div className="flex gap-1">
+						<button
+							type="button"
+							className="cursor-pointer rounded border-none bg-transparent px-1 py-0.5 text-content-secondary hover:bg-surface-secondary hover:text-content-primary"
+							onClick={() => setToField({ text: "now", touched: true })}
+						>
+							Now
+						</button>
+						<button
+							type="button"
+							className="cursor-pointer rounded border-none bg-transparent px-1 py-0.5 text-content-secondary hover:bg-surface-secondary hover:text-content-primary"
+							onClick={() =>
+								setFromField({
+									text: formatDateTime(
+										currentTime,
+										DATE_FORMAT.TIME_24H_MINUTE,
+									),
+									touched: true,
+								})
+							}
+						>
+							{formatDateTime(currentTime, DATE_FORMAT.TIME_24H_MINUTE)}
+						</button>
+						<button
+							type="button"
+							className="cursor-pointer rounded border-none bg-transparent px-1 py-0.5 text-content-secondary hover:bg-surface-secondary hover:text-content-primary"
+							onClick={() =>
+								setFromField({
+									text: formatDateTime(
+										new Date(currentTime.getTime() - 24 * 60 * 60 * 1000),
+									),
+									touched: true,
+								})
+							}
+						>
+							{formatDateTime(
+								new Date(currentTime.getTime() - 24 * 60 * 60 * 1000),
+							)}
+						</button>
+					</div>
 					<span>Defaults to midnight if no time is provided.</span>
 					<span>Defaults to current day if no date is provided.</span>
 				</div>

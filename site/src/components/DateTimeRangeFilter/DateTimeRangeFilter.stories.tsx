@@ -9,16 +9,16 @@ import {
 } from "storybook/test";
 import { formatDateTime } from "#/utils/time";
 import { DateTimeRangeFilter } from "./DateTimeRangeFilter";
-import type { TimeRange } from "./timeRange";
+import type { FullTimeRange } from "./timeRange";
 
 const fixedNow = new Date(2026, 7, 13, 15, 0, 0);
 
-const defaultValue: TimeRange = {
+const defaultValue: FullTimeRange = {
 	startedAfter: new Date(2026, 7, 12, 15, 0, 0),
 	startedBefore: fixedNow,
 };
 
-const singleDayValue: TimeRange = {
+const singleDayValue: FullTimeRange = {
 	startedAfter: new Date(2026, 3, 10, 7, 23, 0),
 	startedBefore: new Date(2026, 3, 10, 9, 30, 0),
 };
@@ -264,5 +264,57 @@ export const EscapeClosesWithoutApplying: Story = {
 			expect(body.queryByRole("button", { name: "Apply" })).toBeNull();
 		});
 		expect(args.onChange).not.toHaveBeenCalled();
+	},
+};
+
+export const PartialRangeShowsCustom: Story = {
+	args: {
+		value: { startedAfter: new Date(2026, 7, 11, 23, 59, 59) },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		expect(
+			canvas.getByRole("button", { name: "Filter by time range" }),
+		).toHaveTextContent("Custom");
+
+		// The popover shows the present bound and an empty field for the
+		// missing one; Apply stays disabled until both are filled.
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Filter by time range" }),
+		);
+		const fromInput = await body.findByLabelText("Start of time range");
+		const toInput = body.getByLabelText("End of time range");
+		expect(fromInput).toHaveValue("2026-08-11 23:59:59");
+		expect(toInput).toHaveValue("");
+		expect(body.getByRole("button", { name: "Apply" })).toBeDisabled();
+	},
+};
+
+export const ClickableExamplesFillFields: Story = {
+	args: {
+		onChange: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Filter by time range" }),
+		);
+
+		// The datetime example evaluates to 24 hours before now and fills From.
+		const datetimeExample = formatDateTime(
+			new Date(fixedNow.getTime() - 24 * 60 * 60 * 1000),
+		);
+		await userEvent.click(body.getByRole("button", { name: datetimeExample }));
+		const fromInput = body.getByLabelText("Start of time range");
+		expect(fromInput).toHaveValue(datetimeExample);
+
+		// The Now example fills To with the literal expression.
+		await userEvent.click(body.getByRole("button", { name: "Now" }));
+		expect(body.getByLabelText("End of time range")).toHaveValue("now");
+
+		// Both fields touched and valid, so Apply is enabled.
+		expect(body.getByRole("button", { name: "Apply" })).toBeEnabled();
 	},
 };

@@ -75,6 +75,15 @@ describe("parseTimeExpression", () => {
 });
 
 describe("formatTriggerLabel", () => {
+	it("labels a partial range as Custom", () => {
+		expect(
+			formatTriggerLabel({ startedAfter: new Date(2026, 7, 11) }, now),
+		).toBe("Custom");
+		expect(
+			formatTriggerLabel({ startedBefore: new Date(2026, 7, 13) }, now),
+		).toBe("Custom");
+	});
+
 	it("collapses a single day", () => {
 		expect(
 			formatTriggerLabel(

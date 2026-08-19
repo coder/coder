@@ -1,6 +1,9 @@
 import type { FC } from "react";
 import { DateTimeRangeFilter } from "#/components/DateTimeRangeFilter/DateTimeRangeFilter";
-import type { TimeRange } from "#/components/DateTimeRangeFilter/timeRange";
+import type {
+	FullTimeRange,
+	TimeRange,
+} from "#/components/DateTimeRangeFilter/timeRange";
 import {
 	Filter,
 	MenuSkeleton,
@@ -28,8 +31,8 @@ interface ListSessionsFilterProps {
 		model: ModelFilterMenu;
 	};
 	timeRange: TimeRange;
-	defaultTimeRange: TimeRange;
-	onTimeRangeChange: (range: TimeRange) => void;
+	defaultTimeRange: FullTimeRange;
+	onTimeRangeChange: (range: FullTimeRange) => void;
 }
 
 export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({

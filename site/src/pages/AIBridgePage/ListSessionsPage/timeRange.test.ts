@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { TimeRange } from "#/components/DateTimeRangeFilter/timeRange";
+import type { FullTimeRange } from "#/components/DateTimeRangeFilter/timeRange";
 import {
 	defaultTimeRange,
 	parseTimeRange,
@@ -29,7 +29,7 @@ describe("defaultTimeRange", () => {
 });
 
 describe("withDefaultTimeRange", () => {
-	const range: TimeRange = {
+	const range: FullTimeRange = {
 		startedAfter: new Date(Date.UTC(2026, 7, 12, 15, 0, 0)),
 		startedBefore: new Date(Date.UTC(2026, 7, 13, 15, 0, 0)),
 	};
@@ -64,7 +64,7 @@ describe("withDefaultTimeRange", () => {
 });
 
 describe("queryWithTimeRange", () => {
-	const range: TimeRange = {
+	const range: FullTimeRange = {
 		startedAfter: new Date(Date.UTC(2026, 7, 12, 15, 0, 0)),
 		startedBefore: new Date(Date.UTC(2026, 7, 13, 15, 0, 0)),
 	};
@@ -98,22 +98,31 @@ describe("parseTimeRange", () => {
 		});
 	});
 
-	it("returns null when either bound is missing", () => {
+	it("returns null when neither bound is set", () => {
 		expect(parseTimeRange({})).toBeNull();
-		expect(
-			parseTimeRange({ started_after: "2026-08-12T15:00:00Z" }),
-		).toBeNull();
-		expect(
-			parseTimeRange({ started_before: "2026-08-13T15:00:00Z" }),
-		).toBeNull();
 	});
 
-	it("returns null for malformed bounds", () => {
+	it("returns a partial range when only one bound is set", () => {
+		expect(parseTimeRange({ started_after: "2026-08-12T15:00:00Z" })).toEqual({
+			startedAfter: new Date(Date.UTC(2026, 7, 12, 15, 0, 0)),
+			startedBefore: undefined,
+		});
+		expect(parseTimeRange({ started_before: "2026-08-13T15:00:00Z" })).toEqual({
+			startedAfter: undefined,
+			startedBefore: new Date(Date.UTC(2026, 7, 13, 15, 0, 0)),
+		});
+	});
+
+	it("drops malformed bounds", () => {
 		expect(
 			parseTimeRange({
 				started_after: "bogus",
 				started_before: "2026-08-13T15:00:00Z",
 			}),
-		).toBeNull();
+		).toEqual({
+			startedAfter: undefined,
+			startedBefore: new Date(Date.UTC(2026, 7, 13, 15, 0, 0)),
+		});
+		expect(parseTimeRange({ started_after: "bogus" })).toBeNull();
 	});
 });

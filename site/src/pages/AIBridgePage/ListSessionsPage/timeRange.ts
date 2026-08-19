@@ -1,6 +1,9 @@
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-import type { TimeRange } from "#/components/DateTimeRangeFilter/timeRange";
+import type {
+	FullTimeRange,
+	TimeRange,
+} from "#/components/DateTimeRangeFilter/timeRange";
 import {
 	parseFilterQuery,
 	stringifyFilter,
@@ -14,7 +17,7 @@ export const toRFC3339 = (date: Date): string => {
 };
 
 /** The default sessions window: the 24 hours ending at now. */
-export const defaultTimeRange = (now: Date): TimeRange => ({
+export const defaultTimeRange = (now: Date): FullTimeRange => ({
 	startedAfter: new Date(now.getTime() - 24 * 60 * 60 * 1000),
 	startedBefore: now,
 });
@@ -27,7 +30,7 @@ export const defaultTimeRange = (now: Date): TimeRange => ({
  */
 export const withDefaultTimeRange = (
 	query: string,
-	range: TimeRange,
+	range: FullTimeRange,
 ): string => {
 	const values = parseFilterQuery(query);
 	if (
@@ -52,7 +55,7 @@ export const withDefaultTimeRange = (
  */
 export const queryWithTimeRange = (
 	values: Record<string, string | undefined>,
-	range: TimeRange,
+	range: FullTimeRange,
 ): string => {
 	return stringifyFilter({
 		...values,
@@ -61,22 +64,22 @@ export const queryWithTimeRange = (
 	});
 };
 
-/** Extracts an explicit time range from filter values, or null if absent. */
+/** Extracts a time range from filter values, or null if neither bound is set. */
 export const parseTimeRange = (
 	values: Record<string, string | undefined>,
 ): TimeRange | null => {
-	const after = values.started_after;
-	const before = values.started_before;
-	if (!after || !before) {
+	const startedAfter = values.started_after
+		? new Date(values.started_after)
+		: undefined;
+	const startedBefore = values.started_before
+		? new Date(values.started_before)
+		: undefined;
+	const valid = (d: Date | undefined) =>
+		d !== undefined && !Number.isNaN(d.getTime());
+	const after = valid(startedAfter) ? startedAfter : undefined;
+	const before = valid(startedBefore) ? startedBefore : undefined;
+	if (after === undefined && before === undefined) {
 		return null;
 	}
-	const startedAfter = new Date(after);
-	const startedBefore = new Date(before);
-	if (
-		Number.isNaN(startedAfter.getTime()) ||
-		Number.isNaN(startedBefore.getTime())
-	) {
-		return null;
-	}
-	return { startedAfter, startedBefore };
+	return { startedAfter: after, startedBefore: before };
 };

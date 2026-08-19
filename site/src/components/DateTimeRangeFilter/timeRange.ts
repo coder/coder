@@ -5,6 +5,12 @@ import { DATE_FORMAT } from "#/utils/time";
 dayjs.extend(customParseFormat);
 
 export type TimeRange = {
+	startedAfter?: Date;
+	startedBefore?: Date;
+};
+
+/** A range with both bounds present, as committed by the popover. */
+export type FullTimeRange = {
 	startedAfter: Date;
 	startedBefore: Date;
 };
@@ -72,22 +78,27 @@ const MONTH_DAY = "MMM D";
 /**
  * Summarizes a resolved range the way the filter trigger displays it:
  * a single day, a range ending today, a range within one month, or a
- * full from-to range. Callers render "Last 24 hours" for the default
- * range before falling back to this.
+ * full from-to range. A partial range (only one bound) reads as
+ * "Custom". Callers render "Last 24 hours" for the default range
+ * before falling back to this.
  */
 export const formatTriggerLabel = (range: TimeRange, now: Date): string => {
+	if (!range.startedAfter || !range.startedBefore) {
+		return "Custom";
+	}
 	const from = dayjs(range.startedAfter);
-	if (sameDay(range.startedAfter, range.startedBefore)) {
+	const to = range.startedBefore;
+	if (sameDay(range.startedAfter, to)) {
 		return from.format(MONTH_DAY);
 	}
-	if (sameDay(range.startedBefore, now)) {
+	if (sameDay(to, now)) {
 		return `${from.format(MONTH_DAY)} - Today`;
 	}
 	if (
-		range.startedAfter.getFullYear() === range.startedBefore.getFullYear() &&
-		range.startedAfter.getMonth() === range.startedBefore.getMonth()
+		range.startedAfter.getFullYear() === to.getFullYear() &&
+		range.startedAfter.getMonth() === to.getMonth()
 	) {
-		return `${from.format(MONTH_DAY)} - ${range.startedBefore.getDate()}`;
+		return `${from.format(MONTH_DAY)} - ${to.getDate()}`;
 	}
-	return `${from.format(MONTH_DAY)} - ${dayjs(range.startedBefore).format(MONTH_DAY)}`;
+	return `${from.format(MONTH_DAY)} - ${dayjs(to).format(MONTH_DAY)}`;
 };
