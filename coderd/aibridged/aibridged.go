@@ -192,7 +192,7 @@ func (s *Server) Serve(ctx context.Context, req Request, rw http.ResponseWriter,
 
 	err := s.requestBridgePool.Serve(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.tracer, s.Client), rw, r)
 	if err != nil {
-		return xerrors.Errorf("acquire request bridge: %w", err)
+		return xerrors.Errorf("serve request bridge: %w", err)
 	}
 
 	return nil

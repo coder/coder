@@ -56,17 +56,17 @@ func (mr *MockPoolerMockRecorder) ReplaceProviders(providers any) *gomock.Call {
 }
 
 // Serve mocks base method.
-func (m *MockPooler) Serve(ctx context.Context, req aibridged.Request, clientFn aibridged.ClientFunc, mcpBootstrapper aibridged.MCPProxyBuilder, rw http.ResponseWriter, r *http.Request) error {
+func (m *MockPooler) Serve(ctx context.Context, req aibridged.Request, clientFn aibridged.ClientFunc, mcpProxyFactory aibridged.MCPProxyBuilder, rw http.ResponseWriter, r *http.Request) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Serve", ctx, req, clientFn, mcpBootstrapper, rw, r)
+	ret := m.ctrl.Call(m, "Serve", ctx, req, clientFn, mcpProxyFactory, rw, r)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Serve indicates an expected call of Serve.
-func (mr *MockPoolerMockRecorder) Serve(ctx, req, clientFn, mcpBootstrapper, rw, r any) *gomock.Call {
+func (mr *MockPoolerMockRecorder) Serve(ctx, req, clientFn, mcpProxyFactory, rw, r any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Serve", reflect.TypeOf((*MockPooler)(nil).Serve), ctx, req, clientFn, mcpBootstrapper, rw, r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Serve", reflect.TypeOf((*MockPooler)(nil).Serve), ctx, req, clientFn, mcpProxyFactory, rw, r)
 }
 
 // Shutdown mocks base method.

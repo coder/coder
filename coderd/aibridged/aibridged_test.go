@@ -238,10 +238,10 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 				// Should pass authorization and budget check.
 				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
-				// But fail when acquiring a pool instance.
+				// But fail when serving a pool instance.
 				pool.EXPECT().Serve(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(xerrors.New("oops"))
 			},
-			expectedErr:    aibridged.ErrAcquireRequestHandler,
+			expectedErr:    aibridged.ErrServeRequestHandler,
 			expectedStatus: http.StatusInternalServerError,
 		},
 	}

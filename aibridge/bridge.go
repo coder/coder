@@ -77,8 +77,8 @@ type RequestBridge struct {
 	inflightReqs atomic.Int32
 	inflightWG   sync.WaitGroup // For graceful shutdown.
 
-	// inflightMu orders inflightWG.Add (ServeHTTP, read-held) before
-	// close(b.closed) (Shutdown, write-held), so Add never races Wait.
+	// inflightMu orders inflightWG.Add (admit, read-held) before
+	// close(b.closed) (Retire, write-held), so Add never races Wait.
 	inflightMu sync.RWMutex
 
 	inflightCtx    context.Context
@@ -448,8 +448,10 @@ func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Retire prevents new requests from being admitted. Already admitted requests
-// continue until they complete or a shutdown context cancels them.
+// Retire prevents new requests from being admitted. Requests already admitted
+// run to completion; Retire does not cancel them. Use Shutdown with a canceled
+// context to cut them short. Every Retire must be followed by a Shutdown so the
+// MCP proxy is released.
 func (b *RequestBridge) Retire() {
 	b.retireOnce.Do(func() {
 		// Close under inflightMu so no request sits mid-admission.

@@ -57,19 +57,19 @@ func TestPool(t *testing.T) {
 	// This is part of the lifecycle.
 	mcpProxy.EXPECT().Shutdown(gomock.Any()).AnyTimes().Return(nil)
 
-	// Acquiring a pool instance will create one the first time it sees an
-	// initiator ID...
+	// Serving a request for an initiator ID will create a bridge the first time
+	// it is seen...
 	req1 := aibridged.Request{
 		SessionKey:  "key",
 		InitiatorID: id,
 		APIKeyID:    apiKeyID1.String(),
 	}
 	err = servePool(t.Context(), pool, req1, clientFn, newMockMCPFactory(mcpProxy))
-	require.NoError(t, err, "acquire pool instance")
+	require.NoError(t, err, "serve pool instance")
 
-	// ...and it will reuse it when acquired again.
+	// ...and it will reuse it when served again.
 	err = servePool(t.Context(), pool, req1, clientFn, newMockMCPFactory(mcpProxy))
-	require.NoError(t, err, "acquire pool instance")
+	require.NoError(t, err, "serve pool instance")
 
 	cacheMetrics := pool.CacheMetrics()
 	require.EqualValues(t, 1, cacheMetrics.KeysAdded())
@@ -87,7 +87,7 @@ func TestPool(t *testing.T) {
 		APIKeyID:    apiKeyID1.String(),
 	}
 	err = servePool(t.Context(), pool, req2, clientFn, newMockMCPFactory(mcpProxy))
-	require.NoError(t, err, "acquire pool instance")
+	require.NoError(t, err, "serve pool instance")
 
 	cacheMetrics = pool.CacheMetrics()
 	require.EqualValues(t, 2, cacheMetrics.KeysAdded())
@@ -105,7 +105,7 @@ func TestPool(t *testing.T) {
 		APIKeyID:    apiKeyID2.String(),
 	}
 	err = servePool(t.Context(), pool, req2B, clientFn, newMockMCPFactory(mcpProxy))
-	require.NoError(t, err, "acquire pool instance 2B")
+	require.NoError(t, err, "serve pool instance 2B")
 
 	cacheMetrics = pool.CacheMetrics()
 	require.EqualValues(t, 3, cacheMetrics.KeysAdded())
@@ -114,7 +114,7 @@ func TestPool(t *testing.T) {
 	require.EqualValues(t, 3, cacheMetrics.Misses())
 }
 
-func TestPoolReplaceProvidersClearsCacheAndUsesNewProviders(t *testing.T) {
+func TestPoolReplaceProvidersUsesNewProviders(t *testing.T) {
 	t.Parallel()
 
 	oldUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -232,7 +232,7 @@ func TestPoolReplaceProvidersDuringCachePublication(t *testing.T) {
 	require.Equal(t, "new", result.body)
 }
 
-func TestPoolReplaceProvidersDoesNotJoinStaleSingleflight(t *testing.T) {
+func TestPoolReplaceProvidersDoesNotJoinStaleBuild(t *testing.T) {
 	t.Parallel()
 
 	oldUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -265,10 +265,10 @@ func TestPoolReplaceProvidersDoesNotJoinStaleSingleflight(t *testing.T) {
 	}
 
 	factory := newBlockingMCPFactory()
-	firstDone := make(chan acquireResult, 1)
+	firstDone := make(chan serveResult, 1)
 	go func() {
 		err := servePool(t.Context(), pool, req, clientFn, factory)
-		firstDone <- acquireResult{err: err}
+		firstDone <- serveResult{err: err}
 	}()
 
 	require.Eventually(t, factory.firstBuildStarted, testutil.WaitShort, testutil.IntervalFast)
@@ -277,13 +277,18 @@ func TestPoolReplaceProvidersDoesNotJoinStaleSingleflight(t *testing.T) {
 		aibridge.NewOpenAIProvider(config.OpenAI{Name: "new", BaseURL: newUpstream.URL}),
 	})
 
-	secondDone := make(chan acquireResult, 1)
+	// The second serve is concurrent with ReplaceProviders. It must be routed
+	// through the new provider, not the stale bridge being built by the first
+	// serve. Capture its recorder body and assert on it directly.
+	secondDone := make(chan serveResult, 1)
 	go func() {
-		err := servePool(t.Context(), pool, req, clientFn, factory)
-		secondDone <- acquireResult{err: err}
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, "/new/v1/models", nil).WithContext(t.Context())
+		err := pool.Serve(t.Context(), req, clientFn, factory, rw, r)
+		secondDone <- serveResult{err: err, code: rw.Code, body: rw.Body.String()}
 	}()
 
-	var second acquireResult
+	var second serveResult
 	require.Eventually(t, func() bool {
 		select {
 		case second = <-secondDone:
@@ -293,10 +298,11 @@ func TestPoolReplaceProvidersDoesNotJoinStaleSingleflight(t *testing.T) {
 		}
 	}, testutil.WaitShort, testutil.IntervalFast)
 	require.NoError(t, second.err)
-	assertPoolBody(t, pool, req, clientFn, factory, "/new/v1/models", "new")
+	require.Equal(t, http.StatusOK, second.code)
+	require.Equal(t, "new", second.body)
 
 	close(factory.releaseFirst)
-	var first acquireResult
+	var first serveResult
 	require.Eventually(t, func() bool {
 		select {
 		case first = <-firstDone:
@@ -364,11 +370,11 @@ func TestPool_Expiry(t *testing.T) {
 
 		ctx := t.Context()
 
-		// First acquire is a cache miss.
+		// First serve is a cache miss.
 		err = servePool(ctx, pool, req, clientFn, newMockMCPFactory(mcpProxy))
 		require.NoError(t, err)
 
-		// Second acquire is a cache hit.
+		// Second serve is a cache hit.
 		err = servePool(ctx, pool, req, clientFn, newMockMCPFactory(mcpProxy))
 		require.NoError(t, err)
 
@@ -379,7 +385,7 @@ func TestPool_Expiry(t *testing.T) {
 		// TTL expires
 		time.Sleep(ttl + time.Millisecond)
 
-		// Third acquire is a cache miss because the entry expired.
+		// Third serve is a cache miss because the entry expired.
 		err = servePool(ctx, pool, req, clientFn, newMockMCPFactory(mcpProxy))
 		require.NoError(t, err)
 
@@ -456,7 +462,8 @@ func TestPoolShutdownReplaceProviders(t *testing.T) {
 
 	clientFn := func(context.Context) (aibridged.DRPCClient, error) { return client, nil }
 
-	// Populate the cache so ReplaceProviders' Clear has an entry to evict.
+	// Populate the cache so ReplaceProviders' generation retirement has an
+	// entry to retire.
 	err = servePool(ctx, pool, aibridged.Request{
 		SessionKey:  "key",
 		InitiatorID: uuid.New(),
@@ -494,8 +501,10 @@ func (m *mockMCPFactory) Build(ctx context.Context, req aibridged.Request, trace
 	return m.proxy, nil
 }
 
-type acquireResult struct {
-	err error
+type serveResult struct {
+	err  error
+	code int
+	body string
 }
 
 type blockingMCPFactory struct {

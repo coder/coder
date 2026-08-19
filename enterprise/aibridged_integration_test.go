@@ -287,8 +287,8 @@ func TestIntegration(t *testing.T) {
 	// Then: verify tracing spans were recorded.
 	spans := sr.Ended()
 	require.NotEmpty(t, spans)
-	i := slices.IndexFunc(spans, func(s sdktrace.ReadOnlySpan) bool { return s.Name() == "CachedBridgePool.Acquire" })
-	require.NotEqual(t, -1, i, "span named 'CachedBridgePool.Acquire' not found")
+	i := slices.IndexFunc(spans, func(s sdktrace.ReadOnlySpan) bool { return s.Name() == "CachedBridgePool.Serve" })
+	require.NotEqual(t, -1, i, "span named 'CachedBridgePool.Serve' not found")
 
 	expectAttrs := []attribute.KeyValue{
 		attribute.String(aibtracing.InitiatorID, user.ID.String()),
@@ -303,7 +303,7 @@ func TestIntegration(t *testing.T) {
 	}
 
 	expectedAibridgeSpans := []string{
-		"CachedBridgePool.Acquire",
+		"CachedBridgePool.Serve",
 		"ServerProxyManager.Init",
 		"StreamableHTTPServerProxy.Init",
 		"StreamableHTTPServerProxy.Init.fetchTools",
