@@ -18,7 +18,10 @@ type ChatIconConfig = {
 
 const statusConfig = {
 	waiting: { icon: CheckIcon, className: "text-content-secondary" },
-	running: { icon: Loader2Icon, className: "text-content-link animate-spin" },
+	running: {
+		icon: Loader2Icon,
+		className: "text-content-link animate-spin motion-reduce:animate-none",
+	},
 	interrupting: { icon: PauseIcon, className: "text-content-warning" },
 	requires_action: { icon: PauseIcon, className: "text-content-warning" },
 	error: { icon: AlertTriangleIcon, className: "text-content-destructive" },
