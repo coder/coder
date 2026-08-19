@@ -28,6 +28,7 @@ import type { ProviderState } from "#/modules/aiModels/providerStates";
 import {
 	GeneralModelConfigFields,
 	ModelConfigFields,
+	PricingEstimateFields,
 	ReasoningEffortConfigFields,
 } from "#/pages/AgentsPage/components/ChatModelAdminPanel/ModelConfigFields";
 import { ModelIdentifierField } from "#/pages/AgentsPage/components/ChatModelAdminPanel/ModelIdentifierField";
@@ -101,6 +102,8 @@ export const ModelFormFields: FC<{
 	displayNameField: FormHelpers;
 	setDefaultDisabled: boolean;
 	modelConfigFormBuildResult: ModelConfigFormBuildResult;
+	showCostEstimate: boolean;
+	setShowCostEstimate: (open: boolean) => void;
 	showProviderConfig: boolean;
 	setShowProviderConfig: (open: boolean) => void;
 	showAdvanced: boolean;
@@ -124,6 +127,8 @@ export const ModelFormFields: FC<{
 	displayNameField,
 	setDefaultDisabled,
 	modelConfigFormBuildResult,
+	showCostEstimate,
+	setShowCostEstimate,
 	showProviderConfig,
 	setShowProviderConfig,
 	showAdvanced,
@@ -239,6 +244,19 @@ export const ModelFormFields: FC<{
 				</div>
 
 				<div className="overflow-hidden rounded-lg border border-solid border-border">
+					<CollapsibleSection
+						title="Cost estimate"
+						description="Estimated price per million tokens in USD. Prices are read-only."
+						open={showCostEstimate}
+						onOpenChange={setShowCostEstimate}
+						contentClassName="grid grid-cols-2 gap-3 pt-3 pl-6 sm:grid-cols-4"
+					>
+						<PricingEstimateFields
+							provider={selectedProviderType}
+							model={form.values.model}
+						/>
+					</CollapsibleSection>
+
 					{hasProviderConfigFields && (
 						<CollapsibleSection
 							title="Provider configuration"
