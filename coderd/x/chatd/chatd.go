@@ -5238,10 +5238,10 @@ func (p *Server) refreshMCPTokenIfNeeded(
 		expiry = sql.NullTime{Time: result.Expiry, Valid: true}
 	}
 
-	//nolint:gocritic // Chatd needs system-level write access to
-	// persist the refreshed OAuth2 token for the user.
+	// The chatd subject has no personal-write access; persist the
+	// refresh as a subject scoped to this token's owner.
 	updated, err := p.db.UpdateMCPServerUserTokenFromRefresh(
-		dbauthz.AsSystemRestricted(ctx),
+		dbauthz.AsChatdTokenOwner(ctx, tok.UserID),
 		database.UpdateMCPServerUserTokenFromRefreshParams{
 			ID:                tok.ID,
 			UpdatedAt:         tok.UpdatedAt,
@@ -5256,9 +5256,8 @@ func (p *Server) refreshMCPTokenIfNeeded(
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			// A disconnect or re-authentication can win the optimistic update.
-			//nolint:gocritic // Reading the winning token requires system access.
 			current, readErr := p.db.GetMCPServerUserToken(
-				dbauthz.AsSystemRestricted(ctx),
+				ctx,
 				database.GetMCPServerUserTokenParams{
 					MCPServerConfigID: tok.MCPServerConfigID,
 					UserID:            tok.UserID,
@@ -5315,10 +5314,10 @@ func (p *Server) markMCPTokenRefreshFailure(
 		slog.Error(refreshErr),
 	)
 
-	//nolint:gocritic // Chatd needs system-level write access to
-	// persist the refresh failure for the user.
+	// The chatd subject has no personal-write access; persist the
+	// failure as a subject scoped to this token's owner.
 	marked, err := p.db.MarkMCPServerUserTokenRefreshFailure(
-		dbauthz.AsSystemRestricted(ctx),
+		dbauthz.AsChatdTokenOwner(ctx, tok.UserID),
 		database.MarkMCPServerUserTokenRefreshFailureParams{
 			ID:                        tok.ID,
 			UpdatedAt:                 tok.UpdatedAt,
@@ -5333,10 +5332,8 @@ func (p *Server) markMCPTokenRefreshFailure(
 		// Optimistic lock miss: a concurrent request refreshed or
 		// replaced the token after we read it, so our failure is
 		// stale. Use the winner's row instead.
-		//nolint:gocritic // Chatd needs system-level read access to
-		// load the concurrently updated token.
 		current, readErr := p.db.GetMCPServerUserToken(
-			dbauthz.AsSystemRestricted(ctx),
+			ctx,
 			database.GetMCPServerUserTokenParams{
 				MCPServerConfigID: tok.MCPServerConfigID,
 				UserID:            tok.UserID,

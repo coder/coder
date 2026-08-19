@@ -2369,6 +2369,14 @@ func (m queryMetricsStore) GetMCPServerUserToken(ctx context.Context, arg databa
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetMCPServerUserTokenByID(ctx context.Context, id uuid.UUID) (database.MCPServerUserToken, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerUserTokenByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetMCPServerUserTokenByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerUserTokenByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]database.MCPServerUserToken, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetMCPServerUserTokensByUserID(ctx, userID)

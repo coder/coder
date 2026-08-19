@@ -812,6 +812,17 @@ func (db *dbCrypt) GetMCPServerUserToken(ctx context.Context, arg database.GetMC
 	return tok, nil
 }
 
+func (db *dbCrypt) GetMCPServerUserTokenByID(ctx context.Context, id uuid.UUID) (database.MCPServerUserToken, error) {
+	tok, err := db.Store.GetMCPServerUserTokenByID(ctx, id)
+	if err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	if err := db.decryptMCPServerUserToken(&tok); err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	return tok, nil
+}
+
 func (db *dbCrypt) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, params database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
 	// The query clears the encrypted token fields, so nothing needs
 	// encrypting; decrypt the returned row for consistency with the

@@ -494,6 +494,29 @@ var (
 		}.WithCachedASTValue()
 	}
 
+	// MCP token refresh writes use this owner-scoped subject so the shared
+	// chatd context cannot update arbitrary users' personal data. Reads use
+	// the daemon-wide chatd subject.
+	subjectChatdTokenOwner = func(userID uuid.UUID) rbac.Subject {
+		return rbac.Subject{
+			Type:         rbac.SubjectTypeChatdTokenOwner,
+			FriendlyName: "Chatd Token Owner",
+			ID:           userID.String(),
+			Roles: rbac.Roles([]rbac.Role{
+				{
+					Identifier:  rbac.RoleIdentifier{Name: "chatdtokenowner"},
+					DisplayName: "Chatd Token Owner",
+					Site:        []rbac.Permission{},
+					User: rbac.Permissions(map[string][]policy.Action{
+						rbac.ResourceUser.Type: {policy.ActionUpdatePersonal},
+					}),
+					ByOrgID: map[string]rbac.OrgPermissions{},
+				},
+			}),
+			Scope: rbac.ScopeAll,
+		}.WithCachedASTValue()
+	}
+
 	subjectSystemRestricted = rbac.Subject{
 		Type:         rbac.SubjectTypeSystemRestricted,
 		FriendlyName: "System",
@@ -795,7 +818,10 @@ var (
 					rbac.ResourceWorkspace.Type:        {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
 					rbac.ResourceMCPServerConfig.Type:  {policy.ActionRead},
-					rbac.ResourceUser.Type:             {policy.ActionReadPersonal},
+					// Site-wide UpdatePersonal would let chatd write any
+					// user's personal data; token writes use the per-user
+					// AsChatdTokenOwner subject instead.
+					rbac.ResourceUser.Type: {policy.ActionReadPersonal},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -928,6 +954,12 @@ func AsAPIKeyRevoker(ctx context.Context, userID uuid.UUID) context.Context {
 // gateway API key owned by the specified user.
 func AsChatdKeyMinter(ctx context.Context, userID uuid.UUID) context.Context {
 	return As(ctx, subjectChatdKeyMinter(userID))
+}
+
+// AsChatdTokenOwner returns a context with an actor that persists MCP
+// OAuth2 token refresh results for the specified token owner only.
+func AsChatdTokenOwner(ctx context.Context, userID uuid.UUID) context.Context {
+	return As(ctx, subjectChatdTokenOwner(userID))
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions
@@ -2295,10 +2327,9 @@ func (q *querier) DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) e
 }
 
 func (q *querier) DeleteMCPServerUserToken(ctx context.Context, arg database.DeleteMCPServerUserTokenParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.DeleteMCPServerUserToken(ctx, arg)
+	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, func(ctx context.Context, arg database.DeleteMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
+		return q.db.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams(arg))
+	}, q.db.DeleteMCPServerUserToken)(ctx, arg)
 }
 
 func (q *querier) DeleteMCPServerUserTokensByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error {
@@ -4082,17 +4113,15 @@ func (q *querier) GetMCPServerConfigsByOrganization(ctx context.Context, organiz
 }
 
 func (q *querier) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.MCPServerUserToken{}, err
-	}
-	return q.db.GetMCPServerUserToken(ctx, arg)
+	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetMCPServerUserToken)(ctx, arg)
+}
+
+func (q *querier) GetMCPServerUserTokenByID(ctx context.Context, id uuid.UUID) (database.MCPServerUserToken, error) {
+	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetMCPServerUserTokenByID)(ctx, id)
 }
 
 func (q *querier) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]database.MCPServerUserToken, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return nil, err
-	}
-	return q.db.GetMCPServerUserTokensByUserID(ctx, userID)
+	return fetchWithPostFilter(q.auth, policy.ActionReadPersonal, q.db.GetMCPServerUserTokensByUserID)(ctx, userID)
 }
 
 func (q *querier) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx context.Context) (database.WorkspaceBuildOrchestration, error) {
@@ -6990,10 +7019,10 @@ func (q *querier) MarkChatsContextDirtyByAgent(ctx context.Context, arg database
 }
 
 func (q *querier) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.MCPServerUserToken{}, err
+	fetch := func(ctx context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
+		return q.db.GetMCPServerUserTokenByID(ctx, arg.ID)
 	}
-	return q.db.MarkMCPServerUserTokenRefreshFailure(ctx, arg)
+	return fetchAndQuery(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.MarkMCPServerUserTokenRefreshFailure)(ctx, arg)
 }
 
 func (q *querier) OIDCClaimFieldValues(ctx context.Context, args database.OIDCClaimFieldValuesParams) ([]string, error) {
@@ -7685,10 +7714,10 @@ func (q *querier) UpdateMCPServerConfigACLByID(ctx context.Context, arg database
 }
 
 func (q *querier) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.MCPServerUserToken{}, err
+	fetch := func(ctx context.Context, arg database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
+		return q.db.GetMCPServerUserTokenByID(ctx, arg.ID)
 	}
-	return q.db.UpdateMCPServerUserTokenFromRefresh(ctx, arg)
+	return fetchAndQuery(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.UpdateMCPServerUserTokenFromRefresh)(ctx, arg)
 }
 
 func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
@@ -9040,10 +9069,7 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 }
 
 func (q *querier) UpsertMCPServerUserToken(ctx context.Context, arg database.UpsertMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.MCPServerUserToken{}, err
-	}
-	return q.db.UpsertMCPServerUserToken(ctx, arg)
+	return insertWithAction(q.log, q.auth, rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal, q.db.UpsertMCPServerUserToken)(ctx, arg)
 }
 
 func (q *querier) UpsertNotificationReportGeneratorLog(ctx context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {

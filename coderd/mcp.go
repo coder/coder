@@ -61,12 +61,7 @@ func newOIDCMCPTokenSource(db database.Store, config promoauth.OAuth2Config, log
 	}
 }
 
-// OIDCAccessToken implements mcpclient.UserOIDCTokenSource. It
-// refreshes expired tokens and persists the refreshed token back
-// to user_links. The chatd dbauthz subject does not grant
-// ResourceSystem.Read or ResourceUser.UpdatePersonal, so DB calls
-// elevate to AsSystemRestricted; the per-user authorization is
-// already enforced by the API handler that owns ctx.
+// OIDCAccessToken refreshes and persists the user's OIDC token.
 func (s *oidcMCPTokenSource) OIDCAccessToken(ctx context.Context, userID uuid.UUID) (string, error) {
 	//nolint:gocritic // user_links read needs system access; the
 	// caller's user identity is supplied via the userID parameter.
@@ -219,17 +214,20 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Look up the calling user's OAuth2 tokens so we can populate
-	// auth_connected per server. Attempt to refresh expired tokens
-	// so the status is accurate and the token is ready for use.
-	//nolint:gocritic // Token authorization is handled separately from config RBAC.
-	userTokens, err := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get user tokens.",
-			Detail:  err.Error(),
-		})
-		return
+	// Read and refresh OAuth2 tokens only when the caller may view them.
+	// Without that permission, auth_connected remains false.
+	var userTokens []database.MCPServerUserToken
+	tokenReadErr := api.HTTPAuth.Authorizer.Authorize(ctx, httpmw.UserAuthorization(ctx),
+		policy.ActionReadPersonal, rbac.ResourceUserObject(apiKey.UserID).RBACObject())
+	if tokenReadErr == nil {
+		userTokens, err = api.Database.GetMCPServerUserTokensByUserID(ctx, apiKey.UserID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to get user tokens.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	// Build a config lookup for the refresh helper.
@@ -549,17 +547,17 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		sdkConfig = convertMCPServerConfigRedacted(config)
 	}
 
-	// Populate AuthConnected for the calling user. Attempt to
-	// refresh the token so the status is accurate.
+	// Refresh readable token state so AuthConnected reflects the current
+	// OAuth status.
 	if config.AuthType == "oauth2" {
-		//nolint:gocritic // Token authorization is handled separately from config RBAC.
-		tok, err := api.Database.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
+		tok, err := api.Database.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{
 			MCPServerConfigID: config.ID,
 			UserID:            apiKey.UserID,
 		})
 		if err == nil {
 			sdkConfig.AuthConnected = api.refreshMCPUserToken(ctx, config, tok)
-		} else if !errors.Is(err, sql.ErrNoRows) {
+			// Token visibility is separately scoped, so denial means disconnected here.
+		} else if !errors.Is(err, sql.ErrNoRows) && !dbauthz.IsNotAuthorizedError(err) {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to get user token.",
 				Detail:  err.Error(),
@@ -1062,6 +1060,12 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Do not start an authorization flow when its grant cannot be persisted.
+	if !api.Authorize(r, policy.ActionUpdatePersonal, rbac.ResourceUserObject(httpmw.APIKey(r).UserID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	// Build the authorization URL. The frontend opens this in a popup.
 	// The callback URL is on our server; after the exchange we store
 	// the token and close the popup.
@@ -1132,6 +1136,14 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
+
+	// Authorization codes are one-time credentials. Do not consume one when
+	// the resulting token cannot be persisted.
+	if !api.Authorize(r, policy.ActionUpdatePersonal, rbac.ResourceUserObject(apiKey.UserID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	config, err := api.Database.GetMCPServerConfigByID(ctx, mcpServerID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
@@ -1273,8 +1285,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 			current.OAuth2ClientID != config.OAuth2ClientID {
 			return errMCPConfigSupersededDuringAuth
 		}
-		//nolint:gocritic // Users store their own tokens.
-		_, err = tx.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+		_, err = tx.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
 			MCPServerConfigID: config.ID,
 			UserID:            apiKey.UserID,
 			AccessToken:       token.AccessToken,
@@ -1336,15 +1347,19 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	//nolint:gocritic // Users manage their own tokens.
-	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	if !api.Authorize(r, policy.ActionUpdatePersonal, rbac.ResourceUserObject(apiKey.UserID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	var (
 		config database.MCPServerConfig
 		token  database.MCPServerUserToken
 	)
 	// Serializable isolation keeps the revoked token aligned with the row deleted locally.
 	err := api.Database.InTx(func(tx database.Store) error {
-		dbToken, err := tx.GetMCPServerUserToken(systemCtx, database.GetMCPServerUserTokenParams{
+		//nolint:gocritic // Update permission permits this revocation read.
+		dbToken, err := tx.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
 			MCPServerConfigID: configID,
 			UserID:            apiKey.UserID,
 		})
@@ -1356,11 +1371,12 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 		// system context keeps disconnect available to token owners
 		// who can no longer read the config, such as users removed
 		// from the organization.
-		dbConfig, err := tx.GetMCPServerConfigByID(systemCtx, configID)
+		//nolint:gocritic // Token owners keep disconnect access without config read.
+		dbConfig, err := tx.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), configID)
 		if err != nil {
 			return err
 		}
-		if err := tx.DeleteMCPServerUserToken(systemCtx, database.DeleteMCPServerUserTokenParams{
+		if err := tx.DeleteMCPServerUserToken(ctx, database.DeleteMCPServerUserTokenParams{
 			MCPServerConfigID: configID,
 			UserID:            apiKey.UserID,
 		}); err != nil {
@@ -1375,6 +1391,10 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 			// Nonexistent config IDs take the same path, so they
 			// cannot be probed either.
 			httpapi.Write(ctx, rw, http.StatusOK, codersdk.MCPServerOAuth2DisconnectResponse{})
+			return
+		}
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1447,10 +1467,13 @@ func (api *API) refreshMCPUserToken(
 			expiry = sql.NullTime{Time: result.Expiry, Valid: true}
 		}
 
-		//nolint:gocritic // Need system-level write access to
-		// persist the refreshed OAuth2 token.
+		// The caller can read the token, but a read-only key cannot persist refresh
+		// results. System access permits storing rotated credentials after a
+		// successful refresh.
+		//nolint:gocritic // Token refresh persistence follows an authorized read of the same token.
+		persistCtx := dbauthz.AsSystemRestricted(ctx)
 		_, err = api.Database.UpdateMCPServerUserTokenFromRefresh(
-			dbauthz.AsSystemRestricted(ctx),
+			persistCtx,
 			database.UpdateMCPServerUserTokenFromRefreshParams{
 				ID:                tok.ID,
 				UpdatedAt:         tok.UpdatedAt,
@@ -1484,7 +1507,7 @@ func (api *API) currentMCPUserTokenConnected(
 	ctx context.Context,
 	tok database.MCPServerUserToken,
 ) (bool, error) {
-	//nolint:gocritic // Reading the current token requires system access.
+	//nolint:gocritic // Refresh reconciliation follows an authorized read of the same token.
 	current, err := api.Database.GetMCPServerUserToken(
 		dbauthz.AsSystemRestricted(ctx),
 		database.GetMCPServerUserTokenParams{
@@ -1513,8 +1536,7 @@ func (api *API) markMCPTokenRefreshFailure(
 	tok database.MCPServerUserToken,
 	refreshErr error,
 ) bool {
-	//nolint:gocritic // Need system-level write access to persist
-	// the refresh failure.
+	//nolint:gocritic // Refresh failure recording follows an authorized read of the same token.
 	_, err := api.Database.MarkMCPServerUserTokenRefreshFailure(
 		dbauthz.AsSystemRestricted(ctx),
 		database.MarkMCPServerUserTokenRefreshFailureParams{

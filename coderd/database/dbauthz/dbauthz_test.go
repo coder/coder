@@ -1638,13 +1638,15 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteMCPServerConfigByID(gomock.Any(), config.ID).Return(nil).AnyTimes()
 		check.Args(config.ID).Asserts(config, policy.ActionDelete)
 	}))
-	s.Run("DeleteMCPServerUserToken", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("DeleteMCPServerUserToken", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.DeleteMCPServerUserTokenParams{
 			MCPServerConfigID: uuid.New(),
 			UserID:            uuid.New(),
 		}
+		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{MCPServerConfigID: arg.MCPServerConfigID, UserID: arg.UserID})
+		dbm.EXPECT().GetMCPServerUserToken(gomock.Any(), database.GetMCPServerUserTokenParams(arg)).Return(token, nil).AnyTimes()
 		dbm.EXPECT().DeleteMCPServerUserToken(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+		check.Args(arg).Asserts(token, policy.ActionUpdatePersonal)
 	}))
 	s.Run("DeleteMCPServerUserTokensByConfigID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
@@ -1716,13 +1718,19 @@ func (s *MethodTestSuite) TestChats() {
 		}
 		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{MCPServerConfigID: arg.MCPServerConfigID, UserID: arg.UserID})
 		dbm.EXPECT().GetMCPServerUserToken(gomock.Any(), arg).Return(token, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(token)
+		check.Args(arg).Asserts(token, policy.ActionReadPersonal).Returns(token)
+	}))
+	s.Run("GetMCPServerUserTokenByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{})
+		dbm.EXPECT().GetMCPServerUserTokenByID(gomock.Any(), token.ID).Return(token, nil).AnyTimes()
+		check.Args(token.ID).Asserts(token, policy.ActionReadPersonal).Returns(token)
 	}))
 	s.Run("GetMCPServerUserTokensByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		userID := uuid.New()
-		tokens := []database.MCPServerUserToken{testutil.Fake(s.T(), faker, database.MCPServerUserToken{UserID: userID})}
-		dbm.EXPECT().GetMCPServerUserTokensByUserID(gomock.Any(), userID).Return(tokens, nil).AnyTimes()
-		check.Args(userID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(tokens)
+		tokenA := testutil.Fake(s.T(), faker, database.MCPServerUserToken{UserID: userID})
+		tokenB := testutil.Fake(s.T(), faker, database.MCPServerUserToken{UserID: userID})
+		dbm.EXPECT().GetMCPServerUserTokensByUserID(gomock.Any(), userID).Return([]database.MCPServerUserToken{tokenA, tokenB}, nil).AnyTimes()
+		check.Args(userID).Asserts(tokenA, policy.ActionReadPersonal, tokenB, policy.ActionReadPersonal).OutOfOrder().Returns([]database.MCPServerUserToken{tokenA, tokenB})
 	}))
 	s.Run("InsertMCPServerConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.InsertMCPServerConfigParams{
@@ -1803,8 +1811,9 @@ func (s *MethodTestSuite) TestChats() {
 			AccessToken: "refreshed-access-token",
 			TokenType:   "bearer",
 		}
+		dbm.EXPECT().GetMCPServerUserTokenByID(gomock.Any(), token.ID).Return(token, nil).AnyTimes()
 		dbm.EXPECT().UpdateMCPServerUserTokenFromRefresh(gomock.Any(), arg).Return(token, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(token)
+		check.Args(arg).Asserts(token, policy.ActionUpdatePersonal).Returns(token)
 	}))
 	s.Run("UpsertMCPServerUserToken", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.UpsertMCPServerUserTokenParams{
@@ -1815,7 +1824,7 @@ func (s *MethodTestSuite) TestChats() {
 		}
 		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{MCPServerConfigID: arg.MCPServerConfigID, UserID: arg.UserID})
 		dbm.EXPECT().UpsertMCPServerUserToken(gomock.Any(), arg).Return(token, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(token)
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal).Returns(token)
 	}))
 	s.Run("MarkMCPServerUserTokenRefreshFailure", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{})
@@ -1824,8 +1833,9 @@ func (s *MethodTestSuite) TestChats() {
 			UpdatedAt:                 token.UpdatedAt,
 			OauthRefreshFailureReason: "invalid_grant",
 		}
+		dbm.EXPECT().GetMCPServerUserTokenByID(gomock.Any(), token.ID).Return(token, nil).AnyTimes()
 		dbm.EXPECT().MarkMCPServerUserTokenRefreshFailure(gomock.Any(), arg).Return(token, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(token)
+		check.Args(arg).Asserts(token, policy.ActionUpdatePersonal).Returns(token)
 	}))
 }
 
@@ -7602,9 +7612,18 @@ func TestAsChatd(t *testing.T) {
 		err = auth.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceDeploymentConfig)
 		require.Error(t, err, "deployment config update should not be allowed")
 
-		// User read_personal (needed for GetUserChatCustomPrompt).
-		err = auth.Authorize(ctx, actor, policy.ActionReadPersonal, rbac.ResourceUser)
-		require.NoError(t, err, "user read_personal should be allowed")
+		// Pin the complete ResourceUser action set: read_personal (user
+		// chat custom prompts) only. Token refresh persistence uses the
+		// per-user AsChatdTokenOwner subject, so a future site-wide
+		// personal-write grant fails here.
+		for _, action := range rbac.ResourceUser.AvailableActions() {
+			err := auth.Authorize(ctx, actor, action, rbac.ResourceUser)
+			if action == policy.ActionReadPersonal {
+				require.NoError(t, err, "user %s should be allowed", action)
+			} else {
+				require.Error(t, err, "user %s should be denied", action)
+			}
+		}
 	})
 
 	t.Run("DeniedActions", func(t *testing.T) {
