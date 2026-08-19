@@ -28,6 +28,7 @@ import (
 	aibridgemetrics "github.com/coder/coder/v2/aibridge/metrics"
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clilog"
+	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	coderdtracing "github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -68,6 +69,9 @@ var aiGatewayInheritedEnvs = map[string]struct{}{
 	"CODER_TRACE_ENABLE":            {},
 	"CODER_TRACE_HONEYCOMB_API_KEY": {},
 	"CODER_TRACE_LOGS":              {},
+
+	// Config
+	"CODER_CONFIG_PATH": {},
 
 	// AI Gateway
 	"CODER_AI_GATEWAY_ALLOW_BYOK":                        {},
@@ -111,6 +115,10 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			signalCtx, stop := inv.SignalNotifyContext(inv.Context(), agpl.StopSignals...)
 			defer stop()
+
+			if vals.Config != "" {
+				cliui.Warnf(inv.Stderr, "YAML support is experimental and offers no compatibility guarantees.")
+			}
 
 			resolvedKey, err := resolveAIGatewayKey(key, keyFile)
 			if err != nil {
