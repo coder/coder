@@ -2964,7 +2964,10 @@ WITH usage AS (
 			WHEN jsonb_typeof(ai.annotations -> 'capabilities') = 'array'
 			THEN ai.annotations -> 'capabilities'
 			ELSE '[]'::jsonb
-		END) AS capability_sets
+		END) AS capability_sets,
+		-- The whole annotation object per interception, so optional columns can
+		-- be projected from any annotation key without a query change.
+		JSONB_AGG(DISTINCT ai.annotations) AS annotation_sets
 	FROM aibridge_token_usages tu
 	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
 	JOIN users ON users.id = ai.initiator_id
@@ -3003,7 +3006,8 @@ SELECT
 		SELECT STRING_AGG(DISTINCT capability.value, ';' ORDER BY capability.value)
 		FROM jsonb_array_elements(usage.capability_sets) AS capability_set(value),
 			jsonb_array_elements_text(capability_set.value) AS capability(value)
-	), '')::text AS capabilities
+	), '')::text AS capabilities,
+	usage.annotation_sets::jsonb AS annotation_sets
 FROM usage
 ORDER BY usage.user_id, usage.group_id, usage.provider, usage.provider_name, usage.model
 `
@@ -3015,21 +3019,22 @@ type ExportOrganizationAISpendParams struct {
 }
 
 type ExportOrganizationAISpendRow struct {
-	UserID           uuid.UUID     `db:"user_id" json:"user_id"`
-	Username         string        `db:"username" json:"username"`
-	GroupID          uuid.NullUUID `db:"group_id" json:"group_id"`
-	GroupName        string        `db:"group_name" json:"group_name"`
-	OrganizationID   uuid.UUID     `db:"organization_id" json:"organization_id"`
-	OrganizationName string        `db:"organization_name" json:"organization_name"`
-	Model            string        `db:"model" json:"model"`
-	Provider         string        `db:"provider" json:"provider"`
-	ProviderName     string        `db:"provider_name" json:"provider_name"`
-	InputTokens      int64         `db:"input_tokens" json:"input_tokens"`
-	OutputTokens     int64         `db:"output_tokens" json:"output_tokens"`
-	CacheReadTokens  int64         `db:"cache_read_tokens" json:"cache_read_tokens"`
-	CacheWriteTokens int64         `db:"cache_write_tokens" json:"cache_write_tokens"`
-	CostMicros       int64         `db:"cost_micros" json:"cost_micros"`
-	Capabilities     string        `db:"capabilities" json:"capabilities"`
+	UserID           uuid.UUID       `db:"user_id" json:"user_id"`
+	Username         string          `db:"username" json:"username"`
+	GroupID          uuid.NullUUID   `db:"group_id" json:"group_id"`
+	GroupName        string          `db:"group_name" json:"group_name"`
+	OrganizationID   uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OrganizationName string          `db:"organization_name" json:"organization_name"`
+	Model            string          `db:"model" json:"model"`
+	Provider         string          `db:"provider" json:"provider"`
+	ProviderName     string          `db:"provider_name" json:"provider_name"`
+	InputTokens      int64           `db:"input_tokens" json:"input_tokens"`
+	OutputTokens     int64           `db:"output_tokens" json:"output_tokens"`
+	CacheReadTokens  int64           `db:"cache_read_tokens" json:"cache_read_tokens"`
+	CacheWriteTokens int64           `db:"cache_write_tokens" json:"cache_write_tokens"`
+	CostMicros       int64           `db:"cost_micros" json:"cost_micros"`
+	Capabilities     string          `db:"capabilities" json:"capabilities"`
+	AnnotationSets   json.RawMessage `db:"annotation_sets" json:"annotation_sets"`
 }
 
 // Returns per-user, per-group, per-model, per-provider aggregated AI spend for
@@ -3066,6 +3071,7 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 			&i.CacheWriteTokens,
 			&i.CostMicros,
 			&i.Capabilities,
+			&i.AnnotationSets,
 		); err != nil {
 			return nil, err
 		}
