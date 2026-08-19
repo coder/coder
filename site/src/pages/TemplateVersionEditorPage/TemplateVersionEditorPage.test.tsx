@@ -31,15 +31,6 @@ import TemplateVersionEditorPage, {
 
 const { API } = apiModule;
 
-// For some reason this component in Jest is throwing a MUI style warning so,
-// since we don't need it for this test, we can mock it out
-vi.mock(
-	"modules/templates/TemplateResourcesTable/TemplateResourcesTable",
-	() => ({
-		TemplateResourcesTable: () => <div></div>,
-	}),
-);
-
 // Monaco is a large and complicated codebase that slows tests down and we don't
 // need to test.
 vi.mock("#/pages/TemplateVersionEditorPage/MonacoEditor", () => ({

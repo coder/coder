@@ -221,6 +221,15 @@ token volume. Consider:
 - Capping spend with [AI Gateway budgets](./platform-controls/spend-management.md).
 - Monitoring provider dashboards for usage trends during the evaluation.
 
+### Plan for concurrency limits
+
+Community licenses run up to 5 agents at once.
+Additional agents queue and start automatically when capacity frees.
+Premium licenses with Agent Hours do not impose a concurrency limit unless the Agent Hours hard limit is reached.
+If the Agent Hours allocation is exhausted without a configured hard limit, Coder warns about usage but does not impose a concurrency limit.
+When the Agent Hours hard limit is reached, additional agents queue under the concurrency limit.
+Refer to [Concurrent agents](./platform-controls/index.md#concurrent-agents) for details.
+
 ### Pilot with a small group
 
 Identify 3–5 developers and a few concrete use cases for the initial rollout.

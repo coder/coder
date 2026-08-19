@@ -834,15 +834,8 @@ func createWorkspace(
 			ProvisionerJob: *provisionerJob,
 			QueuePosition:  0,
 		},
-		[]database.WorkspaceResource{},
-		[]database.WorkspaceResourceMetadatum{},
-		[]database.WorkspaceAgent{},
-		[]database.WorkspaceApp{},
-		[]database.WorkspaceAppStatus{},
-		[]database.GetWorkspaceAgentScriptsByAgentIDsRow{},
-		[]database.WorkspaceAgentLogSource{},
+		newWorkspaceBuildIndex(nil, nil, nil, nil, nil, nil, nil, provisionerDaemons),
 		database.TemplateVersion{},
-		provisionerDaemons,
 	)
 	if err != nil {
 		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{

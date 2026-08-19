@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 import { MockPermissions } from "#/testHelpers/entities";
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 
@@ -24,7 +24,7 @@ const meta: Meta<typeof AppearanceSettingsPageView> = {
 			],
 		},
 		isEntitled: false,
-		permissions: MockPermissions,
+		canViewPremium: MockPermissions.viewAllLicenses,
 	},
 };
 
@@ -35,11 +35,17 @@ export const Entitled: Story = {
 	args: {
 		isEntitled: true,
 	},
-	play: async () => {
-		// The badge is passive: hovering it must not surface a paywall.
-		await userEvent.hover(screen.getByText("Enterprise"));
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
 		await expect(
-			screen.queryByRole("link", { name: "Learn more about premium" }),
+			canvas.getByRole("form", { name: "Appearance settings" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("heading", { name: "Announcement Banners" }),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -50,12 +56,18 @@ export const NotEntitled: Story = {
 
 		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+		await expect(
+			canvas.queryByRole("form", { name: "Appearance settings" }),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("heading", { name: "Announcement Banners" }),
+		).not.toBeInTheDocument();
 	},
 };
 
 export const NotEntitledWithoutLicenseAccess: Story = {
 	args: {
-		permissions: { ...MockPermissions, viewAllLicenses: false },
+		canViewPremium: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

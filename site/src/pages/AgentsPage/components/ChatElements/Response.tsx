@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import {
 	File as FileViewer,
 	type SupportedLanguages,
@@ -11,6 +10,7 @@ import {
 	type UrlTransform,
 } from "streamdown";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { useTheme } from "#/theme/context";
 import { cn } from "#/utils/cn";
 import { MarkdownImage } from "./MarkdownImage";
 
