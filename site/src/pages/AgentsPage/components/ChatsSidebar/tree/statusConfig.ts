@@ -59,8 +59,10 @@ const subagentsStatusConfig: Partial<Record<ChatStatus, ChatIconConfig>> = {
 		label: "Idle, has subagents",
 	},
 	running: {
+		// The icon animates its own arcs (independent rotation), so no
+		// animate-spin on the svg element here.
 		icon: SubagentsLoaderIcon,
-		className: "text-content-link animate-spin",
+		className: "text-content-link",
 		label: "Working, has subagents",
 	},
 };
