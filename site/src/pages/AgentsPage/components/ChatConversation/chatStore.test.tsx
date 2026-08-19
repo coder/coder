@@ -3039,8 +3039,11 @@ describe("useChatStore", () => {
 		expect(liveStatus.hasAccumulatedOutput).toBe(false);
 	});
 
-	// Parts that arrive during or after the error must not restore the stream.
-	it("does not re-populate the stream from late parts after a terminal error", async () => {
+	// A part already queued from the errored turn can still arrive after the
+	// error and repopulate the stream. This is accepted because the gate that
+	// would drop it cannot tell it apart from a part belonging to the next
+	// turn. The error status and callout are preserved either way.
+	it("keeps the error status when a late part arrives after a terminal error", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 
 		const chatID = "chat-error-late-parts";
@@ -3076,6 +3079,7 @@ describe("useChatStore", () => {
 				return {
 					chatStatus: useChatSelector(store, selectChatStatus),
 					streamState: useChatSelector(store, selectStreamState),
+					streamError: useChatSelector(store, selectStreamError),
 				};
 			},
 			{ wrapper },
@@ -3085,38 +3089,24 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
-		// Send an error and a part in the same frame. The part must be dropped.
 		act(() => {
-			mockSocket.emitDataBatch([
-				{
-					type: "error",
-					chat_id: chatID,
-					error: {
-						message: "The chat session ended unexpectedly.",
-						kind: "generic",
-						retryable: false,
-					},
+			mockSocket.emitData({
+				type: "error",
+				chat_id: chatID,
+				error: {
+					message: "The chat session ended unexpectedly.",
+					kind: "generic",
+					retryable: false,
 				},
-				{
-					type: "message_part",
-					chat_id: chatID,
-					message_part: {
-						part: {
-							type: "tool-call",
-							tool_call_id: "create-workspace-1",
-							tool_name: "create_workspace",
-							args: { name: "dev" },
-						},
-					},
-				},
-			]);
+			});
 		});
 
-		await act(async () => {
-			vi.advanceTimersByTime(1);
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("error");
+			expect(result.current.streamState).toBeNull();
 		});
 
-		// A part in a later frame must also be dropped.
+		// A late part from the errored turn arrives in a later frame.
 		act(() => {
 			mockSocket.emitData({
 				type: "message_part",
@@ -3131,14 +3121,22 @@ describe("useChatStore", () => {
 			vi.advanceTimersByTime(1);
 		});
 
+		// The part is kept and the error status and callout are preserved.
 		await waitFor(() => {
-			expect(result.current.chatStatus).toBe("error");
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "late partial output" },
+			]);
 		});
-		expect(result.current.streamState).toBeNull();
+		expect(result.current.chatStatus).toBe("error");
+		expect(result.current.streamError).toMatchObject({
+			kind: "generic",
+			message: "The chat session ended unexpectedly.",
+		});
 	});
 
-	// The error drops late parts. The next turn must stream again once a new
-	// status event arrives.
+	// The next turn must stream again after an error. Its first part can
+	// arrive before its running status because the server sends parts and
+	// status on separate paths, so the part must be kept either way.
 	it("re-enables streaming parts on the next turn after a terminal error", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 
@@ -3201,22 +3199,26 @@ describe("useChatStore", () => {
 			expect(result.current.streamState).toBeNull();
 		});
 
-		act(() => {
-			mockSocket.emitData({
-				type: "status",
-				chat_id: chatID,
-				status: { status: "running" },
-			});
-		});
-
+		// The next turn's first part arrives before its running status.
 		act(() => {
 			mockSocket.emitData({
 				type: "message_part",
 				chat_id: chatID,
 				message_part: {
-					role: "assistant",
 					part: { type: "text", text: "retry output" },
 				},
+			});
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(1);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
 			});
 		});
 

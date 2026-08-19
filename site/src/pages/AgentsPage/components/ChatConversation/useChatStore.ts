@@ -642,9 +642,10 @@ export const useChatStore = (
 								message: "Chat processing failed.",
 							};
 							// An error ends the turn. Clear the partial
-							// stream so no tool keeps spinning.
+							// stream so no tool keeps spinning. Parts stay
+							// ungated because the next turn can send a part
+							// before its running status.
 							discardBufferedParts();
-							streamReportedWaiting = true;
 							wsStatusReceivedRef.current = true;
 							store.applyServerChatStatus("error");
 							store.setStreamError(reason);
