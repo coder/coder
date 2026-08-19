@@ -1308,7 +1308,7 @@ func TestRefreshToken(t *testing.T) {
 		require.Equal(t, final.RefreshLeaseExpiresAt.Valid, acquired.RefreshLeaseExpiresAt.Valid)
 	})
 
-	t.Run("LeaseDeletedLink", func(t *testing.T) {
+	t.Run("LeaseMissingLink", func(t *testing.T) {
 		t.Parallel()
 
 		db, _ := dbtestutil.NewDB(t)
@@ -1330,8 +1330,22 @@ func TestRefreshToken(t *testing.T) {
 			},
 		})
 
-		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitLong), fake.HTTPClient(nil))
-		_, err := config.RefreshToken(ctx, db, link)
+		// Insert another link to ensure the link acquisition function's select
+		// fallback matches on the right provider/user.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := db.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
+			ProviderID:        "decoy-provider",
+			UserID:            uuid.New(),
+			CreatedAt:         dbtime.Now(),
+			UpdatedAt:         dbtime.Now(),
+			OAuthAccessToken:  "x",
+			OAuthRefreshToken: "x",
+			OAuthExpiry:       dbtime.Now().Add(time.Hour),
+		})
+		require.NoError(t, err)
+
+		ctx = oidc.ClientContext(ctx, fake.HTTPClient(nil))
+		_, err = config.RefreshToken(ctx, db, link)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 

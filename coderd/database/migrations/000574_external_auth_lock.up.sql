@@ -19,7 +19,7 @@ BEGIN
 		RETURN;
 	END IF;
 	-- Differentiate between unable to get the lease and the row being gone.
-	IF EXISTS (SELECT 1 FROM external_auth_links WHERE arg_provider_id = arg_provider_id AND user_id = user_id) THEN
+	IF EXISTS (SELECT 1 FROM external_auth_links WHERE provider_id = arg_provider_id AND user_id = arg_user_id) THEN
 		RAISE EXCEPTION 'row is currently leased by another replica'
 			USING ERRCODE = 'check_violation',
 				CONSTRAINT = 'external_auth_link_active_lease';
