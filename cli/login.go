@@ -148,6 +148,7 @@ func (r *RootCmd) login() *serpent.Command {
 		name               string
 		password           string
 		trial              bool
+		trialInfo          codersdk.CreateFirstUserTrialInfo
 		useTokenForSession bool
 	)
 	cmd := &serpent.Command{
@@ -280,49 +281,9 @@ func (r *RootCmd) login() *serpent.Command {
 					trial = v == "yes" || v == "y"
 				}
 
-				var trialInfo codersdk.CreateFirstUserTrialInfo
 				if trial {
-					if trialInfo.FirstName == "" {
-						trialInfo.FirstName, err = promptTrialInfo(inv, "firstName")
-						if err != nil {
-							return err
-						}
-					}
-					if trialInfo.LastName == "" {
-						trialInfo.LastName, err = promptTrialInfo(inv, "lastName")
-						if err != nil {
-							return err
-						}
-					}
-					if trialInfo.PhoneNumber == "" {
-						trialInfo.PhoneNumber, err = promptTrialInfo(inv, "phoneNumber")
-						if err != nil {
-							return err
-						}
-					}
-					if trialInfo.JobTitle == "" {
-						trialInfo.JobTitle, err = promptTrialInfo(inv, "jobTitle")
-						if err != nil {
-							return err
-						}
-					}
-					if trialInfo.CompanyName == "" {
-						trialInfo.CompanyName, err = promptTrialInfo(inv, "companyName")
-						if err != nil {
-							return err
-						}
-					}
-					if trialInfo.Country == "" {
-						trialInfo.Country, err = promptCountry(inv)
-						if err != nil {
-							return err
-						}
-					}
-					if trialInfo.Developers == "" {
-						trialInfo.Developers, err = promptDevelopers(inv)
-						if err != nil {
-							return err
-						}
+					if err := collectFirstUserTrialInfo(inv, &trialInfo); err != nil {
+						return err
 					}
 				}
 
@@ -476,6 +437,48 @@ func (r *RootCmd) login() *serpent.Command {
 			Value:       serpent.BoolOf(&trial),
 		},
 		{
+			Flag:        "first-user-trial-first-name",
+			Env:         "CODER_FIRST_USER_TRIAL_FIRST_NAME",
+			Description: "Specifies the first name of the first user for the deployment. Only used if --first-user-trial is set.",
+			Value:       serpent.StringOf(&trialInfo.FirstName),
+		},
+		{
+			Flag:        "first-user-trial-last-name",
+			Env:         "CODER_FIRST_USER_TRIAL_LAST_NAME",
+			Description: "Specifies the last name of the first user for the deployment. Only used if --first-user-trial is set.",
+			Value:       serpent.StringOf(&trialInfo.LastName),
+		},
+		{
+			Flag:        "first-user-trial-phone-number",
+			Env:         "CODER_FIRST_USER_TRIAL_PHONE_NUMBER",
+			Description: "Specifies the phone number of the first user for the deployment. Only used if --first-user-trial is set.",
+			Value:       serpent.StringOf(&trialInfo.PhoneNumber),
+		},
+		{
+			Flag:        "first-user-trial-job-title",
+			Env:         "CODER_FIRST_USER_TRIAL_JOB_TITLE",
+			Description: "Specifies the job title of the first user for the deployment. Only used if --first-user-trial is set.",
+			Value:       serpent.StringOf(&trialInfo.JobTitle),
+		},
+		{
+			Flag:        "first-user-trial-company-name",
+			Env:         "CODER_FIRST_USER_TRIAL_COMPANY_NAME",
+			Description: "Specifies the company name of the first user for the deployment. Only used if --first-user-trial is set.",
+			Value:       serpent.StringOf(&trialInfo.CompanyName),
+		},
+		{
+			Flag:        "first-user-trial-country",
+			Env:         "CODER_FIRST_USER_TRIAL_COUNTRY",
+			Description: "Specifies the country of the first user for the deployment. Only used if --first-user-trial is set.",
+			Value:       serpent.StringOf(&trialInfo.Country),
+		},
+		{
+			Flag:        "first-user-trial-developers",
+			Env:         "CODER_FIRST_USER_TRIAL_DEVELOPERS",
+			Description: "Specifies the number of developers using the deployment. Only used if --first-user-trial is set.",
+			Value:       serpent.StringOf(&trialInfo.Developers),
+		},
+		{
 			Flag:        "use-token-as-session",
 			Description: "By default, the CLI will generate a new session token when logging in. This flag will instead use the provided token as the session token.",
 			Value:       serpent.BoolOf(&useTokenForSession),
@@ -578,6 +581,65 @@ func openURL(inv *serpent.Invocation, urlToOpen string) error {
 	}
 
 	return browser.OpenURL(urlToOpen)
+}
+
+// collectFirstUserTrialInfo fills in any trial info fields that were not
+// already supplied via CLI flags or environment variables by prompting for
+// them. In non-interactive environments (for example automation scripts)
+// there is no input to read, so a prompt fails with io.EOF. Rather than
+// surfacing that cryptic error, collectFirstUserTrialInfo returns a message
+// naming the flag and environment variable that must be set instead.
+func collectFirstUserTrialInfo(inv *serpent.Invocation, info *codersdk.CreateFirstUserTrialInfo) error {
+	textFields := []struct {
+		name  string
+		flag  string
+		env   string
+		value *string
+	}{
+		{"firstName", "first-user-trial-first-name", "CODER_FIRST_USER_TRIAL_FIRST_NAME", &info.FirstName},
+		{"lastName", "first-user-trial-last-name", "CODER_FIRST_USER_TRIAL_LAST_NAME", &info.LastName},
+		{"phoneNumber", "first-user-trial-phone-number", "CODER_FIRST_USER_TRIAL_PHONE_NUMBER", &info.PhoneNumber},
+		{"jobTitle", "first-user-trial-job-title", "CODER_FIRST_USER_TRIAL_JOB_TITLE", &info.JobTitle},
+		{"companyName", "first-user-trial-company-name", "CODER_FIRST_USER_TRIAL_COMPANY_NAME", &info.CompanyName},
+	}
+	for _, f := range textFields {
+		if *f.value != "" {
+			continue
+		}
+		value, err := promptTrialInfo(inv, f.name)
+		if err != nil {
+			return trialInfoPromptError(err, f.flag, f.env)
+		}
+		*f.value = value
+	}
+
+	if info.Country == "" {
+		country, err := promptCountry(inv)
+		if err != nil {
+			return trialInfoPromptError(err, "first-user-trial-country", "CODER_FIRST_USER_TRIAL_COUNTRY")
+		}
+		info.Country = country
+	}
+
+	if info.Developers == "" {
+		developers, err := promptDevelopers(inv)
+		if err != nil {
+			return trialInfoPromptError(err, "first-user-trial-developers", "CODER_FIRST_USER_TRIAL_DEVELOPERS")
+		}
+		info.Developers = developers
+	}
+
+	return nil
+}
+
+// trialInfoPromptError converts an EOF from an interactive trial-info prompt
+// into an actionable error naming the flag and environment variable to set.
+// Other errors are returned unchanged.
+func trialInfoPromptError(err error, flag, env string) error {
+	if errors.Is(err, io.EOF) {
+		return xerrors.Errorf("--%s (or %s) is required when --first-user-trial is set in a non-interactive environment", flag, env)
+	}
+	return err
 }
 
 func promptTrialInfo(inv *serpent.Invocation, fieldName string) (string, error) {
