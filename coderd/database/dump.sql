@@ -937,15 +937,6 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION delete_usage_events_publish_failure() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    DELETE FROM usage_events_publish_failures WHERE event_id = NEW.id;
-    RETURN NULL;
-END;
-$$;
-
 CREATE FUNCTION delete_user_ai_budget_overrides_on_group_member_delete() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1330,6 +1321,31 @@ END;
 $$;
 
 COMMENT ON FUNCTION provisioner_tagset_contains(provisioner_tags tagset, job_tags tagset) IS 'Returns true if the provisioner_tags contains the job_tags, or if the job_tags represents an untagged provisioner and the superset is exactly equal to the subset.';
+
+CREATE FUNCTION record_usage_events_publish_failure() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    INSERT INTO usage_events_publish_failures (event_id, inserted_at, created_at)
+    VALUES (NEW.id, NEW.inserted_at, NEW.created_at)
+    ON CONFLICT (event_id) DO NOTHING;
+    RETURN NULL;
+END;
+$$;
+
+CREATE FUNCTION record_usage_events_publish_outcome() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    DELETE FROM usage_events_publish_failures WHERE event_id = NEW.id;
+    IF NEW.failure_message IS NOT NULL THEN
+        INSERT INTO usage_events_publish_rejections (event_id, published_at)
+        VALUES (NEW.id, NEW.published_at)
+        ON CONFLICT (event_id) DO NOTHING;
+    END IF;
+    RETURN NULL;
+END;
+$$;
 
 CREATE FUNCTION record_user_status_change() RETURNS trigger
     LANGUAGE plpgsql
@@ -3604,6 +3620,13 @@ CREATE TABLE usage_events_publish_failures (
 
 COMMENT ON TABLE usage_events_publish_failures IS 'Usage events whose most recent publish attempt left them unpublished. Maintained by the publisher with each batch outcome; read by publish failure detection to find the oldest failing event without scanning the usage_events backlog.';
 
+CREATE TABLE usage_events_publish_rejections (
+    event_id text NOT NULL,
+    published_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE usage_events_publish_rejections IS 'Usage events tallyman permanently rejected. Maintained by a trigger on usage_events; read by publish failure detection to find recent rejections without scanning usage_events.';
+
 CREATE TABLE user_ai_budget_overrides (
     user_id uuid NOT NULL,
     group_id uuid NOT NULL,
@@ -4573,6 +4596,9 @@ ALTER TABLE ONLY usage_events
 ALTER TABLE ONLY usage_events_publish_failures
     ADD CONSTRAINT usage_events_publish_failures_pkey PRIMARY KEY (event_id);
 
+ALTER TABLE ONLY usage_events_publish_rejections
+    ADD CONSTRAINT usage_events_publish_rejections_pkey PRIMARY KEY (event_id);
+
 ALTER TABLE ONLY user_ai_budget_overrides
     ADD CONSTRAINT user_ai_budget_overrides_pkey PRIMARY KEY (user_id);
 
@@ -4933,6 +4959,8 @@ CREATE INDEX idx_usage_events_publish_failures_created_at ON usage_events_publis
 
 CREATE INDEX idx_usage_events_publish_failures_inserted_at ON usage_events_publish_failures USING btree (inserted_at);
 
+CREATE INDEX idx_usage_events_publish_rejections_published_at ON usage_events_publish_rejections USING btree (published_at);
+
 CREATE INDEX idx_usage_events_select_for_publishing ON usage_events USING btree (published_at, publish_started_at, created_at);
 
 CREATE INDEX idx_user_ai_provider_keys_ai_provider_id ON user_ai_provider_keys USING btree (ai_provider_id);
@@ -5117,8 +5145,6 @@ CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE O
 
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
 
-CREATE TRIGGER trigger_delete_usage_events_publish_failure AFTER UPDATE OF published_at ON usage_events FOR EACH ROW WHEN (((new.published_at IS NOT NULL) AND (old.published_at IS NULL))) EXECUTE FUNCTION delete_usage_events_publish_failure();
-
 CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_group_member_delete BEFORE DELETE ON group_members FOR EACH ROW EXECUTE FUNCTION delete_user_ai_budget_overrides_on_group_member_delete();
 
 CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_user_ai_budget_overrides_on_org_member_delete();
@@ -5130,6 +5156,10 @@ CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXE
 CREATE TRIGGER trigger_insert_organization_system_roles AFTER INSERT ON organizations FOR EACH ROW EXECUTE FUNCTION insert_organization_system_roles();
 
 CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modificati AFTER UPDATE ON workspaces FOR EACH ROW EXECUTE FUNCTION nullify_next_start_at_on_workspace_autostart_modification();
+
+CREATE TRIGGER trigger_record_usage_events_publish_failure AFTER UPDATE OF publish_started_at ON usage_events FOR EACH ROW WHEN (((new.published_at IS NULL) AND (new.failure_message IS NOT NULL) AND (old.publish_started_at IS NOT NULL) AND (new.publish_started_at IS NULL))) EXECUTE FUNCTION record_usage_events_publish_failure();
+
+CREATE TRIGGER trigger_record_usage_events_publish_outcome AFTER UPDATE OF published_at ON usage_events FOR EACH ROW WHEN (((new.published_at IS NOT NULL) AND (old.published_at IS NULL))) EXECUTE FUNCTION record_usage_events_publish_outcome();
 
 CREATE TRIGGER trigger_set_chat_message_revision_on_insert BEFORE INSERT ON chat_messages FOR EACH ROW EXECUTE FUNCTION set_chat_message_revision_before();
 
@@ -5468,6 +5498,9 @@ ALTER TABLE ONLY templates
 
 ALTER TABLE ONLY usage_events_publish_failures
     ADD CONSTRAINT usage_events_publish_failures_event_id_fkey FOREIGN KEY (event_id) REFERENCES usage_events(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY usage_events_publish_rejections
+    ADD CONSTRAINT usage_events_publish_rejections_event_id_fkey FOREIGN KEY (event_id) REFERENCES usage_events(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_ai_budget_overrides
     ADD CONSTRAINT user_ai_budget_overrides_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;

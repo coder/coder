@@ -9445,6 +9445,20 @@ func (mr *MockStoreMockRecorder) PruneUsageEventsPublishFailures(ctx, windowStar
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PruneUsageEventsPublishFailures", reflect.TypeOf((*MockStore)(nil).PruneUsageEventsPublishFailures), ctx, windowStart)
 }
 
+// PruneUsageEventsPublishRejections mocks base method.
+func (m *MockStore) PruneUsageEventsPublishRejections(ctx context.Context, rejectedBefore time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PruneUsageEventsPublishRejections", ctx, rejectedBefore)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PruneUsageEventsPublishRejections indicates an expected call of PruneUsageEventsPublishRejections.
+func (mr *MockStoreMockRecorder) PruneUsageEventsPublishRejections(ctx, rejectedBefore any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PruneUsageEventsPublishRejections", reflect.TypeOf((*MockStore)(nil).PruneUsageEventsPublishRejections), ctx, rejectedBefore)
+}
+
 // ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate mocks base method.
 func (m *MockStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	m.ctrl.T.Helper()

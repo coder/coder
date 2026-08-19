@@ -6594,6 +6594,11 @@ func (s *MethodTestSuite) TestUsageEvents() {
 		db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil)
 		check.Args(time.Time{}).Asserts(rbac.ResourceUsageEvent, policy.ActionUpdate)
 	}))
+
+	s.Run("PruneUsageEventsPublishRejections", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().PruneUsageEventsPublishRejections(gomock.Any(), gomock.Any()).Return(nil)
+		check.Args(time.Time{}).Asserts(rbac.ResourceUsageEvent, policy.ActionUpdate)
+	}))
 }
 
 // Ensures that the prebuilds actor may never insert an api key.

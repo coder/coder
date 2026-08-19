@@ -4199,6 +4199,37 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
 	})
 
+	t.Run("OldWriterFailureRecordedByTrigger", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
+
+		// A replica running an older release reports a temporary failure
+		// with a plain post-publish update, knowing nothing about the
+		// failures relation. The schema trigger records the failure row,
+		// so detection warns even after fresh backfills displace the row
+		// beyond the queue-front probe (simulated here by the fresh
+		// in-flight attempt).
+		now := time.Now()
+		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), time.Time{}, "")
+		markEventsInFlight(ctx, t, db, now)
+		err := db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
+			Now:             now,
+			IDs:             []string{"1"},
+			FailureMessages: []string{"temporarily rejected"},
+			SetPublishedAts: []bool{false},
+		})
+		require.NoError(t, err)
+		markEventsInFlight(ctx, t, db, now)
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.Contains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.NotNil(t, entitlements.UsagePublishing.FailingSince)
+		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
+	})
+
 	t.Run("StalledReplicaCannotRecordPublishedEvent", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()

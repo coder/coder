@@ -247,6 +247,7 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 	).AnyTimes()
 	db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().PruneUsageEventsPublishRejections(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 
 	// Configure the deployment manually.
@@ -410,6 +411,7 @@ func TestPublisherMissingEvents(t *testing.T) {
 	).AnyTimes()
 	db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().PruneUsageEventsPublishRejections(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	deploymentID, licenseJWT := configureMockDeployment(t, db)
 	clock := quartz.NewMock(t)
 	now := time.Now()
@@ -493,6 +495,7 @@ func TestPublisherLicenseSelection(t *testing.T) {
 	).AnyTimes()
 	db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().PruneUsageEventsPublishRejections(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()
 
@@ -637,6 +640,7 @@ func TestPublisherTallymanError(t *testing.T) {
 	).AnyTimes()
 	db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().PruneUsageEventsPublishRejections(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()
 	clock.Set(now)
@@ -789,6 +793,7 @@ func TestPublisherTallymanTimeout(t *testing.T) {
 		},
 	).AnyTimes()
 	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().PruneUsageEventsPublishRejections(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()
 	clock.Set(now)
@@ -833,22 +838,17 @@ func TestPublisherTallymanTimeout(t *testing.T) {
 	}
 	db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), gomock.Any()).Return(events, nil).Times(1)
 	// A request that consumed its entire deadline must still persist the
-	// temporary failure and record the failing-events marker entry with the
-	// parent context, or the rows' in-flight attempt markers would hide the
-	// failure from detection until they expire.
+	// temporary failure with the parent context, or the rows' in-flight
+	// attempt markers would hide the failure from detection until they
+	// expire. The failure row itself is recorded by a schema trigger on
+	// this update, so the update running on a live context is the whole
+	// invariant.
 	db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(ctx context.Context, params database.UpdateUsageEventsPostPublishParams) error {
 			assert.NoError(t, ctx.Err(), "post-publish update must not use the expired request context")
 			assert.Equal(t, []string{events[0].ID}, params.IDs)
 			assert.Contains(t, params.FailureMessages[0], "failed to publish to tallyman")
 			assert.Equal(t, []bool{false}, params.SetPublishedAts)
-			return nil
-		},
-	).Times(1)
-	db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, params database.UpsertUsageEventsPublishFailuresParams) error {
-			assert.NoError(t, ctx.Err(), "failure recording must not use the expired request context")
-			assert.Equal(t, []string{events[0].ID}, params.IDs)
 			return nil
 		},
 	).Times(1)

@@ -43,6 +43,10 @@ const (
 	// SelectUsageEventsForPublishing: events older than this are never
 	// published, so their publish-failure rows are pruned.
 	usagePublishingWindow = 30 * 24 * time.Hour
+	// usagePublishRejectionRetention matches the failure threshold in
+	// license.UsagePublishingFailureThreshold: rejections older than this
+	// are no longer recent, so their rows are pruned.
+	usagePublishRejectionRetention = 24 * time.Hour
 )
 
 var errUsagePublishingDisabled = xerrors.New("usage publishing is not enabled by any license")
@@ -232,7 +236,9 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	if len(events) == 0 {
 		// No events to publish. Still prune failure rows whose events aged
 		// out of the publish window; without this an idle publisher would
-		// leave aged rows raising EUP01 forever.
+		// leave aged rows raising EUP01 forever. Rejections need no idle
+		// prune: detection bounds them by rejected_after, so stale rows
+		// only occupy space until the next non-empty cycle.
 		if err := p.db.PruneUsageEventsPublishFailures(selectCtx, dbtime.Time(p.clock.Now().Add(-usagePublishingWindow))); err != nil {
 			p.log.Warn(ctx, "prune usage events publish failures", slog.Error(err))
 		}
@@ -362,44 +368,34 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		}
 	}
 
-	var failedIDs []string
-	for i, id := range dbUpdate.IDs {
-		if !dbUpdate.SetPublishedAts[i] {
-			failedIDs = append(failedIDs, id)
-		}
-	}
-
 	// The post-publish writes get their own bounded context, separate from
 	// the request's (see above) so a request that consumed its entire
 	// deadline still persists its outcome, and separate from the loop's so
-	// a stalled database cannot block it indefinitely. The row update and
-	// the publish-failure bookkeeping commit atomically: publishing an
-	// event (including permanent rejections, which are terminal) deletes
-	// its failure row via a schema trigger so every writer participates,
-	// events left unpublished record theirs, and rows past the publish
-	// window are pruned. Publish failure detection reads
-	// usage_events_publish_failures instead of scanning the unpublished
-	// backlog for failed rows, and because rows are keyed by event ID, a
-	// batch only ever resolves its own events; failures another replica's
-	// rows justify stay recorded until those exact rows publish.
+	// a stalled database cannot block it indefinitely. Schema triggers on
+	// usage_events do the publish-failure bookkeeping atomically with the
+	// row update, so every writer participates: publishing an event
+	// (including permanent rejections, which are terminal and also
+	// recorded as rejections) deletes its failure row, and a concluded
+	// attempt that leaves an event unpublished records one. The update is
+	// followed by bounded prunes of rows past the publish window or
+	// failure threshold. Publish failure detection reads the failures and
+	// rejections relations instead of scanning usage_events, and because
+	// rows are keyed by event ID, a batch only ever resolves its own
+	// events; failures another replica's rows justify stay recorded until
+	// those exact rows publish.
 	updateCtx, updateCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
 	defer updateCtxCancel()
-	windowStart := dbtime.Time(p.clock.Now().Add(-usagePublishingWindow))
+	now := p.clock.Now()
+	windowStart := dbtime.Time(now.Add(-usagePublishingWindow))
 	err = p.db.InTx(func(tx database.Store) error {
 		if err := tx.UpdateUsageEventsPostPublish(updateCtx, dbUpdate); err != nil {
 			return xerrors.Errorf("update usage events post publish: %w", err)
 		}
-		// The insert copies inserted_at/created_at from usage_events and
-		// skips rows no longer unpublished, so a stalled replica cannot
-		// record state that contradicts the database.
-		if err := tx.UpsertUsageEventsPublishFailures(updateCtx, database.UpsertUsageEventsPublishFailuresParams{
-			IDs:         failedIDs,
-			WindowStart: windowStart,
-		}); err != nil {
-			return xerrors.Errorf("upsert usage events publish failures: %w", err)
-		}
 		if err := tx.PruneUsageEventsPublishFailures(updateCtx, windowStart); err != nil {
 			return xerrors.Errorf("prune usage events publish failures: %w", err)
+		}
+		if err := tx.PruneUsageEventsPublishRejections(updateCtx, dbtime.Time(now.Add(-usagePublishRejectionRetention))); err != nil {
+			return xerrors.Errorf("prune usage events publish rejections: %w", err)
 		}
 		return nil
 	}, nil)

@@ -7061,6 +7061,13 @@ func (q *querier) PruneUsageEventsPublishFailures(ctx context.Context, windowSta
 	return q.db.PruneUsageEventsPublishFailures(ctx, windowStart)
 }
 
+func (q *querier) PruneUsageEventsPublishRejections(ctx context.Context, rejectedBefore time.Time) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUsageEvent); err != nil {
+		return err
+	}
+	return q.db.PruneUsageEventsPublishRejections(ctx, rejectedBefore)
+}
+
 func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	template, err := q.db.GetTemplateByID(ctx, templateID)
 	if err != nil {

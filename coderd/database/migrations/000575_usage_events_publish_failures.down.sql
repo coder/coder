@@ -1,3 +1,6 @@
-DROP TRIGGER trigger_delete_usage_events_publish_failure ON usage_events;
-DROP FUNCTION delete_usage_events_publish_failure;
+DROP TRIGGER trigger_record_usage_events_publish_failure ON usage_events;
+DROP FUNCTION record_usage_events_publish_failure;
+DROP TRIGGER trigger_record_usage_events_publish_outcome ON usage_events;
+DROP FUNCTION record_usage_events_publish_outcome;
+DROP TABLE usage_events_publish_rejections;
 DROP TABLE usage_events_publish_failures;

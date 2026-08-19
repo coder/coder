@@ -4985,6 +4985,14 @@ func (m queryMetricsStore) PruneUsageEventsPublishFailures(ctx context.Context, 
 	return r0
 }
 
+func (m queryMetricsStore) PruneUsageEventsPublishRejections(ctx context.Context, rejectedBefore time.Time) error {
+	start := time.Now()
+	r0 := m.s.PruneUsageEventsPublishRejections(ctx, rejectedBefore)
+	m.queryLatencies.WithLabelValues("PruneUsageEventsPublishRejections").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PruneUsageEventsPublishRejections").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, templateID)

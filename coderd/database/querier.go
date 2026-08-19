@@ -914,10 +914,9 @@ type sqlcQuerier interface {
 	//     exited mid-publish, and the publisher considers those rows retryable,
 	//     so the status scan must too or they could stay stuck without warning.
 	//     Events with an active publish failure need no queue-position
-	//     visibility here: the publisher records its failing events in a
-	//     runtime config marker as part of each batch outcome (see
-	//     license.UsagePublishingFailingEventsKey), which failure detection
-	//     folds in without scanning the backlog for failed rows.
+	//     visibility here: schema triggers on usage_events record them in
+	//     usage_events_publish_failures, which the failing CTE below reads
+	//     without scanning the backlog for failed rows.
 	//   - rejected_after: now minus the failure threshold. Permanent rejections
 	//     that happened after this and within the current enabled period are
 	//     considered recent failures; rejections from a prior enabled period
@@ -1372,6 +1371,12 @@ type sqlcQuerier interface {
 	// per cycle, and rows age out no faster than they were once inserted, so
 	// pruning keeps up.
 	PruneUsageEventsPublishFailures(ctx context.Context, windowStart time.Time) error
+	// Deletes rejection rows older than the failure threshold: they no longer
+	// count as recent rejections, so keeping them only grows the relation. The
+	// LIMIT bounds each prune; the publisher runs one per cycle, and rows age
+	// past the threshold no faster than they were once inserted, so pruning
+	// keeps up.
+	PruneUsageEventsPublishRejections(ctx context.Context, rejectedBefore time.Time) error
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
@@ -1737,10 +1742,12 @@ type sqlcQuerier interface {
 	// publisher's 30-day selection window (window_start is now minus 30 days;
 	// older events are never published) gain a failure row. Bounded by the
 	// caller's ID list (at most one publish batch) and served by the primary
-	// key. There is no matching delete query: publishing an event removes its
-	// failure row via trigger_delete_usage_events_publish_failure, so every
-	// writer resolves failures, including replicas running an older release
-	// during a rolling upgrade.
+	// key. This is only needed when the post-publish update itself failed:
+	// ordinarily the schema triggers on usage_events maintain the relation
+	// (trigger_record_usage_events_publish_failure records temporary failures
+	// and trigger_record_usage_events_publish_outcome resolves published
+	// events), so every writer participates, including replicas running an
+	// older release during a rolling upgrade.
 	UpsertUsageEventsPublishFailures(ctx context.Context, arg UpsertUsageEventsPublishFailuresParams) error
 	UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAIBudgetOverride, error)
 	// UpsertUserAIProviderKey preserves the original id and created_at when the

@@ -27,25 +27,78 @@ CREATE INDEX idx_usage_events_publish_failures_inserted_at ON usage_events_publi
 -- window.
 CREATE INDEX idx_usage_events_publish_failures_created_at ON usage_events_publish_failures (created_at);
 
--- Publishing an event resolves its failure row at the schema level so
--- every writer participates: during a rolling upgrade, a replica running
--- an older release can successfully publish an event whose failure row a
--- newer replica recorded, and its pre-upgrade post-publish update knows
--- nothing about this relation. Without the trigger that stale row would
--- keep raising a publish-failure warning until the event aged out of the
--- publish window. Cost is one primary-key delete per newly published row,
--- bounded by the publish batch size.
-CREATE FUNCTION delete_usage_events_publish_failure() RETURNS trigger
+-- Tracks recent permanent rejections, keyed by event ID. Publish failure
+-- detection reports rejections within the failure threshold; reading them
+-- from this tiny indexed relation keeps the probe off the usage_events
+-- table, where the successful-publish workload would otherwise be scanned
+-- (the existing usage_events index does not cover failure_message, and
+-- building a new index there would rewrite or scan a potentially huge
+-- table inside the migration transaction).
+CREATE TABLE usage_events_publish_rejections (
+    event_id text PRIMARY KEY REFERENCES usage_events (id) ON DELETE CASCADE,
+    -- Mirrors usage_events.published_at: when tallyman permanently
+    -- rejected the event. Serves the recent-rejection probe and pruning.
+    published_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE usage_events_publish_rejections IS 'Usage events tallyman permanently rejected. Maintained by a trigger on usage_events; read by publish failure detection to find recent rejections without scanning usage_events.';
+
+CREATE INDEX idx_usage_events_publish_rejections_published_at ON usage_events_publish_rejections (published_at);
+
+-- Publishing an event resolves its failure row and records any permanent
+-- rejection at the schema level so every writer participates: during a
+-- rolling upgrade, a replica running an older release can publish or
+-- permanently reject an event, and its pre-upgrade post-publish update
+-- knows nothing about these relations. Without the trigger a stale
+-- failure row would keep raising a publish-failure warning until the
+-- event aged out of the publish window, and an old writer's permanent
+-- rejection would go undetected. Cost is one primary-key delete (plus one
+-- insert for rejections) per newly published row, bounded by the publish
+-- batch size.
+CREATE FUNCTION record_usage_events_publish_outcome() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
     DELETE FROM usage_events_publish_failures WHERE event_id = NEW.id;
+    IF NEW.failure_message IS NOT NULL THEN
+        INSERT INTO usage_events_publish_rejections (event_id, published_at)
+        VALUES (NEW.id, NEW.published_at)
+        ON CONFLICT (event_id) DO NOTHING;
+    END IF;
     RETURN NULL;
 END;
 $$;
 
-CREATE TRIGGER trigger_delete_usage_events_publish_failure
+CREATE TRIGGER trigger_record_usage_events_publish_outcome
     AFTER UPDATE OF published_at ON usage_events
     FOR EACH ROW
     WHEN (NEW.published_at IS NOT NULL AND OLD.published_at IS NULL)
-    EXECUTE FUNCTION delete_usage_events_publish_failure();
+    EXECUTE FUNCTION record_usage_events_publish_outcome();
+
+-- A concluded publish attempt that leaves the event unpublished with a
+-- failure message is a temporary failure; record it at the schema level so
+-- writers running an older release also gain failure rows during a rolling
+-- upgrade. The condition requires an in-flight attempt to conclude
+-- (publish_started_at transitioning to NULL), which is how every release's
+-- post-publish update reports temporary failures.
+CREATE FUNCTION record_usage_events_publish_failure() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    INSERT INTO usage_events_publish_failures (event_id, inserted_at, created_at)
+    VALUES (NEW.id, NEW.inserted_at, NEW.created_at)
+    ON CONFLICT (event_id) DO NOTHING;
+    RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER trigger_record_usage_events_publish_failure
+    AFTER UPDATE OF publish_started_at ON usage_events
+    FOR EACH ROW
+    WHEN (
+        NEW.published_at IS NULL
+        AND NEW.failure_message IS NOT NULL
+        AND OLD.publish_started_at IS NOT NULL
+        AND NEW.publish_started_at IS NULL
+    )
+    EXECUTE FUNCTION record_usage_events_publish_failure();

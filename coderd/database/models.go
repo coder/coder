@@ -6184,6 +6184,12 @@ type UsageEventsPublishFailure struct {
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 }
 
+// Usage events tallyman permanently rejected. Maintained by a trigger on usage_events; read by publish failure detection to find recent rejections without scanning usage_events.
+type UsageEventsPublishRejection struct {
+	EventID     string    `db:"event_id" json:"event_id"`
+	PublishedAt time.Time `db:"published_at" json:"published_at"`
+}
+
 type User struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	Email          string         `db:"email" json:"email"`

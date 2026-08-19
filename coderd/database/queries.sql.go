@@ -28866,18 +28866,17 @@ SELECT
         ) candidates
         WHERE oldest < $1::timestamptz
     ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_stuck_at,
-    -- The earliest recent permanent rejection. The probe walks
-    -- idx_usage_events_select_for_publishing's leading published_at column
-    -- from rejected_after forward, so its cost is bounded by the events
-    -- published within the failure threshold, which is set by the publish
-    -- rate (hourly heartbeats plus one discrete event per workspace build)
-    -- rather than by table size or backlog.
+    -- The earliest recent permanent rejection, from the dedicated
+    -- rejections relation the publish-outcome trigger maintains (see
+    -- usage_events_publish_rejections). Reading it here instead of
+    -- usage_events keeps the probe off the successful-publish workload:
+    -- the relation holds only rejections, pruning keeps it to the recent
+    -- ones, and idx_usage_events_publish_rejections_published_at serves
+    -- the range.
     COALESCE((
         SELECT MIN(published_at)
-        FROM usage_events
-        WHERE published_at IS NOT NULL
-            AND failure_message IS NOT NULL
-            AND published_at > $2::timestamptz
+        FROM usage_events_publish_rejections
+        WHERE published_at > $2::timestamptz
             AND published_at >= $3::timestamptz
     ), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS earliest_recent_rejection_at
 `
@@ -28928,10 +28927,9 @@ type GetUsagePublishStatusRow struct {
 //     exited mid-publish, and the publisher considers those rows retryable,
 //     so the status scan must too or they could stay stuck without warning.
 //     Events with an active publish failure need no queue-position
-//     visibility here: the publisher records its failing events in a
-//     runtime config marker as part of each batch outcome (see
-//     license.UsagePublishingFailingEventsKey), which failure detection
-//     folds in without scanning the backlog for failed rows.
+//     visibility here: schema triggers on usage_events record them in
+//     usage_events_publish_failures, which the failing CTE below reads
+//     without scanning the backlog for failed rows.
 //   - rejected_after: now minus the failure threshold. Permanent rejections
 //     that happened after this and within the current enabled period are
 //     considered recent failures; rejections from a prior enabled period
@@ -29042,6 +29040,27 @@ WHERE event_id IN (
 // pruning keeps up.
 func (q *sqlQuerier) PruneUsageEventsPublishFailures(ctx context.Context, windowStart time.Time) error {
 	_, err := q.db.ExecContext(ctx, pruneUsageEventsPublishFailures, windowStart)
+	return err
+}
+
+const pruneUsageEventsPublishRejections = `-- name: PruneUsageEventsPublishRejections :exec
+DELETE FROM usage_events_publish_rejections
+WHERE event_id IN (
+    SELECT event_id
+    FROM usage_events_publish_rejections
+    WHERE published_at <= $1::timestamptz
+    ORDER BY published_at ASC
+    LIMIT 1000
+)
+`
+
+// Deletes rejection rows older than the failure threshold: they no longer
+// count as recent rejections, so keeping them only grows the relation. The
+// LIMIT bounds each prune; the publisher runs one per cycle, and rows age
+// past the threshold no faster than they were once inserted, so pruning
+// keeps up.
+func (q *sqlQuerier) PruneUsageEventsPublishRejections(ctx context.Context, rejectedBefore time.Time) error {
+	_, err := q.db.ExecContext(ctx, pruneUsageEventsPublishRejections, rejectedBefore)
 	return err
 }
 
@@ -29188,10 +29207,12 @@ type UpsertUsageEventsPublishFailuresParams struct {
 // publisher's 30-day selection window (window_start is now minus 30 days;
 // older events are never published) gain a failure row. Bounded by the
 // caller's ID list (at most one publish batch) and served by the primary
-// key. There is no matching delete query: publishing an event removes its
-// failure row via trigger_delete_usage_events_publish_failure, so every
-// writer resolves failures, including replicas running an older release
-// during a rolling upgrade.
+// key. This is only needed when the post-publish update itself failed:
+// ordinarily the schema triggers on usage_events maintain the relation
+// (trigger_record_usage_events_publish_failure records temporary failures
+// and trigger_record_usage_events_publish_outcome resolves published
+// events), so every writer participates, including replicas running an
+// older release during a rolling upgrade.
 func (q *sqlQuerier) UpsertUsageEventsPublishFailures(ctx context.Context, arg UpsertUsageEventsPublishFailuresParams) error {
 	_, err := q.db.ExecContext(ctx, upsertUsageEventsPublishFailures, pq.Array(arg.IDs), arg.WindowStart)
 	return err
