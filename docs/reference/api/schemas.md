@@ -7608,7 +7608,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "usage_publishing": {
     "failing_since": "2019-08-24T14:15:22Z",
     "last_published_at": "2019-08-24T14:15:22Z",
-    "publishing_enabled": true
+    "publishing_enabled": true,
+    "status_unavailable": true
   },
   "warnings": [
     "string"
@@ -14678,7 +14679,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "failing_since": "2019-08-24T14:15:22Z",
   "last_published_at": "2019-08-24T14:15:22Z",
-  "publishing_enabled": true
+  "publishing_enabled": true,
+  "status_unavailable": true
 }
 ```
 
@@ -14689,6 +14691,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `failing_since`      | string  | false    |              | Failing since is set when usage event publishing is considered failing. It is the effective start of the current failure: the first failed publish attempt of the oldest stuck event (its insertion time for events that failed before attempt tracking existed, and never earlier than when publishing was most recently enabled), or the earliest recent permanent rejection, whichever is older. |
 | `last_published_at`  | string  | false    |              | Last published at is the time of the latest successful publish of a usage event. It is null if there is no successful publish among the most recent publish outcomes, e.g. because nothing has ever been published or a sustained rejection streak displaced the last success.                                                                                                                      |
 | `publishing_enabled` | boolean | false    |              | Publishing enabled is true if a currently-valid license enables usage event publishing.                                                                                                                                                                                                                                                                                                             |
+| `status_unavailable` | boolean | false    |              | Status unavailable is true when the latest entitlements refresh could not determine the publishing status (e.g. the status query failed). The remaining fields are unknown rather than healthy.                                                                                                                                                                                                     |
 
 ## codersdk.UsageStatsConfig
 
@@ -18745,6 +18748,7 @@ Zero means unspecified. There might be a limit, but the client need not try to r
     "last_published_at": "2019-08-24T14:15:22Z",
     "publishing_enabled": true,
     "severity": "ok",
+    "status_unavailable": true,
     "warnings": [
       {
         "code": "EUNKNOWN",
@@ -19007,6 +19011,7 @@ Zero means unspecified. There might be a limit, but the client need not try to r
   "last_published_at": "2019-08-24T14:15:22Z",
   "publishing_enabled": true,
   "severity": "ok",
+  "status_unavailable": true,
   "warnings": [
     {
       "code": "EUNKNOWN",
@@ -19027,6 +19032,7 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 | `last_published_at`  | string                                    | false    |              | Last published at is the time of the latest successful publish of a usage event. It is null if there is no successful publish among the most recent publish outcomes, e.g. because nothing has ever been published or a sustained rejection streak displaced the last success. |
 | `publishing_enabled` | boolean                                   | false    |              | Publishing enabled is true if a currently-valid license enables usage event publishing.                                                                                                                                                                                        |
 | `severity`           | [health.Severity](#healthseverity)        | false    |              |                                                                                                                                                                                                                                                                                |
+| `status_unavailable` | boolean                                   | false    |              | Status unavailable is true when the latest entitlements refresh could not determine the publishing status; this section's health is unknown rather than OK.                                                                                                                    |
 | `warnings`           | array of [health.Message](#healthmessage) | false    |              |                                                                                                                                                                                                                                                                                |
 
 #### Enumerated Values

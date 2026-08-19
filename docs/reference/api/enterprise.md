@@ -608,7 +608,8 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
   "usage_publishing": {
     "failing_since": "2019-08-24T14:15:22Z",
     "last_published_at": "2019-08-24T14:15:22Z",
-    "publishing_enabled": true
+    "publishing_enabled": true,
+    "status_unavailable": true
   },
   "warnings": [
     "string"

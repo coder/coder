@@ -10286,6 +10286,12 @@ export interface UsagePublishingReport extends BaseReport {
 	 */
 	readonly last_published_at?: string;
 	/**
+	 * StatusUnavailable is true when the latest entitlements refresh could
+	 * not determine the publishing status; this section's health is unknown
+	 * rather than OK.
+	 */
+	readonly status_unavailable?: boolean;
+	/**
 	 * FailingSince is set when usage event publishing is considered failing.
 	 */
 	readonly failing_since?: string;
@@ -10311,6 +10317,12 @@ export interface UsagePublishingStatus {
 	 * or a sustained rejection streak displaced the last success.
 	 */
 	readonly last_published_at?: string;
+	/**
+	 * StatusUnavailable is true when the latest entitlements refresh could
+	 * not determine the publishing status (e.g. the status query failed).
+	 * The remaining fields are unknown rather than healthy.
+	 */
+	readonly status_unavailable?: boolean;
 	/**
 	 * FailingSince is set when usage event publishing is considered failing.
 	 * It is the effective start of the current failure: the first failed

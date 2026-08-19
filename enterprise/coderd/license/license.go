@@ -1152,9 +1152,12 @@ func LicensesEntitlements(
 		case err != nil:
 			// The raw error stays out of the payload: /api/v2/entitlements
 			// is reachable without authentication, so database details must
-			// only go to the logs.
+			// only go to the logs. StatusUnavailable keeps the health
+			// report from presenting the empty status as healthy and
+			// erasing an active warning while the status is unknown.
 			featureArguments.Logger.Error(ctx, "get usage publish status for entitlements", slog.Error(err))
 			entitlements.Errors = append(entitlements.Errors, codersdk.LicenseUsagePublishingStatusUnavailableErrorText)
+			entitlements.UsagePublishing.StatusUnavailable = true
 		default:
 			// The query encodes NULL results as the zero timestamp.
 			if !status.LastPublishedAt.IsZero() {

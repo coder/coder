@@ -56,6 +56,25 @@ func TestUsagePublishing(t *testing.T) {
 		require.Nil(t, report.FailingSince)
 	})
 
+	t.Run("StatusUnavailable", func(t *testing.T) {
+		t.Parallel()
+
+		// A failed status query must not present the empty status as
+		// healthy; that would erase an active failure warning.
+		var report healthcheck.UsagePublishingReport
+		report.Run(context.Background(), &healthcheck.UsagePublishingReportOptions{
+			Entitlements: set(codersdk.UsagePublishingStatus{
+				PublishingEnabled: true,
+				StatusUnavailable: true,
+			}),
+		})
+
+		require.Equal(t, health.SeverityWarning, report.Severity)
+		require.Len(t, report.Warnings, 1)
+		require.Equal(t, health.CodeUnknown, report.Warnings[0].Code)
+		require.True(t, report.StatusUnavailable)
+	})
+
 	t.Run("Healthy", func(t *testing.T) {
 		t.Parallel()
 

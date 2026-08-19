@@ -368,6 +368,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "last_published_at": "2019-08-24T14:15:22Z",
     "publishing_enabled": true,
     "severity": "ok",
+    "status_unavailable": true,
     "warnings": [
       {
         "code": "EUNKNOWN",

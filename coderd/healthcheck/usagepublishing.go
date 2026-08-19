@@ -37,6 +37,16 @@ func (r *UsagePublishingReport) Run(_ context.Context, opts *UsagePublishingRepo
 	r.PublishingEnabled = status.PublishingEnabled
 	r.LastPublishedAt = status.LastPublishedAt
 	r.FailingSince = status.FailingSince
+	r.StatusUnavailable = status.StatusUnavailable
+	if status.StatusUnavailable {
+		// The status is unknown, not healthy; without this, a failed
+		// status query would erase an active failure warning from the
+		// health report.
+		r.Severity = health.SeverityWarning
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeUnknown,
+			"unable to determine usage publishing status; check the coderd logs"))
+		return
+	}
 	if status.FailingSince != nil {
 		r.Severity = health.SeverityWarning
 		r.Warnings = append(r.Warnings, health.Messagef(health.CodeUsagePublishingFailing,

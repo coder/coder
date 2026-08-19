@@ -26898,6 +26898,10 @@ const docTemplate = `{
                 "publishing_enabled": {
                     "description": "PublishingEnabled is true if a currently-valid license enables usage\nevent publishing.",
                     "type": "boolean"
+                },
+                "status_unavailable": {
+                    "description": "StatusUnavailable is true when the latest entitlements refresh could\nnot determine the publishing status (e.g. the status query failed).\nThe remaining fields are unknown rather than healthy.",
+                    "type": "boolean"
                 }
             }
         },
@@ -29617,6 +29621,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/health.Severity"
                         }
                     ]
+                },
+                "status_unavailable": {
+                    "description": "StatusUnavailable is true when the latest entitlements refresh could\nnot determine the publishing status; this section's health is unknown\nrather than OK.",
+                    "type": "boolean"
                 },
                 "warnings": {
                     "type": "array",

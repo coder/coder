@@ -561,6 +561,10 @@ type UsagePublishingStatus struct {
 	// recent publish outcomes, e.g. because nothing has ever been published
 	// or a sustained rejection streak displaced the last success.
 	LastPublishedAt *time.Time `json:"last_published_at,omitempty" format:"date-time"`
+	// StatusUnavailable is true when the latest entitlements refresh could
+	// not determine the publishing status (e.g. the status query failed).
+	// The remaining fields are unknown rather than healthy.
+	StatusUnavailable bool `json:"status_unavailable,omitempty"`
 	// FailingSince is set when usage event publishing is considered failing.
 	// It is the effective start of the current failure: the first failed
 	// publish attempt of the oldest stuck event (its insertion time for
