@@ -1454,8 +1454,8 @@ func TestMCPHTTP_E2E_AnnotationsToolset(t *testing.T) {
 			Arguments: map[string]any{
 				"linear_issue_ids": []string{" ENG-1234 "},
 				"github_pr_urls":   []string{"https://github.com/coder/coder/pull/28300"},
-				"repo":             "coder/coder",
-				"branch":           "main",
+				"repos":            []string{"coder/coder"},
+				"branches":         []string{"main"},
 			},
 		})
 		require.NoError(t, err)
@@ -1479,7 +1479,7 @@ func TestMCPHTTP_E2E_AnnotationsToolset(t *testing.T) {
 			Arguments: map[string]any{
 				"linear_issue_ids": []string{"PLAT-988"},
 				"github_pr_urls":   []string{"https://github.com/coder/coder/pull/28299"},
-				"branch":           "scott/feature",
+				"branches":         []string{"scott/feature"},
 			},
 		})
 		require.NoError(t, err)
@@ -1494,8 +1494,8 @@ func TestMCPHTTP_E2E_AnnotationsToolset(t *testing.T) {
 			"https://github.com/coder/coder/pull/28299",
 			"https://github.com/coder/coder/pull/28300",
 		}, *got.Annotations.GitHubPRURLs)
-		require.Equal(t, "coder/coder", *got.Annotations.Repo)
-		require.Equal(t, "scott/feature", *got.Annotations.Branch)
+		require.Equal(t, []string{"coder/coder"}, *got.Annotations.Repos)
+		require.Equal(t, []string{"main", "scott/feature"}, *got.Annotations.Branches)
 		// The update merges, so the server-derived key survives.
 		require.NotNil(t, got.Annotations.Capabilities)
 		require.Equal(t, []string{"workspace"}, *got.Annotations.Capabilities)
@@ -1539,7 +1539,7 @@ func TestMCPHTTP_E2E_AnnotationsToolset(t *testing.T) {
 
 		result, err := session.CallTool(ctx, &mcp.CallToolParams{
 			Name:      agplcoderd.MCPToolNameAnnotateInterception,
-			Arguments: map[string]any{"repo": "coder/coder"},
+			Arguments: map[string]any{"repos": []string{"coder/coder"}},
 		})
 		require.NoError(t, err)
 		require.True(t, result.IsError)
@@ -1579,7 +1579,7 @@ func TestMCPHTTP_E2E_AnnotationsToolset(t *testing.T) {
 			Name: agplcoderd.MCPToolNameAnnotateInterception,
 			Arguments: map[string]any{
 				"session_id": " claude-session-a ",
-				"repo":       "coder/coder",
+				"repos":      []string{"coder/coder"},
 			},
 		})
 		require.NoError(t, err)
@@ -1597,11 +1597,11 @@ func TestMCPHTTP_E2E_AnnotationsToolset(t *testing.T) {
 		systemCtx := dbauthz.AsSystemRestricted(ctx)
 		got, err := api.Database.GetAIBridgeInterceptionByID(systemCtx, targeted.ID)
 		require.NoError(t, err)
-		require.Equal(t, "coder/coder", *got.Annotations.Repo)
+		require.Equal(t, []string{"coder/coder"}, *got.Annotations.Repos)
 
 		untouched, err := api.Database.GetAIBridgeInterceptionByID(systemCtx, newest.ID)
 		require.NoError(t, err)
-		require.Nil(t, untouched.Annotations.Repo)
+		require.Nil(t, untouched.Annotations.Repos)
 	})
 
 	t.Run("UnknownSession", func(t *testing.T) {
@@ -1620,7 +1620,7 @@ func TestMCPHTTP_E2E_AnnotationsToolset(t *testing.T) {
 			Name: agplcoderd.MCPToolNameAnnotateInterception,
 			Arguments: map[string]any{
 				"session_id": "no-such-session",
-				"repo":       "coder/coder",
+				"repos":      []string{"coder/coder"},
 			},
 		})
 		require.NoError(t, err)

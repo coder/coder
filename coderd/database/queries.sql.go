@@ -2426,8 +2426,8 @@ SELECT
 	COALESCE(sr.firewall_active, false) AS firewall_active,
 	COALESCE(sli.linear_issue_ids, ARRAY[]::text[])::text[] AS linear_issue_ids,
 	COALESCE(sli.github_pr_urls, ARRAY[]::text[])::text[] AS github_pr_urls,
-	COALESCE(sr.repos, ARRAY[]::text[])::text[] AS repos,
-	COALESCE(sr.branches, ARRAY[]::text[])::text[] AS branches
+	COALESCE(sli.repos, ARRAY[]::text[])::text[] AS repos,
+	COALESCE(sli.branches, ARRAY[]::text[])::text[] AS branches
 FROM
 	session_page sp
 JOIN
@@ -2439,13 +2439,7 @@ LEFT JOIN LATERAL (
 		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider) AS providers,
 		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model) AS models,
 		ARRAY_AGG(ai.id) AS interception_ids,
-		BOOL_OR(ai.agent_firewall_session_id IS NOT NULL) AS firewall_active,
-		-- Client-supplied annotations, absent on interceptions that were
-		-- never annotated.
-		ARRAY_AGG(DISTINCT ai.annotations ->> 'repo' ORDER BY ai.annotations ->> 'repo')
-			FILTER (WHERE ai.annotations ->> 'repo' IS NOT NULL) AS repos,
-		ARRAY_AGG(DISTINCT ai.annotations ->> 'branch' ORDER BY ai.annotations ->> 'branch')
-			FILTER (WHERE ai.annotations ->> 'branch' IS NOT NULL) AS branches
+		BOOL_OR(ai.agent_firewall_session_id IS NOT NULL) AS firewall_active
 	FROM aibridge_interceptions ai
 	WHERE ai.session_id = sp.session_id
 		AND ai.initiator_id = sp.initiator_id
@@ -2516,7 +2510,21 @@ LEFT JOIN LATERAL (
 			CROSS JOIN LATERAL jsonb_array_elements_text(pi.annotations -> 'github_pr_urls') AS pr
 			WHERE pi.id = ANY(sr.interception_ids)
 				AND jsonb_typeof(pi.annotations -> 'github_pr_urls') = 'array'
-		) AS github_pr_urls
+		) AS github_pr_urls,
+		(
+			SELECT ARRAY_AGG(DISTINCT repo ORDER BY repo)
+			FROM aibridge_interceptions ri
+			CROSS JOIN LATERAL jsonb_array_elements_text(ri.annotations -> 'repos') AS repo
+			WHERE ri.id = ANY(sr.interception_ids)
+				AND jsonb_typeof(ri.annotations -> 'repos') = 'array'
+		) AS repos,
+		(
+			SELECT ARRAY_AGG(DISTINCT branch ORDER BY branch)
+			FROM aibridge_interceptions bi
+			CROSS JOIN LATERAL jsonb_array_elements_text(bi.annotations -> 'branches') AS branch
+			WHERE bi.id = ANY(sr.interception_ids)
+				AND jsonb_typeof(bi.annotations -> 'branches') = 'array'
+		) AS branches
 ) sli ON true
 ORDER BY
 	sp.last_active_at DESC,
@@ -2783,12 +2791,8 @@ func (q *sqlQuerier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Contex
 const updateAIBridgeInterceptionAnnotations = `-- name: UpdateAIBridgeInterceptionAnnotations :one
 UPDATE aibridge_interceptions
 	SET annotations = annotations
-		|| jsonb_strip_nulls(jsonb_build_object(
-			'repo', $1::text,
-			'branch', $2::text
-		))
 		|| CASE
-			WHEN $3::text[] IS NULL THEN '{}'::jsonb
+			WHEN $1::text[] IS NULL THEN '{}'::jsonb
 			ELSE jsonb_build_object('linear_issue_ids', (
 				SELECT COALESCE(jsonb_agg(DISTINCT issue ORDER BY issue), '[]'::jsonb)
 				FROM (
@@ -2800,12 +2804,12 @@ UPDATE aibridge_interceptions
 						END
 					) AS issue
 					UNION
-					SELECT unnest($3::text[]) AS issue
+					SELECT unnest($1::text[]) AS issue
 				) merged
 			))
 		END
 		|| CASE
-			WHEN $4::text[] IS NULL THEN '{}'::jsonb
+			WHEN $2::text[] IS NULL THEN '{}'::jsonb
 			ELSE jsonb_build_object('github_pr_urls', (
 				SELECT COALESCE(jsonb_agg(DISTINCT pr ORDER BY pr), '[]'::jsonb)
 				FROM (
@@ -2817,7 +2821,41 @@ UPDATE aibridge_interceptions
 						END
 					) AS pr
 					UNION
-					SELECT unnest($4::text[]) AS pr
+					SELECT unnest($2::text[]) AS pr
+				) merged
+			))
+		END
+		|| CASE
+			WHEN $3::text[] IS NULL THEN '{}'::jsonb
+			ELSE jsonb_build_object('repos', (
+				SELECT COALESCE(jsonb_agg(DISTINCT repo ORDER BY repo), '[]'::jsonb)
+				FROM (
+					SELECT jsonb_array_elements_text(
+						CASE
+							WHEN jsonb_typeof(annotations -> 'repos') = 'array'
+							THEN annotations -> 'repos'
+							ELSE '[]'::jsonb
+						END
+					) AS repo
+					UNION
+					SELECT unnest($3::text[]) AS repo
+				) merged
+			))
+		END
+		|| CASE
+			WHEN $4::text[] IS NULL THEN '{}'::jsonb
+			ELSE jsonb_build_object('branches', (
+				SELECT COALESCE(jsonb_agg(DISTINCT branch ORDER BY branch), '[]'::jsonb)
+				FROM (
+					SELECT jsonb_array_elements_text(
+						CASE
+							WHEN jsonb_typeof(annotations -> 'branches') = 'array'
+							THEN annotations -> 'branches'
+							ELSE '[]'::jsonb
+						END
+					) AS branch
+					UNION
+					SELECT unnest($4::text[]) AS branch
 				) merged
 			))
 		END
@@ -2827,26 +2865,24 @@ RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api
 `
 
 type UpdateAIBridgeInterceptionAnnotationsParams struct {
-	Repo           sql.NullString `db:"repo" json:"repo"`
-	Branch         sql.NullString `db:"branch" json:"branch"`
-	LinearIssueIds []string       `db:"linear_issue_ids" json:"linear_issue_ids"`
-	GithubPrUrls   []string       `db:"github_pr_urls" json:"github_pr_urls"`
-	ID             uuid.UUID      `db:"id" json:"id"`
+	LinearIssueIds []string  `db:"linear_issue_ids" json:"linear_issue_ids"`
+	GithubPrUrls   []string  `db:"github_pr_urls" json:"github_pr_urls"`
+	Repos          []string  `db:"repos" json:"repos"`
+	Branches       []string  `db:"branches" json:"branches"`
+	ID             uuid.UUID `db:"id" json:"id"`
 }
 
 // Merges client-supplied work context into the annotations object. The keys
 // are built explicitly so no other annotation key can be written through
-// this query, and jsonb_strip_nulls drops the arguments left NULL so they
-// keep whatever value the row already holds. Linear issues and pull request
-// URLs accumulate as sorted sets: the supplied values are unioned with the
-// ones already stored, discarding a non-array value left by an older
-// annotation shape.
+// this query. Every key accumulates as a sorted set: the supplied values are
+// unioned with the ones already stored, discarding a non-array value left by
+// an older annotation shape. A NULL argument leaves its key untouched.
 func (q *sqlQuerier) UpdateAIBridgeInterceptionAnnotations(ctx context.Context, arg UpdateAIBridgeInterceptionAnnotationsParams) (AIBridgeInterception, error) {
 	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionAnnotations,
-		arg.Repo,
-		arg.Branch,
 		pq.Array(arg.LinearIssueIds),
 		pq.Array(arg.GithubPrUrls),
+		pq.Array(arg.Repos),
+		pq.Array(arg.Branches),
 		arg.ID,
 	)
 	var i AIBridgeInterception

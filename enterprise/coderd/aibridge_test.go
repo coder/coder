@@ -1668,15 +1668,14 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		now := dbtime.Now()
 		issues := func(ids ...string) *[]string { return &ids }
 		prs := func(urls ...string) *[]string { return &urls }
-		repo := "coder/coder"
-		branch := "main"
+		values := func(vs ...string) *[]string { return &vs }
 
 		for i, annotations := range []database.AIBridgeInterceptionAnnotations{
-			{LinearIssueIDs: issues("ENG-5678"), Repo: &repo, Branch: &branch},
+			{LinearIssueIDs: issues("ENG-5678"), Repos: values("coder/coder"), Branches: values("main")},
 			// Duplicates across interceptions collapse into one entry.
 			{
 				LinearIssueIDs: issues("ENG-1234", "ENG-5678"),
-				Repo:           &repo,
+				Repos:          values("coder/coder"),
 				GitHubPRURLs:   prs("https://github.com/coder/coder/pull/28300"),
 			},
 			{},
@@ -4779,20 +4778,18 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		effectiveGroupID := uuid.NullUUID{UUID: group.ID, Valid: true}
 
 		issues := func(ids ...string) *[]string { return &ids }
+		values := func(vs ...string) *[]string { return &vs }
 		prURL := "https://github.com/coder/coder/pull/28300"
-		repo := "coder/coder"
-		branchMain := "main"
-		branchFeature := "scott/x/annotations"
 
 		// Three interceptions collapse into one row: the issue sets union, the
 		// two branches both appear, and the unannotated one contributes nothing.
 		for _, annotations := range []database.AIBridgeInterceptionAnnotations{
-			{LinearIssueIDs: issues("ENG-5678"), Repo: &repo, Branch: &branchMain},
+			{LinearIssueIDs: issues("ENG-5678"), Repos: values("coder/coder"), Branches: values("main")},
 			{
 				LinearIssueIDs: issues("ENG-1234", "ENG-5678"),
 				GitHubPRURLs:   &[]string{prURL},
-				Repo:           &repo,
-				Branch:         &branchFeature,
+				Repos:          values("coder/coder"),
+				Branches:       values("scott/x/annotations"),
 			},
 			{},
 		} {
@@ -4822,7 +4819,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 			res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, map[string]string{
 				// Repeats collapse and the requested order is preserved.
-				"columns": "branch, repo ,linear_issue_ids,branch,github_pr_urls",
+				"columns": "branches, repos ,linear_issue_ids,branches,github_pr_urls",
 			})
 			defer res.Body.Close()
 			require.Equal(t, http.StatusOK, res.StatusCode)
@@ -4831,7 +4828,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			require.Len(t, records, 2)
 			require.Equal(t,
 				append(slices.Clone(entcoderd.AISpendExportCSVHeader),
-					"branch", "repo", "linear_issue_ids", "github_pr_urls"),
+					"branches", "repos", "linear_issue_ids", "github_pr_urls"),
 				records[0])
 
 			row := records[1]
@@ -4849,7 +4846,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 			res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, map[string]string{
-				"columns": "repo,capabilities",
+				"columns": "repos,capabilities",
 			})
 			defer res.Body.Close()
 			require.Equal(t, http.StatusBadRequest, res.StatusCode)

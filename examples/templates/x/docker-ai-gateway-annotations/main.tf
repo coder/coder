@@ -157,8 +157,9 @@ locals {
 
     - The user names an issue, for example `PLAT-666` or `ENG-1234`. Pass it in
       `linear_issue_ids`.
-    - You learn the repository or branch you are working in. Pass `repo` as
-      `owner/name` and `branch` as the current branch.
+    - You learn the repository or branch you are working in. Pass the
+      repository as `repos` in `owner/name` form and the current branch as
+      `branches`.
     - A pull request is opened or referenced. Pass its URL in `github_pr_urls`.
 
     Rules:

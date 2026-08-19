@@ -1877,9 +1877,9 @@ Requires organization-level administrator permissions.
 
 #### Enumerated Values
 
-| Parameter | Value(s)                                               |
-|-----------|--------------------------------------------------------|
-| `columns` | `branch`, `github_pr_urls`, `linear_issue_ids`, `repo` |
+| Parameter | Value(s)                                                  |
+|-----------|-----------------------------------------------------------|
+| `columns` | `branches`, `github_pr_urls`, `linear_issue_ids`, `repos` |
 
 ### Responses
 

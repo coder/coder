@@ -23,8 +23,8 @@ type AnnotateInterceptionOptions struct {
 type annotateInterceptionArgs struct {
 	LinearIssueIDs []string `json:"linear_issue_ids,omitempty" description:"Linear issue identifiers the work belongs to, e.g. [\"ENG-1234\"]. These are added to the issues already recorded rather than replacing them."`
 	GitHubPRURLs   []string `json:"github_pr_urls,omitempty" description:"GitHub pull request URLs the work produced, e.g. [\"https://github.com/coder/coder/pull/1234\"]. These are added to the pull requests already recorded rather than replacing them."`
-	Repo           string   `json:"repo,omitempty" description:"Repository the work targets, e.g. \"coder/coder\"."`
-	Branch         string   `json:"branch,omitempty" description:"Git branch the work targets."`
+	Repos          []string `json:"repos,omitempty" description:"Repositories the work targets, e.g. [\"coder/coder\"]. These are added to the repositories already recorded rather than replacing them."`
+	Branches       []string `json:"branches,omitempty" description:"Git branches the work targets. These are added to the branches already recorded rather than replacing them."`
 }
 
 // AnnotateInterception returns a tool that records work context on the AI
@@ -39,14 +39,14 @@ func AnnotateInterception(db database.Store, options AnnotateInterceptionOptions
 			"again whenever any of them change, including when you open a "+
 			"pull request. Supply only the fields you "+
 			"are confident about; omitted fields keep their previous value. "+
-			"Issues and pull requests accumulate, so pass a new one as soon "+
+			"Every field accumulates, so pass a new value as soon "+
 			"as the work touches it and earlier ones are kept. Do not guess.",
 		func(ctx context.Context, args annotateInterceptionArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			params, err := annotations.Params(annotations.Input{
 				LinearIssueIDs: args.LinearIssueIDs,
 				GitHubPRURLs:   args.GitHubPRURLs,
-				Repo:           args.Repo,
-				Branch:         args.Branch,
+				Repos:          args.Repos,
+				Branches:       args.Branches,
 			})
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil

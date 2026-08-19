@@ -1419,11 +1419,9 @@ type sqlcQuerier interface {
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
 	// Merges client-supplied work context into the annotations object. The keys
 	// are built explicitly so no other annotation key can be written through
-	// this query, and jsonb_strip_nulls drops the arguments left NULL so they
-	// keep whatever value the row already holds. Linear issues and pull request
-	// URLs accumulate as sorted sets: the supplied values are unioned with the
-	// ones already stored, discarding a non-array value left by an older
-	// annotation shape.
+	// this query. Every key accumulates as a sorted set: the supplied values are
+	// unioned with the ones already stored, discarding a non-array value left by
+	// an older annotation shape. A NULL argument leaves its key untouched.
 	UpdateAIBridgeInterceptionAnnotations(ctx context.Context, arg UpdateAIBridgeInterceptionAnnotationsParams) (AIBridgeInterception, error)
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	// Records heartbeat liveness for an active Gateway DRPC session. The database sets the

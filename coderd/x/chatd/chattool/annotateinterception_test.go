@@ -42,7 +42,7 @@ func TestAnnotateInterception(t *testing.T) {
 		}, nil)
 
 		tool := chattool.AnnotateInterception(db, chattool.AnnotateInterceptionOptions{OwnerID: user.ID})
-		resp, err := tool.Run(ctx, call(`{"linear_issue_ids":[" ENG-1234 "],"repo":"coder/coder","branch":"main"}`))
+		resp, err := tool.Run(ctx, call(`{"linear_issue_ids":[" ENG-1234 "],"repos":["coder/coder"],"branches":["main"]}`))
 		require.NoError(t, err)
 
 		var result struct {
@@ -59,15 +59,15 @@ func TestAnnotateInterception(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, got.Annotations.LinearIssueIDs)
 		require.Equal(t, []string{"ENG-1234"}, *got.Annotations.LinearIssueIDs)
-		require.Equal(t, "coder/coder", *got.Annotations.Repo)
-		require.Equal(t, "main", *got.Annotations.Branch)
+		require.Equal(t, []string{"coder/coder"}, *got.Annotations.Repos)
+		require.Equal(t, []string{"main"}, *got.Annotations.Branches)
 		// The update merges, so the server-derived key survives.
 		require.NotNil(t, got.Annotations.Capabilities)
 		require.Equal(t, []string{"workspace"}, *got.Annotations.Capabilities)
 
 		untouched, err := db.GetAIBridgeInterceptionByID(ctx, older.ID)
 		require.NoError(t, err)
-		require.Nil(t, untouched.Annotations.Repo)
+		require.Nil(t, untouched.Annotations.Repos)
 	})
 
 	t.Run("OmittedFieldsKeepPreviousValues", func(t *testing.T) {
@@ -81,15 +81,16 @@ func TestAnnotateInterception(t *testing.T) {
 		}, nil)
 
 		tool := chattool.AnnotateInterception(db, chattool.AnnotateInterceptionOptions{OwnerID: user.ID})
-		_, err := tool.Run(ctx, call(`{"repo":"coder/coder","branch":"main"}`))
+		_, err := tool.Run(ctx, call(`{"repos":["coder/coder"],"branches":["main"]}`))
 		require.NoError(t, err)
-		_, err = tool.Run(ctx, call(`{"branch":"scott/feature"}`))
+		_, err = tool.Run(ctx, call(`{"branches":["scott/feature"]}`))
 		require.NoError(t, err)
 
 		got, err := db.GetAIBridgeInterceptionByID(ctx, interception.ID)
 		require.NoError(t, err)
-		require.Equal(t, "coder/coder", *got.Annotations.Repo)
-		require.Equal(t, "scott/feature", *got.Annotations.Branch)
+		require.Equal(t, []string{"coder/coder"}, *got.Annotations.Repos)
+		// Branches accumulate rather than overwriting.
+		require.Equal(t, []string{"main", "scott/feature"}, *got.Annotations.Branches)
 		require.Nil(t, got.Annotations.LinearIssueIDs)
 	})
 
@@ -169,7 +170,7 @@ func TestAnnotateInterception(t *testing.T) {
 		user := dbgen.User(t, db, database.User{})
 		tool := chattool.AnnotateInterception(db, chattool.AnnotateInterceptionOptions{OwnerID: user.ID})
 
-		resp, err := tool.Run(ctx, call(`{"repo":"   ","linear_issue_ids":[]}`))
+		resp, err := tool.Run(ctx, call(`{"repos":["   "],"linear_issue_ids":[]}`))
 		require.NoError(t, err)
 		require.Contains(t, resp.Content, "provide at least one of")
 	})
@@ -182,7 +183,7 @@ func TestAnnotateInterception(t *testing.T) {
 		user := dbgen.User(t, db, database.User{})
 		tool := chattool.AnnotateInterception(db, chattool.AnnotateInterceptionOptions{OwnerID: user.ID})
 
-		resp, err := tool.Run(ctx, call(`{"repo":"coder/coder"}`))
+		resp, err := tool.Run(ctx, call(`{"repos":["coder/coder"]}`))
 		require.NoError(t, err)
 		require.Contains(t, resp.Content, "no AI Bridge interception to annotate")
 	})
@@ -199,7 +200,7 @@ func TestAnnotateInterception(t *testing.T) {
 		}, nil)
 
 		tool := chattool.AnnotateInterception(db, chattool.AnnotateInterceptionOptions{OwnerID: user.ID})
-		resp, err := tool.Run(ctx, call(`{"repo":"coder/coder"}`))
+		resp, err := tool.Run(ctx, call(`{"repos":["coder/coder"]}`))
 		require.NoError(t, err)
 		require.Contains(t, resp.Content, "no AI Bridge interception to annotate")
 	})

@@ -4492,7 +4492,7 @@
 						"in": "query"
 					},
 					{
-						"enum": ["linear_issue_ids", "github_pr_urls", "repo", "branch"],
+						"enum": ["linear_issue_ids", "github_pr_urls", "repos", "branches"],
 						"type": "string",
 						"description": "Comma-separated optional annotation columns",
 						"name": "columns",

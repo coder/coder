@@ -5088,8 +5088,8 @@ const docTemplate = `{
                         "enum": [
                             "linear_issue_ids",
                             "github_pr_urls",
-                            "repo",
-                            "branch"
+                            "repos",
+                            "branches"
                         ],
                         "type": "string",
                         "description": "Comma-separated optional annotation columns",

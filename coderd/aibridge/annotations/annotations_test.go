@@ -17,20 +17,19 @@ func TestParams(t *testing.T) {
 
 		params, err := annotations.Params(annotations.Input{
 			LinearIssueIDs: []string{" ENG-1234 ", "  "},
-			Repo:           " coder/coder ",
+			Repos:          []string{" coder/coder "},
 		})
 		require.NoError(t, err)
 		require.Equal(t, []string{"ENG-1234"}, params.LinearIssueIds)
-		require.Equal(t, "coder/coder", params.Repo.String)
-		require.True(t, params.Repo.Valid)
-		require.False(t, params.Branch.Valid)
+		require.Equal(t, []string{"coder/coder"}, params.Repos)
+		require.Empty(t, params.Branches)
 		require.Empty(t, params.GithubPrUrls)
 	})
 
 	t.Run("NoFields", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := annotations.Params(annotations.Input{Repo: "   ", LinearIssueIDs: []string{}})
+		_, err := annotations.Params(annotations.Input{Repos: []string{"   "}, LinearIssueIDs: []string{}})
 		require.ErrorContains(t, err, "provide at least one of")
 	})
 
@@ -38,8 +37,8 @@ func TestParams(t *testing.T) {
 		t.Parallel()
 
 		for name, input := range map[string]annotations.Input{
-			"repo":             {Repo: strings.Repeat("a", annotations.MaxValueLength+1)},
-			"branch":           {Branch: strings.Repeat("a", annotations.MaxValueLength+1)},
+			"repos":            {Repos: []string{strings.Repeat("a", annotations.MaxValueLength+1)}},
+			"branches":         {Branches: []string{strings.Repeat("a", annotations.MaxValueLength+1)}},
 			"linear_issue_ids": {LinearIssueIDs: []string{strings.Repeat("a", annotations.MaxValueLength+1)}},
 			"github_pr_urls":   {GitHubPRURLs: []string{strings.Repeat("a", annotations.MaxValueLength+1)}},
 		} {
@@ -51,19 +50,26 @@ func TestParams(t *testing.T) {
 	t.Run("TooManyItems", func(t *testing.T) {
 		t.Parallel()
 
-		issues := make([]string, annotations.MaxLinearIssueIDs+1)
+		issues := make([]string, annotations.MaxValuesPerKey+1)
 		for i := range issues {
 			issues[i] = "ENG-1"
 		}
 		_, err := annotations.Params(annotations.Input{LinearIssueIDs: issues})
-		require.ErrorContains(t, err, "at most 16 issues per call")
+		require.ErrorContains(t, err, "linear_issue_ids accepts at most 16 values per call")
 
-		prs := make([]string, annotations.MaxGitHubPRURLs+1)
+		branches := make([]string, annotations.MaxValuesPerKey+1)
+		for i := range branches {
+			branches[i] = "main"
+		}
+		_, err = annotations.Params(annotations.Input{Branches: branches})
+		require.ErrorContains(t, err, "branches accepts at most 16 values per call")
+
+		prs := make([]string, annotations.MaxValuesPerKey+1)
 		for i := range prs {
 			prs[i] = "https://github.com/coder/coder/pull/1"
 		}
 		_, err = annotations.Params(annotations.Input{GitHubPRURLs: prs})
-		require.ErrorContains(t, err, "at most 16 URLs per call")
+		require.ErrorContains(t, err, "github_pr_urls accepts at most 16 values per call")
 	})
 
 	t.Run("AcceptsCanonicalPullRequestURLs", func(t *testing.T) {

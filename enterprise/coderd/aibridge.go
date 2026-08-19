@@ -1110,7 +1110,7 @@ var AISpendExportCSVHeader = []string{
 
 // aiSpendExportOptionalColumns are the annotation-derived columns the export
 // accepts through the columns query parameter, in canonical order.
-var aiSpendExportOptionalColumns = []string{"linear_issue_ids", "github_pr_urls", "repo", "branch"}
+var aiSpendExportOptionalColumns = []string{"linear_issue_ids", "github_pr_urls", "repos", "branches"}
 
 // parseAISpendExportColumns resolves the requested optional columns from the
 // comma-separated columns query parameter, preserving the requested order and
@@ -1290,7 +1290,7 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param period_start query string false "Inclusive lower bound (RFC3339)" format(date-time)
 // @Param period_end query string false "Exclusive upper bound (RFC3339)" format(date-time)
-// @Param columns query string false "Comma-separated optional annotation columns" Enums(linear_issue_ids,github_pr_urls,repo,branch)
+// @Param columns query string false "Comma-separated optional annotation columns" Enums(linear_issue_ids,github_pr_urls,repos,branches)
 // @Success 200
 // @Router /api/v2/organizations/{organization}/ai/spend/export [get]
 func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Request) {

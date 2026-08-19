@@ -447,10 +447,10 @@ type AIBridgeInterceptionAnnotations struct {
 	// to. Each entry is a https://github.com/{owner}/{repo}/pull/{number} URL,
 	// validated before it is stored. Sorted ascending and free of duplicates.
 	GitHubPRURLs *[]string `json:"github_pr_urls,omitempty"`
-	// Repo names the repository the interception operated on.
-	Repo *string `json:"repo,omitempty"`
-	// Branch names the branch the interception operated on.
-	Branch *string `json:"branch,omitempty"`
+	// Repos names the repositories the interception operated on.
+	Repos *[]string `json:"repos,omitempty"`
+	// Branches names the branches the interception operated on.
+	Branches *[]string `json:"branches,omitempty"`
 }
 
 // AIBridgeInterceptionCapabilities returns annotations recording the given

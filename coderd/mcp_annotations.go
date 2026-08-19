@@ -40,15 +40,15 @@ const mcpAnnotateInterceptionDescription = "Record the work context for the " +
 	"soon as you know the repository, branch, or Linear issues you are " +
 	"working on, and again whenever any of them change, including when you " +
 	"open a pull request. Supply only the fields you are confident about; " +
-	"omitted fields keep their previous value. Issues and pull requests " +
-	"accumulate, so passing a new one keeps the earlier ones. Pass session_id " +
+	"omitted fields keep their previous value. Every field accumulates, so " +
+	"passing a new value keeps the earlier ones. Pass session_id " +
 	"whenever the session context supplies one. Do not guess."
 
 type mcpAnnotateInterceptionArgs struct {
 	LinearIssueIDs []string `json:"linear_issue_ids"`
 	GitHubPRURLs   []string `json:"github_pr_urls"`
-	Repo           string   `json:"repo"`
-	Branch         string   `json:"branch"`
+	Repos          []string `json:"repos"`
+	Branches       []string `json:"branches"`
 	SessionID      string   `json:"session_id"`
 }
 
@@ -65,13 +65,15 @@ var mcpAnnotateInterceptionSchema = map[string]any{
 			"items":       map[string]any{"type": "string"},
 			"description": `GitHub pull request URLs the work produced, e.g. ["https://github.com/coder/coder/pull/1234"]. These are added to the pull requests already recorded rather than replacing them.`,
 		},
-		"repo": map[string]any{
-			"type":        "string",
-			"description": `Repository the work targets, e.g. "coder/coder".`,
+		"repos": map[string]any{
+			"type":        "array",
+			"items":       map[string]any{"type": "string"},
+			"description": `Repositories the work targets, e.g. ["coder/coder"]. These are added to the repositories already recorded rather than replacing them.`,
 		},
-		"branch": map[string]any{
-			"type":        "string",
-			"description": "Git branch the work targets.",
+		"branches": map[string]any{
+			"type":        "array",
+			"items":       map[string]any{"type": "string"},
+			"description": "Git branches the work targets. These are added to the branches already recorded rather than replacing them.",
 		},
 		"session_id": map[string]any{
 			"type":        "string",
@@ -117,8 +119,8 @@ func registerMCPAnnotationTool(srv *mcp.Server, db database.Store, initiatorID u
 		params, err := annotations.Params(annotations.Input{
 			LinearIssueIDs: args.LinearIssueIDs,
 			GitHubPRURLs:   args.GitHubPRURLs,
-			Repo:           args.Repo,
-			Branch:         args.Branch,
+			Repos:          args.Repos,
+			Branches:       args.Branches,
 		})
 		if err != nil {
 			return mcpToolError(err), nil
