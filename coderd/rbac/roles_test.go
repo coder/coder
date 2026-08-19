@@ -825,17 +825,19 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "MCPServerConfigRead",
-			Actions:  []policy.Action{policy.ActionRead},
-			Resource: rbac.ResourceMCPServerConfig.WithID(uuid.New()).InOrg(orgID),
+			Name:    "MCPServerConfigRead",
+			Actions: []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceMCPServerConfig.WithID(uuid.New()).InOrg(orgID).WithGroupACL(map[string][]policy.Action{
+				orgID.String(): {policy.ActionRead},
+			}),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgAuditor, auditor, orgMemberMe},
-				false: {setOtherOrg, memberMe, agentsAccessUser, orgWorkspaceAccessUser, orgUserAdmin, orgTemplateAdmin, templateAdmin, userAdmin},
+				true:  {owner, orgAdmin, orgAuditor, orgMemberMe, agentsAccessUser, orgWorkspaceAccessUser, orgUserAdmin, orgTemplateAdmin},
+				false: {setOtherOrg, memberMe, templateAdmin, userAdmin, auditor},
 			},
 		},
 		{
 			Name:     "MCPServerConfigWrite",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
 			Resource: rbac.ResourceMCPServerConfig.WithID(uuid.New()).InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},

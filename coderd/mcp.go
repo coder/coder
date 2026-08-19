@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -161,22 +162,54 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
 
-	// Full view: disabled configs included, management fields unredacted.
-	// Auditors get it to inspect audit-logged resources; their MCP config
-	// read grant cannot select it because members hold the same read.
-	// Other members see enabled configs with management fields redacted.
+	// Full view: disabled configs included, management fields unredacted,
+	// fetched with system access behind this gate. Auditors get it to
+	// inspect audit-logged resources but stay subject to per-server ACLs
+	// elsewhere. Other members see enabled ACL-granted configs, redacted.
 	// The update leg also requires config read so a custom role granting
 	// update without read cannot lift the read filtering below.
-	hasFullView := (api.Authorize(r, policy.ActionRead, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) &&
+	hasFullView := ((api.Authorize(r, policy.ActionRead, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) &&
 		api.Authorize(r, policy.ActionUpdate, rbac.ResourceMCPServerConfig.InOrg(organization.ID))) ||
-		api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog.InOrg(organization.ID))
+		api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog.InOrg(organization.ID))) &&
+		api.mcpServerConfigReadInKeyScope(r, organization.ID)
 
 	var configs []database.MCPServerConfig
 	var err error
 	if hasFullView {
-		configs, err = api.Database.GetMCPServerConfigsByOrganization(ctx, organization.ID)
-	} else {
-		configs, err = api.Database.GetEnabledMCPServerConfigsByOrganization(ctx, organization.ID)
+		//nolint:gocritic // The update-or-audit gate above owns this authorization.
+		configs, err = api.Database.GetMCPServerConfigsByOrganization(dbauthz.AsSystemRestricted(ctx), organization.ID)
+	} else if api.mcpServerConfigReadInKeyScope(r, organization.ID) {
+		seen := make(map[uuid.UUID]struct{})
+		for _, action := range []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare} {
+			prepared, prepareErr := api.HTTPAuth.AuthorizeSQLFilter(r, action, rbac.ResourceMCPServerConfig.Type)
+			if prepareErr != nil {
+				httpapi.InternalServerError(rw, prepareErr)
+				return
+			}
+			authorized, queryErr := api.Database.GetAuthorizedMCPServerConfigs(ctx, organization.ID, prepared)
+			if queryErr != nil {
+				err = queryErr
+				break
+			}
+			for _, config := range authorized {
+				if _, ok := seen[config.ID]; ok {
+					continue
+				}
+				seen[config.ID] = struct{}{}
+				configs = append(configs, config)
+			}
+		}
+		slices.SortFunc(configs, func(a, b database.MCPServerConfig) int {
+			return strings.Compare(a.DisplayName, b.DisplayName)
+		})
+		// Management-authorized callers keep disabled configs in the redacted
+		// list so they can still reach and manage them.
+		configs = slices.DeleteFunc(configs, func(config database.MCPServerConfig) bool {
+			return !config.Enabled &&
+				!api.Authorize(r, policy.ActionUpdate, config) &&
+				!api.Authorize(r, policy.ActionDelete, config) &&
+				!api.Authorize(r, policy.ActionShare, config)
+		})
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -229,6 +262,24 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// mcpServerConfigReadInKeyScope reports whether the caller's API key scope
+// permits reading MCP server configs. The full-view list fetch bypasses row
+// authorization with system access, so the key's scope must be enforced here.
+// Owner roles make the authorize outcome depend only on the scope dimension.
+func (api *API) mcpServerConfigReadInKeyScope(r *http.Request, organizationID uuid.UUID) bool {
+	caller := httpmw.UserAuthorization(r.Context())
+	scopeOnly := rbac.Subject{
+		Type:         caller.Type,
+		FriendlyName: caller.FriendlyName,
+		ID:           caller.ID,
+		Roles:        rbac.RoleIdentifiers{rbac.RoleOwner()},
+		Scope:        caller.Scope,
+	}
+	err := api.HTTPAuth.Authorizer.Authorize(r.Context(), scopeOnly,
+		policy.ActionRead, rbac.ResourceMCPServerConfig.InOrg(organizationID))
+	return err == nil
 }
 
 // @Summary Create MCP server config
@@ -425,8 +476,12 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		ModelIntent:             req.ModelIntent,
 		AllowInPlanMode:         req.AllowInPlanMode,
 		ForwardCoderHeaders:     req.ForwardCoderHeaders,
-		CreatedBy:               apiKey.UserID,
-		UpdatedBy:               apiKey.UserID,
+		GroupACL: database.ChatACL{
+			organization.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		},
+		UserACL:   database.ChatACL{},
+		CreatedBy: apiKey.UserID,
+		UpdatedBy: apiKey.UserID,
 	})
 	if err != nil {
 		switch {
@@ -473,11 +528,16 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	config := httpmw.MCPServerConfigParam(r)
+	if !api.mcpServerConfigReadInKeyScope(r, config.OrganizationID) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	// Same full-view rule as listMCPServerConfigs: admins and auditors.
 	hasFullView := api.Authorize(r, policy.ActionUpdate, config) ||
 		api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog.InOrg(config.OrganizationID))
-	if !hasFullView && !config.Enabled {
+	if !hasFullView && !config.Enabled &&
+		!api.Authorize(r, policy.ActionDelete, config) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -565,9 +625,8 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAudit()
 
-	// Set Old before the write-authz check so a write-denied 403 is
-	// audited. Read-denied callers were already concealed with 404 by
-	// the param middleware and never reach this handler.
+	// Set Old before the requested-action check so callers admitted for a
+	// different action are audited when this handler denies them with 403.
 	aReq.Old = httpmw.MCPServerConfigParam(r)
 	aReq.UpdateOrganizationID(aReq.Old.OrganizationID)
 
@@ -623,7 +682,8 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		// Lock and re-fetch the row so omitted fields and the audit baseline
 		// match the row this update replaces, and so grant invalidation
 		// serializes with in-flight OAuth callbacks verifying the config.
-		current, err := tx.GetMCPServerConfigByIDForUpdate(ctx, existing.ID)
+		//nolint:gocritic // The update write reauthorizes the locked row.
+		current, err := tx.GetMCPServerConfigByIDForUpdate(dbauthz.AsSystemRestricted(ctx), existing.ID)
 		if err != nil {
 			return err
 		}
@@ -927,9 +987,8 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAudit()
 
-	// Set Old before the write-authz check so a write-denied 403 is
-	// audited. Read-denied callers were already concealed with 404 by
-	// the param middleware and never reach this handler.
+	// Set Old before the requested-action check so callers admitted for a
+	// different action are audited when this handler denies them with 403.
 	aReq.Old = httpmw.MCPServerConfigParam(r)
 	aReq.UpdateOrganizationID(aReq.Old.OrganizationID)
 
@@ -942,7 +1001,8 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		// Re-fetch under a row lock so the audit record describes the
 		// row this request actually removes, not a middleware snapshot
 		// that a concurrent update may have made stale.
-		current, err := tx.GetMCPServerConfigByIDForUpdate(ctx, config.ID)
+		//nolint:gocritic // The delete write reauthorizes the locked row.
+		current, err := tx.GetMCPServerConfigByIDForUpdate(dbauthz.AsSystemRestricted(ctx), config.ID)
 		if err != nil {
 			return err
 		}

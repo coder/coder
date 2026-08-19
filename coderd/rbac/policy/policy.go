@@ -89,6 +89,7 @@ var mcpServerConfigActions = map[Action]ActionDefinition{
 	ActionCreate: "create a new MCP server config",
 	ActionRead:   "read MCP server config",
 	ActionUpdate: "update MCP server config",
+	ActionShare:  "share MCP server config with other users or groups",
 	ActionDelete: "delete MCP server config",
 }
 

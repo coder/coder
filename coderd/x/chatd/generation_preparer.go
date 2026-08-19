@@ -25,15 +25,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// effectiveMCPServerConfigs loads the MCP server configs for a turn:
-// the chat's stored selection plus every enabled Force On config.
-// Force On inclusion is enforced at generation time, not just at
-// write time, so chats persisted before enforcement existed (or
-// before an admin marked a server Force On) cannot dodge the policy
-// (Cure53 CDM-02-010). Explore chats are exempt: their spawn-time
-// snapshot is immutable by design and must never widen after spawn;
-// Force On servers reach the snapshot through the parent chat's
-// enforced ID list.
+// effectiveMCPServerConfigs loads the chat's stored selection plus
+// owner-readable Force On configs at generation time, so stored lists
+// predating enforcement cannot dodge the policy (Cure53 CDM-02-010).
+// Explore chats keep their immutable spawn-time snapshot instead.
 func (server *Server) effectiveMCPServerConfigs(
 	ctx context.Context,
 	logger slog.Logger,
@@ -54,11 +49,11 @@ func (server *Server) effectiveMCPServerConfigs(
 	if isExploreSubagentMode(chat.Mode) {
 		return configs, nil
 	}
-	forced, err := server.db.GetForcedMCPServerConfigsByOrganization(ctx, chat.OrganizationID)
+	forced, err := forcedMCPServerConfigsForOwner(ctx, server.db, chat.OrganizationID, chat.OwnerID)
 	if err != nil {
 		// Fail closed: running the turn without the forced set would
 		// silently bypass a security policy.
-		return nil, xerrors.Errorf("get forced MCP server configs: %w", err)
+		return nil, err
 	}
 	seen := make(map[uuid.UUID]struct{}, len(configs))
 	for _, cfg := range configs {
@@ -911,6 +906,9 @@ func latestAssistantText(messages []database.ChatMessage) string {
 	return ""
 }
 
+// ACLs are deliberately not re-checked: revocation blocks new selection but
+// leaves already-selected servers usable, like template ACLs for running
+// workspaces. Disabling or deleting the config cuts off existing chats.
 func enabledMCPServerConfigsForChatOrg(
 	ctx context.Context,
 	db database.Store,

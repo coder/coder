@@ -1386,11 +1386,18 @@ func New(options *Options) *API {
 					r.Get("/", api.listMCPServerConfigs)
 					r.Post("/", api.createMCPServerConfig)
 					r.Route("/{mcpserverconfig}", func(r chi.Router) {
-						r.Use(httpmw.ExtractMCPServerConfigParam(options.Database))
-						r.Get("/", api.getMCPServerConfig)
-						r.Patch("/", api.updateMCPServerConfig)
-						r.Delete("/", api.deleteMCPServerConfig)
-						r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
+						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
+							policy.ActionRead, policy.ActionUpdate, policy.ActionDelete)).Get("/", api.getMCPServerConfig)
+						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
+							policy.ActionUpdate)).Patch("/", api.updateMCPServerConfig)
+						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
+							policy.ActionDelete)).Delete("/", api.deleteMCPServerConfig)
+						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
+							policy.ActionShare)).Get("/acl", api.mcpServerConfigACL)
+						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
+							policy.ActionShare)).Patch("/acl", api.patchMCPServerConfigACL)
+						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
+							policy.ActionRead)).Get("/oauth2/connect", api.mcpServerOAuth2Connect)
 					})
 				})
 			})

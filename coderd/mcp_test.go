@@ -533,13 +533,13 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		require.True(t, byResourceID[deletedID].IsDeleted)
 	})
 
-	t.Run("WriteDeniedAudited", func(t *testing.T) {
+	t.Run("WriteDeniedConcealed", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, mAudit := newAuditedMCPClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client)
-		memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		config := createMCPServerConfig(t, client, firstUser.OrganizationID, "audit-denied", true)
 
 		mAudit.ResetLogs()
@@ -549,41 +549,25 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		})
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		require.Equal(t, database.AuditActionWrite, logs[0].Action)
-		require.Equal(t, database.ResourceTypeMCPServerConfig, logs[0].ResourceType)
-		require.Equal(t, config.ID, logs[0].ResourceID)
-		require.Equal(t, member.ID, logs[0].UserID)
-		require.Equal(t, firstUser.OrganizationID, logs[0].OrganizationID)
-		require.EqualValues(t, http.StatusForbidden, logs[0].StatusCode)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.Empty(t, mAudit.AuditLogs())
 	})
 
-	t.Run("DeleteDeniedAudited", func(t *testing.T) {
+	t.Run("DeleteDeniedConcealed", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, mAudit := newAuditedMCPClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client)
-		memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		config := createMCPServerConfig(t, client, firstUser.OrganizationID, "audit-delete-denied", true)
 
 		mAudit.ResetLogs()
 		err := memberClient.DeleteMCPServerConfig(ctx, firstUser.OrganizationID, config.ID)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		require.Equal(t, database.AuditActionDelete, logs[0].Action)
-		require.Equal(t, database.ResourceTypeMCPServerConfig, logs[0].ResourceType)
-		require.Equal(t, config.ID, logs[0].ResourceID)
-		require.Equal(t, member.ID, logs[0].UserID)
-		require.Equal(t, firstUser.OrganizationID, logs[0].OrganizationID)
-		require.EqualValues(t, http.StatusForbidden, logs[0].StatusCode)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.Empty(t, mAudit.AuditLogs())
 	})
 }
 
@@ -641,6 +625,15 @@ func TestMCPServerConfigsNonAdmin(t *testing.T) {
 	require.Len(t, memberConfigs, 1)
 	require.Equal(t, "enabled-server", memberConfigs[0].Slug)
 
+	// Auditors list ACL-restricted configs but cannot read them row-level.
+	restricted := createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "restricted-server", true)
+	err = adminClient.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, restricted.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		GroupRoles: map[string]codersdk.MCPServerConfigRole{
+			firstUser.OrganizationID.String(): codersdk.MCPServerConfigRoleDeleted,
+		},
+	})
+	require.NoError(t, err)
+
 	// Auditors need the full management view of the MCP configs their
 	// audit logs reference.
 	for name, roles := range map[string][]rbac.RoleIdentifier{
@@ -650,7 +643,7 @@ func TestMCPServerConfigsNonAdmin(t *testing.T) {
 		auditorClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID, roles...)
 		auditorConfigs, err := auditorClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
 		require.NoError(t, err, name)
-		require.Len(t, auditorConfigs, 2, name)
+		require.Len(t, auditorConfigs, 3, name)
 		for _, config := range auditorConfigs {
 			require.NotEmpty(t, config.URL, "%s: %s", name, config.Slug)
 			if !config.Enabled {
@@ -659,7 +652,240 @@ func TestMCPServerConfigsNonAdmin(t *testing.T) {
 				require.NotEmpty(t, fetched.URL, name)
 			}
 		}
+
+		_, err = auditorClient.MCPServerConfigByID(ctx, firstUser.OrganizationID, restricted.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr, name)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode(), name)
 	}
+}
+
+func TestMCPServerConfigsScopedKeyFullView(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	_ = createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "enabled-server", true)
+	_ = createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "disabled-server", false)
+
+	_, auditor := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID,
+		rbac.ScopedRoleOrgAuditor(firstUser.OrganizationID))
+
+	// MCP config scopes are not user-mintable, so seed scoped keys directly.
+	newScopedClient := func(userID uuid.UUID, scopes ...database.APIKeyScope) *codersdk.Client {
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID: userID,
+			Scopes: append(database.APIKeyScopes{"organization:read"}, scopes...),
+		})
+		client := codersdk.New(adminClient.URL)
+		client.SetSessionToken(token)
+		return client
+	}
+
+	// A key whose scope covers reading MCP configs keeps the full view.
+	fullViewConfigs, err := newScopedClient(firstUser.UserID,
+		"mcp_server_config:update", "mcp_server_config:read").MCPServerConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	require.Len(t, fullViewConfigs, 2)
+
+	// Update-or-audit roles make the caller full-view eligible, but a key
+	// scoped without mcp_server_config:read must not receive config data.
+	for name, client := range map[string]*codersdk.Client{
+		"AdminUpdateScope":  newScopedClient(firstUser.UserID, "mcp_server_config:update"),
+		"AuditorAuditScope": newScopedClient(auditor.ID, "audit_log:read"),
+	} {
+		configs, err := client.MCPServerConfigs(ctx, firstUser.OrganizationID)
+		require.NoError(t, err, name)
+		require.Empty(t, configs, name)
+	}
+}
+
+func TestMCPServerConfigACL(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	mAudit := audit.NewMock()
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+		Auditor:             mAudit,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	groupMemberClient, groupMember := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	nonMemberClient, nonMember := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: groupMember.ID})
+	config := createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "acl-server", true)
+
+	mAudit.ResetLogs()
+	err := adminClient.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		GroupRoles: map[string]codersdk.MCPServerConfigRole{
+			firstUser.OrganizationID.String(): codersdk.MCPServerConfigRoleDeleted,
+			group.ID.String():                 codersdk.MCPServerConfigRoleRead,
+		},
+	})
+	require.NoError(t, err)
+	logs := mAudit.AuditLogs()
+	require.Len(t, logs, 1)
+	require.Equal(t, database.AuditActionWrite, logs[0].Action)
+	require.Equal(t, config.ID, logs[0].ResourceID)
+	require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+
+	aclResponse, err := adminClient.MCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID)
+	require.NoError(t, err)
+	require.Len(t, aclResponse.Groups, 1)
+	require.Equal(t, group.ID, aclResponse.Groups[0].ID)
+	require.Equal(t, 1, aclResponse.Groups[0].TotalMemberCount)
+
+	configs, err := groupMemberClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	_, err = groupMemberClient.MCPServerConfigByID(ctx, firstUser.OrganizationID, config.ID)
+	require.NoError(t, err)
+
+	configs, err = nonMemberClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	require.Empty(t, configs)
+	_, err = nonMemberClient.MCPServerConfigByID(ctx, firstUser.OrganizationID, config.ID)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+	_, err = groupMemberClient.MCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+	mAudit.ResetLogs()
+	err = groupMemberClient.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	require.Empty(t, mAudit.AuditLogs())
+
+	err = adminClient.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		UserRoles: map[string]codersdk.MCPServerConfigRole{
+			nonMember.ID.String(): codersdk.MCPServerConfigRoleRead,
+		},
+	})
+	require.NoError(t, err)
+	_, err = nonMemberClient.MCPServerConfigByID(ctx, firstUser.OrganizationID, config.ID)
+	require.NoError(t, err)
+
+	// The sparse user-only update must merge with the existing ACL, not
+	// clobber the earlier group grant.
+	aclResponse, err = adminClient.MCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID)
+	require.NoError(t, err)
+	require.Len(t, aclResponse.Groups, 1)
+	require.Equal(t, group.ID, aclResponse.Groups[0].ID)
+	require.Len(t, aclResponse.Users, 1)
+	require.Equal(t, nonMember.ID, aclResponse.Users[0].ID)
+
+	// Conflicting roles under two spellings of one principal are
+	// ambiguous and must be rejected rather than resolved by map order.
+	err = adminClient.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		UserRoles: map[string]codersdk.MCPServerConfigRole{
+			nonMember.ID.String():               codersdk.MCPServerConfigRoleRead,
+			"urn:uuid:" + nonMember.ID.String(): codersdk.MCPServerConfigRoleDeleted,
+		},
+	})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Contains(t, sdkErr.Error(), "duplicate entries for ID "+nonMember.ID.String())
+
+	// Noncanonical UUID spellings pass validation, so grants and
+	// deletions must canonicalize to hit the same ACL keys RBAC reads.
+	err = adminClient.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		UserRoles: map[string]codersdk.MCPServerConfigRole{
+			strings.ToUpper(groupMember.ID.String()): codersdk.MCPServerConfigRoleRead,
+		},
+	})
+	require.NoError(t, err)
+	aclResponse, err = adminClient.MCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID)
+	require.NoError(t, err)
+	require.Len(t, aclResponse.Users, 2)
+
+	err = adminClient.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		UserRoles: map[string]codersdk.MCPServerConfigRole{
+			"urn:uuid:" + nonMember.ID.String():      codersdk.MCPServerConfigRoleDeleted,
+			strings.ToUpper(groupMember.ID.String()): codersdk.MCPServerConfigRoleDeleted,
+		},
+	})
+	require.NoError(t, err)
+	aclResponse, err = adminClient.MCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID)
+	require.NoError(t, err)
+	require.Empty(t, aclResponse.Users)
+	_, err = nonMemberClient.MCPServerConfigByID(ctx, firstUser.OrganizationID, config.ID)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
+	err = adminClient.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		GroupRoles: map[string]codersdk.MCPServerConfigRole{
+			otherGroup.ID.String(): codersdk.MCPServerConfigRoleRead,
+		},
+	})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Contains(t, sdkErr.Error(), otherGroup.ID.String())
+
+	foreignUser := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: foreignUser.ID})
+	err = adminClient.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{
+		UserRoles: map[string]codersdk.MCPServerConfigRole{
+			foreignUser.ID.String(): codersdk.MCPServerConfigRoleRead,
+		},
+	})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Contains(t, sdkErr.Error(), foreignUser.ID.String())
+}
+
+// mcpServerConfigDeleteRaceStore deletes the config right after the param
+// middleware read once armed, so the handler's locked re-fetch sees a
+// concurrently deleted row.
+type mcpServerConfigDeleteRaceStore struct {
+	database.Store
+
+	armed atomic.Bool
+}
+
+func (s *mcpServerConfigDeleteRaceStore) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
+	config, err := s.Store.GetMCPServerConfigByID(ctx, id)
+	if err == nil && s.armed.CompareAndSwap(true, false) {
+		if err := s.Store.DeleteMCPServerConfigByID(ctx, id); err != nil {
+			return database.MCPServerConfig{}, err
+		}
+	}
+	return config, err
+}
+
+func TestMCPServerConfigACLConcurrentDelete(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	db, ps := dbtestutil.NewDB(t)
+	store := &mcpServerConfigDeleteRaceStore{Store: db}
+	adminClient := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+		Database:            store,
+		Pubsub:              ps,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	config := createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "acl-delete-race", true)
+
+	store.armed.Store(true)
+	err := adminClient.UpdateMCPServerConfigACL(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigACLRequest{})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 }
 
 // TestMCPServerConfigsSecretsNeverLeaked is a load-bearing test that

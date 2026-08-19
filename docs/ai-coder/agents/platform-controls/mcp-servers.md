@@ -44,11 +44,11 @@ organization's servers; other organizations are managed through the API.
 
 #### Availability policies
 
-| Policy        | Behavior                                               |
-|---------------|--------------------------------------------------------|
-| `force_on`    | Always injected into every chat. Users cannot opt out. |
-| `default_on`  | Pre-selected in new chats. Users can opt out.          |
-| `default_off` | Available in the server list but users must opt in.    |
+| Policy        | Behavior                                                                          |
+|---------------|-----------------------------------------------------------------------------------|
+| `force_on`    | Injected into every chat whose owner has ACL access to the server. No opting out. |
+| `default_on`  | Pre-selected in new chats. Users can opt out.                                     |
+| `default_off` | Available in the server list but users must opt in.                               |
 
 ## Authentication
 
@@ -168,11 +168,17 @@ wins.
 
 ## Permissions
 
-| Action                        | Required role       |
-|-------------------------------|---------------------|
-| Create, update, or delete     | Organization admin  |
-| View enabled servers          | Organization member |
-| OAuth2 connect and disconnect | Organization member |
+| Action                    | Required role              |
+|---------------------------|----------------------------|
+| Create, update, or delete | Organization admin         |
+| View enabled servers      | Member granted through ACL |
+| OAuth2 connect            | Member granted through ACL |
+| OAuth2 disconnect         | Token owner                |
+| Manage ACLs               | Organization admin         |
+
+Disconnect only needs a valid session: users removed from the ACL or the
+organization can still delete their stored token and revoke the provider
+grant.
 
 Members only see enabled servers in their own organizations. Sensitive fields
 such as API keys and client secrets are redacted in API responses.
@@ -180,3 +186,18 @@ such as API keys and client secrets are redacted in API responses.
 The **MCP servers** settings page is part of deployment settings, so opening it in the dashboard also requires permission to edit deployment configuration.
 Organization admins without that permission can manage servers through the API.
 Creating or updating a server with `auth_type` set to `user_oidc` also requires the `deployment_config:update` permission.
+
+### Access control
+
+Each server has a group and user ACL that controls which members can see and
+use it. New servers grant read access to the organization's **Everyone** group,
+so all members have access by default. Admins can remove the Everyone entry and
+grant specific groups or users instead through the API
+(`GET`/`PATCH /api/experimental/organizations/{organization}/mcp-servers/{id}/acl`); there is no ACL editor
+in the settings page. ACL management is available in all editions and does not
+require an enterprise entitlement. ACL changes are recorded in the audit log.
+
+Revoking access stops a member from newly selecting the server in any chat,
+but chats that already have the server selected keep using it, the same way
+existing workspaces keep running after template access is revoked. To cut
+off existing chats as well, disable or delete the server.
