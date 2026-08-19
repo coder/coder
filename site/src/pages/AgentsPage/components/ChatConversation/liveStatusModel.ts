@@ -114,11 +114,13 @@ export const deriveLiveStatus = ({
 	chatStatus,
 }: DeriveLiveStatusParams): LiveStatusModel => {
 	const hasAccumulatedOutput = getHasAccumulatedOutput(streamState);
-	// Suppress stale stream output whenever the status is terminal (error).
+	// The stream is cleared on error, so leftover blocks are stale.
 	const showOutput = chatStatus === "error" ? false : hasAccumulatedOutput;
 
 	if (retryState) {
-		return toRetryingLiveStatus(retryState, { hasAccumulatedOutput });
+		return toRetryingLiveStatus(retryState, {
+			hasAccumulatedOutput: showOutput,
+		});
 	}
 
 	if (streamError) {
@@ -128,7 +130,9 @@ export const deriveLiveStatus = ({
 	}
 
 	if (reconnectState) {
-		return toReconnectingLiveStatus(reconnectState, { hasAccumulatedOutput });
+		return toReconnectingLiveStatus(reconnectState, {
+			hasAccumulatedOutput: showOutput,
+		});
 	}
 
 	// The interrupt outranks stream leftovers: while the worker drains and

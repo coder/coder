@@ -197,6 +197,21 @@ describe("deriveLiveStatus", () => {
 		});
 	});
 
+	it("suppresses accumulated output while reconnecting after a terminal error", () => {
+		expect(
+			derive({
+				streamState: buildStreamState({
+					blocks: [{ type: "response", text: "Partial response" }],
+				}),
+				reconnectState: buildReconnectState(),
+				chatStatus: "error",
+			}),
+		).toEqual({
+			...reconnectingStatus,
+			hasAccumulatedOutput: false,
+		});
+	});
+
 	it("prioritizes retrying over failed and reconnecting", () => {
 		expect(
 			derive({
