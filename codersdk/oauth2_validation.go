@@ -16,7 +16,9 @@ func (req *OAuth2ClientRegistrationRequest) Validate() error {
 		return xerrors.New("redirect_uris is required for authorization code flow")
 	}
 
-	if err := validateRedirectURIs(req.RedirectURIs, req.TokenEndpointAuthMethod); err != nil {
+	// The client type is derived once, by DetermineClientType, so which RFC 8252
+	// rules apply here cannot drift from what gets stored in client_type.
+	if err := validateRedirectURIs(req.RedirectURIs, req.DetermineClientType()); err != nil {
 		return xerrors.Errorf("invalid redirect_uris: %w", err)
 	}
 
@@ -118,8 +120,11 @@ func validateScheme(u *url.URL) error {
 	return nil
 }
 
-// validateRedirectURIs validates redirect URIs according to RFC 7591, 8252
-func validateRedirectURIs(uris []string, tokenEndpointAuthMethod OAuth2TokenEndpointAuthMethod) error {
+// validateRedirectURIs validates redirect URIs according to RFC 7591, 8252.
+// clientType selects which rules apply and is derived by DetermineClientType,
+// the single owner of that mapping, so this cannot disagree with the type the
+// app is stored as.
+func validateRedirectURIs(uris []string, clientType OAuth2ClientType) error {
 	if len(uris) == 0 {
 		return xerrors.New("at least one redirect URI is required")
 	}
@@ -144,8 +149,7 @@ func validateRedirectURIs(uris []string, tokenEndpointAuthMethod OAuth2TokenEndp
 			continue
 		}
 
-		// Determine if this is a public client based on token endpoint auth method
-		isPublicClient := tokenEndpointAuthMethod == OAuth2TokenEndpointAuthMethodNone
+		isPublicClient := clientType == OAuth2ClientTypePublic
 
 		// Handle different validation for public vs confidential clients
 		if uri.Scheme == "http" || uri.Scheme == "https" {
