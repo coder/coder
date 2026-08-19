@@ -562,9 +562,11 @@ func lookupAIProvider(ctx context.Context, store database.Store, idOrName string
 	return store.GetAIProviderByName(ctx, idOrName)
 }
 
-// buildHostnameCollisionMap maps each normalized hostname to the
-// names of enabled, non-deleted providers sharing it, in database
-// order. The first name is the proxy winner.
+// buildHostnameCollisionMap returns a map from normalized hostname to
+// the names of enabled, non-deleted providers sharing that hostname,
+// in the order the database returned them (ORDER BY name ASC). The
+// first name is the proxy winner and does not get a warning; later
+// names do.
 func buildHostnameCollisionMap(rows []database.AIProvider) map[string][]string {
 	namesByHost := make(map[string][]string)
 	for _, row := range rows {
@@ -580,9 +582,11 @@ func buildHostnameCollisionMap(rows []database.AIProvider) map[string][]string {
 	return namesByHost
 }
 
-// aiProviderHostnameWarningFromMap returns a warning for a provider
-// whose hostname is already claimed by an earlier provider. The
-// winner (first in database order) gets no warning.
+// aiProviderHostnameWarningFromMap is the pure helper for the list
+// handler. namesByHost is the pre-built collision map from the outer
+// rows, in database order (ORDER BY name ASC). Only providers whose
+// name appears after another enabled provider on the same hostname
+// get a warning; the first provider in database order does not.
 func aiProviderHostnameWarningFromMap(provider database.AIProvider, namesByHost map[string][]string) *codersdk.AIProviderStatus {
 	if !provider.Enabled || provider.Deleted {
 		return nil
@@ -592,17 +596,23 @@ func aiProviderHostnameWarningFromMap(provider database.AIProvider, namesByHost 
 		return nil
 	}
 	names := namesByHost[host]
-	if len(names) < 2 || provider.Name == names[0] {
+	if len(names) < 2 {
 		return nil
 	}
+	// The first name in database order is the proxy winner.
+	if provider.Name == names[0] {
+		return nil
+	}
+	winner := names[0]
 	return &codersdk.AIProviderStatus{Warnings: []string{
-		fmt.Sprintf("hostname %q is claimed by provider %q; not reachable via the AI Gateway Proxy, use direct routing (/api/v2/ai-gateway/%s/...) instead", host, names[0], provider.Name),
+		fmt.Sprintf("hostname %q is claimed by provider %q; not reachable via the AI Gateway Proxy, use direct routing (/api/v2/ai-gateway/%s/...) instead", host, winner, provider.Name),
 	}}
 }
 
-// aiProviderHostnameWarningFromDB fetches all providers to compute the
-// collision map for a single row. Used by Get, Create, and Update
-// where one extra query is not N+1.
+// aiProviderHostnameWarningFromDB fetches all enabled, non-deleted
+// providers to determine whether the given provider is excluded from
+// proxy routing by hostname collision. Used by the single-row handlers
+// (Get, Create, Update) where one extra query is not N+1.
 func aiProviderHostnameWarningFromDB(ctx context.Context, logger slog.Logger, store database.Store, provider database.AIProvider) *codersdk.AIProviderStatus {
 	if !provider.Enabled || provider.Deleted {
 		return nil

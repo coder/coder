@@ -19,14 +19,17 @@ const (
 	// cannot be constructed (missing keys, unsupported type, malformed
 	// settings).
 	ProviderStatusError ProviderStatus = "error"
-	// ProviderStatusProxyExcluded means another enabled provider already
-	// claimed its hostname. The provider is still routable via the direct
-	// path (/api/v2/ai-gateway/{name}/...).
+	// ProviderStatusProxyExcluded means another enabled provider
+	// already claimed its hostname. The provider is still routable via
+	// the direct path (/api/v2/ai-gateway/{name}/...).
 	ProviderStatusProxyExcluded ProviderStatus = "proxy_excluded"
 )
 
-// ProviderOutcome classifies one ai_providers row. Err is set when
-// Status is Error or ProxyExcluded and is already logged at the call site.
+// ProviderOutcome classifies one ai_providers row, including
+// disabled rows (503 stubs), errored rows (excluded from pool),
+// and proxy-excluded rows (excluded from proxy routing).
+// Err is set when Status is Error or ProxyExcluded; the build error
+// is already logged at the call site.
 type ProviderOutcome struct {
 	Name   string
 	Type   string
@@ -34,8 +37,10 @@ type ProviderOutcome struct {
 	Err    error
 }
 
-// BaseURLHostname returns the normalized hostname from a provider base
-// URL. Scheme-less inputs get https:// prepended.
+// BaseURLHostname returns the normalized hostname from a provider
+// base URL. It is the canonical normalization used by the proxy
+// classifier and the API status check. Scheme-less inputs (from
+// env-config seeding) get https:// prepended.
 func BaseURLHostname(baseURL string) string {
 	baseURL = strings.TrimSpace(baseURL)
 	if baseURL == "" {

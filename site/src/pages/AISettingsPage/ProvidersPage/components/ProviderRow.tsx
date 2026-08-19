@@ -30,7 +30,10 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 	});
 	const displayName = provider.display_name || provider.name;
 
-	// Prevent the warning badge from activating the parent clickable row.
+	// Stop activation from bubbling to a parent `useClickableTableRow`
+	// row, which navigates on click, Enter (onKeyDown), and Space
+	// (onKeyUp). Radix composes its own click handler, so the tooltip
+	// still opens.
 	const stopPropagation = (event: React.SyntheticEvent) => {
 		event.stopPropagation();
 	};
@@ -72,7 +75,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 							Not supported in Agents
 						</Badge>
 					)}
-					{provider.status?.warnings?.length && (
+					{provider.status?.warnings && provider.status.warnings.length > 0 && (
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Badge
