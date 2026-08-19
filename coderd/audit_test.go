@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -141,6 +142,57 @@ func TestAuditLogs(t *testing.T) {
 		buildNumberString := strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10)
 		require.Equal(t, auditLogs.AuditLogs[0].ResourceLink, fmt.Sprintf("/@%s/%s/builds/%s",
 			workspace.OwnerName, workspace.Name, buildNumberString))
+	})
+
+	t.Run("MCPServerConfigAuditLink", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
+		user := coderdtest.CreateFirstUser(t, client)
+		auditor, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleAuditor())
+		orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.ScopedRoleOrgAdmin(user.OrganizationID))
+
+		config := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: user.OrganizationID,
+		})
+		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			Action:         codersdk.AuditActionCreate,
+			ResourceType:   codersdk.ResourceTypeMCPServerConfig,
+			ResourceID:     config.ID,
+			OrganizationID: user.OrganizationID,
+		})
+		require.NoError(t, err)
+
+		auditorLogs, err := auditor.AuditLogs(ctx, codersdk.AuditLogsRequest{
+			Pagination: codersdk.Pagination{
+				Limit: 1,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, auditorLogs.AuditLogs, 1)
+		require.Empty(t, auditorLogs.AuditLogs[0].ResourceLink)
+
+		// Organization admins hold MCP permissions but not the
+		// deployment-config access the settings page requires.
+		orgAdminLogs, err := orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
+			Pagination: codersdk.Pagination{
+				Limit: 1,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, orgAdminLogs.AuditLogs, 1)
+		require.Empty(t, orgAdminLogs.AuditLogs[0].ResourceLink)
+
+		ownerLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
+			Pagination: codersdk.Pagination{
+				Limit: 1,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, ownerLogs.AuditLogs, 1)
+		require.Equal(t, fmt.Sprintf("/ai/settings/mcp-servers/%s", config.ID), ownerLogs.AuditLogs[0].ResourceLink)
 	})
 
 	t.Run("Organization", func(t *testing.T) {

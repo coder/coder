@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -103,7 +104,11 @@ func TestMCPServerConfigCollectionOrganizationIsolation(t *testing.T) {
 func TestMCPServerConfigItemCrossOrganizationConcealment(t *testing.T) {
 	t.Parallel()
 
+	mAudit := audit.NewMock()
 	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			Auditor: mAudit,
+		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureMultipleOrganizations: 1,
@@ -115,6 +120,7 @@ func TestMCPServerConfigItemCrossOrganizationConcealment(t *testing.T) {
 	config := createMCPServerConfigForOrganization(t, client, firstUser.OrganizationID, "private-org-one-mcp")
 	organizationPath := "/api/experimental/organizations/" + secondOrg.ID.String() + "/mcp-servers/" + config.ID.String()
 	frozenPath := "/api/experimental/mcp/servers/" + config.ID.String()
+	mAudit.ResetLogs()
 
 	for _, test := range []struct {
 		name       string
@@ -140,6 +146,13 @@ func TestMCPServerConfigItemCrossOrganizationConcealment(t *testing.T) {
 				wantStatus = http.StatusNotFound
 			}
 			requireMCPServerConfigRequestStatus(t, otherClient, test.method, test.path, test.body, wantStatus)
+
+			// Read-gated routes 404 in the param middleware before any
+			// handler runs, and disconnect does not audit, so nothing
+			// is audited.
+			for _, log := range mAudit.AuditLogs() {
+				require.NotEqual(t, database.ResourceTypeMCPServerConfig, log.ResourceType)
+			}
 		})
 	}
 

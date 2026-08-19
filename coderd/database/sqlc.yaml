@@ -275,6 +275,7 @@ sql:
           resource_type_ai_gateway_key: ResourceTypeAIGatewayKey
           mcp_server_config: MCPServerConfig
           mcp_server_configs: MCPServerConfigs
+          resource_type_mcp_server_config: ResourceTypeMCPServerConfig
           mcp_server_user_token: MCPServerUserToken
           mcp_server_user_tokens: MCPServerUserTokens
           mcp_server_tool_snapshot: MCPServerToolSnapshot

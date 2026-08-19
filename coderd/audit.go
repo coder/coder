@@ -22,6 +22,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -501,6 +503,18 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			api.Logger.Error(ctx, "unable to fetch chat", slog.Error(err))
 		}
 		return false
+	case database.ResourceTypeMCPServerConfig:
+		// MCP server configs are hard-deleted, so a 404 means deleted.
+		_, err := api.Database.GetMCPServerConfigByID(ctx, alog.AuditLog.ResourceID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return true
+		}
+		// Config reads are org-scoped, so an auditor can lack read on
+		// the config's organization. That is not worth logging.
+		if err != nil && !dbauthz.IsNotAuthorizedError(err) {
+			api.Logger.Error(ctx, "unable to fetch mcp server config", slog.Error(err))
+		}
+		return false
 	case database.ResourceTypeUserSecret:
 		_, err := api.Database.GetUserSecretByID(ctx, alog.AuditLog.ResourceID)
 		if xerrors.Is(err, sql.ErrNoRows) {
@@ -604,6 +618,17 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		// Chats are surfaced at /agents/{id}. They are owner-scoped but
 		// not username-scoped in the URL like workspaces or tasks.
 		return fmt.Sprintf("/agents/%s", alog.AuditLog.ResourceID)
+	case database.ResourceTypeMCPServerConfig:
+		actor, ok := dbauthz.ActorFromContext(ctx)
+		if !ok {
+			return ""
+		}
+		// The MCP settings page admits only deployment-config managers,
+		// so emit the link only for callers the page will accept.
+		if err := api.HTTPAuth.Authorizer.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+			return ""
+		}
+		return fmt.Sprintf("/ai/settings/mcp-servers/%s", alog.AuditLog.ResourceID)
 	case database.ResourceTypeUserSecret:
 		// TODO(PLAT-102): point at the user secrets management page once
 		// it ships. Until then, the audit row links nowhere.

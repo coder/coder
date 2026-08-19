@@ -19,6 +19,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -248,6 +249,15 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.MCPServerConfig](rw, &audit.RequestParams{
+		Audit:          *auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionCreate,
+		OrganizationID: organization.ID,
+	})
+	defer commitAudit()
 	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceMCPServerConfig.InOrg(organization.ID)) {
 		httpapi.Forbidden(rw)
 		return
@@ -441,6 +451,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	aReq.New = inserted
+
 	httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(inserted))
 }
 
@@ -544,6 +556,21 @@ func (api *API) getMCPServerConfigForMutation(rw http.ResponseWriter, r *http.Re
 func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.MCPServerConfig](rw, &audit.RequestParams{
+		Audit:   *auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
+	// Set Old before the write-authz check so a write-denied 403 is
+	// audited. Read-denied callers were already concealed with 404 by
+	// the param middleware and never reach this handler.
+	aReq.Old = httpmw.MCPServerConfigParam(r)
+	aReq.UpdateOrganizationID(aReq.Old.OrganizationID)
+
 	existing, ok := api.getMCPServerConfigForMutation(rw, r, policy.ActionUpdate)
 	if !ok {
 		return
@@ -593,14 +620,15 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var updated database.MCPServerConfig
 	err := api.Database.InTx(func(tx database.Store) error {
-		// Lock and re-fetch the row so omitted fields come from the latest
-		// version and grant invalidation serializes with in-flight OAuth
-		// callbacks verifying the same config.
+		// Lock and re-fetch the row so omitted fields and the audit baseline
+		// match the row this update replaces, and so grant invalidation
+		// serializes with in-flight OAuth callbacks verifying the config.
 		current, err := tx.GetMCPServerConfigByIDForUpdate(ctx, existing.ID)
 		if err != nil {
 			return err
 		}
 		existing = current
+		aReq.Old = current
 
 		touchesUserOIDC := existing.AuthType == "user_oidc" ||
 			(req.AuthType != nil && *req.AuthType == "user_oidc")
@@ -873,6 +901,8 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	aReq.New = updated
+
 	httpapi.Write(ctx, rw, http.StatusOK, convertMCPServerConfig(updated))
 }
 
@@ -888,12 +918,42 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.MCPServerConfig](rw, &audit.RequestParams{
+		Audit:   *auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionDelete,
+	})
+	defer commitAudit()
+
+	// Set Old before the write-authz check so a write-denied 403 is
+	// audited. Read-denied callers were already concealed with 404 by
+	// the param middleware and never reach this handler.
+	aReq.Old = httpmw.MCPServerConfigParam(r)
+	aReq.UpdateOrganizationID(aReq.Old.OrganizationID)
+
 	config, ok := api.getMCPServerConfigForMutation(rw, r, policy.ActionDelete)
 	if !ok {
 		return
 	}
 
-	if err := api.Database.DeleteMCPServerConfigByID(ctx, config.ID); err != nil {
+	err := api.Database.InTx(func(tx database.Store) error {
+		// Re-fetch under a row lock so the audit record describes the
+		// row this request actually removes, not a middleware snapshot
+		// that a concurrent update may have made stale.
+		current, err := tx.GetMCPServerConfigByIDForUpdate(ctx, config.ID)
+		if err != nil {
+			return err
+		}
+		aReq.Old = current
+		return tx.DeleteMCPServerConfigByID(ctx, current.ID)
+	}, nil)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete MCP server config.",
 			Detail:  err.Error(),
