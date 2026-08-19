@@ -48,6 +48,13 @@ func TestScopeAliases(t *testing.T) {
 		// tidying step callers may skip.
 		_, err = ExpandScope(alias)
 		require.Errorf(t, err, "alias %q must not expand directly", alias)
+
+		// The list a client reads offers the canonical spelling and only that
+		// one, so a caller can request a name from it and store what it
+		// requested. Listing the alias too would offer two names for one scope,
+		// one of which fails to expand once stored.
+		require.NotContainsf(t, ExternalScopeNames(), string(alias), "list must omit alias %q", alias)
+		require.Containsf(t, ExternalScopeNames(), string(canonical), "list must offer %q", canonical)
 	}
 }
 

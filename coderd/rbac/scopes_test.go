@@ -238,22 +238,17 @@ func TestCanonicalScopeName(t *testing.T) {
 func TestScopesCoverEveryExternalScope(t *testing.T) {
 	t.Parallel()
 
-	// ExternalScopeNames yields canonical names only, so the aliases are
-	// appended to assert that every name a client may request is comparable
-	// once canonicalized. A swapped mapping still satisfies this loop, since
-	// both aliases resolve to scopes that cover themselves.
-	// TestCanonicalScopeName is what pins the mapping.
-	names := append(rbac.ExternalScopeNames(), "all", "application_connect")
+	// The aliases inherit this without being named here: TestScopeAliases pins
+	// that each one canonicalizes to a name this list offers.
+	for _, name := range rbac.ExternalScopeNames() {
+		scope := rbac.ScopeName(name)
 
-	for _, name := range names {
-		canonical := rbac.CanonicalScopeName(rbac.ScopeName(name))
+		covered, err := rbac.ScopesCover([]rbac.ScopeName{rbac.ScopeAll}, scope)
+		require.NoErrorf(t, err, "coder:all vs %q", scope)
+		require.Truef(t, covered, "coder:all must cover %q", scope)
 
-		covered, err := rbac.ScopesCover([]rbac.ScopeName{rbac.ScopeAll}, canonical)
-		require.NoErrorf(t, err, "coder:all vs %q", canonical)
-		require.Truef(t, covered, "coder:all must cover %q", canonical)
-
-		covered, err = rbac.ScopesCover([]rbac.ScopeName{canonical}, canonical)
-		require.NoErrorf(t, err, "%q vs itself", canonical)
-		require.Truef(t, covered, "%q must cover itself", canonical)
+		covered, err = rbac.ScopesCover([]rbac.ScopeName{scope}, scope)
+		require.NoErrorf(t, err, "%q vs itself", scope)
+		require.Truef(t, covered, "%q must cover itself", scope)
 	}
 }
