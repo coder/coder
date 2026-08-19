@@ -285,8 +285,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		useState<TypesGen.Organization | null>(null);
 	const permittedOrgsQuery = useQuery({
 		...permittedOrganizations({
-			// agents-access grants chat:create only at member scope. "me" is
-			// replaced with the caller ID so that permission can match.
 			object: { resource_type: "chat", owner_id: "me" },
 			action: "create",
 		}),

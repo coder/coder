@@ -8117,6 +8117,9 @@ export interface Role {
 // From codersdk/rbacroles.go
 /**
  * Ideally these roles would be generated from the rbac/roles.go package.
+ * @deprecated the agents-access role was removed. Coder Agents chat
+ * access is part of the organization-member permission floor, and
+ * servers without this built-in role reject assigning it.
  */
 export const RoleAgentsAccess = "agents-access";
 

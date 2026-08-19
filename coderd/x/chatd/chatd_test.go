@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -2872,6 +2873,88 @@ func TestPersistToolResultWithBinaryData(t *testing.T) {
 	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include execute tool output")
 }
 
+// TestWorkspaceConnAuthorizationRevokedAfterBinding covers the
+// revocation window between chat binding and tool execution: the chat
+// binds its workspace at create, then the owner's workspace access is
+// revoked, so the next tool call must fail without dialing the agent.
+func TestWorkspaceConnAuthorizationRevokedAfterBinding(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var streamedCallCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("Workspace conn authorization test")
+		}
+		if streamedCallCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("execute", `{"command":"whoami"}`),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Understood.")...)
+	})
+
+	// "openai-compat" routes to /chat/completions, where the mock
+	// supports streaming tool calls.
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, _ := seedWorkspaceWithAgent(t, db, user.ID)
+
+	var authCalls atomic.Int32
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		cfg.AgentConn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			t.Error("agent conn must not be dialed when workspace authorization fails")
+			return nil, nil, xerrors.New("unreachable")
+		}
+		cfg.AuthorizeWorkspaceConn = func(_ context.Context, ownerID, workspaceID uuid.UUID) error {
+			authCalls.Add(1)
+			assert.Equal(t, user.ID, ownerID)
+			assert.Equal(t, ws.ID, workspaceID)
+			return xerrors.New("workspace access revoked")
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "workspace-conn-authz",
+		ModelConfigID:  model.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Run whoami."),
+		},
+	})
+	require.NoError(t, err)
+
+	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
+	}
+	require.Positive(t, authCalls.Load())
+
+	var toolResult *codersdk.ChatMessagePart
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	for i := range messages {
+		if messages[i].Role != database.ChatMessageRoleTool {
+			continue
+		}
+		parts, parseErr := chatprompt.ParseContent(messages[i])
+		require.NoError(t, parseErr)
+		for j := range parts {
+			if parts[j].Type == codersdk.ChatMessagePartTypeToolResult && parts[j].ToolName == "execute" {
+				toolResult = &parts[j]
+			}
+		}
+	}
+	require.NotNil(t, toolResult)
+	require.True(t, toolResult.IsError)
+	require.Contains(t, string(toolResult.Result), "not authorized to use workspace")
+}
+
 func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 	t.Parallel()
 
@@ -4988,6 +5071,7 @@ func newTestServer(
 		ReplicaID:                  replicaID,
 		PendingChatAcquireInterval: testutil.WaitLong,
 		Experiments:                codersdk.ExperimentsKnown,
+		AuthorizeWorkspaceConn:     func(context.Context, uuid.UUID, uuid.UUID) error { return nil },
 	}
 	for _, o := range overrides {
 		o(&cfg)
@@ -8526,6 +8610,9 @@ func newActiveTestServer(
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 		Experiments:                codersdk.ExperimentsKnown,
+		// The workspace conn path fails closed without an authorizer;
+		// tests exercising authorization override this default.
+		AuthorizeWorkspaceConn: func(context.Context, uuid.UUID, uuid.UUID) error { return nil },
 	}
 	for _, o := range overrides {
 		o(&cfg)
