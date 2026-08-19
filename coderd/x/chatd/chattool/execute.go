@@ -426,6 +426,7 @@ const (
 type ProcessOutputArgs struct {
 	ProcessID   string  `json:"process_id"`
 	WaitTimeout *string `json:"wait_timeout,omitempty" description:"Override the default 10s block duration. The call blocks until the process exits or this timeout is reached. Set to '0s' for an immediate snapshot without waiting."`
+	ModelIntent *string `json:"model_intent,omitempty" description:"A short, natural-language, present-participle phrase describing why you are checking this process. This is shown to the user alongside the command. Use plain English with no underscores or technical jargon. Do not restate the command or include a duration. Keep it under 100 characters. Good examples: \"Waiting for the dev server to be ready\", \"Confirming the tests still pass\"."`
 }
 
 // ProcessOutput returns an AgentTool that retrieves the output

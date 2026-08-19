@@ -247,6 +247,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
+	modelIntent,
 	shellToolDisplayMode,
 }) => {
 	const rec = asRecord(result);
@@ -261,6 +262,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 		<ProcessOutputTool
 			output={output}
 			command={command || undefined}
+			modelIntent={modelIntent}
 			isRunning={status === "running"}
 			exitCode={exitCode}
 			isError={isError}

@@ -704,6 +704,52 @@ export const ProcessOutputChecked: Story = {
 	},
 };
 
+export const ProcessOutputModelIntent: Story = {
+	args: {
+		name: "process_output",
+		status: "running",
+		args: {
+			process_id: "process-123",
+			model_intent: "Waiting for the dev server to be ready",
+		},
+		modelIntent: "Waiting for the dev server to be ready",
+		result: {
+			command: "npm start",
+			output: "> Starting Vite dev server...",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("Waiting for the dev server to be ready on npm start"),
+		).toBeVisible();
+	},
+};
+
+/** Redundant "using <command>" suffixes are stripped from the intent. */
+export const ProcessOutputModelIntentRedundant: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: {
+			process_id: "process-123",
+			model_intent: "Confirming the tests pass using npm start",
+		},
+		modelIntent: "Confirming the tests pass using npm start",
+		result: {
+			command: "npm start",
+			output: "all tests passed",
+			exit_code: 0,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("Confirming the tests pass on npm start"),
+		).toBeVisible();
+	},
+};
+
 export const ProcessOutputChecking: Story = {
 	args: {
 		name: "process_output",

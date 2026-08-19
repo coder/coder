@@ -14,11 +14,12 @@ import {
 	resolveAgentDisplayState,
 } from "./displayMode";
 import { ToolCall } from "./ToolCall";
-import { signalTooltipLabel } from "./utils";
+import { sanitizeExecuteModelIntent, signalTooltipLabel } from "./utils";
 
 type ProcessOutputToolProps = {
 	output: string;
 	command?: string;
+	modelIntent?: string;
 	isRunning: boolean;
 	exitCode: number | null;
 	isError: boolean;
@@ -27,20 +28,32 @@ type ProcessOutputToolProps = {
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
-const getProcessOutputLabel = (
-	command: string | undefined,
-	isRunning: boolean,
-): string => {
-	const trimmed = command?.trim() ?? "";
-	if (!trimmed) {
+const getProcessOutputLabel = ({
+	command,
+	modelIntent,
+	isRunning,
+}: {
+	command: string | undefined;
+	modelIntent: string | undefined;
+	isRunning: boolean;
+}): string => {
+	const trimmedCommand = command?.trim() ?? "";
+	const intent = modelIntent
+		? sanitizeExecuteModelIntent(modelIntent, trimmedCommand)
+		: "";
+	if (intent) {
+		return trimmedCommand ? `${intent} on ${trimmedCommand}` : intent;
+	}
+	if (!trimmedCommand) {
 		return "Process output";
 	}
-	return `${isRunning ? "Checking" : "Checked"} ${trimmed}`;
+	return `${isRunning ? "Checking" : "Checked"} ${trimmedCommand}`;
 };
 
 export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 	output,
 	command,
+	modelIntent,
 	isRunning,
 	exitCode,
 	isError,
@@ -76,7 +89,7 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 				<ToolCall.HeaderButton>
 					<ToolCall.LeadingIcon name="process_output" />
 					<ToolCall.Label>
-						{getProcessOutputLabel(command, isRunning)}
+						{getProcessOutputLabel({ command, modelIntent, isRunning })}
 					</ToolCall.Label>
 					<ToolCall.Status />
 					<ToolCall.Chevron />
