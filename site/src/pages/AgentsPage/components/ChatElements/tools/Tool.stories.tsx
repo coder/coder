@@ -759,7 +759,6 @@ export const ProcessOutputExitZeroNoBadge: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Clean exit stays quiet: no badge, the Checked verb carries it.
 		expect(canvas.getByText("Checked npm start")).toBeVisible();
 		expect(canvas.queryByText(/exit/)).not.toBeInTheDocument();
 	},
@@ -799,7 +798,6 @@ export const ProcessOutputModelIntent: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Intent alone is the label; the command is not appended.
 		expect(
 			canvas.getByText("Waiting for the dev server to be ready"),
 		).toBeVisible();
@@ -807,7 +805,6 @@ export const ProcessOutputModelIntent: Story = {
 	},
 };
 
-/** Intent that restates the command is left as the model wrote it. */
 export const ProcessOutputModelIntentRedundant: Story = {
 	args: {
 		name: "process_output",
@@ -861,13 +858,11 @@ export const ProcessOutputStillRunningResult: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The call completed but the process lives; do not claim Checked.
 		expect(canvas.getByText("Checking npm start")).toBeVisible();
 		expect(canvas.queryByText(/Checked/)).not.toBeInTheDocument();
 	},
 };
 
-/** A later kill overrides the stale running snapshot. */
 export const ProcessOutputRunningThenKilled: Story = {
 	args: {
 		name: "process_output",
@@ -886,6 +881,27 @@ export const ProcessOutputRunningThenKilled: Story = {
 		expect(canvas.getByText("Checked npm start")).toBeVisible();
 		expect(canvas.queryByText(/Checking/)).not.toBeInTheDocument();
 		expect(canvas.getByRole("img", { name: "Killed (SIGKILL)" })).toBeVisible();
+	},
+};
+
+/** SIGTERM is catchable, so it leaves the running snapshot alone. */
+export const ProcessOutputRunningThenTerminated: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		killedBySignal: "terminate",
+		args: { process_id: "process-123" },
+		result: {
+			command: "npm start",
+			output: "> Starting Vite dev server...",
+			running: true,
+			note: "process is still running",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Checking npm start")).toBeVisible();
+		expect(canvas.queryByText(/Checked/)).not.toBeInTheDocument();
 	},
 };
 
