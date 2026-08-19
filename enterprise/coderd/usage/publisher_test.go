@@ -161,15 +161,16 @@ func TestIntegration(t *testing.T) {
 	require.Equal(t, 1, calls)
 
 	// The batch left an event unpublished, so the publisher should have
-	// stamped the failure-streak marker.
+	// recorded a failing-events marker entry for exactly that event. The
+	// permanently rejected event is terminal and must not be tracked.
 	//nolint:gocritic // Unit test.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	raw, err := db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailureStreakKey)
+	raw, err := db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailingEventsKey)
 	require.NoError(t, err)
-	var streak license.UsagePublishingFailureStreak
-	require.NoError(t, json.Unmarshal([]byte(raw), &streak))
-	require.False(t, streak.LastFailedAt.IsZero())
-	require.True(t, streak.LastFailedAt.After(streak.LastSucceededAt), "streak should be unresolved after a failing batch")
+	var marker license.UsagePublishingFailingEvents
+	require.NoError(t, json.Unmarshal([]byte(raw), &marker))
+	require.Len(t, marker.Events, 1)
+	require.Contains(t, marker.Events, temporarilyRejectedEventID)
 
 	// Set the handler for the next publish call. This call should only include
 	// the temporarily rejected event from earlier. This time we'll accept it.
@@ -194,12 +195,14 @@ func TestIntegration(t *testing.T) {
 	// The publisher should have published the events again.
 	require.Equal(t, 2, calls)
 
-	// The batch published every event, so the publisher should have resolved
-	// the failure-streak marker.
-	raw, err = db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailureStreakKey)
+	// The batch published the previously failing event, so the publisher
+	// should have resolved its marker entry. A fresh struct matters here:
+	// json.Unmarshal merges into an existing map instead of clearing it.
+	raw, err = db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailingEventsKey)
 	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal([]byte(raw), &streak))
-	require.False(t, streak.LastFailedAt.After(streak.LastSucceededAt), "streak should be resolved after a fully published batch")
+	var resolvedMarker license.UsagePublishingFailingEvents
+	require.NoError(t, json.Unmarshal([]byte(raw), &resolvedMarker))
+	require.Empty(t, resolvedMarker.Events)
 
 	// There should be no more publish calls after this, so set the handler to
 	// nil.
@@ -230,7 +233,7 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 		},
 	).AnyTimes()
 	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
-	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailureStreakKey).Return("", sql.ErrNoRows).AnyTimes()
+	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
 	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 
@@ -394,7 +397,7 @@ func TestPublisherMissingEvents(t *testing.T) {
 		},
 	).AnyTimes()
 	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
-	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailureStreakKey).Return("", sql.ErrNoRows).AnyTimes()
+	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
 	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	deploymentID, licenseJWT := configureMockDeployment(t, db)
 	clock := quartz.NewMock(t)
@@ -478,7 +481,7 @@ func TestPublisherLicenseSelection(t *testing.T) {
 		},
 	).AnyTimes()
 	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
-	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailureStreakKey).Return("", sql.ErrNoRows).AnyTimes()
+	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
 	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()
@@ -623,7 +626,7 @@ func TestPublisherTallymanError(t *testing.T) {
 		},
 	).AnyTimes()
 	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
-	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailureStreakKey).Return("", sql.ErrNoRows).AnyTimes()
+	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
 	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()

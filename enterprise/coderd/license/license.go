@@ -77,129 +77,147 @@ type usagePublishingEnabledMarker struct {
 	LastSeen     time.Time `json:"last_seen"`
 }
 
-// UsagePublishingFailureStreakKey is the runtime config key recording the
-// publisher's current temporary-failure streak as a JSON
-// UsagePublishingFailureStreak. Every publish batch that leaves an event
-// unpublished stamps the streak (see RecordUsagePublishingFailure), so
-// publish failure detection can report an active failure without scanning
-// the unpublished backlog for failed rows. The streak is never deleted; a
-// fully published batch resolves it by stamping last_succeeded_at (see
-// RecordUsagePublishingSuccess), and detection ignores a streak whose
-// latest evidence is a success. Because the marker keeps its failure
-// history and the success stamp is monotonic, a clean batch cannot erase a
-// newer failure another replica just recorded, and no replica ever needs a
-// global pending-failure scan. As a fallback for replicas that die
-// mid-streak, a streak whose last_failed_at is older than
-// usagePublishingFailureStreakStaleAfter also counts as resolved: while a
-// failing event remains pending, some replica retries it every publish
-// cycle and re-stamps last_failed_at.
-const UsagePublishingFailureStreakKey = "usage_publishing_failure_streak"
+// UsagePublishingFailingEventsKey is the runtime config key recording the
+// publisher's currently failing events as a JSON
+// UsagePublishingFailingEvents. Every publish batch reports its per-event
+// outcomes (see RecordUsagePublishingBatchOutcome): events left unpublished
+// gain or refresh an entry, and events confirmed published remove theirs.
+// Publish failure detection reads the marker instead of scanning the
+// unpublished backlog for failed rows, and because entries are keyed by
+// event ID, a fully published batch on one replica only resolves its own
+// events; failures another replica's rows justify stay recorded until
+// those exact rows publish. As a fallback for replicas that die mid-streak
+// or rows that age out of the publish window, an entry whose
+// last_failed_at is older than usagePublishingFailureStaleAfter counts as
+// resolved: while a failing event remains pending, some replica retries it
+// every publish cycle and re-stamps it.
+const UsagePublishingFailingEventsKey = "usage_publishing_failing_events"
 
-// usagePublishingFailureStreakStaleAfter is how old the streak's
-// last_failed_at may be before the streak counts as resolved. The publisher
-// retries pending events every 17 minutes, so an hour of silence means
-// several consecutive cycles saw no failure.
-const usagePublishingFailureStreakStaleAfter = time.Hour
+// usagePublishingFailureStaleAfter is how old an entry's last_failed_at
+// may be before the entry counts as resolved. The publisher retries
+// pending events every 17 minutes, so an hour of silence means several
+// consecutive cycles saw no failure for that event.
+const usagePublishingFailureStaleAfter = time.Hour
 
-// UsagePublishingFailureStreak is the JSON value stored under
-// UsagePublishingFailureStreakKey.
-type UsagePublishingFailureStreak struct {
-	// FirstFailedAt is when the current streak of publish batches with
-	// temporary failures started.
+// usagePublishingFailingEventsCap bounds how many per-event entries the
+// marker holds so its JSON value stays small. It matches the publish batch
+// size; overflow beyond the cap is folded into an aggregate record (see
+// UsagePublishingFailingEvents.Overflow).
+const usagePublishingFailingEventsCap = 100
+
+// UsagePublishingEventFailure records one failing event's streak.
+type UsagePublishingEventFailure struct {
+	// FirstFailedAt is when this event's current failure streak started.
 	FirstFailedAt time.Time `json:"first_failed_at"`
-	// LastFailedAt is the most recent temporary failure in the streak.
+	// LastFailedAt is the most recent failed publish attempt for the event.
 	LastFailedAt time.Time `json:"last_failed_at"`
-	// LastSucceededAt is when a publish batch last completed with every
-	// event published. A streak whose latest evidence is a success is
-	// resolved and detection ignores it.
-	LastSucceededAt time.Time `json:"last_succeeded_at"`
 }
 
-// RecordUsagePublishingFailure extends the failure streak after a publish
-// batch left events unpublished, starting a new streak when the previous
-// one resolved (by a recorded success or by staleness); the new failure is
-// a fresh incident. It runs under the marker advisory lock so concurrent
-// publishers cannot interleave. The caller must pass a system-authorized
-// context.
-func RecordUsagePublishingFailure(ctx context.Context, db database.Store, now time.Time) error {
+// UsagePublishingFailingEvents is the JSON value stored under
+// UsagePublishingFailingEventsKey.
+type UsagePublishingFailingEvents struct {
+	// Events maps a usage event ID to its failure streak. Capped at
+	// usagePublishingFailingEventsCap entries, keeping the oldest
+	// first_failed_at values because they determine the warning.
+	Events map[string]UsagePublishingEventFailure `json:"events"`
+	// Overflow aggregates failures dropped by the entry cap. Detection
+	// treats a fresh overflow conservatively as an unresolved failure:
+	// dropped entries cannot be resolved individually, so they expire only
+	// by staleness.
+	Overflow *UsagePublishingEventFailure `json:"overflow,omitempty"`
+}
+
+// RecordUsagePublishingBatchOutcome updates the failing-events marker with
+// a publish batch's per-event outcomes after the batch's database update
+// committed. Published events (including permanent rejections, which are
+// terminal) remove their entries; events left unpublished gain or refresh
+// one. Per-entry stamps are monotonic so a stalled replica cannot move
+// evidence backward, and an entry whose previous stamp went stale starts a
+// new streak because the old failure resolved (see
+// UsagePublishingFailingEventsKey). It runs under the marker advisory lock
+// so concurrent publishers cannot interleave. The caller must pass a
+// system-authorized context.
+func RecordUsagePublishingBatchOutcome(ctx context.Context, db database.Store, now time.Time, publishedIDs, failedIDs []string) error {
 	return db.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, database.LockIDUsagePublishingEnabledMarker); err != nil {
 			return xerrors.Errorf("acquire usage publishing marker lock: %w", err)
 		}
-		var streak UsagePublishingFailureStreak
-		raw, err := tx.GetRuntimeConfig(ctx, UsagePublishingFailureStreakKey)
-		if err == nil {
-			if jsonErr := json.Unmarshal([]byte(raw), &streak); jsonErr != nil {
-				// A corrupted value is unrecoverable; start a new streak.
-				streak = UsagePublishingFailureStreak{}
+		var marker UsagePublishingFailingEvents
+		raw, err := tx.GetRuntimeConfig(ctx, UsagePublishingFailingEventsKey)
+		switch {
+		case err == nil:
+			if jsonErr := json.Unmarshal([]byte(raw), &marker); jsonErr != nil {
+				// A corrupted value is unrecoverable; start over.
+				marker = UsagePublishingFailingEvents{}
 			}
-		} else if !xerrors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get usage publishing failure streak: %w", err)
-		}
-		if !now.After(streak.LastFailedAt) || !now.After(streak.LastSucceededAt) {
-			// Only strictly newer evidence mutates the marker: a stalled
-			// replica must not move the stamp backward, and a failure
-			// observed before the last recorded success is already
-			// resolved.
-			return nil
-		}
-		resolvedBySuccess := !streak.LastSucceededAt.Before(streak.LastFailedAt)
-		if streak.FirstFailedAt.IsZero() || resolvedBySuccess || now.Sub(streak.LastFailedAt) > usagePublishingFailureStreakStaleAfter {
-			streak.FirstFailedAt = now
-		}
-		streak.LastFailedAt = now
-		value, err := json.Marshal(streak)
-		if err != nil {
-			return xerrors.Errorf("marshal usage publishing failure streak: %w", err)
-		}
-		return tx.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
-			Key:   UsagePublishingFailureStreakKey,
-			Value: string(value),
-		})
-	}, nil)
-}
-
-// RecordUsagePublishingSuccess resolves the failure streak after a publish
-// batch completed with every event published. It stamps last_succeeded_at
-// only when the streak's latest evidence is a newer failure, so a healthy
-// deployment writes nothing and each streak is resolved at most once. It
-// runs under the marker advisory lock so concurrent publishers cannot
-// interleave. The caller must pass a system-authorized context.
-func RecordUsagePublishingSuccess(ctx context.Context, db database.Store, now time.Time) error {
-	return db.InTx(func(tx database.Store) error {
-		if err := tx.AcquireLock(ctx, database.LockIDUsagePublishingEnabledMarker); err != nil {
-			return xerrors.Errorf("acquire usage publishing marker lock: %w", err)
-		}
-		raw, err := tx.GetRuntimeConfig(ctx, UsagePublishingFailureStreakKey)
-		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
-				// No streak to resolve.
+		case xerrors.Is(err, sql.ErrNoRows):
+			if len(failedIDs) == 0 {
+				// Healthy deployments have no marker and write nothing.
 				return nil
 			}
-			return xerrors.Errorf("get usage publishing failure streak: %w", err)
+		default:
+			return xerrors.Errorf("get usage publishing failing events: %w", err)
 		}
-		var streak UsagePublishingFailureStreak
-		if jsonErr := json.Unmarshal([]byte(raw), &streak); jsonErr != nil {
-			// A corrupted value is unrecoverable here; the publisher
-			// overwrites it on its next failing batch.
-			return nil
+		if marker.Events == nil {
+			marker.Events = map[string]UsagePublishingEventFailure{}
 		}
-		if !now.After(streak.LastFailedAt) {
-			// A stalled replica's success from before the latest failure
-			// must not resolve it.
-			return nil
+		for _, id := range publishedIDs {
+			delete(marker.Events, id)
 		}
-		if !streak.LastFailedAt.After(streak.LastSucceededAt) {
-			// Already resolved.
-			return nil
+		for _, id := range failedIDs {
+			entry, ok := marker.Events[id]
+			if ok && !now.After(entry.LastFailedAt) {
+				// A stalled replica must not move the stamp backward.
+				continue
+			}
+			if !ok || now.Sub(entry.LastFailedAt) > usagePublishingFailureStaleAfter {
+				// No fresh streak for this event; this failure starts one.
+				entry.FirstFailedAt = now
+			}
+			entry.LastFailedAt = now
+			marker.Events[id] = entry
 		}
-		streak.LastSucceededAt = now
-		value, err := json.Marshal(streak)
+		// Entries whose streak went stale are resolved (see
+		// UsagePublishingFailingEventsKey); drop them so the marker cannot
+		// grow without bound across distinct events over time.
+		for id, entry := range marker.Events {
+			if now.Sub(entry.LastFailedAt) > usagePublishingFailureStaleAfter {
+				delete(marker.Events, id)
+			}
+		}
+		if marker.Overflow != nil && now.Sub(marker.Overflow.LastFailedAt) > usagePublishingFailureStaleAfter {
+			marker.Overflow = nil
+		}
+		// Enforce the entry cap by folding the newest entries into the
+		// overflow aggregate. The oldest first_failed_at values stay
+		// resolvable per event because they determine the warning.
+		for len(marker.Events) > usagePublishingFailingEventsCap {
+			newestID := ""
+			var newest UsagePublishingEventFailure
+			for id, entry := range marker.Events {
+				if newestID == "" || entry.FirstFailedAt.After(newest.FirstFailedAt) {
+					newestID = id
+					newest = entry
+				}
+			}
+			delete(marker.Events, newestID)
+			if marker.Overflow == nil {
+				marker.Overflow = &UsagePublishingEventFailure{FirstFailedAt: newest.FirstFailedAt, LastFailedAt: newest.LastFailedAt}
+				continue
+			}
+			if newest.FirstFailedAt.Before(marker.Overflow.FirstFailedAt) {
+				marker.Overflow.FirstFailedAt = newest.FirstFailedAt
+			}
+			if newest.LastFailedAt.After(marker.Overflow.LastFailedAt) {
+				marker.Overflow.LastFailedAt = newest.LastFailedAt
+			}
+		}
+		value, err := json.Marshal(marker)
 		if err != nil {
-			return xerrors.Errorf("marshal usage publishing failure streak: %w", err)
+			return xerrors.Errorf("marshal usage publishing failing events: %w", err)
 		}
 		return tx.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
-			Key:   UsagePublishingFailureStreakKey,
+			Key:   UsagePublishingFailingEventsKey,
 			Value: string(value),
 		})
 	}, nil)
@@ -327,36 +345,43 @@ func Entitlements(
 			if err != nil {
 				return database.GetUsagePublishStatusRow{}, err
 			}
-			// Fold in the publisher-maintained failure streak, which covers
-			// active failures without scanning the backlog (see
-			// UsagePublishingFailureStreakKey). The enabled-since clamp and
-			// failure threshold apply the same as for stuck events.
-			raw, err := db.GetRuntimeConfig(ctx, UsagePublishingFailureStreakKey)
+			// Fold in the publisher-maintained failing-events marker, which
+			// covers active failures without scanning the backlog (see
+			// UsagePublishingFailingEventsKey). Entries whose last_failed_at
+			// went stale are resolved and ignored. The enabled-since clamp
+			// and failure threshold apply the same as for stuck events.
+			raw, err := db.GetRuntimeConfig(ctx, UsagePublishingFailingEventsKey)
 			if err != nil {
 				if xerrors.Is(err, sql.ErrNoRows) {
 					return status, nil
 				}
-				return database.GetUsagePublishStatusRow{}, xerrors.Errorf("get usage publishing failure streak: %w", err)
+				return database.GetUsagePublishStatusRow{}, xerrors.Errorf("get usage publishing failing events: %w", err)
 			}
-			var streak UsagePublishingFailureStreak
-			if jsonErr := json.Unmarshal([]byte(raw), &streak); jsonErr != nil || streak.FirstFailedAt.IsZero() {
-				// A corrupted streak is unrecoverable here; the publisher
+			var marker UsagePublishingFailingEvents
+			if jsonErr := json.Unmarshal([]byte(raw), &marker); jsonErr != nil {
+				// A corrupted marker is unrecoverable here; the publisher
 				// overwrites it on its next failing batch.
 				return status, nil
 			}
-			if !streak.LastFailedAt.After(streak.LastSucceededAt) {
-				// The streak's latest evidence is a fully published
-				// batch: the failure resolved (see
-				// UsagePublishingFailureStreakKey).
+			var oldestFailing time.Time
+			fold := func(entry UsagePublishingEventFailure) {
+				if entry.FirstFailedAt.IsZero() || now.Sub(entry.LastFailedAt) > usagePublishingFailureStaleAfter {
+					return
+				}
+				if oldestFailing.IsZero() || entry.FirstFailedAt.Before(oldestFailing) {
+					oldestFailing = entry.FirstFailedAt
+				}
+			}
+			for _, entry := range marker.Events {
+				fold(entry)
+			}
+			if marker.Overflow != nil {
+				fold(*marker.Overflow)
+			}
+			if oldestFailing.IsZero() {
 				return status, nil
 			}
-			if now.Sub(streak.LastFailedAt) > usagePublishingFailureStreakStaleAfter {
-				// No replica has stamped a failure for several publish
-				// cycles: the failure resolved, so the leftover marker is
-				// ignored (see UsagePublishingFailureStreakKey).
-				return status, nil
-			}
-			effective := streak.FirstFailedAt
+			effective := oldestFailing
 			if enabledSince.After(effective) {
 				effective = enabledSince
 			}

@@ -11344,9 +11344,9 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			// The query only probes the front of the publisher's queue;
 			// active failures displaced behind fresh backfills (or held
 			// in flight by a slow retry) are covered by the publisher's
-			// failure-streak marker instead, which license.Entitlements
-			// folds in. See UsagePublishingFailureStreakKey.
-			name: "DisplacedFailureCoveredByStreakMarkerNotQuery",
+			// failing-events marker instead, which license.Entitlements
+			// folds in. See UsagePublishingFailingEventsKey.
+			name: "DisplacedFailureCoveredByFailingEventsMarkerNotQuery",
 			events: append(
 				backfillFlood(now),
 				usagePublishSeedEvent{id: "failing", createdAt: now.Add(-3 * time.Hour), insertedAt: now.Add(-40 * time.Hour), failureMessage: "temporary failure", failedAts: []time.Time{now.Add(-30 * time.Hour)}},

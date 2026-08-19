@@ -4075,21 +4075,16 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.Nil(t, entitlements.UsagePublishing.FailingSince)
 	})
 
-	// seedFailureStreak writes the failure-streak marker directly, as the
-	// publisher's repeated failing batches would have. A non-zero
-	// lastSucceededAt seeds a streak that a fully published batch stamped.
-	seedFailureStreak := func(ctx context.Context, t *testing.T, db database.Store, firstFailedAt, lastFailedAt, lastSucceededAt time.Time) {
+	// seedFailingEvents writes the failing-events marker directly, as the
+	// publisher's failing batches would have.
+	seedFailingEvents := func(ctx context.Context, t *testing.T, db database.Store, marker license.UsagePublishingFailingEvents) {
 		t.Helper()
-		marker, err := json.Marshal(map[string]time.Time{
-			"first_failed_at":   firstFailedAt.UTC(),
-			"last_failed_at":    lastFailedAt.UTC(),
-			"last_succeeded_at": lastSucceededAt.UTC(),
-		})
+		value, err := json.Marshal(marker)
 		require.NoError(t, err)
 		//nolint:gocritic // Unit test.
 		err = db.UpsertRuntimeConfig(dbauthz.AsSystemRestricted(ctx), database.UpsertRuntimeConfigParams{
-			Key:   license.UsagePublishingFailureStreakKey,
-			Value: string(marker),
+			Key:   license.UsagePublishingFailingEventsKey,
+			Value: string(value),
 		})
 		require.NoError(t, err)
 	}
@@ -4101,9 +4096,13 @@ func TestUsagePublishingStatus(t *testing.T) {
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 		now := time.Now()
 		seedEvent(ctx, t, db, "1", now.Add(-25*time.Hour), time.Time{}, "")
-		// The publisher's failing batches would have stamped the streak
-		// marker throughout the outage.
-		seedFailureStreak(ctx, t, db, now.Add(-25*time.Hour), now.Add(-10*time.Minute), time.Time{})
+		// The publisher's failing batches would have stamped the event's
+		// marker entry throughout the outage.
+		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
+			Events: map[string]license.UsagePublishingEventFailure{
+				"1": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+			},
+		})
 
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
 		require.NoError(t, err)
@@ -4114,7 +4113,7 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
 
 		// Simulate the outage recovering: the event gets published, the
-		// fully successful batch resolves the streak marker, and the next
+		// batch outcome resolves its marker entry, and the next
 		// entitlements refresh clears the warning immediately.
 		err = db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
 			Now:             now,
@@ -4124,7 +4123,7 @@ func TestUsagePublishingStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 		//nolint:gocritic // Unit test.
-		err = license.RecordUsagePublishingSuccess(dbauthz.AsSystemRestricted(ctx), db, now)
+		err = license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now, []string{"1"}, nil)
 		require.NoError(t, err)
 
 		entitlements, err = license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
@@ -4175,17 +4174,21 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.Nil(t, entitlements.UsagePublishing.FailingSince)
 	})
 
-	t.Run("FailureStreakMarkerRaisesWarning", func(t *testing.T) {
+	t.Run("FailingEventsMarkerRaisesWarning", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
 		db, _ := dbtestutil.NewDB(t)
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 
-		// The publisher stamps failure streaks in a runtime config marker;
-		// detection must warn from an active streak without any stuck event
+		// The publisher stamps failing events in a runtime config marker;
+		// detection must warn from an active entry without any stuck event
 		// rows.
 		now := time.Now()
-		seedFailureStreak(ctx, t, db, now.Add(-25*time.Hour), now.Add(-10*time.Minute), time.Time{})
+		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
+			Events: map[string]license.UsagePublishingEventFailure{
+				"1": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+			},
+		})
 
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
 		require.NoError(t, err)
@@ -4194,16 +4197,21 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
 	})
 
-	t.Run("StaleFailureStreakIgnored", func(t *testing.T) {
+	t.Run("StaleFailingEventIgnored", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
 		db, _ := dbtestutil.NewDB(t)
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 
-		// No replica has stamped a failure for several publish cycles, so
-		// the failure resolved and the leftover marker must not warn.
+		// No replica has stamped a failure for this event for several
+		// publish cycles, so its failure resolved and the leftover entry
+		// must not warn.
 		now := time.Now()
-		seedFailureStreak(ctx, t, db, now.Add(-25*time.Hour), now.Add(-2*time.Hour), time.Time{})
+		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
+			Events: map[string]license.UsagePublishingEventFailure{
+				"1": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-2 * time.Hour)},
+			},
+		})
 
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
 		require.NoError(t, err)
@@ -4211,93 +4219,113 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.Nil(t, entitlements.UsagePublishing.FailingSince)
 	})
 
-	t.Run("ResolvedFailureStreakIgnored", func(t *testing.T) {
+	t.Run("CleanBatchDoesNotResolveOtherEvents", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
 		db, _ := dbtestutil.NewDB(t)
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 
-		// A fully published batch resolved the streak minutes ago; the
-		// marker's failure history must not warn even though its
-		// last_failed_at is still fresh.
+		// A replica's fully published batch only resolves its own events;
+		// a failure another replica's event justifies must keep warning.
 		now := time.Now()
-		seedFailureStreak(ctx, t, db, now.Add(-25*time.Hour), now.Add(-10*time.Minute), now.Add(-5*time.Minute))
-
-		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
-		require.NoError(t, err)
-		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
-		require.Nil(t, entitlements.UsagePublishing.FailingSince)
-	})
-
-	t.Run("FailureAfterResolvedStreakStartsNewStreak", func(t *testing.T) {
-		t.Parallel()
-		ctx := context.Background()
-		db, _ := dbtestutil.NewDB(t)
-		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
-
-		// A failure stamped after the streak was resolved by a success
-		// starts a new streak rather than inheriting the resolved one's
-		// first failure.
-		now := time.Now()
-		seedFailureStreak(ctx, t, db, now.Add(-50*time.Hour), now.Add(-30*time.Minute), now.Add(-20*time.Minute))
+		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
+			Events: map[string]license.UsagePublishingEventFailure{
+				"failing-elsewhere": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+			},
+		})
 		//nolint:gocritic // Unit test.
-		err := license.RecordUsagePublishingFailure(dbauthz.AsSystemRestricted(ctx), db, now.Add(-10*time.Minute))
-		require.NoError(t, err)
-
-		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
-		require.NoError(t, err)
-		// The new streak is only 10 minutes old, well within the threshold.
-		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
-		require.Nil(t, entitlements.UsagePublishing.FailingSince)
-	})
-
-	t.Run("StaleSuccessDoesNotResolveNewerFailure", func(t *testing.T) {
-		t.Parallel()
-		ctx := context.Background()
-		db, _ := dbtestutil.NewDB(t)
-		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
-
-		// A stalled replica's success observed before the latest failure
-		// must not resolve the streak.
-		now := time.Now()
-		seedFailureStreak(ctx, t, db, now.Add(-25*time.Hour), now.Add(-10*time.Minute), time.Time{})
-		//nolint:gocritic // Unit test.
-		err := license.RecordUsagePublishingSuccess(dbauthz.AsSystemRestricted(ctx), db, now.Add(-20*time.Minute))
+		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now, []string{"other-event"}, nil)
 		require.NoError(t, err)
 
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
 		require.NoError(t, err)
 		require.Contains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
 		require.NotNil(t, entitlements.UsagePublishing.FailingSince)
+		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
 	})
 
-	t.Run("SuccessWithoutStreakWritesNothing", func(t *testing.T) {
-		t.Parallel()
-		ctx := context.Background()
-		db, _ := dbtestutil.NewDB(t)
-
-		// Healthy deployments publish successfully every cycle; the success
-		// path must not create a marker when there is no streak to resolve.
-		//nolint:gocritic // Unit test.
-		sysCtx := dbauthz.AsSystemRestricted(ctx)
-		err := license.RecordUsagePublishingSuccess(sysCtx, db, time.Now())
-		require.NoError(t, err)
-		_, err = db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailureStreakKey)
-		require.ErrorIs(t, err, sql.ErrNoRows)
-	})
-
-	t.Run("FreshFailureAfterStaleStreakStartsNewStreak", func(t *testing.T) {
+	t.Run("PublishedEventResolvesOnlyItsEntry", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
 		db, _ := dbtestutil.NewDB(t)
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 
-		// A failure stamped after the streak went stale starts a new streak
-		// rather than inheriting the resolved one's first failure.
+		// Publishing the long-failing event resolves its entry immediately;
+		// the remaining fresh entry is too young to warn.
 		now := time.Now()
-		seedFailureStreak(ctx, t, db, now.Add(-50*time.Hour), now.Add(-2*time.Hour), time.Time{})
+		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
+			Events: map[string]license.UsagePublishingEventFailure{
+				"old": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+				"new": {FirstFailedAt: now.Add(-10 * time.Minute), LastFailedAt: now.Add(-10 * time.Minute)},
+			},
+		})
 		//nolint:gocritic // Unit test.
-		err := license.RecordUsagePublishingFailure(dbauthz.AsSystemRestricted(ctx), db, now.Add(-10*time.Minute))
+		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now, []string{"old"}, nil)
+		require.NoError(t, err)
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.Nil(t, entitlements.UsagePublishing.FailingSince)
+	})
+
+	t.Run("StalledReplicaCannotMoveEntryBackward", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
+
+		// A stalled replica reporting an older failure for an event must
+		// not rewind the entry's evidence or reset its streak start.
+		now := time.Now()
+		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
+			Events: map[string]license.UsagePublishingEventFailure{
+				"1": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+			},
+		})
+		//nolint:gocritic // Unit test.
+		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now.Add(-20*time.Minute), nil, []string{"1"})
+		require.NoError(t, err)
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.Contains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.NotNil(t, entitlements.UsagePublishing.FailingSince)
+		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
+	})
+
+	t.Run("CleanBatchWithoutMarkerWritesNothing", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+
+		// Healthy deployments publish successfully every cycle; a clean
+		// batch outcome must not create a marker when there is nothing to
+		// resolve.
+		//nolint:gocritic // Unit test.
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		err := license.RecordUsagePublishingBatchOutcome(sysCtx, db, time.Now(), []string{"1"}, nil)
+		require.NoError(t, err)
+		_, err = db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailingEventsKey)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("FreshFailureAfterStaleEntryStartsNewStreak", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
+
+		// A failure stamped after the event's entry went stale starts a new
+		// streak rather than inheriting the resolved one's first failure.
+		now := time.Now()
+		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
+			Events: map[string]license.UsagePublishingEventFailure{
+				"1": {FirstFailedAt: now.Add(-50 * time.Hour), LastFailedAt: now.Add(-2 * time.Hour)},
+			},
+		})
+		//nolint:gocritic // Unit test.
+		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now.Add(-10*time.Minute), nil, []string{"1"})
 		require.NoError(t, err)
 
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
@@ -4305,6 +4333,67 @@ func TestUsagePublishingStatus(t *testing.T) {
 		// The new streak is only 10 minutes old, well within the threshold.
 		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
 		require.Nil(t, entitlements.UsagePublishing.FailingSince)
+	})
+
+	t.Run("OverflowKeepsWarningWhenTrackedEventResolves", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
+
+		// Failures folded into the overflow aggregate cannot be resolved
+		// individually, so publishing every tracked event must not clear
+		// the warning while the overflow is fresh.
+		now := time.Now()
+		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
+			Events: map[string]license.UsagePublishingEventFailure{
+				"tracked": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+			},
+			Overflow: &license.UsagePublishingEventFailure{FirstFailedAt: now.Add(-30 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+		})
+		//nolint:gocritic // Unit test.
+		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now, []string{"tracked"}, nil)
+		require.NoError(t, err)
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.Contains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.NotNil(t, entitlements.UsagePublishing.FailingSince)
+		require.WithinDuration(t, now.Add(-30*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
+	})
+
+	t.Run("EntryCapFoldsNewestIntoOverflow", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+
+		// A batch outcome reporting more failing events than the cap keeps
+		// the oldest entries resolvable and folds the rest into the
+		// overflow aggregate.
+		now := time.Now()
+		//nolint:gocritic // Unit test.
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
+			Events: map[string]license.UsagePublishingEventFailure{
+				"oldest": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+			},
+		})
+		failedIDs := make([]string, 150)
+		for i := range failedIDs {
+			failedIDs[i] = fmt.Sprintf("event-%d", i)
+		}
+		err := license.RecordUsagePublishingBatchOutcome(sysCtx, db, now, nil, failedIDs)
+		require.NoError(t, err)
+
+		raw, err := db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailingEventsKey)
+		require.NoError(t, err)
+		var marker license.UsagePublishingFailingEvents
+		require.NoError(t, json.Unmarshal([]byte(raw), &marker))
+		require.Len(t, marker.Events, 100)
+		require.NotNil(t, marker.Overflow)
+		// The oldest entry survives the fold because it determines the
+		// warning.
+		require.Contains(t, marker.Events, "oldest")
 	})
 
 	t.Run("StaleRefreshDoesNotMoveMarkerBackward", func(t *testing.T) {

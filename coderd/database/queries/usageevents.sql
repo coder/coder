@@ -134,9 +134,9 @@ WHERE
 --     exited mid-publish, and the publisher considers those rows retryable,
 --     so the status scan must too or they could stay stuck without warning.
 --     Events with an active publish failure need no queue-position
---     visibility here: the publisher records its temporary-failure streak
---     in a runtime config marker as part of each batch outcome (see
---     license.UsagePublishingFailureStreakKey), which failure detection
+--     visibility here: the publisher records its failing events in a
+--     runtime config marker as part of each batch outcome (see
+--     license.UsagePublishingFailingEventsKey), which failure detection
 --     folds in without scanning the backlog for failed rows.
 --   - rejected_after: now minus the failure threshold. Permanent rejections
 --     that happened after this and within the current enabled period are
