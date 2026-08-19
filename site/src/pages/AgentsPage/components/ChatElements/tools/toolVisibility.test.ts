@@ -73,6 +73,36 @@ describe("toolVisibility", () => {
 			).toBe(false);
 		});
 
+		it("recognizes legacy trailing-ampersand background launches", () => {
+			// The execute tool promotes `cmd &` to background mode and
+			// strips the ampersand, but the persisted args keep the
+			// original command without run_in_background.
+			expect(
+				getExecuteRenderData(
+					{ command: "npm start &" },
+					{
+						success: true,
+						background_process_id: "process-1",
+					},
+				).isBackgrounded,
+			).toBe(true);
+		});
+
+		it("ignores ampersand chains that are not background promotions", () => {
+			expect(
+				getExecuteRenderData(
+					{ command: "cmd1 && cmd2" },
+					{ success: true, background_process_id: "process-1" },
+				).isBackgrounded,
+			).toBe(false);
+			expect(
+				getExecuteRenderData(
+					{ command: "cmd |& tee log" },
+					{ success: true, background_process_id: "process-1" },
+				).isBackgrounded,
+			).toBe(false);
+		});
+
 		it("normalizes execute error results into transcript blocks", () => {
 			const data = getExecuteRenderData(
 				{ command: "ls -la" },

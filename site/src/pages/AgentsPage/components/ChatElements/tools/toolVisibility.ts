@@ -48,9 +48,19 @@ export const getExecuteRenderData = (
 		: undefined;
 	// Foreground timeouts also set background_process_id, so fall
 	// back to the call args for older transcripts without the flag.
+	// That includes trailing-& commands, which the tool promotes to
+	// background without adding run_in_background to the args.
+	const trimmedCommand = command.trimEnd();
+	const hasTrailingAmp =
+		trimmedCommand.endsWith("&") &&
+		!trimmedCommand.endsWith("&&") &&
+		!trimmedCommand.endsWith("|&");
 	const isBackgrounded =
 		rec?.backgrounded === true ||
-		(rec?.backgrounded === undefined && parsedArgs?.run_in_background === true);
+		(rec?.backgrounded === undefined &&
+			(parsedArgs?.run_in_background === true ||
+				(Boolean(rec && asString(rec.background_process_id).trim()) &&
+					hasTrailingAmp)));
 
 	return {
 		command,

@@ -604,7 +604,6 @@ export const ExecuteBackgrounded: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The backgrounded spawn duration is process noise, not shown.
 		expect(canvas.queryByText(/for 2\.1s/)).not.toBeInTheDocument();
 		expect(canvas.getByText(/npm start/)).toBeInTheDocument();
 	},
