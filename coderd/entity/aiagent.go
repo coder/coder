@@ -59,7 +59,7 @@ func CreateAIAgent(ctx context.Context, store database.Store, params CreateAIAge
 
 	created := NewAIAgent{ID: uuid.New()}
 	err := store.InTx(func(tx database.Store) error {
-		_, err := tx.InsertAIAgent(ctx, database.InsertAIAgentParams{
+		_, err := tx.InsertEntityAIAgent(ctx, database.InsertEntityAIAgentParams{
 			ID:      created.ID,
 			OwnerID: params.OwnerID,
 		})

@@ -2105,6 +2105,14 @@ func (m queryMetricsStore) GetEnabledMCPServerConfigs(ctx context.Context) ([]da
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetEntityAIAgentByID(ctx context.Context, id uuid.UUID) (database.EntityAIAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetEntityAIAgentByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetEntityAIAgentByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEntityAIAgentByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetExternalAgentTokensByTemplateID(ctx context.Context, arg database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetExternalAgentTokensByTemplateID(ctx, arg)
@@ -2382,14 +2390,6 @@ func (m queryMetricsStore) GetLicenses(ctx context.Context) ([]database.License,
 	r0, r1 := m.s.GetLicenses(ctx)
 	m.queryLatencies.WithLabelValues("GetLicenses").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLicenses").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetLifecycleEntriesByActor(ctx context.Context, arg database.GetLifecycleEntriesByActorParams) ([]database.EntityJournal, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetLifecycleEntriesByActor(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetLifecycleEntriesByActor").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLifecycleEntriesByActor").Inc()
 	return r0, r1
 }
 
@@ -4327,6 +4327,14 @@ func (m queryMetricsStore) InsertDeploymentID(ctx context.Context, value string)
 	m.queryLatencies.WithLabelValues("InsertDeploymentID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertDeploymentID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) InsertEntityAIAgent(ctx context.Context, arg database.InsertEntityAIAgentParams) (database.EntityAIAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertEntityAIAgent(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertEntityAIAgent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertEntityAIAgent").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertEntityJournalEntry(ctx context.Context, arg database.InsertEntityJournalEntryParams) (database.EntityJournal, error) {

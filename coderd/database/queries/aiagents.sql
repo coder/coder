@@ -98,17 +98,3 @@ WITH orphaned AS (
 )
 DELETE FROM api_keys
 WHERE user_id IN (SELECT user_id FROM orphaned);
-
--- name: InsertAIAgent :one
-INSERT INTO
-	ai_agents (id, owner_id)
-VALUES
-	($1, $2) RETURNING *;
-
--- name: GetAIAgentByID :one
-SELECT
-	*
-FROM
-	ai_agents
-WHERE
-	id = $1;

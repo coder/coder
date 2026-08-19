@@ -1,4 +1,4 @@
-INSERT INTO ai_agents (
+INSERT INTO entity_ai_agents (
     id,
     owner_id
 ) VALUES

@@ -152,7 +152,7 @@ func TestAIAgentIdentity(t *testing.T) {
 		scriptLog := readScriptLog(scriptLogPath)
 		id := mintedAIAgentID(t, scriptLog)
 
-		aiAgent, err := db.GetAIAgentByID(systemCtx, id)
+		aiAgent, err := db.GetEntityAIAgentByID(systemCtx, id)
 		require.NoError(t, err, "the returned identity should name a row")
 		require.Equal(t, user.UserID, aiAgent.OwnerID,
 			"the AI agent should belong to the owner of the workspace it was created in")

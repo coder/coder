@@ -14808,55 +14808,39 @@ func (q *sqlQuerier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest strin
 	return err
 }
 
-const getLifecycleEntriesByActor = `-- name: GetLifecycleEntriesByActor :many
+const getEntityAIAgentByID = `-- name: GetEntityAIAgentByID :one
 SELECT
-	id, recorded_at, event, subject_type, subject, actor_type, actor
+	id, owner_id
 FROM
-	entity_journal
+	entity_ai_agents
 WHERE
-	actor_type = $1
-	AND actor = $2
-ORDER BY
-	id
-LIMIT
-	$3
+	id = $1
 `
 
-type GetLifecycleEntriesByActorParams struct {
-	ActorType string    `db:"actor_type" json:"actor_type"`
-	Actor     uuid.UUID `db:"actor" json:"actor"`
-	Limit     int32     `db:"limit" json:"limit"`
+func (q *sqlQuerier) GetEntityAIAgentByID(ctx context.Context, id uuid.UUID) (EntityAIAgent, error) {
+	row := q.db.QueryRowContext(ctx, getEntityAIAgentByID, id)
+	var i EntityAIAgent
+	err := row.Scan(&i.ID, &i.OwnerID)
+	return i, err
 }
 
-func (q *sqlQuerier) GetLifecycleEntriesByActor(ctx context.Context, arg GetLifecycleEntriesByActorParams) ([]EntityJournal, error) {
-	rows, err := q.db.QueryContext(ctx, getLifecycleEntriesByActor, arg.ActorType, arg.Actor, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []EntityJournal
-	for rows.Next() {
-		var i EntityJournal
-		if err := rows.Scan(
-			&i.ID,
-			&i.RecordedAt,
-			&i.Event,
-			&i.SubjectType,
-			&i.Subject,
-			&i.ActorType,
-			&i.Actor,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+const insertEntityAIAgent = `-- name: InsertEntityAIAgent :one
+INSERT INTO
+	entity_ai_agents (id, owner_id)
+VALUES
+	($1, $2) RETURNING id, owner_id
+`
+
+type InsertEntityAIAgentParams struct {
+	ID      uuid.UUID `db:"id" json:"id"`
+	OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
+}
+
+func (q *sqlQuerier) InsertEntityAIAgent(ctx context.Context, arg InsertEntityAIAgentParams) (EntityAIAgent, error) {
+	row := q.db.QueryRowContext(ctx, insertEntityAIAgent, arg.ID, arg.OwnerID)
+	var i EntityAIAgent
+	err := row.Scan(&i.ID, &i.OwnerID)
+	return i, err
 }
 
 const getLifecycleEntriesBySubject = `-- name: GetLifecycleEntriesBySubject :many
@@ -14879,9 +14863,11 @@ type GetLifecycleEntriesBySubjectParams struct {
 	Limit       int32     `db:"limit" json:"limit"`
 }
 
-// The limit is a backstop rather than pagination. Callers pass one entry more
+// Entries about one entity, which is what makes the limit meaningful. A
+// lifecycle is a state machine without cycles, so one entity's entries are
+// bounded by the sequences that machine allows. Callers pass one entry more
 // than they will accept, so that receiving it tells them the set was larger
-// than an entity's lifecycle can produce.
+// than that.
 func (q *sqlQuerier) GetLifecycleEntriesBySubject(ctx context.Context, arg GetLifecycleEntriesBySubjectParams) ([]EntityJournal, error) {
 	rows, err := q.db.QueryContext(ctx, getLifecycleEntriesBySubject, arg.SubjectType, arg.Subject, arg.Limit)
 	if err != nil {

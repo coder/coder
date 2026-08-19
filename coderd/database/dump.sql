@@ -2421,6 +2421,13 @@ COMMENT ON COLUMN dbcrypt_keys.revoked_at IS 'The time at which the key was revo
 
 COMMENT ON COLUMN dbcrypt_keys.test IS 'A column used to test the encryption.';
 
+CREATE TABLE entity_ai_agents (
+    id uuid NOT NULL,
+    owner_id uuid NOT NULL
+);
+
+COMMENT ON TABLE entity_ai_agents IS 'Identities of AI agents. Three absences are deliberate. There is no workspace or sandbox reference, because an AI agent''s identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema that merges them forecloses reconstituting an AI agent from a previous session. There is no creation time, because the journal records when this row came to exist and duplicating it here would create a second answer that can disagree with the first.';
+
 CREATE TABLE entity_journal (
     id bigint NOT NULL,
     recorded_at timestamp with time zone NOT NULL,
@@ -4508,6 +4515,9 @@ ALTER TABLE ONLY dbcrypt_keys
 ALTER TABLE ONLY dbcrypt_keys
     ADD CONSTRAINT dbcrypt_keys_revoked_key_digest_key UNIQUE (revoked_key_digest);
 
+ALTER TABLE ONLY entity_ai_agents
+    ADD CONSTRAINT entity_ai_agents_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY entity_journal
     ADD CONSTRAINT entity_journal_pkey PRIMARY KEY (id);
 
@@ -5029,6 +5039,8 @@ CREATE UNIQUE INDEX idx_custom_roles_name_lower_organization_id ON custom_roles 
 
 CREATE INDEX idx_entity_journal_actor ON entity_journal USING btree (actor_type, actor, id);
 
+COMMENT ON INDEX idx_entity_journal_actor IS 'Supports no query at present. It is kept for forensic investigation, which asks what one actor did across many entities rather than what happened to one entity. That is beyond the scope of the proof of concept, so nothing reads by actor yet. Note that such a query cannot borrow the per entity bound the by subject read relies on: one actor can act on unboundedly many entities.';
+
 CREATE INDEX idx_entity_journal_subject ON entity_journal USING btree (subject_type, subject, id);
 
 CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USING btree (user_id, read_at);
@@ -5432,6 +5444,9 @@ ALTER TABLE ONLY connection_logs
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY entity_ai_agents
+    ADD CONSTRAINT entity_ai_agents_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
 
 ALTER TABLE ONLY chat_debug_steps
     ADD CONSTRAINT fk_chat_debug_steps_run_chat FOREIGN KEY (run_id, chat_id) REFERENCES chat_debug_runs(id, chat_id) ON DELETE CASCADE;

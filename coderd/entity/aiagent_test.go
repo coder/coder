@@ -37,7 +37,7 @@ func TestCreateAIAgent(t *testing.T) {
 		require.NotEmpty(t, created.Credential, "creation should issue a credential")
 
 		id := created.ID
-		agent, err := db.GetAIAgentByID(ctx, id)
+		agent, err := db.GetEntityAIAgentByID(ctx, id)
 		require.NoError(t, err, "the minted identity should name a row")
 		require.Equal(t, owner.ID, agent.OwnerID, "the AI agent should belong to its principal")
 
@@ -91,7 +91,7 @@ func TestCreateAIAgent(t *testing.T) {
 
 		// The row and its entry commit together or not at all, so neither
 		// should have survived.
-		_, err = db.GetAIAgentByID(ctx, id)
+		_, err = db.GetEntityAIAgentByID(ctx, id)
 		require.ErrorIs(t, err, sql.ErrNoRows,
 			"the AI agent should roll back with the entry accounting for it")
 

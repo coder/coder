@@ -5478,6 +5478,12 @@ type DBCryptKey struct {
 	Test string `db:"test" json:"test"`
 }
 
+// Identities of AI agents. Three absences are deliberate. There is no workspace or sandbox reference, because an AI agent's identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema that merges them forecloses reconstituting an AI agent from a previous session. There is no creation time, because the journal records when this row came to exist and duplicating it here would create a second answer that can disagree with the first.
+type EntityAIAgent struct {
+	ID      uuid.UUID `db:"id" json:"id"`
+	OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
+}
+
 // Journal of persistent state changes to entities, against which the state of the world can be reconciled. Distinct from audit_logs, which is a separate mechanism recording requests.
 type EntityJournal struct {
 	ID          int64     `db:"id" json:"id"`

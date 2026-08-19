@@ -2822,13 +2822,6 @@ func (q *querier) GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUI
 	return q.db.GetAIAgentsByOwnerID(ctx, ownerUserID)
 }
 
-func (q *querier) GetAIAgentByID(ctx context.Context, id uuid.UUID) (database.AIAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.AIAgent{}, err
-	}
-	return q.db.GetAIAgentByID(ctx, id)
-}
-
 func (q *querier) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	// The aggregate covers one chat tree, so it is authorized through the
 	// root chat. Members cannot read interception rows back, but they can
@@ -3872,6 +3865,13 @@ func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MC
 		return nil, err
 	}
 	return q.db.GetEnabledMCPServerConfigs(ctx)
+}
+
+func (q *querier) GetEntityAIAgentByID(ctx context.Context, id uuid.UUID) (database.EntityAIAgent, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.EntityAIAgent{}, err
+	}
+	return q.db.GetEntityAIAgentByID(ctx, id)
 }
 
 // GetExternalAgentTokensByTemplateID is used for scaletesting purposes; the
@@ -6019,18 +6019,6 @@ func (q *querier) InsertAIAgent(ctx context.Context, arg database.InsertAIAgentP
 	return q.db.InsertAIAgent(ctx, arg)
 }
 
-// InsertAIAgent is guarded by ResourceSystem for the same reason as the
-// journal: an entity's own credential is workspace-scoped and carries no
-// system permission, so nothing inside a workspace can create an AI agent
-// directly. The control plane does it on their behalf. Coarse, and to be
-// revisited for production.
-func (q *querier) InsertAIAgent(ctx context.Context, arg database.InsertAIAgentParams) (database.AIAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.AIAgent{}, err
-	}
-	return q.db.InsertAIAgent(ctx, arg)
-}
-
 func (q *querier) InsertAIAgentUser(ctx context.Context, arg database.InsertAIAgentUserParams) (database.User, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUser); err != nil {
 		return database.User{}, err
@@ -6304,6 +6292,18 @@ func (q *querier) InsertDeploymentID(ctx context.Context, value string) error {
 		return err
 	}
 	return q.db.InsertDeploymentID(ctx, value)
+}
+
+// InsertEntityAIAgent is guarded by ResourceSystem for the same reason as the
+// journal: an entity's own credential is workspace-scoped and carries no
+// system permission, so nothing inside a workspace can create an AI agent
+// directly. The control plane does it on their behalf. Coarse, and to be
+// revisited for production.
+func (q *querier) InsertEntityAIAgent(ctx context.Context, arg database.InsertEntityAIAgentParams) (database.EntityAIAgent, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.EntityAIAgent{}, err
+	}
+	return q.db.InsertEntityAIAgent(ctx, arg)
 }
 
 // InsertEntityJournalEntry is guarded by ResourceSystem, which is coarse: it

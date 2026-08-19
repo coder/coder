@@ -590,6 +590,7 @@ type sqlcQuerier interface {
 	GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetEnabledChatModelConfigs(ctx context.Context) ([]GetEnabledChatModelConfigsRow, error)
 	GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
+	GetEntityAIAgentByID(ctx context.Context, id uuid.UUID) (EntityAIAgent, error)
 	// GetExternalAgentTokensByTemplateID returns the auth tokens for all
 	// non-deleted external agents on the latest build of every running workspace
 	// of the given template. "Running" means the latest build has
@@ -677,10 +678,11 @@ type sqlcQuerier interface {
 	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
 	GetLicenses(ctx context.Context) ([]License, error)
-	GetLifecycleEntriesByActor(ctx context.Context, arg GetLifecycleEntriesByActorParams) ([]EntityJournal, error)
-	// The limit is a backstop rather than pagination. Callers pass one entry more
+	// Entries about one entity, which is what makes the limit meaningful. A
+	// lifecycle is a state machine without cycles, so one entity's entries are
+	// bounded by the sequences that machine allows. Callers pass one entry more
 	// than they will accept, so that receiving it tells them the set was larger
-	// than an entity's lifecycle can produce.
+	// than that.
 	GetLifecycleEntriesBySubject(ctx context.Context, arg GetLifecycleEntriesBySubjectParams) ([]EntityJournal, error)
 	GetLogoURL(ctx context.Context) (string, error)
 	GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (MCPServerConfig, error)
@@ -1162,6 +1164,7 @@ type sqlcQuerier interface {
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
 	InsertDERPMeshKey(ctx context.Context, value string) error
 	InsertDeploymentID(ctx context.Context, value string) error
+	InsertEntityAIAgent(ctx context.Context, arg InsertEntityAIAgentParams) (EntityAIAgent, error)
 	InsertEntityJournalEntry(ctx context.Context, arg InsertEntityJournalEntryParams) (EntityJournal, error)
 	InsertExternalAuthLink(ctx context.Context, arg InsertExternalAuthLinkParams) (ExternalAuthLink, error)
 	InsertFile(ctx context.Context, arg InsertFileParams) (File, error)
