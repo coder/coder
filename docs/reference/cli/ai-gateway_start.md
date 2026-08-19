@@ -161,6 +161,15 @@ Output JSON logs to a given file.
 
 Output Stackdriver compatible logs to a given file.
 
+### -c, --config
+
+|             |                                 |
+|-------------|---------------------------------|
+| Type        | <code>yaml-config-path</code>   |
+| Environment | <code>$CODER_CONFIG_PATH</code> |
+
+Specify a YAML file to load configuration from.
+
 ### --ai-gateway-max-concurrency
 
 |             |                                                |
