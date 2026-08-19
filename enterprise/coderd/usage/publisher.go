@@ -35,6 +35,10 @@ const (
 	tallymanPublishInterval  = 17 * time.Minute
 	tallymanPublishTimeout   = 30 * time.Second
 	tallymanPublishBatchSize = 100
+	// usagePublishDBTimeout bounds each database phase of a publish
+	// iteration so a stalled database cannot block the single publish loop
+	// indefinitely.
+	usagePublishDBTimeout = 30 * time.Second
 )
 
 var errUsagePublishingDisabled = xerrors.New("usage publishing is not enabled by any license")
@@ -206,14 +210,18 @@ func (p *tallymanPublisher) publish(ctx context.Context, deploymentID uuid.UUID)
 // publishOnce publishes up to tallymanPublishBatchSize usage events to
 // tallyman. It returns the number of successfully published events.
 func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.UUID) (int, error) {
-	licenseJwt, err := p.getBestLicenseJWT(ctx)
+	// The pre-publish database reads run under their own bounded context so
+	// a stalled database cannot block the publish loop indefinitely.
+	selectCtx, selectCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
+	defer selectCtxCancel()
+	licenseJwt, err := p.getBestLicenseJWT(selectCtx)
 	if xerrors.Is(err, errUsagePublishingDisabled) {
 		return 0, nil
 	} else if err != nil {
 		return 0, xerrors.Errorf("find usage publishing license: %w", err)
 	}
 
-	events, err := p.db.SelectUsageEventsForPublishing(ctx, dbtime.Time(p.clock.Now()))
+	events, err := p.db.SelectUsageEventsForPublishing(selectCtx, dbtime.Time(p.clock.Now()))
 	if err != nil {
 		return 0, xerrors.Errorf("select usage events for publishing: %w", err)
 	}
@@ -252,11 +260,11 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 
 	// Only the tallyman request runs under the publish timeout. The
 	// post-publish database update and failing-events marker outcome below
-	// use the parent context: a request that consumes the entire timeout
-	// (e.g. tallyman hanging until the deadline) must still persist its
-	// failure, or the in-flight attempt markers on the selected rows would
-	// hide the failure from detection until they expire, only for the next
-	// retry to refresh them and hide it again.
+	// get a fresh bounded context instead: a request that consumes the
+	// entire timeout (e.g. tallyman hanging until the deadline) must still
+	// persist its failure, or the in-flight attempt markers on the selected
+	// rows would hide the failure from detection until they expire, only
+	// for the next retry to refresh them and hide it again.
 	publishCtx, publishCtxCancel := context.WithTimeout(ctx, p.publishTimeout)
 	resp, err := p.sendPublishRequest(publishCtx, deploymentID, licenseJwt, tallymanReq)
 	publishCtxCancel()
@@ -346,7 +354,13 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		}
 	}
 
-	err = p.db.UpdateUsageEventsPostPublish(ctx, dbUpdate)
+	// The post-publish writes get their own bounded context, separate from
+	// the request's (see above) so a request that consumed its entire
+	// deadline still persists its failure, and separate from the loop's so
+	// a stalled database cannot block it indefinitely.
+	updateCtx, updateCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
+	defer updateCtxCancel()
+	err = p.db.UpdateUsageEventsPostPublish(updateCtx, dbUpdate)
 	if err != nil {
 		return 0, xerrors.Errorf("update usage events post publish: %w", err)
 	}
@@ -374,7 +388,7 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 			failed[id] = insertedAts[id]
 		}
 	}
-	p.recordBatchOutcome(ctx, publishedIDs, failed)
+	p.recordBatchOutcome(updateCtx, publishedIDs, failed)
 
 	var returnErr error
 	if len(resp.RejectedEvents) > 0 {

@@ -125,6 +125,50 @@ export const PublishingFailing: Story = {
 	},
 };
 
+// When the status query fails server-side, last_published_at is unset
+// because its value is unknown, not because there was no recent success.
+// The page must render an unknown value instead of a factual-looking "no
+// recent successful publish".
+const settingsWithUnavailableStatus: HealthcheckReport = {
+	...MockHealth,
+	severity: "warning",
+	usage_publishing: {
+		...MockHealth.usage_publishing,
+		severity: "warning",
+		publishing_enabled: true,
+		status_unavailable: true,
+		warnings: [
+			{
+				code: "EUNKNOWN",
+				message:
+					"unable to determine usage publishing status; check the coderd logs",
+			},
+		],
+	},
+};
+
+export const StatusUnavailable: Story = {
+	parameters: {
+		queries: [
+			...meta.parameters.queries,
+			{
+				key: HEALTH_QUERY_KEY,
+				data: settingsWithUnavailableStatus,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByText(/unable to determine usage publishing status/),
+		).toBeVisible();
+		await expect(canvas.getByText("Unknown")).toBeVisible();
+		await expect(
+			canvas.queryByText("No recent successful publish"),
+		).not.toBeInTheDocument();
+	},
+};
+
 // During a rolling upgrade an older replica may reject the UsagePublishing
 // section value in the settings mutation. The failure must surface as an
 // error toast instead of an unhandled rejection.

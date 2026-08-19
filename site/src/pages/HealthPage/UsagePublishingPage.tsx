@@ -63,12 +63,16 @@ const UsagePublishingPage = () => {
 
 					<GridDataLabel>Last published</GridDataLabel>
 					<GridDataValue>
-						{usagePublishing.last_published_at
-							? createDayString(usagePublishing.last_published_at)
-							: // The backend inspects only the most recent publish
-								// outcomes, so a missing value means no recent success,
-								// not necessarily that nothing was ever published.
-								"No recent successful publish"}
+						{usagePublishing.status_unavailable
+							? // The status query failed server-side, so the value is
+								// unknown rather than absent.
+								"Unknown"
+							: usagePublishing.last_published_at
+								? createDayString(usagePublishing.last_published_at)
+								: // The backend inspects only the most recent publish
+									// outcomes, so a missing value means no recent success,
+									// not necessarily that nothing was ever published.
+									"No recent successful publish"}
 					</GridDataValue>
 
 					{usagePublishing.failing_since && (
