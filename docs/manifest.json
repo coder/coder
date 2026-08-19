@@ -262,11 +262,6 @@
 							"path": "./user-guides/workspace-access/jetbrains/index.md",
 							"children": [
 								{
-									"title": "JetBrains Fleet",
-									"description": "Connect JetBrains Fleet, a lightweight multi-language IDE, to a Coder workspace over SSH.",
-									"path": "./user-guides/workspace-access/jetbrains/fleet.md"
-								},
-								{
 									"title": "JetBrains Gateway",
 									"description": "Use JetBrains Gateway to open and work in your Coder workspace from a full JetBrains IDE.",
 									"path": "./user-guides/workspace-access/jetbrains/gateway.md"
