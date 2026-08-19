@@ -1,5 +1,4 @@
 import {
-	BotIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
@@ -127,8 +126,11 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const {
 		icon: StatusIcon,
 		className: statusClassName,
+		label: statusLabel,
+		prIcon,
 		diffStatus,
 	} = getChatDisplayConfig(chat);
+	const PRIcon = prIcon?.icon;
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;
@@ -199,6 +201,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											? `agents-tree-executing-${chat.id}`
 											: undefined
 									}
+									role="img"
+									aria-label={statusLabel}
 									className={cn("size-3.5 shrink-0", statusClassName)}
 								/>
 							</div>
@@ -242,16 +246,12 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										)}
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
-										{hasChildren && (
-											<span
-												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums text-content-secondary"
-												title={`${childIDs.length} ${
-													childIDs.length === 1 ? "subagent" : "subagents"
-												}`}
-											>
-												{childIDs.length}
-												<BotIcon className="size-3.5" aria-hidden="true" />
-											</span>
+										{PRIcon && prIcon && (
+											<PRIcon
+												role="img"
+												aria-label={prIcon.label}
+												className={cn("size-3.5 shrink-0", prIcon.className)}
+											/>
 										)}
 										{hasLinkedDiffStatus && hasLineStats && (
 											<span
@@ -297,14 +297,17 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											// keep the timestamp visible.
 											hasMenuActions &&
 												"[@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden",
+											hasMenuActions && isActiveChat && "hidden",
 										)}
 									>
 										{chat.has_unread && !isActiveChat ? (
-											<span
-												className="size-2 shrink-0 rounded-full bg-content-link pr-1"
-												data-testid={`unread-indicator-${chat.id}`}
-												aria-hidden="true"
-											/>
+											<span className="flex w-3.5 shrink-0 justify-center">
+												<span
+													className="size-2 rounded-full bg-content-link"
+													data-testid={`unread-indicator-${chat.id}`}
+													aria-hidden="true"
+												/>
+											</span>
 										) : (
 											<>
 												{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
@@ -331,7 +334,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										<Button
 											size="icon"
 											variant="subtle"
-											className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+											className={cn(
+												"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
+												isActiveChat && "opacity-100",
+											)}
 											aria-label={`Open actions for ${chat.title}`}
 										>
 											<EllipsisVerticalIcon className="size-3.5" />
