@@ -29,7 +29,7 @@ func TestExecuteTool(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "string", modelIntentParam["type"])
 		assert.Contains(t, modelIntentParam["description"], "alongside the command")
-		assert.Contains(t, modelIntentParam["description"], "do not repeat the command")
+		assert.Contains(t, modelIntentParam["description"], "do not include the word")
 		assert.Contains(t, info.Required, "command")
 		assert.NotContains(t, info.Required, "model_intent")
 	})
@@ -512,6 +512,41 @@ func TestExecuteTool(t *testing.T) {
 				assert.Contains(t, result.Error, "https://coder.com/docs/ai-coder/agents/architecture#windows-workspace-shell-requirement")
 			})
 		}
+	})
+
+	t.Run("ProcessOutputStillRunningSetsRunningFlag", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running: true,
+				Output:  "starting...",
+				Command: "npm start",
+			}, nil)
+
+		tool := chattool.ProcessOutput(chattool.ProcessToolOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "process_output",
+			Input: `{"process_id":"proc-1","wait_timeout":"0s"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.True(t, result.Success)
+		assert.True(t, result.Running)
+		assert.Equal(t, "process is still running", result.Note)
+		assert.Equal(t, "npm start", result.Command)
 	})
 
 	t.Run("ProcessOutputCommandPropagated", func(t *testing.T) {

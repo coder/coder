@@ -89,6 +89,11 @@ type ExecuteResult struct {
 	// results, so both the model and the UI can label the
 	// output without correlating against earlier calls.
 	Command string `json:"command,omitempty"`
+	// Running reports that the process was still alive when the
+	// result was produced (the wait timed out or a snapshot was
+	// requested). The caller should keep polling; the UI uses it
+	// to avoid presenting the check as finished.
+	Running bool `json:"running,omitempty"`
 }
 
 // ExecuteOptions configures the execute tool.
@@ -510,6 +515,7 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 				// Process is still running, success is not
 				// yet determined.
 				result.Success = true
+				result.Running = true
 				result.Note = "process is still running"
 			}
 			data, err := json.Marshal(result)

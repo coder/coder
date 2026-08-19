@@ -163,6 +163,8 @@ const getShellCommandLine = ({
 		: `Ran ${commandDisplay}`;
 	if (intentLabel && isBackgrounded) {
 		commandLabel = `${intentLabel} in the background using ${commandDisplay}`;
+	} else if (isBackgrounded) {
+		commandLabel = `Started ${commandDisplay} in the background`;
 	}
 	if (!isRunning && isError) {
 		commandLabel = `Failed to run ${commandDisplay}`;

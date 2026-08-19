@@ -608,6 +608,26 @@ export const ExecuteBackgrounded: Story = {
 	},
 };
 
+export const ExecuteBackgroundedNoIntent: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "npm start" },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			background_process_id: "process-123",
+			output: "",
+			wall_duration_ms: 2100,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("Started npm start in the background"),
+		).toBeVisible();
+	},
+};
+
 export const ExecuteAlwaysCollapsed: Story = {
 	args: {
 		name: "execute",
@@ -821,6 +841,27 @@ export const ProcessOutputChecking: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Checking npm start")).toBeVisible();
+	},
+};
+
+/** Wait timed out while the process lives on: running:true in the result. */
+export const ProcessOutputStillRunningResult: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: { process_id: "process-123" },
+		result: {
+			command: "npm start",
+			output: "> Starting Vite dev server...",
+			running: true,
+			note: "process is still running",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The call completed but the process lives; do not claim Checked.
+		expect(canvas.getByText("Checking npm start")).toBeVisible();
+		expect(canvas.queryByText(/Checked/)).not.toBeInTheDocument();
 	},
 };
 

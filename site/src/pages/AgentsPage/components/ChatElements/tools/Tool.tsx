@@ -257,13 +257,16 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 		? (asNumber(rec.exit_code, { parseString: true }) ?? null)
 		: null;
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
+	// The process may outlive the poll that produced this result
+	// (wait timeout); the result flags it explicitly.
+	const processRunning = rec?.running === true;
 
 	return (
 		<ProcessOutputTool
 			output={output}
 			command={command || undefined}
 			modelIntent={modelIntent}
-			isRunning={status === "running"}
+			isRunning={status === "running" || processRunning}
 			exitCode={exitCode}
 			isError={isError}
 			errorMessage={errorMessage || undefined}
