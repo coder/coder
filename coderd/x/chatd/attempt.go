@@ -31,10 +31,8 @@ type stepData struct {
 	ContextLimit sql.NullInt64
 	Runtime      time.Duration
 
-	// BatchRuntime is the billable window of a local tool batch,
-	// persisted as runtime_ms on the tool message row identified by
-	// BatchRuntimeToolCallID. Zero for model-invocation steps, whose
-	// billable window is Runtime on the assistant row instead.
+	// BatchRuntime is the local-tool batch window persisted on the
+	// BatchRuntimeToolCallID tool row. Model steps use Runtime instead.
 	BatchRuntime           time.Duration
 	BatchRuntimeToolCallID string
 

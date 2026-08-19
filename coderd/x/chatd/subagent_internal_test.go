@@ -4262,9 +4262,6 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 	})
 }
 
-// The unbilled set must track the sub-agent orchestration catalog exactly:
-// every orchestration tool and deprecated alias is excluded from local tool
-// runtime billing, and nothing outside the catalog is.
 func TestUnbilledSubagentToolNamesMatchCatalog(t *testing.T) {
 	t.Parallel()
 

@@ -70,10 +70,8 @@ type chatWorkerTaskStartInput struct {
 	DebugTurn                *runnerDebugTurn
 	SessionStart             *sessionStartTracker
 	StopNudges               *stopNudgeTracker
-	// InterruptSnapshot, set for interrupt tasks, is shared by every
-	// retry attempt of the task instance so the first attempt's episode
-	// snapshot survives buffer eviction during a stalled attempt. Nil
-	// makes each attempt re-read the buffer.
+	// InterruptSnapshot carries one interrupt task's first episode snapshot
+	// across retries. Nil re-reads the buffer.
 	InterruptSnapshot *interruptEpisodeSnapshot
 }
 

@@ -162,10 +162,8 @@ func TestGenerateCompaction_RecordsRuntime(t *testing.T) {
 	require.Equal(t, result.Runtime, clock.Since(startedAt[0]))
 }
 
-// executeToolBatch runs ExecuteLocalTools in a goroutine. Callers trap the
-// mock clock's Now: the first trapped call is the batch start and each
-// subsequent one is a tool completion, released one tool at a time so
-// parallel tool goroutines never race the clock advances.
+// executeToolBatch lets tests release trapped clock events in order, so
+// goroutines cannot race clock advances.
 func executeToolBatch(
 	t *testing.T,
 	clock *quartz.Mock,
@@ -182,8 +180,6 @@ func executeToolBatch(
 	return resultCh
 }
 
-// blockingTool returns a tool that parks until release is closed, so the
-// test controls exactly when its completion timestamp is recorded.
 func blockingTool(name string, release <-chan struct{}, response fantasy.ToolResponse) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		name,
@@ -195,18 +191,12 @@ func blockingTool(name string, release <-chan struct{}, response fantasy.ToolRes
 	)
 }
 
-// serialTool wraps a tool so its calls run serially after every
-// concurrent sibling settles, matching tools that opt in via
-// SerialToolCalls.
 type serialTool struct {
 	fantasy.AgentTool
 }
 
 func (serialTool) SerialToolCalls() bool { return true }
 
-// Parallel billed tools bill one shared window ending at the slowest
-// tool's completion, never the sum of their durations. The slower tool
-// returns an error result: errored tools bill their wall clock too.
 func TestExecuteLocalTools_BatchWindowIsMaxNotSum(t *testing.T) {
 	t.Parallel()
 
@@ -229,13 +219,10 @@ func TestExecuteLocalTools_BatchWindowIsMaxNotSum(t *testing.T) {
 		},
 	})
 
-	// Batch start.
 	trap.MustWait(ctx).MustRelease(ctx)
-	// The fast tool completes 10 seconds in.
 	clock.Advance(10 * time.Second)
 	close(fastGo)
 	trap.MustWait(ctx).MustRelease(ctx)
-	// The slow tool errors out at 60 seconds.
 	clock.Advance(50 * time.Second)
 	close(slowGo)
 	trap.MustWait(ctx).MustRelease(ctx)
@@ -245,8 +232,6 @@ func TestExecuteLocalTools_BatchWindowIsMaxNotSum(t *testing.T) {
 	require.Equal(t, "call-slow", outcome.BatchRuntimeToolCallID)
 }
 
-// Simultaneous completions tie-break to the earliest call in call order,
-// and N parallel calls of the same duration bill that duration once.
 func TestExecuteLocalTools_SimultaneousCompletionsBillOnceByCallOrder(t *testing.T) {
 	t.Parallel()
 
@@ -268,9 +253,7 @@ func TestExecuteLocalTools_SimultaneousCompletionsBillOnceByCallOrder(t *testing
 		},
 	})
 
-	// Batch start.
 	trap.MustWait(ctx).MustRelease(ctx)
-	// All three calls complete together 10 seconds in.
 	clock.Advance(10 * time.Second)
 	close(release)
 	for range 3 {
@@ -282,8 +265,6 @@ func TestExecuteLocalTools_SimultaneousCompletionsBillOnceByCallOrder(t *testing
 	require.Equal(t, "call-1", outcome.BatchRuntimeToolCallID)
 }
 
-// An unbilled tool never extends the window, even when it runs longest:
-// the batch bills up to the last billed tool's completion.
 func TestExecuteLocalTools_UnbilledToolNeverExtendsWindow(t *testing.T) {
 	t.Parallel()
 
@@ -307,13 +288,10 @@ func TestExecuteLocalTools_UnbilledToolNeverExtendsWindow(t *testing.T) {
 		},
 	})
 
-	// Batch start.
 	trap.MustWait(ctx).MustRelease(ctx)
-	// execute completes 10 seconds in.
 	clock.Advance(10 * time.Second)
 	close(executeGo)
 	trap.MustWait(ctx).MustRelease(ctx)
-	// wait_agent keeps blocking on its child until 60 seconds.
 	clock.Advance(50 * time.Second)
 	close(waitGo)
 	trap.MustWait(ctx).MustRelease(ctx)
@@ -323,7 +301,6 @@ func TestExecuteLocalTools_UnbilledToolNeverExtendsWindow(t *testing.T) {
 	require.Equal(t, "call-execute", outcome.BatchRuntimeToolCallID)
 }
 
-// A batch of only unbilled tools bills nothing.
 func TestExecuteLocalTools_UnbilledOnlyBatchBillsNothing(t *testing.T) {
 	t.Parallel()
 
@@ -344,7 +321,6 @@ func TestExecuteLocalTools_UnbilledOnlyBatchBillsNothing(t *testing.T) {
 		},
 	})
 
-	// Batch start.
 	trap.MustWait(ctx).MustRelease(ctx)
 	clock.Advance(60 * time.Second)
 	close(waitGo)
@@ -355,9 +331,6 @@ func TestExecuteLocalTools_UnbilledOnlyBatchBillsNothing(t *testing.T) {
 	require.Empty(t, outcome.BatchRuntimeToolCallID)
 }
 
-// Billing classifies on the name as called: a deprecated alias listed in
-// UnbilledToolNames stays unbilled even though dispatch resolves it to
-// its canonical tool through ToolNameAliases.
 func TestExecuteLocalTools_AliasNamesClassifyAsCalled(t *testing.T) {
 	t.Parallel()
 
@@ -385,13 +358,10 @@ func TestExecuteLocalTools_AliasNamesClassifyAsCalled(t *testing.T) {
 		},
 	})
 
-	// Batch start.
 	trap.MustWait(ctx).MustRelease(ctx)
-	// execute completes 10 seconds in.
 	clock.Advance(10 * time.Second)
 	close(executeGo)
 	trap.MustWait(ctx).MustRelease(ctx)
-	// The aliased call completes at 60 seconds and must not bill.
 	clock.Advance(50 * time.Second)
 	close(legacyGo)
 	trap.MustWait(ctx).MustRelease(ctx)
@@ -401,10 +371,6 @@ func TestExecuteLocalTools_AliasNamesClassifyAsCalled(t *testing.T) {
 	require.Equal(t, "call-execute", outcome.BatchRuntimeToolCallID)
 }
 
-// Duplicate tool call IDs, which reach execution when lifecycle hooks
-// are disabled, must not corrupt the window: completions are tracked per
-// occurrence, so a later short duplicate cannot overwrite an earlier
-// long one and shrink the bill.
 func TestExecuteLocalTools_DuplicateToolCallIDsKeepOccurrenceCompletions(t *testing.T) {
 	t.Parallel()
 
@@ -421,22 +387,16 @@ func TestExecuteLocalTools_DuplicateToolCallIDsKeepOccurrenceCompletions(t *test
 			blockingTool("fast_tool", fastGo, fantasy.NewTextResponse("done")),
 		},
 		ActiveTools: []string{"slow_tool", "fast_tool"},
-		// Both calls share one ID: an ID-keyed completion map would
-		// let the fast occurrence overwrite the slow one.
 		ToolCalls: []fantasy.ToolCallContent{
 			{ToolCallID: "call-dup", ToolName: "slow_tool", Input: "{}"},
 			{ToolCallID: "call-dup", ToolName: "fast_tool", Input: "{}"},
 		},
 	})
 
-	// Batch start.
 	trap.MustWait(ctx).MustRelease(ctx)
-	// The fast occurrence completes at 10 seconds.
 	clock.Advance(10 * time.Second)
 	close(fastGo)
 	trap.MustWait(ctx).MustRelease(ctx)
-	// The slow occurrence completes at 60 seconds and must define the
-	// window even though the fast occurrence shares its ID.
 	clock.Advance(50 * time.Second)
 	close(slowGo)
 	trap.MustWait(ctx).MustRelease(ctx)
@@ -446,10 +406,6 @@ func TestExecuteLocalTools_DuplicateToolCallIDsKeepOccurrenceCompletions(t *test
 	require.Equal(t, "call-dup", outcome.BatchRuntimeToolCallID)
 }
 
-// OnBatchStart seeds billing state only once dispatch is guaranteed: it
-// fires before the tool goroutines launch, and never fires when
-// cancellation or the exclusive policy stops the batch, so an interrupt
-// racing those paths finds no batch to bill.
 func TestExecuteLocalTools_OnBatchStartFiresOnlyOnDispatch(t *testing.T) {
 	t.Parallel()
 
@@ -517,9 +473,6 @@ func TestExecuteLocalTools_OnBatchStartFiresOnlyOnDispatch(t *testing.T) {
 	})
 }
 
-// A call without a tool call ID, which providers can emit, still
-// executes: its completion defines the window like any other billed
-// call instead of being discarded as a missing result.
 func TestExecuteLocalTools_EmptyToolCallIDStillBillsWindow(t *testing.T) {
 	t.Parallel()
 
@@ -542,13 +495,10 @@ func TestExecuteLocalTools_EmptyToolCallIDStillBillsWindow(t *testing.T) {
 		},
 	})
 
-	// Batch start.
 	trap.MustWait(ctx).MustRelease(ctx)
-	// The identified call completes at 10 seconds.
 	clock.Advance(10 * time.Second)
 	close(fastGo)
 	trap.MustWait(ctx).MustRelease(ctx)
-	// The ID-less call completes at 60 seconds and defines the window.
 	clock.Advance(50 * time.Second)
 	close(idlessGo)
 	trap.MustWait(ctx).MustRelease(ctx)
@@ -558,12 +508,6 @@ func TestExecuteLocalTools_EmptyToolCallIDStillBillsWindow(t *testing.T) {
 	require.Empty(t, outcome.BatchRuntimeToolCallID)
 }
 
-// OnToolComplete reports each tool's completion the instant it finishes,
-// while slower siblings are still running, with the same instants the
-// outcome's ToolResultCreatedAt later carries. The interrupt path
-// depends on this live signal: results publish only after the whole
-// batch finishes, so without it an interrupt could not tell finished
-// tools from still-running ones.
 func TestExecuteLocalTools_OnToolCompleteReportsLiveCompletions(t *testing.T) {
 	t.Parallel()
 
@@ -595,17 +539,13 @@ func TestExecuteLocalTools_OnToolCompleteReportsLiveCompletions(t *testing.T) {
 		},
 	})
 
-	// Batch start.
 	trap.MustWait(ctx).MustRelease(ctx)
-	// The fast tool completes 10 seconds in. Its completion arrives
-	// while the slow tool is still parked on its release channel.
 	clock.Advance(10 * time.Second)
 	close(fastGo)
 	trap.MustWait(ctx).MustRelease(ctx)
 	fast := testutil.RequireReceive(ctx, t, completionCh)
 	require.Equal(t, "call-fast", fast.toolCallID)
 	require.Equal(t, 0, fast.callIndex, "callIndex is the call's position in dispatch order")
-	// The slow tool completes at 60 seconds.
 	clock.Advance(50 * time.Second)
 	close(slowGo)
 	trap.MustWait(ctx).MustRelease(ctx)
@@ -621,10 +561,6 @@ func TestExecuteLocalTools_OnToolCompleteReportsLiveCompletions(t *testing.T) {
 	}, outcome.Step.ToolResultCreatedAt)
 }
 
-// A billed serial tool queued behind a long-running unbilled tool bills
-// only its own execution: it launches only after every concurrent
-// sibling settles, so measuring it from the batch start would charge
-// the whole unbilled wait that delayed its launch.
 func TestExecuteLocalTools_SerialCallBillsFromItsOwnStart(t *testing.T) {
 	t.Parallel()
 
@@ -648,15 +584,12 @@ func TestExecuteLocalTools_SerialCallBillsFromItsOwnStart(t *testing.T) {
 		},
 	})
 
-	// Batch start.
 	trap.MustWait(ctx).MustRelease(ctx)
-	// The unbilled wait completes 10 minutes in.
 	clock.Advance(10 * time.Minute)
 	close(waitGo)
 	trap.MustWait(ctx).MustRelease(ctx)
-	// The serial call launches only now and stamps its start.
+	// Release the serial start timestamp.
 	trap.MustWait(ctx).MustRelease(ctx)
-	// It completes 2 seconds later.
 	clock.Advance(2 * time.Second)
 	close(serialGo)
 	trap.MustWait(ctx).MustRelease(ctx)
@@ -667,10 +600,6 @@ func TestExecuteLocalTools_SerialCallBillsFromItsOwnStart(t *testing.T) {
 	require.Equal(t, "call-serial", outcome.BatchRuntimeToolCallID)
 }
 
-// A batch mixing billed concurrent and billed serial calls bills the
-// union of their execution intervals: the concurrent window and the
-// serial call's own window sum, while the gap where only the unbilled
-// tool was running is never charged.
 func TestExecuteLocalTools_SerialAfterBilledSiblingBillsUnion(t *testing.T) {
 	t.Parallel()
 
@@ -697,19 +626,15 @@ func TestExecuteLocalTools_SerialAfterBilledSiblingBillsUnion(t *testing.T) {
 		},
 	})
 
-	// Batch start.
 	trap.MustWait(ctx).MustRelease(ctx)
-	// execute completes 3 seconds in.
 	clock.Advance(3 * time.Second)
 	close(execGo)
 	trap.MustWait(ctx).MustRelease(ctx)
-	// wait_agent keeps blocking until 10 seconds.
 	clock.Advance(7 * time.Second)
 	close(waitGo)
 	trap.MustWait(ctx).MustRelease(ctx)
-	// The serial call launches at 10 seconds.
+	// Release the serial start timestamp.
 	trap.MustWait(ctx).MustRelease(ctx)
-	// It completes at 12 seconds.
 	clock.Advance(2 * time.Second)
 	close(serialGo)
 	trap.MustWait(ctx).MustRelease(ctx)
@@ -721,8 +646,6 @@ func TestExecuteLocalTools_SerialAfterBilledSiblingBillsUnion(t *testing.T) {
 		"the serial call's completion ends the window")
 }
 
-// BilledIntervalsDuration merges overlapping windows and skips gaps, so
-// parallel calls bill once and spans without billed work bill nothing.
 func TestBilledIntervalsDuration(t *testing.T) {
 	t.Parallel()
 

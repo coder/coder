@@ -15,10 +15,8 @@ import (
 // reject before pre_tool_use so a hook consumer is never asked to authorize
 // bytes whose meaning depends on which reader resolves them, and so input that
 // cannot be carried in a hook payload fails as a retryable tool error instead
-// of a dispatch failure. allowedIndexes carries each allowed call's position
-// in the input slice, so callers that need to correlate the dispatched subset
-// back to the full unresolved call order (tool batch billing) do not have to
-// re-derive it from tool call IDs, which duplicates make ambiguous.
+// of a dispatch failure. allowedIndexes maps allowed calls back to the input
+// order without relying on duplicate-prone IDs.
 func partitionAmbiguousToolCalls(
 	prepared generationPrepared,
 	toolCalls []fantasy.ToolCallContent,

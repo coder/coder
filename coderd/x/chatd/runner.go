@@ -233,9 +233,6 @@ func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
 		StopNudges:               &r.stopNudges,
 	}
 	if kind == taskKindInterrupt {
-		// Shared by every retry attempt of this task instance so the
-		// first attempt's episode snapshot survives buffer eviction
-		// during a stalled attempt.
 		input.InterruptSnapshot = &interruptEpisodeSnapshot{}
 	}
 	go r.runTask(taskCtx, kind, key, input, done)

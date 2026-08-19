@@ -865,19 +865,8 @@ func (s *taskStarter) executeLocalTools(
 	var outcome chatloop.ToolExecutionOutcome
 	var spawnDispatchErr error
 	if len(allowed) > 0 {
-		// Seed the batch start and the dispatched calls on the buffer
-		// episode so an interrupt can bill the partial window this step
-		// would have reported. Chatloop invokes the callback only once
-		// dispatch is guaranteed, so an interrupt whose cancellation
-		// lands before the tools launch finds no batch and bills
-		// nothing. Only dispatched calls are seeded, keyed by their
-		// position in the unresolved call order the interrupt walks:
-		// rejected calls never run, so an interrupt must not treat
-		// their missing completions as still-running work, and a
-		// rejected call must not consume a same-ID dispatched
-		// occurrence. An exclusive-policy violation dispatches nothing
-		// (chatloop synthesizes error results before the callback), so
-		// no billable batch starts there either.
+		// Seed only calls that will dispatch, after policy checks. Positional
+		// indexes skip rejected calls and keep duplicate IDs distinct.
 		var onBatchStart func()
 		if !exclusiveRejected {
 			dispatched := make([]messagepartbuffer.DispatchedToolCall, 0, len(allowed))
@@ -1123,29 +1112,14 @@ type generationAttempt struct {
 	// can bill the window the step would have reported. It is always
 	// non-nil when beginGenerationAttempt succeeds.
 	startModelInvocation func()
-	// startToolBatch marks the start of the attempt's billable local
-	// tool batch window on the buffer episode and records which tool
-	// call occurrences were actually dispatched, so an interrupt can
-	// bill the window the step would have reported without charging
-	// calls that were rejected before execution. It is always non-nil
-	// when beginGenerationAttempt succeeds.
+	// startToolBatch stamps dispatch and seeds tool-call occurrences. It is
+	// always non-nil after beginGenerationAttempt.
 	startToolBatch func(calls []messagepartbuffer.DispatchedToolCall)
-	// recordToolStart records the instant a tool call occurrence began
-	// executing on the buffer episode. Concurrent calls start with the
-	// batch, but serial calls launch only after every concurrent
-	// sibling settles, so an interrupt needs the marks to bill each
-	// call from its actual start and to skip a dispatched call that
-	// never launched. callIndex addresses the occurrence within the
-	// dispatched batch, matching the order startToolBatch seeded. It
-	// is always non-nil when beginGenerationAttempt succeeds.
+	// recordToolStart stamps an occurrence's actual start; serial calls may
+	// start after dispatch. It is always non-nil after beginGenerationAttempt.
 	recordToolStart func(callIndex int, toolCallID string, startedAt time.Time)
-	// recordToolCompletion records a tool call occurrence's completion
-	// instant on the buffer episode as the batch executes, so an
-	// interrupt can end an already-finished tool's billable window at
-	// its real completion instead of the interrupt instant. callIndex
-	// addresses the occurrence within the dispatched batch, matching
-	// the order startToolBatch seeded. It is always non-nil when
-	// beginGenerationAttempt succeeds.
+	// recordToolCompletion stamps an occurrence's completion. It is always
+	// non-nil after beginGenerationAttempt.
 	recordToolCompletion func(callIndex int, toolCallID string, completedAt time.Time)
 	// closeEpisode closes the attempt's buffer episode. It is always
 	// non-nil when beginGenerationAttempt succeeds.

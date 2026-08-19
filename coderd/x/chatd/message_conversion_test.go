@@ -100,9 +100,6 @@ func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T
 	require.JSONEq(t, `{"stdout":"/tmp"}`, string(toolParts[0].Result))
 }
 
-// A local tool batch bills its window on the single tool row whose
-// completion ended it; the batch's other rows stay NULL so summing
-// runtime_ms across rows bills the batch exactly once.
 func TestBuildCommitStepMessages_BatchRuntimeLandsOnWindowDefiningToolRow(t *testing.T) {
 	t.Parallel()
 
@@ -135,9 +132,6 @@ func TestBuildCommitStepMessages_BatchRuntimeLandsOnWindowDefiningToolRow(t *tes
 	require.Equal(t, sql.NullInt64{Int64: 10000, Valid: true}, got.Messages[1].RuntimeMs)
 }
 
-// Duplicate tool call IDs, which providers can emit and which admission
-// does not always reject, must not multiply the bill: only the first row
-// with the window-defining ID carries the batch runtime.
 func TestBuildCommitStepMessages_DuplicateToolCallIDsBillOnce(t *testing.T) {
 	t.Parallel()
 
@@ -168,9 +162,6 @@ func TestBuildCommitStepMessages_DuplicateToolCallIDsBillOnce(t *testing.T) {
 	require.False(t, got.Messages[1].RuntimeMs.Valid)
 }
 
-// A window defined by a call without a tool call ID still persists: the
-// positive window gates the match, so the runtime lands on the first
-// ID-less tool row instead of being dropped with the empty-ID sentinel.
 func TestBuildCommitStepMessages_EmptyIDWindowLandsOnIDLessRow(t *testing.T) {
 	t.Parallel()
 
@@ -201,8 +192,6 @@ func TestBuildCommitStepMessages_EmptyIDWindowLandsOnIDLessRow(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 60_000, Valid: true}, got.Messages[1].RuntimeMs)
 }
 
-// Assistant rows synthesized from a tool batch (attachment file parts)
-// never carry the batch runtime: it belongs to the tool row alone.
 func TestBuildCommitStepMessages_BatchAttachmentAssistantRowStaysNull(t *testing.T) {
 	t.Parallel()
 
@@ -231,8 +220,6 @@ func TestBuildCommitStepMessages_BatchAttachmentAssistantRowStaysNull(t *testing
 	require.Equal(t, sql.NullInt64{Int64: 3000, Valid: true}, got.Messages[1].RuntimeMs)
 }
 
-// A batch whose billable window is empty (for example only sub-agent
-// orchestration tools ran) must persist runtime_ms NULL on every row.
 func TestBuildCommitStepMessages_ZeroBatchRuntimeLeavesRuntimeNull(t *testing.T) {
 	t.Parallel()
 

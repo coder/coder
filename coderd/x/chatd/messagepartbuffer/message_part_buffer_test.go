@@ -161,22 +161,16 @@ func TestBuffer_ToolBatchStartedAt(t *testing.T) {
 
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.Zero(t, buffer.ToolBatchStartedAt(key), "episode without a tool batch has no batch stamp")
-	// Attempt setup happens before tools start executing and is not
-	// billable.
 	clock.Advance(time.Second)
 	require.NoError(t, buffer.StartToolBatch(key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 0, ToolCallID: "call-1"}}))
 	startedAt := buffer.ToolBatchStartedAt(key)
 	require.Equal(t, clock.Now(), startedAt)
 
-	// Closing must not move the recorded stamp, and a closed episode
-	// no longer accepts a batch start.
 	clock.Advance(1500 * time.Millisecond)
 	require.NoError(t, buffer.CloseEpisode(key))
 	require.ErrorIs(t, buffer.StartToolBatch(key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 0, ToolCallID: "call-1"}}), messagepartbuffer.ErrEpisodeClosed)
 	require.Equal(t, startedAt, buffer.ToolBatchStartedAt(key))
 
-	// Episodes that never execute local tools, such as model
-	// invocations without tool calls, report no batch stamp.
 	modelOnly := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(modelOnly))
 	require.NoError(t, buffer.StartModelInvocation(modelOnly))
@@ -198,9 +192,6 @@ func TestBuffer_ToolCompletions(t *testing.T) {
 
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.Empty(t, buffer.ToolCompletions(key), "episode without a tool batch has no completions")
-	// Starting the batch seeds one still-running occurrence per
-	// dispatched call, in dispatch order. Duplicate IDs keep distinct
-	// occurrences instead of collapsing into one shared state.
 	require.NoError(t, buffer.StartToolBatch(key, []messagepartbuffer.DispatchedToolCall{
 		{CallIndex: 0, ToolCallID: "call-1"},
 		{CallIndex: 1, ToolCallID: "call-dup"},
@@ -211,9 +202,6 @@ func TestBuffer_ToolCompletions(t *testing.T) {
 		{CallIndex: 1, ToolCallID: "call-dup"},
 		{CallIndex: 2, ToolCallID: "call-dup"},
 	}, buffer.ToolCompletions(key))
-	// A completion stamps the occurrence addressed by its call index,
-	// not the first occurrence with a matching ID: the duplicate's
-	// second occurrence finishing must leave the first still running.
 	clock.Advance(time.Second)
 	secondDupCompletedAt := clock.Now()
 	require.NoError(t, buffer.RecordToolCompletion(key, 2, "call-dup", secondDupCompletedAt))
@@ -232,14 +220,9 @@ func TestBuffer_ToolCompletions(t *testing.T) {
 		{CallIndex: 2, ToolCallID: "call-dup", CompletedAt: secondDupCompletedAt},
 	}, completions)
 
-	// The returned slice is a copy: mutating it must not corrupt the
-	// episode's recorded completions.
 	completions[0].CompletedAt = clock.Now()
 	require.True(t, buffer.ToolCompletions(key)[0].CompletedAt.IsZero())
 
-	// A completion whose ID was never seeded is appended with
-	// CallIndex -1: the executed call is not dropped, but it never
-	// correlates to an unresolved call.
 	clock.Advance(time.Second)
 	unseededAt := clock.Now()
 	require.NoError(t, buffer.RecordToolCompletion(key, 5, "call-unseeded", unseededAt))
@@ -249,8 +232,6 @@ func TestBuffer_ToolCompletions(t *testing.T) {
 		CompletedAt: unseededAt,
 	}, buffer.ToolCompletions(key)[3])
 
-	// A closed episode keeps its recorded completions but accepts no
-	// more, matching the batch-start stamp's lifecycle.
 	require.NoError(t, buffer.CloseEpisode(key))
 	require.ErrorIs(t, buffer.RecordToolCompletion(key, 0, "call-1", clock.Now()), messagepartbuffer.ErrEpisodeClosed)
 	require.True(t, buffer.ToolCompletions(key)[0].CompletedAt.IsZero())
@@ -267,9 +248,6 @@ func TestBuffer_RecordToolStart(t *testing.T) {
 	require.ErrorIs(t, buffer.RecordToolStart(key, 0, "call-1", clock.Now()), messagepartbuffer.ErrEpisodeNotFound)
 
 	require.NoError(t, buffer.CreateEpisode(key))
-	// Seeded occurrences carry no start: a dispatched serial call
-	// waits behind its concurrent siblings, so seeding must not make
-	// it look like running work.
 	require.NoError(t, buffer.StartToolBatch(key, []messagepartbuffer.DispatchedToolCall{
 		{CallIndex: 0, ToolCallID: "call-1"},
 		{CallIndex: 1, ToolCallID: "call-dup"},
@@ -279,9 +257,6 @@ func TestBuffer_RecordToolStart(t *testing.T) {
 		require.True(t, completion.StartedAt.IsZero(), "seeding must not mark occurrences as started")
 	}
 
-	// A start stamps the occurrence addressed by its dispatch index,
-	// not the first occurrence with a matching ID: the duplicate's
-	// second occurrence launching must leave the first unstarted.
 	clock.Advance(time.Second)
 	secondDupStartedAt := clock.Now()
 	require.NoError(t, buffer.RecordToolStart(key, 2, "call-dup", secondDupStartedAt))
@@ -291,20 +266,14 @@ func TestBuffer_RecordToolStart(t *testing.T) {
 		{CallIndex: 2, ToolCallID: "call-dup", StartedAt: secondDupStartedAt},
 	}, buffer.ToolCompletions(key))
 
-	// A start whose dispatch index does not match falls back to the
-	// first unstarted occurrence with the ID.
 	clock.Advance(time.Second)
 	firstDupStartedAt := clock.Now()
 	require.NoError(t, buffer.RecordToolStart(key, 7, "call-dup", firstDupStartedAt))
 	require.Equal(t, firstDupStartedAt, buffer.ToolCompletions(key)[1].StartedAt)
 
-	// A start whose ID was never seeded is dropped rather than
-	// appended: it cannot correlate to an unresolved call, so it could
-	// never bill.
 	require.NoError(t, buffer.RecordToolStart(key, 9, "call-unseeded", clock.Now()))
 	require.Len(t, buffer.ToolCompletions(key), 3)
 
-	// The billing snapshot carries start marks through the close.
 	billing, err := buffer.CloseEpisodeForBilling(key)
 	require.NoError(t, err)
 	require.Equal(t, secondDupStartedAt, billing.ToolCompletions[2].StartedAt)
@@ -319,8 +288,6 @@ func TestBuffer_CloseEpisodeForBilling(t *testing.T) {
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
 	defer buffer.Close()
 
-	// Closing an unknown episode creates it closed, like CloseEpisode,
-	// and reports empty billing stamped with the close instant.
 	unknown := testEpisodeKey()
 	billing, err := buffer.CloseEpisodeForBilling(unknown)
 	require.NoError(t, err)
@@ -329,9 +296,6 @@ func TestBuffer_CloseEpisodeForBilling(t *testing.T) {
 	require.Zero(t, billing.ToolBatchStartedAt)
 	require.Empty(t, billing.ToolCompletions)
 
-	// The snapshot carries every stamp accepted before closure, and
-	// stamps are rejected afterwards, so nothing can land in a gap
-	// between reading and closing.
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(key))
 	clock.Advance(time.Second)
@@ -356,20 +320,12 @@ func TestBuffer_CloseEpisodeForBilling(t *testing.T) {
 	}, billing.ToolCompletions)
 	require.ErrorIs(t, buffer.RecordToolCompletion(key, 1, "call-2", clock.Now()), messagepartbuffer.ErrEpisodeClosed)
 
-	// Closing an already-closed episode reports the identical snapshot,
-	// including the original close instant: a retried interrupt task
-	// bills the same window every attempt, and an interrupt racing the
-	// generation task's own close loses nothing.
 	clock.Advance(time.Second)
 	again, err := buffer.CloseEpisodeForBilling(key)
 	require.NoError(t, err)
 	require.Equal(t, billing, again)
 }
 
-// A retrying interrupt task re-reads its billing snapshot on every
-// attempt; each re-read pushes the episode's eviction deadline out, so
-// a retry loop outlasting the original retention window keeps the
-// snapshot instead of losing it to the cleanup loop mid-outage.
 func TestBuffer_CloseEpisodeForBillingRefreshesEviction(t *testing.T) {
 	t.Parallel()
 
@@ -387,24 +343,17 @@ func TestBuffer_CloseEpisodeForBillingRefreshesEviction(t *testing.T) {
 	first, err := buffer.CloseEpisodeForBilling(key)
 	require.NoError(t, err)
 
-	// A retry 45 seconds in re-reads the snapshot and refreshes the
-	// deadline.
 	clock.Advance(45 * time.Second).MustWait(ctx)
 	again, err := buffer.CloseEpisodeForBilling(key)
 	require.NoError(t, err)
 	require.Equal(t, first, again)
 
-	// The cleanup tick after the original one-minute deadline must not
-	// collect the refreshed episode: the snapshot survives.
 	clock.Advance(15 * time.Second).MustWait(ctx)
 	again, err = buffer.CloseEpisodeForBilling(key)
 	require.NoError(t, err)
 	require.Equal(t, first, again)
 
-	// Once retries stop refreshing it, the episode ages out and a later
-	// close reports empty billing again. GetParts collects due episodes
-	// synchronously, so the assertions cannot race the cleanup
-	// goroutine's handling of the delivered ticks.
+	// GetParts later runs cleanup synchronously, avoiding a goroutine race.
 	clock.Advance(time.Minute).MustWait(ctx)
 	clock.Advance(time.Minute).MustWait(ctx)
 	_, err = buffer.GetParts(key)

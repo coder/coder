@@ -725,7 +725,8 @@ The buffer exposes the following API:
 - `GetParts(chat_id, history_version, generation_attempt)`: returns the message parts for an episode. Returns a predefined error if the episode is not found.
 - `StartModelInvocation(chat_id, history_version, generation_attempt)`: stamps the instant the episode opens its provider stream. Returns a predefined error if the episode is not found or already closed. Episodes that never invoke a model, such as local tool execution batches, are never stamped.
 - `ModelInvokedAt(chat_id, history_version, generation_attempt)`: returns the instant stamped by `StartModelInvocation`, or the zero time when the episode is unknown or never opened a provider stream. It must be read before `CloseEpisode`, because closed episodes are garbage collected and reading afterwards races the cleanup loop. The interrupt goroutine reads it just before closing the episode and uses the span between that instant and the interrupt as the interrupted attempt's billable runtime.
-- TODO(CODAGT-928): document the tool-batch billing methods `StartToolBatch`, `ToolBatchStartedAt`, `RecordToolStart`, `RecordToolCompletion`, and `ToolCompletions`, the local-tool counterparts of `StartModelInvocation`/`ModelInvokedAt`, and `CloseEpisodeForBilling`, which the interrupt task uses to close the episode and snapshot its billing stamps (including the stable first-close instant used as the interrupt instant) in one atomic step; repeat calls return the identical snapshot and push the eviction deadline out, so retried interrupt tasks bill the same window and keep their snapshot through a database outage. `RecordToolStart` marks when a dispatched call begins executing: serial tool calls launch only after every concurrent sibling settles, so the interrupt bills each call from its own start and bills nothing for a dispatched call that never launched.
+- TODO(CODAGT-928): document tool-batch billing APIs, including serial
+  starts, duplicate IDs, atomic snapshots, stable close time, and retries.
 - `SubscribeToEpisode(chat_id, history_version, generation_attempt)`: returns a go channel that will receive all message parts for the episode. It spawns a goroutine that delivers parts to the channel. It's live until the episode is closed or until a subscriber requests that the channel be closed. Once the goroutine delivers all message parts for a closed episode, it closes the channel and exits. If the episode is already closed at the time of the call, the goroutine delivers all message parts for the episode, closes the channel, and exits. `SubscribeToEpisode` does not return an error if the episode is not found: it waits for it to be created instead.
 
 Closed episodes are garbage collected after at least 15 seconds since they were closed and when they have no active subscribers. The message part buffer maintains a garbage collection goroutine.
@@ -936,7 +937,8 @@ The goroutine does the following in order:
 3. It reads the buffered parts for that episode by calling the `GetParts` method on the message part buffer.
 4. It applies the `FinishInterruption(partial?)` transition on the core state machine. If there are no buffered parts for that episode, or the episode is not found, it passes `nil` as the `partial` argument.
 
-TODO(CODAGT-928): update steps 2 and 3 above. The interrupt goroutine now closes the episode and snapshots its billing stamps in one atomic step via `CloseEpisodeForBilling`, uses the episode's first-close instant as the interrupt instant, captures the snapshot and buffered parts before its first database read and carries them across task retry attempts so buffer eviction during a stalled read cannot lose them, and synthesizes tool cancellation rows whose `runtime_ms` bills the interrupted tool batch's partial window.
+TODO(CODAGT-928): update interrupt steps for atomic snapshots, pre-read
+retry carry, stable close time, and partial tool-batch billing.
 
 #### Dynamic tools timeout goroutine
 

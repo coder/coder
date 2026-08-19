@@ -75,17 +75,9 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 			return stepMessagesForCommit{}, xerrors.Errorf("marshal tool result: %w", err)
 		}
 		msg := baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, content)
-		// The batch's billable window lands on the single tool row whose
-		// completion ended it; every other row in the batch stays NULL so
-		// usage reporting, which sums runtime_ms across rows, bills the
-		// batch exactly once. Only the first row with the window-defining
-		// ID carries it, because providers can emit duplicate tool call
-		// IDs and billing every duplicate would multiply the sum. A
-		// positive window gates the match instead of a non-empty ID,
-		// because calls without IDs also execute and bill; their window
-		// lands on the first ID-less tool row. Zero maps to NULL, so a
-		// sub-millisecond window persists the same way an unmeasured
-		// one does.
+		// Assign the batch window to one matching tool row because usage sums
+		// runtime_ms. The first match handles duplicate and ID-less calls;
+		// zero stays NULL.
 		if !batchRuntimeAssigned && input.step.BatchRuntime > 0 && toolResult.ToolCallID == input.step.BatchRuntimeToolCallID {
 			msg.RuntimeMs = nullInt64IfNonZero(input.step.BatchRuntime.Milliseconds())
 			batchRuntimeAssigned = true
@@ -648,14 +640,8 @@ type partialMessageConversionState struct {
 	toolResults     map[string]*partialToolResult
 	toolResultOrder []string
 	answered        map[string]bool
-	// modelStreamedAssistant records whether any assistant part came
-	// from the model stream itself (text, reasoning, tool calls,
-	// sources). Tool execution also publishes assistant-role file
-	// parts for attachments; those alone must not attract the
-	// attempt's model-invocation runtime, because tool batches bill
-	// their window on tool rows instead. The buffer episode only
-	// carries a model runtime when a provider stream was opened, so
-	// this is a second gate rather than the only one.
+	// modelStreamedAssistant distinguishes streamed content from tool
+	// attachment parts, which must not carry model runtime.
 	modelStreamedAssistant bool
 }
 

@@ -452,8 +452,6 @@ func TestInterruptTask_PartialAssistantWithoutModelInvocationHasNoRuntime(t *tes
 		HistoryVersion:    acquired.HistoryVersion,
 		GenerationAttempt: acquired.GenerationAttempt,
 	}
-	// A local tool execution batch never opens a provider stream, so
-	// its wall time is not billable even though it publishes parts.
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("partial answer")))
 	clock.Advance(1500 * time.Millisecond)
@@ -477,9 +475,6 @@ func TestInterruptTask_PartialAssistantWithoutModelInvocationHasNoRuntime(t *tes
 	require.False(t, assistant.RuntimeMs.Valid)
 }
 
-// interruptedBatch is a chat with committed unresolved local tool calls
-// and a live attempt buffer episode, ready for StartInterrupt to
-// synthesize cancellation rows.
 type interruptedBatch struct {
 	chat     database.Chat
 	starter  *taskStarter
@@ -489,9 +484,6 @@ type interruptedBatch struct {
 	runnerID uuid.UUID
 }
 
-// interruptedBatchFixture commits an assistant message with the given
-// unresolved local tool calls and prepares the live attempt's buffer
-// episode, so StartInterrupt synthesizes cancellation rows for them.
 func interruptedBatchFixture(
 	t *testing.T,
 	f *taskTestFixture,
@@ -557,8 +549,6 @@ func (b interruptedBatch) interruptWithSnapshot(t *testing.T, f *taskTestFixture
 	return messages
 }
 
-// findToolResultMessage returns the tool-role message answering the given
-// tool call ID.
 func findToolResultMessage(t *testing.T, messages []database.ChatMessage, toolCallID string) database.ChatMessage {
 	t.Helper()
 	for _, msg := range messages {
@@ -577,11 +567,6 @@ func findToolResultMessage(t *testing.T, messages []database.ChatMessage, toolCa
 	return database.ChatMessage{}
 }
 
-// An interrupt mid tool batch bills the partial window on the cancellation
-// row of the billed tool that defines it. A billed tool that recorded its
-// completion before the interrupt ends the window there, so a
-// still-running unbilled wait_agent does not stretch the bill to the
-// interrupt instant.
 func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T) {
 	t.Parallel()
 
@@ -594,30 +579,19 @@ func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T
 	})
 	buffer := batch.starter.opts.MessagePartBuffer
 
-	// Advances stay under the buffer's 15s cleanup tick, which shares
-	// this mock clock.
-	// Attempt setup happens before the tools start and is not billable.
+	// Keep advances below the buffer's 15-second cleanup tick.
 	batch.clock.Advance(2 * time.Second)
 	require.NoError(t, buffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{
 		{CallIndex: 0, ToolCallID: execCallID},
 		{CallIndex: 1, ToolCallID: waitCallID},
 	}))
-	// Both concurrent calls launch with the batch, the way the launch
-	// loop's start callback records them.
 	require.NoError(t, buffer.RecordToolStart(batch.key, 0, execCallID, batch.clock.Now()))
 	require.NoError(t, buffer.RecordToolStart(batch.key, 1, waitCallID, batch.clock.Now()))
-	// execute completes 3 seconds into the batch and records its
-	// completion, the way the tool goroutine's completion callback
-	// does. Its result is not published: results publish only after
-	// the whole batch finishes.
+	// Record a live completion without publishing a tool result.
 	batch.clock.Advance(3 * time.Second)
 	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, execCallID, batch.clock.Now()))
-	// wait_agent is still blocked on its child when the interrupt lands
-	// 5 seconds later.
 	batch.clock.Advance(5 * time.Second)
 
-	// The first attempt stores the episode snapshot it read, so a
-	// retry after buffer eviction reuses it.
 	snapshot := &interruptEpisodeSnapshot{}
 	messages := batch.interruptWithSnapshot(t, f, snapshot)
 	execRow := findToolResultMessage(t, messages, execCallID)
@@ -629,10 +603,6 @@ func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T
 	require.Len(t, snapshot.billing.ToolCompletions, 2)
 }
 
-// A retry attempt reuses the snapshot its first attempt captured: after
-// a stalled attempt outlives the buffer's retention and the episode is
-// evicted, the blank recreated episode must not replace the snapshot's
-// billing state, so the interrupted batch still bills its window.
 func TestInterruptTask_RetrySnapshotOutlivesEpisodeEviction(t *testing.T) {
 	t.Parallel()
 
@@ -642,12 +612,7 @@ func TestInterruptTask_RetrySnapshotOutlivesEpisodeEviction(t *testing.T) {
 		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
 	})
 
-	// Simulate a retry: the first attempt snapshotted a live batch
-	// (started at 2s, closed at 9s, execute still running) and then
-	// stalled past the buffer's retention. The buffer's episode
-	// carries none of that state, like the blank episode a retry
-	// recreates after eviction, so billing can only come from the
-	// carried snapshot.
+	// Use only the carried snapshot; the buffer has no episode state.
 	batch.clock.Advance(2 * time.Second)
 	batchStartedAt := batch.clock.Now()
 	batch.clock.Advance(7 * time.Second)
@@ -666,11 +631,6 @@ func TestInterruptTask_RetrySnapshotOutlivesEpisodeEviction(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 7_000, Valid: true}, execRow.RuntimeMs)
 }
 
-// The interrupt task captures its episode snapshot before its first
-// database read: an attempt whose chat read fails (or stalls past the
-// buffer's retention, evicting the episode) has already stored the
-// billing state, so a later attempt bills the original window even
-// after the buffer forgets the episode.
 func TestInterruptTask_SnapshotCapturedBeforeChatRead(t *testing.T) {
 	t.Parallel()
 
@@ -686,10 +646,6 @@ func TestInterruptTask_SnapshotCapturedBeforeChatRead(t *testing.T) {
 	require.NoError(t, buffer.RecordToolStart(batch.key, 0, execCallID, batch.clock.Now()))
 	batch.clock.Advance(3 * time.Second)
 
-	// The first attempt's chat read fails: the chat is still running,
-	// so the interrupting fence rejects it. The snapshot must already
-	// be captured by then, with the interrupt instant at this failed
-	// attempt's episode close.
 	snapshot := &interruptEpisodeSnapshot{}
 	err := batch.starter.StartInterrupt(testutil.Context(t, testutil.WaitShort), chatWorkerTaskStartInput{
 		ChatID:            batch.chat.ID,
@@ -704,23 +660,17 @@ func TestInterruptTask_SnapshotCapturedBeforeChatRead(t *testing.T) {
 	require.True(t, snapshot.loaded, "the snapshot must be captured before the chat read")
 	require.Equal(t, batch.key, snapshot.key)
 
-	// The attempt outlives the buffer retention: cleanup ticks evict
-	// the closed episode, so only the carried snapshot remains.
 	ctx := testutil.Context(t, testutil.WaitShort)
 	batch.clock.Advance(10 * time.Second).MustWait(ctx)
 	batch.clock.Advance(15 * time.Second).MustWait(ctx)
 	_, err = buffer.GetParts(batch.key)
 	require.ErrorIs(t, err, messagepartbuffer.ErrEpisodeNotFound)
 
-	// The retry bills the pre-read window: batch start at 2s to the
-	// first attempt's close at 5s.
 	messages := batch.interruptWithSnapshot(t, f, snapshot)
 	execRow := findToolResultMessage(t, messages, execCallID)
 	require.Equal(t, sql.NullInt64{Int64: 3_000, Valid: true}, execRow.RuntimeMs)
 }
 
-// A billed tool still running at the interrupt bills up to the interrupt
-// instant.
 func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
 	t.Parallel()
 
@@ -733,7 +683,6 @@ func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
 	batch.clock.Advance(2 * time.Second)
 	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 0, ToolCallID: execCallID}}))
 	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, execCallID, batch.clock.Now()))
-	// The tool is still running when the interrupt lands 7 seconds in.
 	batch.clock.Advance(7 * time.Second)
 
 	messages := batch.interrupt(t, f)
@@ -741,8 +690,6 @@ func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 7_000, Valid: true}, execRow.RuntimeMs)
 }
 
-// An interrupted batch of only unbilled sub-agent orchestration tools
-// bills nothing: an interrupted lone wait_agent stays free.
 func TestInterruptTask_UnbilledOnlyBatchBillsNothingOnInterrupt(t *testing.T) {
 	t.Parallel()
 
@@ -762,11 +709,6 @@ func TestInterruptTask_UnbilledOnlyBatchBillsNothingOnInterrupt(t *testing.T) {
 	require.False(t, waitRow.RuntimeMs.Valid)
 }
 
-// A dispatched call that never began executing bills nothing on
-// interrupt: a billed serial tool stays queued until every concurrent
-// sibling settles, so an interrupt landing during an unbilled
-// wait_agent must not treat the waiting serial call as running from
-// the batch start.
 func TestInterruptTask_UnstartedSerialCallBillsNothingOnInterrupt(t *testing.T) {
 	t.Parallel()
 
@@ -784,9 +726,6 @@ func TestInterruptTask_UnstartedSerialCallBillsNothingOnInterrupt(t *testing.T) 
 		{CallIndex: 0, ToolCallID: waitCallID},
 		{CallIndex: 1, ToolCallID: serialCallID},
 	}))
-	// Only the concurrent wait_agent launched; the serial call stays
-	// queued behind it, so no start mark arrives before the interrupt
-	// lands 10 seconds later.
 	require.NoError(t, buffer.RecordToolStart(batch.key, 0, waitCallID, batch.clock.Now()))
 	batch.clock.Advance(10 * time.Second)
 
@@ -799,10 +738,6 @@ func TestInterruptTask_UnstartedSerialCallBillsNothingOnInterrupt(t *testing.T) 
 	}
 }
 
-// A billed serial call that launched bills from its own start: the
-// interrupt window unions the early billed sibling's interval with the
-// serial call's, so the span where only the unbilled wait_agent was
-// running is never charged.
 func TestInterruptTask_StartedSerialCallBillsFromItsOwnStart(t *testing.T) {
 	t.Parallel()
 
@@ -823,24 +758,16 @@ func TestInterruptTask_StartedSerialCallBillsFromItsOwnStart(t *testing.T) {
 		{CallIndex: 1, ToolCallID: waitCallID},
 		{CallIndex: 2, ToolCallID: serialCallID},
 	}))
-	// The two concurrent calls launch with the batch.
 	require.NoError(t, buffer.RecordToolStart(batch.key, 0, execCallID, batch.clock.Now()))
 	require.NoError(t, buffer.RecordToolStart(batch.key, 1, waitCallID, batch.clock.Now()))
-	// execute completes 3 seconds in.
 	batch.clock.Advance(3 * time.Second)
 	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, execCallID, batch.clock.Now()))
-	// wait_agent completes at 6 seconds, letting the serial call
-	// launch; it is still running when the interrupt lands at 8
-	// seconds.
 	batch.clock.Advance(3 * time.Second)
 	require.NoError(t, buffer.RecordToolCompletion(batch.key, 1, waitCallID, batch.clock.Now()))
 	require.NoError(t, buffer.RecordToolStart(batch.key, 2, serialCallID, batch.clock.Now()))
 	batch.clock.Advance(2 * time.Second)
 
 	messages := batch.interrupt(t, f)
-	// The union bills execute's 3s and the serial call's 2s, not the
-	// 3s gap where only wait_agent ran, and lands once on the serial
-	// call's row: its window ends last.
 	serialRow := findToolResultMessage(t, messages, serialCallID)
 	require.Equal(t, sql.NullInt64{Int64: 5_000, Valid: true}, serialRow.RuntimeMs)
 	execRow := findToolResultMessage(t, messages, execCallID)
@@ -849,10 +776,6 @@ func TestInterruptTask_StartedSerialCallBillsFromItsOwnStart(t *testing.T) {
 	require.False(t, waitRow.RuntimeMs.Valid)
 }
 
-// Two dispatched billed calls sharing one tool call ID keep distinct
-// occurrence states: one completing early must not make the other look
-// finished, so the interrupted batch still bills through to the
-// interrupt, once.
 func TestInterruptTask_DuplicateCallIDsKeepOccurrenceStates(t *testing.T) {
 	t.Parallel()
 
@@ -871,8 +794,6 @@ func TestInterruptTask_DuplicateCallIDsKeepOccurrenceStates(t *testing.T) {
 	}))
 	require.NoError(t, buffer.RecordToolStart(batch.key, 0, dupCallID, batch.clock.Now()))
 	require.NoError(t, buffer.RecordToolStart(batch.key, 1, dupCallID, batch.clock.Now()))
-	// One occurrence completes 3 seconds in; the other keeps running
-	// until the interrupt lands 3 seconds later, defining the window.
 	batch.clock.Advance(3 * time.Second)
 	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, dupCallID, batch.clock.Now()))
 	batch.clock.Advance(3 * time.Second)
@@ -887,10 +808,6 @@ func TestInterruptTask_DuplicateCallIDsKeepOccurrenceStates(t *testing.T) {
 	require.Equal(t, []int64{6_000}, billed, "the still-running occurrence bills the full window exactly once")
 }
 
-// Same-ID occurrences with different billing classifications stay
-// correlated: an unbilled wait_agent occurrence finishing early stamps
-// its own occurrence, not the still-running billed execute sharing its
-// ID, so the execute occurrence still bills through to the interrupt.
 func TestInterruptTask_DuplicateCallIDCompletionStampsOwnOccurrence(t *testing.T) {
 	t.Parallel()
 
@@ -909,9 +826,6 @@ func TestInterruptTask_DuplicateCallIDCompletionStampsOwnOccurrence(t *testing.T
 	}))
 	require.NoError(t, buffer.RecordToolStart(batch.key, 0, dupCallID, batch.clock.Now()))
 	require.NoError(t, buffer.RecordToolStart(batch.key, 1, dupCallID, batch.clock.Now()))
-	// The unbilled wait_agent occurrence (index 1) completes 3 seconds
-	// in; the billed execute occurrence (index 0) keeps running until
-	// the interrupt 3 seconds later.
 	batch.clock.Advance(3 * time.Second)
 	require.NoError(t, buffer.RecordToolCompletion(batch.key, 1, dupCallID, batch.clock.Now()))
 	batch.clock.Advance(3 * time.Second)
@@ -926,11 +840,6 @@ func TestInterruptTask_DuplicateCallIDCompletionStampsOwnOccurrence(t *testing.T
 	require.Equal(t, []int64{6_000}, billed, "the running execute occurrence bills to the interrupt; wait_agent's early completion must not end it at 3s")
 }
 
-// A rejected call must not steal a same-ID dispatched occurrence: with
-// a rejected billed execute preceding a dispatched unbilled wait_agent
-// that shares its ID, positional matching leaves the execute row
-// without an occurrence, so the interrupted batch bills nothing instead
-// of charging the whole wait window to a call that never ran.
 func TestInterruptTask_RejectedDuplicateIDDoesNotStealDispatchedOccurrence(t *testing.T) {
 	t.Parallel()
 
@@ -942,9 +851,6 @@ func TestInterruptTask_RejectedDuplicateIDDoesNotStealDispatchedOccurrence(t *te
 	})
 
 	batch.clock.Advance(2 * time.Second)
-	// Only the wait_agent occurrence (unresolved position 1) was
-	// dispatched: the execute occurrence sharing its ID was rejected
-	// as malformed before execution.
 	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 1, ToolCallID: dupCallID}}))
 	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, dupCallID, batch.clock.Now()))
 	batch.clock.Advance(10 * time.Second)
@@ -957,11 +863,6 @@ func TestInterruptTask_RejectedDuplicateIDDoesNotStealDispatchedOccurrence(t *te
 	}
 }
 
-// A billed call rejected before execution (hook denial, ambiguous-call
-// rejection) is absent from the batch's dispatched set, so its missing
-// completion is not evidence that it ran: an interrupted batch whose
-// only dispatched call is an unbilled wait_agent bills nothing even
-// though the rejected execute call also receives a cancellation row.
 func TestInterruptTask_RejectedCallBillsNothingOnInterrupt(t *testing.T) {
 	t.Parallel()
 
@@ -974,9 +875,6 @@ func TestInterruptTask_RejectedCallBillsNothingOnInterrupt(t *testing.T) {
 	})
 
 	batch.clock.Advance(2 * time.Second)
-	// Only wait_agent was dispatched: execute was rejected before
-	// execution and never ran, so only the occurrence at wait_agent's
-	// unresolved position (1) is seeded.
 	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 1, ToolCallID: waitCallID}}))
 	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, waitCallID, batch.clock.Now()))
 	batch.clock.Advance(10 * time.Second)
@@ -988,9 +886,6 @@ func TestInterruptTask_RejectedCallBillsNothingOnInterrupt(t *testing.T) {
 	require.False(t, waitRow.RuntimeMs.Valid)
 }
 
-// Cancellation rows synthesized without a live tool batch (crash
-// recovery: the episode never stamped a batch start) carry no runtime,
-// consistent with generation losing in-flight runtime on a crash.
 func TestInterruptTask_ToolCancellationWithoutLiveBatchHasNoRuntime(t *testing.T) {
 	t.Parallel()
 
@@ -1000,8 +895,6 @@ func TestInterruptTask_ToolCancellationWithoutLiveBatchHasNoRuntime(t *testing.T
 		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
 	})
 
-	// No StartToolBatch stamp: the batch never went live on this
-	// attempt.
 	batch.clock.Advance(10 * time.Second)
 
 	messages := batch.interrupt(t, f)

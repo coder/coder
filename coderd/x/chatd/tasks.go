@@ -241,14 +241,9 @@ func (o chatWorkerOptions) retryOptions() retryWrapperOptions {
 	}
 }
 
-// interruptEpisodeSnapshot carries the interrupt task's one-time episode
-// snapshot across retry attempts of the same task instance. It is
-// captured before the task's first database read: one stalled read (a
-// database outage holds an attempt up to the task timeout) can outlive
-// the buffer's closed-episode retention, after which the buffer only
-// offers a blank recreated episode that would underbill the interrupted
-// work and drop the partial messages. Attempts of one task run
-// sequentially, so no locking is needed.
+// interruptEpisodeSnapshot carries one interrupt task's episode snapshot
+// across retries. Capturing it before the first database read prevents a
+// stalled read from losing billing state to buffer eviction.
 type interruptEpisodeSnapshot struct {
 	loaded  bool
 	key     messagepartbuffer.Key
@@ -256,13 +251,8 @@ type interruptEpisodeSnapshot struct {
 	parts   []messagepartbuffer.Part
 }
 
-// closeInterruptEpisode closes the interrupted attempt's buffer episode
-// and returns its billing snapshot and buffered parts. Closing and
-// snapshotting billing state must be one atomic step: the generation
-// goroutine records batch starts and tool completions concurrently, so
-// a read-then-close would let stamps land in the gap and go missing
-// from the snapshot. Unknown episodes close blank, so interruption
-// converges even when the worker exited before publishing parts.
+// closeInterruptEpisode atomically closes the episode and snapshots billing.
+// Unknown episodes close blank so interruption converges.
 func (s *taskStarter) closeInterruptEpisode(ctx context.Context, key messagepartbuffer.Key) (messagepartbuffer.EpisodeBilling, []messagepartbuffer.Part, error) {
 	billing, err := s.opts.MessagePartBuffer.CloseEpisodeForBilling(key)
 	if err != nil {
@@ -287,13 +277,8 @@ func (s *taskStarter) closeInterruptEpisode(ctx context.Context, key messagepart
 
 func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskStartInput) error {
 	snapshot := input.InterruptSnapshot
-	// Capture the episode before the chat read below, which can stall
-	// on a database outage past the buffer's retention and let the
-	// cleanup loop evict the episode before a post-read capture. The
-	// input carries the interrupted attempt number, and generation
-	// attempts only advance while the chat is running, so the pre-read
-	// key matches the row while it stays interrupting; if the read
-	// below disagrees, the snapshot is retaken with the row's key.
+	// Snapshot before the chat read, which can outlive buffer retention.
+	// Retake it if the stored attempt differs from the input key.
 	if snapshot != nil && !snapshot.loaded {
 		earlyKey := messagepartbuffer.Key{
 			ChatID:            input.ChatID,
@@ -331,17 +316,10 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	var episodeBilling messagepartbuffer.EpisodeBilling
 	var parts []messagepartbuffer.Part
 	if snapshot != nil && snapshot.loaded && snapshot.key == key {
-		// This task already snapshotted the episode, before its first
-		// chat read or on a previous attempt. Reuse it: the episode
-		// may have been evicted from the buffer while an attempt
-		// stalled, and re-reading would find a blank recreated
-		// episode.
+		// Reuse the snapshot because the buffer may have evicted the episode.
 		episodeBilling = snapshot.billing
 		parts = snapshot.parts
 	} else {
-		// No usable snapshot: either the caller passed none (tests) or
-		// the row's attempt number disagrees with the pre-read key, so
-		// the pre-read snapshot describes the wrong episode.
 		episodeBilling, parts, err = s.closeInterruptEpisode(ctx, key)
 		if err != nil {
 			return err
@@ -353,11 +331,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 			snapshot.parts = parts
 		}
 	}
-	// The interrupt instant is the episode's first close, which is
-	// stable across repeat closes: a retried interrupt task (transient
-	// database errors) recomputes identical partial messages and
-	// billing windows instead of billing still-running tools through
-	// each retry's later clock reading.
+	// The first close is a retry-stable interrupt instant.
 	interruptedAt := episodeBilling.ClosedAt
 	var attemptRuntime time.Duration
 	if !episodeBilling.ModelInvokedAt.IsZero() {
@@ -382,11 +356,8 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
 		messages := partialMessages
-		// Reuse the interrupt instant captured when the episode closed:
-		// a fresh clock read here would run while this transaction
-		// waits on the database (and again on retries), inflating the
-		// billed window of a still-running call past the actual
-		// interrupt.
+		// Reuse the close instant so database delay and retries do not inflate
+		// billing.
 		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, interruptedToolBatchBilling{
 			batchStartedAt:  episodeBilling.ToolBatchStartedAt,
 			toolCompletions: episodeBilling.ToolCompletions,
@@ -766,29 +737,14 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 	return names
 }
 
-// interruptedToolBatchBilling carries what the interrupt task knows about
-// the live tool batch it is canceling, so the synthesized cancellation
-// rows can bill the partial window the batch would have reported.
+// interruptedToolBatchBilling is the live batch state used to bill
+// synthesized cancellation rows.
 type interruptedToolBatchBilling struct {
-	// batchStartedAt is the StartToolBatch stamp from the interrupted
-	// attempt's buffer episode. Zero when no batch was live at the
-	// interrupt (crash recovery, state promotion), in which case the
-	// cancellation rows carry no runtime.
+	// batchStartedAt is zero when no local tool batch was live.
 	batchStartedAt time.Time
-	// toolCompletions holds the live batch's dispatched tool call
-	// occurrences, each keyed by its position in the step's unresolved
-	// call order: seeded when the batch started, marked as each call
-	// began executing, and stamped as each tool finished. A completed
-	// occurrence bills the interval from its start to its completion,
-	// so a batch whose billed tools all finished early does not bill
-	// the longer window of a still-running unbilled tool such as
-	// wait_agent. A started but uncompleted occurrence was still
-	// running when the interrupt landed. A seeded occurrence that
-	// never started is a serial call that was still waiting behind
-	// its siblings, and bills nothing. A call with no occurrence at
-	// its position was never dispatched, such as a call rejected as
-	// malformed or ambiguous before execution, and bills nothing even
-	// though it too receives a cancellation row.
+	// toolCompletions uses unresolved-call positions. Completed calls bill
+	// to completion, running calls bill to the interrupt, and queued or
+	// undispatched calls bill nothing.
 	toolCompletions []messagepartbuffer.ToolCompletion
 }
 
@@ -813,11 +769,8 @@ func committedPendingLocalToolCancellationMessages(
 	if len(localCalls) == 0 {
 		return nil, nil
 	}
-	// Dispatched occurrences keyed by their position in the unresolved
-	// call order, the same order this loop walks. Positional matching
-	// keeps a call rejected before execution from consuming a same-ID
-	// dispatched occurrence and keeps duplicate tool call IDs from
-	// sharing one completion state.
+	// Match by unresolved-call position so rejected and duplicate-ID calls
+	// cannot share occurrence state.
 	dispatched := make(map[int]messagepartbuffer.ToolCompletion, len(billing.toolCompletions))
 	for _, completion := range billing.toolCompletions {
 		if completion.CallIndex < 0 {
@@ -854,15 +807,9 @@ func committedPendingLocalToolCancellationMessages(
 		if billing.batchStartedAt.IsZero() || unbilledSubagentToolNames[call.ToolName] {
 			continue
 		}
-		// Only dispatched calls bill: a call with no occurrence at its
-		// position was rejected before execution, and an ID mismatch
-		// means the seed does not describe this call. A completed
-		// occurrence bills its execution interval; a started but
-		// uncompleted one was still running, so its window ends at the
-		// interrupt. A dispatched occurrence that never started is a
-		// serial call still waiting behind its siblings when the
-		// interrupt landed, and bills nothing. Strictly-after keeps
-		// the earliest call on ties, matching billableBatchWindow.
+		// Bill only matching dispatched calls. Completed calls end at
+		// completion, running calls end at the interrupt, and queued serial
+		// calls are skipped. Ties keep the first call.
 		occurrence, ok := dispatched[i]
 		if !ok || occurrence.ToolCallID != call.ToolCallID {
 			continue
@@ -876,9 +823,7 @@ func committedPendingLocalToolCancellationMessages(
 			end = interruptedAt
 		}
 		if start.IsZero() {
-			// Live execution always marks a start before a
-			// completion; fall back to the batch start rather than
-			// dropping a completed call's billed work.
+			// Completed calls should have starts; batchStart preserves legacy data.
 			start = billing.batchStartedAt
 		}
 		intervals = append(intervals, chatloop.BilledInterval{Start: start, End: end})
@@ -887,11 +832,7 @@ func committedPendingLocalToolCancellationMessages(
 			windowRowIdx = len(result) - 1
 		}
 	}
-	// Mirror the committed-batch policy: bill the union of the billed
-	// calls' execution intervals once, on the cancellation row of the
-	// billed tool call whose window ends last. The union never charges
-	// a span where only unbilled tools were running, such as a
-	// sub-agent wait that delayed a serial call's launch.
+	// Bill the interval union once on the row whose interval ends last.
 	if windowRowIdx >= 0 {
 		result[windowRowIdx].RuntimeMs = nullInt64IfNonZero(chatloop.BilledIntervalsDuration(intervals).Milliseconds())
 	}

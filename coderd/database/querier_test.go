@@ -11123,13 +11123,12 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 	}
 
 	// Counted: on the inclusive start boundary, in the middle (across two
-	// chats), soft-deleted, just before the exclusive end boundary, and a
-	// tool-role row carrying a local tool batch window (the sum is
-	// role-agnostic).
+	// chats), soft-deleted, and just before the exclusive end boundary.
 	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 1, rangeStart, false)
 	insertMessage(chat2.ID, database.ChatMessageRoleAssistant, 2, rangeStart.Add(30*time.Minute), false)
 	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 4, rangeStart.Add(45*time.Minute), true)
 	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 8, rangeEnd.Add(-time.Second), false)
+	// Tool rows count because runtime totals are role-agnostic.
 	insertMessage(chat1.ID, database.ChatMessageRoleTool, 64, rangeStart.Add(20*time.Minute), false)
 	// Not counted: before the range, on the exclusive end boundary, and a
 	// NULL runtime (runtime 0 is stored as NULL).
