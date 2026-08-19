@@ -72,9 +72,8 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		InterceptionDuration: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 			Subsystem: "interceptions",
 			Name:      "duration_seconds",
-			Help: "The total duration of intercepted requests, in seconds. " +
-				"The majority of this time will be the upstream processing of the request. " +
-				"AI Gateway has no control over upstream processing time, so it's just an illustrative metric.",
+			Help: "The total time each intercepted request spent inside AI Gateway, in seconds. " +
+				"Dominated by upstream provider latency; use distributed tracing spans to isolate AI Gateway's own overhead.",
 			// TODO: add docs around determining aibridge's *own* latency with distributed traces
 			//       once https://github.com/coder/aibridge/issues/26 lands.
 			Buckets: []float64{0.5, 2, 5, 15, 30, 60, 120},

@@ -55,7 +55,8 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Subsystem: "cost_control",
 			Name:      "unpriced_token_usage_records_total",
 			Help: "The number of recorded AI token-usage records for which no (provider_type, model) price was found. " +
-				"provider is the provider instance name, and provider_type is its configured type.",
+				"provider is the provider instance name, and provider_type is its configured type, " +
+				"or unknown when the provider could not be resolved.",
 		}, []string{"provider", "provider_type", "model"}),
 		// Pessimistic cardinality: 3 outcomes, 8 buckets + 3 extra series
 		// (count, sum, +Inf) = up to 33.
