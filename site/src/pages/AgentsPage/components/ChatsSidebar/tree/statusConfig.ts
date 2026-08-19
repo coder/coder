@@ -91,9 +91,7 @@ const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
 /**
  * Returns the icons and styling that represent a chat's current state.
  *
- * The status icon always reflects the chat status. Any linked pull
- * request is surfaced separately via `prIcon` so rows can render it
- * next to the diff stats.
+ * The status icon always reflects the chat status.
  */
 export const getChatDisplayConfig = (
 	chat: Chat,
