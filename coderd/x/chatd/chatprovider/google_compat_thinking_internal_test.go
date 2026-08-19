@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestRewriteGoogleCompatThinkingConfig(t *testing.T) {
@@ -119,4 +121,103 @@ func TestRewriteGoogleCompatThinkingConfig_NonThinkingModelsUntouched(t *testing
 			require.NotContains(t, withEffort, "extra_body")
 		})
 	}
+}
+
+func TestGoogleCompatExtraBodyFromThinkingConfig(t *testing.T) {
+	t.Parallel()
+
+	int64Ptr := func(v int64) *int64 { return &v }
+	strPtr := func(v string) *string { return &v }
+	boolPtr := func(v bool) *bool { return &v }
+	thinkingConfig := func(extraBody map[string]any) map[string]any {
+		body, _ := extraBody["extra_body"].(map[string]any)
+		google, _ := body["google"].(map[string]any)
+		config, _ := google["thinking_config"].(map[string]any)
+		return config
+	}
+
+	t.Run("PinnedLevelClampedWithThoughtsDefaultOn", func(t *testing.T) {
+		t.Parallel()
+		extraBody := googleCompatExtraBodyFromThinkingConfig("gemini-3.0-pro", &codersdk.ChatModelGoogleThinkingConfig{
+			ThinkingLevel: strPtr("minimal"),
+		})
+		require.Equal(t, map[string]any{"include_thoughts": true, "thinking_level": "low"}, thinkingConfig(extraBody))
+	})
+
+	t.Run("PinnedBudgetWithExplicitThoughtsOff", func(t *testing.T) {
+		t.Parallel()
+		extraBody := googleCompatExtraBodyFromThinkingConfig("gemini-2.5-flash", &codersdk.ChatModelGoogleThinkingConfig{
+			ThinkingBudget:  int64Ptr(2048),
+			IncludeThoughts: boolPtr(false),
+		})
+		require.Equal(t, map[string]any{"include_thoughts": false, "thinking_budget": int64(2048)}, thinkingConfig(extraBody))
+	})
+
+	t.Run("PinnedLevelDroppedForBudgetModels", func(t *testing.T) {
+		t.Parallel()
+		extraBody := googleCompatExtraBodyFromThinkingConfig("gemini-2.5-flash", &codersdk.ChatModelGoogleThinkingConfig{
+			ThinkingLevel: strPtr("high"),
+		})
+		require.Equal(t, map[string]any{"include_thoughts": true}, thinkingConfig(extraBody))
+	})
+
+	t.Run("NonThinkingModelNil", func(t *testing.T) {
+		t.Parallel()
+		require.Nil(t, googleCompatExtraBodyFromThinkingConfig("gemini-2.5-flash-image", &codersdk.ChatModelGoogleThinkingConfig{
+			ThinkingLevel: strPtr("high"),
+		}))
+	})
+
+	t.Run("NilConfigNil", func(t *testing.T) {
+		t.Parallel()
+		require.Nil(t, googleCompatExtraBodyFromThinkingConfig("gemini-3-flash-preview", nil))
+	})
+}
+
+func TestRewriteGoogleCompatThinkingConfig_PinnedConfigPrecedence(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EffortOverridesPinnedLevel", func(t *testing.T) {
+		t.Parallel()
+		payload := map[string]any{
+			"model":            "gemini-3-flash-preview",
+			"reasoning_effort": "low",
+			"extra_body": map[string]any{"google": map[string]any{
+				"thinking_config": map[string]any{"include_thoughts": false, "thinking_level": "high"},
+			}},
+		}
+		require.True(t, rewriteGoogleCompatThinkingConfig(payload))
+		require.NotContains(t, payload, "reasoning_effort")
+		google := payload["extra_body"].(map[string]any)["google"].(map[string]any)
+		require.Equal(t, map[string]any{"include_thoughts": false, "thinking_level": "low"}, google["thinking_config"])
+	})
+
+	t.Run("PinnedBudgetWinsOverEffort", func(t *testing.T) {
+		t.Parallel()
+		payload := map[string]any{
+			"model":            "gemini-2.5-flash",
+			"reasoning_effort": "high",
+			"extra_body": map[string]any{"google": map[string]any{
+				"thinking_config": map[string]any{"include_thoughts": true, "thinking_budget": int64(2048)},
+			}},
+		}
+		require.True(t, rewriteGoogleCompatThinkingConfig(payload))
+		require.NotContains(t, payload, "reasoning_effort")
+		google := payload["extra_body"].(map[string]any)["google"].(map[string]any)
+		require.Equal(t, map[string]any{"include_thoughts": true, "thinking_budget": int64(2048)}, google["thinking_config"])
+	})
+
+	t.Run("EffortAddsBudgetToPinnedThoughtsOnly", func(t *testing.T) {
+		t.Parallel()
+		payload := map[string]any{
+			"model":            "gemini-2.5-flash",
+			"reasoning_effort": "medium",
+			"extra_body": map[string]any{"google": map[string]any{
+				"thinking_config": map[string]any{"include_thoughts": true},
+			}},
+		}
+		require.True(t, rewriteGoogleCompatThinkingConfig(payload))
+		google := payload["extra_body"].(map[string]any)["google"].(map[string]any)
+		require.Equal(t, map[string]any{"include_thoughts": true, "thinking_budget": 8192}, google["thinking_config"])
+	})
 }

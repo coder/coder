@@ -12,7 +12,9 @@ import (
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/internal/googleopenai"
 )
 
@@ -310,4 +312,64 @@ func (st *sseChatCompletionTransport) RoundTrip(req *http.Request) (*http.Respon
 		},
 		Body: io.NopCloser(strings.NewReader(st.stream)),
 	}, nil
+}
+
+func TestModelFromConfig_GeminiOpenAICompatPinnedThinkingConfig(t *testing.T) {
+	t.Parallel()
+
+	transport := &captureChatCompletionTransport{}
+	model, err := chatprovider.ModelFromConfig(
+		fantasyopenaicompat.Name,
+		"gemini-3-flash-preview",
+		chatprovider.ProviderAPIKeys{
+			ByProvider: map[string]string{
+				fantasyopenaicompat.Name: "test-key",
+			},
+			BaseURLByProvider: map[string]string{
+				fantasyopenaicompat.Name: "http://coder-aibridge/v1",
+			},
+		},
+		chatprovider.UserAgent(),
+		nil,
+		&http.Client{Transport: transport},
+		nil,
+	)
+	require.NoError(t, err)
+
+	// A Google-configured pinned thinking level must reach the compat
+	// request as extra_body, and the per-turn effort must override it.
+	requestedEffort := "low"
+	providerOptions := chatprovider.ProviderOptionsForCall(model, codersdk.ChatModelCallConfig{
+		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+			Default: &requestedEffort,
+			Max:     ptr.Ref("max"),
+		},
+		ProviderOptions: &codersdk.ChatModelProviderOptions{
+			Google: &codersdk.ChatModelGoogleProviderOptions{
+				ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
+					ThinkingLevel:   ptr.Ref("high"),
+					IncludeThoughts: ptr.Ref(false),
+				},
+			},
+		},
+	}, &requestedEffort)
+
+	_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{
+		Prompt: []fantasy.Message{{
+			Role:    fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{fantasy.TextPart{Text: "current turn"}},
+		}},
+		ProviderOptions: providerOptions,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, transport.body)
+
+	require.NotContains(t, transport.body, "reasoning_effort")
+	extraBody, ok := transport.body["extra_body"].(map[string]any)
+	require.True(t, ok, "pinned Google thinking config must reach the request as extra_body")
+	google := extraBody["google"].(map[string]any)
+	require.Equal(t, map[string]any{
+		"include_thoughts": false,
+		"thinking_level":   "low",
+	}, google["thinking_config"])
 }

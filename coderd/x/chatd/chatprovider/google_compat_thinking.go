@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 
+	fantasygoogle "charm.land/fantasy/providers/google"
+
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -17,14 +19,8 @@ import (
 // request shape untouched.
 func rewriteGoogleCompatThinkingConfig(payload map[string]any) bool {
 	modelID, _ := payload["model"].(string)
-	normalized := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(modelID)), "models/")
-	normalized = strings.TrimPrefix(normalized, "google/")
-	if !strings.HasPrefix(normalized, "gemini-") {
-		return false
-	}
-
-	supported := googleSupportedThinkingLevels(normalized)
-	if len(supported) == 0 && !googleSupportsThinkingBudget(normalized) {
+	supported, capable := googleCompatThinkingSupport(modelID)
+	if !capable {
 		return false
 	}
 
@@ -52,13 +48,76 @@ func rewriteGoogleCompatThinkingConfig(payload map[string]any) bool {
 		google = map[string]any{}
 		extraBody["google"] = google
 	}
-	// An explicitly configured thinking_config wins, but reasoning_effort
-	// must go regardless because Google rejects the combination.
-	if _, exists := google["thinking_config"]; !exists {
+	// Merge with a config-pinned thinking_config using the same precedence
+	// as the native Google path: a pinned thinking_budget wins over the
+	// per-turn effort, while the effort overrides a pinned thinking_level.
+	// reasoning_effort must go in every case because Google rejects it in
+	// combination with thinking_config.
+	if pinned, ok := google["thinking_config"].(map[string]any); ok {
+		if _, hasBudget := pinned["thinking_budget"]; !hasBudget {
+			if level, ok := thinkingConfig["thinking_level"]; ok {
+				pinned["thinking_level"] = level
+			} else if budget, ok := thinkingConfig["thinking_budget"]; ok {
+				pinned["thinking_budget"] = budget
+			}
+		}
+	} else {
 		google["thinking_config"] = thinkingConfig
 	}
 	delete(payload, "reasoning_effort")
 	return true
+}
+
+// googleCompatThinkingSupport reports whether a model ID on the
+// OpenAI-compatible path is a thinking-capable Gemini model, returning its
+// supported thinking levels (empty for the budget-based 2.5 families).
+func googleCompatThinkingSupport(modelID string) ([]fantasygoogle.ThinkingLevel, bool) {
+	normalized := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(modelID)), "models/")
+	normalized = strings.TrimPrefix(normalized, "google/")
+	if !strings.HasPrefix(normalized, "gemini-") {
+		return nil, false
+	}
+	supported := googleSupportedThinkingLevels(normalized)
+	if len(supported) == 0 && !googleSupportsThinkingBudget(normalized) {
+		return nil, false
+	}
+	return supported, true
+}
+
+// googleCompatExtraBodyFromThinkingConfig translates a config-pinned Google
+// thinking configuration into the extra_body payload for Gemini models routed
+// through the OpenAI-compatible client, which ignores the native Google
+// provider options. include_thoughts defaults to enabled so pinned
+// configurations still surface thinking in the chat UI. Returns nil when the
+// model has no thinking support.
+func googleCompatExtraBodyFromThinkingConfig(
+	modelID string,
+	config *codersdk.ChatModelGoogleThinkingConfig,
+) map[string]any {
+	if config == nil {
+		return nil
+	}
+	supported, capable := googleCompatThinkingSupport(modelID)
+	if !capable {
+		return nil
+	}
+
+	includeThoughts := true
+	if config.IncludeThoughts != nil {
+		includeThoughts = *config.IncludeThoughts
+	}
+	thinkingConfig := map[string]any{"include_thoughts": includeThoughts}
+	if config.ThinkingBudget != nil {
+		thinkingConfig["thinking_budget"] = *config.ThinkingBudget
+	} else if pinned := GoogleThinkingLevelFromChat(config.ThinkingLevel); pinned != nil && len(supported) > 0 {
+		level := clampGoogleThinkingLevel(*pinned, supported)
+		thinkingConfig["thinking_level"] = strings.ToLower(level)
+	}
+	return map[string]any{
+		"extra_body": map[string]any{
+			"google": map[string]any{"thinking_config": thinkingConfig},
+		},
+	}
 }
 
 // googleSupportsThinkingBudget reports whether a Gemini model predating

@@ -1170,6 +1170,18 @@ func providerOptionsFromChatModelConfig(
 		)
 	}
 
+	// Google models backed by an AI Provider route through the
+	// OpenAI-compatible client, which ignores the fantasygoogle options key,
+	// so a pinned thinking configuration must also travel as the compat
+	// request's extra_body for the transport patch to honor it.
+	if options.Google != nil && options.Google.ThinkingConfig != nil &&
+		model.Valid() && NormalizeProvider(model.Provider()) == fantasyopenaicompat.Name {
+		if extraBody := googleCompatExtraBodyFromThinkingConfig(model.ModelID(), options.Google.ThinkingConfig); extraBody != nil {
+			compatOptions := ensureProviderOptions[fantasyopenaicompat.ProviderOptions](result, fantasyopenaicompat.Name)
+			compatOptions.ExtraBody = extraBody
+		}
+	}
+
 	if len(result) == 0 {
 		return nil
 	}
