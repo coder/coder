@@ -77,7 +77,7 @@ member can spend $200 USD and the group has a total spend limit of $2,000 USD.
 
 Budget values behave as follows:
 
-- An empty field means no limit. The field displays `unlimited`.
+- An empty field means no budget is set. The field displays `no budget`.
 - `$0 USD` blocks every request routed via AI Gateway from members whose
   effective group is this group.
 - The maximum is `$1,000,000 USD` per member per budget period.
@@ -217,9 +217,9 @@ price for it yourself.
 ### Set model prices
 
 Use the experimental `coder exp ai-model-prices` command to set prices for
-models the price book does not cover. It requires the AI Governance add-on and
-the `ai_model_price:update` permission. Run
-`coder exp ai-model-prices --help` for the full reference.
+models the price book does not cover. It requires AI Governance, which is
+included with a Premium license, and the `ai_model_price:update` permission.
+Run `coder exp ai-model-prices --help` for the full reference.
 
 List the prices this deployment holds, optionally narrowed to one provider or
 model:

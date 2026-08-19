@@ -74,6 +74,19 @@ func ChatNoACLConverter() *sqltypes.VariableConverter {
 	return matcher
 }
 
+func MCPServerConfigConverter() *sqltypes.VariableConverter {
+	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
+		sqltypes.StringVarMatcher("mcp_server_configs.organization_id :: text", []string{"input", "object", "org_owner"}),
+		sqltypes.AlwaysFalse(userOwnerMatcher()),
+	)
+	matcher.RegisterMatcher(
+		ACLMappingMatcher(matcher, "mcp_server_configs.group_acl", []string{"input", "object", "acl_group_list"}).UsingSubfield("permissions"),
+		ACLMappingMatcher(matcher, "mcp_server_configs.user_acl", []string{"input", "object", "acl_user_list"}).UsingSubfield("permissions"),
+	)
+	return matcher
+}
+
 func chatBaseConverter() *sqltypes.VariableConverter {
 	return sqltypes.NewVariableConverter().RegisterMatcher(
 		chatResourceIDMatcher(),

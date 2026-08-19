@@ -465,6 +465,12 @@ const (
 	ApiKeyScopeWorkspaceBuildOrchestrationDelete   APIKeyScope = "workspace_build_orchestration:delete"
 	ApiKeyScopeWorkspaceBuildOrchestrationRead     APIKeyScope = "workspace_build_orchestration:read"
 	ApiKeyScopeWorkspaceBuildOrchestrationUpdate   APIKeyScope = "workspace_build_orchestration:update"
+	ApiKeyScopeMcpServerConfig                     APIKeyScope = "mcp_server_config:*"
+	ApiKeyScopeMcpServerConfigCreate               APIKeyScope = "mcp_server_config:create"
+	ApiKeyScopeMcpServerConfigRead                 APIKeyScope = "mcp_server_config:read"
+	ApiKeyScopeMcpServerConfigUpdate               APIKeyScope = "mcp_server_config:update"
+	ApiKeyScopeMcpServerConfigDelete               APIKeyScope = "mcp_server_config:delete"
+	ApiKeyScopeMcpServerConfigShare                APIKeyScope = "mcp_server_config:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -739,7 +745,13 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
-		ApiKeyScopeWorkspaceBuildOrchestrationUpdate:
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeMcpServerConfig,
+		ApiKeyScopeMcpServerConfigCreate,
+		ApiKeyScopeMcpServerConfigRead,
+		ApiKeyScopeMcpServerConfigUpdate,
+		ApiKeyScopeMcpServerConfigDelete,
+		ApiKeyScopeMcpServerConfigShare:
 		return true
 	}
 	return false
@@ -983,6 +995,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
 		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeMcpServerConfig,
+		ApiKeyScopeMcpServerConfigCreate,
+		ApiKeyScopeMcpServerConfigRead,
+		ApiKeyScopeMcpServerConfigUpdate,
+		ApiKeyScopeMcpServerConfigDelete,
+		ApiKeyScopeMcpServerConfigShare,
 	}
 }
 
@@ -3536,6 +3554,7 @@ const (
 	ResourceTypeUserAIBudgetOverride        ResourceType = "user_ai_budget_override"
 	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
 	ResourceTypeChatInstructionSettings     ResourceType = "chat_instruction_settings"
+	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3611,7 +3630,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeAIGatewayKey,
 		ResourceTypeUserAIBudgetOverride,
 		ResourceTypeOauth2ProviderSettings,
-		ResourceTypeChatInstructionSettings:
+		ResourceTypeChatInstructionSettings,
+		ResourceTypeMCPServerConfig:
 		return true
 	}
 	return false
@@ -3656,6 +3676,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeUserAIBudgetOverride,
 		ResourceTypeOauth2ProviderSettings,
 		ResourceTypeChatInstructionSettings,
+		ResourceTypeMCPServerConfig,
 	}
 }
 
@@ -5455,6 +5476,9 @@ type MCPServerConfig struct {
 	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
 	OAuth2RevocationURL     string         `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
+	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
+	GroupACL                ChatACL        `db:"group_acl" json:"group_acl"`
+	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
 }
 
 type MCPServerUserToken struct {

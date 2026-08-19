@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
 )
 
 // testValue is the value that is stored in dbcrypt_keys.test.
@@ -713,8 +714,8 @@ func (db *dbCrypt) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (da
 	return cfg, nil
 }
 
-func (db *dbCrypt) GetMCPServerConfigBySlug(ctx context.Context, slug string) (database.MCPServerConfig, error) {
-	cfg, err := db.Store.GetMCPServerConfigBySlug(ctx, slug)
+func (db *dbCrypt) GetMCPServerConfigByIDForUpdate(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
+	cfg, err := db.Store.GetMCPServerConfigByIDForUpdate(ctx, id)
 	if err != nil {
 		return database.MCPServerConfig{}, err
 	}
@@ -724,8 +725,19 @@ func (db *dbCrypt) GetMCPServerConfigBySlug(ctx context.Context, slug string) (d
 	return cfg, nil
 }
 
-func (db *dbCrypt) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetMCPServerConfigs(ctx)
+func (db *dbCrypt) GetMCPServerConfigByOrganizationAndSlug(ctx context.Context, arg database.GetMCPServerConfigByOrganizationAndSlugParams) (database.MCPServerConfig, error) {
+	cfg, err := db.Store.GetMCPServerConfigByOrganizationAndSlug(ctx, arg)
+	if err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	if err := db.decryptMCPServerConfig(&cfg); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	return cfg, nil
+}
+
+func (db *dbCrypt) GetMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetMCPServerConfigsByOrganization(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -737,8 +749,8 @@ func (db *dbCrypt) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServe
 	return cfgs, nil
 }
 
-func (db *dbCrypt) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetMCPServerConfigsByIDs(ctx, ids)
+func (db *dbCrypt) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, arg)
 	if err != nil {
 		return nil, err
 	}
@@ -750,8 +762,8 @@ func (db *dbCrypt) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID
 	return cfgs, nil
 }
 
-func (db *dbCrypt) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetEnabledMCPServerConfigs(ctx)
+func (db *dbCrypt) GetEnabledMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetEnabledMCPServerConfigsByOrganization(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -763,8 +775,21 @@ func (db *dbCrypt) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.M
 	return cfgs, nil
 }
 
-func (db *dbCrypt) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetForcedMCPServerConfigs(ctx)
+func (db *dbCrypt) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
+	if err != nil {
+		return nil, err
+	}
+	for i := range cfgs {
+		if err := db.decryptMCPServerConfig(&cfgs[i]); err != nil {
+			return nil, err
+		}
+	}
+	return cfgs, nil
+}
+
+func (db *dbCrypt) GetForcedMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetForcedMCPServerConfigsByOrganization(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -778,6 +803,17 @@ func (db *dbCrypt) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MC
 
 func (db *dbCrypt) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
 	tok, err := db.Store.GetMCPServerUserToken(ctx, arg)
+	if err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	if err := db.decryptMCPServerUserToken(&tok); err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	return tok, nil
+}
+
+func (db *dbCrypt) GetMCPServerUserTokenByID(ctx context.Context, id uuid.UUID) (database.MCPServerUserToken, error) {
+	tok, err := db.Store.GetMCPServerUserTokenByID(ctx, id)
 	if err != nil {
 		return database.MCPServerUserToken{}, err
 	}

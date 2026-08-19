@@ -1,7 +1,7 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { delay } from "msw";
 import { useState } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "react-query";
 import {
 	expect,
 	fn,
@@ -28,6 +28,8 @@ import {
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
 import { AgentCreateForm, emptyInputStorageKey } from "./AgentCreateForm";
+
+let capturedQueryClient: QueryClient | undefined;
 
 const permittedOrgsKey = permittedOrganizationsKey({
 	object: { resource_type: "chat", owner_id: "me" },
@@ -127,6 +129,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 	},
 };
 
@@ -896,7 +899,9 @@ export const ForbiddenErrorWithRole: Story = {
 		await expect(canvas.getByText("Forbidden.")).toBeInTheDocument();
 		// The textbox should remain enabled since the user has the role.
 		const textbox = canvas.getByRole("textbox");
-		await expect(textbox).not.toHaveAttribute("aria-disabled", "true");
+		await waitFor(() =>
+			expect(textbox).not.toHaveAttribute("aria-disabled", "true"),
+		);
 	},
 };
 
@@ -913,17 +918,30 @@ export const WithOrganizationPicker: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const organizationPicker = canvas.getByRole("button", {
-			name: "Organization: My Organization",
+		const body = within(canvasElement.ownerDocument.body);
+		await waitFor(() => {
+			expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
+				MockDefaultOrganization.id,
+			);
 		});
-		await expect(organizationPicker).toBeVisible();
-
+		const organizationSelector = await canvas.findByRole("button", {
+			name: `Organization: ${MockDefaultOrganization.display_name}`,
+		});
+		await userEvent.click(organizationSelector);
+		await userEvent.click(
+			await body.findByRole("option", { name: MockOrganization2.display_name }),
+		);
+		await waitFor(() => {
+			expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
+				MockOrganization2.id,
+			);
+		});
 		const input = canvas.getByRole("textbox", { name: "Chat message" });
 		await userEvent.click(input);
 		await userEvent.keyboard("hello world");
 		await expect(
 			canvas.getByRole("button", {
-				name: "Organization: My Organization",
+				name: `Organization: ${MockOrganization2.display_name}`,
 			}),
 		).toBeVisible();
 	},
@@ -1625,5 +1643,65 @@ export const MemberScopedPermissionsShowOrgPicker: Story = {
 				name: `Organization: ${MockOrganization2.display_name}`,
 			}),
 		).toBeInTheDocument();
+	},
+};
+
+export const MCPServersLoadingDisablesSend: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfigs").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByRole("textbox");
+		await userEvent.click(input);
+		await userEvent.keyboard("send while MCP servers load");
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+	},
+};
+
+export const MCPServersErrorShowsAlertAndDisablesSend: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfigs").mockRejectedValue(
+			new Error("failed to load MCP servers"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const matches = await canvas.findAllByText(/failed to load mcp servers/i);
+		expect(matches.length).toBeGreaterThan(0);
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+	},
+};
+
+export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
+	decorators: [
+		(Story) => {
+			capturedQueryClient = useQueryClient();
+			return <Story />;
+		},
+	],
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfigs")
+			.mockResolvedValueOnce([])
+			.mockRejectedValue(new Error("failed to refresh MCP servers"));
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByRole("textbox");
+		await userEvent.click(input);
+		await userEvent.keyboard("send after a failed refetch");
+		const send = canvas.getByRole("button", { name: "Send" });
+		await waitFor(() => expect(send).toBeEnabled());
+		if (!capturedQueryClient) {
+			throw new Error("query client was not captured by the story decorator");
+		}
+		await capturedQueryClient.refetchQueries();
+		const matches = await canvas.findAllByText(
+			/failed to refresh mcp servers/i,
+		);
+		expect(matches.length).toBeGreaterThan(0);
+		expect(send).toBeEnabled();
 	},
 };

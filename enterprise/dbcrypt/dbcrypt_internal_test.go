@@ -19,6 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/regosql"
 )
 
 func TestUserLinks(t *testing.T) {
@@ -916,6 +918,16 @@ func requireMCPServerConfigRawEncrypted(
 	requireEncryptedEquals(t, ciphers[0], raw.CustomHeaders, wantHeaders)
 }
 
+type allowAllPreparedAuthorized struct{}
+
+func (allowAllPreparedAuthorized) Authorize(context.Context, rbac.Object) error {
+	return nil
+}
+
+func (allowAllPreparedAuthorized) CompileToSQL(context.Context, regosql.ConvertConfig) (string, error) {
+	return "TRUE", nil
+}
+
 func TestMCPServerConfigs(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -961,59 +973,97 @@ func TestMCPServerConfigs(t *testing.T) {
 		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
 
-	t.Run("GetMCPServerConfigBySlug", func(t *testing.T) {
+	t.Run("GetMCPServerConfigByIDForUpdate", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
 
-		got, err := crypt.GetMCPServerConfigBySlug(ctx, cfg.Slug)
+		got, err := crypt.GetMCPServerConfigByIDForUpdate(ctx, cfg.ID)
 		require.NoError(t, err)
 		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders)
 		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
 
-	t.Run("GetMCPServerConfigs", func(t *testing.T) {
+	t.Run("GetMCPServerConfigByOrganizationAndSlug", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
 
-		cfgs, err := crypt.GetMCPServerConfigs(ctx)
+		got, err := crypt.GetMCPServerConfigByOrganizationAndSlug(ctx, database.GetMCPServerConfigByOrganizationAndSlugParams{
+			OrganizationID: cfg.OrganizationID,
+			Slug:           cfg.Slug,
+		})
+		require.NoError(t, err)
+		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+
+		// The slug is only unique per organization: the same slug in
+		// another organization must not resolve.
+		_, err = crypt.GetMCPServerConfigByOrganizationAndSlug(ctx, database.GetMCPServerConfigByOrganizationAndSlugParams{
+			OrganizationID: uuid.New(),
+			Slug:           cfg.Slug,
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("GetMCPServerConfigsByOrganization", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg := insertConfig(t, crypt, ciphers)
+
+		cfgs, err := crypt.GetMCPServerConfigsByOrganization(ctx, cfg.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
 		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
 
-	t.Run("GetMCPServerConfigsByIDs", func(t *testing.T) {
+	t.Run("GetAuthorizedMCPServerConfigs", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
 
-		cfgs, err := crypt.GetMCPServerConfigsByIDs(ctx, []uuid.UUID{cfg.ID})
+		cfgs, err := crypt.GetAuthorizedMCPServerConfigs(ctx, cfg.OrganizationID, allowAllPreparedAuthorized{})
+		require.NoError(t, err)
+		require.Len(t, cfgs, 1)
+		require.Equal(t, cfg.ID, cfgs[0].ID)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+	})
+
+	t.Run("GetEnabledMCPServerConfigsByOrganizationAndIDs", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg := insertConfig(t, crypt, ciphers)
+
+		cfgs, err := crypt.GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams{
+			OrganizationID: cfg.OrganizationID,
+			IDs:            []uuid.UUID{cfg.ID},
+		})
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
 		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
 
-	t.Run("GetEnabledMCPServerConfigs", func(t *testing.T) {
+	t.Run("GetEnabledMCPServerConfigsByOrganization", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
 
-		cfgs, err := crypt.GetEnabledMCPServerConfigs(ctx)
+		cfgs, err := crypt.GetEnabledMCPServerConfigsByOrganization(ctx, cfg.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
 		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
 
-	t.Run("GetForcedMCPServerConfigs", func(t *testing.T) {
+	t.Run("GetForcedMCPServerConfigsByOrganization", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
 
-		cfgs, err := crypt.GetForcedMCPServerConfigs(ctx)
+		cfgs, err := crypt.GetForcedMCPServerConfigsByOrganization(ctx, cfg.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
@@ -1585,6 +1635,24 @@ func TestMCPServerUserTokens(t *testing.T) {
 			MCPServerConfigID: cfg.ID,
 			UserID:            tok.UserID,
 		})
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawTok.AccessToken, accessToken)
+		requireEncryptedEquals(t, ciphers[0], rawTok.RefreshToken, refreshToken)
+	})
+
+	t.Run("GetMCPServerUserTokenByID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		_, tok := insertConfigAndToken(t, crypt, ciphers)
+
+		got, err := crypt.GetMCPServerUserTokenByID(ctx, tok.ID)
+		require.NoError(t, err)
+		require.Equal(t, accessToken, got.AccessToken)
+		require.Equal(t, refreshToken, got.RefreshToken)
+		require.Equal(t, ciphers[0].HexDigest(), got.AccessTokenKeyID.String)
+		require.Equal(t, ciphers[0].HexDigest(), got.RefreshTokenKeyID.String)
+
+		rawTok, err := db.GetMCPServerUserTokenByID(ctx, tok.ID)
 		require.NoError(t, err)
 		requireEncryptedEquals(t, ciphers[0], rawTok.AccessToken, accessToken)
 		requireEncryptedEquals(t, ciphers[0], rawTok.RefreshToken, refreshToken)
