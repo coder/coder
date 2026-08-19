@@ -100,11 +100,6 @@ The agent loop runs in the control plane, and developers work through the dashbo
 Not to be confused with a [workspace agent](#workspace-agent) or the [`coder_agent`](#coder_agent) resource.
 Refer to [Coder Agents](../ai-coder/agents/index.md).
 
-### Coder Agents User
-
-The per-organization role that a member needs to use [Coder Agents](#coder-agents).
-Refer to [Coder Agents](../ai-coder/agents/index.md).
-
 ### Coder CLI
 
 The single `coder` binary used for admin and user operations.

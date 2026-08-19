@@ -1465,8 +1465,8 @@ func TestGetAuthorizedChats(t *testing.T) {
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleAgentsAccess()}})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: secondMember.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleAgentsAccess()}})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: secondMember.ID, OrganizationID: org.ID})
 
 	// Create FK dependencies: a chat provider and model config.
 	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
@@ -1653,7 +1653,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		// Use a dedicated user for pagination to avoid interference
 		// with the other parallel subtests.
 		paginationUser := dbgen.User(t, db, database.User{})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: paginationUser.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleAgentsAccess()}})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: paginationUser.ID, OrganizationID: org.ID})
 		for i := range 7 {
 			dbgen.Chat(t, db, database.Chat{
 				OrganizationID:    org.ID,
@@ -1727,12 +1727,10 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         owner.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         recipient.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
@@ -1845,12 +1843,10 @@ func TestGetAuthorizedChatsACLSharingGroupACL(t *testing.T) {
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         owner.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         recipient.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
 	dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: recipient.ID, GroupID: group.ID})
@@ -1949,12 +1945,10 @@ func TestGetAuthorizedChatsByChatFileIDACLSharing(t *testing.T) {
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         owner.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         recipient.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
