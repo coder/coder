@@ -1860,6 +1860,116 @@ export const WithPRStateIcons: Story = {
 			routing: agentsRouting,
 		}),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByLabelText("Pull request open")).toBeInTheDocument();
+			expect(canvas.getByLabelText("Draft pull request")).toBeInTheDocument();
+			expect(canvas.getByLabelText("Pull request merged")).toBeInTheDocument();
+			expect(canvas.getByLabelText("Pull request closed")).toBeInTheDocument();
+		});
+	},
+};
+
+export const WithSubagentStatusIcons: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "solo-idle",
+				title: "Solo idle agent",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "solo-working",
+				title: "Solo working agent",
+				status: "running",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "parent-idle",
+				title: "Idle parent with subagents",
+				updated_at: recentTimestamp,
+				children: [
+					buildChat({
+						id: "sub-idle-1",
+						title: "Idle subagent",
+						parent_chat_id: "parent-idle",
+						root_chat_id: "parent-idle",
+					}),
+				],
+			}),
+			buildChat({
+				id: "parent-working",
+				title: "Working parent with subagents",
+				status: "running",
+				updated_at: recentTimestamp,
+				children: [
+					buildChat({
+						id: "sub-working-1",
+						title: "Working subagent",
+						status: "running",
+						parent_chat_id: "parent-working",
+						root_chat_id: "parent-working",
+					}),
+				],
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByLabelText("Idle, has subagents")).toBeInTheDocument();
+			expect(
+				canvas.getByLabelText("Working, has subagents"),
+			).toBeInTheDocument();
+		});
+		expect(canvas.getByLabelText("Idle")).toBeInTheDocument();
+		expect(canvas.getByLabelText("Working")).toBeInTheDocument();
+	},
+};
+
+export const ActiveChatKebabPersistent: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-chat",
+				title: "Active chat",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "other-chat",
+				title: "Other chat",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/active-chat",
+				pathParams: { agentId: "active-chat" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const activeTrigger = await canvas.findByLabelText(
+			"Open actions for Active chat",
+		);
+		// The active chat keeps its actions trigger visible without hover.
+		await waitFor(() => {
+			expect(window.getComputedStyle(activeTrigger).opacity).toBe("1");
+		});
+		const otherTrigger = canvas.getByLabelText("Open actions for Other chat");
+		expect(window.getComputedStyle(otherTrigger).opacity).toBe("0");
+	},
 };
 
 export const WithUnreadChats: Story = {

@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
 	AlertTriangleIcon,
+	CheckCheckIcon,
 	CheckIcon,
 	GitMergeIcon,
 	GitPullRequestArrowIcon,
@@ -9,23 +10,69 @@ import {
 	Loader2Icon,
 	PauseIcon,
 } from "lucide-react";
+import type { ComponentProps, ComponentType } from "react";
 import type { Chat, ChatDiffStatus, ChatStatus } from "#/api/typesGenerated";
+import { SubagentsLoaderIcon } from "./SubagentsLoaderIcon";
+
+type StatusIconComponent = LucideIcon | ComponentType<ComponentProps<"svg">>;
 
 type ChatIconConfig = {
-	icon: LucideIcon;
+	icon: StatusIconComponent;
 	className: string;
+	label: string;
 };
 
 const statusConfig = {
-	waiting: { icon: CheckIcon, className: "text-content-secondary" },
-	running: { icon: Loader2Icon, className: "text-content-link animate-spin" },
-	interrupting: { icon: PauseIcon, className: "text-content-warning" },
-	requires_action: { icon: PauseIcon, className: "text-content-warning" },
-	error: { icon: AlertTriangleIcon, className: "text-content-destructive" },
-} as const;
+	waiting: {
+		icon: CheckIcon,
+		className: "text-content-secondary",
+		label: "Idle",
+	},
+	running: {
+		icon: Loader2Icon,
+		className: "text-content-link animate-spin",
+		label: "Working",
+	},
+	interrupting: {
+		icon: PauseIcon,
+		className: "text-content-warning",
+		label: "Interrupting",
+	},
+	requires_action: {
+		icon: PauseIcon,
+		className: "text-content-warning",
+		label: "Requires action",
+	},
+	error: {
+		icon: AlertTriangleIcon,
+		className: "text-content-destructive",
+		label: "Error",
+	},
+} as const satisfies Record<ChatStatus, ChatIconConfig>;
 
-const getStatusConfig = (status: ChatStatus): ChatIconConfig => {
-	return statusConfig[status] ?? statusConfig.waiting;
+// Icon variants shown when a chat has subagents: doubled check and
+// doubled spinner so the row reads as "this agent plus its subagents".
+const subagentsStatusConfig: Partial<Record<ChatStatus, ChatIconConfig>> = {
+	waiting: {
+		icon: CheckCheckIcon,
+		className: "text-content-secondary",
+		label: "Idle, has subagents",
+	},
+	running: {
+		// The icon animates its own arcs (independent rotation), so no
+		// animate-spin on the svg element here.
+		icon: SubagentsLoaderIcon,
+		className: "text-content-link",
+		label: "Working, has subagents",
+	},
+};
+
+const getStatusConfig = (
+	status: ChatStatus,
+	hasSubagents: boolean,
+): ChatIconConfig => {
+	const base = statusConfig[status] ?? statusConfig.waiting;
+	return (hasSubagents ? subagentsStatusConfig[status] : undefined) ?? base;
 };
 
 const getPRIconConfig = (
@@ -36,21 +83,31 @@ const getPRIconConfig = (
 		return undefined;
 	}
 	if (state === "merged") {
-		return { icon: GitMergeIcon, className: "text-git-merged-bright" };
+		return {
+			icon: GitMergeIcon,
+			className: "text-git-merged-bright",
+			label: "Pull request merged",
+		};
 	}
 	if (state === "closed") {
 		return {
 			icon: GitPullRequestClosedIcon,
 			className: "text-git-deleted-bright",
+			label: "Pull request closed",
 		};
 	}
 	if (diffStatus?.pull_request_draft) {
 		return {
 			icon: GitPullRequestDraftIcon,
 			className: "text-content-secondary",
+			label: "Draft pull request",
 		};
 	}
-	return { icon: GitPullRequestArrowIcon, className: "text-git-added-bright" };
+	return {
+		icon: GitPullRequestArrowIcon,
+		className: "text-git-added-bright",
+		label: "Pull request open",
+	};
 };
 
 const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
@@ -58,28 +115,29 @@ const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
 };
 
 /**
- * Returns the icon and styling that represents a chat's current state.
+ * Returns the icons and styling that represent a chat's current state.
  *
- * Combines `getStatusConfig` and `getPRIconConfig`: when the chat is in the
- * settled `waiting` state and has a linked PR, the PR icon takes precedence
- * so list rows surface the merge / closed / draft state instead of the
- * generic status icon.
+ * The status icon always reflects the chat status (with doubled variants
+ * when the chat has subagents). Any linked pull request is surfaced
+ * separately via `prIcon` so rows can render it next to the diff stats.
  */
 export const getChatDisplayConfig = (
 	chat: Chat,
+	hasSubagents = false,
 ): {
-	icon: LucideIcon;
+	icon: StatusIconComponent;
 	className: string;
+	label: string;
+	prIcon: ChatIconConfig | undefined;
 	diffStatus: ChatDiffStatus | undefined;
 } => {
 	const diffStatus = getChatDiffStatus(chat);
-	const baseConfig = getStatusConfig(chat.status);
-	const prConfig =
-		chat.status === "waiting" ? getPRIconConfig(diffStatus) : undefined;
-	const config = prConfig ?? baseConfig;
+	const config = getStatusConfig(chat.status, hasSubagents);
 	return {
 		icon: config.icon,
 		className: config.className,
+		label: config.label,
+		prIcon: getPRIconConfig(diffStatus),
 		diffStatus,
 	};
 };
