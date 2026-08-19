@@ -406,9 +406,10 @@ const (
 // cannot compare, rather than letting the comparison run on the part that is
 // modeled. Each guard names authority coverage would not otherwise read: an org
 // or user grant may itself carry a negative permission, a negative site
-// permission would be skipped (see permissionCovered), and an allow list makes
-// the Site permissions conditional, so reading them as unconditional would
-// overstate what the scope grants.
+// permission would read as a grant on a matching resource and action (see
+// permissionCovered), and an allow list makes the Site permissions
+// conditional, so reading them as unconditional would overstate what the scope
+// grants.
 func checkCoverable(scope Scope, side string, name ScopeName) error {
 	if len(scope.User) > 0 || len(scope.ByOrgID) > 0 {
 		return xerrors.Errorf("%s scope %q grants org or user permissions, which coverage does not model", side, name)
