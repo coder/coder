@@ -3961,6 +3961,14 @@ func (m queryMetricsStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context)
 	return r0, r1
 }
 
+func (m queryMetricsStore) HasPendingUsagePublishFailures(ctx context.Context, windowStart time.Time) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.HasPendingUsagePublishFailures(ctx, windowStart)
+	m.queryLatencies.WithLabelValues("HasPendingUsagePublishFailures").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "HasPendingUsagePublishFailures").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, arg)

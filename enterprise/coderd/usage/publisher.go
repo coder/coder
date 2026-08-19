@@ -372,11 +372,12 @@ func (p *tallymanPublisher) recordFailureStreak(ctx context.Context) {
 }
 
 // clearFailureStreak clears the failure-streak marker after a batch where
-// every event reached a terminal outcome or nothing was pending.
-// Best-effort, as recordFailureStreak.
+// every event reached a terminal outcome or nothing was pending. The clear
+// itself re-checks global state, so failing rows another replica holds via
+// SKIP LOCKED keep the streak alive. Best-effort, as recordFailureStreak.
 func (p *tallymanPublisher) clearFailureStreak(ctx context.Context) {
 	// nolint:gocritic // Maintaining the usage publishing failure streak is a system function.
-	err := license.ClearUsagePublishingFailureStreak(dbauthz.AsSystemRestricted(ctx), p.db)
+	err := license.ClearUsagePublishingFailureStreak(dbauthz.AsSystemRestricted(ctx), p.db, p.clock.Now())
 	if err != nil {
 		p.log.Warn(ctx, "clear usage publishing failure streak", slog.Error(err))
 	}

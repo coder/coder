@@ -5873,6 +5873,13 @@ func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]datab
 	return q.db.GetWorkspacesForWorkspaceMetrics(ctx)
 }
 
+func (q *querier) HasPendingUsagePublishFailures(ctx context.Context, windowStart time.Time) (bool, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
+		return false, err
+	}
+	return q.db.HasPendingUsagePublishFailures(ctx, windowStart)
+}
+
 func (q *querier) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
 	// This query authorizes provisioner module-file downloads. The caller
 	// must be able to read files in the target organization; the actual

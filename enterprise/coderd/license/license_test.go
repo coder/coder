@@ -4015,8 +4015,14 @@ func TestUsagePublishingStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 		if !publishedAt.IsZero() || failureMessage != "" {
+			// Now is the publish time for successes and permanent
+			// rejections; temporary failures fail at the event's creation.
+			updateTime := publishedAt
+			if updateTime.IsZero() {
+				updateTime = createdAt
+			}
 			err = db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
-				Now:             publishedAt,
+				Now:             updateTime,
 				IDs:             []string{id},
 				FailureMessages: []string{failureMessage},
 				SetPublishedAts: []bool{!publishedAt.IsZero()},
@@ -4164,12 +4170,37 @@ func TestUsagePublishingStatus(t *testing.T) {
 
 		// A resolved batch clears the streak and the warning.
 		//nolint:gocritic // Unit test.
-		err = license.ClearUsagePublishingFailureStreak(dbauthz.AsSystemRestricted(ctx), db)
+		err = license.ClearUsagePublishingFailureStreak(dbauthz.AsSystemRestricted(ctx), db, now)
 		require.NoError(t, err)
 		entitlements, err = license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
 		require.NoError(t, err)
 		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
 		require.Nil(t, entitlements.UsagePublishing.FailingSince)
+	})
+
+	t.Run("ClearStreakRespectsGlobalPendingFailures", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
+
+		// A failing unpublished event exists (e.g. held in flight by
+		// another replica), so a replica whose own batch was clean must not
+		// clear the streak.
+		now := time.Now()
+		seedEvent(ctx, t, db, "1", now.Add(-2*time.Hour), time.Time{}, "temporary failure")
+		//nolint:gocritic // Unit test.
+		err := license.RecordUsagePublishingFailure(dbauthz.AsSystemRestricted(ctx), db, now.Add(-25*time.Hour))
+		require.NoError(t, err)
+		//nolint:gocritic // Unit test.
+		err = license.ClearUsagePublishingFailureStreak(dbauthz.AsSystemRestricted(ctx), db, now)
+		require.NoError(t, err)
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
+		require.Contains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.NotNil(t, entitlements.UsagePublishing.FailingSince)
+		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
 	})
 
 	t.Run("StaleRefreshDoesNotMoveMarkerBackward", func(t *testing.T) {

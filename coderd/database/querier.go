@@ -1094,6 +1094,15 @@ type sqlcQuerier interface {
 	// reminder notification (which only stamps a marker, no transition).
 	GetWorkspacesEligibleForLifecycleAction(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForLifecycleActionRow, error)
 	GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]GetWorkspacesForWorkspaceMetricsRow, error)
+	// Reports whether any unpublished usage event inside the publisher's
+	// selection window has a recorded publish failure, regardless of in-flight
+	// state. Guards clearing the publisher's failure-streak marker: a replica's
+	// local batch outcome says nothing about failing rows another replica holds
+	// via FOR UPDATE SKIP LOCKED. The EXISTS short-circuits on the first failing
+	// row whenever it reports true; the full-scan case (no failing rows among
+	// unpublished ones) occurs once per streak resolution, after which the
+	// absent marker skips this check entirely.
+	HasPendingUsagePublishFailures(ctx context.Context, windowStart time.Time) (bool, error)
 	// Reports whether the given file is referenced as cached module files by any
 	// template version in the given organization. Used to authorize provisioner
 	// module-file downloads so a daemon cannot read another organization's cached

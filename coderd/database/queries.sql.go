@@ -28927,6 +28927,31 @@ func (q *sqlQuerier) GetUsagePublishStatus(ctx context.Context, arg GetUsagePubl
 	return i, err
 }
 
+const hasPendingUsagePublishFailures = `-- name: HasPendingUsagePublishFailures :one
+SELECT EXISTS(
+    SELECT 1
+    FROM usage_events
+    WHERE published_at IS NULL
+        AND failure_message IS NOT NULL
+        AND created_at > $1::timestamptz
+)::bool AS has_pending_failures
+`
+
+// Reports whether any unpublished usage event inside the publisher's
+// selection window has a recorded publish failure, regardless of in-flight
+// state. Guards clearing the publisher's failure-streak marker: a replica's
+// local batch outcome says nothing about failing rows another replica holds
+// via FOR UPDATE SKIP LOCKED. The EXISTS short-circuits on the first failing
+// row whenever it reports true; the full-scan case (no failing rows among
+// unpublished ones) occurs once per streak resolution, after which the
+// absent marker skips this check entirely.
+func (q *sqlQuerier) HasPendingUsagePublishFailures(ctx context.Context, windowStart time.Time) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasPendingUsagePublishFailures, windowStart)
+	var has_pending_failures bool
+	err := row.Scan(&has_pending_failures)
+	return has_pending_failures, err
+}
+
 const insertUsageEvent = `-- name: InsertUsageEvent :exec
 INSERT INTO
     usage_events (

@@ -131,10 +131,13 @@ func RecordUsagePublishingFailure(ctx context.Context, db database.Store, now ti
 
 // ClearUsagePublishingFailureStreak clears the failure streak after a
 // publish batch where every event reached a terminal outcome (or nothing
-// was pending). It runs under the marker advisory lock so concurrent
-// publishers and entitlements refreshes cannot interleave. The caller must
-// pass a system-authorized context.
-func ClearUsagePublishingFailureStreak(ctx context.Context, db database.Store) error {
+// was pending), unless failing unpublished events remain anywhere in the
+// window: a replica's local batch outcome says nothing about failing rows
+// another replica holds via FOR UPDATE SKIP LOCKED, so clearing checks the
+// global state instead. It runs under the marker advisory lock so
+// concurrent publishers and entitlements refreshes cannot interleave. The
+// caller must pass a system-authorized context.
+func ClearUsagePublishingFailureStreak(ctx context.Context, db database.Store, now time.Time) error {
 	return db.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, database.LockIDUsagePublishingEnabledMarker); err != nil {
 			return xerrors.Errorf("acquire usage publishing marker lock: %w", err)
@@ -145,6 +148,15 @@ func ClearUsagePublishingFailureStreak(ctx context.Context, db database.Store) e
 		}
 		if err != nil {
 			return xerrors.Errorf("get usage publishing failure streak: %w", err)
+		}
+		pending, err := tx.HasPendingUsagePublishFailures(ctx, now.Add(-usagePublishingWindow))
+		if err != nil {
+			return xerrors.Errorf("check pending usage publish failures: %w", err)
+		}
+		if pending {
+			// Another batch or replica still has failing events; the streak
+			// stays until they resolve or age out of the window.
+			return nil
 		}
 		return tx.DeleteRuntimeConfig(ctx, UsagePublishingFailureStreakKey)
 	}, nil)
