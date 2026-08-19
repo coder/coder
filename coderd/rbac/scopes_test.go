@@ -238,14 +238,11 @@ func TestCanonicalScopeName(t *testing.T) {
 func TestScopesCoverEveryExternalScope(t *testing.T) {
 	t.Parallel()
 
-	// ExternalScopeNames yields canonical names only, so canonicalizing them
-	// returns them unchanged and the call below would pass through on every
-	// iteration. Appending the aliases asserts that a name a client may
-	// request is comparable once canonicalized, which is the positive half of
-	// the contract the alias rows in TestScopesCover assert the negative of.
-	// It does not pin the mapping itself: both aliases resolve to scopes that
-	// cover themselves, so a swapped mapping still satisfies this loop.
-	// TestCanonicalScopeName is what catches that.
+	// ExternalScopeNames yields canonical names only, so the aliases are
+	// appended to assert that every name a client may request is comparable
+	// once canonicalized. A swapped mapping still satisfies this loop, since
+	// both aliases resolve to scopes that cover themselves.
+	// TestCanonicalScopeName is what pins the mapping.
 	names := append(rbac.ExternalScopeNames(), "all", "application_connect")
 
 	for _, name := range names {

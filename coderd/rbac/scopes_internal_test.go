@@ -126,11 +126,8 @@ func TestScopesCoverGuards(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			// The opposite side is chosen so that a coverable scope under test
-			// reaches the comparison and answers true: a wildcard grant covers
-			// any request, and a workspace:read request is covered by any
-			// grant here. That keeps a guard error distinguishable from an
-			// ordinary uncovered result.
+			// The opposite side always covers, so a guard error stays
+			// distinguishable from an ordinary uncovered result.
 			cleanGrant := namedScope{name: "clean_scope", scope: coverableScope(workspaceWildcard)}
 			cleanRequest := namedScope{name: "clean_scope", scope: coverableScope(workspaceRead)}
 			under := namedScope{name: "test_scope", scope: test.scope}

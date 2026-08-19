@@ -251,9 +251,8 @@ func (s Scope) Name() RoleIdentifier {
 // with CanonicalScopeName first.
 //
 // Every expansion populates Site only, with a wildcard allow list and no
-// negative permissions. Keep new scopes within that shape. ScopesCover depends
-// on it, and a scope that breaks it becomes uncomparable: coverage refuses it
-// on either side rather than answering from the fraction it does read.
+// negative permissions. ScopesCover depends on that shape and refuses a scope
+// that breaks it.
 func ExpandScope(scope ScopeName) (Scope, error) {
 	if role, ok := builtinScopes[scope]; ok {
 		return role, nil
@@ -334,23 +333,17 @@ func expandLowLevel(resource string, action policy.Action) Scope {
 // permissions, not names, so `coder:workspaces.access` covers `workspace:read`
 // and `coder:all` covers everything.
 //
-// A wildcard request is covered only by a wildcard grant. Enumerating every
-// workspace action that exists today does not cover `workspace:*`, because the
-// wildcard also authorizes the actions added tomorrow. Rejecting a wildcard
-// against an allowlist that looks exhaustive is the intended answer, not a gap
-// to close.
+// Only a wildcard grant covers a wildcard request: `workspace:*` also
+// authorizes the actions added tomorrow, which no list of today's can.
 //
-// Both sides must already be canonical, which the parameter names restate at
-// every call site. Passing what IsExternalScope accepted is not enough: it
-// admits the `all` and `application_connect` aliases, which are public
-// spellings rather than expandable names, so canonicalize between validating a
-// name and asking about its coverage. An unknown name is an error rather than
-// a false, since a caller cannot tell those two apart.
+// Both sides must already be canonical. IsExternalScope also admits the `all`
+// and `application_connect` aliases, which are not expandable names, so
+// canonicalize between validating a name and asking about its coverage.
 //
-// Coverage models site-level grants only. A scope carrying anything else is
-// refused on either side rather than compared on the part that is modeled,
-// because comparing a subset could report "covered" about authority that was
-// never examined.
+// Coverage models site-level grants only. Anything it cannot fully compare, an
+// unknown name or a scope carrying more than site permissions, is an error on
+// either side rather than a false, since a caller cannot act on coverage
+// decided from a fraction of the authority.
 func ScopesCover(canonicalAllowed []ScopeName, canonicalRequested ScopeName) (bool, error) {
 	want, err := ExpandScope(canonicalRequested)
 	if err != nil {
@@ -410,14 +403,12 @@ const (
 )
 
 // checkCoverable reports an error when scope carries authority that coverage
-// cannot compare. Scope expansion populates Site only, with a wildcard allow
-// list and no negative permissions, and coverage reads nothing else. A scope
-// that breaks the invariant is refused rather than compared on its Site
-// permissions alone, since the permissions left unread could be the ones that
-// decide the answer: an org or user grant may itself carry a negative
-// permission, and an "everything except delete" scope must not end up covering
-// a request for delete. An allow list makes the Site permissions conditional,
-// and reading them as unconditional would overstate the authority granted.
+// cannot compare, rather than letting the comparison run on the part that is
+// modeled. Each guard names authority coverage would not otherwise read: an org
+// or user grant may itself carry a negative permission, a negative site
+// permission would be skipped (see permissionCovered), and an allow list makes
+// the Site permissions conditional, so reading them as unconditional would
+// overstate what the scope grants.
 func checkCoverable(scope Scope, side string, name ScopeName) error {
 	if len(scope.User) > 0 || len(scope.ByOrgID) > 0 {
 		return xerrors.Errorf("%s scope %q grants org or user permissions, which coverage does not model", side, name)
@@ -436,11 +427,10 @@ func checkCoverable(scope Scope, side string, name ScopeName) error {
 // permissionCovered reports whether any granted permission subsumes needed,
 // treating the wildcard resource type and action as covering every value.
 //
-// granted must carry no negative permissions. checkCoverable refuses a scope
-// holding one before ScopesCover gets here, because subsumption is the wrong
-// question to ask about an anti-grant. Skipping a negative leaves any wildcard
-// beside it free to match, so an "everything except delete" scope would read
-// as covering delete, and honoring one as a grant would be worse still.
+// granted must carry no negative permissions; checkCoverable refuses a scope
+// holding one before ScopesCover gets here. Skipping a negative leaves any
+// wildcard beside it free to match, so an "everything except delete" scope
+// would read as covering delete.
 func permissionCovered(needed Permission, granted []Permission) bool {
 	for _, perm := range granted {
 		if perm.ResourceType != needed.ResourceType && perm.ResourceType != policy.WildcardSymbol {
