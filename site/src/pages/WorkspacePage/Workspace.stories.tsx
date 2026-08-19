@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
+import { expect, within } from "storybook/test";
+import { API } from "#/api/api";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import * as Mocks from "#/testHelpers/entities";
 import {
@@ -79,6 +81,45 @@ export const Running: Story = {
 		handleStart: action("start"),
 		handleStop: action("stop"),
 		template: Mocks.MockTemplate,
+	},
+};
+
+// A human-created workspace is never designated (workspace.ai_agent_id stays
+// unset); the AI-bound agent alone must surface the egress activity view.
+export const RunningWithAIBoundAgent: Story = {
+	beforeEach: () => {
+		API.getWorkspaceAISandboxSessions = async () => [];
+	},
+	args: {
+		...Running.args,
+		workspace: {
+			...Mocks.MockWorkspace,
+			latest_build: {
+				...Mocks.MockWorkspace.latest_build,
+				resources: [
+					{
+						...Mocks.MockWorkspaceResource,
+						agents: [
+							{
+								...Mocks.MockWorkspaceAgent,
+								lifecycle_state: "ready",
+							},
+							{
+								...Mocks.MockWorkspaceAgent,
+								id: "e9c8d7b6-a594-3827-1605-b4c3d2e1f0a9",
+								name: "ai",
+								lifecycle_state: "ready",
+								ai_agent_id: "d8c7b6a5-4938-2716-8594-a3b2c1d0e9f8",
+							},
+						],
+					},
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("AI egress activity")).toBeVisible();
 	},
 };
 
