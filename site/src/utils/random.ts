@@ -1,12 +1,7 @@
 /**
- * Generate a random UUID (version 4).
- *
- * `crypto.randomUUID` is only defined in secure contexts (HTTPS or
- * localhost), and the `uuid` package's `v4` can compile down to a
- * `crypto.randomUUID` call depending on how it is bundled. Both throw when
- * Coder is served over plain HTTP. `crypto.getRandomValues` is available in
- * insecure contexts, so derive the UUID from it whenever `randomUUID` is
- * unavailable.
+ * Generate a random UUID (version 4). `crypto.randomUUID` only exists in
+ * secure contexts, so fall back to `crypto.getRandomValues` (which works over
+ * plain HTTP) when it is missing.
  */
 export const generateUUID = (): string => {
 	if (typeof crypto.randomUUID === "function") {
