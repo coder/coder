@@ -6123,7 +6123,7 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "object",
+                        "type": "string",
                         "description": "Provisioner tags to filter by (JSON of the form ` + "`" + `{'tag1':'value1','tag2':'value2'}` + "`" + `)",
                         "name": "tags",
                         "in": "query"
@@ -6234,7 +6234,7 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "object",
+                        "type": "string",
                         "description": "Provisioner tags to filter by (JSON of the form ` + "`" + `{'tag1':'value1','tag2':'value2'}` + "`" + `)",
                         "name": "tags",
                         "in": "query"
