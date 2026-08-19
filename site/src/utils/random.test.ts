@@ -14,6 +14,21 @@ describe("generateUUID", () => {
 		);
 		expect(ids.size).toBe(numValues);
 	});
+
+	it("produces a valid UUID without crypto.randomUUID (insecure context)", () => {
+		const descriptor = Object.getOwnPropertyDescriptor(crypto, "randomUUID");
+		Object.defineProperty(crypto, "randomUUID", {
+			configurable: true,
+			value: undefined,
+		});
+		try {
+			expect(isUUID(generateUUID())).toBe(true);
+		} finally {
+			if (descriptor) {
+				Object.defineProperty(crypto, "randomUUID", descriptor);
+			}
+		}
+	});
 });
 
 describe("generateConnectionSessionId", () => {
