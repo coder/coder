@@ -50,21 +50,14 @@ COMMENT ON COLUMN connection_logs.file_path IS 'Only set for file operation even
 COMMENT ON COLUMN connection_logs.file_target IS 'Only set for file operation events that have a second path, such as the destination of a rename or the target of a symlink.';
 
 -- Recreate the connect/disconnect pairing index so it excludes file
--- operation rows, which share the connection_id of their parent session
--- and must not collide with it or each other. The predicate matches on
--- file_action instead of type = 'file_operation' because enum values
--- added in this transaction cannot be referenced within it; file_action
--- is set if and only if the row is a file operation event.
+-- operation rows, which share the connection_id of their parent session.
+-- The predicate uses file_action rather than the new enum value because
+-- enum values added in this transaction cannot be referenced within it.
 --
--- Locking: connection_logs is unbounded (retention is opt-in), so this
--- rebuild can take a while on large deployments. The table is under
--- ACCESS EXCLUSIVE for the duration regardless of statement order: the
--- ADD COLUMN above already takes that lock, migrations run in a single
--- transaction (see txnmigrator.go) so it is held until commit, and the
--- index cannot be built first because its predicate depends on the new
--- column. CREATE INDEX CONCURRENTLY cannot run in a transaction. This
--- matches prior index rebuilds on large tables (e.g. 000161 on
--- workspace_agent_stats).
+-- Locking: the rebuild holds an ACCESS EXCLUSIVE lock and connection_logs
+-- is unbounded (retention is opt-in), so it may take a while on large
+-- deployments. CONCURRENTLY is not an option inside a migration
+-- transaction; precedent: 000161.
 DROP INDEX idx_connection_logs_connection_id_workspace_id_agent_name;
 CREATE UNIQUE INDEX idx_connection_logs_connection_id_workspace_id_agent_name
 ON connection_logs (connection_id, workspace_id, agent_name)
