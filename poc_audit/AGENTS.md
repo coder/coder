@@ -28,6 +28,24 @@ Most of them separate their contents by **standing**:
 
 Do not treat Derived or Open content as decided.
 
+### Reading one cheaply
+
+These documents are addressed by heading rather than read end to end. To see
+what one holds without opening it, take its heading map first:
+
+```sh
+grep -nE '^#{1,6} ' poc_audit/audit_approach.md
+```
+
+That prints a complete map of the document for a few hundred tokens, against
+several thousand to read the whole file. Then read only the line range of the
+section you want.
+
+When the question is broad, read the whole corpus instead. All of it together
+is about 150 KB, which fits in an ordinary context with room to spare. Do not
+sample: a partial read leaves you unable to tell whether the corpus is silent
+on something or you have simply not read the part that answers it.
+
 ## The documents
 
 - [Journals and Logs](journal_vs_log.md). Why a journal and a log are different
