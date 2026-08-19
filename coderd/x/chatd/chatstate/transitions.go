@@ -19,22 +19,23 @@ import (
 
 // CreateChatInput configures [CreateChat].
 type CreateChatInput struct {
-	OrganizationID    uuid.UUID
-	OwnerID           uuid.UUID
-	WorkspaceID       uuid.NullUUID
-	BuildID           uuid.NullUUID
-	AgentID           uuid.NullUUID
-	ParentChatID      uuid.NullUUID
-	RootChatID        uuid.NullUUID
-	LastModelConfigID uuid.UUID
-	Title             string
-	Mode              database.NullChatMode
-	PlanMode          database.NullChatPlanMode
-	MCPServerIDs      []uuid.UUID
-	Labels            pqtype.NullRawMessage
-	DynamicTools      pqtype.NullRawMessage
-	ClientType        database.ChatClientType
-	InitialMessages   []Message
+	OrganizationID          uuid.UUID
+	OwnerID                 uuid.UUID
+	WorkspaceID             uuid.NullUUID
+	BuildID                 uuid.NullUUID
+	AgentID                 uuid.NullUUID
+	ParentChatID            uuid.NullUUID
+	RootChatID              uuid.NullUUID
+	LastModelConfigID       uuid.UUID
+	Title                   string
+	Mode                    database.NullChatMode
+	PlanMode                database.NullChatPlanMode
+	MCPServerIDs            []uuid.UUID
+	Labels                  pqtype.NullRawMessage
+	DynamicTools            pqtype.NullRawMessage
+	PrivateMCPServerConfigs pqtype.NullRawMessage
+	ClientType              database.ChatClientType
+	InitialMessages         []Message
 	// FileIDs are linked atomically with the initial messages.
 	FileIDs []uuid.UUID
 }
@@ -125,6 +126,17 @@ func insertChat(
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
+		}
+		if input.PrivateMCPServerConfigs.Valid {
+			if !json.Valid(input.PrivateMCPServerConfigs.RawMessage) {
+				return xerrors.New("private MCP server configs must be valid JSON")
+			}
+			if err := store.InsertChatPrivateMCPServerConfigs(ctx, database.InsertChatPrivateMCPServerConfigsParams{
+				ChatID:  chat.ID,
+				Configs: input.PrivateMCPServerConfigs.RawMessage,
+			}); err != nil {
+				return xerrors.Errorf("insert private MCP server configs: %w", err)
+			}
 		}
 		// Insert the initial history under the new chat row. The
 		// message revision trigger advances `history_version` to the

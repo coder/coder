@@ -573,6 +573,10 @@ type CreateChatRequest struct {
 	ReasoningEffort *string           `json:"reasoning_effort,omitempty"`
 	MCPServerIDs    []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
 	Labels          map[string]string `json:"labels,omitempty"`
+	// PrivateMCPServerConfigs declares private stateless MCP servers that
+	// chatd connects to and executes directly for this chat. The configs are
+	// never returned by chat APIs or inherited by child chats.
+	PrivateMCPServerConfigs []PrivateMCPServerConfig `json:"private_mcp_server_configs,omitempty"`
 	// UnsafeDynamicTools declares client-executed tools that the
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.

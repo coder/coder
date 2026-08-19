@@ -1737,6 +1737,14 @@ func (m queryMetricsStore) GetChatPlanModeInstructions(ctx context.Context) (str
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatPrivateMCPServerConfigsByChatID(ctx context.Context, chatID uuid.UUID) (json.RawMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatPrivateMCPServerConfigsByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetChatPrivateMCPServerConfigsByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatPrivateMCPServerConfigsByChatID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatQueuedForCapacity(ctx context.Context, arg database.GetChatQueuedForCapacityParams) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatQueuedForCapacity(ctx, arg)
@@ -4175,6 +4183,14 @@ func (m queryMetricsStore) InsertChatModelConfig(ctx context.Context, arg databa
 	m.queryLatencies.WithLabelValues("InsertChatModelConfig").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatModelConfig").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) InsertChatPrivateMCPServerConfigs(ctx context.Context, arg database.InsertChatPrivateMCPServerConfigsParams) error {
+	start := time.Now()
+	r0 := m.s.InsertChatPrivateMCPServerConfigs(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatPrivateMCPServerConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatPrivateMCPServerConfigs").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {

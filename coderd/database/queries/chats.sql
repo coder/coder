@@ -864,6 +864,15 @@ chats_expanded AS (
 SELECT *
 FROM chats_expanded;
 
+-- name: InsertChatPrivateMCPServerConfigs :exec
+INSERT INTO chat_private_mcp_server_configs (chat_id, configs)
+VALUES (@chat_id::uuid, @configs::jsonb);
+
+-- name: GetChatPrivateMCPServerConfigsByChatID :one
+SELECT configs
+FROM chat_private_mcp_server_configs
+WHERE chat_id = @chat_id::uuid;
+
 -- name: InsertChatMessages :many
 -- Returns the inserted rows in input array order. Ids are allocated before the
 -- insert and the k-th smallest is assigned to input index k, so callers may

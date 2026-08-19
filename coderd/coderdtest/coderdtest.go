@@ -325,9 +325,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 
 	if options.MCPOAuth2DiscoveryAllowedIPRanges == nil {
-		// Tests serve their mock MCP and authorization servers on
-		// loopback, which the MCP OAuth2 discovery SSRF guard blocks
-		// by default. Tests exercising the guard itself pass a
+		// Tests serve their mock MCP and authorization servers on loopback,
+		// which the MCP SSRF guard blocks by default. Tests exercising the
+		// guard itself pass a
 		// narrower (possibly empty, non-nil) allowlist.
 		options.MCPOAuth2DiscoveryAllowedIPRanges = []netip.Prefix{
 			netip.MustParsePrefix("127.0.0.0/8"),

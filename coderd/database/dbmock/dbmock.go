@@ -3239,6 +3239,21 @@ func (mr *MockStoreMockRecorder) GetChatPlanModeInstructions(ctx any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatPlanModeInstructions", reflect.TypeOf((*MockStore)(nil).GetChatPlanModeInstructions), ctx)
 }
 
+// GetChatPrivateMCPServerConfigsByChatID mocks base method.
+func (m *MockStore) GetChatPrivateMCPServerConfigsByChatID(ctx context.Context, chatID uuid.UUID) (json.RawMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatPrivateMCPServerConfigsByChatID", ctx, chatID)
+	ret0, _ := ret[0].(json.RawMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatPrivateMCPServerConfigsByChatID indicates an expected call of GetChatPrivateMCPServerConfigsByChatID.
+func (mr *MockStoreMockRecorder) GetChatPrivateMCPServerConfigsByChatID(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatPrivateMCPServerConfigsByChatID", reflect.TypeOf((*MockStore)(nil).GetChatPrivateMCPServerConfigsByChatID), ctx, chatID)
+}
+
 // GetChatQueuedForCapacity mocks base method.
 func (m *MockStore) GetChatQueuedForCapacity(ctx context.Context, arg database.GetChatQueuedForCapacityParams) (bool, error) {
 	m.ctrl.T.Helper()
@@ -7855,6 +7870,20 @@ func (m *MockStore) InsertChatModelConfig(ctx context.Context, arg database.Inse
 func (mr *MockStoreMockRecorder) InsertChatModelConfig(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatModelConfig", reflect.TypeOf((*MockStore)(nil).InsertChatModelConfig), ctx, arg)
+}
+
+// InsertChatPrivateMCPServerConfigs mocks base method.
+func (m *MockStore) InsertChatPrivateMCPServerConfigs(ctx context.Context, arg database.InsertChatPrivateMCPServerConfigsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatPrivateMCPServerConfigs", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertChatPrivateMCPServerConfigs indicates an expected call of InsertChatPrivateMCPServerConfigs.
+func (mr *MockStoreMockRecorder) InsertChatPrivateMCPServerConfigs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatPrivateMCPServerConfigs", reflect.TypeOf((*MockStore)(nil).InsertChatPrivateMCPServerConfigs), ctx, arg)
 }
 
 // InsertChatQueuedMessage mocks base method.

@@ -1419,6 +1419,26 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if validations := validatePrivateMCPServerConfigs(req.PrivateMCPServerConfigs, api.MCPOAuth2DiscoveryAllowedIPRanges); len(validations) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid private_mcp_server_configs.",
+			Validations: validations,
+		})
+		return
+	}
+
+	var privateMCPServerConfigsJSON json.RawMessage
+	if len(req.PrivateMCPServerConfigs) > 0 {
+		privateMCPServerConfigsJSON, err = json.Marshal(req.PrivateMCPServerConfigs)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to marshal private MCP server configs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	if len(req.UnsafeDynamicTools) > 250 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Too many dynamic tools.",
@@ -1499,6 +1519,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		MCPServerIDs:            mcpServerIDs,
 		Labels:                  labels,
 		DynamicTools:            dynamicToolsJSON,
+		PrivateMCPServerConfigs: privateMCPServerConfigsJSON,
 		// IMPORTANT: users can only create root chats at the time of writing.
 		ParentChatID: uuid.NullUUID{},
 	})

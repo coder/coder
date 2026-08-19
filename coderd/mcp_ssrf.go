@@ -65,13 +65,11 @@ func isBlockedMCPDiscoveryAddr(addr netip.Addr, allowed []netip.Prefix) bool {
 	return false
 }
 
-// newMCPDiscoveryHTTPClient returns an HTTP client for MCP OAuth2
-// metadata discovery and Dynamic Client Registration that refuses to
-// connect to private/internal addresses. Every URL fetched during
-// discovery is attacker-influenced (the MCP server URL and any
-// endpoints or redirects it advertises), so without this guard a
-// hostile server can pivot coderd into internal infrastructure such
-// as cloud metadata services (CDM-02-002).
+// newMCPSSRFHTTPClient returns an HTTP client for attacker-influenced MCP
+// requests that refuses to connect to private or internal addresses. It is used
+// for OAuth2 discovery, Dynamic Client Registration, and private chat-scoped
+// MCP server calls. Without this guard a hostile server can pivot coderd into
+// internal infrastructure such as cloud metadata services (CDM-02-002).
 //
 // The guard validates the resolved IPs at dial time and dials a
 // validated IP directly, so DNS rebinding cannot swap in a private
@@ -83,7 +81,7 @@ func isBlockedMCPDiscoveryAddr(addr netip.Addr, allowed []netip.Prefix) bool {
 // base contributes its timeout and (when its transport is an
 // *http.Transport) TLS configuration; its dialing behavior is always
 // replaced with the guarded dialer.
-func newMCPDiscoveryHTTPClient(base *http.Client, allowed []netip.Prefix) *http.Client {
+func newMCPSSRFHTTPClient(base *http.Client, allowed []netip.Prefix) *http.Client {
 	timeout := 30 * time.Second
 	var transport *http.Transport
 	if base != nil {
@@ -119,7 +117,7 @@ func newMCPDiscoveryHTTPClient(base *http.Client, allowed []netip.Prefix) *http.
 		case "tcp6":
 			lookupNetwork = "ip6"
 		default:
-			return nil, xerrors.Errorf("network %q not permitted for MCP OAuth2 discovery", network)
+			return nil, xerrors.Errorf("network %q not permitted for MCP requests", network)
 		}
 		host, port, err := net.SplitHostPort(addr)
 		if err != nil {
@@ -138,7 +136,7 @@ func newMCPDiscoveryHTTPClient(base *http.Client, allowed []netip.Prefix) *http.
 		for _, ip := range ips {
 			if isBlockedMCPDiscoveryAddr(ip, allowed) {
 				return nil, xerrors.Errorf(
-					"connection to %q blocked: %s is in a private/reserved IP range not permitted for MCP OAuth2 discovery",
+					"connection to %q blocked: %s is in a private/reserved IP range not permitted for MCP requests",
 					host, ip.Unmap(),
 				)
 			}
@@ -178,7 +176,7 @@ func newMCPDiscoveryHTTPClient(base *http.Client, allowed []netip.Prefix) *http.
 			// are validated post-resolution by the guarded dialer.
 			if ip, err := netip.ParseAddr(req.URL.Hostname()); err == nil && isBlockedMCPDiscoveryAddr(ip, allowed) {
 				return xerrors.Errorf(
-					"redirect to %q blocked: destination is in a private/reserved IP range not permitted for MCP OAuth2 discovery",
+					"redirect to %q blocked: destination is in a private/reserved IP range not permitted for MCP requests",
 					req.URL.Host,
 				)
 			}

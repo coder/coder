@@ -78,17 +78,19 @@ func (server *Server) prepareGeneration(
 	)
 
 	var (
-		model            chatprovider.Model
-		modelConfig      database.ChatModelConfig
-		modelRoute       aiGatewayModelRoute
-		modelOpts        modelBuildOptions
-		callConfig       codersdk.ChatModelCallConfig
-		promptRows       []database.ChatMessage
-		mcpConfigs       []database.MCPServerConfig
-		mcpTokens        []database.MCPServerUserToken
-		debugEnabled     bool
-		resolvedProvider string
-		debugModel       string
+		model                     chatprovider.Model
+		modelConfig               database.ChatModelConfig
+		modelRoute                aiGatewayModelRoute
+		modelOpts                 modelBuildOptions
+		callConfig                codersdk.ChatModelCallConfig
+		promptRows                []database.ChatMessage
+		mcpConfigs                []database.MCPServerConfig
+		mcpTokens                 []database.MCPServerUserToken
+		privateMCPConfigs         []database.MCPServerConfig
+		privateMCPSensitiveValues map[uuid.UUID][]string
+		debugEnabled              bool
+		resolvedProvider          string
+		debugModel                string
 	)
 
 	var g errgroup.Group
@@ -103,6 +105,11 @@ func (server *Server) prepareGeneration(
 	g.Go(func() error {
 		var err error
 		mcpConfigs, err = server.effectiveMCPServerConfigs(ctx, logger, chat)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		privateMCPConfigs, privateMCPSensitiveValues, err = server.loadPrivateMCPServerConfigs(ctx, chat)
 		return err
 	})
 	if err := g.Wait(); err != nil {
@@ -274,6 +281,8 @@ func (server *Server) prepareGeneration(
 		instruction        string
 		mcpTools           []fantasy.AgentTool
 		mcpCleanup         func()
+		privateMCPTools    []fantasy.AgentTool
+		privateMCPCleanup  func()
 		workspaceMCPTools  []fantasy.AgentTool
 		workspaceSkills    []chattool.SkillMeta
 		personalSkills     []skillspkg.Skill
@@ -358,6 +367,18 @@ func (server *Server) prepareGeneration(
 			return nil
 		})
 	}
+	if len(privateMCPConfigs) > 0 {
+		g2.Go(func() error {
+			privateMCPTools, privateMCPCleanup = mcpclient.ConnectPrivate(
+				ctx,
+				logger,
+				privateMCPConfigs,
+				server.privateMCPHTTPClient,
+				privateMCPSensitiveValues,
+			)
+			return nil
+		})
+	}
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
 			workspaceMCPTools = server.resolveWorkspaceMCPTools(ctx, logger, chat, &workspaceCtx)
@@ -384,6 +405,14 @@ func (server *Server) prepareGeneration(
 		previousCleanup := cleanup
 		cleanup = func() {
 			mcpCleanup()
+			previousCleanup()
+		}
+	}
+
+	if privateMCPCleanup != nil {
+		previousCleanup := cleanup
+		cleanup = func() {
+			privateMCPCleanup()
 			previousCleanup()
 		}
 	}
@@ -542,6 +571,8 @@ func (server *Server) prepareGeneration(
 		tools = append(tools, workspaceMCPTools...)
 	}
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
+
+	tools = appendPrivateMCPTools(ctx, logger, tools, privateMCPTools)
 
 	tools, dynamicToolNames, err := appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode)
 	if err != nil {

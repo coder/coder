@@ -5180,6 +5180,12 @@ type ChatModelConfig struct {
 	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
 }
 
+// POC-only chat-scoped private stateless MCP server configuration. Stored unencrypted and omitted from API responses and model prompts.
+type ChatPrivateMcpServerConfig struct {
+	ChatID  uuid.UUID       `db:"chat_id" json:"chat_id"`
+	Configs json.RawMessage `db:"configs" json:"configs"`
+}
+
 type ChatQueuedMessage struct {
 	ID            int64           `db:"id" json:"id"`
 	ChatID        uuid.UUID       `db:"chat_id" json:"chat_id"`

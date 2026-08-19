@@ -3,28 +3,62 @@ package mcpclient
 import (
 	"flag"
 	"net/http"
+	"net/url"
+	"strings"
 )
 
-func httpClientWithHeaders(headers map[string]string) *http.Client {
-	base := http.DefaultTransport
-	if isolated := mcpHTTPClient(); isolated != nil {
-		base = isolated.Transport
+type headerScope uint8
+
+const (
+	headerScopeAnyOrigin headerScope = iota
+	headerScopeEndpointOrigin
+)
+
+func httpClientWithHeaders(
+	baseClient *http.Client,
+	headers map[string]string,
+	endpoint string,
+	scope headerScope,
+) *http.Client {
+	if baseClient == nil {
+		baseClient = mcpHTTPClient()
+	}
+	if baseClient == nil {
+		baseClient = http.DefaultClient
+	}
+	client := *baseClient
+	baseTransport := client.Transport
+	if baseTransport == nil {
+		baseTransport = http.DefaultTransport
 	}
 	if len(headers) == 0 {
-		return &http.Client{Transport: base}
+		client.Transport = baseTransport
+		return &client
 	}
-	return &http.Client{Transport: &headerRoundTripper{
-		base:    base,
-		headers: headers,
-	}}
+	var endpointURL *url.URL
+	if scope == headerScopeEndpointOrigin {
+		endpointURL, _ = url.Parse(endpoint)
+	}
+	client.Transport = &headerRoundTripper{
+		base:        baseTransport,
+		headers:     headers,
+		endpointURL: endpointURL,
+	}
+	return &client
 }
 
 type headerRoundTripper struct {
-	base    http.RoundTripper
-	headers map[string]string
+	base        http.RoundTripper
+	headers     map[string]string
+	endpointURL *url.URL
 }
 
 func (h *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if h.endpointURL != nil &&
+		(!strings.EqualFold(req.URL.Scheme, h.endpointURL.Scheme) ||
+			!strings.EqualFold(req.URL.Host, h.endpointURL.Host)) {
+		return h.base.RoundTrip(req)
+	}
 	clone := req.Clone(req.Context())
 	for k, v := range h.headers {
 		clone.Header.Set(k, v)

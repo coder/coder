@@ -8573,6 +8573,19 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 	return items, nil
 }
 
+const getChatPrivateMCPServerConfigsByChatID = `-- name: GetChatPrivateMCPServerConfigsByChatID :one
+SELECT configs
+FROM chat_private_mcp_server_configs
+WHERE chat_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatPrivateMCPServerConfigsByChatID(ctx context.Context, chatID uuid.UUID) (json.RawMessage, error) {
+	row := q.db.QueryRowContext(ctx, getChatPrivateMCPServerConfigsByChatID, chatID)
+	var configs json.RawMessage
+	err := row.Scan(&configs)
+	return configs, err
+}
+
 const getChatQueuedForCapacity = `-- name: GetChatQueuedForCapacity :one
 WITH active AS (
     SELECT
@@ -10423,6 +10436,21 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 		return nil, err
 	}
 	return items, nil
+}
+
+const insertChatPrivateMCPServerConfigs = `-- name: InsertChatPrivateMCPServerConfigs :exec
+INSERT INTO chat_private_mcp_server_configs (chat_id, configs)
+VALUES ($1::uuid, $2::jsonb)
+`
+
+type InsertChatPrivateMCPServerConfigsParams struct {
+	ChatID  uuid.UUID       `db:"chat_id" json:"chat_id"`
+	Configs json.RawMessage `db:"configs" json:"configs"`
+}
+
+func (q *sqlQuerier) InsertChatPrivateMCPServerConfigs(ctx context.Context, arg InsertChatPrivateMCPServerConfigsParams) error {
+	_, err := q.db.ExecContext(ctx, insertChatPrivateMCPServerConfigs, arg.ChatID, arg.Configs)
+	return err
 }
 
 const insertChatQueuedMessage = `-- name: InsertChatQueuedMessage :one
