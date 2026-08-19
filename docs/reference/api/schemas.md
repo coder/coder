@@ -8767,6 +8767,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "has_api_key": true,
   "has_custom_headers": true,
   "has_oauth2_secret": true,
+  "has_signing_secret": true,
   "icon_url": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model_intent": true,
@@ -8776,6 +8777,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "oauth2_scopes": "string",
   "oauth2_token_url": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "signing_secret": "string",
   "slug": "string",
   "tool_allow_list": [
     "string"
@@ -8806,6 +8808,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `has_api_key`           | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `has_custom_headers`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `has_oauth2_secret`     | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `has_signing_secret`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `icon_url`              | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `id`                    | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `model_intent`          | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
@@ -8815,6 +8818,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `oauth2_scopes`         | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `oauth2_token_url`      | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `organization_id`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `signing_secret`        | string          | false    |              | Signing secret is returned only by the mutation that generated it.                                                                                                                                                                                                                                   |
 | `slug`                  | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `tool_allow_list`       | array of string | false    |              | Tool governance.                                                                                                                                                                                                                                                                                     |
 | `tool_deny_list`        | array of string | false    |              |                                                                                                                                                                                                                                                                                                      |

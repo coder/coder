@@ -103,6 +103,7 @@ export const MockMCPServerConfig: MCPServerConfig = {
 	has_oauth2_secret: false,
 	has_api_key: false,
 	has_custom_headers: false,
+	has_signing_secret: false,
 	tool_allow_list: [],
 	tool_deny_list: [],
 	availability: "default_on",

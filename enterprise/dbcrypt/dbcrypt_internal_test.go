@@ -918,15 +918,17 @@ func requireMCPServerConfigDecrypted(
 	t *testing.T,
 	cfg database.MCPServerConfig,
 	ciphers []Cipher,
-	wantSecret, wantAPIKey, wantHeaders string,
+	wantSecret, wantAPIKey, wantHeaders, wantSigningSecret string,
 ) {
 	t.Helper()
 	require.Equal(t, wantSecret, cfg.OAuth2ClientSecret)
 	require.Equal(t, wantAPIKey, cfg.APIKeyValue)
 	require.Equal(t, wantHeaders, cfg.CustomHeaders)
+	require.Equal(t, wantSigningSecret, cfg.SigningSecret)
 	require.Equal(t, ciphers[0].HexDigest(), cfg.OAuth2ClientSecretKeyID.String)
 	require.Equal(t, ciphers[0].HexDigest(), cfg.APIKeyValueKeyID.String)
 	require.Equal(t, ciphers[0].HexDigest(), cfg.CustomHeadersKeyID.String)
+	require.Equal(t, ciphers[0].HexDigest(), cfg.SigningSecretKeyID.String)
 }
 
 // requireMCPServerConfigRawEncrypted reads the config from the raw
@@ -937,7 +939,7 @@ func requireMCPServerConfigRawEncrypted(
 	rawDB database.Store,
 	cfgID uuid.UUID,
 	ciphers []Cipher,
-	wantSecret, wantAPIKey, wantHeaders string,
+	wantSecret, wantAPIKey, wantHeaders, wantSigningSecret string,
 ) {
 	t.Helper()
 	raw, err := rawDB.GetMCPServerConfigByID(ctx, cfgID)
@@ -945,6 +947,7 @@ func requireMCPServerConfigRawEncrypted(
 	requireEncryptedEquals(t, ciphers[0], raw.OAuth2ClientSecret, wantSecret)
 	requireEncryptedEquals(t, ciphers[0], raw.APIKeyValue, wantAPIKey)
 	requireEncryptedEquals(t, ciphers[0], raw.CustomHeaders, wantHeaders)
+	requireEncryptedEquals(t, ciphers[0], raw.SigningSecret, wantSigningSecret)
 }
 
 type allowAllPreparedAuthorized struct{}
@@ -966,6 +969,8 @@ func TestMCPServerConfigs(t *testing.T) {
 		oauthSecret   = "my-oauth-secret"
 		apiKeyValue   = "my-api-key"
 		customHeaders = `{"X-Custom":"header-value"}`
+		//nolint:gosec // test credential
+		signingSecret = "mcp-signing-secret"
 	)
 	// insertConfig is a small helper that creates an MCP server
 	// config through the encrypted store with secret fields set.
@@ -978,9 +983,10 @@ func TestMCPServerConfigs(t *testing.T) {
 			OAuth2ClientSecret: oauthSecret,
 			APIKeyValue:        apiKeyValue,
 			CustomHeaders:      customHeaders,
+			SigningSecret:      signingSecret,
 			Availability:       "force_on",
 		})
-		requireMCPServerConfigDecrypted(t, cfg, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, cfg, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 		return cfg
 	}
 
@@ -988,7 +994,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("GetMCPServerConfigByID", func(t *testing.T) {
@@ -998,8 +1004,8 @@ func TestMCPServerConfigs(t *testing.T) {
 
 		got, err := crypt.GetMCPServerConfigByID(ctx, cfg.ID)
 		require.NoError(t, err)
-		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("GetMCPServerConfigByIDForUpdate", func(t *testing.T) {
@@ -1009,8 +1015,8 @@ func TestMCPServerConfigs(t *testing.T) {
 
 		got, err := crypt.GetMCPServerConfigByIDForUpdate(ctx, cfg.ID)
 		require.NoError(t, err)
-		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("GetMCPServerConfigByOrganizationAndSlug", func(t *testing.T) {
@@ -1023,8 +1029,8 @@ func TestMCPServerConfigs(t *testing.T) {
 			Slug:           cfg.Slug,
 		})
 		require.NoError(t, err)
-		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 
 		// The slug is only unique per organization: the same slug in
 		// another organization must not resolve.
@@ -1043,8 +1049,8 @@ func TestMCPServerConfigs(t *testing.T) {
 		cfgs, err := crypt.GetMCPServerConfigsByOrganization(ctx, cfg.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
-		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("GetAuthorizedMCPServerConfigs", func(t *testing.T) {
@@ -1056,8 +1062,8 @@ func TestMCPServerConfigs(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		require.Equal(t, cfg.ID, cfgs[0].ID)
-		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("GetEnabledMCPServerConfigsByOrganizationAndIDs", func(t *testing.T) {
@@ -1071,8 +1077,8 @@ func TestMCPServerConfigs(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
-		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("GetEnabledMCPServerConfigsByOrganization", func(t *testing.T) {
@@ -1083,8 +1089,8 @@ func TestMCPServerConfigs(t *testing.T) {
 		cfgs, err := crypt.GetEnabledMCPServerConfigsByOrganization(ctx, cfg.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
-		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("GetForcedMCPServerConfigsByOrganization", func(t *testing.T) {
@@ -1095,8 +1101,8 @@ func TestMCPServerConfigs(t *testing.T) {
 		cfgs, err := crypt.GetForcedMCPServerConfigsByOrganization(ctx, cfg.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
-		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders, signingSecret)
 	})
 
 	t.Run("UpdateMCPServerConfig", func(t *testing.T) {
@@ -1106,9 +1112,10 @@ func TestMCPServerConfigs(t *testing.T) {
 
 		const (
 			//nolint:gosec // test credential
-			newSecret  = "updated-oauth-secret"
-			newAPIKey  = "updated-api-key"
-			newHeaders = `{"X-New":"new-value"}`
+			newSecret        = "updated-oauth-secret"
+			newAPIKey        = "updated-api-key"
+			newHeaders       = `{"X-New":"new-value"}`
+			newSigningSecret = "updated-signing-secret"
 		)
 		updated, err := crypt.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
 			ID:                 cfg.ID,
@@ -1122,6 +1129,7 @@ func TestMCPServerConfigs(t *testing.T) {
 			OAuth2ClientSecret: newSecret,
 			APIKeyValue:        newAPIKey,
 			CustomHeaders:      newHeaders,
+			SigningSecret:      newSigningSecret,
 			ToolAllowList:      cfg.ToolAllowList,
 			ToolDenyList:       cfg.ToolDenyList,
 			Availability:       cfg.Availability,
@@ -1129,9 +1137,33 @@ func TestMCPServerConfigs(t *testing.T) {
 			UpdatedBy:          cfg.CreatedBy.UUID,
 		})
 		require.NoError(t, err)
-		requireMCPServerConfigDecrypted(t, updated, ciphers, newSecret, newAPIKey, newHeaders)
-		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, newSecret, newAPIKey, newHeaders)
+		requireMCPServerConfigDecrypted(t, updated, ciphers, newSecret, newAPIKey, newHeaders, newSigningSecret)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, newSecret, newAPIKey, newHeaders, newSigningSecret)
 	})
+}
+
+func TestMCPServerConfigSigningSecretUpdate(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	db, crypt, ciphers := setup(t)
+	cfg := dbgen.MCPServerConfig(t, crypt, database.MCPServerConfig{
+		SigningSecret: "initial-signing-secret",
+	})
+
+	const regeneratedSigningSecret = "regenerated-signing-secret"
+	updated, err := crypt.UpdateMCPServerConfigSigningSecret(ctx, database.UpdateMCPServerConfigSigningSecretParams{
+		ID:            cfg.ID,
+		SigningSecret: regeneratedSigningSecret,
+		UpdatedBy:     cfg.CreatedBy.UUID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, regeneratedSigningSecret, updated.SigningSecret)
+	require.Equal(t, ciphers[0].HexDigest(), updated.SigningSecretKeyID.String)
+
+	raw, err := db.GetMCPServerConfigByID(ctx, cfg.ID)
+	require.NoError(t, err)
+	requireEncryptedEquals(t, ciphers[0], raw.SigningSecret, regeneratedSigningSecret)
 }
 
 func requireAIProviderDecrypted(

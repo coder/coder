@@ -7720,6 +7720,17 @@ func (q *querier) UpdateMCPServerConfigACLByID(ctx context.Context, arg database
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateMCPServerConfigACLByID)(ctx, arg)
 }
 
+func (q *querier) UpdateMCPServerConfigSigningSecret(ctx context.Context, arg database.UpdateMCPServerConfigSigningSecretParams) (database.MCPServerConfig, error) {
+	config, err := q.db.GetMCPServerConfigByID(ctx, arg.ID)
+	if err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, config); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	return q.db.UpdateMCPServerConfigSigningSecret(ctx, arg)
+}
+
 func (q *querier) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
 	fetch := func(ctx context.Context, arg database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
 		return q.db.GetMCPServerUserTokenByID(ctx, arg.ID)

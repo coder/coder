@@ -380,6 +380,8 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		APIKeyValueKeyID:        seed.APIKeyValueKeyID,
 		CustomHeaders:           seed.CustomHeaders,
 		CustomHeadersKeyID:      seed.CustomHeadersKeyID,
+		SigningSecret:           seed.SigningSecret,
+		SigningSecretKeyID:      seed.SigningSecretKeyID,
 		ToolAllowList:           takeFirstSlice(seed.ToolAllowList, []string{}),
 		ToolDenyList:            takeFirstSlice(seed.ToolDenyList, []string{}),
 		Availability:            takeFirst(seed.Availability, "default_off"),

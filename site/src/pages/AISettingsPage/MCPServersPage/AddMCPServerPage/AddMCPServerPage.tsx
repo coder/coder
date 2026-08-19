@@ -1,15 +1,17 @@
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { createMCPServerConfig } from "#/api/queries/chats";
 import { organizationsPermissions } from "#/api/queries/organizations";
+import type { MCPServerConfig } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { MCPServerSigningSecretDialog } from "../components/MCPServerSigningSecretDialog";
 import {
 	mcpServersPath,
 	orgSearchParam,
@@ -98,6 +100,7 @@ const AddMCPServerPage: FC = () => {
 	const createMutation = useMutation(
 		createMCPServerConfig(queryClient, organization?.id ?? ""),
 	);
+	const [createdServer, setCreatedServer] = useState<MCPServerConfig>();
 
 	return (
 		<RequirePermission
@@ -139,19 +142,41 @@ const AddMCPServerPage: FC = () => {
 								try {
 									const server = await createMutation.mutateAsync(req);
 									toast.success(`MCP server "${server.display_name}" added.`);
-									if (canOpenServer) {
-										await navigate(
-											updateMCPServerPath(server.id, organization),
-										);
-									} else if (canViewServerList) {
-										await navigate(mcpServersPath(organization));
-									}
-									return true;
+									return {
+										afterSave: () => {
+											if (server.signing_secret) {
+												setCreatedServer(server);
+												return;
+											}
+											if (canOpenServer) {
+												void navigate(
+													updateMCPServerPath(server.id, organization),
+												);
+											} else if (canViewServerList) {
+												void navigate(mcpServersPath(organization));
+											}
+										},
+									};
 								} catch (error) {
 									toast.error(
 										getErrorMessage(error, "Failed to add MCP server."),
 									);
-									return false;
+									return undefined;
+								}
+							}}
+						/>
+						<MCPServerSigningSecretDialog
+							secret={createdServer?.signing_secret ?? ""}
+							onClose={() => {
+								const serverID = createdServer?.id;
+								setCreatedServer(undefined);
+								if (!serverID) {
+									return;
+								}
+								if (canOpenServer) {
+									void navigate(updateMCPServerPath(serverID, organization));
+								} else if (canViewServerList) {
+									void navigate(mcpServersPath(organization));
 								}
 							}}
 						/>

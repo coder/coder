@@ -5481,6 +5481,8 @@ type MCPServerConfig struct {
 	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
 	GroupACL                ChatACL        `db:"group_acl" json:"group_acl"`
 	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
+	SigningSecret           string         `db:"signing_secret" json:"signing_secret"`
+	SigningSecretKeyID      sql.NullString `db:"signing_secret_key_id" json:"signing_secret_key_id"`
 }
 
 type MCPServerUserToken struct {

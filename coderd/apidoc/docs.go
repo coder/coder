@@ -1739,6 +1739,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/regenerate-signing-secret": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Regenerate MCP server config signing secret",
+                "operationId": "regenerate-mcp-server-config-signing-secret",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/users/{user}/skills": {
             "get": {
                 "produces": [
@@ -21853,6 +21899,9 @@ const docTemplate = `{
                 "has_oauth2_secret": {
                     "type": "boolean"
                 },
+                "has_signing_secret": {
+                    "type": "boolean"
+                },
                 "icon_url": {
                     "type": "string"
                 },
@@ -21882,6 +21931,10 @@ const docTemplate = `{
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "signing_secret": {
+                    "description": "SigningSecret is returned only by the mutation that generated it.",
+                    "type": "string"
                 },
                 "slug": {
                     "type": "string"

@@ -17,7 +17,7 @@ const meta: Meta<typeof AddMCPServerPageView> = {
 		organization: MockDefaultOrganization,
 		onSelectOrganization: fn(),
 		onCreateServer: fn(
-			async (_req: TypesGen.CreateMCPServerConfigRequest) => true,
+			async (_req: TypesGen.CreateMCPServerConfigRequest) => ({}),
 		),
 		onCancel: fn(),
 	},
@@ -76,6 +76,12 @@ export const Default: Story = {
 		await expect(canvas.getByLabelText(/^slug/i)).toHaveValue("");
 		await expect(canvas.getByLabelText(/server url/i)).toHaveValue("");
 		await expect(addButton).toBeDisabled();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Back to MCP servers" }),
+		);
+		await expect(
+			body.queryByRole("heading", { name: "Unsaved changes" }),
+		).not.toBeInTheDocument();
 	},
 };
 

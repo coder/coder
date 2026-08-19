@@ -94,9 +94,12 @@ type MCPServerConfig struct {
 	// optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this
 	// MCP server on every request. Off by default to avoid leaking
 	// chat identity to third-party servers.
-	ForwardCoderHeaders bool      `json:"forward_coder_headers"`
-	CreatedAt           time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt           time.Time `json:"updated_at" format:"date-time"`
+	ForwardCoderHeaders bool `json:"forward_coder_headers"`
+	// SigningSecret is returned only by the mutation that generated it.
+	SigningSecret    string    `json:"signing_secret,omitempty"`
+	HasSigningSecret bool      `json:"has_signing_secret"`
+	CreatedAt        time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
 
 	// Per-user state (populated for non-admin requests).
 	AuthConnected bool `json:"auth_connected"`
@@ -281,6 +284,21 @@ func (c *Client) CreateMCPServerConfig(ctx context.Context, organizationID uuid.
 
 func (c *Client) UpdateMCPServerConfig(ctx context.Context, organizationID, id uuid.UUID, req UpdateMCPServerConfigRequest) (MCPServerConfig, error) {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s", organizationID, id), req)
+	if err != nil {
+		return MCPServerConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return MCPServerConfig{}, ReadBodyAsError(res)
+	}
+	var config MCPServerConfig
+	return config, ReadBodyAsJSON(res, &config)
+}
+
+// RegenerateMCPServerConfigSigningSecret replaces the server's signing secret.
+// The returned config is the only response that includes the new plaintext secret.
+func (c *Client) RegenerateMCPServerConfigSigningSecret(ctx context.Context, organizationID, id uuid.UUID) (MCPServerConfig, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s/regenerate-signing-secret", organizationID, id), nil)
 	if err != nil {
 		return MCPServerConfig{}, err
 	}

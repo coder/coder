@@ -1,7 +1,10 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { pageTitle } from "#/utils/page";
-import { MCPServerForm } from "../components/MCPServerForm";
+import {
+	MCPServerForm,
+	type MCPServerFormSaveResult,
+} from "../components/MCPServerForm";
 import { OrganizationPicker } from "../components/OrganizationPicker";
 
 interface UpdateMCPServerPageViewProps {
@@ -11,12 +14,14 @@ interface UpdateMCPServerPageViewProps {
 	listPath: string;
 	isSaving: boolean;
 	isDeleting: boolean;
+	isRegeneratingSigningSecret: boolean;
 	canSelectUserOIDC: boolean;
 	onUpdateServer?: (
 		serverId: string,
 		req: TypesGen.UpdateMCPServerConfigRequest,
-	) => Promise<unknown>;
+	) => Promise<MCPServerFormSaveResult | undefined>;
 	onDeleteServer?: (serverId: string) => Promise<void>;
+	onRegenerateSigningSecret?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
 	onCancel: () => void;
 }
@@ -28,9 +33,11 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 	listPath,
 	isSaving,
 	isDeleting,
+	isRegeneratingSigningSecret,
 	canSelectUserOIDC,
 	onUpdateServer,
 	onDeleteServer,
+	onRegenerateSigningSecret,
 	onToggleEnabled,
 	onCancel,
 }) => {
@@ -50,9 +57,11 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 				listPath={listPath}
 				isSaving={isSaving}
 				isDeleting={isDeleting}
+				isRegeneratingSigningSecret={isRegeneratingSigningSecret}
 				canSelectUserOIDC={canSelectUserOIDC}
 				onUpdateServer={onUpdateServer}
 				onDeleteServer={onDeleteServer}
+				onRegenerateSigningSecret={onRegenerateSigningSecret}
 				onToggleEnabled={onToggleEnabled}
 				onCancel={onCancel}
 			/>

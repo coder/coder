@@ -3954,6 +3954,16 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	regenerateMCPServerConfigSigningSecret = async (
+		organization: string,
+		id: string,
+	): Promise<TypesGen.MCPServerConfig> => {
+		const response = await this.axios.post<TypesGen.MCPServerConfig>(
+			`${mcpServerConfigPath(organization, id)}/regenerate-signing-secret`,
+		);
+		return response.data;
+	};
+
 	deleteMCPServerConfig = async (
 		organization: string,
 		id: string,
