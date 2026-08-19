@@ -1,4 +1,4 @@
-import { OctagonXIcon } from "lucide-react";
+import { CircleCheckIcon, OctagonXIcon } from "lucide-react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -68,7 +68,7 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 		autoDisplayState,
 	);
 
-	const showExitCode = exitCode !== null && exitCode !== 0;
+	const showExitCode = exitCode !== null;
 	const hasOutput = output.length > 0;
 	const hasHeaderActions = Boolean(killedBySignal) || showExitCode || hasOutput;
 
@@ -107,7 +107,17 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 							</Tooltip>
 						)}
 						{showExitCode && (
-							<span className="rounded px-1.5 py-0.5 font-mono text-2xs leading-none bg-surface-red text-content-destructive">
+							<span
+								className={cn(
+									"flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-2xs leading-none",
+									exitCode === 0
+										? "text-content-secondary"
+										: "bg-surface-red text-content-destructive",
+								)}
+							>
+								{exitCode === 0 && (
+									<CircleCheckIcon aria-hidden className="size-3.5 shrink-0" />
+								)}
 								exit {exitCode}
 							</span>
 						)}

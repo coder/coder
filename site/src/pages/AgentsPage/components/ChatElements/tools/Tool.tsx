@@ -68,6 +68,12 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	result?: unknown;
 	isError?: boolean;
 	killedBySignal?: "kill" | "terminate";
+	/** Live state of the background process this execute call started. */
+	backgroundProcess?: {
+		state: "running" | "exited";
+		exitCode?: number;
+		startedAtMs?: number;
+	};
 	/** Maps sub-agent chat IDs to their titles, built from transcript metadata. */
 	subagentTitles?: Map<string, string>;
 	/** Maps sub-agent chat IDs to their normalized variants. */
@@ -104,6 +110,11 @@ type ToolRendererProps = {
 	result: unknown;
 	isError: boolean;
 	killedBySignal?: "kill" | "terminate";
+	backgroundProcess?: {
+		state: "running" | "exited";
+		exitCode?: number;
+		startedAtMs?: number;
+	};
 	subagentTitles?: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
@@ -220,6 +231,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
+	backgroundProcess,
 	modelIntent,
 	parsedCommands,
 	shellToolDisplayMode,
@@ -234,6 +246,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 			errorText={data.errorText}
 			durationMs={data.durationMs}
 			isBackgrounded={data.isBackgrounded}
+			backgroundProcess={backgroundProcess}
 			killedBySignal={killedBySignal}
 			modelIntent={modelIntent}
 			parsedCommands={parsedCommands}
@@ -1168,6 +1181,7 @@ export const Tool = memo(
 		result,
 		isError = false,
 		killedBySignal,
+		backgroundProcess,
 		subagentTitles,
 		subagentVariants,
 		showDesktopPreviews,
@@ -1215,6 +1229,7 @@ export const Tool = memo(
 						result={result}
 						isError={isError}
 						killedBySignal={killedBySignal}
+						backgroundProcess={backgroundProcess}
 						subagentTitles={subagentTitles}
 						subagentVariants={subagentVariants}
 						showDesktopPreviews={showDesktopPreviews}

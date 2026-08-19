@@ -1,4 +1,4 @@
-import { LayersIcon, OctagonXIcon } from "lucide-react";
+import { OctagonXIcon } from "lucide-react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -9,6 +9,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { BackgroundProcessChip } from "./BackgroundProcessChip";
 import {
 	type AgentDisplayState,
 	resolveAgentDisplayState,
@@ -31,6 +32,11 @@ type ExecuteToolProps = {
 	errorText?: string;
 	durationMs?: number;
 	isBackgrounded?: boolean;
+	backgroundProcess?: {
+		state: "running" | "exited";
+		exitCode?: number;
+		startedAtMs?: number;
+	};
 	killedBySignal?: "kill" | "terminate";
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
@@ -45,6 +51,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	errorText,
 	durationMs,
 	isBackgrounded = false,
+	backgroundProcess,
 	killedBySignal,
 	modelIntent,
 	parsedCommands,
@@ -59,7 +66,10 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			? "preview"
 			: "collapsed";
 	const isRunning = status === "running";
-	const durationLabel = formatShellDurationMs(durationMs);
+	// A backgrounded call's duration is the spawn time (often ~0ms),
+	// not the process lifetime. The chip carries the live state
+	// instead, so the suffix is suppressed to avoid lying.
+	const durationLabel = isBackgrounded ? "" : formatShellDurationMs(durationMs);
 	const { commandLabel, durationSuffix } = getShellCommandLine({
 		command,
 		modelIntent,
@@ -102,20 +112,14 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 				</ToolCall.HeaderButton>
 				<ToolCall.HeaderActions>
 					{isBackgrounded && !isRunning && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<span
-									aria-label="Running in background"
-									role="img"
-									className="flex shrink-0 text-content-secondary"
-								>
-									<LayersIcon aria-hidden className="size-3.5 shrink-0" />
-								</span>
-							</TooltipTrigger>
-							<TooltipContent>Running in background</TooltipContent>
-						</Tooltip>
+						<BackgroundProcessChip
+							state={backgroundProcess?.state ?? "running"}
+							exitCode={backgroundProcess?.exitCode}
+							killedBySignal={killedBySignal}
+							startedAtMs={backgroundProcess?.startedAtMs}
+						/>
 					)}
-					{killedBySignal && !isRunning && (
+					{killedBySignal && !isRunning && !isBackgrounded && (
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<OctagonXIcon className="size-3.5 shrink-0 text-content-secondary" />

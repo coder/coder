@@ -763,6 +763,78 @@ describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
 			.find((t) => t.name === "process_output");
 		expect(procOut?.killedBySignal).toBe("terminate");
 	});
+
+	it("annotates backgrounded execute with running state from process_output", () => {
+		const PID = "proc-run";
+		const parsed = parseMessagesWithMergedTools([
+			msg(1, "assistant", [
+				toolCall("tc1", "execute", { command: "npm start" }),
+			]),
+			msg(2, "assistant", [
+				toolResult("tc1", "execute", {
+					success: true,
+					background_process_id: PID,
+				}),
+				toolCall("tc2", "process_output", { process_id: PID }),
+			]),
+			msg(3, "assistant", [
+				toolResult("tc2", "process_output", {
+					output: "starting...",
+					running: true,
+				}),
+			]),
+		]);
+
+		const executeTool = parsed
+			.flatMap((e) => e.parsed.tools)
+			.find((t) => t.name === "execute");
+		expect(executeTool?.backgroundProcess).toEqual({ state: "running" });
+	});
+
+	it("annotates backgrounded execute with final exit code", () => {
+		const PID = "proc-exit";
+		const parsed = parseMessagesWithMergedTools([
+			msg(1, "assistant", [
+				toolCall("tc1", "execute", { command: "npm start" }),
+			]),
+			msg(2, "assistant", [
+				toolResult("tc1", "execute", {
+					success: true,
+					background_process_id: PID,
+				}),
+				toolCall("tc2", "process_output", { process_id: PID }),
+			]),
+			msg(3, "assistant", [
+				toolResult("tc2", "process_output", {
+					output: "boom",
+					running: false,
+					exit_code: 1,
+				}),
+			]),
+		]);
+
+		const executeTool = parsed
+			.flatMap((e) => e.parsed.tools)
+			.find((t) => t.name === "execute");
+		expect(executeTool?.backgroundProcess).toEqual({
+			state: "exited",
+			exitCode: 1,
+		});
+	});
+
+	it("does not annotate foreground execute calls", () => {
+		const parsed = parseMessagesWithMergedTools([
+			msg(1, "assistant", [toolCall("tc1", "execute", { command: "echo hi" })]),
+			msg(2, "assistant", [
+				toolResult("tc1", "execute", { success: true, output: "hi" }),
+			]),
+		]);
+
+		const executeTool = parsed
+			.flatMap((e) => e.parsed.tools)
+			.find((t) => t.name === "execute");
+		expect(executeTool?.backgroundProcess).toBeUndefined();
+	});
 });
 
 describe("subagent transcript parsing", () => {

@@ -574,17 +574,63 @@ export const ExecuteBackgrounded: Story = {
 			output: "",
 			wall_duration_ms: 2100,
 		},
+		backgroundProcess: { state: "running" },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const backgroundIndicator = canvas.getByRole("img", {
-			name: "Running in background",
-		});
-		expect(backgroundIndicator).toBeVisible();
-		await userEvent.hover(backgroundIndicator);
+		const chip = canvas.getByRole("status", { name: /Running in background/ });
+		expect(chip).toBeVisible();
+		expect(chip).toHaveTextContent("running");
+		// The backgrounded spawn duration is process noise, not shown.
+		expect(canvas.queryByText(/for 2\.1s/)).not.toBeInTheDocument();
+		await userEvent.hover(chip);
 		expect(await screen.findByRole("tooltip")).toHaveTextContent(
-			"Running in background",
+			"Background process is still running",
 		);
+	},
+};
+
+export const ExecuteBackgroundedExited: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "npm start" },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			background_process_id: "process-123",
+			output: "",
+			wall_duration_ms: 2100,
+		},
+		backgroundProcess: { state: "exited", exitCode: 0 },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("status", { name: /exited successfully/ }),
+		).toHaveTextContent("exit 0");
+	},
+};
+
+export const ExecuteBackgroundedExitedNonZero: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "npm start" },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			background_process_id: "process-123",
+			output: "",
+			wall_duration_ms: 2100,
+		},
+		backgroundProcess: { state: "exited", exitCode: 1 },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("status", {
+				name: "Background process exited with code 1",
+			}),
+		).toHaveTextContent("exit 1");
 	},
 };
 
@@ -701,6 +747,23 @@ export const ProcessOutputChecked: Story = {
 		expect(canvas.getByText("Checked npm start")).toBeVisible();
 		expect(canvas.getByText("exit 1")).toBeVisible();
 		expect(canvas.getByText(/EADDRINUSE/)).toBeVisible();
+	},
+};
+
+export const ProcessOutputExitZeroChip: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: { process_id: "process-123" },
+		result: {
+			command: "npm start",
+			output: "dogfood complete",
+			exit_code: 0,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("exit 0")).toBeVisible();
 	},
 };
 

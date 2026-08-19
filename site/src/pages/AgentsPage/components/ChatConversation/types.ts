@@ -31,6 +31,18 @@ export type MergedTool = {
 	hookRewritten?: boolean;
 	/** Set when a process_signal killed/terminated this process. */
 	killedBySignal?: "kill" | "terminate";
+	/**
+	 * Live state of the background process started by an execute
+	 * call, derived from later process_output/process_signal calls
+	 * for the same process. Absent for foreground commands and
+	 * when no observation of the process exists yet.
+	 */
+	backgroundProcess?: {
+		state: "running" | "exited";
+		exitCode?: number;
+		/** Epoch ms when the process row first appeared (execute result time). */
+		startedAtMs?: number;
+	};
 };
 
 export type RenderBlock =
