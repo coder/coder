@@ -375,44 +375,32 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		}
 	}
 
-	// The post-publish writes get their own bounded context, separate from
+	// The post-publish update gets its own bounded context, separate from
 	// the request's (see above) so a request that consumed its entire
 	// deadline still persists its outcome, and separate from the loop's so
 	// a stalled database cannot block it indefinitely. Schema triggers on
-	// usage_events do the publish-failure bookkeeping atomically with the
-	// row update, so every writer participates: publishing an event
-	// (including permanent rejections, which are terminal and also
+	// usage_events do the publish-failure bookkeeping atomically within
+	// this single statement, so every writer participates: publishing an
+	// event (including permanent rejections, which are terminal and also
 	// recorded as rejections) deletes its failure row, and a concluded
-	// attempt that leaves an event unpublished records one. The update is
-	// followed by bounded prunes of rows past the publish window or
-	// failure threshold. Publish failure detection reads the failures and
-	// rejections relations instead of scanning usage_events, and because
-	// rows are keyed by event ID, a batch only ever resolves its own
-	// events; failures another replica's rows justify stay recorded until
-	// those exact rows publish.
+	// attempt that leaves an event unpublished records one. Publish
+	// failure detection reads the failures and rejections relations
+	// instead of scanning usage_events, and because rows are keyed by
+	// event ID, a batch only ever resolves its own events; failures
+	// another replica's rows justify stay recorded until those exact rows
+	// publish.
 	updateCtx, updateCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
 	defer updateCtxCancel()
 	now := p.clock.Now()
 	windowStart := dbtime.Time(now.Add(-usagePublishingWindow))
-	err = p.db.InTx(func(tx database.Store) error {
-		if err := tx.UpdateUsageEventsPostPublish(updateCtx, dbUpdate); err != nil {
-			return xerrors.Errorf("update usage events post publish: %w", err)
-		}
-		if err := tx.PruneUsageEventsPublishFailures(updateCtx, windowStart); err != nil {
-			return xerrors.Errorf("prune usage events publish failures: %w", err)
-		}
-		if err := tx.PruneUsageEventsPublishRejections(updateCtx, dbtime.Time(now.Add(-usagePublishRejectionRetention))); err != nil {
-			return xerrors.Errorf("prune usage events publish rejections: %w", err)
-		}
-		return nil
-	}, nil)
+	err = p.db.UpdateUsageEventsPostPublish(updateCtx, dbUpdate)
 	if err != nil {
-		// The transaction failing leaves every batch row unpublished with
-		// a fresh in-flight attempt marker that hides it from the stuck
+		// The update failing leaves every batch row unpublished with a
+		// fresh in-flight attempt marker that hides it from the stuck
 		// probe, so record the whole batch as failing on a fresh bounded
-		// context (the transaction may have consumed this one's deadline).
-		// The insert verifies against usage_events, so rows another cycle
-		// has since published are skipped. Best-effort: a database problem
+		// context (the update may have consumed this one's deadline). The
+		// insert verifies against usage_events, so rows another cycle has
+		// since published are skipped. Best-effort: a database problem
 		// specific to the update must not also silence failure detection,
 		// and the next cycle retries.
 		failCtx, failCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
@@ -423,7 +411,18 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		}); failErr != nil {
 			p.log.Warn(ctx, "record usage events publish failures", slog.Error(failErr))
 		}
-		return 0, err
+		return 0, xerrors.Errorf("update usage events post publish: %w", err)
+	}
+
+	// Best-effort housekeeping, deliberately outside the batch outcome: a
+	// prune timing out or failing must not undo or fail the committed
+	// update (that would locally unpublish tallyman-accepted events and
+	// resend them). The prune is LIMIT-bounded and retried every cycle, so
+	// a missed one only defers cleanup. The failures relation is pruned at
+	// the top of every cycle instead, so it stays pruned even while
+	// publishing is disabled.
+	if err := p.db.PruneUsageEventsPublishRejections(updateCtx, dbtime.Time(now.Add(-usagePublishRejectionRetention))); err != nil {
+		p.log.Warn(ctx, "prune usage events publish rejections", slog.Error(err))
 	}
 
 	var returnErr error
