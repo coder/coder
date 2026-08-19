@@ -361,7 +361,7 @@ func ScopesCover(canonicalAllowed []ScopeName, canonicalRequested ScopeName) (bo
 	for _, name := range canonicalAllowed {
 		expanded, err := ExpandScope(name)
 		if err != nil {
-			return false, xerrors.Errorf("expand allowed scope %q: %w", name, err)
+			return false, xerrors.Errorf("expand allowed scope: %w", err)
 		}
 		grants = append(grants, namedScope{name: name, scope: expanded})
 	}
