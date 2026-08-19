@@ -26,3 +26,26 @@ CREATE INDEX idx_usage_events_publish_failures_inserted_at ON usage_events_publi
 -- Serves pruning of failure rows whose events aged out of the publish
 -- window.
 CREATE INDEX idx_usage_events_publish_failures_created_at ON usage_events_publish_failures (created_at);
+
+-- Publishing an event resolves its failure row at the schema level so
+-- every writer participates: during a rolling upgrade, a replica running
+-- an older release can successfully publish an event whose failure row a
+-- newer replica recorded, and its pre-upgrade post-publish update knows
+-- nothing about this relation. Without the trigger that stale row would
+-- keep raising a publish-failure warning until the event aged out of the
+-- publish window. Cost is one primary-key delete per newly published row,
+-- bounded by the publish batch size.
+CREATE FUNCTION delete_usage_events_publish_failure() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    DELETE FROM usage_events_publish_failures WHERE event_id = NEW.id;
+    RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER trigger_delete_usage_events_publish_failure
+    AFTER UPDATE OF published_at ON usage_events
+    FOR EACH ROW
+    WHEN (NEW.published_at IS NOT NULL AND OLD.published_at IS NULL)
+    EXECUTE FUNCTION delete_usage_events_publish_failure();

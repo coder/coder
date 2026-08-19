@@ -1484,20 +1484,6 @@ func (mr *MockStoreMockRecorder) DeleteUnlinkedChatFilesByIDs(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUnlinkedChatFilesByIDs", reflect.TypeOf((*MockStore)(nil).DeleteUnlinkedChatFilesByIDs), ctx, arg)
 }
 
-// DeleteUsageEventsPublishFailures mocks base method.
-func (m *MockStore) DeleteUsageEventsPublishFailures(ctx context.Context, ids []string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteUsageEventsPublishFailures", ctx, ids)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteUsageEventsPublishFailures indicates an expected call of DeleteUsageEventsPublishFailures.
-func (mr *MockStoreMockRecorder) DeleteUsageEventsPublishFailures(ctx, ids any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUsageEventsPublishFailures", reflect.TypeOf((*MockStore)(nil).DeleteUsageEventsPublishFailures), ctx, ids)
-}
-
 // DeleteUserAIBudgetOverride mocks base method.
 func (m *MockStore) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	m.ctrl.T.Helper()

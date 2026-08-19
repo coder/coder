@@ -865,14 +865,6 @@ func (m queryMetricsStore) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteUsageEventsPublishFailures(ctx context.Context, ids []string) error {
-	start := time.Now()
-	r0 := m.s.DeleteUsageEventsPublishFailures(ctx, ids)
-	m.queryLatencies.WithLabelValues("DeleteUsageEventsPublishFailures").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteUsageEventsPublishFailures").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteUserAIBudgetOverride(ctx, userID)

@@ -4118,7 +4118,7 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
 
 		// Simulate the outage recovering: the event gets published, the
-		// batch outcome deletes its failure row, and the next entitlements
+		// schema trigger deletes its failure row, and the next entitlements
 		// refresh clears the warning immediately.
 		err = db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
 			Now:             now,
@@ -4126,9 +4126,6 @@ func TestUsagePublishingStatus(t *testing.T) {
 			FailureMessages: []string{""},
 			SetPublishedAts: []bool{true},
 		})
-		require.NoError(t, err)
-		//nolint:gocritic // Unit test.
-		err = db.DeleteUsageEventsPublishFailures(dbauthz.AsSystemRestricted(ctx), []string{"1"})
 		require.NoError(t, err)
 
 		entitlements, err = license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
@@ -4227,15 +4224,20 @@ func TestUsagePublishingStatus(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 
-		// A replica's fully published batch only deletes its own events'
-		// failure rows; a failure another replica's event justifies must
-		// keep warning.
+		// A replica's fully published batch only resolves its own events'
+		// failure rows (via the publish trigger); a failure another
+		// replica's event justifies must keep warning.
 		now := time.Now()
 		seedEvent(ctx, t, db, "failing-elsewhere", now.Add(-25*time.Hour), time.Time{}, "")
+		seedEvent(ctx, t, db, "other-event", now.Add(-10*time.Minute), time.Time{}, "")
 		recordFailures(ctx, t, db, now, "failing-elsewhere")
 		markEventsInFlight(ctx, t, db, now)
-		//nolint:gocritic // Unit test.
-		err := db.DeleteUsageEventsPublishFailures(dbauthz.AsSystemRestricted(ctx), []string{"other-event"})
+		err := db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
+			Now:             now,
+			IDs:             []string{"other-event"},
+			FailureMessages: []string{""},
+			SetPublishedAts: []bool{true},
+		})
 		require.NoError(t, err)
 
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
@@ -4251,16 +4253,14 @@ func TestUsagePublishingStatus(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 
-		// Publishing the long-failing event deletes its failure row
-		// immediately; the remaining fresh failure is too young to warn.
+		// Publishing the long-failing event deletes its failure row via
+		// the trigger immediately; the remaining fresh failure is too
+		// young to warn.
 		now := time.Now()
 		seedEvent(ctx, t, db, "old", now.Add(-25*time.Hour), time.Time{}, "")
 		seedEvent(ctx, t, db, "new", now.Add(-10*time.Minute), time.Time{}, "")
 		recordFailures(ctx, t, db, now, "old", "new")
-		//nolint:gocritic // Unit test.
-		err := db.DeleteUsageEventsPublishFailures(dbauthz.AsSystemRestricted(ctx), []string{"old"})
-		require.NoError(t, err)
-		err = db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
+		err := db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
 			Now:             now,
 			IDs:             []string{"old"},
 			FailureMessages: []string{""},

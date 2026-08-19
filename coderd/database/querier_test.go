@@ -11292,6 +11292,17 @@ func TestGetUsagePublishStatus(t *testing.T) {
 				InsertedAt: insertedAt,
 			})
 			require.NoError(t, err)
+			if ev.failureRow {
+				// Seeded before any publish update so cases can exercise
+				// the trigger that deletes the row on publish. A wide
+				// window so tests can seed failure rows for events of any
+				// age; the query filters by its own window_start.
+				err = db.UpsertUsageEventsPublishFailures(ctx, database.UpsertUsageEventsPublishFailuresParams{
+					IDs:         []string{ev.id},
+					WindowStart: ev.createdAt.Add(-time.Hour),
+				})
+				require.NoError(t, err)
+			}
 			if !ev.publishedAt.IsZero() || ev.failureMessage != "" {
 				// Now is the publish time for successes and permanent
 				// rejections, and the failure time for temporary failures.
@@ -11311,15 +11322,6 @@ func TestGetUsagePublishStatus(t *testing.T) {
 					})
 					require.NoError(t, err)
 				}
-			}
-			if ev.failureRow {
-				// A wide window so tests can seed failure rows for events
-				// of any age; the query filters by its own window_start.
-				err = db.UpsertUsageEventsPublishFailures(ctx, database.UpsertUsageEventsPublishFailuresParams{
-					IDs:         []string{ev.id},
-					WindowStart: ev.createdAt.Add(-time.Hour),
-				})
-				require.NoError(t, err)
 			}
 		}
 	}
@@ -11405,6 +11407,21 @@ func TestGetUsagePublishStatus(t *testing.T) {
 			},
 			enabledSinceOverride: now.Add(-1 * time.Hour),
 			want:                 database.GetUsagePublishStatusRow{},
+		},
+		{
+			// Publishing an event deletes its failure row at the schema
+			// level (trigger_delete_usage_events_publish_failure), so a
+			// replica running an older release that knows nothing about the
+			// failures relation still resolves the row when it publishes
+			// the event: no stale failure row survives to re-raise the
+			// warning after recovery.
+			name: "PublishByOldWriterDeletesFailureRow",
+			events: []usagePublishSeedEvent{
+				{id: "1", createdAt: now.Add(-40 * time.Hour), publishedAt: now.Add(-1 * time.Hour), failureRow: true},
+			},
+			want: database.GetUsagePublishStatusRow{
+				LastPublishedAt: now.Add(-1 * time.Hour),
+			},
 		},
 		{
 			// An in-flight attempt older than the publisher's 1-hour expiry

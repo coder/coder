@@ -245,7 +245,6 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 			return fn(db)
 		},
 	).AnyTimes()
-	db.EXPECT().DeleteUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
@@ -409,7 +408,6 @@ func TestPublisherMissingEvents(t *testing.T) {
 			return fn(db)
 		},
 	).AnyTimes()
-	db.EXPECT().DeleteUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	deploymentID, licenseJWT := configureMockDeployment(t, db)
@@ -493,7 +491,6 @@ func TestPublisherLicenseSelection(t *testing.T) {
 			return fn(db)
 		},
 	).AnyTimes()
-	db.EXPECT().DeleteUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
@@ -638,7 +635,6 @@ func TestPublisherTallymanError(t *testing.T) {
 			return fn(db)
 		},
 	).AnyTimes()
-	db.EXPECT().DeleteUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	db.EXPECT().UpsertUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
@@ -792,7 +788,6 @@ func TestPublisherTallymanTimeout(t *testing.T) {
 			return fn(db)
 		},
 	).AnyTimes()
-	db.EXPECT().DeleteUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	db.EXPECT().PruneUsageEventsPublishFailures(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	clock := quartz.NewMock(t)
 	now := time.Now()

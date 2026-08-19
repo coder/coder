@@ -362,11 +362,9 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		}
 	}
 
-	var publishedIDs, failedIDs []string
+	var failedIDs []string
 	for i, id := range dbUpdate.IDs {
-		if dbUpdate.SetPublishedAts[i] {
-			publishedIDs = append(publishedIDs, id)
-		} else {
+		if !dbUpdate.SetPublishedAts[i] {
 			failedIDs = append(failedIDs, id)
 		}
 	}
@@ -375,10 +373,11 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	// the request's (see above) so a request that consumed its entire
 	// deadline still persists its outcome, and separate from the loop's so
 	// a stalled database cannot block it indefinitely. The row update and
-	// the publish-failure bookkeeping commit atomically: published events
-	// (including permanent rejections, which are terminal) delete their
-	// failure rows, events left unpublished record theirs, and rows past
-	// the publish window are pruned. Publish failure detection reads
+	// the publish-failure bookkeeping commit atomically: publishing an
+	// event (including permanent rejections, which are terminal) deletes
+	// its failure row via a schema trigger so every writer participates,
+	// events left unpublished record theirs, and rows past the publish
+	// window are pruned. Publish failure detection reads
 	// usage_events_publish_failures instead of scanning the unpublished
 	// backlog for failed rows, and because rows are keyed by event ID, a
 	// batch only ever resolves its own events; failures another replica's
@@ -389,9 +388,6 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	err = p.db.InTx(func(tx database.Store) error {
 		if err := tx.UpdateUsageEventsPostPublish(updateCtx, dbUpdate); err != nil {
 			return xerrors.Errorf("update usage events post publish: %w", err)
-		}
-		if err := tx.DeleteUsageEventsPublishFailures(updateCtx, publishedIDs); err != nil {
-			return xerrors.Errorf("delete usage events publish failures: %w", err)
 		}
 		// The insert copies inserted_at/created_at from usage_events and
 		// skips rows no longer unpublished, so a stalled replica cannot

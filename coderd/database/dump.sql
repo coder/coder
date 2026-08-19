@@ -937,6 +937,15 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION delete_usage_events_publish_failure() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    DELETE FROM usage_events_publish_failures WHERE event_id = NEW.id;
+    RETURN NULL;
+END;
+$$;
+
 CREATE FUNCTION delete_user_ai_budget_overrides_on_group_member_delete() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -5107,6 +5116,8 @@ CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UP
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
+
+CREATE TRIGGER trigger_delete_usage_events_publish_failure AFTER UPDATE OF published_at ON usage_events FOR EACH ROW WHEN (((new.published_at IS NOT NULL) AND (old.published_at IS NULL))) EXECUTE FUNCTION delete_usage_events_publish_failure();
 
 CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_group_member_delete BEFORE DELETE ON group_members FOR EACH ROW EXECUTE FUNCTION delete_user_ai_budget_overrides_on_group_member_delete();
 

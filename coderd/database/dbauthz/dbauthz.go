@@ -2529,13 +2529,6 @@ func (q *querier) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg database
 	return q.db.DeleteUnlinkedChatFilesByIDs(ctx, arg)
 }
 
-func (q *querier) DeleteUsageEventsPublishFailures(ctx context.Context, ids []string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUsageEvent); err != nil {
-		return err
-	}
-	return q.db.DeleteUsageEventsPublishFailures(ctx, ids)
-}
-
 func (q *querier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	// Removing a user's AI budget override affects both the user (clearing
 	// their per-user spend cap) and the group it was attributed to.

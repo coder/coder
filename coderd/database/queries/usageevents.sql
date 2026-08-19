@@ -105,7 +105,10 @@ WHERE
 -- publisher's 30-day selection window (window_start is now minus 30 days;
 -- older events are never published) gain a failure row. Bounded by the
 -- caller's ID list (at most one publish batch) and served by the primary
--- key.
+-- key. There is no matching delete query: publishing an event removes its
+-- failure row via trigger_delete_usage_events_publish_failure, so every
+-- writer resolves failures, including replicas running an older release
+-- during a rolling upgrade.
 INSERT INTO usage_events_publish_failures (event_id, inserted_at, created_at)
 SELECT id, inserted_at, created_at
 FROM usage_events
@@ -114,13 +117,6 @@ WHERE
     AND published_at IS NULL
     AND created_at > @window_start::timestamptz
 ON CONFLICT (event_id) DO NOTHING;
-
--- name: DeleteUsageEventsPublishFailures :exec
--- Resolves publish failures for the given usage event IDs after they were
--- published (including permanent rejections, which are terminal). Bounded
--- by the caller's ID list and served by the primary key.
-DELETE FROM usage_events_publish_failures
-WHERE event_id = ANY(@ids::text[]);
 
 -- name: PruneUsageEventsPublishFailures :exec
 -- Deletes failure rows whose events aged out of the publisher's 30-day

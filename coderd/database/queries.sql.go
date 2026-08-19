@@ -28701,19 +28701,6 @@ func (q *sqlQuerier) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	return err
 }
 
-const deleteUsageEventsPublishFailures = `-- name: DeleteUsageEventsPublishFailures :exec
-DELETE FROM usage_events_publish_failures
-WHERE event_id = ANY($1::text[])
-`
-
-// Resolves publish failures for the given usage event IDs after they were
-// published (including permanent rejections, which are terminal). Bounded
-// by the caller's ID list and served by the primary key.
-func (q *sqlQuerier) DeleteUsageEventsPublishFailures(ctx context.Context, ids []string) error {
-	_, err := q.db.ExecContext(ctx, deleteUsageEventsPublishFailures, pq.Array(ids))
-	return err
-}
-
 const getTotalUsageDCManagedAgentsV1 = `-- name: GetTotalUsageDCManagedAgentsV1 :one
 SELECT
     -- The first cast is necessary since you can't sum strings, and the second
@@ -29201,7 +29188,10 @@ type UpsertUsageEventsPublishFailuresParams struct {
 // publisher's 30-day selection window (window_start is now minus 30 days;
 // older events are never published) gain a failure row. Bounded by the
 // caller's ID list (at most one publish batch) and served by the primary
-// key.
+// key. There is no matching delete query: publishing an event removes its
+// failure row via trigger_delete_usage_events_publish_failure, so every
+// writer resolves failures, including replicas running an older release
+// during a rolling upgrade.
 func (q *sqlQuerier) UpsertUsageEventsPublishFailures(ctx context.Context, arg UpsertUsageEventsPublishFailuresParams) error {
 	_, err := q.db.ExecContext(ctx, upsertUsageEventsPublishFailures, pq.Array(arg.IDs), arg.WindowStart)
 	return err

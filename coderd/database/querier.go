@@ -222,10 +222,6 @@ type sqlcQuerier interface {
 	DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error)
 	DeleteTask(ctx context.Context, arg DeleteTaskParams) (uuid.UUID, error)
 	DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg DeleteUnlinkedChatFilesByIDsParams) (int64, error)
-	// Resolves publish failures for the given usage event IDs after they were
-	// published (including permanent rejections, which are terminal). Bounded
-	// by the caller's ID list and served by the primary key.
-	DeleteUsageEventsPublishFailures(ctx context.Context, ids []string) error
 	DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	DeleteUserAIProviderKey(ctx context.Context, arg DeleteUserAIProviderKeyParams) error
 	DeleteUserAIProviderKeysByProviderID(ctx context.Context, aiProviderID uuid.UUID) error
@@ -1741,7 +1737,10 @@ type sqlcQuerier interface {
 	// publisher's 30-day selection window (window_start is now minus 30 days;
 	// older events are never published) gain a failure row. Bounded by the
 	// caller's ID list (at most one publish batch) and served by the primary
-	// key.
+	// key. There is no matching delete query: publishing an event removes its
+	// failure row via trigger_delete_usage_events_publish_failure, so every
+	// writer resolves failures, including replicas running an older release
+	// during a rolling upgrade.
 	UpsertUsageEventsPublishFailures(ctx context.Context, arg UpsertUsageEventsPublishFailuresParams) error
 	UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAIBudgetOverride, error)
 	// UpsertUserAIProviderKey preserves the original id and created_at when the
