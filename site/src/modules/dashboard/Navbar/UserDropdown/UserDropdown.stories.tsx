@@ -420,9 +420,9 @@ export const InstallCoderDesktopHiddenOniPadOS: Story = {
 	},
 };
 
-export const CodernautsHidden: Story = {
+export const CodernautsDisabled: Story = {
 	args: {
-		hideCodernauts: true,
+		codernautsEnabled: false,
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("hides the Codernauts link", async () => {

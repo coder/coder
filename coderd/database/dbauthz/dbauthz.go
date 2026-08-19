@@ -3650,6 +3650,11 @@ func (q *querier) GetChildChatsByParentIDs(ctx context.Context, arg database.Get
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChildChatsByParentIDs)(ctx, arg)
 }
 
+func (q *querier) GetCodernautsEnabled(ctx context.Context) (bool, error) {
+	// No authz checks
+	return q.db.GetCodernautsEnabled(ctx)
+}
+
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	// Just like with the audit logs query, shortcut if the user is an owner.
 	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog)
@@ -3938,11 +3943,6 @@ func (q *querier) GetGroupsByOrganizationIDPaginated(ctx context.Context, arg da
 func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetHealthSettings(ctx)
-}
-
-func (q *querier) GetHideCodernauts(ctx context.Context) (bool, error) {
-	// No authz checks
-	return q.db.GetHideCodernauts(ctx)
 }
 
 func (q *querier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error) {
@@ -8987,6 +8987,13 @@ func (q *querier) UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl strin
 	return q.db.UpsertChatWorkspaceTTL(ctx, workspaceTtl)
 }
 
+func (q *querier) UpsertCodernautsEnabled(ctx context.Context, enabled bool) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertCodernautsEnabled(ctx, enabled)
+}
+
 func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
@@ -9011,13 +9018,6 @@ func (q *querier) UpsertHealthSettings(ctx context.Context, value string) error 
 		return err
 	}
 	return q.db.UpsertHealthSettings(ctx, value)
-}
-
-func (q *querier) UpsertHideCodernauts(ctx context.Context, hide bool) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertHideCodernauts(ctx, hide)
 }
 
 func (q *querier) UpsertLastUpdateCheck(ctx context.Context, value string) error {

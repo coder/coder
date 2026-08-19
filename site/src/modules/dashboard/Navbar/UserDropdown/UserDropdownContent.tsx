@@ -32,7 +32,7 @@ interface UserDropdownContentProps {
 	 * (e.g. AI spend). The consumer supplies its own separator if needed. */
 	profileExtra?: ReactNode;
 	supportLinks: readonly TypesGen.LinkConfig[];
-	hideCodernauts?: boolean;
+	codernautsEnabled?: boolean;
 	onSignOut: () => void;
 }
 
@@ -41,7 +41,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	buildInfo,
 	profileExtra,
 	supportLinks,
-	hideCodernauts,
+	codernautsEnabled = true,
 	onSignOut,
 }) => {
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
@@ -95,7 +95,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					))}
 				</>
 			)}
-			{!hideCodernauts && (
+			{codernautsEnabled && (
 				<DropdownMenuItem asChild>
 					<Link to="/coder-cup">
 						<svg

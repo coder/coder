@@ -30,7 +30,7 @@ interface NavbarViewProps {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks: readonly TypesGen.LinkConfig[];
-	hideCodernauts?: boolean;
+	codernautsEnabled?: boolean;
 	onSignOut: () => void;
 	adminPermissions: AdminSettingsPermissions;
 	canCreateChat: boolean;
@@ -47,7 +47,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	user,
 	buildInfo,
 	supportLinks,
-	hideCodernauts,
+	codernautsEnabled,
 	onSignOut,
 	adminPermissions,
 	canCreateChat,
@@ -140,7 +140,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						user={user}
 						buildInfo={buildInfo}
 						supportLinks={supportLinks?.filter((link) => !isNavbarLink(link))}
-						hideCodernauts={hideCodernauts}
+						codernautsEnabled={codernautsEnabled}
 						onSignOut={onSignOut}
 					/>
 				</div>

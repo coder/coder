@@ -66,7 +66,7 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 		applicationName         string
 		logoURL                 string
 		announcementBannersJSON string
-		hideCodernauts          bool
+		codernautsEnabled       bool
 	)
 	eg.Go(func() (err error) {
 		applicationName, err = f.database.GetApplicationName(ctx)
@@ -90,9 +90,9 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 		return nil
 	})
 	eg.Go(func() (err error) {
-		hideCodernauts, err = f.database.GetHideCodernauts(ctx)
+		codernautsEnabled, err = f.database.GetCodernautsEnabled(ctx)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get hide codernauts: %w", err)
+			return xerrors.Errorf("get codernauts enabled: %w", err)
 		}
 		return nil
 	})
@@ -107,7 +107,7 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 		AnnouncementBanners: []codersdk.BannerConfig{},
 		SupportLinks:        codersdk.DefaultSupportLinks(f.docsURL),
 		DocsURL:             f.docsURL,
-		HideCodernauts:      hideCodernauts,
+		CodernautsEnabled:   codernautsEnabled,
 	}
 
 	if announcementBannersJSON != "" {
@@ -215,10 +215,10 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = api.Database.UpsertHideCodernauts(ctx, appearance.HideCodernauts)
+	err = api.Database.UpsertCodernautsEnabled(ctx, appearance.CodernautsEnabled)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Unable to set hide Codernauts",
+			Message: "Unable to set Codernauts enabled",
 			Detail:  err.Error(),
 		})
 		return

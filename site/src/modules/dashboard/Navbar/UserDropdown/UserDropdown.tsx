@@ -36,7 +36,7 @@ interface UserDropdownProps {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks: readonly TypesGen.LinkConfig[];
-	hideCodernauts?: boolean;
+	codernautsEnabled?: boolean;
 	onSignOut: () => void;
 }
 
@@ -44,7 +44,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 	buildInfo,
 	user,
 	supportLinks,
-	hideCodernauts,
+	codernautsEnabled,
 	onSignOut,
 }) => {
 	const aibridgeVisible = Boolean(useFeatureVisibility().aibridge);
@@ -110,7 +110,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 						)
 					}
 					supportLinks={supportLinks}
-					hideCodernauts={hideCodernauts}
+					codernautsEnabled={codernautsEnabled}
 					onSignOut={onSignOut}
 				/>
 			</DropdownMenuContent>

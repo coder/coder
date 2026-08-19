@@ -118,18 +118,18 @@ export const AppearanceSettingsPageView: FC<
 				<div className="flex items-center justify-between gap-4 p-6">
 					<div>
 						<h3 className="m-0 text-xl font-semibold">
-							<label htmlFor="hide-codernauts">Hide Codernauts game</label>
+							<label htmlFor="codernauts-enabled">Codernauts game</label>
 						</h3>
 						<div className="mt-2 text-sm text-content-secondary">
-							Remove the Codernauts game link from the user dropdown menu.
-							Available on all licenses.
+							A lunar-lander game where you rescue stranded teammates. Disable
+							if you're experiencing any productivity loss.
 						</div>
 					</div>
 					<Switch
-						id="hide-codernauts"
-						checked={appearance.hide_codernauts}
+						id="codernauts-enabled"
+						checked={appearance.codernauts_enabled}
 						onCheckedChange={(checked) =>
-							onSaveAppearance({ hide_codernauts: checked })
+							onSaveAppearance({ codernauts_enabled: checked })
 						}
 					/>
 				</div>

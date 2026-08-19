@@ -356,8 +356,8 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
     }
   ],
   "application_name": "string",
+  "codernauts_enabled": true,
   "docs_url": "string",
-  "hide_codernauts": true,
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
@@ -409,7 +409,7 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
     }
   ],
   "application_name": "string",
-  "hide_codernauts": true,
+  "codernauts_enabled": true,
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
@@ -439,7 +439,7 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
     }
   ],
   "application_name": "string",
-  "hide_codernauts": true,
+  "codernauts_enabled": true,
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",

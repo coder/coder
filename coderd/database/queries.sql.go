@@ -25150,6 +25150,18 @@ func (q *sqlQuerier) GetChatWorkspaceTTL(ctx context.Context) (string, error) {
 	return workspace_ttl, err
 }
 
+const getCodernautsEnabled = `-- name: GetCodernautsEnabled :one
+SELECT
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'codernauts_enabled'), true) :: boolean AS codernauts_enabled
+`
+
+func (q *sqlQuerier) GetCodernautsEnabled(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getCodernautsEnabled)
+	var codernauts_enabled bool
+	err := row.Scan(&codernauts_enabled)
+	return codernauts_enabled, err
+}
+
 const getDERPMeshKey = `-- name: GetDERPMeshKey :one
 SELECT value FROM site_configs WHERE key = 'derp_mesh_key'
 `
@@ -25200,18 +25212,6 @@ func (q *sqlQuerier) GetHealthSettings(ctx context.Context) (string, error) {
 	var health_settings string
 	err := row.Scan(&health_settings)
 	return health_settings, err
-}
-
-const getHideCodernauts = `-- name: GetHideCodernauts :one
-SELECT
-	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'hide_codernauts'), false) :: boolean AS hide_codernauts
-`
-
-func (q *sqlQuerier) GetHideCodernauts(ctx context.Context) (bool, error) {
-	row := q.db.QueryRowContext(ctx, getHideCodernauts)
-	var hide_codernauts bool
-	err := row.Scan(&hide_codernauts)
-	return hide_codernauts, err
 }
 
 const getLastUpdateCheck = `-- name: GetLastUpdateCheck :one
@@ -25582,6 +25582,28 @@ func (q *sqlQuerier) UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl st
 	return err
 }
 
+const upsertCodernautsEnabled = `-- name: UpsertCodernautsEnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'codernauts_enabled',
+    CASE
+        WHEN $1::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN $1::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'codernauts_enabled'
+`
+
+func (q *sqlQuerier) UpsertCodernautsEnabled(ctx context.Context, enabled bool) error {
+	_, err := q.db.ExecContext(ctx, upsertCodernautsEnabled, enabled)
+	return err
+}
+
 const upsertDefaultProxy = `-- name: UpsertDefaultProxy :exec
 INSERT INTO site_configs (key, value)
 VALUES
@@ -25612,28 +25634,6 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'health_sett
 
 func (q *sqlQuerier) UpsertHealthSettings(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertHealthSettings, value)
-	return err
-}
-
-const upsertHideCodernauts = `-- name: UpsertHideCodernauts :exec
-INSERT INTO site_configs (key, value)
-VALUES (
-    'hide_codernauts',
-    CASE
-        WHEN $1::bool THEN 'true'
-        ELSE 'false'
-    END
-)
-ON CONFLICT (key) DO UPDATE
-SET value = CASE
-    WHEN $1::bool THEN 'true'
-    ELSE 'false'
-END
-WHERE site_configs.key = 'hide_codernauts'
-`
-
-func (q *sqlQuerier) UpsertHideCodernauts(ctx context.Context, hide bool) error {
-	_, err := q.db.ExecContext(ctx, upsertHideCodernauts, hide)
 	return err
 }
 

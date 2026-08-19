@@ -19,15 +19,15 @@ type AGPLFetcher struct {
 }
 
 func (f AGPLFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfig, error) {
-	hideCodernauts, err := f.database.GetHideCodernauts(ctx)
+	codernautsEnabled, err := f.database.GetCodernautsEnabled(ctx)
 	if err != nil {
-		return codersdk.AppearanceConfig{}, xerrors.Errorf("get hide codernauts: %w", err)
+		return codersdk.AppearanceConfig{}, xerrors.Errorf("get codernauts enabled: %w", err)
 	}
 	return codersdk.AppearanceConfig{
 		AnnouncementBanners: []codersdk.BannerConfig{},
 		SupportLinks:        codersdk.DefaultSupportLinks(f.docsURL),
 		DocsURL:             f.docsURL,
-		HideCodernauts:      hideCodernauts,
+		CodernautsEnabled:   codernautsEnabled,
 	}, nil
 }
 

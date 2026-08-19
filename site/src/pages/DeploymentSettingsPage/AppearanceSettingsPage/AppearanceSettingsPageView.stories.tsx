@@ -22,7 +22,7 @@ const meta: Meta<typeof AppearanceSettingsPageView> = {
 					background_color: "#ffaff3",
 				},
 			],
-			hide_codernauts: false,
+			codernauts_enabled: true,
 		},
 		isEntitled: false,
 		canViewPremium: MockPermissions.viewAllLicenses,
@@ -83,37 +83,39 @@ export const NotEntitledWithoutLicenseAccess: Story = {
 	},
 };
 
-export const HideCodernautsToggle: Story = {
+export const CodernautsToggle: Story = {
 	args: {
 		isEntitled: true,
 	},
 	play: async ({ canvasElement, args, step }) => {
 		const canvas = within(canvasElement);
-		await step("toggling the switch saves the setting", async () => {
-			await userEvent.click(
-				canvas.getByRole("switch", { name: "Hide Codernauts game" }),
-			);
+		await step("switching off saves the game as disabled", async () => {
+			const switchEl = canvas.getByRole("switch", {
+				name: "Codernauts game",
+			});
+			expect(switchEl).toBeChecked();
+			await userEvent.click(switchEl);
 			await waitFor(() =>
 				expect(args.onSaveAppearance).toHaveBeenCalledWith({
-					hide_codernauts: true,
+					codernauts_enabled: false,
 				}),
 			);
 		});
 	},
 };
 
-export const HideCodernautsNotEntitled: Story = {
+export const CodernautsToggleNotEntitled: Story = {
 	play: async ({ canvasElement, args, step }) => {
 		const canvas = within(canvasElement);
 		await step("the switch saves even without entitlement", async () => {
 			const switchEl = canvas.getByRole("switch", {
-				name: "Hide Codernauts game",
+				name: "Codernauts game",
 			});
 			expect(switchEl).toBeEnabled();
 			await userEvent.click(switchEl);
 			await waitFor(() =>
 				expect(args.onSaveAppearance).toHaveBeenCalledWith({
-					hide_codernauts: true,
+					codernauts_enabled: false,
 				}),
 			);
 		});
