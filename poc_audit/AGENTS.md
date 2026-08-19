@@ -74,6 +74,33 @@ on. Each has a rendered `.svg` beside it.
 enforces that they match their sources. After editing a `.d2`, rerun the
 renderer and commit both.
 
+## Checks
+
+- `check_anchors.py`. Reports fragment links that do not identify a unique
+  heading. Run it as `python3 poc_audit/check_anchors.py poc_audit`.
+
+  Anchors carry more weight here than in ordinary prose, because these
+  documents are read by routing rather than end to end. The list above sends
+  a reader to a document, and often to one section of it: `audit_approach.md`
+  alone carries forty headings. A pointer that silently moves is worse than
+  one that is missing, because nothing reveals it.
+
+  The check constrains links, not headings. Duplicate headings stay legal.
+  `security_findings.md` repeats "Problem" and "Solution" beneath each
+  finding, and that parallelism is deliberate. Enforcing globally unique
+  headings instead, which markdownlint MD024 will do once `siblings_only` is
+  set to false, was considered and rejected for that reason. Do not turn it
+  on without revisiting this.
+
+  Coverage is partial by design. markdownlint MD051 checks that a same-file
+  fragment resolves to something, but it accepts both `#problem` and
+  `#problem-1`, having no notion of ambiguity, and it does not follow links
+  into other files. `check_anchors.py` covers those two gaps and nothing
+  else. Neither runs automatically, and `poc_audit` sits outside the
+  `lint-docs` globs, so MD051 does not reach these files at all today. The
+  script docstring records how to fix each finding, two known defects, and
+  seven scope limits.
+
 ## Terminology that binds here
 
 Two collisions matter enough to state up front. Both are defined in full in

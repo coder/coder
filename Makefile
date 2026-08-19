@@ -736,11 +736,11 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/anchors lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
-lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash lint/mise-versions
+lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash lint/anchors lint/mise-versions
 .PHONY: lint-light
 
 lint/site-icons:
@@ -788,6 +788,12 @@ lint/docs-html:
 	echo "--- check for invalid inline HTML in docs"
 	go run ./scripts/docshtmlcheck
 .PHONY: lint/docs-html
+
+# Reports markdown fragment links that do not identify a unique heading.
+# Skipped when poc_audit is absent.
+lint/anchors:
+	if [[ -d poc_audit ]]; then python3 poc_audit/check_anchors.py poc_audit; fi
+.PHONY: lint/anchors
 
 lint/architecture:
 	./scripts/check_architecture.sh
