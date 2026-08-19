@@ -13,18 +13,24 @@
 package main
 
 import (
-	"cmp"
 	"flag"
 	"fmt"
 	"io"
 	"os"
-	"slices"
+	"sort"
 	"strings"
 
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/aibridge/prices/pricebook"
 )
+
+func less(a, b pricebook.Key) bool {
+	if a.Provider != b.Provider {
+		return a.Provider < b.Provider
+	}
+	return a.Model < b.Model
+}
 
 // diff is the full comparison between two snapshots
 type diff struct {
@@ -101,12 +107,7 @@ func compare(oldRows, newRows []pricebook.Row) diff {
 	}
 
 	for _, keys := range [][]pricebook.Key{d.added, d.removed, d.changed} {
-		slices.SortFunc(keys, func(a, b pricebook.Key) int {
-			if c := cmp.Compare(a.Provider, b.Provider); c != 0 {
-				return c
-			}
-			return cmp.Compare(a.Model, b.Model)
-		})
+		sort.Slice(keys, func(i, j int) bool { return less(keys[i], keys[j]) })
 	}
 	return d
 }
