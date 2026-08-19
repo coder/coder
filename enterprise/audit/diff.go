@@ -73,7 +73,7 @@ func diffValues(left, right any, table Table) audit.Map {
 			leftI, rightI = leftF.Interface(), rightF.Interface()
 		}
 
-		if !reflect.DeepEqual(leftI, rightI) {
+		if !auditValuesEqual(rightT, diffName, leftI, rightI) {
 			switch atype {
 			case ActionTrack:
 				baseDiff[diffName] = audit.OldNew{Old: leftI, New: rightI}
@@ -88,6 +88,29 @@ func diffValues(left, right any, table Table) audit.Map {
 	}
 
 	return baseDiff
+}
+
+func auditValuesEqual(resourceType reflect.Type, fieldName string, left, right any) bool {
+	if reflect.DeepEqual(left, right) {
+		return true
+	}
+	if resourceType != reflect.TypeFor[database.MCPServerConfig]() {
+		return false
+	}
+
+	switch fieldName {
+	case "custom_headers":
+		leftString, leftOK := left.(string)
+		rightString, rightOK := right.(string)
+		return leftOK && rightOK && (leftString == "" && rightString == "{}" ||
+			leftString == "{}" && rightString == "")
+	case "tool_allow_list", "tool_deny_list":
+		leftStrings, leftOK := left.([]string)
+		rightStrings, rightOK := right.([]string)
+		return leftOK && rightOK && len(leftStrings) == 0 && len(rightStrings) == 0
+	default:
+		return false
+	}
 }
 
 // convertDiffType converts external struct types to primitive types.

@@ -1277,6 +1277,468 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/mcp/servers/{mcpServer}/oauth2/callback": {
+            "get": {
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Handle MCP server OAuth2 callback",
+                "operationId": "handle-mcp-server-oauth2-callback",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpServer",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Authorization code issued by the provider. Required together with state on success.",
+                        "name": "code",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Opaque state issued by the connect endpoint. Required together with code on success.",
+                        "name": "state",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provider error code. Present instead of code when authorization fails.",
+                        "name": "error",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provider error description accompanying error.",
+                        "name": "error_description",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/mcp/servers/{mcpServer}/oauth2/disconnect": {
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Disconnect MCP server OAuth2 token",
+                "operationId": "disconnect-mcp-server-oauth2-token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpServer",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerOAuth2DisconnectResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/mcp-servers": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "List MCP server configs",
+                "operationId": "list-mcp-server-configs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.MCPServerConfig"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Create MCP server config",
+                "operationId": "create-mcp-server-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create MCP server config request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateMCPServerConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Get MCP server config",
+                "operationId": "get-mcp-server-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Delete MCP server config",
+                "operationId": "delete-mcp-server-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Update MCP server config",
+                "operationId": "update-mcp-server-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update MCP server config request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateMCPServerConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Get MCP server config ACL",
+                "operationId": "get-mcp-server-config-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerConfigACL"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Update MCP server config ACL",
+                "operationId": "update-mcp-server-config-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update MCP server config ACL request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateMCPServerConfigACLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/oauth2/connect": {
+            "get": {
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Initiate MCP server OAuth2 connect",
+                "operationId": "initiate-mcp-server-oauth2-connect",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server config ID",
+                        "name": "mcpserverconfig",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "307": {
+                        "description": "Temporary Redirect"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/users/{user}/skills": {
             "get": {
                 "produces": [
@@ -7668,378 +8130,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/tasks": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Tasks"
-                ],
-                "summary": "List AI tasks",
-                "operationId": "list-ai-tasks",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Search query for filtering tasks. Supports: ` + "`" + `owner:\u003cusername/uuid/me\u003e` + "`" + `, ` + "`" + `organization:\u003corg-name/uuid\u003e` + "`" + `, ` + "`" + `status:\u003cstatus\u003e` + "`" + `",
-                        "name": "q",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.TasksListResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/tasks/{user}": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Tasks"
-                ],
-                "summary": "Create a new AI task",
-                "operationId": "create-a-new-ai-task",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Username, user ID, or 'me' for the authenticated user",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Create task request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateTaskRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Task"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/tasks/{user}/{task}": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Tasks"
-                ],
-                "summary": "Get AI task by ID or name",
-                "operationId": "get-ai-task-by-id-or-name",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Username, user ID, or 'me' for the authenticated user",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Task ID, or task name",
-                        "name": "task",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Task"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            },
-            "delete": {
-                "tags": [
-                    "Tasks"
-                ],
-                "summary": "Delete AI task",
-                "operationId": "delete-ai-task",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Username, user ID, or 'me' for the authenticated user",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Task ID, or task name",
-                        "name": "task",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "202": {
-                        "description": "Accepted"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/tasks/{user}/{task}/input": {
-            "patch": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Tasks"
-                ],
-                "summary": "Update AI task input",
-                "operationId": "update-ai-task-input",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Username, user ID, or 'me' for the authenticated user",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Task ID, or task name",
-                        "name": "task",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Update task input request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateTaskInputRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/tasks/{user}/{task}/logs": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Tasks"
-                ],
-                "summary": "Get AI task logs",
-                "operationId": "get-ai-task-logs",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Username, user ID, or 'me' for the authenticated user",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Task ID, or task name",
-                        "name": "task",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.TaskLogsResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/tasks/{user}/{task}/pause": {
-            "post": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Tasks"
-                ],
-                "summary": "Pause task",
-                "operationId": "pause-task",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Username, user ID, or 'me' for the authenticated user",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Task ID",
-                        "name": "task",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "202": {
-                        "description": "Accepted",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.PauseTaskResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/tasks/{user}/{task}/resume": {
-            "post": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Tasks"
-                ],
-                "summary": "Resume task",
-                "operationId": "resume-task",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Username, user ID, or 'me' for the authenticated user",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Task ID",
-                        "name": "task",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "202": {
-                        "description": "Accepted",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ResumeTaskResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/tasks/{user}/{task}/send": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Tasks"
-                ],
-                "summary": "Send input to AI task",
-                "operationId": "send-input-to-ai-task",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Username, user ID, or 'me' for the authenticated user",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Task ID, or task name",
-                        "name": "task",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Task input request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.TaskSendRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/v2/templatebuilder/bases": {
             "get": {
                 "produces": [
@@ -12492,63 +12582,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v2/workspaceagents/me/tasks/{task}/log-snapshot": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Tasks"
-                ],
-                "summary": "Upload task log snapshot",
-                "operationId": "upload-task-log-snapshot",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Task ID",
-                        "name": "task",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "enum": [
-                            "agentapi"
-                        ],
-                        "type": "string",
-                        "description": "Snapshot format",
-                        "name": "format",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "description": "Raw snapshot payload (structure depends on format parameter)",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "413": {
-                        "description": "Request body exceeds 64 KiB",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/v2/workspaceagents/{workspaceagent}": {
             "get": {
                 "produces": [
@@ -16509,6 +16542,12 @@ const docTemplate = `{
                 "license:create",
                 "license:delete",
                 "license:read",
+                "mcp_server_config:*",
+                "mcp_server_config:create",
+                "mcp_server_config:delete",
+                "mcp_server_config:read",
+                "mcp_server_config:share",
+                "mcp_server_config:update",
                 "notification_message:*",
                 "notification_message:create",
                 "notification_message:delete",
@@ -16749,6 +16788,12 @@ const docTemplate = `{
                 "APIKeyScopeLicenseCreate",
                 "APIKeyScopeLicenseDelete",
                 "APIKeyScopeLicenseRead",
+                "APIKeyScopeMcpServerConfigAll",
+                "APIKeyScopeMcpServerConfigCreate",
+                "APIKeyScopeMcpServerConfigDelete",
+                "APIKeyScopeMcpServerConfigRead",
+                "APIKeyScopeMcpServerConfigShare",
+                "APIKeyScopeMcpServerConfigUpdate",
                 "APIKeyScopeNotificationMessageAll",
                 "APIKeyScopeNotificationMessageCreate",
                 "APIKeyScopeNotificationMessageDelete",
@@ -19344,6 +19389,115 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateMCPServerConfigRequest": {
+            "type": "object",
+            "required": [
+                "auth_type",
+                "availability",
+                "display_name",
+                "slug",
+                "transport",
+                "url"
+            ],
+            "properties": {
+                "allow_in_plan_mode": {
+                    "type": "boolean"
+                },
+                "api_key_header": {
+                    "type": "string"
+                },
+                "api_key_value": {
+                    "type": "string"
+                },
+                "auth_type": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "oauth2",
+                        "api_key",
+                        "custom_headers",
+                        "user_oidc"
+                    ]
+                },
+                "availability": {
+                    "type": "string",
+                    "enum": [
+                        "force_on",
+                        "default_on",
+                        "default_off"
+                    ]
+                },
+                "custom_headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "forward_coder_headers": {
+                    "description": "ForwardCoderHeaders, when true, forwards Coder identity\nheaders on every outgoing MCP request. See MCPServerConfig.",
+                    "type": "boolean"
+                },
+                "icon_url": {
+                    "type": "string"
+                },
+                "model_intent": {
+                    "type": "boolean"
+                },
+                "oauth2_auth_url": {
+                    "type": "string"
+                },
+                "oauth2_client_id": {
+                    "type": "string"
+                },
+                "oauth2_client_secret": {
+                    "type": "string"
+                },
+                "oauth2_revocation_url": {
+                    "description": "OAuth2RevocationURL is the provider's RFC 7009 revocation\nendpoint; auto-populated by OAuth2 discovery when omitted.",
+                    "type": "string"
+                },
+                "oauth2_scopes": {
+                    "type": "string"
+                },
+                "oauth2_token_url": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "tool_allow_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tool_deny_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "transport": {
+                    "type": "string",
+                    "enum": [
+                        "streamable_http",
+                        "sse"
+                    ]
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateOrganizationRequest": {
             "type": "object",
             "required": [
@@ -19370,28 +19524,6 @@ const docTemplate = `{
             "properties": {
                 "key": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.CreateTaskRequest": {
-            "type": "object",
-            "properties": {
-                "display_name": {
-                    "type": "string"
-                },
-                "input": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "template_version_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "template_version_preset_id": {
-                    "type": "string",
-                    "format": "uuid"
                 }
             }
         },
@@ -20323,6 +20455,9 @@ const docTemplate = `{
                 "docs_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },
+                "enable_ai_tasks": {
+                    "type": "boolean"
+                },
                 "enable_authz_recording": {
                     "type": "boolean"
                 },
@@ -20352,9 +20487,6 @@ const docTemplate = `{
                 },
                 "healthcheck": {
                     "$ref": "#/definitions/codersdk.HealthcheckConfig"
-                },
-                "hide_ai_tasks": {
-                    "type": "boolean"
                 },
                 "http_address": {
                     "description": "HTTPAddress is a string because it may be set to zero to disable.",
@@ -21670,6 +21802,240 @@ const docTemplate = `{
             "properties": {
                 "session_token": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.MCPServerConfig": {
+            "type": "object",
+            "properties": {
+                "allow_in_plan_mode": {
+                    "type": "boolean"
+                },
+                "api_key_header": {
+                    "description": "API key fields (only populated for admins).",
+                    "type": "string"
+                },
+                "auth_connected": {
+                    "description": "Per-user state (populated for non-admin requests).",
+                    "type": "boolean"
+                },
+                "auth_type": {
+                    "description": "\"none\", \"oauth2\", \"api_key\", \"custom_headers\", \"user_oidc\"",
+                    "type": "string"
+                },
+                "availability": {
+                    "description": "Availability policy set by admin.",
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "forward_coder_headers": {
+                    "description": "ForwardCoderHeaders forwards the same Coder identity headers we\nsend to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the\noptional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this\nMCP server on every request. Off by default to avoid leaking\nchat identity to third-party servers.",
+                    "type": "boolean"
+                },
+                "has_api_key": {
+                    "type": "boolean"
+                },
+                "has_custom_headers": {
+                    "type": "boolean"
+                },
+                "has_oauth2_secret": {
+                    "type": "boolean"
+                },
+                "icon_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "model_intent": {
+                    "type": "boolean"
+                },
+                "oauth2_auth_url": {
+                    "type": "string"
+                },
+                "oauth2_client_id": {
+                    "description": "OAuth2 fields (only populated for admins).",
+                    "type": "string"
+                },
+                "oauth2_revocation_url": {
+                    "type": "string"
+                },
+                "oauth2_scopes": {
+                    "type": "string"
+                },
+                "oauth2_token_url": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "tool_allow_list": {
+                    "description": "Tool governance.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tool_deny_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "transport": {
+                    "description": "\"streamable_http\" or \"sse\"",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.MCPServerConfigACL": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.MCPServerConfigGroup"
+                    }
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.MCPServerConfigUser"
+                    }
+                }
+            }
+        },
+        "codersdk.MCPServerConfigGroup": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ReducedUser"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_display_name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization_name": {
+                    "type": "string"
+                },
+                "quota_allowance": {
+                    "type": "integer"
+                },
+                "role": {
+                    "enum": [
+                        "read"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerConfigRole"
+                        }
+                    ]
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.GroupSource"
+                },
+                "total_member_count": {
+                    "description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.MCPServerConfigRole": {
+            "type": "string",
+            "enum": [
+                "read",
+                ""
+            ],
+            "x-enum-varnames": [
+                "MCPServerConfigRoleRead",
+                "MCPServerConfigRoleDeleted"
+            ]
+        },
+        "codersdk.MCPServerConfigUser": {
+            "type": "object",
+            "required": [
+                "id",
+                "username"
+            ],
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role": {
+                    "enum": [
+                        "read"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerConfigRole"
+                        }
+                    ]
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.MCPServerOAuth2DisconnectResponse": {
+            "type": "object",
+            "properties": {
+                "token_revocation_error": {
+                    "type": "string"
+                },
+                "token_revoked": {
+                    "type": "boolean"
                 }
             }
         },
@@ -23177,14 +23543,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.PauseTaskResponse": {
-            "type": "object",
-            "properties": {
-                "workspace_build": {
-                    "$ref": "#/definitions/codersdk.WorkspaceBuild"
-                }
-            }
-        },
         "codersdk.Permission": {
             "type": "object",
             "properties": {
@@ -24036,6 +24394,7 @@ const docTemplate = `{
                 "idpsync_settings",
                 "inbox_notification",
                 "license",
+                "mcp_server_config",
                 "notification_message",
                 "notification_preference",
                 "notification_template",
@@ -24089,6 +24448,7 @@ const docTemplate = `{
                 "ResourceIdpsyncSettings",
                 "ResourceInboxNotification",
                 "ResourceLicense",
+                "ResourceMCPServerConfig",
                 "ResourceNotificationMessage",
                 "ResourceNotificationPreference",
                 "ResourceNotificationTemplate",
@@ -24334,6 +24694,7 @@ const docTemplate = `{
                 "group_ai_budget",
                 "user_ai_budget_override",
                 "chat",
+                "mcp_server_config",
                 "user_secret",
                 "user_skill",
                 "chat_instruction_settings"
@@ -24373,6 +24734,7 @@ const docTemplate = `{
                 "ResourceTypeGroupAIBudget",
                 "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
+                "ResourceTypeMCPServerConfig",
                 "ResourceTypeUserSecret",
                 "ResourceTypeUserSkill",
                 "ResourceTypeChatInstructionSettings"
@@ -24395,14 +24757,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ValidationError"
                     }
-                }
-            }
-        },
-        "codersdk.ResumeTaskResponse": {
-            "type": "object",
-            "properties": {
-                "workspace_build": {
-                    "$ref": "#/definitions/codersdk.WorkspaceBuild"
                 }
             }
         },
@@ -24745,256 +25099,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
-                }
-            }
-        },
-        "codersdk.Task": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "current_state": {
-                    "$ref": "#/definitions/codersdk.TaskStateEntry"
-                },
-                "display_name": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "initial_prompt": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "owner_avatar_url": {
-                    "type": "string"
-                },
-                "owner_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "owner_name": {
-                    "type": "string"
-                },
-                "status": {
-                    "enum": [
-                        "pending",
-                        "initializing",
-                        "active",
-                        "paused",
-                        "unknown",
-                        "error"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.TaskStatus"
-                        }
-                    ]
-                },
-                "template_display_name": {
-                    "type": "string"
-                },
-                "template_icon": {
-                    "type": "string"
-                },
-                "template_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "template_name": {
-                    "type": "string"
-                },
-                "template_version_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "workspace_agent_health": {
-                    "$ref": "#/definitions/codersdk.WorkspaceAgentHealth"
-                },
-                "workspace_agent_id": {
-                    "format": "uuid",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/uuid.NullUUID"
-                        }
-                    ]
-                },
-                "workspace_agent_lifecycle": {
-                    "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
-                },
-                "workspace_app_id": {
-                    "format": "uuid",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/uuid.NullUUID"
-                        }
-                    ]
-                },
-                "workspace_build_number": {
-                    "type": "integer"
-                },
-                "workspace_id": {
-                    "format": "uuid",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/uuid.NullUUID"
-                        }
-                    ]
-                },
-                "workspace_name": {
-                    "type": "string"
-                },
-                "workspace_status": {
-                    "enum": [
-                        "pending",
-                        "starting",
-                        "running",
-                        "stopping",
-                        "stopped",
-                        "failed",
-                        "canceling",
-                        "canceled",
-                        "deleting",
-                        "deleted"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceStatus"
-                        }
-                    ]
-                }
-            }
-        },
-        "codersdk.TaskLogEntry": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "time": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "type": {
-                    "$ref": "#/definitions/codersdk.TaskLogType"
-                }
-            }
-        },
-        "codersdk.TaskLogType": {
-            "type": "string",
-            "enum": [
-                "input",
-                "output"
-            ],
-            "x-enum-varnames": [
-                "TaskLogTypeInput",
-                "TaskLogTypeOutput"
-            ]
-        },
-        "codersdk.TaskLogsResponse": {
-            "type": "object",
-            "properties": {
-                "logs": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.TaskLogEntry"
-                    }
-                },
-                "snapshot": {
-                    "type": "boolean"
-                },
-                "snapshot_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.TaskSendRequest": {
-            "type": "object",
-            "properties": {
-                "input": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.TaskState": {
-            "type": "string",
-            "enum": [
-                "working",
-                "idle",
-                "complete",
-                "failed"
-            ],
-            "x-enum-varnames": [
-                "TaskStateWorking",
-                "TaskStateIdle",
-                "TaskStateComplete",
-                "TaskStateFailed"
-            ]
-        },
-        "codersdk.TaskStateEntry": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
-                },
-                "state": {
-                    "$ref": "#/definitions/codersdk.TaskState"
-                },
-                "timestamp": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "uri": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.TaskStatus": {
-            "type": "string",
-            "enum": [
-                "pending",
-                "initializing",
-                "active",
-                "paused",
-                "unknown",
-                "error"
-            ],
-            "x-enum-varnames": [
-                "TaskStatusPending",
-                "TaskStatusInitializing",
-                "TaskStatusActive",
-                "TaskStatusPaused",
-                "TaskStatusUnknown",
-                "TaskStatusError"
-            ]
-        },
-        "codersdk.TasksListResponse": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.Task"
                     }
                 }
             }
@@ -26341,6 +26445,124 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateMCPServerConfigACLRequest": {
+            "type": "object",
+            "properties": {
+                "group_roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.MCPServerConfigRole"
+                    }
+                },
+                "user_roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.MCPServerConfigRole"
+                    }
+                }
+            }
+        },
+        "codersdk.UpdateMCPServerConfigRequest": {
+            "type": "object",
+            "properties": {
+                "allow_in_plan_mode": {
+                    "type": "boolean"
+                },
+                "api_key_header": {
+                    "type": "string"
+                },
+                "api_key_value": {
+                    "type": "string"
+                },
+                "auth_type": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "oauth2",
+                        "api_key",
+                        "custom_headers",
+                        "user_oidc"
+                    ]
+                },
+                "availability": {
+                    "type": "string",
+                    "enum": [
+                        "force_on",
+                        "default_on",
+                        "default_off"
+                    ]
+                },
+                "custom_headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "forward_coder_headers": {
+                    "description": "ForwardCoderHeaders, when set, updates whether Coder identity\nheaders are forwarded on every outgoing MCP request.",
+                    "type": "boolean"
+                },
+                "icon_url": {
+                    "type": "string"
+                },
+                "model_intent": {
+                    "type": "boolean"
+                },
+                "oauth2_auth_url": {
+                    "type": "string"
+                },
+                "oauth2_client_id": {
+                    "type": "string"
+                },
+                "oauth2_client_secret": {
+                    "type": "string"
+                },
+                "oauth2_revocation_url": {
+                    "description": "OAuth2RevocationURL is validated in the handler because a\nvalidate tag would reject the pointer to \"\" that clears it.",
+                    "type": "string"
+                },
+                "oauth2_scopes": {
+                    "type": "string"
+                },
+                "oauth2_token_url": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "tool_allow_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tool_deny_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "transport": {
+                    "type": "string",
+                    "enum": [
+                        "streamable_http",
+                        "sse"
+                    ]
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.UpdateOrganizationRequest": {
             "type": "object",
             "properties": {
@@ -26373,14 +26595,6 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
-                }
-            }
-        },
-        "codersdk.UpdateTaskInputRequest": {
-            "type": "object",
-            "properties": {
-                "input": {
-                    "type": "string"
                 }
             }
         },

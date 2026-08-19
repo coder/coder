@@ -38,7 +38,7 @@ coder ssh my-workspace
 
 Or, you can configure plain SSH on your client below.
 
-> [!Note]
+> [!NOTE]
 > The `coder ssh` command does not have full parity with the standard
 > SSH command. For users who need the full functionality of SSH, use the
 > configuration method below.
@@ -174,7 +174,6 @@ IDEs are supported for remote development:
 - Rider
 - RubyMine
 - WebStorm
-- [JetBrains Fleet](./jetbrains/fleet.md)
 
 Read our [docs on JetBrains](./jetbrains/index.md) for more information
 on connecting your JetBrains IDEs.

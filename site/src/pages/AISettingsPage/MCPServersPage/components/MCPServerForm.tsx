@@ -15,23 +15,29 @@ import {
 
 type MCPServerFormCreateProps = {
 	server?: undefined;
+	// Create-only callers cannot open the server list, so the back link and
+	// cancel action are omitted rather than pointing at a denied page.
+	listPath?: string;
 	isSaving: boolean;
 	isDeleting?: false;
+	canSelectUserOIDC: boolean;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,
 	) => Promise<unknown>;
 	onUpdateServer?: undefined;
 	onDeleteServer?: undefined;
 	onToggleEnabled?: undefined;
-	onCancel: () => void;
+	onCancel?: () => void;
 };
 
 type MCPServerFormEditProps = {
 	server: TypesGen.MCPServerConfig;
+	listPath: string;
 	isSaving: boolean;
 	isDeleting: boolean;
+	canSelectUserOIDC: boolean;
 	onCreateServer?: undefined;
-	onUpdateServer: (
+	onUpdateServer?: (
 		serverId: string,
 		req: TypesGen.UpdateMCPServerConfigRequest,
 	) => Promise<unknown>;
@@ -44,8 +50,10 @@ type MCPServerFormProps = MCPServerFormCreateProps | MCPServerFormEditProps;
 
 export const MCPServerForm: FC<MCPServerFormProps> = ({
 	server,
+	listPath,
 	isSaving,
 	isDeleting = false,
+	canSelectUserOIDC,
 	onCreateServer,
 	onUpdateServer,
 	onDeleteServer,
@@ -69,13 +77,20 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 					buildUpdateMCPServerConfigRequest(values),
 				);
 			} else if (onCreateServer) {
-				await onCreateServer(buildCreateMCPServerConfigRequest(values));
+				const created = await onCreateServer(
+					buildCreateMCPServerConfigRequest(values),
+				);
+				if (created === true) {
+					form.resetForm();
+				}
 			}
 		},
 	});
 
 	const isDisabled = isSaving || isDeleting;
-	const canSubmit = canSubmitMCPServerForm(form.values, isDisabled);
+	const areFieldsDisabled =
+		isDisabled || (isEditing && onUpdateServer === undefined);
+	const canSubmit = canSubmitMCPServerForm(form.values, areFieldsDisabled);
 	const unsavedChanges = useUnsavedChangesPrompt(
 		form.dirty && !form.isSubmitting,
 	);
@@ -89,18 +104,22 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 				server={server}
 				title={title}
 				iconUrl={form.values.iconURL}
+				listPath={listPath}
 				isEditing={isEditing}
 				isDisabled={isDisabled}
-				onRequestDelete={() => setConfirmingDelete(true)}
+				onRequestDelete={
+					onDeleteServer ? () => setConfirmingDelete(true) : undefined
+				}
 				onToggleEnabled={onToggleEnabled}
 			/>
 			<div className="flex flex-col gap-6 pt-6">
 				<MCPServerFormFields
 					form={form}
 					isSaving={isSaving}
-					isDisabled={isDisabled}
+					isDisabled={areFieldsDisabled}
 					canSubmit={canSubmit}
 					isEditing={isEditing}
+					canSelectUserOIDC={canSelectUserOIDC}
 					onCancel={onCancel}
 					showDetails={showDetails}
 					setShowDetails={setShowDetails}
