@@ -25,13 +25,13 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Textarea } from "#/components/Textarea/Textarea";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useDebouncedValue } from "#/hooks/debounce";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { cn } from "#/utils/cn";
@@ -682,19 +682,19 @@ export const PricingEstimateFields: FC<{
 	const fieldIdPrefix = useId();
 	const aibridgeEntitled = Boolean(useFeatureVisibility().aibridge);
 	const normalizedProvider = normalizeProvider(provider);
-	// The model id is a free-text field in edit and duplicate modes, so
-	// debounce to avoid firing a request per keystroke.
-	const debouncedModel = useDebouncedValue(model.trim(), 300);
+	const trimmedModel = model.trim();
 	const livePricesQuery = useQuery({
-		...aiModelPrices(normalizedProvider, debouncedModel),
+		...aiModelPrices(normalizedProvider, trimmedModel),
 		enabled:
-			aibridgeEntitled && normalizedProvider !== "" && debouncedModel !== "",
+			aibridgeEntitled && normalizedProvider !== "" && trimmedModel !== "",
 	});
+	const livePriceLoading =
+		livePricesQuery.fetchStatus !== "idle" && !livePricesQuery.isSuccess;
 	const livePrice = livePricesQuery.data?.[0];
 
 	const knownModel =
-		findKnownModelByCanonicalId(normalizedProvider, debouncedModel) ??
-		findKnownModelByExactAlias(normalizedProvider, debouncedModel);
+		findKnownModelByCanonicalId(normalizedProvider, trimmedModel) ??
+		findKnownModelByExactAlias(normalizedProvider, trimmedModel);
 
 	// A price book row is the deployment's own pricing for the model, so it
 	// wins outright. A null field on that row means the category is unpriced
@@ -710,8 +710,9 @@ export const PricingEstimateFields: FC<{
 		: knownModel;
 
 	if (
-		costs === undefined ||
-		priceEstimateFields.every(([, key]) => costs[key] === undefined)
+		!livePriceLoading &&
+		(costs === undefined ||
+			priceEstimateFields.every(([, key]) => costs[key] === undefined))
 	) {
 		return (
 			<p className="m-0 text-xs text-content-secondary sm:col-span-full">
@@ -723,7 +724,7 @@ export const PricingEstimateFields: FC<{
 	return (
 		<>
 			{priceEstimateFields.map(([label, key]) => {
-				const cost = costs[key];
+				const cost = costs?.[key];
 				const fieldId = `${fieldIdPrefix}-${label.toLowerCase().replace(/\s+/g, "-")}`;
 				const displayValue =
 					cost === undefined ? "" : formatPricePerMillionTokens(cost).slice(1);
@@ -732,12 +733,19 @@ export const PricingEstimateFields: FC<{
 						<FieldLabel htmlFor={fieldId} label={label} />
 						<InputGroup className="cursor-not-allowed bg-surface-secondary">
 							<InputGroupAddon align="inline-start">$</InputGroupAddon>
-							<InputGroupInput
-								id={fieldId}
-								className="min-w-0 cursor-not-allowed text-content-secondary"
-								value={displayValue}
-								readOnly
-							/>
+							{livePriceLoading ? (
+								<Skeleton
+									aria-label={`${label} price loading`}
+									className="mx-3 h-2 w-2/5 flex-1 rounded-full"
+								/>
+							) : (
+								<InputGroupInput
+									id={fieldId}
+									className="min-w-0 cursor-not-allowed text-content-secondary"
+									value={displayValue}
+									readOnly
+								/>
+							)}
 							<InputGroupAddon align="inline-end">
 								<span className="text-xs text-content-disabled">
 									USD/1M tokens

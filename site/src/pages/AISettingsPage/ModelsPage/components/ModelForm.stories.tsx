@@ -23,14 +23,6 @@ const onUpdateModel = fn(
 	): Promise<unknown> => undefined,
 );
 
-// Records calls to the price endpoint so the entitlement-gate story can
-// assert it is not called. The mock resolves empty so the catalog is the
-// only price source in these stories unless a story seeds a price row.
-const getAIModelPricesSpy = spyOn(
-	API.experimental,
-	"getAIModelPrices",
-).mockResolvedValue([]);
-
 const meta: Meta<typeof ModelForm> = {
 	title: "pages/AISettingsPage/ModelsPage/ModelForm",
 	component: ModelForm,
@@ -596,6 +588,9 @@ export const CostEstimateCatalogOnlyWhenNotEntitled: Story = {
 	parameters: {
 		features: [],
 	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getAIModelPrices").mockResolvedValue([]);
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
@@ -603,7 +598,37 @@ export const CostEstimateCatalogOnlyWhenNotEntitled: Story = {
 		);
 		await expect(canvas.getByLabelText(/^input$/i)).toHaveValue("3");
 		await expect(canvas.getByLabelText(/^output$/i)).toHaveValue("15");
-		expect(getAIModelPricesSpy).not.toHaveBeenCalled();
+		expect(API.experimental.getAIModelPrices).not.toHaveBeenCalled();
+	},
+};
+
+// While the price book lookup is in flight, the four boxes stay rendered
+// with a loading placeholder in each instead of a catalog price. The
+// catalog must not appear because the model may have a deployment override.
+export const CostEstimateLoading: Story = {
+	args: {
+		editingModel: mockClaude,
+		selectedProviderState: MockAnthropicProviderState,
+		onDeleteModel: fn(async () => undefined),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getAIModelPrices").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /cost estimate/i }),
+		);
+		// Each box shows a loading placeholder while the lookup is in flight.
+		for (const label of ["Input", "Output", "Cache read", "Cache write"]) {
+			await expect(
+				canvas.getByLabelText(`${label} price loading`),
+			).toBeInTheDocument();
+		}
+		// The catalog numbers must not render while the lookup is pending.
+		expect(canvas.queryByDisplayValue("3")).not.toBeInTheDocument();
 	},
 };
 
