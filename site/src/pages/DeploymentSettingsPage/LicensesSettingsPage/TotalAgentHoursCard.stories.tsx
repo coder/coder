@@ -42,9 +42,14 @@ export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("400.3")).toBeInTheDocument();
+		await expect(canvas.getByText(/Warning:/)).toBeInTheDocument();
+		await expect(canvas.getByText("850")).toBeInTheDocument();
+		await expect(canvas.getByText(/Allocation:/)).toBeInTheDocument();
 		await expect(canvas.getByText("1,000")).toBeInTheDocument();
-		await expect(canvas.getByText("June 1, 2026")).toBeInTheDocument();
-		await expect(canvas.getByText("May 31, 2027")).toBeInTheDocument();
+		await expect(canvas.queryByText(/Limit:/)).not.toBeInTheDocument();
+		await expect(
+			canvas.getByText("(June 1, 2026 – May 31, 2027)"),
+		).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
@@ -61,6 +66,8 @@ export const NoSoftLimit: Story = {
 		},
 	},
 	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.queryByText(/Warning:/)).not.toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
@@ -216,7 +223,9 @@ export const MissingUsagePeriod: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("400.0")).toBeInTheDocument();
-		await expect(canvas.queryByText("June 1, 2026")).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText("(June 1, 2026 – May 31, 2027)"),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -230,16 +239,16 @@ export const HardCap: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("400.0")).toBeInTheDocument();
-		// The limit label renders in both responsive layouts; exactly one
-		// is visible at the test viewport.
-		const limitLabels = canvas
-			.getAllByText("1,000")
-			.filter((label) => label.checkVisibility());
-		await expect(limitLabels).toHaveLength(1);
-		await expect(canvas.getByText(/Hard cap:/)).toBeInTheDocument();
+		await expect(canvas.getByText(/Warning:/)).toBeInTheDocument();
+		await expect(canvas.getByText("850")).toBeInTheDocument();
+		await expect(canvas.getByText(/Allocation:/)).toBeInTheDocument();
+		await expect(canvas.getByText("1,000")).toBeInTheDocument();
+		await expect(canvas.getByText(/Limit:/)).toBeInTheDocument();
 		await expect(canvas.getByText("1,500")).toBeInTheDocument();
 		await expect(
-			canvas.queryByText(/Hard cap reached/),
+			canvas.queryByText(
+				"Agent hours exceeded. Concurrent chats are now limited to 5.",
+			),
 		).not.toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
@@ -262,7 +271,9 @@ export const HardCapBetweenSoftLimitAndLimit: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("900.0")).toBeInTheDocument();
 		await expect(
-			canvas.queryByText(/Hard cap reached/),
+			canvas.queryByText(
+				"Agent hours exceeded. Concurrent chats are now limited to 5.",
+			),
 		).not.toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
@@ -285,52 +296,15 @@ export const HardCapBetweenLimitAndHardCap: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("1,200.0")).toBeInTheDocument();
 		await expect(
-			canvas.queryByText(/Hard cap reached/),
+			canvas.queryByText(
+				"Agent hours exceeded. Concurrent chats are now limited to 5.",
+			),
 		).not.toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
 			/You've used 120% of your Total Agent hours for this license\. Contact sales to receive more Agent hours\./,
 		);
-	},
-};
-
-// A marker past 85% moves the hard cap text above the bar.
-export const HardCapNearAllocation: Story = {
-	args: {
-		feature: {
-			...MockAgentRuntimeHoursFeature,
-			limit: 1400,
-			soft_limit: 1200,
-			hard_limit: 1500,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("1,400")).toBeInTheDocument();
-		await expect(canvas.getByText(/Hard cap:/)).toBeInTheDocument();
-		await expect(canvas.getByText("1,500")).toBeInTheDocument();
-	},
-};
-
-// A marker below 15% moves the limit text above the bar.
-export const HardCapFarFromAllocation: Story = {
-	args: {
-		feature: {
-			...MockAgentRuntimeHoursFeature,
-			limit: 100,
-			soft_limit: 85,
-			hard_limit: 10_000,
-			actual: 40,
-			actual_ms: 40 * 3_600_000,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("40.0")).toBeInTheDocument();
-		await expect(canvas.getByText("100")).toBeInTheDocument();
-		await expect(canvas.getByText(/Hard cap:/)).toBeInTheDocument();
-		await expect(canvas.getByText("10,000")).toBeInTheDocument();
 	},
 };
 
@@ -346,7 +320,11 @@ export const ReachedHardCap: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("1,600.0")).toBeInTheDocument();
-		await expect(canvas.getByText("Hard cap reached")).toBeInTheDocument();
+		await expect(
+			canvas.getByText(
+				"Agent hours exceeded. Concurrent chats are now limited to 5.",
+			),
+		).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
@@ -368,7 +346,11 @@ export const ReachedCoincidentHardCap: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("1,000.0")).toBeInTheDocument();
-		await expect(canvas.getByText("Hard cap reached")).toBeInTheDocument();
+		await expect(
+			canvas.getByText(
+				"Agent hours exceeded. Concurrent chats are now limited to 5.",
+			),
+		).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
@@ -407,6 +389,8 @@ export const Unlimited: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("1,200.5")).toBeInTheDocument();
+		await expect(canvas.queryByText(/Warning:/)).not.toBeInTheDocument();
+		await expect(canvas.getByText(/Allocation:/)).toBeInTheDocument();
 		await expect(canvas.getByText("Unlimited")).toBeInTheDocument();
 		await expect(
 			canvas.queryByText("Invalid license usage limits"),

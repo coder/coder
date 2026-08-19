@@ -85,45 +85,19 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		hardCap === undefined
 			? undefined
 			: Math.min((meteredLimit / hardCap) * 100, 100);
-	// Near the right edge the limit label would collide with the hard cap
-	// label, so the hard cap text moves above the bar.
-	const hardCapLabelAboveBar =
-		allocationMarkerPercent !== undefined && allocationMarkerPercent > 85;
-	// Near the left edge the centered limit label would spill outside the
-	// card, so it moves above the bar instead.
-	const limitLabelAboveBar =
-		allocationMarkerPercent !== undefined && allocationMarkerPercent < 15;
-	// On narrow cards an interior-marker limit label can collide with the
-	// hard cap label, so below the md breakpoint it moves above the bar.
-	const limitLabelStacksNarrow =
-		allocationMarkerPercent !== undefined &&
-		!limitLabelAboveBar &&
-		!hardCapLabelAboveBar;
 
-	// The fill is segmented by position: green to the soft limit, yellow
-	// to the allocation, and red beyond it.
 	const softMarkerPercent =
 		!isUnlimited && softLimit !== undefined && barScale > 0
 			? Math.min((softLimit / barScale) * 100, 100)
 			: undefined;
-	const limitBoundaryPercent = allocationMarkerPercent ?? 100;
-	// An allocation at the track's right edge leaves no room for a red
-	// segment past it, so reaching it turns the whole fill red instead.
-	const fullRedFill = reachedAllocation && limitBoundaryPercent >= 100;
-	const greenWidth = fullRedFill
-		? 0
-		: Math.min(usagePercentage, softMarkerPercent ?? limitBoundaryPercent);
-	const yellowWidth =
-		fullRedFill || softMarkerPercent === undefined
-			? 0
-			: Math.max(
-					0,
-					Math.min(usagePercentage, limitBoundaryPercent) - softMarkerPercent,
-				);
-	const redLeft = fullRedFill ? 0 : limitBoundaryPercent;
-	const redWidth = fullRedFill
-		? usagePercentage
-		: Math.max(0, usagePercentage - limitBoundaryPercent);
+	// The fill is a single color for the used range: green below the
+	// soft limit, warning once the soft limit is reached, and red at or
+	// past the allocation.
+	const fillClassName = reachedAllocation
+		? "bg-highlight-red"
+		: reachedSoftLimit
+			? "bg-border-warning"
+			: "bg-highlight-green";
 
 	// Already floored to tenths, so rendering one decimal never rounds.
 	const usedLabel =
@@ -133,21 +107,23 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 					minimumFractionDigits: 1,
 					maximumFractionDigits: 1,
 				});
-	const limitLabel = isUnlimited
+	const warningLabel =
+		!isUnlimited && softLimit !== undefined
+			? softLimit.toLocaleString("en-US")
+			: undefined;
+	const allocationLabel = isUnlimited
 		? "Unlimited"
 		: meteredLimit.toLocaleString("en-US");
-	const hardCapLabel = hardCap?.toLocaleString("en-US");
+	const limitLabel = hardCap?.toLocaleString("en-US");
 
-	// The license period the usage covers. A missing or unparsable period
-	// omits the dates rather than replacing meaningful usage with an error.
+	// The license period the usage covers. Shown under the heading so the
+	// bar is not read as a timeline. A missing or unparsable period omits
+	// the dates rather than replacing meaningful usage with an error.
 	const periodStart = usagePeriod ? dayjs(usagePeriod.start) : undefined;
 	const periodEnd = usagePeriod ? dayjs(usagePeriod.end) : undefined;
-	const usagePeriodLabels =
+	const usagePeriodLabel =
 		periodStart?.isValid() && periodEnd?.isValid()
-			? {
-					start: periodStart.format("MMMM D, YYYY"),
-					end: periodEnd.format("MMMM D, YYYY"),
-				}
+			? `(${periodStart.format("MMMM D, YYYY")} – ${periodEnd.format("MMMM D, YYYY")})`
 			: undefined;
 
 	// Floored at one decimal so the shown percentage never crosses a
@@ -160,10 +136,10 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 			? formatPercent((softLimit / meteredLimit) * 100)
 			: undefined;
 
-	// Fading green stripes read as an unmetered allocation rather than
+	// A fading green fill reads as an unmetered allocation rather than
 	// 100% usage. The mask needs the -webkit- prefix for Safari.
 	const unlimitedBarClassName = cn(
-		"bg-[repeating-linear-gradient(-45deg,hsl(var(--highlight-green)),hsl(var(--highlight-green))_6px,transparent_6px,transparent_12px)]",
+		"bg-highlight-green",
 		"[mask-image:linear-gradient(to_right,black_50%,transparent_100%)]",
 		"[-webkit-mask-image:linear-gradient(to_right,black_50%,transparent_100%)]",
 	);
@@ -178,7 +154,7 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 				? formatPercent((usedHours / meteredLimit) * 100)
 				: "100";
 		tooltip = reachedHardCap
-			? `You've used ${usedPercent}% of your Total Agent hours for this license and reached the hard cap of ${hardCapLabel} hours. Contact sales to receive more Agent hours.`
+			? `You've used ${usedPercent}% of your Total Agent hours for this license and reached the hard cap of ${limitLabel} hours. Contact sales to receive more Agent hours.`
 			: `You've used ${usedPercent}% of your Total Agent hours for this license. Contact sales to receive more Agent hours.`;
 	} else if (reachedSoftLimit) {
 		tooltip = `You've used ${softLimitPercent}% or more of your Total Agent hours for this license. Agent sessions are still working normally, but you'll want to plan for the 100% limit.`;
@@ -193,189 +169,111 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		<section className="border border-solid rounded">
 			<div className="p-4">
 				<div className="flex flex-col gap-2">
-					<div className="flex items-center gap-1">
-						<h3 className="text-md m-0 font-medium">Total agent hours</h3>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<button
-									type="button"
-									aria-label="Total agent hours information"
-									className="m-0 inline-flex appearance-none border-0 bg-transparent p-0 text-content-secondary"
-								>
-									<InfoIcon className="size-3" />
-								</button>
-							</TooltipTrigger>
-							<TooltipContent side="top" className="max-w-xs">
-								{tooltip}
-							</TooltipContent>
-						</Tooltip>
+					<div className="flex flex-col gap-0.5">
+						<div className="flex items-center gap-1">
+							<h3 className="text-md m-0 font-medium">Total agent hours</h3>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<button
+										type="button"
+										aria-label="Total agent hours information"
+										className="m-0 inline-flex appearance-none border-0 bg-transparent p-0 text-content-secondary"
+									>
+										<InfoIcon className="size-3" />
+									</button>
+								</TooltipTrigger>
+								<TooltipContent side="top" className="max-w-xs">
+									{tooltip}
+								</TooltipContent>
+							</Tooltip>
+						</div>
+						{usagePeriodLabel && (
+							<p className="m-0 text-xs text-content-secondary">
+								{usagePeriodLabel}
+							</p>
+						)}
 					</div>
 
-					{usagePeriodLabels && (
-						<div className="flex items-center justify-between text-sm text-content-secondary">
-							<span>{usagePeriodLabels.start}</span>
-							<span>{usagePeriodLabels.end}</span>
+					{reachedHardCap && (
+						<div className="flex items-center justify-end">
+							<Badge variant="destructive" size="sm" className="rounded-full">
+								<BanIcon />
+								Agent hours exceeded. Concurrent chats are now limited to 5.
+							</Badge>
 						</div>
 					)}
 
-					{(reachedHardCap ||
-						hardCapLabelAboveBar ||
-						limitLabelAboveBar ||
-						limitLabelStacksNarrow) && (
-						<div
-							className={cn(
-								"flex items-center justify-end gap-3",
-								!reachedHardCap &&
-									!hardCapLabelAboveBar &&
-									!limitLabelAboveBar &&
-									"md:hidden",
-							)}
-						>
-							{(limitLabelAboveBar || limitLabelStacksNarrow) && (
-								// Offset to the marker by a percentage margin (the row
-								// and the track share a width); the narrow-only variant
-								// left-aligns instead.
-								<p
-									className={cn(
-										"m-0 mr-auto text-sm font-medium whitespace-nowrap text-content-secondary",
-										limitLabelStacksNarrow && "md:hidden",
-									)}
-									style={
-										limitLabelAboveBar
-											? { marginLeft: `${allocationMarkerPercent}%` }
-											: undefined
-									}
-								>
-									Limit:{" "}
-									<span className="text-content-primary">{limitLabel}</span>
-								</p>
-							)}
-							{reachedHardCap && (
-								<Badge variant="destructive" size="sm" className="rounded-full">
-									<BanIcon />
-									Hard cap reached
-								</Badge>
-							)}
-							{hardCapLabelAboveBar && (
-								<p className="m-0 text-sm font-medium whitespace-nowrap text-content-secondary">
-									Hard cap:{" "}
-									<span className="text-content-primary">{hardCapLabel}</span>
-								</p>
-							)}
-						</div>
-					)}
-
-					{/* The marker lines overshoot the track on both sides, so they
-					    live outside the track's overflow clipping. */}
-					<div className="relative" aria-hidden="true">
-						<div className="relative h-5 w-full overflow-hidden rounded bg-surface-secondary">
-							{isUnlimited ? (
-								<div
-									className={cn(
-										"h-full w-full rounded-l",
-										unlimitedBarClassName,
-									)}
-								/>
-							) : (
-								<>
-									<div
-										className="absolute inset-y-0 left-0 rounded-l bg-highlight-green transition-[width] duration-300"
-										style={{ width: `${greenWidth}%` }}
-									/>
-									{softMarkerPercent !== undefined && (
-										<div
-											className="absolute inset-y-0 bg-yellow-400 transition-[width] duration-300"
-											style={{
-												left: `${softMarkerPercent}%`,
-												width: `${yellowWidth}%`,
-											}}
-										/>
-									)}
-									{(hardCap !== undefined || fullRedFill) && (
-										<div
-											className={cn(
-												"absolute inset-y-0 bg-highlight-red transition-[width] duration-300",
-												fullRedFill && "rounded-l",
-											)}
-											style={{
-												left: `${redLeft}%`,
-												width: `${redWidth}%`,
-											}}
-										/>
-									)}
-								</>
-							)}
-						</div>
+					<div
+						className="relative h-5 w-full overflow-hidden bg-surface-secondary"
+						aria-hidden="true"
+					>
 						{!isUnlimited && (
 							<>
 								{softMarkerPercent !== undefined && (
-									// Palette yellow: the theme has no yellow highlight token.
 									<div
-										className="absolute -inset-y-1 border-0 border-l-2 border-dotted border-yellow-400"
+										className="absolute inset-y-0 z-0 border-0 border-l-2 border-dotted border-border-warning"
 										style={{ left: `${softMarkerPercent}%` }}
 									/>
 								)}
 								{hardCap === undefined ? (
 									// The allocation marker sits at the track's right edge.
-									<div className="absolute -inset-y-1 right-0 w-0.5 bg-highlight-red" />
+									<div className="absolute inset-y-0 right-0 z-0 w-0.5 bg-highlight-red" />
 								) : (
-									<>
-										<div
-											className="absolute -inset-y-1 w-0.5 bg-highlight-red"
-											style={{ left: `${allocationMarkerPercent}%` }}
-										/>
-										{/* The primary content color stays visible over both
-										    themes' card backgrounds. */}
-										<div className="absolute -inset-y-1 right-0 w-1 bg-content-primary" />
-									</>
+									<div
+										className="absolute inset-y-0 z-0 w-0.5 bg-highlight-red"
+										style={{ left: `${allocationMarkerPercent}%` }}
+									/>
 								)}
 							</>
 						)}
+						{isUnlimited ? (
+							<div
+								className={cn(
+									"relative z-10 h-full w-full",
+									unlimitedBarClassName,
+								)}
+							/>
+						) : (
+							<div
+								className={cn(
+									"relative z-10 h-full transition-[width] duration-300",
+									fillClassName,
+								)}
+								style={{ width: `${usagePercentage}%` }}
+							/>
+						)}
 					</div>
 
-					<div className="relative flex items-start justify-between text-sm font-medium whitespace-nowrap">
-						<p className="m-0 text-content-primary">
+					<div className="flex items-start justify-between gap-3 text-sm font-medium">
+						<p className="m-0 whitespace-nowrap text-content-primary">
 							<span className="text-content-secondary">Used: </span>
 							<span
 								className={cn({
 									"text-content-destructive": reachedAllocation,
+									"text-border-warning": reachedSoftLimit,
 								})}
 							>
 								{usedLabel}
 							</span>
 						</p>
-						{allocationMarkerPercent === undefined ? (
-							<p className="m-0 text-content-secondary">
-								Limit:{" "}
-								<span className="text-content-primary">{limitLabel}</span>
+						<div className="flex flex-wrap items-start justify-end gap-x-3 gap-y-1 whitespace-nowrap text-content-secondary">
+							{warningLabel !== undefined && (
+								<p className="m-0">
+									Warning:{" "}
+									<span className="text-content-primary">{warningLabel}</span>
+								</p>
+							)}
+							<p className="m-0">
+								Allocation:{" "}
+								<span className="text-content-primary">{allocationLabel}</span>
 							</p>
-						) : (
-							<>
-								{/* The limit label follows its marker: right-aligned
-								    against it near the right edge, otherwise centered
-								    (with the narrow copy rendering above the bar). */}
-								{!limitLabelAboveBar && (
-									<p
-										className={cn(
-											"absolute m-0 text-content-secondary",
-											hardCapLabelAboveBar
-												? "-translate-x-full"
-												: "hidden -translate-x-1/2 md:block",
-										)}
-										style={{ left: `${allocationMarkerPercent}%` }}
-									>
-										Limit:{" "}
-										<span className="text-content-primary">{limitLabel}</span>
-									</p>
-								)}
-								{!hardCapLabelAboveBar && (
-									<p className="m-0 text-content-secondary">
-										Hard cap:{" "}
-										<span className="text-content-primary">{hardCapLabel}</span>
-									</p>
-								)}
-							</>
-						)}
+							{limitLabel !== undefined && (
+								<p className="m-0">
+									Limit:{" "}
+									<span className="text-content-primary">{limitLabel}</span>
+								</p>
+							)}
+						</div>
 					</div>
 				</div>
 			</div>
