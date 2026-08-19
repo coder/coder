@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { type FC, useId, useMemo, useState } from "react";
+import { type FC, useId, useState } from "react";
 import { useNavigate } from "react-router";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
@@ -203,17 +203,14 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 	// `RBACResourceActions` is generated at module scope, so the `task` resource
 	// is removed here rather than at the constant to keep Tasks roles unsettable
 	// while Tasks is disabled.
-	const resourceActions = useMemo(() => {
-		const allActions = showAllResources
-			? RBACResourceActions
-			: filteredRBACResourceActions;
-		if (aiTasksEnabled) {
-			return allActions;
-		}
-		return Object.fromEntries(
-			Object.entries(allActions).filter(([resource]) => resource !== "task"),
-		);
-	}, [showAllResources, aiTasksEnabled]);
+	const allActions = showAllResources
+		? RBACResourceActions
+		: filteredRBACResourceActions;
+	const resourceActions = aiTasksEnabled
+		? allActions
+		: Object.fromEntries(
+				Object.entries(allActions).filter(([resource]) => resource !== "task"),
+			);
 
 	const handleActionCheckChange = async (name: string, checked: boolean) => {
 		const [resource_type, action] = name.split(":");

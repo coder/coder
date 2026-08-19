@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"io"
 	"net/http"
 	"testing"
 
@@ -22,6 +23,21 @@ func TestTasksDisabled(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: values})
 	coderdtest.CreateFirstUser(t, client)
 
+	// A path that was never part of the API, used as the reference for what an
+	// unregistered route looks like.
+	res, err := client.Request(ctx, http.MethodGet, "/api/v2/does-not-exist", nil)
+	require.NoError(t, err)
+	wantStatus := res.StatusCode
+	wantBody, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	_ = res.Body.Close()
+	require.Equal(t, http.StatusNotFound, wantStatus)
+
+	// Only the user-facing routes are asserted here. The agent-side
+	// /workspaceagents/me/tasks route is also gated, but it sits behind agent
+	// authentication, so a user token cannot tell a missing route from a
+	// rejected one. TestEndpointsDocumented covers its absence, since an
+	// undocumented registered route fails that test.
 	for _, route := range []string{
 		"/api/v2/tasks",
 		"/api/v2/tasks/me",
@@ -30,13 +46,16 @@ func TestTasksDisabled(t *testing.T) {
 	} {
 		res, err := client.Request(ctx, http.MethodGet, route, nil)
 		require.NoError(t, err)
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
 		_ = res.Body.Close()
-		require.Equal(t, http.StatusNotFound, res.StatusCode, "route %s should not be registered", route)
+		require.Equal(t, wantStatus, res.StatusCode, "route %s should not be registered", route)
+		require.Equal(t, string(wantBody), string(body), "route %s should be indistinguishable from a route that never existed", route)
 	}
 
 	// Sanity check that unrelated routes still work, so the assertions above
 	// are not passing because the whole API is broken.
-	res, err := client.Request(ctx, http.MethodGet, "/api/v2/workspaces", nil)
+	res, err = client.Request(ctx, http.MethodGet, "/api/v2/workspaces", nil)
 	require.NoError(t, err)
 	_ = res.Body.Close()
 	require.Equal(t, http.StatusOK, res.StatusCode)

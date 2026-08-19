@@ -178,12 +178,6 @@ func isLegacyAIBridgeAlias(route string) bool {
 	return strings.HasPrefix(route, aibridge.AIBridgeRootPath+"/")
 }
 
-func isTaskEndpoint(route string) bool {
-	return route == "/api/v2/tasks" ||
-		strings.HasPrefix(route, "/api/v2/tasks/") ||
-		strings.HasPrefix(route, "/api/v2/workspaceagents/me/tasks/")
-}
-
 func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments []SwaggerComment, opts ...SwaggerOption) {
 	cfg := swaggerOptions{}
 	for _, opt := range opts {
@@ -223,9 +217,6 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 				return
 			}
 			if isLegacyAIBridgeAlias(route) {
-				return
-			}
-			if isTaskEndpoint(route) {
 				return
 			}
 
