@@ -16,8 +16,8 @@ import TerminalPage from "./TerminalPage";
 
 const reconnectToken = "terminal-page-test-reconnect-token";
 
-vi.mock("uuid", () => ({
-	v4: () => "terminal-page-test-reconnect-token",
+vi.mock("#/utils/random", () => ({
+	generateUUID: () => "terminal-page-test-reconnect-token",
 }));
 vi.stubGlobal("jest", vi);
 await import("jest-canvas-mock");

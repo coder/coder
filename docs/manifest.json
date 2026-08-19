@@ -262,11 +262,6 @@
 							"path": "./user-guides/workspace-access/jetbrains/index.md",
 							"children": [
 								{
-									"title": "JetBrains Fleet",
-									"description": "Connect JetBrains Fleet, a lightweight multi-language IDE, to a Coder workspace over SSH.",
-									"path": "./user-guides/workspace-access/jetbrains/fleet.md"
-								},
-								{
 									"title": "JetBrains Gateway",
 									"description": "Use JetBrains Gateway to open and work in your Coder workspace from a full JetBrains IDE.",
 									"path": "./user-guides/workspace-access/jetbrains/gateway.md"
@@ -320,9 +315,9 @@
 							"path": "./user-guides/workspace-access/cursor.md"
 						},
 						{
-							"title": "Windsurf",
-							"description": "Access your Coder workspace with Windsurf, the AI-powered code editor, over SSH.",
-							"path": "./user-guides/workspace-access/windsurf.md"
+							"title": "Devin Desktop",
+							"description": "Access your Coder workspace with Devin Desktop (formerly Windsurf), the AI-powered code editor, over SSH.",
+							"path": "./user-guides/workspace-access/devin-desktop.md"
 						},
 						{
 							"title": "Antigravity",
@@ -1034,29 +1029,9 @@
 							"path": "./ai-coder/agents/getting-started.md"
 						},
 						{
-							"title": "Search Syntax",
-							"description": "Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.",
-							"path": "./ai-coder/agents/chat-search-syntax.md"
-						},
-						{
 							"title": "Architecture",
 							"description": "Learn how the Coder Agents control-plane agent communicates with your workspaces.",
 							"path": "./ai-coder/agents/architecture.md"
-						},
-						{
-							"title": "Chat Sharing",
-							"description": "Give other users and groups read-only access to a Coder Agents conversation with chat sharing.",
-							"path": "./ai-coder/agents/chat-sharing.md"
-						},
-						{
-							"title": "Models",
-							"description": "Configure the LLM providers and models that power Coder Agents from Admin settings.",
-							"path": "./ai-coder/agents/models.md"
-						},
-						{
-							"title": "Tools",
-							"description": "How Coder Agents uses tool calls to select templates and create workspaces",
-							"path": "./ai-coder/agents/tools/index.md"
 						},
 						{
 							"title": "Platform Controls",
@@ -1123,6 +1098,31 @@
 							"title": "Extending Agents",
 							"description": "Extend Coder Agents with custom skills and MCP tools defined in your workspace templates.",
 							"path": "./ai-coder/agents/extending-agents.md"
+						},
+						{
+							"title": "Models",
+							"description": "Configure the LLM providers and models that power Coder Agents from Admin settings.",
+							"path": "./ai-coder/agents/models.md"
+						},
+						{
+							"title": "Tools",
+							"description": "How Coder Agents uses tool calls to select templates and create workspaces",
+							"path": "./ai-coder/agents/tools/index.md"
+						},
+						{
+							"title": "Chat Sharing",
+							"description": "Give other users and groups read-only access to a Coder Agents conversation with chat sharing.",
+							"path": "./ai-coder/agents/chat-sharing.md"
+						},
+						{
+							"title": "Search Syntax",
+							"description": "Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.",
+							"path": "./ai-coder/agents/chat-search-syntax.md"
+						},
+						{
+							"title": "Licensing \u0026 Usage",
+							"description": "Compare Coder Agents licenses and learn how Coder measures and reports Agent Time usage.",
+							"path": "./ai-coder/agents/licensing-usage.md"
 						},
 						{
 							"title": "Tasks to Chats API Migration",
@@ -1199,7 +1199,7 @@
 									"title": "Standalone Deployment",
 									"description": "Deploy and operate AI Gateway as a standalone service",
 									"path": "./ai-coder/ai-gateway/standalone.md",
-									"state": ["ai governance add-on"]
+									"state": ["premium"]
 								},
 								{
 									"title": "Authentication",
@@ -1265,6 +1265,12 @@
 											"title": "JetBrains",
 											"description": "Configure JetBrains AI Assistant to route model requests through AI Gateway.",
 											"path": "./ai-coder/ai-gateway/clients/jetbrains.md",
+											"state": ["premium"]
+										},
+										{
+											"title": "Junie",
+											"description": "Configure Junie CLI to route requests through AI Gateway with a custom model profile.",
+											"path": "./ai-coder/ai-gateway/clients/junie.md",
 											"state": ["premium"]
 										},
 										{
@@ -1337,12 +1343,6 @@
 									"state": ["premium"]
 								}
 							]
-						},
-						{
-							"title": "Usage Data Reporting",
-							"description": "Learn what AI usage data AI Governance reports to Coder for billing and reporting.",
-							"path": "./ai-coder/usage-data-reporting.md",
-							"state": ["premium"]
 						}
 					]
 				},

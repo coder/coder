@@ -1889,13 +1889,6 @@ func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Con
 	return q.db.CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg)
 }
 
-func (q *querier) ChatSearchQueryIsEmpty(ctx context.Context, search string) (bool, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
-		return false, err
-	}
-	return q.db.ChatSearchQueryIsEmpty(ctx, search)
-}
-
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	empty := database.ClaimPrebuiltWorkspaceRow{}
 
@@ -1969,6 +1962,20 @@ func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLog
 		return 0, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 	return q.db.CountAuthorizedAuditLogs(ctx, arg, prep)
+}
+
+func (q *querier) CountChatCapacityActiveByPool(ctx context.Context, arg database.CountChatCapacityActiveByPoolParams) (database.CountChatCapacityActiveByPoolRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return database.CountChatCapacityActiveByPoolRow{}, err
+	}
+	return q.db.CountChatCapacityActiveByPool(ctx, arg)
+}
+
+func (q *querier) CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (database.CountChatCapacityQueuedByPoolRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return database.CountChatCapacityQueuedByPoolRow{}, err
+	}
+	return q.db.CountChatCapacityQueuedByPool(ctx, staleSeconds)
 }
 
 func (q *querier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
@@ -2848,6 +2855,13 @@ func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg databa
 	return q.db.GetAIModelPriceByProviderModel(ctx, arg)
 }
 
+func (q *querier) GetAIModelPrices(ctx context.Context, arg database.GetAIModelPricesParams) ([]database.AIModelPrice, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIModelPrices(ctx, arg)
+}
+
 func (q *querier) GetAIProviderByID(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
 		return database.AIProvider{}, err
@@ -3481,6 +3495,15 @@ func (q *querier) GetChatPlanModeInstructions(ctx context.Context) (string, erro
 		return "", err
 	}
 	return q.db.GetChatPlanModeInstructions(ctx)
+}
+
+func (q *querier) GetChatQueuedForCapacity(ctx context.Context, arg database.GetChatQueuedForCapacityParams) (bool, error) {
+	// The pool-fullness derivation counts other users' chats, so require
+	// deployment-wide chat read rather than per-chat authorization.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return false, err
+	}
+	return q.db.GetChatQueuedForCapacity(ctx, arg)
 }
 
 func (q *querier) GetChatQueuedMessageByID(ctx context.Context, arg database.GetChatQueuedMessageByIDParams) (database.ChatQueuedMessage, error) {
@@ -4947,6 +4970,13 @@ func (q *querier) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg databa
 		return 0, err
 	}
 	return q.db.GetTotalUsageDCManagedAgentsV1(ctx, arg)
+}
+
+func (q *querier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg database.GetTotalUsageHBAgentRuntimeV1Params) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
+		return 0, err
+	}
+	return q.db.GetTotalUsageHBAgentRuntimeV1(ctx, arg)
 }
 
 func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {

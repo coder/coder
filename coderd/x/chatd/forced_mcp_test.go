@@ -7,14 +7,11 @@ package chatd_test
 // the conversation.
 
 import (
-	"context"
 	"net/http/httptest"
 	"sync"
 	"testing"
 
 	"github.com/google/uuid"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
-	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -30,21 +27,9 @@ import (
 // tool and returns its base URL.
 func newEchoMCPTestServer(t *testing.T, name string) string {
 	t.Helper()
-	srv := mcpserver.NewMCPServer(name, "1.0.0")
-	srv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	ts := httptest.NewServer(mcpserver.NewStreamableHTTPServer(srv))
+	srv := newTestMCPServer(name)
+	addTestMCPTextTool(srv, "echo", "Echoes the input", "echo: ")
+	ts := httptest.NewServer(testMCPHTTPHandler(srv))
 	t.Cleanup(ts.Close)
 	return ts.URL
 }
@@ -105,6 +90,7 @@ func TestCreateChat_ForceOnMCPServerEnforced(t *testing.T) {
 	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 	})
 
@@ -174,6 +160,7 @@ func TestSendMessage_ForceOnMCPServerEnforced(t *testing.T) {
 	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 	})
 
@@ -246,6 +233,7 @@ func TestGeneration_ForceOnMCPServerEnforcedForExistingChats(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 	})
 

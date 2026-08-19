@@ -1006,6 +1006,7 @@ func TestExternalAuthYAMLConfig(t *testing.T) {
 		ID:                            "id",
 		AuthURL:                       "https://example.com/auth",
 		TokenURL:                      "https://example.com/token",
+		RedirectURL:                   "https://example.com/redirect",
 		ValidateURL:                   "https://example.com/validate",
 		RevokeURL:                     "https://example.com/revoke",
 		AppInstallURL:                 "https://example.com/install",
@@ -1217,6 +1218,31 @@ func TestFeatureComparison(t *testing.T) {
 				Limit:       ptr.Ref(int64(100)),
 				SoftLimit:   ptr.Ref(int64(80)),
 				HardLimit:   ptr.Ref(int64(120)),
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					Start:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					End:      time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			Expected: 1,
+		},
+		{
+			// A nil limit on a usage period feature means unlimited, so it
+			// outranks a set limit on an exact usage period tie.
+			Name: "UnlimitedUsagePeriodOutranksMeteredOnTie",
+			A: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					Start:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					End:      time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			B: codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				Limit:       ptr.Ref(int64(100)),
 				UsagePeriod: &codersdk.UsagePeriod{
 					IssuedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 					Start:    time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
