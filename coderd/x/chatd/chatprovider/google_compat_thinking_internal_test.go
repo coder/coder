@@ -80,3 +80,28 @@ func TestRewriteGoogleCompatThinkingConfig(t *testing.T) {
 		require.Contains(t, payload, "reasoning_effort")
 	})
 }
+
+func TestRewriteGoogleCompatThinkingConfig_NonThinkingModelsUntouched(t *testing.T) {
+	t.Parallel()
+
+	// Models without known thinking support must keep their previous request
+	// shape, whether or not an effort was configured.
+	for _, modelID := range []string{
+		"gemini-1.5-flash",
+		"gemini-2.0-flash",
+		"gemini-exp-1206",
+	} {
+		t.Run(modelID, func(t *testing.T) {
+			t.Parallel()
+
+			plain := map[string]any{"model": modelID}
+			require.False(t, rewriteGoogleCompatThinkingConfig(plain))
+			require.NotContains(t, plain, "extra_body")
+
+			withEffort := map[string]any{"model": modelID, "reasoning_effort": "low"}
+			require.False(t, rewriteGoogleCompatThinkingConfig(withEffort))
+			require.Equal(t, "low", withEffort["reasoning_effort"])
+			require.NotContains(t, withEffort, "extra_body")
+		})
+	}
+}

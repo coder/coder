@@ -7,10 +7,13 @@ import (
 )
 
 // rewriteGoogleCompatThinkingConfig swaps reasoning_effort for an explicit
-// Google thinking_config on Gemini requests. Google's OpenAI-compatible
-// endpoint rejects requests carrying both fields, and it never emits thought
-// text unless include_thoughts is requested through thinking_config, so this
-// is the only way to surface Gemini reasoning in the chat UI on this path.
+// Google thinking_config on requests for thinking-capable Gemini models.
+// Google's OpenAI-compatible endpoint rejects requests carrying both fields,
+// and it never emits thought text unless include_thoughts is requested
+// through thinking_config, so this is the only way to surface Gemini
+// reasoning in the chat UI on this path. Models without known thinking
+// support (pre-2.5 or unrecognized Gemini variants) keep their previous
+// request shape untouched.
 func rewriteGoogleCompatThinkingConfig(payload map[string]any) bool {
 	modelID, _ := payload["model"].(string)
 	normalized := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(modelID)), "models/")
@@ -19,9 +22,14 @@ func rewriteGoogleCompatThinkingConfig(payload map[string]any) bool {
 		return false
 	}
 
+	supported := googleSupportedThinkingLevels(normalized)
+	if len(supported) == 0 && !googleSupportsThinkingBudget(normalized) {
+		return false
+	}
+
 	thinkingConfig := map[string]any{"include_thoughts": true}
 	if effort, ok := payload["reasoning_effort"].(string); ok {
-		if supported := googleSupportedThinkingLevels(normalized); len(supported) > 0 {
+		if len(supported) > 0 {
 			level := clampGoogleThinkingLevel(googleThinkingLevel(effort), supported)
 			thinkingConfig["thinking_level"] = strings.ToLower(level)
 		} else if budget, ok := googleCompatThinkingBudget(effort); ok {
@@ -50,6 +58,19 @@ func rewriteGoogleCompatThinkingConfig(payload map[string]any) bool {
 	}
 	delete(payload, "reasoning_effort")
 	return true
+}
+
+// googleSupportsThinkingBudget reports whether a Gemini model predating
+// thinking_level supports thinking via thinking_budget. Gemini 2.5 is the
+// only such family; older and unrecognized variants have no thinking support
+// and reject or ignore thinking_config.
+func googleSupportsThinkingBudget(normalized string) bool {
+	rest, ok := strings.CutPrefix(normalized, "gemini-")
+	if !ok {
+		return false
+	}
+	major, minor, hasVersion := parseGoogleModelVersion(strings.Split(rest, "-")[0])
+	return hasVersion && major == 2 && minor >= 5
 }
 
 // googleCompatThinkingBudget maps the global reasoning effort scale onto the
