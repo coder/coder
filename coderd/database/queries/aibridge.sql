@@ -29,13 +29,50 @@ RETURNING *;
 -- Merges client-supplied work context into the annotations object. The keys
 -- are built explicitly so no other annotation key can be written through
 -- this query, and jsonb_strip_nulls drops the arguments left NULL so they
--- keep whatever value the row already holds.
+-- keep whatever value the row already holds. Linear issues and pull request
+-- URLs accumulate as sorted sets: the supplied values are unioned with the
+-- ones already stored, discarding a non-array value left by an older
+-- annotation shape.
 UPDATE aibridge_interceptions
-	SET annotations = annotations || jsonb_strip_nulls(jsonb_build_object(
-		'linear_issue_id', sqlc.narg('linear_issue_id')::text,
-		'repo', sqlc.narg('repo')::text,
-		'branch', sqlc.narg('branch')::text
-	))
+	SET annotations = annotations
+		|| jsonb_strip_nulls(jsonb_build_object(
+			'repo', sqlc.narg('repo')::text,
+			'branch', sqlc.narg('branch')::text
+		))
+		|| CASE
+			WHEN sqlc.narg('linear_issue_ids')::text[] IS NULL THEN '{}'::jsonb
+			ELSE jsonb_build_object('linear_issue_ids', (
+				SELECT COALESCE(jsonb_agg(DISTINCT issue ORDER BY issue), '[]'::jsonb)
+				FROM (
+					SELECT jsonb_array_elements_text(
+						CASE
+							WHEN jsonb_typeof(annotations -> 'linear_issue_ids') = 'array'
+							THEN annotations -> 'linear_issue_ids'
+							ELSE '[]'::jsonb
+						END
+					) AS issue
+					UNION
+					SELECT unnest(sqlc.narg('linear_issue_ids')::text[]) AS issue
+				) merged
+			))
+		END
+		|| CASE
+			WHEN sqlc.narg('github_pr_urls')::text[] IS NULL THEN '{}'::jsonb
+			ELSE jsonb_build_object('github_pr_urls', (
+				SELECT COALESCE(jsonb_agg(DISTINCT pr ORDER BY pr), '[]'::jsonb)
+				FROM (
+					SELECT jsonb_array_elements_text(
+						CASE
+							WHEN jsonb_typeof(annotations -> 'github_pr_urls') = 'array'
+							THEN annotations -> 'github_pr_urls'
+							ELSE '[]'::jsonb
+						END
+					) AS pr
+					UNION
+					SELECT unnest(sqlc.narg('github_pr_urls')::text[]) AS pr
+				) merged
+			))
+		END
 WHERE
 	id = @id::uuid
 RETURNING *;

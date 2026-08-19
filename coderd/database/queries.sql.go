@@ -2713,32 +2713,71 @@ func (q *sqlQuerier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Contex
 
 const updateAIBridgeInterceptionAnnotations = `-- name: UpdateAIBridgeInterceptionAnnotations :one
 UPDATE aibridge_interceptions
-	SET annotations = annotations || jsonb_strip_nulls(jsonb_build_object(
-		'linear_issue_id', $1::text,
-		'repo', $2::text,
-		'branch', $3::text
-	))
+	SET annotations = annotations
+		|| jsonb_strip_nulls(jsonb_build_object(
+			'repo', $1::text,
+			'branch', $2::text
+		))
+		|| CASE
+			WHEN $3::text[] IS NULL THEN '{}'::jsonb
+			ELSE jsonb_build_object('linear_issue_ids', (
+				SELECT COALESCE(jsonb_agg(DISTINCT issue ORDER BY issue), '[]'::jsonb)
+				FROM (
+					SELECT jsonb_array_elements_text(
+						CASE
+							WHEN jsonb_typeof(annotations -> 'linear_issue_ids') = 'array'
+							THEN annotations -> 'linear_issue_ids'
+							ELSE '[]'::jsonb
+						END
+					) AS issue
+					UNION
+					SELECT unnest($3::text[]) AS issue
+				) merged
+			))
+		END
+		|| CASE
+			WHEN $4::text[] IS NULL THEN '{}'::jsonb
+			ELSE jsonb_build_object('github_pr_urls', (
+				SELECT COALESCE(jsonb_agg(DISTINCT pr ORDER BY pr), '[]'::jsonb)
+				FROM (
+					SELECT jsonb_array_elements_text(
+						CASE
+							WHEN jsonb_typeof(annotations -> 'github_pr_urls') = 'array'
+							THEN annotations -> 'github_pr_urls'
+							ELSE '[]'::jsonb
+						END
+					) AS pr
+					UNION
+					SELECT unnest($4::text[]) AS pr
+				) merged
+			))
+		END
 WHERE
-	id = $4::uuid
+	id = $5::uuid
 RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message, annotations
 `
 
 type UpdateAIBridgeInterceptionAnnotationsParams struct {
-	LinearIssueID sql.NullString `db:"linear_issue_id" json:"linear_issue_id"`
-	Repo          sql.NullString `db:"repo" json:"repo"`
-	Branch        sql.NullString `db:"branch" json:"branch"`
-	ID            uuid.UUID      `db:"id" json:"id"`
+	Repo           sql.NullString `db:"repo" json:"repo"`
+	Branch         sql.NullString `db:"branch" json:"branch"`
+	LinearIssueIds []string       `db:"linear_issue_ids" json:"linear_issue_ids"`
+	GithubPrUrls   []string       `db:"github_pr_urls" json:"github_pr_urls"`
+	ID             uuid.UUID      `db:"id" json:"id"`
 }
 
 // Merges client-supplied work context into the annotations object. The keys
 // are built explicitly so no other annotation key can be written through
 // this query, and jsonb_strip_nulls drops the arguments left NULL so they
-// keep whatever value the row already holds.
+// keep whatever value the row already holds. Linear issues and pull request
+// URLs accumulate as sorted sets: the supplied values are unioned with the
+// ones already stored, discarding a non-array value left by an older
+// annotation shape.
 func (q *sqlQuerier) UpdateAIBridgeInterceptionAnnotations(ctx context.Context, arg UpdateAIBridgeInterceptionAnnotationsParams) (AIBridgeInterception, error) {
 	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionAnnotations,
-		arg.LinearIssueID,
 		arg.Repo,
 		arg.Branch,
+		pq.Array(arg.LinearIssueIds),
+		pq.Array(arg.GithubPrUrls),
 		arg.ID,
 	)
 	var i AIBridgeInterception

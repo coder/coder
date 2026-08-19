@@ -440,9 +440,13 @@ type AIBridgeInterceptionAnnotations struct {
 	// capabilities were not resolved, which is distinct from a pointer to an
 	// empty slice meaning the initiator held none.
 	Capabilities *[]string `json:"capabilities,omitempty"`
-	// LinearIssueID identifies the Linear issue the interception contributed
-	// to, e.g. "ENG-1234".
-	LinearIssueID *string `json:"linear_issue_id,omitempty"`
+	// LinearIssueIDs lists the Linear issues the interception contributed to,
+	// e.g. "ENG-1234". Sorted ascending and free of duplicates.
+	LinearIssueIDs *[]string `json:"linear_issue_ids,omitempty"`
+	// GitHubPRURLs lists the GitHub pull requests the interception contributed
+	// to. Each entry is a https://github.com/{owner}/{repo}/pull/{number} URL,
+	// validated before it is stored. Sorted ascending and free of duplicates.
+	GitHubPRURLs *[]string `json:"github_pr_urls,omitempty"`
 	// Repo names the repository the interception operated on.
 	Repo *string `json:"repo,omitempty"`
 	// Branch names the branch the interception operated on.

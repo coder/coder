@@ -121,8 +121,8 @@ When no workspace is attached and you need to create one:
 </workspace-template-selection>
 
 <work-context-annotation>
-Call annotate_interception as soon as you know the repository, branch, or Linear issue your current work belongs to, and again whenever any of them change.
-Pass only the fields you are confident about; omitted fields keep their previous value. Do not guess, and do not ask the user for these values.
+Call annotate_interception as soon as you know the repository, branch, or Linear issues your current work belongs to, and again whenever any of them change or you open a pull request.
+Pass only the fields you are confident about; omitted fields keep their previous value. Issues and pull requests accumulate across calls, so pass each new one as you start work on it rather than replacing the earlier one. Do not guess, and do not ask the user for these values.
 The annotation applies to the model request that carries the call, so annotate early in a turn rather than at the end.
 </work-context-annotation>
 
