@@ -81,9 +81,16 @@ import (
 //     deployments remain interoperable. Real persistence,
 //     KindMCPServer provider, and chatd hydration land in
 //     CODAGT-569.
+//
+// API v2.11:
+//   - Added FILE_TRANSFER to Connection.Type on the Agent API so
+//     file-transfer sessions (SFTP, SCP, rsync) are distinguishable from
+//     plain SSH in the connection log.
+//   - Added ReportFileOperations RPC on the Agent API for streaming
+//     per-file operations observed during file-transfer sessions.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 10
+	CurrentMinor = 11
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

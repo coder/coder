@@ -115,9 +115,9 @@ WHERE
 		WHEN @status :: text != '' THEN
 			((@status = 'ongoing' AND disconnect_time IS NULL) OR
 			(@status = 'completed' AND disconnect_time IS NOT NULL)) AND
-			-- Exclude point-in-time events reported by coderd, since we
-			-- don't know their close time.
-			"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
+			-- Exclude point-in-time events, since we don't know their
+			-- close time.
+			"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel', 'file_operation')
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in
@@ -231,9 +231,9 @@ SELECT COUNT(*) AS count FROM (
 			WHEN @status :: text != '' THEN
 				((@status = 'ongoing' AND disconnect_time IS NULL) OR
 				(@status = 'completed' AND disconnect_time IS NOT NULL)) AND
-				-- Exclude point-in-time events reported by coderd, since we
-				-- don't know their close time.
-				"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
+				-- Exclude point-in-time events, since we don't know their
+				-- close time.
+				"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel', 'file_operation')
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in
@@ -300,7 +300,11 @@ FROM (
         unnest(sqlc.arg('disconnect_reason')::text[]) AS disconnect_reason,
         unnest(sqlc.arg('disconnect_time')::timestamptz[]) AS disconnect_time
 ) AS u
-ON CONFLICT (connection_id, workspace_id, agent_name)
+-- The pairing index is partial (file_action IS NULL): file operation
+-- events share the connection_id of their parent session, never pair
+-- with a disconnect event, and always insert as new rows. The predicate
+-- is required for Postgres to infer the partial unique index.
+ON CONFLICT (connection_id, workspace_id, agent_name) WHERE file_action IS NULL
 DO UPDATE SET
     -- Pick the earliest real connect_time. The zero sentinel
     -- ('0001-01-01') means the batch didn't know the connect_time

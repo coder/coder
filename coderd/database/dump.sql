@@ -368,6 +368,23 @@ CREATE TYPE chat_status AS ENUM (
     'interrupting'
 );
 
+CREATE TYPE connection_log_file_action AS ENUM (
+    'read',
+    'write',
+    'read_write',
+    'mkdir',
+    'remove',
+    'rmdir',
+    'rename',
+    'symlink'
+);
+
+CREATE TYPE connection_log_file_protocol AS ENUM (
+    'sftp',
+    'scp',
+    'rsync'
+);
+
 CREATE TYPE connection_status AS ENUM (
     'connected',
     'disconnected'
@@ -380,7 +397,9 @@ CREATE TYPE connection_type AS ENUM (
     'reconnecting_pty',
     'workspace_app',
     'port_forwarding',
-    'tunnel'
+    'tunnel',
+    'file_transfer',
+    'file_operation'
 );
 
 CREATE TYPE cors_behavior AS ENUM (
@@ -2254,7 +2273,11 @@ CREATE TABLE connection_logs (
     slug_or_port text,
     connection_id uuid,
     disconnect_time timestamp with time zone,
-    disconnect_reason text
+    disconnect_reason text,
+    file_protocol connection_log_file_protocol,
+    file_action connection_log_file_action,
+    file_path text,
+    file_target text
 );
 
 COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.';
@@ -2270,6 +2293,14 @@ COMMENT ON COLUMN connection_logs.connection_id IS 'The SSH connection ID. Used 
 COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
 
 COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
+
+COMMENT ON COLUMN connection_logs.file_protocol IS 'Only set for file operation events. The protocol that carried the file operation (sftp, scp, or rsync).';
+
+COMMENT ON COLUMN connection_logs.file_action IS 'Only set for file operation events. The kind of file operation observed.';
+
+COMMENT ON COLUMN connection_logs.file_path IS 'Only set for file operation events. The path the operation was performed on. For SCP and rsync this is the requested root path from the command line, not necessarily every file transferred.';
+
+COMMENT ON COLUMN connection_logs.file_target IS 'Only set for file operation events that have a second path, such as the destination of a rename or the target of a symlink.';
 
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
@@ -4850,9 +4881,9 @@ CREATE INDEX idx_chats_workspace ON chats USING btree (workspace_id);
 
 CREATE INDEX idx_connection_logs_connect_time_desc ON connection_logs USING btree (connect_time DESC);
 
-CREATE UNIQUE INDEX idx_connection_logs_connection_id_workspace_id_agent_name ON connection_logs USING btree (connection_id, workspace_id, agent_name);
+CREATE UNIQUE INDEX idx_connection_logs_connection_id_workspace_id_agent_name ON connection_logs USING btree (connection_id, workspace_id, agent_name) WHERE (file_action IS NULL);
 
-COMMENT ON INDEX idx_connection_logs_connection_id_workspace_id_agent_name IS 'Connection ID is NULL for web events, but present for SSH events. Therefore, this index allows multiple web events for the same workspace & agent. For SSH events, the upsertion query handles duplicates on this index by upserting the disconnect_time and disconnect_reason for the same connection_id when the connection is closed.';
+COMMENT ON INDEX idx_connection_logs_connection_id_workspace_id_agent_name IS 'Connection ID is NULL for web events, but present for SSH events. Therefore, this index allows multiple web events for the same workspace & agent. For SSH events, the upsertion query handles duplicates on this index by upserting the disconnect_time and disconnect_reason for the same connection_id when the connection is closed. File operation events share the connection_id of their parent file-transfer session and are excluded from the index via the file_action predicate.';
 
 CREATE INDEX idx_connection_logs_organization_id ON connection_logs USING btree (organization_id);
 

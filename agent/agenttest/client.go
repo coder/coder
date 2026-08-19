@@ -182,6 +182,30 @@ func (c *Client) ConnectRPC210WithRole(ctx context.Context, _ string) (
 	return c.ConnectRPC210(ctx)
 }
 
+func (c *Client) ConnectRPC211(ctx context.Context) (
+	agentproto.DRPCAgentClient211, proto.DRPCTailnetClient28, error,
+) {
+	aAPI, tAPI, err := c.ConnectRPC29(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	// The concrete drpcAgentClient implements every method on the
+	// generated DRPCAgentClient interface, including
+	// ReportFileOperations, so the assertion always succeeds for the
+	// fixture's own connections.
+	client, ok := aAPI.(agentproto.DRPCAgentClient211)
+	if !ok {
+		return nil, nil, xerrors.Errorf("agenttest: connection does not implement DRPCAgentClient211; got %T", aAPI)
+	}
+	return client, tAPI, nil
+}
+
+func (c *Client) ConnectRPC211WithRole(ctx context.Context, _ string) (
+	agentproto.DRPCAgentClient211, proto.DRPCTailnetClient28, error,
+) {
+	return c.ConnectRPC211(ctx)
+}
+
 func (c *Client) ConnectRPC29(ctx context.Context) (
 	agentproto.DRPCAgentClient29, proto.DRPCTailnetClient28, error,
 ) {
@@ -247,6 +271,10 @@ func (c *Client) GetConnectionReports() []*agentproto.ReportConnectionRequest {
 	return c.fakeAgentAPI.GetConnectionReports()
 }
 
+func (c *Client) GetFileOperations() []*agentproto.FileTransferOperation {
+	return c.fakeAgentAPI.GetFileOperations()
+}
+
 func (c *Client) GetSubAgents() []*agentproto.SubAgent {
 	return c.fakeAgentAPI.GetSubAgents()
 }
@@ -283,6 +311,7 @@ type FakeAgentAPI struct {
 	metadata            map[string]agentsdk.Metadata
 	timings             []*agentproto.Timing
 	connectionReports   []*agentproto.ReportConnectionRequest
+	fileOperations      []*agentproto.FileTransferOperation
 	subAgents           map[uuid.UUID]*agentproto.SubAgent
 	subAgentDirs        map[uuid.UUID]string
 	subAgentDisplayApps map[uuid.UUID][]agentproto.CreateSubAgentRequest_DisplayApp
@@ -516,6 +545,20 @@ func (f *FakeAgentAPI) ReportConnection(_ context.Context, req *agentproto.Repor
 	f.Unlock()
 
 	return &emptypb.Empty{}, nil
+}
+
+func (f *FakeAgentAPI) ReportFileOperations(_ context.Context, req *agentproto.ReportFileOperationsRequest) (*agentproto.ReportFileOperationsResponse, error) {
+	f.Lock()
+	f.fileOperations = append(f.fileOperations, req.GetOperations()...)
+	f.Unlock()
+
+	return &agentproto.ReportFileOperationsResponse{}, nil
+}
+
+func (f *FakeAgentAPI) GetFileOperations() []*agentproto.FileTransferOperation {
+	f.Lock()
+	defer f.Unlock()
+	return slices.Clone(f.fileOperations)
 }
 
 func (*FakeAgentAPI) ReportBoundaryLogs(_ context.Context, _ *agentproto.ReportBoundaryLogsRequest) (*agentproto.ReportBoundaryLogsResponse, error) {

@@ -13220,7 +13220,7 @@ FROM (
         unnest($16::text[]) AS disconnect_reason,
         unnest($17::timestamptz[]) AS disconnect_time
 ) AS u
-ON CONFLICT (connection_id, workspace_id, agent_name)
+ON CONFLICT (connection_id, workspace_id, agent_name) WHERE file_action IS NULL
 DO UPDATE SET
     -- Pick the earliest real connect_time. The zero sentinel
     -- ('0001-01-01') means the batch didn't know the connect_time
@@ -13269,6 +13269,10 @@ type BatchUpsertConnectionLogsParams struct {
 	DisconnectTime   []time.Time      `db:"disconnect_time" json:"disconnect_time"`
 }
 
+// The pairing index is partial (file_action IS NULL): file operation
+// events share the connection_id of their parent session, never pair
+// with a disconnect event, and always insert as new rows. The predicate
+// is required for Postgres to infer the partial unique index.
 func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error {
 	_, err := q.db.ExecContext(ctx, batchUpsertConnectionLogs,
 		pq.Array(arg.ID),
@@ -13390,9 +13394,9 @@ SELECT COUNT(*) AS count FROM (
 			WHEN $13 :: text != '' THEN
 				(($13 = 'ongoing' AND disconnect_time IS NULL) OR
 				($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
-				-- Exclude point-in-time events reported by coderd, since we
-				-- don't know their close time.
-				"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
+				-- Exclude point-in-time events, since we don't know their
+				-- close time.
+				"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel', 'file_operation')
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in
@@ -13470,7 +13474,7 @@ func (q *sqlQuerier) DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldC
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason,
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.file_protocol, connection_logs.file_action, connection_logs.file_path, connection_logs.file_target,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with
 	-- left joins. This user metadata is necessary for parity with the audit logs
 	-- API.
@@ -13585,9 +13589,9 @@ WHERE
 		WHEN $13 :: text != '' THEN
 			(($13 = 'ongoing' AND disconnect_time IS NULL) OR
 			($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
-			-- Exclude point-in-time events reported by coderd, since we
-			-- don't know their close time.
-			"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel')
+			-- Exclude point-in-time events, since we don't know their
+			-- close time.
+			"type" NOT IN ('workspace_app', 'port_forwarding', 'tunnel', 'file_operation')
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in
@@ -13684,6 +13688,10 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 			&i.ConnectionLog.ConnectionID,
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
+			&i.ConnectionLog.FileProtocol,
+			&i.ConnectionLog.FileAction,
+			&i.ConnectionLog.FilePath,
+			&i.ConnectionLog.FileTarget,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,

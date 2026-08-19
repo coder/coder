@@ -362,6 +362,32 @@ func (c *Client) ConnectRPC210WithRole(ctx context.Context, role string) (
 	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
 }
 
+// ConnectRPC211 returns a dRPC client to the Agent API v2.11. It is useful
+// when you want to be maximally compatible with newer Coderd Release
+// Versions that implement the ReportFileOperations RPC.
+func (c *Client) ConnectRPC211(ctx context.Context) (
+	proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 11), "")
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC211WithRole is like ConnectRPC211 but sends an explicit role
+// query parameter to the server. Use "agent" for workspace agents to
+// enable connection monitoring.
+func (c *Client) ConnectRPC211WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 11), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
 // ConnectRPC connects to the workspace agent API and tailnet API.
 // It does not send a role query parameter, so the server will apply
 // its default behavior (currently: enable connection monitoring for

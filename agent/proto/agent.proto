@@ -380,6 +380,7 @@ message Connection {
 		VSCODE = 2;
 		JETBRAINS = 3;
 		RECONNECTING_PTY = 4;
+		FILE_TRANSFER = 5;
 	}
 
 	bytes id = 1;
@@ -393,6 +394,46 @@ message Connection {
 
 message ReportConnectionRequest {
 	Connection connection = 1;
+}
+
+// FileTransferOperation is a single observed file operation within a
+// file-transfer session (SFTP, SCP, or rsync). The connection_id matches
+// the id of the Connection report for the session so operations can be
+// grouped with it in the connection log.
+message FileTransferOperation {
+	enum Protocol {
+		PROTOCOL_UNSPECIFIED = 0;
+		SFTP = 1;
+		SCP = 2;
+		RSYNC = 3;
+	}
+	enum Action {
+		ACTION_UNSPECIFIED = 0;
+		READ = 1;
+		WRITE = 2;
+		READ_WRITE = 3;
+		MKDIR = 4;
+		REMOVE = 5;
+		RMDIR = 6;
+		RENAME = 7;
+		SYMLINK = 8;
+	}
+
+	bytes connection_id = 1;
+	Protocol protocol = 2;
+	Action action = 3;
+	string path = 4;
+	// target is the second path for operations that have one, such as the
+	// destination of a rename or the target of a symlink.
+	optional string target = 5;
+	google.protobuf.Timestamp timestamp = 6;
+}
+
+message ReportFileOperationsRequest {
+	repeated FileTransferOperation operations = 1;
+}
+
+message ReportFileOperationsResponse {
 }
 
 message SubAgent {
@@ -671,6 +712,7 @@ service Agent {
 	rpc GetResourcesMonitoringConfiguration(GetResourcesMonitoringConfigurationRequest) returns (GetResourcesMonitoringConfigurationResponse);
 	rpc PushResourcesMonitoringUsage(PushResourcesMonitoringUsageRequest) returns (PushResourcesMonitoringUsageResponse);
 	rpc ReportConnection(ReportConnectionRequest) returns (google.protobuf.Empty);
+	rpc ReportFileOperations(ReportFileOperationsRequest) returns (ReportFileOperationsResponse);
 	rpc CreateSubAgent(CreateSubAgentRequest) returns (CreateSubAgentResponse);
 	rpc DeleteSubAgent(DeleteSubAgentRequest) returns (DeleteSubAgentResponse);
 	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);

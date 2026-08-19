@@ -1011,9 +1011,49 @@ func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Conn
 		return database.ConnectionTypeVscode, nil
 	case agentproto.Connection_RECONNECTING_PTY:
 		return database.ConnectionTypeReconnectingPty, nil
+	case agentproto.Connection_FILE_TRANSFER:
+		return database.ConnectionTypeFileTransfer, nil
 	default:
 		// Also Connection_TYPE_UNSPECIFIED, no mapping.
 		return "", xerrors.Errorf("unknown agent connection type %q", typ)
+	}
+}
+
+func ConnectionLogFileProtocolFromAgentProtoFileTransferProtocol(protocol agentproto.FileTransferOperation_Protocol) (database.ConnectionLogFileProtocol, error) {
+	switch protocol {
+	case agentproto.FileTransferOperation_SFTP:
+		return database.ConnectionLogFileProtocolSftp, nil
+	case agentproto.FileTransferOperation_SCP:
+		return database.ConnectionLogFileProtocolScp, nil
+	case agentproto.FileTransferOperation_RSYNC:
+		return database.ConnectionLogFileProtocolRsync, nil
+	default:
+		// Also FileTransferOperation_PROTOCOL_UNSPECIFIED, no mapping.
+		return "", xerrors.Errorf("unknown file transfer protocol %q", protocol)
+	}
+}
+
+func ConnectionLogFileActionFromAgentProtoFileTransferAction(action agentproto.FileTransferOperation_Action) (database.ConnectionLogFileAction, error) {
+	switch action {
+	case agentproto.FileTransferOperation_READ:
+		return database.ConnectionLogFileActionRead, nil
+	case agentproto.FileTransferOperation_WRITE:
+		return database.ConnectionLogFileActionWrite, nil
+	case agentproto.FileTransferOperation_READ_WRITE:
+		return database.ConnectionLogFileActionReadWrite, nil
+	case agentproto.FileTransferOperation_MKDIR:
+		return database.ConnectionLogFileActionMkdir, nil
+	case agentproto.FileTransferOperation_REMOVE:
+		return database.ConnectionLogFileActionRemove, nil
+	case agentproto.FileTransferOperation_RMDIR:
+		return database.ConnectionLogFileActionRmdir, nil
+	case agentproto.FileTransferOperation_RENAME:
+		return database.ConnectionLogFileActionRename, nil
+	case agentproto.FileTransferOperation_SYMLINK:
+		return database.ConnectionLogFileActionSymlink, nil
+	default:
+		// Also FileTransferOperation_ACTION_UNSPECIFIED, no mapping.
+		return "", xerrors.Errorf("unknown file transfer action %q", action)
 	}
 }
 

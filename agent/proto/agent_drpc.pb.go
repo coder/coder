@@ -52,6 +52,7 @@ type DRPCAgentClient interface {
 	GetResourcesMonitoringConfiguration(ctx context.Context, in *GetResourcesMonitoringConfigurationRequest) (*GetResourcesMonitoringConfigurationResponse, error)
 	PushResourcesMonitoringUsage(ctx context.Context, in *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error)
 	ReportConnection(ctx context.Context, in *ReportConnectionRequest) (*emptypb.Empty, error)
+	ReportFileOperations(ctx context.Context, in *ReportFileOperationsRequest) (*ReportFileOperationsResponse, error)
 	CreateSubAgent(ctx context.Context, in *CreateSubAgentRequest) (*CreateSubAgentResponse, error)
 	DeleteSubAgent(ctx context.Context, in *DeleteSubAgentRequest) (*DeleteSubAgentResponse, error)
 	ListSubAgents(ctx context.Context, in *ListSubAgentsRequest) (*ListSubAgentsResponse, error)
@@ -187,6 +188,15 @@ func (c *drpcAgentClient) ReportConnection(ctx context.Context, in *ReportConnec
 	return out, nil
 }
 
+func (c *drpcAgentClient) ReportFileOperations(ctx context.Context, in *ReportFileOperationsRequest) (*ReportFileOperationsResponse, error) {
+	out := new(ReportFileOperationsResponse)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/ReportFileOperations", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *drpcAgentClient) CreateSubAgent(ctx context.Context, in *CreateSubAgentRequest) (*CreateSubAgentResponse, error) {
 	out := new(CreateSubAgentResponse)
 	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/CreateSubAgent", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
@@ -255,6 +265,7 @@ type DRPCAgentServer interface {
 	GetResourcesMonitoringConfiguration(context.Context, *GetResourcesMonitoringConfigurationRequest) (*GetResourcesMonitoringConfigurationResponse, error)
 	PushResourcesMonitoringUsage(context.Context, *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error)
 	ReportConnection(context.Context, *ReportConnectionRequest) (*emptypb.Empty, error)
+	ReportFileOperations(context.Context, *ReportFileOperationsRequest) (*ReportFileOperationsResponse, error)
 	CreateSubAgent(context.Context, *CreateSubAgentRequest) (*CreateSubAgentResponse, error)
 	DeleteSubAgent(context.Context, *DeleteSubAgentRequest) (*DeleteSubAgentResponse, error)
 	ListSubAgents(context.Context, *ListSubAgentsRequest) (*ListSubAgentsResponse, error)
@@ -317,6 +328,10 @@ func (s *DRPCAgentUnimplementedServer) ReportConnection(context.Context, *Report
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAgentUnimplementedServer) ReportFileOperations(context.Context, *ReportFileOperationsRequest) (*ReportFileOperationsResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 func (s *DRPCAgentUnimplementedServer) CreateSubAgent(context.Context, *CreateSubAgentRequest) (*CreateSubAgentResponse, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
@@ -343,7 +358,7 @@ func (s *DRPCAgentUnimplementedServer) PushContextState(context.Context, *PushCo
 
 type DRPCAgentDescription struct{}
 
-func (DRPCAgentDescription) NumMethods() int { return 19 }
+func (DRPCAgentDescription) NumMethods() int { return 20 }
 
 func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -465,6 +480,15 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 					)
 			}, DRPCAgentServer.ReportConnection, true
 	case 13:
+		return "/coder.agent.v2.Agent/ReportFileOperations", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					ReportFileOperations(
+						ctx,
+						in1.(*ReportFileOperationsRequest),
+					)
+			}, DRPCAgentServer.ReportFileOperations, true
+	case 14:
 		return "/coder.agent.v2.Agent/CreateSubAgent", drpcEncoding_File_agent_proto_agent_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentServer).
@@ -473,7 +497,7 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*CreateSubAgentRequest),
 					)
 			}, DRPCAgentServer.CreateSubAgent, true
-	case 14:
+	case 15:
 		return "/coder.agent.v2.Agent/DeleteSubAgent", drpcEncoding_File_agent_proto_agent_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentServer).
@@ -482,7 +506,7 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*DeleteSubAgentRequest),
 					)
 			}, DRPCAgentServer.DeleteSubAgent, true
-	case 15:
+	case 16:
 		return "/coder.agent.v2.Agent/ListSubAgents", drpcEncoding_File_agent_proto_agent_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentServer).
@@ -491,7 +515,7 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*ListSubAgentsRequest),
 					)
 			}, DRPCAgentServer.ListSubAgents, true
-	case 16:
+	case 17:
 		return "/coder.agent.v2.Agent/ReportBoundaryLogs", drpcEncoding_File_agent_proto_agent_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentServer).
@@ -500,7 +524,7 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*ReportBoundaryLogsRequest),
 					)
 			}, DRPCAgentServer.ReportBoundaryLogs, true
-	case 17:
+	case 18:
 		return "/coder.agent.v2.Agent/UpdateAppStatus", drpcEncoding_File_agent_proto_agent_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentServer).
@@ -509,7 +533,7 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*UpdateAppStatusRequest),
 					)
 			}, DRPCAgentServer.UpdateAppStatus, true
-	case 18:
+	case 19:
 		return "/coder.agent.v2.Agent/PushContextState", drpcEncoding_File_agent_proto_agent_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentServer).
@@ -729,6 +753,22 @@ type drpcAgent_ReportConnectionStream struct {
 }
 
 func (x *drpcAgent_ReportConnectionStream) SendAndClose(m *emptypb.Empty) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_ReportFileOperationsStream interface {
+	drpc.Stream
+	SendAndClose(*ReportFileOperationsResponse) error
+}
+
+type drpcAgent_ReportFileOperationsStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_ReportFileOperationsStream) SendAndClose(m *ReportFileOperationsResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
 		return err
 	}

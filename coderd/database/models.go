@@ -1788,6 +1788,143 @@ func AllChatStatusValues() []ChatStatus {
 	}
 }
 
+type ConnectionLogFileAction string
+
+const (
+	ConnectionLogFileActionRead      ConnectionLogFileAction = "read"
+	ConnectionLogFileActionWrite     ConnectionLogFileAction = "write"
+	ConnectionLogFileActionReadWrite ConnectionLogFileAction = "read_write"
+	ConnectionLogFileActionMkdir     ConnectionLogFileAction = "mkdir"
+	ConnectionLogFileActionRemove    ConnectionLogFileAction = "remove"
+	ConnectionLogFileActionRmdir     ConnectionLogFileAction = "rmdir"
+	ConnectionLogFileActionRename    ConnectionLogFileAction = "rename"
+	ConnectionLogFileActionSymlink   ConnectionLogFileAction = "symlink"
+)
+
+func (e *ConnectionLogFileAction) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConnectionLogFileAction(s)
+	case string:
+		*e = ConnectionLogFileAction(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConnectionLogFileAction: %T", src)
+	}
+	return nil
+}
+
+type NullConnectionLogFileAction struct {
+	ConnectionLogFileAction ConnectionLogFileAction `json:"connection_log_file_action"`
+	Valid                   bool                    `json:"valid"` // Valid is true if ConnectionLogFileAction is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConnectionLogFileAction) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConnectionLogFileAction, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConnectionLogFileAction.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConnectionLogFileAction) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConnectionLogFileAction), nil
+}
+
+func (e ConnectionLogFileAction) Valid() bool {
+	switch e {
+	case ConnectionLogFileActionRead,
+		ConnectionLogFileActionWrite,
+		ConnectionLogFileActionReadWrite,
+		ConnectionLogFileActionMkdir,
+		ConnectionLogFileActionRemove,
+		ConnectionLogFileActionRmdir,
+		ConnectionLogFileActionRename,
+		ConnectionLogFileActionSymlink:
+		return true
+	}
+	return false
+}
+
+func AllConnectionLogFileActionValues() []ConnectionLogFileAction {
+	return []ConnectionLogFileAction{
+		ConnectionLogFileActionRead,
+		ConnectionLogFileActionWrite,
+		ConnectionLogFileActionReadWrite,
+		ConnectionLogFileActionMkdir,
+		ConnectionLogFileActionRemove,
+		ConnectionLogFileActionRmdir,
+		ConnectionLogFileActionRename,
+		ConnectionLogFileActionSymlink,
+	}
+}
+
+type ConnectionLogFileProtocol string
+
+const (
+	ConnectionLogFileProtocolSftp  ConnectionLogFileProtocol = "sftp"
+	ConnectionLogFileProtocolScp   ConnectionLogFileProtocol = "scp"
+	ConnectionLogFileProtocolRsync ConnectionLogFileProtocol = "rsync"
+)
+
+func (e *ConnectionLogFileProtocol) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ConnectionLogFileProtocol(s)
+	case string:
+		*e = ConnectionLogFileProtocol(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ConnectionLogFileProtocol: %T", src)
+	}
+	return nil
+}
+
+type NullConnectionLogFileProtocol struct {
+	ConnectionLogFileProtocol ConnectionLogFileProtocol `json:"connection_log_file_protocol"`
+	Valid                     bool                      `json:"valid"` // Valid is true if ConnectionLogFileProtocol is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullConnectionLogFileProtocol) Scan(value interface{}) error {
+	if value == nil {
+		ns.ConnectionLogFileProtocol, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ConnectionLogFileProtocol.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullConnectionLogFileProtocol) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ConnectionLogFileProtocol), nil
+}
+
+func (e ConnectionLogFileProtocol) Valid() bool {
+	switch e {
+	case ConnectionLogFileProtocolSftp,
+		ConnectionLogFileProtocolScp,
+		ConnectionLogFileProtocolRsync:
+		return true
+	}
+	return false
+}
+
+func AllConnectionLogFileProtocolValues() []ConnectionLogFileProtocol {
+	return []ConnectionLogFileProtocol{
+		ConnectionLogFileProtocolSftp,
+		ConnectionLogFileProtocolScp,
+		ConnectionLogFileProtocolRsync,
+	}
+}
+
 type ConnectionStatus string
 
 const (
@@ -1856,6 +1993,8 @@ const (
 	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
 	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
 	ConnectionTypeTunnel          ConnectionType = "tunnel"
+	ConnectionTypeFileTransfer    ConnectionType = "file_transfer"
+	ConnectionTypeFileOperation   ConnectionType = "file_operation"
 )
 
 func (e *ConnectionType) Scan(src interface{}) error {
@@ -1901,7 +2040,9 @@ func (e ConnectionType) Valid() bool {
 		ConnectionTypeReconnectingPty,
 		ConnectionTypeWorkspaceApp,
 		ConnectionTypePortForwarding,
-		ConnectionTypeTunnel:
+		ConnectionTypeTunnel,
+		ConnectionTypeFileTransfer,
+		ConnectionTypeFileOperation:
 		return true
 	}
 	return false
@@ -1916,6 +2057,8 @@ func AllConnectionTypeValues() []ConnectionType {
 		ConnectionTypeWorkspaceApp,
 		ConnectionTypePortForwarding,
 		ConnectionTypeTunnel,
+		ConnectionTypeFileTransfer,
+		ConnectionTypeFileOperation,
 	}
 }
 
@@ -5262,6 +5405,14 @@ type ConnectionLog struct {
 	DisconnectTime sql.NullTime `db:"disconnect_time" json:"disconnect_time"`
 	// The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
+	// Only set for file operation events. The protocol that carried the file operation (sftp, scp, or rsync).
+	FileProtocol NullConnectionLogFileProtocol `db:"file_protocol" json:"file_protocol"`
+	// Only set for file operation events. The kind of file operation observed.
+	FileAction NullConnectionLogFileAction `db:"file_action" json:"file_action"`
+	// Only set for file operation events. The path the operation was performed on. For SCP and rsync this is the requested root path from the command line, not necessarily every file transferred.
+	FilePath sql.NullString `db:"file_path" json:"file_path"`
+	// Only set for file operation events that have a second path, such as the destination of a rename or the target of a symlink.
+	FileTarget sql.NullString `db:"file_target" json:"file_target"`
 }
 
 type CryptoKey struct {
