@@ -11,8 +11,9 @@ import (
 )
 
 // OpenAI-compatible providers share an API shape but differ in the exact JSON
-// they accept. These patches adjust Fantasy's serialized request body at the
-// transport boundary so higher-level generation code can stay provider agnostic.
+// they accept and emit. These patches adjust Fantasy's serialized request body
+// and, for Gemini endpoints, the response body at the transport boundary so
+// higher-level generation code can stay provider agnostic.
 
 func withOpenAICompatRequestPatches(
 	client *http.Client,
