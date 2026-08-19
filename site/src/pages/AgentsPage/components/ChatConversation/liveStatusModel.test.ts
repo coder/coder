@@ -132,17 +132,30 @@ describe("deriveLiveStatus", () => {
 		).toEqual({ phase: "streaming", hasAccumulatedOutput: false });
 	});
 
-	it("suppresses accumulated output on failed streams", () => {
+	it("suppresses accumulated output after a terminal stream error", () => {
 		expect(
 			derive({
 				streamState: buildStreamState({
 					blocks: [{ type: "response", text: "Partial response" }],
 				}),
 				streamError: buildStreamError(),
+				chatStatus: "error",
+			}),
+		).toEqual(failedStatus);
+	});
+
+	it("keeps accumulated output when a non-terminal error leaves the stream live", () => {
+		expect(
+			derive({
+				streamState: buildStreamState({
+					blocks: [{ type: "response", text: "Partial response" }],
+				}),
+				streamError: buildStreamError(),
+				chatStatus: "running",
 			}),
 		).toEqual({
 			...failedStatus,
-			hasAccumulatedOutput: false,
+			hasAccumulatedOutput: true,
 		});
 	});
 

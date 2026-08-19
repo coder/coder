@@ -120,11 +120,13 @@ export const deriveLiveStatus = ({
 	}
 
 	if (streamError) {
-		// The error handler clears the stream, so output and an error
-		// only coexist when a stale part repopulates the stream after
-		// the clear. Suppress that leftover so it does not render as a
-		// live row under the callout.
-		return toFailedLiveStatus(streamError, { hasAccumulatedOutput: false });
+		// Terminal stream errors clear the stream, so any output left is
+		// a stale leftover. Request and parse errors leave the stream
+		// live, so keep their output visible.
+		return toFailedLiveStatus(streamError, {
+			hasAccumulatedOutput:
+				chatStatus === "error" ? false : hasAccumulatedOutput,
+		});
 	}
 
 	if (reconnectState) {
