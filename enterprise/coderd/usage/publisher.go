@@ -56,10 +56,11 @@ type tallymanPublisher struct {
 	done        chan struct{}
 
 	// Configured with options:
-	ingestURL    string
-	httpClient   *http.Client
-	clock        quartz.Clock
-	initialDelay time.Duration
+	ingestURL      string
+	httpClient     *http.Client
+	clock          quartz.Clock
+	initialDelay   time.Duration
+	publishTimeout time.Duration
 }
 
 var _ Publisher = &tallymanPublisher{}
@@ -78,9 +79,10 @@ func NewTallymanPublisher(ctx context.Context, log slog.Logger, db database.Stor
 		licenseKeys: keys,
 		done:        make(chan struct{}),
 
-		ingestURL:  tallymanIngestURLV1,
-		httpClient: http.DefaultClient,
-		clock:      quartz.NewReal(),
+		ingestURL:      tallymanIngestURLV1,
+		httpClient:     http.DefaultClient,
+		clock:          quartz.NewReal(),
+		publishTimeout: tallymanPublishTimeout,
 	}
 	for _, opt := range opts {
 		opt(publisher)
@@ -119,6 +121,14 @@ func PublisherWithIngestURL(ingestURL string) TallymanPublisherOption {
 func PublisherWithInitialDelay(initialDelay time.Duration) TallymanPublisherOption {
 	return func(p *tallymanPublisher) {
 		p.initialDelay = initialDelay
+	}
+}
+
+// PublisherWithPublishTimeout sets the timeout for each tallyman publish
+// request.
+func PublisherWithPublishTimeout(timeout time.Duration) TallymanPublisherOption {
+	return func(p *tallymanPublisher) {
+		p.publishTimeout = timeout
 	}
 }
 
@@ -182,9 +192,7 @@ func (p *tallymanPublisher) publishLoop(ctx context.Context, deploymentID uuid.U
 // (or any rejection) or there are no more events to publish.
 func (p *tallymanPublisher) publish(ctx context.Context, deploymentID uuid.UUID) error {
 	for {
-		publishCtx, publishCtxCancel := context.WithTimeout(ctx, tallymanPublishTimeout)
-		accepted, err := p.publishOnce(publishCtx, deploymentID)
-		publishCtxCancel()
+		accepted, err := p.publishOnce(ctx, deploymentID)
 		if err != nil {
 			return xerrors.Errorf("publish usage events to tallyman: %w", err)
 		}
@@ -242,7 +250,16 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		return 0, xerrors.Errorf("duplicate event IDs found in events for publishing")
 	}
 
-	resp, err := p.sendPublishRequest(ctx, deploymentID, licenseJwt, tallymanReq)
+	// Only the tallyman request runs under the publish timeout. The
+	// post-publish database update and failing-events marker outcome below
+	// use the parent context: a request that consumes the entire timeout
+	// (e.g. tallyman hanging until the deadline) must still persist its
+	// failure, or the in-flight attempt markers on the selected rows would
+	// hide the failure from detection until they expire, only for the next
+	// retry to refresh them and hide it again.
+	publishCtx, publishCtxCancel := context.WithTimeout(ctx, p.publishTimeout)
+	resp, err := p.sendPublishRequest(publishCtx, deploymentID, licenseJwt, tallymanReq)
+	publishCtxCancel()
 	allFailed := err != nil
 	if err != nil {
 		p.log.Warn(ctx, "failed to send publish request to tallyman", slog.F("count", len(events)), slog.Error(err))

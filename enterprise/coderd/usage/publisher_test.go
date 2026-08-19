@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -688,6 +689,96 @@ func TestPublisherTallymanError(t *testing.T) {
 
 	// The publisher should have published the events once.
 	require.Equal(t, 1, calls)
+}
+
+func TestPublisherTallymanTimeout(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	log := slogtest.Make(t, nil)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	// Each publish batch records its outcome in the failing-events marker
+	// inside a locked transaction.
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(db)
+		},
+	).AnyTimes()
+	db.EXPECT().AcquireLock(gomock.Any(), int64(database.LockIDUsagePublishingEnabledMarker)).Return(nil).AnyTimes()
+	db.EXPECT().GetRuntimeConfig(gomock.Any(), license.UsagePublishingFailingEventsKey).Return("", sql.ErrNoRows).AnyTimes()
+	clock := quartz.NewMock(t)
+	now := time.Now()
+	clock.Set(now)
+
+	_, _ = configureMockDeployment(t, db)
+	// Tallyman hangs until the publisher's request deadline fires. The body
+	// must be drained first: the server only watches for client disconnect
+	// (which cancels the request context) once the body has been consumed.
+	ingestURL := fakeServer(t, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		<-r.Context().Done()
+	}))
+
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
+		usage.PublisherWithClock(clock),
+		usage.PublisherWithIngestURL(ingestURL),
+		usage.PublisherWithPublishTimeout(testutil.IntervalFast),
+	)
+	defer publisher.Close()
+
+	// Start the publisher with a trap.
+	tickerTrap := clock.Trap().NewTicker()
+	defer tickerTrap.Close()
+	startErr := make(chan error)
+	go func() {
+		err := publisher.Start()
+		testutil.RequireSend(ctx, t, startErr, err)
+	}()
+	tickerCall := tickerTrap.MustWait(ctx)
+	tickerCall.MustRelease(ctx)
+	require.NoError(t, testutil.RequireReceive(ctx, t, startErr))
+
+	// Mock events to be published.
+	events := []database.UsageEvent{
+		{
+			ID:        uuid.New().String(),
+			EventType: string(usagetypes.UsageEventTypeDCManagedAgentsV1),
+			EventData: []byte(jsoninate(t, usagetypes.DCManagedAgentsV1{
+				Count: 1,
+			})),
+		},
+	}
+	db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), gomock.Any()).Return(events, nil).Times(1)
+	// A request that consumed its entire deadline must still persist the
+	// temporary failure and record the failing-events marker entry with the
+	// parent context, or the rows' in-flight attempt markers would hide the
+	// failure from detection until they expire.
+	db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, params database.UpdateUsageEventsPostPublishParams) error {
+			assert.NoError(t, ctx.Err(), "post-publish update must not use the expired request context")
+			assert.Equal(t, []string{events[0].ID}, params.IDs)
+			assert.Contains(t, params.FailureMessages[0], "failed to publish to tallyman")
+			assert.Equal(t, []bool{false}, params.SetPublishedAts)
+			return nil
+		},
+	).Times(1)
+	db.EXPECT().UpsertRuntimeConfig(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, params database.UpsertRuntimeConfigParams) error {
+			assert.NoError(t, ctx.Err(), "marker update must not use the expired request context")
+			assert.Equal(t, license.UsagePublishingFailingEventsKey, params.Key)
+			var marker license.UsagePublishingFailingEvents
+			if assert.NoError(t, json.Unmarshal([]byte(params.Value), &marker)) {
+				assert.Contains(t, marker.Events, events[0].ID)
+			}
+			return nil
+		},
+	).Times(1)
+
+	// Tick and wait for the reset call.
+	tickerResetTrap := clock.Trap().TickerReset()
+	defer tickerResetTrap.Close()
+	clock.Advance(tickerCall.Duration)
+	tickerResetTrap.MustWait(ctx).MustRelease(ctx)
 }
 
 func jsoninate(t *testing.T, v any) string {
