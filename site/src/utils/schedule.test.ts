@@ -119,14 +119,14 @@ describe("util/schedule", () => {
 			const { tooltip } = autostopDisplay(workspace, "inactive", template);
 			const html = renderToStaticMarkup(tooltip);
 
-			expect(html).toContain("Activity detected from SSH");
+			expect(html).toContain("Activity from SSH extended this deadline");
 		});
 
 		it("omits the activity line when last_activity_source and last_activity_at are absent", () => {
 			const { tooltip } = autostopDisplay(baseWorkspace, "inactive", template);
 			const html = renderToStaticMarkup(tooltip);
 
-			expect(html).not.toContain("Activity detected from");
+			expect(html).not.toContain("extended this deadline");
 		});
 	});
 

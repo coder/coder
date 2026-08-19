@@ -173,9 +173,8 @@ export const autostopDisplay = (
 		if (workspace.last_activity_source && workspace.last_activity_at) {
 			activityLine = (
 				<div className="mt-2">
-					Activity detected from{" "}
-					{activitySourceLabel(workspace.last_activity_source)}{" "}
-					{relativeTimeAgo(workspace.last_activity_at)}.
+					Activity from {activitySourceLabel(workspace.last_activity_source)}{" "}
+					extended this deadline {relativeTimeAgo(workspace.last_activity_at)}.
 				</div>
 			);
 		}
