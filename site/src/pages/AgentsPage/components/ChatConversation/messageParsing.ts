@@ -422,21 +422,48 @@ export const parseMessagesWithMergedTools = (
 	>();
 	for (const { parsed } of rawParsed) {
 		for (const tool of parsed.tools) {
-			if (tool.name !== "process_output") continue;
-			const rec = asRecord(tool.result);
-			const toolArgs = asRecord(tool.args);
-			const pid = toolArgs ? asString(toolArgs.process_id) : "";
-			if (!rec || !pid) continue;
-			// process_output reports running:true while alive; an
-			// exited process reports its final exit code.
-			if (rec.running === true) {
-				processStateByPid.set(pid, { state: "running" });
-			} else {
-				const exitCode = asNumber(rec.exit_code, { parseString: true });
-				processStateByPid.set(pid, {
-					state: "exited",
-					exitCode: exitCode ?? undefined,
-				});
+			if (tool.name === "process_output") {
+				const rec = asRecord(tool.result);
+				const toolArgs = asRecord(tool.args);
+				const pid = toolArgs ? asString(toolArgs.process_id) : "";
+				if (!rec || !pid) continue;
+				// process_output reports running:true while alive; an
+				// exited process reports its final exit code.
+				if (rec.running === true) {
+					processStateByPid.set(pid, { state: "running" });
+				} else {
+					const exitCode = asNumber(rec.exit_code, { parseString: true });
+					processStateByPid.set(pid, {
+						state: "exited",
+						exitCode: exitCode ?? undefined,
+					});
+				}
+				continue;
+			}
+			// process_list returns a snapshot of every tracked
+			// process; it may be the only observation when the
+			// agent lists instead of polling a specific process.
+			if (tool.name === "process_list") {
+				const rec = asRecord(tool.result);
+				const processes = rec?.processes;
+				if (!Array.isArray(processes)) continue;
+				for (const proc of processes) {
+					const procRec = asRecord(proc);
+					if (!procRec) continue;
+					const pid = asString(procRec.id);
+					if (!pid) continue;
+					if (procRec.running === true) {
+						processStateByPid.set(pid, { state: "running" });
+					} else {
+						const exitCode = asNumber(procRec.exit_code, {
+							parseString: true,
+						});
+						processStateByPid.set(pid, {
+							state: "exited",
+							exitCode: exitCode ?? undefined,
+						});
+					}
+				}
 			}
 		}
 	}
@@ -450,14 +477,18 @@ export const parseMessagesWithMergedTools = (
 		}
 	}
 	if (processStateByPid.size > 0) {
-		for (const { parsed } of rawParsed) {
+		for (const { message, parsed } of rawParsed) {
 			for (const tool of parsed.tools) {
 				if (tool.name !== "execute") continue;
 				const rec = asRecord(tool.result);
 				const pid = rec ? asString(rec.background_process_id) : "";
 				const state = pid ? processStateByPid.get(pid) : undefined;
 				if (state) {
-					tool.backgroundProcess = state;
+					const createdMs = Date.parse(message.created_at);
+					tool.backgroundProcess = {
+						...state,
+						startedAtMs: Number.isNaN(createdMs) ? undefined : createdMs,
+					};
 				}
 			}
 		}

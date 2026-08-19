@@ -788,7 +788,10 @@ describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
 		const executeTool = parsed
 			.flatMap((e) => e.parsed.tools)
 			.find((t) => t.name === "execute");
-		expect(executeTool?.backgroundProcess).toEqual({ state: "running" });
+		expect(executeTool?.backgroundProcess).toEqual({
+			state: "running",
+			startedAtMs: expect.any(Number),
+		});
 	});
 
 	it("annotates backgrounded execute with final exit code", () => {
@@ -819,7 +822,36 @@ describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
 		expect(executeTool?.backgroundProcess).toEqual({
 			state: "exited",
 			exitCode: 1,
+			startedAtMs: expect.any(Number),
 		});
+	});
+
+	it("annotates from process_list snapshots when no poll exists", () => {
+		const PID = "proc-listed";
+		const parsed = parseMessagesWithMergedTools([
+			msg(1, "assistant", [toolCall("tc1", "execute", { command: "exit 1" })]),
+			msg(2, "assistant", [
+				toolResult("tc1", "execute", {
+					success: true,
+					background_process_id: PID,
+				}),
+				toolCall("tc2", "process_list", {}),
+			]),
+			msg(3, "assistant", [
+				toolResult("tc2", "process_list", {
+					processes: [
+						{ id: PID, command: "exit 1", running: false, exit_code: 1 },
+						{ id: "other", command: "sleep 99", running: true },
+					],
+				}),
+			]),
+		]);
+
+		const executeTool = parsed
+			.flatMap((e) => e.parsed.tools)
+			.find((t) => t.name === "execute");
+		expect(executeTool?.backgroundProcess?.state).toBe("exited");
+		expect(executeTool?.backgroundProcess?.exitCode).toBe(1);
 	});
 
 	it("does not annotate foreground execute calls", () => {
