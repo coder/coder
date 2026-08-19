@@ -540,9 +540,8 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 	})
 
 	// DuplicateHostDirectPathRoutesBoth proves the core invariant of
-	// https://linear.app/codercom/issue/AIGOV-596: two providers
-	// sharing a hostname are both routable via the direct path even
-	// though the proxy can only route one.
+	// AIGOV-596: two providers sharing a hostname are both routable via
+	// the direct path even though the proxy can only route one.
 	t.Run("DuplicateHostDirectPathRoutesBoth", func(t *testing.T) {
 		t.Parallel()
 
@@ -553,8 +552,7 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 		backend.Config.SetKeepAlivesEnabled(false)
 		t.Cleanup(backend.Close)
 
-		// Two providers sharing the same upstream hostname;
-		// the bridge routes by name, so both are reachable.
+		// The bridge routes by name, so both are reachable.
 		logger := slogtest.Make(t, nil)
 		providers := []aibridge.Provider{
 			aibridge.NewOpenAIProvider(config.OpenAI{Name: "first", BaseURL: backend.URL}),
@@ -563,7 +561,6 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 		bridge, err := aibridge.NewRequestBridge(t.Context(), providers, nil, nil, logger, nil, otel.Tracer("test"))
 		require.NoError(t, err)
 
-		// Both providers are routable by name.
 		for _, name := range []string{"first", "second"} {
 			req := httptest.NewRequest(http.MethodPost, "/"+name+"/v1/models", strings.NewReader(`{}`))
 			req.Header.Set("Content-Type", "application/json")
