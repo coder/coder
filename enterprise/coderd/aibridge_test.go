@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -1657,6 +1658,46 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Len(t, res.Threads, 1)
 		require.Equal(t, "byok", res.Threads[0].CredentialKind)
 		require.Equal(t, "sk-a...efgh", res.Threads[0].CredentialHint)
+	})
+
+	t.Run("AnnotationSummary", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		issues := func(ids ...string) *[]string { return &ids }
+		prs := func(urls ...string) *[]string { return &urls }
+		values := func(vs ...string) *[]string { return &vs }
+
+		for i, annotations := range []database.AIBridgeInterceptionAnnotations{
+			{LinearIssueIDs: issues("ENG-5678"), Repos: values("coder/coder"), Branches: values("main")},
+			// Duplicates across interceptions collapse into one entry.
+			{
+				LinearIssueIDs: issues("ENG-1234", "ENG-5678"),
+				Repos:          values("coder/coder"),
+				GitHubPRURLs:   prs("https://github.com/coder/coder/pull/28300"),
+			},
+			{},
+		} {
+			startedAt := now.Add(time.Duration(i) * time.Minute)
+			endedAt := startedAt.Add(time.Minute)
+			dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:     firstUser.UserID,
+				Provider:        "anthropic",
+				Model:           "claude-sonnet-5",
+				StartedAt:       startedAt,
+				ClientSessionID: sql.NullString{String: "annotated-session", Valid: true},
+				Annotations:     annotations,
+			}, &endedAt)
+		}
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "annotated-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, []string{"ENG-1234", "ENG-5678"}, res.LinearIssueIDs)
+		require.Equal(t, []string{"https://github.com/coder/coder/pull/28300"}, res.GitHubPRURLs)
+		require.Equal(t, []string{"coder/coder"}, res.Repos)
+		require.Equal(t, []string{"main"}, res.Branches)
 	})
 
 	t.Run("ThreadsWithAgentFirewallCorrelation", func(t *testing.T) {
@@ -4716,6 +4757,105 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		records := readAISpendExportResponse(t, res)
 		require.Len(t, records, 2)
 		require.Equal(t, "future;workspace", records[1][2])
+	})
+
+	t.Run("OptionalAnnotationColumns", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-annotation-columns-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+		effectiveGroupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+
+		issues := func(ids ...string) *[]string { return &ids }
+		values := func(vs ...string) *[]string { return &vs }
+		prURL := "https://github.com/coder/coder/pull/28300"
+
+		// Three interceptions collapse into one row: the issue sets union, the
+		// two branches both appear, and the unannotated one contributes nothing.
+		for _, annotations := range []database.AIBridgeInterceptionAnnotations{
+			{LinearIssueIDs: issues("ENG-5678"), Repos: values("coder/coder"), Branches: values("main")},
+			{
+				LinearIssueIDs: issues("ENG-1234", "ENG-5678"),
+				GitHubPRURLs:   &[]string{prURL},
+				Repos:          values("coder/coder"),
+				Branches:       values("scott/x/annotations"),
+			},
+			{},
+		} {
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod",
+				Model: "claude-4", StartedAt: inMonth, Annotations: annotations,
+			}, nil)
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: intc.ID, CreatedAt: inMonth, EffectiveGroupID: effectiveGroupID,
+				InputTokens: 100, OutputTokens: 50, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
+			})
+		}
+
+		t.Run("OmittedLeavesHeaderUnchanged", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+			defer res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+
+			records := readAISpendExportResponse(t, res)
+			require.Equal(t, entcoderd.AISpendExportCSVHeader, records[0])
+		})
+
+		t.Run("RequestedColumnsFollowRequestOrder", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, map[string]string{
+				// Repeats collapse and the requested order is preserved.
+				"columns": "branches, repos ,linear_issue_ids,branches,github_pr_urls",
+			})
+			defer res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+
+			records := readAISpendExportResponse(t, res)
+			require.Len(t, records, 2)
+			require.Equal(t,
+				append(slices.Clone(entcoderd.AISpendExportCSVHeader),
+					"branches", "repos", "linear_issue_ids", "github_pr_urls"),
+				records[0])
+
+			row := records[1]
+			fixed := len(entcoderd.AISpendExportCSVHeader)
+			// Sums stay unaffected by the annotation expansion.
+			require.Equal(t, "300", row[10])
+			require.Equal(t, "3000", row[14])
+			require.Equal(t, "main;scott/x/annotations", row[fixed])
+			require.Equal(t, "coder/coder", row[fixed+1])
+			require.Equal(t, "ENG-1234;ENG-5678", row[fixed+2])
+			require.Equal(t, prURL, row[fixed+3])
+		})
+
+		t.Run("UnsupportedColumnIsRejected", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, map[string]string{
+				"columns": "repos,capabilities",
+			})
+			defer res.Body.Close()
+			require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+			var apiErr codersdk.Response
+			require.NoError(t, json.NewDecoder(res.Body).Decode(&apiErr))
+			require.Contains(t, apiErr.Message, `Unsupported column "capabilities"`)
+			require.Contains(t, apiErr.Detail, "linear_issue_ids")
+		})
 	})
 
 	t.Run("SeparateRowPerGroup", func(t *testing.T) {

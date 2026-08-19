@@ -5052,7 +5052,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/ai/spend/export": {
             "get": {
-                "description": "Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.\nThe capabilities column lists the distinct capabilities the user held across the interceptions behind the row, semicolon-separated. It is empty for interceptions recorded without capability annotations.\nRequires organization-level administrator permissions.",
+                "description": "Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.\nThe capabilities column lists the distinct capabilities the user held across the interceptions behind the row, semicolon-separated. It is empty for interceptions recorded without capability annotations.\nThe optional columns query parameter appends annotation-derived columns after the fixed ones, in the order requested. Each cell lists the distinct values the annotation held across the interceptions behind the row, semicolon-separated.\nRequires organization-level administrator permissions.",
                 "produces": [
                     "text/csv"
                 ],
@@ -5082,6 +5082,18 @@ const docTemplate = `{
                         "format": "date-time",
                         "description": "Exclusive upper bound (RFC3339)",
                         "name": "period_end",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "linear_issue_ids",
+                            "github_pr_urls",
+                            "repos",
+                            "branches"
+                        ],
+                        "type": "string",
+                        "description": "Comma-separated optional annotation columns",
+                        "name": "columns",
                         "in": "query"
                     }
                 ],
@@ -15835,6 +15847,12 @@ const docTemplate = `{
         "codersdk.AIBridgeSessionThreadsResponse": {
             "type": "object",
             "properties": {
+                "branches": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "client": {
                     "type": "string"
                 },
@@ -15842,11 +15860,24 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "github_pr_urls": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "id": {
                     "type": "string"
                 },
                 "initiator": {
                     "$ref": "#/definitions/codersdk.MinimalUser"
+                },
+                "linear_issue_ids": {
+                    "description": "LinearIssueIDs lists the distinct Linear issue identifiers annotated on\nthe session's interceptions, sorted ascending. Empty when no interception\nin the session was annotated with one. GitHubPRURLs, Repos, and Branches\nare the same for their respective annotations.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "metadata": {
                     "type": "object",
@@ -15892,6 +15923,12 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "providers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "repos": {
                     "type": "array",
                     "items": {
                         "type": "string"

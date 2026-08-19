@@ -2233,6 +2233,22 @@ func (m queryMetricsStore) GetLastUpdateCheck(ctx context.Context) (string, erro
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetLatestAIBridgeInterceptionByInitiator(ctx context.Context, initiatorID uuid.UUID) (database.AIBridgeInterception, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestAIBridgeInterceptionByInitiator(ctx, initiatorID)
+	m.queryLatencies.WithLabelValues("GetLatestAIBridgeInterceptionByInitiator").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestAIBridgeInterceptionByInitiator").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLatestAIBridgeInterceptionIDByInitiator(ctx context.Context, arg database.GetLatestAIBridgeInterceptionIDByInitiatorParams) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestAIBridgeInterceptionIDByInitiator(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetLatestAIBridgeInterceptionIDByInitiator").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestAIBridgeInterceptionIDByInitiator").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetLatestCryptoKeyByFeature(ctx, feature)
@@ -5143,6 +5159,14 @@ func (m queryMetricsStore) UnsetDefaultChatModelConfigs(ctx context.Context) err
 	m.queryLatencies.WithLabelValues("UnsetDefaultChatModelConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnsetDefaultChatModelConfigs").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateAIBridgeInterceptionAnnotations(ctx context.Context, arg database.UpdateAIBridgeInterceptionAnnotationsParams) (database.AIBridgeInterception, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAIBridgeInterceptionAnnotations(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAIBridgeInterceptionAnnotations").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIBridgeInterceptionAnnotations").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error) {

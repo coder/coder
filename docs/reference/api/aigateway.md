@@ -184,8 +184,14 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
 
 ```json
 {
+  "branches": [
+    "string"
+  ],
   "client": "string",
   "ended_at": "2019-08-24T14:15:22Z",
+  "github_pr_urls": [
+    "string"
+  ],
   "id": "string",
   "initiator": {
     "avatar_url": "http://example.com",
@@ -193,6 +199,9 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
     "name": "string",
     "username": "string"
   },
+  "linear_issue_ids": [
+    "string"
+  ],
   "metadata": {
     "property1": null,
     "property2": null
@@ -228,6 +237,9 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
   "page_ended_at": "2019-08-24T14:15:22Z",
   "page_started_at": "2019-08-24T14:15:22Z",
   "providers": [
+    "string"
+  ],
+  "repos": [
     "string"
   ],
   "started_at": "2019-08-24T14:15:22Z",

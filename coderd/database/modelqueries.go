@@ -1068,6 +1068,10 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg Lis
 			&i.NetworkCallsTotal,
 			&i.NetworkCallsBlocked,
 			&i.FirewallActive,
+			pq.Array(&i.LinearIssueIds),
+			pq.Array(&i.GithubPrUrls),
+			pq.Array(&i.Repos),
+			pq.Array(&i.Branches),
 		); err != nil {
 			return nil, err
 		}

@@ -5,9 +5,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -1105,6 +1108,84 @@ var AISpendExportCSVHeader = []string{
 	"cost_micros", "period_start", "period_end",
 }
 
+// aiSpendExportOptionalColumns are the annotation-derived columns the export
+// accepts through the columns query parameter, in canonical order.
+var aiSpendExportOptionalColumns = []string{"linear_issue_ids", "github_pr_urls", "repos", "branches"}
+
+// parseAISpendExportColumns resolves the requested optional columns from the
+// comma-separated columns query parameter, preserving the requested order and
+// dropping repeats. On invalid input it writes the error response and returns
+// ok=false.
+func parseAISpendExportColumns(ctx context.Context, rw http.ResponseWriter, r *http.Request) (columns []string, ok bool) {
+	raw := strings.TrimSpace(r.URL.Query().Get("columns"))
+	if raw == "" {
+		return nil, true
+	}
+
+	seen := make(map[string]struct{})
+	for _, value := range strings.Split(raw, ",") {
+		column := strings.TrimSpace(value)
+		if column == "" {
+			continue
+		}
+		if !slices.Contains(aiSpendExportOptionalColumns, column) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Unsupported column %q.", column),
+				Detail: fmt.Sprintf("columns accepts: %s.",
+					strings.Join(aiSpendExportOptionalColumns, ", ")),
+			})
+			return nil, false
+		}
+		if _, duplicate := seen[column]; duplicate {
+			continue
+		}
+		seen[column] = struct{}{}
+		columns = append(columns, column)
+	}
+	return columns, true
+}
+
+// aiSpendExportAnnotationCell collapses the values a single annotation key holds
+// across the interceptions behind one export row into one semicolon-separated
+// cell, sorted and free of duplicates. String and array values both contribute;
+// any other JSON type contributes nothing. sets is the aggregated array of
+// per-interception annotation objects.
+func aiSpendExportAnnotationCell(sets json.RawMessage, key string) string {
+	if len(sets) == 0 {
+		return ""
+	}
+	var annotations []map[string]json.RawMessage
+	if err := json.Unmarshal(sets, &annotations); err != nil {
+		return ""
+	}
+
+	values := make(map[string]struct{})
+	for _, annotation := range annotations {
+		raw, found := annotation[key]
+		if !found {
+			continue
+		}
+		var single string
+		if err := json.Unmarshal(raw, &single); err == nil {
+			if single != "" {
+				values[single] = struct{}{}
+			}
+			continue
+		}
+		var multiple []string
+		if err := json.Unmarshal(raw, &multiple); err != nil {
+			continue
+		}
+		for _, value := range multiple {
+			if value != "" {
+				values[value] = struct{}{}
+			}
+		}
+	}
+
+	return strings.Join(slices.Sorted(maps.Keys(values)), ";")
+}
+
 // csvFormulaPrefixes are the leading characters a spreadsheet treats as the
 // start of a formula rather than text.
 const csvFormulaPrefixes = "=+-@\t\r"
@@ -1200,6 +1281,7 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 // @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
 // @Description An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.
 // @Description The capabilities column lists the distinct capabilities the user held across the interceptions behind the row, semicolon-separated. It is empty for interceptions recorded without capability annotations.
+// @Description The optional columns query parameter appends annotation-derived columns after the fixed ones, in the order requested. Each cell lists the distinct values the annotation held across the interceptions behind the row, semicolon-separated.
 // @Description Requires organization-level administrator permissions.
 // @ID export-organization-ai-spend-as-csv
 // @Security CoderSessionToken
@@ -1208,6 +1290,7 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param period_start query string false "Inclusive lower bound (RFC3339)" format(date-time)
 // @Param period_end query string false "Exclusive upper bound (RFC3339)" format(date-time)
+// @Param columns query string false "Comma-separated optional annotation columns" Enums(linear_issue_ids,github_pr_urls,repos,branches)
 // @Success 200
 // @Router /api/v2/organizations/{organization}/ai/spend/export [get]
 func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Request) {
@@ -1223,6 +1306,10 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 	}
 
 	periodStart, periodEnd, ok := api.aiSpendExportPeriod(ctx, rw, r)
+	if !ok {
+		return
+	}
+	optionalColumns, ok := parseAISpendExportColumns(ctx, rw, r)
 	if !ok {
 		return
 	}
@@ -1247,13 +1334,13 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 
 	var buf bytes.Buffer
 	cw := csv.NewWriter(&buf)
-	if err := cw.Write(AISpendExportCSVHeader); err != nil {
+	if err := cw.Write(append(slices.Clone(AISpendExportCSVHeader), optionalColumns...)); err != nil {
 		logger.Error(ctx, "failed to write AI spend export header", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 	for _, row := range rows {
-		if err := cw.Write([]string{
+		record := []string{
 			row.UserID.String(),
 			escapeCSVCell(row.Username),
 			escapeCSVCell(row.Capabilities),
@@ -1271,7 +1358,11 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 			strconv.FormatInt(row.CostMicros, 10),
 			start,
 			end,
-		}); err != nil {
+		}
+		for _, column := range optionalColumns {
+			record = append(record, escapeCSVCell(aiSpendExportAnnotationCell(row.AnnotationSets, column)))
+		}
+		if err := cw.Write(record); err != nil {
 			logger.Error(ctx, "failed to write AI spend export row", slog.Error(err))
 			httpapi.InternalServerError(rw, err)
 			return

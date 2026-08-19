@@ -446,7 +446,10 @@ WITH usage AS (
 			WHEN jsonb_typeof(ai.annotations -> 'capabilities') = 'array'
 			THEN ai.annotations -> 'capabilities'
 			ELSE '[]'::jsonb
-		END) AS capability_sets
+		END) AS capability_sets,
+		-- The whole annotation object per interception, so optional columns can
+		-- be projected from any annotation key without a query change.
+		JSONB_AGG(DISTINCT ai.annotations) AS annotation_sets
 	FROM aibridge_token_usages tu
 	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
 	JOIN users ON users.id = ai.initiator_id
@@ -485,6 +488,7 @@ SELECT
 		SELECT STRING_AGG(DISTINCT capability.value, ';' ORDER BY capability.value)
 		FROM jsonb_array_elements(usage.capability_sets) AS capability_set(value),
 			jsonb_array_elements_text(capability_set.value) AS capability(value)
-	), '')::text AS capabilities
+	), '')::text AS capabilities,
+	usage.annotation_sets::jsonb AS annotation_sets
 FROM usage
 ORDER BY usage.user_id, usage.group_id, usage.provider, usage.provider_name, usage.model;

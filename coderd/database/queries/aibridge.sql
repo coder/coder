@@ -25,6 +25,115 @@ WHERE
 	AND ended_at IS NULL
 RETURNING *;
 
+-- name: UpdateAIBridgeInterceptionAnnotations :one
+-- Merges client-supplied work context into the annotations object. The keys
+-- are built explicitly so no other annotation key can be written through
+-- this query. Every key accumulates as a sorted set: the supplied values are
+-- unioned with the ones already stored, discarding a non-array value left by
+-- an older annotation shape. A NULL argument leaves its key untouched.
+UPDATE aibridge_interceptions
+	SET annotations = annotations
+		|| CASE
+			WHEN sqlc.narg('linear_issue_ids')::text[] IS NULL THEN '{}'::jsonb
+			ELSE jsonb_build_object('linear_issue_ids', (
+				SELECT COALESCE(jsonb_agg(DISTINCT issue ORDER BY issue), '[]'::jsonb)
+				FROM (
+					SELECT jsonb_array_elements_text(
+						CASE
+							WHEN jsonb_typeof(annotations -> 'linear_issue_ids') = 'array'
+							THEN annotations -> 'linear_issue_ids'
+							ELSE '[]'::jsonb
+						END
+					) AS issue
+					UNION
+					SELECT unnest(sqlc.narg('linear_issue_ids')::text[]) AS issue
+				) merged
+			))
+		END
+		|| CASE
+			WHEN sqlc.narg('github_pr_urls')::text[] IS NULL THEN '{}'::jsonb
+			ELSE jsonb_build_object('github_pr_urls', (
+				SELECT COALESCE(jsonb_agg(DISTINCT pr ORDER BY pr), '[]'::jsonb)
+				FROM (
+					SELECT jsonb_array_elements_text(
+						CASE
+							WHEN jsonb_typeof(annotations -> 'github_pr_urls') = 'array'
+							THEN annotations -> 'github_pr_urls'
+							ELSE '[]'::jsonb
+						END
+					) AS pr
+					UNION
+					SELECT unnest(sqlc.narg('github_pr_urls')::text[]) AS pr
+				) merged
+			))
+		END
+		|| CASE
+			WHEN sqlc.narg('repos')::text[] IS NULL THEN '{}'::jsonb
+			ELSE jsonb_build_object('repos', (
+				SELECT COALESCE(jsonb_agg(DISTINCT repo ORDER BY repo), '[]'::jsonb)
+				FROM (
+					SELECT jsonb_array_elements_text(
+						CASE
+							WHEN jsonb_typeof(annotations -> 'repos') = 'array'
+							THEN annotations -> 'repos'
+							ELSE '[]'::jsonb
+						END
+					) AS repo
+					UNION
+					SELECT unnest(sqlc.narg('repos')::text[]) AS repo
+				) merged
+			))
+		END
+		|| CASE
+			WHEN sqlc.narg('branches')::text[] IS NULL THEN '{}'::jsonb
+			ELSE jsonb_build_object('branches', (
+				SELECT COALESCE(jsonb_agg(DISTINCT branch ORDER BY branch), '[]'::jsonb)
+				FROM (
+					SELECT jsonb_array_elements_text(
+						CASE
+							WHEN jsonb_typeof(annotations -> 'branches') = 'array'
+							THEN annotations -> 'branches'
+							ELSE '[]'::jsonb
+						END
+					) AS branch
+					UNION
+					SELECT unnest(sqlc.narg('branches')::text[]) AS branch
+				) merged
+			))
+		END
+WHERE
+	id = @id::uuid
+RETURNING *;
+
+-- name: GetLatestAIBridgeInterceptionByInitiator :one
+SELECT
+	*
+FROM
+	aibridge_interceptions
+WHERE
+	initiator_id = @initiator_id::uuid
+ORDER BY
+	started_at DESC
+LIMIT 1;
+
+-- name: GetLatestAIBridgeInterceptionIDByInitiator :one
+-- Returns only the identifier, so a caller that may write annotations but not
+-- read interceptions can locate the row to write to. A null client_session_id
+-- matches any session.
+SELECT
+	id
+FROM
+	aibridge_interceptions
+WHERE
+	initiator_id = @initiator_id::uuid
+	AND (
+		sqlc.narg('client_session_id')::text IS NULL
+		OR client_session_id = sqlc.narg('client_session_id')::text
+	)
+ORDER BY
+	started_at DESC
+LIMIT 1;
+
 -- name: GetAIBridgeInterceptionLineageByToolCallID :one
 -- Look up the parent interception and the root of the thread by finding
 -- which interception recorded a tool usage with the given tool call ID.
@@ -482,7 +591,11 @@ SELECT
 	sp.last_active_at AS last_active_at,
 	COALESCE(bnc.total, 0)::bigint AS network_calls_total,
 	COALESCE(bnc.blocked, 0)::bigint AS network_calls_blocked,
-	COALESCE(sr.firewall_active, false) AS firewall_active
+	COALESCE(sr.firewall_active, false) AS firewall_active,
+	COALESCE(sli.linear_issue_ids, ARRAY[]::text[])::text[] AS linear_issue_ids,
+	COALESCE(sli.github_pr_urls, ARRAY[]::text[])::text[] AS github_pr_urls,
+	COALESCE(sli.repos, ARRAY[]::text[])::text[] AS repos,
+	COALESCE(sli.branches, ARRAY[]::text[])::text[] AS branches
 FROM
 	session_page sp
 JOIN
@@ -553,6 +666,40 @@ LEFT JOIN LATERAL (
 		AND afi.agent_firewall_session_id IS NOT NULL
 		AND afi.agent_firewall_sequence_number IS NOT NULL
 ) bnc ON true
+LEFT JOIN LATERAL (
+	-- Flatten the per-interception arrays into one sorted set each for the
+	-- session. Kept out of the sr aggregate because expanding a JSONB array
+	-- there would multiply the rows it aggregates over.
+	SELECT
+		(
+			SELECT ARRAY_AGG(DISTINCT issue ORDER BY issue)
+			FROM aibridge_interceptions li
+			CROSS JOIN LATERAL jsonb_array_elements_text(li.annotations -> 'linear_issue_ids') AS issue
+			WHERE li.id = ANY(sr.interception_ids)
+				AND jsonb_typeof(li.annotations -> 'linear_issue_ids') = 'array'
+		) AS linear_issue_ids,
+		(
+			SELECT ARRAY_AGG(DISTINCT pr ORDER BY pr)
+			FROM aibridge_interceptions pi
+			CROSS JOIN LATERAL jsonb_array_elements_text(pi.annotations -> 'github_pr_urls') AS pr
+			WHERE pi.id = ANY(sr.interception_ids)
+				AND jsonb_typeof(pi.annotations -> 'github_pr_urls') = 'array'
+		) AS github_pr_urls,
+		(
+			SELECT ARRAY_AGG(DISTINCT repo ORDER BY repo)
+			FROM aibridge_interceptions ri
+			CROSS JOIN LATERAL jsonb_array_elements_text(ri.annotations -> 'repos') AS repo
+			WHERE ri.id = ANY(sr.interception_ids)
+				AND jsonb_typeof(ri.annotations -> 'repos') = 'array'
+		) AS repos,
+		(
+			SELECT ARRAY_AGG(DISTINCT branch ORDER BY branch)
+			FROM aibridge_interceptions bi
+			CROSS JOIN LATERAL jsonb_array_elements_text(bi.annotations -> 'branches') AS branch
+			WHERE bi.id = ANY(sr.interception_ids)
+				AND jsonb_typeof(bi.annotations -> 'branches') = 'array'
+		) AS branches
+) sli ON true
 ORDER BY
 	sp.last_active_at DESC,
 	sp.session_id DESC

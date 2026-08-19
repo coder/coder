@@ -1561,6 +1561,78 @@ func (q *sqlQuerier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context,
 	return items, nil
 }
 
+const getLatestAIBridgeInterceptionByInitiator = `-- name: GetLatestAIBridgeInterceptionByInitiator :one
+SELECT
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message, annotations
+FROM
+	aibridge_interceptions
+WHERE
+	initiator_id = $1::uuid
+ORDER BY
+	started_at DESC
+LIMIT 1
+`
+
+func (q *sqlQuerier) GetLatestAIBridgeInterceptionByInitiator(ctx context.Context, initiatorID uuid.UUID) (AIBridgeInterception, error) {
+	row := q.db.QueryRowContext(ctx, getLatestAIBridgeInterceptionByInitiator, initiatorID)
+	var i AIBridgeInterception
+	err := row.Scan(
+		&i.ID,
+		&i.InitiatorID,
+		&i.Provider,
+		&i.Model,
+		&i.StartedAt,
+		&i.Metadata,
+		&i.EndedAt,
+		&i.APIKeyID,
+		&i.Client,
+		&i.ThreadParentID,
+		&i.ThreadRootID,
+		&i.ClientSessionID,
+		&i.SessionID,
+		&i.ProviderName,
+		&i.CredentialKind,
+		&i.CredentialHint,
+		&i.AgentFirewallSessionID,
+		&i.AgentFirewallSequenceNumber,
+		&i.ErrorType,
+		&i.ErrorMessage,
+		&i.Annotations,
+	)
+	return i, err
+}
+
+const getLatestAIBridgeInterceptionIDByInitiator = `-- name: GetLatestAIBridgeInterceptionIDByInitiator :one
+SELECT
+	id
+FROM
+	aibridge_interceptions
+WHERE
+	initiator_id = $1::uuid
+	AND (
+		$2::text IS NULL
+		OR client_session_id = $2::text
+	)
+ORDER BY
+	started_at DESC
+LIMIT 1
+`
+
+type GetLatestAIBridgeInterceptionIDByInitiatorParams struct {
+	InitiatorID     uuid.UUID      `db:"initiator_id" json:"initiator_id"`
+	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
+}
+
+// Returns only the identifier, so a caller that may write annotations but not
+// read interceptions can locate the row to write to. A null client_session_id
+// matches any session.
+func (q *sqlQuerier) GetLatestAIBridgeInterceptionIDByInitiator(ctx context.Context, arg GetLatestAIBridgeInterceptionIDByInitiatorParams) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, getLatestAIBridgeInterceptionIDByInitiator, arg.InitiatorID, arg.ClientSessionID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
 	id, api_key_id, initiator_id, provider, provider_name, model, metadata, annotations, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number
@@ -2351,7 +2423,11 @@ SELECT
 	sp.last_active_at AS last_active_at,
 	COALESCE(bnc.total, 0)::bigint AS network_calls_total,
 	COALESCE(bnc.blocked, 0)::bigint AS network_calls_blocked,
-	COALESCE(sr.firewall_active, false) AS firewall_active
+	COALESCE(sr.firewall_active, false) AS firewall_active,
+	COALESCE(sli.linear_issue_ids, ARRAY[]::text[])::text[] AS linear_issue_ids,
+	COALESCE(sli.github_pr_urls, ARRAY[]::text[])::text[] AS github_pr_urls,
+	COALESCE(sli.repos, ARRAY[]::text[])::text[] AS repos,
+	COALESCE(sli.branches, ARRAY[]::text[])::text[] AS branches
 FROM
 	session_page sp
 JOIN
@@ -2416,6 +2492,40 @@ LEFT JOIN LATERAL (
 		AND afi.agent_firewall_session_id IS NOT NULL
 		AND afi.agent_firewall_sequence_number IS NOT NULL
 ) bnc ON true
+LEFT JOIN LATERAL (
+	-- Flatten the per-interception arrays into one sorted set each for the
+	-- session. Kept out of the sr aggregate because expanding a JSONB array
+	-- there would multiply the rows it aggregates over.
+	SELECT
+		(
+			SELECT ARRAY_AGG(DISTINCT issue ORDER BY issue)
+			FROM aibridge_interceptions li
+			CROSS JOIN LATERAL jsonb_array_elements_text(li.annotations -> 'linear_issue_ids') AS issue
+			WHERE li.id = ANY(sr.interception_ids)
+				AND jsonb_typeof(li.annotations -> 'linear_issue_ids') = 'array'
+		) AS linear_issue_ids,
+		(
+			SELECT ARRAY_AGG(DISTINCT pr ORDER BY pr)
+			FROM aibridge_interceptions pi
+			CROSS JOIN LATERAL jsonb_array_elements_text(pi.annotations -> 'github_pr_urls') AS pr
+			WHERE pi.id = ANY(sr.interception_ids)
+				AND jsonb_typeof(pi.annotations -> 'github_pr_urls') = 'array'
+		) AS github_pr_urls,
+		(
+			SELECT ARRAY_AGG(DISTINCT repo ORDER BY repo)
+			FROM aibridge_interceptions ri
+			CROSS JOIN LATERAL jsonb_array_elements_text(ri.annotations -> 'repos') AS repo
+			WHERE ri.id = ANY(sr.interception_ids)
+				AND jsonb_typeof(ri.annotations -> 'repos') = 'array'
+		) AS repos,
+		(
+			SELECT ARRAY_AGG(DISTINCT branch ORDER BY branch)
+			FROM aibridge_interceptions bi
+			CROSS JOIN LATERAL jsonb_array_elements_text(bi.annotations -> 'branches') AS branch
+			WHERE bi.id = ANY(sr.interception_ids)
+				AND jsonb_typeof(bi.annotations -> 'branches') = 'array'
+		) AS branches
+) sli ON true
 ORDER BY
 	sp.last_active_at DESC,
 	sp.session_id DESC
@@ -2457,6 +2567,10 @@ type ListAIBridgeSessionsRow struct {
 	NetworkCallsTotal     int64           `db:"network_calls_total" json:"network_calls_total"`
 	NetworkCallsBlocked   int64           `db:"network_calls_blocked" json:"network_calls_blocked"`
 	FirewallActive        bool            `db:"firewall_active" json:"firewall_active"`
+	LinearIssueIds        []string        `db:"linear_issue_ids" json:"linear_issue_ids"`
+	GithubPrUrls          []string        `db:"github_pr_urls" json:"github_pr_urls"`
+	Repos                 []string        `db:"repos" json:"repos"`
+	Branches              []string        `db:"branches" json:"branches"`
 }
 
 // Returns paginated sessions with aggregated metadata, token counts, and
@@ -2515,6 +2629,10 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 			&i.NetworkCallsTotal,
 			&i.NetworkCallsBlocked,
 			&i.FirewallActive,
+			pq.Array(&i.LinearIssueIds),
+			pq.Array(&i.GithubPrUrls),
+			pq.Array(&i.Repos),
+			pq.Array(&i.Branches),
 		); err != nil {
 			return nil, err
 		}
@@ -2670,6 +2788,130 @@ func (q *sqlQuerier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Contex
 	return items, nil
 }
 
+const updateAIBridgeInterceptionAnnotations = `-- name: UpdateAIBridgeInterceptionAnnotations :one
+UPDATE aibridge_interceptions
+	SET annotations = annotations
+		|| CASE
+			WHEN $1::text[] IS NULL THEN '{}'::jsonb
+			ELSE jsonb_build_object('linear_issue_ids', (
+				SELECT COALESCE(jsonb_agg(DISTINCT issue ORDER BY issue), '[]'::jsonb)
+				FROM (
+					SELECT jsonb_array_elements_text(
+						CASE
+							WHEN jsonb_typeof(annotations -> 'linear_issue_ids') = 'array'
+							THEN annotations -> 'linear_issue_ids'
+							ELSE '[]'::jsonb
+						END
+					) AS issue
+					UNION
+					SELECT unnest($1::text[]) AS issue
+				) merged
+			))
+		END
+		|| CASE
+			WHEN $2::text[] IS NULL THEN '{}'::jsonb
+			ELSE jsonb_build_object('github_pr_urls', (
+				SELECT COALESCE(jsonb_agg(DISTINCT pr ORDER BY pr), '[]'::jsonb)
+				FROM (
+					SELECT jsonb_array_elements_text(
+						CASE
+							WHEN jsonb_typeof(annotations -> 'github_pr_urls') = 'array'
+							THEN annotations -> 'github_pr_urls'
+							ELSE '[]'::jsonb
+						END
+					) AS pr
+					UNION
+					SELECT unnest($2::text[]) AS pr
+				) merged
+			))
+		END
+		|| CASE
+			WHEN $3::text[] IS NULL THEN '{}'::jsonb
+			ELSE jsonb_build_object('repos', (
+				SELECT COALESCE(jsonb_agg(DISTINCT repo ORDER BY repo), '[]'::jsonb)
+				FROM (
+					SELECT jsonb_array_elements_text(
+						CASE
+							WHEN jsonb_typeof(annotations -> 'repos') = 'array'
+							THEN annotations -> 'repos'
+							ELSE '[]'::jsonb
+						END
+					) AS repo
+					UNION
+					SELECT unnest($3::text[]) AS repo
+				) merged
+			))
+		END
+		|| CASE
+			WHEN $4::text[] IS NULL THEN '{}'::jsonb
+			ELSE jsonb_build_object('branches', (
+				SELECT COALESCE(jsonb_agg(DISTINCT branch ORDER BY branch), '[]'::jsonb)
+				FROM (
+					SELECT jsonb_array_elements_text(
+						CASE
+							WHEN jsonb_typeof(annotations -> 'branches') = 'array'
+							THEN annotations -> 'branches'
+							ELSE '[]'::jsonb
+						END
+					) AS branch
+					UNION
+					SELECT unnest($4::text[]) AS branch
+				) merged
+			))
+		END
+WHERE
+	id = $5::uuid
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message, annotations
+`
+
+type UpdateAIBridgeInterceptionAnnotationsParams struct {
+	LinearIssueIds []string  `db:"linear_issue_ids" json:"linear_issue_ids"`
+	GithubPrUrls   []string  `db:"github_pr_urls" json:"github_pr_urls"`
+	Repos          []string  `db:"repos" json:"repos"`
+	Branches       []string  `db:"branches" json:"branches"`
+	ID             uuid.UUID `db:"id" json:"id"`
+}
+
+// Merges client-supplied work context into the annotations object. The keys
+// are built explicitly so no other annotation key can be written through
+// this query. Every key accumulates as a sorted set: the supplied values are
+// unioned with the ones already stored, discarding a non-array value left by
+// an older annotation shape. A NULL argument leaves its key untouched.
+func (q *sqlQuerier) UpdateAIBridgeInterceptionAnnotations(ctx context.Context, arg UpdateAIBridgeInterceptionAnnotationsParams) (AIBridgeInterception, error) {
+	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionAnnotations,
+		pq.Array(arg.LinearIssueIds),
+		pq.Array(arg.GithubPrUrls),
+		pq.Array(arg.Repos),
+		pq.Array(arg.Branches),
+		arg.ID,
+	)
+	var i AIBridgeInterception
+	err := row.Scan(
+		&i.ID,
+		&i.InitiatorID,
+		&i.Provider,
+		&i.Model,
+		&i.StartedAt,
+		&i.Metadata,
+		&i.EndedAt,
+		&i.APIKeyID,
+		&i.Client,
+		&i.ThreadParentID,
+		&i.ThreadRootID,
+		&i.ClientSessionID,
+		&i.SessionID,
+		&i.ProviderName,
+		&i.CredentialKind,
+		&i.CredentialHint,
+		&i.AgentFirewallSessionID,
+		&i.AgentFirewallSequenceNumber,
+		&i.ErrorType,
+		&i.ErrorMessage,
+		&i.Annotations,
+	)
+	return i, err
+}
+
 const updateAIBridgeInterceptionEnded = `-- name: UpdateAIBridgeInterceptionEnded :one
 UPDATE aibridge_interceptions
 	SET ended_at = $1::timestamptz,
@@ -2789,7 +3031,10 @@ WITH usage AS (
 			WHEN jsonb_typeof(ai.annotations -> 'capabilities') = 'array'
 			THEN ai.annotations -> 'capabilities'
 			ELSE '[]'::jsonb
-		END) AS capability_sets
+		END) AS capability_sets,
+		-- The whole annotation object per interception, so optional columns can
+		-- be projected from any annotation key without a query change.
+		JSONB_AGG(DISTINCT ai.annotations) AS annotation_sets
 	FROM aibridge_token_usages tu
 	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
 	JOIN users ON users.id = ai.initiator_id
@@ -2828,7 +3073,8 @@ SELECT
 		SELECT STRING_AGG(DISTINCT capability.value, ';' ORDER BY capability.value)
 		FROM jsonb_array_elements(usage.capability_sets) AS capability_set(value),
 			jsonb_array_elements_text(capability_set.value) AS capability(value)
-	), '')::text AS capabilities
+	), '')::text AS capabilities,
+	usage.annotation_sets::jsonb AS annotation_sets
 FROM usage
 ORDER BY usage.user_id, usage.group_id, usage.provider, usage.provider_name, usage.model
 `
@@ -2840,21 +3086,22 @@ type ExportOrganizationAISpendParams struct {
 }
 
 type ExportOrganizationAISpendRow struct {
-	UserID           uuid.UUID     `db:"user_id" json:"user_id"`
-	Username         string        `db:"username" json:"username"`
-	GroupID          uuid.NullUUID `db:"group_id" json:"group_id"`
-	GroupName        string        `db:"group_name" json:"group_name"`
-	OrganizationID   uuid.UUID     `db:"organization_id" json:"organization_id"`
-	OrganizationName string        `db:"organization_name" json:"organization_name"`
-	Model            string        `db:"model" json:"model"`
-	Provider         string        `db:"provider" json:"provider"`
-	ProviderName     string        `db:"provider_name" json:"provider_name"`
-	InputTokens      int64         `db:"input_tokens" json:"input_tokens"`
-	OutputTokens     int64         `db:"output_tokens" json:"output_tokens"`
-	CacheReadTokens  int64         `db:"cache_read_tokens" json:"cache_read_tokens"`
-	CacheWriteTokens int64         `db:"cache_write_tokens" json:"cache_write_tokens"`
-	CostMicros       int64         `db:"cost_micros" json:"cost_micros"`
-	Capabilities     string        `db:"capabilities" json:"capabilities"`
+	UserID           uuid.UUID       `db:"user_id" json:"user_id"`
+	Username         string          `db:"username" json:"username"`
+	GroupID          uuid.NullUUID   `db:"group_id" json:"group_id"`
+	GroupName        string          `db:"group_name" json:"group_name"`
+	OrganizationID   uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OrganizationName string          `db:"organization_name" json:"organization_name"`
+	Model            string          `db:"model" json:"model"`
+	Provider         string          `db:"provider" json:"provider"`
+	ProviderName     string          `db:"provider_name" json:"provider_name"`
+	InputTokens      int64           `db:"input_tokens" json:"input_tokens"`
+	OutputTokens     int64           `db:"output_tokens" json:"output_tokens"`
+	CacheReadTokens  int64           `db:"cache_read_tokens" json:"cache_read_tokens"`
+	CacheWriteTokens int64           `db:"cache_write_tokens" json:"cache_write_tokens"`
+	CostMicros       int64           `db:"cost_micros" json:"cost_micros"`
+	Capabilities     string          `db:"capabilities" json:"capabilities"`
+	AnnotationSets   json.RawMessage `db:"annotation_sets" json:"annotation_sets"`
 }
 
 // Returns per-user, per-group, per-model, per-provider aggregated AI spend for
@@ -2891,6 +3138,7 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 			&i.CacheWriteTokens,
 			&i.CostMicros,
 			&i.Capabilities,
+			&i.AnnotationSets,
 		); err != nil {
 			return nil, err
 		}

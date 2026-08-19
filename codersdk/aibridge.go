@@ -207,7 +207,15 @@ type AIBridgeSessionThreadsResponse struct {
 	// list than NetworkCalls.Total means the list was truncated. Empty when the
 	// session did not pass through Agent Firewall.
 	NetworkCallLogs []AgentFirewallLog `json:"network_call_logs,omitempty"`
-	Threads         []AIBridgeThread   `json:"threads"`
+	// LinearIssueIDs lists the distinct Linear issue identifiers annotated on
+	// the session's interceptions, sorted ascending. Empty when no interception
+	// in the session was annotated with one. GitHubPRURLs, Repos, and Branches
+	// are the same for their respective annotations.
+	LinearIssueIDs []string         `json:"linear_issue_ids,omitempty"`
+	GitHubPRURLs   []string         `json:"github_pr_urls,omitempty"`
+	Repos          []string         `json:"repos,omitempty"`
+	Branches       []string         `json:"branches,omitempty"`
+	Threads        []AIBridgeThread `json:"threads"`
 }
 
 // AIBridgeSessionThreadsTokenUsage represents aggregated token usage

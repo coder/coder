@@ -1863,15 +1863,23 @@ Returns per-user, per-group, per-model, per-provider aggregated AI spend for the
 The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
 An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.
 The capabilities column lists the distinct capabilities the user held across the interceptions behind the row, semicolon-separated. It is empty for interceptions recorded without capability annotations.
+The optional columns query parameter appends annotation-derived columns after the fixed ones, in the order requested. Each cell lists the distinct values the annotation held across the interceptions behind the row, semicolon-separated.
 Requires organization-level administrator permissions.
 
 ### Parameters
 
-| Name           | In    | Type              | Required | Description                     |
-|----------------|-------|-------------------|----------|---------------------------------|
-| `organization` | path  | string(uuid)      | true     | Organization ID                 |
-| `period_start` | query | string(date-time) | false    | Inclusive lower bound (RFC3339) |
-| `period_end`   | query | string(date-time) | false    | Exclusive upper bound (RFC3339) |
+| Name           | In    | Type              | Required | Description                                 |
+|----------------|-------|-------------------|----------|---------------------------------------------|
+| `organization` | path  | string(uuid)      | true     | Organization ID                             |
+| `period_start` | query | string(date-time) | false    | Inclusive lower bound (RFC3339)             |
+| `period_end`   | query | string(date-time) | false    | Exclusive upper bound (RFC3339)             |
+| `columns`      | query | string            | false    | Comma-separated optional annotation columns |
+
+#### Enumerated Values
+
+| Parameter | Value(s)                                                  |
+|-----------|-----------------------------------------------------------|
+| `columns` | `branches`, `github_pr_urls`, `linear_issue_ids`, `repos` |
 
 ### Responses
 

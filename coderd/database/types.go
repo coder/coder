@@ -430,14 +430,27 @@ func (a UserLinkClaims) Value() (driver.Value, error) {
 	return json.Marshal(a)
 }
 
-// AIBridgeInterceptionAnnotations holds server-derived annotations recorded on
-// an AI Bridge interception.
+// AIBridgeInterceptionAnnotations holds annotations recorded on an AI Bridge
+// interception. Capabilities is derived by the server at insert time. The
+// remaining fields are asserted by the client after the fact and are only
+// written through UpdateAIBridgeInterceptionAnnotations.
 type AIBridgeInterceptionAnnotations struct {
 	// Capabilities lists the capabilities the initiator held when the
 	// interception was recorded. A nil pointer omits the key and means
 	// capabilities were not resolved, which is distinct from a pointer to an
 	// empty slice meaning the initiator held none.
 	Capabilities *[]string `json:"capabilities,omitempty"`
+	// LinearIssueIDs lists the Linear issues the interception contributed to,
+	// e.g. "ENG-1234". Sorted ascending and free of duplicates.
+	LinearIssueIDs *[]string `json:"linear_issue_ids,omitempty"`
+	// GitHubPRURLs lists the GitHub pull requests the interception contributed
+	// to. Each entry is a https://github.com/{owner}/{repo}/pull/{number} URL,
+	// validated before it is stored. Sorted ascending and free of duplicates.
+	GitHubPRURLs *[]string `json:"github_pr_urls,omitempty"`
+	// Repos names the repositories the interception operated on.
+	Repos *[]string `json:"repos,omitempty"`
+	// Branches names the branches the interception operated on.
+	Branches *[]string `json:"branches,omitempty"`
 }
 
 // AIBridgeInterceptionCapabilities returns annotations recording the given

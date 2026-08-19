@@ -22,16 +22,35 @@ import (
 type MCPToolset string
 
 const (
-	MCPToolsetStandard MCPToolset = "standard"
-	MCPToolsetChatGPT  MCPToolset = "chatgpt"
+	MCPToolsetStandard    MCPToolset = "standard"
+	MCPToolsetChatGPT     MCPToolset = "chatgpt"
+	MCPToolsetAnnotations MCPToolset = "annotations"
 )
 
 // mcpHTTPHandler creates the MCP HTTP transport handler
 // It supports a "toolset" query parameter to select the set of tools to register.
 func (api *API) mcpHTTPHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		toolset := MCPToolset(r.URL.Query().Get("toolset"))
+		// Default to standard toolset if no toolset is specified.
+		if toolset == "" {
+			toolset = MCPToolsetStandard
+		}
+		if toolset != MCPToolsetStandard && toolset != MCPToolsetChatGPT &&
+			toolset != MCPToolsetAnnotations {
+			httpapi.Write(r.Context(), w, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Invalid toolset: %s", toolset),
+			})
+			return
+		}
+
+		var serverOpts []mcp.ServerOption
+		if toolset == MCPToolsetAnnotations {
+			serverOpts = append(serverOpts, mcp.WithInstructions(MCPAnnotationsInstructions))
+		}
+
 		// Create MCP server instance for each request
-		mcpServer, err := mcp.NewServer(api.Logger.Named("mcp"))
+		mcpServer, err := mcp.NewServer(api.Logger.Named("mcp"), serverOpts...)
 		if err != nil {
 			api.Logger.Error(r.Context(), "failed to create MCP server", slog.Error(err))
 			httpapi.Write(r.Context(), w, http.StatusInternalServerError, codersdk.Response{
@@ -69,27 +88,27 @@ func (api *API) mcpHTTPHandler() http.Handler {
 			return api.agentProvider.AgentConn(ctx, agentID)
 		})
 
-		toolset := MCPToolset(r.URL.Query().Get("toolset"))
-		// Default to standard toolset if no toolset is specified.
-		if toolset == "" {
-			toolset = MCPToolsetStandard
-		}
-
 		switch toolset {
 		case MCPToolsetStandard:
 			if err := mcpServer.RegisterTools(authenticatedClient, toolOpt); err != nil {
 				api.Logger.Warn(r.Context(), "failed to register MCP tools", slog.Error(err))
 			}
+			if err := registerMCPAnnotationTool(mcpServer, api.Database, httpmw.APIKey(r).UserID); err != nil {
+				api.Logger.Warn(r.Context(), "failed to register MCP annotation tool", slog.Error(err))
+			}
 			mcpServer.RegisterPrompts()
+		case MCPToolsetAnnotations:
+			if err := registerMCPAnnotationTool(mcpServer, api.Database, httpmw.APIKey(r).UserID); err != nil {
+				api.Logger.Error(r.Context(), "failed to register MCP annotation tool", slog.Error(err))
+				httpapi.Write(r.Context(), w, http.StatusInternalServerError, codersdk.Response{
+					Message: "MCP server initialization failed",
+				})
+				return
+			}
 		case MCPToolsetChatGPT:
 			if err := mcpServer.RegisterChatGPTTools(authenticatedClient, toolOpt); err != nil {
 				api.Logger.Warn(r.Context(), "failed to register MCP tools", slog.Error(err))
 			}
-		default:
-			httpapi.Write(r.Context(), w, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Invalid toolset: %s", toolset),
-			})
-			return
 		}
 
 		// Handle the MCP request

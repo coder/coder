@@ -35,13 +35,33 @@ type Server struct {
 	handler http.Handler
 }
 
+// ServerOption customizes a Server.
+type ServerOption func(*serverOptions)
+
+type serverOptions struct {
+	instructions string
+}
+
+// WithInstructions overrides the instruction text sent to clients during
+// initialization.
+func WithInstructions(instructions string) ServerOption {
+	return func(o *serverOptions) {
+		o.instructions = instructions
+	}
+}
+
 // NewServer creates a new MCP HTTP server
-func NewServer(logger slog.Logger) (*Server, error) {
+func NewServer(logger slog.Logger, opts ...ServerOption) (*Server, error) {
+	options := serverOptions{instructions: MCPServerInstructions}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	mcpSrv := mcp.NewServer(&mcp.Implementation{
 		Name:    MCPServerName,
 		Version: buildinfo.Version(),
 	}, &mcp.ServerOptions{
-		Instructions: MCPServerInstructions,
+		Instructions: options.instructions,
 		Logger:       stdslog.New(&slogHandler{logger: logger}),
 	})
 
@@ -72,6 +92,11 @@ func NewServer(logger slog.Logger) (*Server, error) {
 // ServeHTTP implements http.Handler interface
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.handler.ServeHTTP(w, r)
+}
+
+// AddTool registers a tool that is not backed by a [toolsdk.GenericTool].
+func (s *Server) AddTool(tool *mcp.Tool, handler mcp.ToolHandler) {
+	s.mcpServer.AddTool(tool, handler)
 }
 
 // Register all available MCP tools with the server excluding:

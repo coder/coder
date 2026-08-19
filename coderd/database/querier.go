@@ -635,6 +635,11 @@ type sqlcQuerier interface {
 	// "last" must use id order.
 	GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
+	GetLatestAIBridgeInterceptionByInitiator(ctx context.Context, initiatorID uuid.UUID) (AIBridgeInterception, error)
+	// Returns only the identifier, so a caller that may write annotations but not
+	// read interceptions can locate the row to write to. A null client_session_id
+	// matches any session.
+	GetLatestAIBridgeInterceptionIDByInitiator(ctx context.Context, arg GetLatestAIBridgeInterceptionIDByInitiatorParams) (uuid.UUID, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
 	GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (WorkspaceAgentContextSnapshot, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
@@ -1412,6 +1417,12 @@ type sqlcQuerier interface {
 	UnlinkOIDCUsersByIssuerMismatch(ctx context.Context, expectedPrefix string) (int64, error)
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
+	// Merges client-supplied work context into the annotations object. The keys
+	// are built explicitly so no other annotation key can be written through
+	// this query. Every key accumulates as a sorted set: the supplied values are
+	// unioned with the ones already stored, discarding a non-array value left by
+	// an older annotation shape. A NULL argument leaves its key untouched.
+	UpdateAIBridgeInterceptionAnnotations(ctx context.Context, arg UpdateAIBridgeInterceptionAnnotationsParams) (AIBridgeInterception, error)
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	// Records heartbeat liveness for an active Gateway DRPC session. The database sets the
 	// timestamp so it stays consistent regardless of clock drift between API

@@ -1290,6 +1290,10 @@ func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSes
 		resp.NetworkDomainCount = d.TotalDomains
 	}
 	resp.NetworkCallLogs = AgentFirewallLogs(p.NetworkCalls)
+	resp.LinearIssueIDs = session.LinearIssueIds
+	resp.GitHubPRURLs = session.GithubPrUrls
+	resp.Repos = session.Repos
+	resp.Branches = session.Branches
 	return resp
 }
 

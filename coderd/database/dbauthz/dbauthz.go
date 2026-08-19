@@ -3971,6 +3971,20 @@ func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	return q.db.GetLastUpdateCheck(ctx)
 }
 
+func (q *querier) GetLatestAIBridgeInterceptionByInitiator(ctx context.Context, initiatorID uuid.UUID) (database.AIBridgeInterception, error) {
+	return fetch(q.log, q.auth, q.db.GetLatestAIBridgeInterceptionByInitiator)(ctx, initiatorID)
+}
+
+// GetLatestAIBridgeInterceptionIDByInitiator returns an identifier rather than
+// interception content, so it is authorized as a system read. Callers must
+// scope the lookup to the initiator they are acting for.
+func (q *querier) GetLatestAIBridgeInterceptionIDByInitiator(ctx context.Context, arg database.GetLatestAIBridgeInterceptionIDByInitiatorParams) (uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.GetLatestAIBridgeInterceptionIDByInitiator(ctx, arg)
+}
+
 func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -7265,6 +7279,13 @@ func (q *querier) UnsetDefaultChatModelConfigs(ctx context.Context) error {
 		return err
 	}
 	return q.db.UnsetDefaultChatModelConfigs(ctx)
+}
+
+func (q *querier) UpdateAIBridgeInterceptionAnnotations(ctx context.Context, arg database.UpdateAIBridgeInterceptionAnnotationsParams) (database.AIBridgeInterception, error) {
+	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionUpdate, arg.ID); err != nil {
+		return database.AIBridgeInterception{}, err
+	}
+	return q.db.UpdateAIBridgeInterceptionAnnotations(ctx, arg)
 }
 
 func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, params database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error) {
