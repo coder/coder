@@ -158,8 +158,8 @@ A sandbox is an entity but not an actor, per the definition above.
 The wider system contains further actors, including provisionerd, the Terraform
 CLI, the Terraform providers, and the Docker daemon. They appear as participants
 in the startup diagrams. The provisioner is also an actor in the AI agent
-lifecycle below, where it can command a termination or a suspension and can
-observe a finish. It is left out of the proof of concept for reasons of scope
+lifecycle below, where it can command a kill or a suspension and can observe a
+finish. It is left out of the proof of concept for reasons of scope
 rather than of principle.
 
 **A reconciler is a role, not an actor.** Whoever performs a reconciliation
@@ -294,19 +294,19 @@ grows.
 `dormant` goes into the enum now, marked reserved for future use, so that
 supporting reconstitution later costs no migration.
 
-| From      | Transition  | To        | Kind      |
-|-----------|-------------|-----------|-----------|
-| none      | `create`    | `active`  | commanded |
-| `active`  | `finish`    | `retired` | observed  |
-| `active`  | `terminate` | `retired` | commanded |
-| `active`  | `suspend`   | `dormant` | commanded |
-| `dormant` | `resume`    | `active`  | commanded |
-| `dormant` | `retire`    | `retired` | commanded |
+| From      | Transition | To        | Kind      |
+|-----------|------------|-----------|-----------|
+| none      | `create`   | `active`  | commanded |
+| `active`  | `finish`   | `retired` | observed  |
+| `active`  | `kill`     | `retired` | commanded |
+| `active`  | `suspend`  | `dormant` | commanded |
+| `dormant` | `resume`   | `active`  | commanded |
+| `dormant` | `retire`   | `retired` | commanded |
 
 **The proof of concept machine is the first three rows.**
 
 Actors are given by way of illustration, the machine not depending on them.
-`create` records the delegating principal. `terminate` records the owner who
+`create` records the delegating principal. `kill` records the owner who
 commanded it, or the provisioner taking a cluster offline. `finish` records
 whoever noticed, which may be the owner, or the provisioner during a sweep, or
 a user performing a reconciliation long afterwards.
@@ -337,11 +337,11 @@ left to be worked out by each reader.
 | `active`  | The identity exists and denotes a live embodiment. |
 | `retired` | Terminal. The identity exists only as history.     |
 
-| From     | Transition  | To        | Kind      |
-|----------|-------------|-----------|-----------|
-| none     | `create`    | `active`  | commanded |
-| `active` | `finish`    | `retired` | observed  |
-| `active` | `terminate` | `retired` | commanded |
+| From     | Transition | To        | Kind      |
+|----------|------------|-----------|-----------|
+| none     | `create`   | `active`  | commanded |
+| `active` | `finish`   | `retired` | observed  |
+| `active` | `kill`     | `retired` | commanded |
 
 Three things to notice, none of which the derivation makes obvious. `retired`
 is reached two ways and left none, so it is the only terminal state and the
@@ -349,6 +349,116 @@ machine has no cycles at all. `active` is entered exactly once, at creation,
 which means an identity that has been retired is never reused. And `dormant`
 is absent from the machine while present in the enum, so any code that switches
 exhaustively over the enum must handle a state that cannot occur.
+
+### The authorization lifecycle
+
+An authorization is the agency relation itself, brought into being by a grant.
+It is an institutional fact in the sense the audit approach gives that term, and
+it has no form apart from the record of it.
+
+**There is no pending state.** A grant is complete once perfected, so the
+relation either holds or it does not, and nothing waits in between for
+confirmation. The audit approach describes a distinction between incipient and
+actual authority and deliberately declines to model it. Even were it modelled it
+would add no state here, since incipient authority is authority.
+
+| State        | Meaning                                               |
+|--------------|-------------------------------------------------------|
+| `active`     | The relation holds. The agent is authorized.          |
+| `terminated` | Terminal. The relation held once and holds no longer. |
+
+| From     | Transition   | To           | Kind      |
+|----------|--------------|--------------|-----------|
+| none     | `grant`      | `active`     | commanded |
+| `active` | `revoke`     | `terminated` | commanded |
+| `active` | `lapse`      | `terminated` | observed  |
+| `active` | `disqualify` | `terminated` | observed  |
+
+**The proof of concept implements the first three rows.** `disqualify` is
+reserved for future use. Stating it now costs a row; leaving it out would cost a
+reanalysis of the whole machine later.
+
+One terminal state, reached several ways, as in the AI agent machine. What live
+operation asks of an authorization is whether it holds, not why it stopped. The
+reason is carried by the transition, which is where a forensic reader will look
+for it.
+
+`revoke` is the principal withdrawing authority it granted. `lapse` is the
+relation ending because it can no longer exist, a party to it having ceased to.
+Common law arrives at the same place by the same route, terminating an agency on
+the death of either principal or agent, and for the same reason: there is nobody
+left to stand in the relation.
+
+**In practice `lapse` will only ever mean the end of an AI agent.** Cessation of
+existence covers both parties in law, but nothing here models the death of the
+person standing in a `user` relationship with the system. A `user` is that
+relationship and not the person, so the person's existence is nowhere
+represented and nothing observes it.
+
+A principal who has died is therefore indistinguishable, to this system, from
+one who is merely away. Whatever ends their authorizations will end them by
+`disqualify`, when somebody notices and withdraws their standing, and the entry
+will say so rather than claim a fact nobody here is in a position to observe.
+
+`disqualify` is the relation ending because a party, while still existing, has
+ceased to be one who may hold that role. A user who has been dismissed from the
+organisation still exists and retains legal capacity, and may well have revoked
+nothing, but no longer stands where the relation requires somebody to stand.
+
+**Termination is the law's word for this too.** The law of agency uses it for
+the ending of authority and of the agency relationship alike, and it recognises
+the same grounds this machine does: a party ceasing to exist, and a principal
+withdrawing what it granted. The state name is consonant with settled usage
+rather than coined here, which is the whole of the reason for mentioning it.
+
+#### An AI agent is not competent to renounce
+
+The law carries one ground this machine does not. **Renunciation** is the agent
+ending the relation from its own side, the mirror of revocation, and the law
+treats the two as one kind of act differing only in direction.
+
+**An AI agent is treated as having no capacity to renounce.** It cannot speak
+about its own standing in a way that alters it. Should it purport to renounce,
+the purported renunciation is of no effect and the relation continues exactly as
+it stood.
+
+The incapacity is of the legal kind. Nothing turns on whether an AI agent could
+form such an intention or express it, since expressing it changes nothing.
+
+An AI agent that stops working is therefore recorded by what its embodiment did,
+as a `finish`, and not as anything about its authority. Ending the relation
+belongs to the principal.
+
+#### What the existence of the parties requires
+
+**An entity that does not exist cannot be party to an agency relation.** That
+one rule fixes both ends of this machine.
+
+At the beginning it is a precondition on `grant`. Both the principal and the
+agent must exist before the grant can be made. For an AI agent that is the same
+requirement embodiment already imposes, arriving from the other direction.
+
+At the end it compels a transition. When an AI agent reaches `retired`, every
+authorization naming it as agent must reach `terminated` by `lapse`. Both are
+recorded in one transaction, since they arise together, which leaves nothing to
+be reconciled between them.
+
+**Existence is necessary and not sufficient.** A party must also be eligible to
+be a party. That is what `disqualify` records, and it is why the two are
+separate transitions rather than one. Ceasing to exist and losing standing are
+different facts about a party, discovered by different means and usually at
+different times, and an entry conflating them would answer neither question.
+
+**Dormancy is not nonexistence.** A dormant identity exists, so an authorization
+naming it survives the move to `dormant` untouched. That bears on the successor
+machine rather than the first, and it is why `dormant` and `retired` cannot be
+treated alike.
+
+**Credential state does not appear here.** The audit approach already holds that
+a grant stands whether or not a credential has been issued. The converse holds
+as well: a credential expiring, being revoked, or never having existed leaves
+the authorization exactly where it was. The two can be reconciled against each
+other only because neither determines the other.
 
 ### What happens when an AI agent comes into being
 
