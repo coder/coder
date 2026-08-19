@@ -85,6 +85,10 @@ type ExecuteResult struct {
 	Truncated           *workspacesdk.ProcessTruncation `json:"truncated,omitempty"`
 	Note                string                          `json:"note,omitempty"`
 	BackgroundProcessID string                          `json:"background_process_id,omitempty"`
+	// Command identifies the process for process_output
+	// results, so both the model and the UI can label the
+	// output without correlating against earlier calls.
+	Command string `json:"command,omitempty"`
 }
 
 // ExecuteOptions configures the execute tool.
@@ -499,6 +503,7 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 				Output:    output,
 				ExitCode:  exitCode,
 				Truncated: resp.Truncated,
+				Command:   resp.Command,
 			}
 			if resp.Running {
 				// Process is still running, success is not

@@ -514,6 +514,42 @@ func TestExecuteTool(t *testing.T) {
 		}
 	})
 
+	t.Run("ProcessOutputCommandPropagated", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		exitCode := 1
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: &exitCode,
+				Output:   "server exited: EADDRINUSE",
+				Command:  "npm start",
+			}, nil)
+
+		tool := chattool.ProcessOutput(chattool.ProcessToolOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "process_output",
+			Input: `{"process_id":"proc-1","wait_timeout":"0s"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.False(t, result.Success)
+		assert.Equal(t, 1, result.ExitCode)
+		assert.Equal(t, "npm start", result.Command)
+	})
+
 	t.Run("ProcessOutputError", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)

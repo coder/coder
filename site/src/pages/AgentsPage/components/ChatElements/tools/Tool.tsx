@@ -251,6 +251,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const rec = asRecord(result);
 	const output = rec ? asString(rec.output).trim() : "";
+	const command = rec ? asString(rec.command).trim() : "";
 	const exitCode = rec
 		? (asNumber(rec.exit_code, { parseString: true }) ?? null)
 		: null;
@@ -259,6 +260,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	return (
 		<ProcessOutputTool
 			output={output}
+			command={command || undefined}
 			isRunning={status === "running"}
 			exitCode={exitCode}
 			isError={isError}

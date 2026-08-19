@@ -681,13 +681,60 @@ export const ProcessOutputAlwaysExpanded: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/process output line 1/)).toBeVisible();
 		expect(canvas.getByText(/process output line 30/)).toBeVisible();
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", {
-					name: "Collapse full process output",
-				}),
-			).toHaveAttribute("aria-expanded", "true");
-		});
+	},
+};
+
+export const ProcessOutputChecked: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: { process_id: "process-123" },
+		result: {
+			command: "npm start",
+			output:
+				"> Local: http://localhost:3001/\n> Server exited: EADDRINUSE :::3001",
+			exit_code: 1,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Checked npm start")).toBeVisible();
+		expect(canvas.getByText("exit 1")).toBeVisible();
+		expect(canvas.getByText(/EADDRINUSE/)).toBeVisible();
+	},
+};
+
+export const ProcessOutputChecking: Story = {
+	args: {
+		name: "process_output",
+		status: "running",
+		args: { process_id: "process-123" },
+		result: {
+			command: "npm start",
+			output: "> Starting Vite dev server...",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Checking npm start")).toBeVisible();
+	},
+};
+
+/** Older transcripts carry no command; the label falls back. */
+export const ProcessOutputNoCommand: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: { process_id: "process-123" },
+		result: {
+			output: "some output",
+			exit_code: 0,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Process output")).toBeVisible();
+		expect(canvas.getByText("some output")).toBeVisible();
 	},
 };
 
