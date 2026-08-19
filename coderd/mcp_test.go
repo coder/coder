@@ -2146,16 +2146,30 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 		require.NotEmpty(t, query.Get("code_challenge"),
 			"connect redirect must include a code_challenge")
 
-		// A verifier cookie must be set.
-		var verifierCookie *http.Cookie
+		// The callback path is frozen because it is registered as a
+		// redirect URI with external authorization servers.
+		frozenCallbackPath := "/api/experimental/mcp/servers/" + created.ID.String() + "/oauth2/callback"
+		redirectURI, err := url.Parse(query.Get("redirect_uri"))
+		require.NoError(t, err)
+		require.Equal(t, frozenCallbackPath, redirectURI.Path,
+			"outbound redirect_uri must use the frozen callback path")
+
+		var stateCookie, verifierCookie *http.Cookie
 		for _, c := range res.Cookies() {
-			if c.Name == "mcp_oauth2_verifier_"+created.ID.String() {
+			switch c.Name {
+			case "mcp_oauth2_state_" + created.ID.String():
+				stateCookie = c
+			case "mcp_oauth2_verifier_" + created.ID.String():
 				verifierCookie = c
-				break
 			}
 		}
+		require.NotNil(t, stateCookie, "response must set a state cookie")
+		require.Equal(t, frozenCallbackPath, stateCookie.Path,
+			"state cookie must be scoped to the frozen callback path")
 		require.NotNil(t, verifierCookie, "response must set a PKCE verifier cookie")
 		require.NotEmpty(t, verifierCookie.Value)
+		require.Equal(t, frozenCallbackPath, verifierCookie.Path,
+			"verifier cookie must be scoped to the frozen callback path")
 
 		// Verify the code_challenge matches SHA256(verifier).
 		h := sha256.Sum256([]byte(verifierCookie.Value))
@@ -2260,12 +2274,17 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 			"token exchange must send the PKCE code_verifier")
 
 		// Verify the verifier cookie is cleared in the response.
+		var clearedVerifier *http.Cookie
 		for _, c := range res.Cookies() {
 			if c.Name == "mcp_oauth2_verifier_"+created.ID.String() {
-				require.Equal(t, -1, c.MaxAge,
-					"verifier cookie must be cleared after callback")
+				clearedVerifier = c
 			}
 		}
+		require.NotNil(t, clearedVerifier, "callback must clear the verifier cookie")
+		require.Equal(t, -1, clearedVerifier.MaxAge,
+			"verifier cookie must be cleared after callback")
+		require.Equal(t, callbackURL.Path, clearedVerifier.Path,
+			"cleared verifier cookie must be scoped to the frozen callback path")
 	})
 
 	t.Run("CallbackWithoutVerifierStillWorks", func(t *testing.T) {

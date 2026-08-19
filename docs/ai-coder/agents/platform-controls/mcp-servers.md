@@ -174,7 +174,9 @@ wins.
 | View enabled servers          | Organization member |
 | OAuth2 connect and disconnect | Organization member |
 
-Creating or updating a server with `auth_type` set to `user_oidc` also requires the `deployment_config:update` permission.
-
 Members only see enabled servers in their own organizations. Sensitive fields
 such as API keys and client secrets are redacted in API responses.
+
+The **MCP servers** settings page is part of deployment settings, so opening it in the dashboard also requires permission to edit deployment configuration.
+Organization admins without that permission can manage servers through the API.
+Creating or updating a server with `auth_type` set to `user_oidc` also requires the `deployment_config:update` permission.
