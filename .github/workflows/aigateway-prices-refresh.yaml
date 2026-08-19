@@ -153,6 +153,22 @@ jobs:
               --jq '.html_url'
           fi
 
+      - name: Send Slack notification when price book is current
+        if: steps.detect.outputs.changed == 'false'
+        env:
+          SLACK_WEBHOOK: ${{ secrets.AIGATEWAY_PRICES_SLACK_WEBHOOK }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SLACK_WEBHOOK}" ]; then
+            echo "::error::AIGATEWAY_PRICES_SLACK_WEBHOOK is not set; the no-change notification could not be sent."
+            exit 1
+          fi
+          text=":white_check_mark: *AI Gateway price book refresh completed.* No generated changes were found. Run: ${RUN_URL}"
+          payload="$(jq -nc --arg text "${text}" '{text: $text}')"
+          curl -fsSL -X POST -H 'Content-type: application/json' -d "${payload}" "${SLACK_WEBHOOK}"
+          echo "Sent Slack notification"
+
       - name: Send Slack notification on failure
         if: failure()
         env:
