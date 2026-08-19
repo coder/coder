@@ -1,3 +1,10 @@
+import { v4 as uuidv4 } from "uuid";
+
+/**
+ * Generate a random UUID (version 4).
+ */
+export const generateUUID = (): string => uuidv4();
+
 /**
  * Generate a random hexadecimal string from the specified number of bytes.
  */
