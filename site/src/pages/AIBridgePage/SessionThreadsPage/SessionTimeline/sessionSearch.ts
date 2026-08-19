@@ -8,22 +8,6 @@ import type { AgentFirewallLog, AIBridgeThread } from "#/api/typesGenerated";
 
 const normalizeQuery = (query: string): string => query.trim().toLowerCase();
 
-// Counts non-overlapping, case-insensitive occurrences of the query.
-const countOccurrences = (text: string, query: string): number => {
-	const q = normalizeQuery(query);
-	if (q === "") {
-		return 0;
-	}
-	const haystack = text.toLowerCase();
-	let count = 0;
-	let index = haystack.indexOf(q);
-	while (index !== -1) {
-		count += 1;
-		index = haystack.indexOf(q, index + q.length);
-	}
-	return count;
-};
-
 interface ThreadSearchClassification {
 	promptMatch: boolean;
 	/** IDs of tool calls whose tool name or input matched. */
@@ -73,11 +57,12 @@ export const matchesNetworkCallSearch = (
 };
 
 /**
- * Counts how many times the query occurs across the session's searchable
- * fields: thread prompts, tool names, tool input JSON, and network call
- * detail. This is the "N results" figure shown under the search input.
+ * Counts the events that match the query: each matching thread plus each
+ * matching network call. This is the "N matches" figure shown under the
+ * search input. It reuses the same classifiers as the filter so the two can
+ * never disagree on what counts as a match.
  */
-export const countSessionSearchResults = (
+export const countSessionSearchMatches = (
 	threads: readonly AIBridgeThread[],
 	networkCalls: readonly AgentFirewallLog[],
 	query: string,
@@ -88,22 +73,15 @@ export const countSessionSearchResults = (
 	}
 	let count = 0;
 	for (const thread of threads) {
-		const { toolCallIds } = classifyThreadSearch(thread, q);
-		if (thread.prompt) {
-			count += countOccurrences(thread.prompt, q);
-		}
-		for (const action of thread.agentic_actions) {
-			for (const call of action.tool_calls) {
-				if (!toolCallIds.has(call.id)) {
-					continue;
-				}
-				count += countOccurrences(call.tool, q);
-				count += countOccurrences(call.input, q);
-			}
+		const { promptMatch, toolCallIds } = classifyThreadSearch(thread, q);
+		if (promptMatch || toolCallIds.size > 0) {
+			count += 1;
 		}
 	}
 	for (const call of networkCalls) {
-		count += countOccurrences(call.detail, q);
+		if (matchesNetworkCallSearch(call, q)) {
+			count += 1;
+		}
 	}
 	return count;
 };

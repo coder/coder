@@ -130,9 +130,7 @@ export const SearchNoMatches: Story = {
 	},
 };
 
-// The count keeps its slot in the layout when the search box is empty, so
-// the timeline does not shift when a search begins.
-export const SearchResultsCount: Story = {
+export const SearchMatchCount: Story = {
 	play: async ({ canvas }) => {
 		const input = canvas.getByRole("textbox", {
 			name: /search session events/i,
@@ -142,22 +140,27 @@ export const SearchResultsCount: Story = {
 		await expect(status).not.toBeVisible();
 
 		await userEvent.type(input, "list_directory");
-		await waitFor(() => expect(status).toHaveTextContent("1 result"));
+		await waitFor(() => expect(status).toHaveTextContent("1 match"));
 		await expect(status).toBeVisible();
 	},
 };
 
-// Types the tool query after mount: the auto-expand must react to the search
-// prop on an already-rendered thread, not just on mount.
+// Opens the agentic loop before searching so ToolCallBlock mounts with
+// expandedByDefault=false. The query matches only the tool input JSON, not
+// the tool name, so the <pre> must become visible via auto-expand for the
+// input's "path" key to appear.
 export const SearchToolMatchAfterMount: Story = {
 	play: async ({ canvas }) => {
+		await userEvent.click(
+			canvas.getByRole("button", { name: /agentic loop/i }),
+		);
 		const input = canvas.getByRole("textbox", {
 			name: /search session events/i,
 		});
-		await userEvent.type(input, "list_directory");
-		await waitFor(async () =>
+		await userEvent.type(input, ".");
+		await waitFor(() =>
 			expect(
-				(await canvas.findAllByText("list_directory")).length,
+				canvas.queryAllByText((_c, el) => el?.textContent === '"path"').length,
 			).toBeGreaterThan(0),
 		);
 	},

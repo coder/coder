@@ -20,7 +20,7 @@ import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
 import { SessionTimelineSkeleton } from "./SessionTimeline/SessionTimelineSkeleton";
-import { countSessionSearchResults } from "./SessionTimeline/sessionSearch";
+import { countSessionSearchMatches } from "./SessionTimeline/sessionSearch";
 
 const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 	<TooltipProvider>
@@ -91,7 +91,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 
 	const isSearching = debouncedQuery.trim() !== "";
 
-	const searchResults = countSessionSearchResults(
+	const searchMatches = countSessionSearchMatches(
 		threads,
 		networkCalls,
 		debouncedQuery,
@@ -128,8 +128,8 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 							role="status"
 							aria-hidden={!isSearching}
 						>
-							<strong>{searchResults.toLocaleString("en-US")}</strong>{" "}
-							{searchResults === 1 ? "result" : "results"}
+							<strong>{searchMatches.toLocaleString("en-US")}</strong>{" "}
+							{searchMatches === 1 ? "match" : "matches"}
 						</p>
 					</div>
 				)}

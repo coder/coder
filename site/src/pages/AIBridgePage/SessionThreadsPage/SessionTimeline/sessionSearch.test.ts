@@ -6,7 +6,7 @@ import {
 } from "#/testHelpers/entities";
 import {
 	classifyThreadSearch,
-	countSessionSearchResults,
+	countSessionSearchMatches,
 	matchesNetworkCallSearch,
 	splitMatchSegments,
 } from "./sessionSearch";
@@ -63,10 +63,12 @@ describe("classifyThreadSearch", () => {
 	});
 });
 
-describe("countSessionSearchResults", () => {
-	it("sums occurrences across prompt, tool, input, and network detail", () => {
+describe("countSessionSearchMatches", () => {
+	it("counts each matching thread and network call once", () => {
+		// "path" appears only in the tool input, so the thread matches once.
+		// No network call detail contains it.
 		expect(
-			countSessionSearchResults(
+			countSessionSearchMatches(
 				[MockAIBridgeThread],
 				MockAIBridgeSessionNetworkCalls,
 				"path",
@@ -74,25 +76,18 @@ describe("countSessionSearchResults", () => {
 		).toBe(1);
 	});
 
-	it("counts multiple occurrences in one field", () => {
+	it("counts a thread once even when the query recurs within it", () => {
 		const repeated: AIBridgeThread = {
 			...MockAIBridgeThread,
 			prompt: "relay relay relay",
 		};
-		expect(countSessionSearchResults([repeated], [], "relay")).toBe(3);
+		expect(countSessionSearchMatches([repeated], [], "relay")).toBe(1);
 	});
 
-	it("counts occurrences inside longer words", () => {
-		const compound: AIBridgeThread = {
-			...MockAIBridgeThread,
-			prompt: "vercel-relay and vercelrelay",
-		};
-		expect(countSessionSearchResults([compound], [], "relay")).toBe(2);
-	});
-
-	it("counts network call detail occurrences", () => {
+	it("counts each matching network call once", () => {
+		// "github.com" appears in two network call details.
 		expect(
-			countSessionSearchResults(
+			countSessionSearchMatches(
 				[],
 				MockAIBridgeSessionNetworkCalls,
 				"github.com",
@@ -102,7 +97,7 @@ describe("countSessionSearchResults", () => {
 
 	it("returns zero for an empty query", () => {
 		expect(
-			countSessionSearchResults(
+			countSessionSearchMatches(
 				[MockAIBridgeThread],
 				MockAIBridgeSessionNetworkCalls,
 				"",

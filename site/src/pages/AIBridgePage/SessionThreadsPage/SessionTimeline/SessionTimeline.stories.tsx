@@ -267,9 +267,37 @@ export const SearchNoMatchesWithNextPage: Story = {
 	},
 	play: async ({ args, canvas }) => {
 		await expect(
-			canvas.getByText(/No events match your search in the loaded events/),
+			canvas.getByText(
+				(_c, el) =>
+					el?.textContent ===
+					"No events match your search in the loaded events. More matches may exist; clear the search to load more.",
+			),
 		).toBeInTheDocument();
 		await expect(args.onFetchNextPage).not.toHaveBeenCalled();
+	},
+};
+
+// When a search has matches but more pages remain, a standalone disclosure
+// reminds the user that the search covers only loaded threads. The text spans
+// multiple JSX lines, so match by normalized combined textContent.
+const normalizeWs = (s: string) => s.replace(/\s+/g, " ").trim();
+
+export const SearchMatchWithNextPageDisclosure: Story = {
+	args: {
+		threads: [mockThread],
+		searchQuery: "list_directory",
+		hasNextPage: true,
+		isFetchingNextPage: false,
+		onFetchNextPage: fn(),
+	},
+	play: async ({ canvas }) => {
+		await expect(
+			canvas.getByText(
+				(_c, el) =>
+					normalizeWs(el?.textContent ?? "") ===
+					"Search covers only the loaded threads. More matches may exist; clear the search to load more.",
+			),
+		).toBeInTheDocument();
 	},
 };
 
