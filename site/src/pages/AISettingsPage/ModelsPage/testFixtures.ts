@@ -1,4 +1,8 @@
-import type { ChatModelConfig, ChatProviderConfig } from "#/api/typesGenerated";
+import type {
+	AIModelPrice,
+	ChatModelConfig,
+	ChatProviderConfig,
+} from "#/api/typesGenerated";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
 
 const now = "2026-02-18T12:00:00.000Z";
@@ -39,6 +43,41 @@ export const mockGPT5: ChatModelConfig = {
 	updated_at: now,
 };
 
+export const mockGPT5Pricing: AIModelPrice = {
+	provider: "openai",
+	model: mockGPT5.model,
+	input_price: 1_250_000,
+	output_price: 10_000_000,
+	cache_read_price: 125_000,
+	cache_write_price: null,
+	default: true,
+	created_at: now,
+	updated_at: now,
+};
+
+export const mockCustomModel: ChatModelConfig = {
+	...mockGPT5,
+	id: "model-custom",
+	model: "custom-model",
+	display_name: "Custom Model",
+	is_default: false,
+};
+
+export const mockCustomModelPricing: AIModelPrice = {
+	...mockGPT5Pricing,
+	model: mockCustomModel.model,
+	input_price: 2_500_000,
+	output_price: 8_000_000,
+	cache_read_price: null,
+	cache_write_price: 3_125_000,
+	default: false,
+};
+
+export const mockRefetchedCustomModelPricing: AIModelPrice = {
+	...mockCustomModelPricing,
+	input_price: 5_500_000,
+};
+
 export const mockClaude: ChatModelConfig = {
 	...mockGPT5,
 	id: "model-claude",
@@ -71,6 +110,25 @@ export const MockOpenAIProviderState: ProviderState = {
 	allowUserAPIKey: false,
 	isEnvPreset: false,
 	baseURL: "",
+};
+
+export const MockOpenAICompatProviderState: ProviderState = {
+	...MockOpenAIProviderState,
+	key: "prov-openai-compat",
+	provider: "openai-compat",
+	label: "OpenAI-compatible",
+	providerConfig: {
+		...MockOpenAIProviderConfig,
+		id: "prov-openai-compat",
+		provider: "openai-compat",
+		display_name: "OpenAI-compatible",
+	},
+	modelConfigs: [
+		{
+			...mockCustomModel,
+			ai_provider_id: "prov-openai-compat",
+		},
+	],
 };
 
 export const MockAnthropicProviderState: ProviderState = {

@@ -48,7 +48,11 @@ func (api *API) listAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.AIModelPrices(dbPrices))
+	sdkPrices := db2sdk.AIModelPrices(dbPrices)
+	for i := range sdkPrices {
+		sdkPrices[i].Default = prices.IsDefaultPriced(sdkPrices[i].Provider, sdkPrices[i].Model)
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, sdkPrices)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.

@@ -3905,6 +3905,12 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	upsertAIModelPrices = async (
+		req: TypesGen.UpsertAIModelPricesRequest,
+	): Promise<void> => {
+		await this.axios.post("/api/experimental/ai/model-prices", req);
+	};
+
 	getMCPServerConfigs = async (): Promise<TypesGen.MCPServerConfig[]> => {
 		const response =
 			await this.axios.get<TypesGen.MCPServerConfig[]>(mcpServerConfigsPath);

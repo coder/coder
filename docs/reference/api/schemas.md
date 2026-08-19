@@ -1145,6 +1145,7 @@ title: Schemas
   "cache_read_price": 0,
   "cache_write_price": 0,
   "created_at": "2019-08-24T14:15:22Z",
+  "default": true,
   "input_price": 0,
   "model": "string",
   "output_price": 0,
@@ -1155,16 +1156,17 @@ title: Schemas
 
 ### Properties
 
-| Name                | Type    | Required | Restrictions | Description |
-|---------------------|---------|----------|--------------|-------------|
-| `cache_read_price`  | integer | false    |              |             |
-| `cache_write_price` | integer | false    |              |             |
-| `created_at`        | string  | false    |              |             |
-| `input_price`       | integer | false    |              |             |
-| `model`             | string  | false    |              |             |
-| `output_price`      | integer | false    |              |             |
-| `provider`          | string  | false    |              |             |
-| `updated_at`        | string  | false    |              |             |
+| Name                | Type    | Required | Restrictions | Description                                                                                                                         |
+|---------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `cache_read_price`  | integer | false    |              |                                                                                                                                     |
+| `cache_write_price` | integer | false    |              |                                                                                                                                     |
+| `created_at`        | string  | false    |              |                                                                                                                                     |
+| `default`           | boolean | false    |              | Default is true when the model is in Coder's embedded price book. Default prices cannot be customized through the model prices API. |
+| `input_price`       | integer | false    |              |                                                                                                                                     |
+| `model`             | string  | false    |              |                                                                                                                                     |
+| `output_price`      | integer | false    |              |                                                                                                                                     |
+| `provider`          | string  | false    |              |                                                                                                                                     |
+| `updated_at`        | string  | false    |              |                                                                                                                                     |
 
 ## codersdk.AIModelPriceUpsert
 

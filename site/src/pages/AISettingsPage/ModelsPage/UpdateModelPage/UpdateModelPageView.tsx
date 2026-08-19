@@ -9,6 +9,17 @@ interface UpdateModelPageViewProps {
 	currentDefaultModel?: TypesGen.ChatModelConfig;
 	providerStates: readonly ProviderState[];
 	selectedProviderState: ProviderState | null;
+	modelPricing?: TypesGen.AIModelPrice;
+	pricingProvider?: string;
+	isPricingLoading: boolean;
+	isPricingFetching: boolean;
+	pricingError: unknown;
+	isPricingSaving: boolean;
+	pricingSaveError: unknown;
+	isPricingFeatureAvailable: boolean;
+	canViewPricing: boolean;
+	canEditPricing: boolean;
+	onSavePricing: (price: TypesGen.AIModelPriceUpsert) => Promise<void>;
 	onProviderChange: (providerKey: string) => void;
 	isSaving: boolean;
 	isDeleting: boolean;
@@ -26,6 +37,17 @@ const UpdateModelPageView: FC<UpdateModelPageViewProps> = ({
 	currentDefaultModel,
 	providerStates,
 	selectedProviderState,
+	modelPricing,
+	pricingProvider,
+	isPricingLoading,
+	isPricingFetching,
+	pricingError,
+	isPricingSaving,
+	pricingSaveError,
+	isPricingFeatureAvailable,
+	canViewPricing,
+	canEditPricing,
+	onSavePricing,
 	onProviderChange,
 	isSaving,
 	isDeleting,
@@ -45,6 +67,17 @@ const UpdateModelPageView: FC<UpdateModelPageViewProps> = ({
 				currentDefaultModel={currentDefaultModel}
 				providerStates={providerStates}
 				selectedProviderState={selectedProviderState}
+				modelPricing={modelPricing}
+				pricingProvider={pricingProvider}
+				isPricingLoading={isPricingLoading}
+				isPricingFetching={isPricingFetching}
+				pricingError={pricingError}
+				isPricingSaving={isPricingSaving}
+				pricingSaveError={pricingSaveError}
+				isPricingFeatureAvailable={isPricingFeatureAvailable}
+				canViewPricing={canViewPricing}
+				canEditPricing={canEditPricing}
+				onSavePricing={onSavePricing}
 				onProviderChange={onProviderChange}
 				isSaving={isSaving}
 				isDeleting={isDeleting}

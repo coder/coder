@@ -119,6 +119,14 @@
 		"object": { "resource_type": "ai_gateway_key" },
 		"action": "read"
 	},
+	"viewAIModelPrices": {
+		"object": { "resource_type": "ai_model_price" },
+		"action": "read"
+	},
+	"updateAIModelPrices": {
+		"object": { "resource_type": "ai_model_price" },
+		"action": "update"
+	},
 	"createOAuth2App": {
 		"object": { "resource_type": "oauth2_app" },
 		"action": "create"

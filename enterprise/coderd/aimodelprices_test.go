@@ -218,7 +218,8 @@ func TestUpsertAIModelPrices(t *testing.T) {
 			Prices: []codersdk.AIModelPriceUpsert{newAIModelPrice("anthropic", "my-model", 3_000_000)},
 		}))
 
-		// Then: the input price is stored and the other three are null.
+		// Then: the input price is stored and the other three are null. The
+		// response marks it as customizable because it is not in the price book.
 		prices, err := exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{
 			Provider: "anthropic",
 			Model:    "my-model",
@@ -229,6 +230,7 @@ func TestUpsertAIModelPrices(t *testing.T) {
 		require.Nil(t, prices[0].OutputPrice)
 		require.Nil(t, prices[0].CacheReadPrice)
 		require.Nil(t, prices[0].CacheWritePrice)
+		require.False(t, prices[0].Default)
 	})
 
 	t.Run("UpdatesAPriceItSet", func(t *testing.T) {
@@ -315,6 +317,7 @@ func TestListAIModelPrices(t *testing.T) {
 		require.Equal(t, int64(25_000_000), *seeded[0].OutputPrice)
 		require.Equal(t, int64(500_000), *seeded[0].CacheReadPrice)
 		require.Equal(t, int64(6_250_000), *seeded[0].CacheWritePrice)
+		require.True(t, seeded[0].Default)
 	})
 
 	t.Run("Filters", func(t *testing.T) {

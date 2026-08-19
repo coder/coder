@@ -16146,6 +16146,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "default": {
+                    "description": "Default is true when the model is in Coder's embedded price book.\nDefault prices cannot be customized through the model prices API.",
+                    "type": "boolean"
+                },
                 "input_price": {
                     "type": "integer"
                 },
