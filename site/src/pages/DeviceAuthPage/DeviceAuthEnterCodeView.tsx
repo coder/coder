@@ -7,7 +7,11 @@ import { SignInLayout } from "#/components/SignInLayout/SignInLayout";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Welcome } from "#/components/Welcome/Welcome";
 
-export type DeviceCodeError = "invalid" | "expired";
+/**
+ * Errors the server can return for a submitted code. Client-side format
+ * problems are handled inline as field validation instead.
+ */
+export type DeviceCodeError = "not-recognized" | "expired";
 
 type DeviceAuthEnterCodeViewProps = {
 	/** Pre-fills the field when the user arrives via `verification_uri_complete`. */
@@ -17,10 +21,12 @@ type DeviceAuthEnterCodeViewProps = {
 	onSubmit: (userCode: string) => void;
 };
 
+// Factual, non-accusatory: the code isn't recognized, the user isn't at fault.
 const errorMessages: Record<DeviceCodeError, string> = {
-	invalid: "That code isn't valid. Check for typos and try again.",
+	"not-recognized":
+		"This code isn't recognized. It may have already been used — start again on your device to get a new one.",
 	expired:
-		"That code has expired. Codes are only valid for a few minutes — start over on your device to get a new one.",
+		"This code has expired. Codes last a few minutes, so start again on your device to get a new one.",
 };
 
 /**
@@ -40,7 +46,8 @@ const formatUserCode = (value: string): string => {
 
 /**
  * Step 1 of the device authorization flow: the user types the code shown by
- * the CLI or app. Rendered as a standalone page with no dashboard chrome.
+ * the CLI or app. Standalone page, no navigation chrome — nothing else here is
+ * reachable until the flow completes.
  */
 export const DeviceAuthEnterCodeView: FC<DeviceAuthEnterCodeViewProps> = ({
 	initialUserCode = "",
@@ -49,66 +56,76 @@ export const DeviceAuthEnterCodeView: FC<DeviceAuthEnterCodeViewProps> = ({
 	onSubmit,
 }) => {
 	const [userCode, setUserCode] = useState(formatUserCode(initialUserCode));
-	const isComplete = userCode.replace("-", "").length === 8;
+	// Validation runs on submit, not on keystroke: the submit button stays
+	// enabled so the form can fail loudly and say what's missing.
+	const [formatError, setFormatError] = useState<string>();
 
 	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		if (isComplete && !isSubmitting) {
-			onSubmit(userCode);
+		if (isSubmitting) {
+			return;
 		}
+		if (userCode.replace("-", "").length !== 8) {
+			setFormatError("Enter all eight characters of the code, like WDJB-MJHT.");
+			return;
+		}
+		setFormatError(undefined);
+		onSubmit(userCode);
 	};
+
+	const fieldError = formatError;
 
 	return (
 		<SignInLayout>
-			<Welcome>Enter device code</Welcome>
-
-			<p className="m-0 text-center text-sm text-content-secondary leading-normal">
-				Enter the code shown in your terminal or app to connect it to your Coder
-				account.
-			</p>
-
-			<form className="w-full mt-6 flex flex-col gap-4" onSubmit={handleSubmit}>
-				{error && (
-					<Alert severity="error" prominent>
-						{errorMessages[error]}
-					</Alert>
-				)}
-
+			<main className="w-full flex flex-col gap-6">
 				<div className="flex flex-col gap-2">
-					<Label htmlFor="user-code">Device code</Label>
-					<Input
-						id="user-code"
-						name="user_code"
-						autoFocus
-						autoComplete="off"
-						spellCheck={false}
-						placeholder="XXXX-XXXX"
-						aria-invalid={error !== undefined}
-						aria-describedby="user-code-help"
-						value={userCode}
-						onChange={(event) =>
-							setUserCode(formatUserCode(event.target.value))
-						}
-						className="text-center font-mono text-base tracking-[0.2em] uppercase"
-					/>
-					<span
-						id="user-code-help"
-						className="text-xs text-content-secondary leading-normal"
-					>
-						Eight characters, letters and numbers only.
-					</span>
+					<Welcome>Connect your device</Welcome>
+					<p className="m-0 text-center text-sm text-content-secondary">
+						Enter the code shown in your terminal or app.
+					</p>
 				</div>
 
-				<Button
-					type="submit"
-					size="lg"
-					className="w-full"
-					disabled={!isComplete || isSubmitting}
+				{/* Alert carries the server-side condition; it is subtle by default. */}
+				{error && <Alert severity="error">{errorMessages[error]}</Alert>}
+
+				<form
+					className="flex flex-col gap-6"
+					onSubmit={handleSubmit}
+					noValidate
 				>
-					<Spinner loading={isSubmitting} />
-					Continue
-				</Button>
-			</form>
+					<div className="flex flex-col gap-1.5">
+						<Label htmlFor="user-code">Device code</Label>
+						<Input
+							id="user-code"
+							name="user_code"
+							autoFocus
+							autoComplete="off"
+							spellCheck={false}
+							placeholder="WDJB-MJHT"
+							value={userCode}
+							onChange={(event) =>
+								setUserCode(formatUserCode(event.target.value))
+							}
+							aria-invalid={fieldError ? true : undefined}
+							aria-describedby={fieldError ? "user-code-error" : undefined}
+							className="text-center font-mono"
+						/>
+						{fieldError && (
+							<p
+								id="user-code-error"
+								className="m-0 text-xs text-content-destructive"
+							>
+								{fieldError}
+							</p>
+						)}
+					</div>
+
+					<Button type="submit" className="w-full" disabled={isSubmitting}>
+						<Spinner loading={isSubmitting} />
+						{isSubmitting ? "Checking…" : "Continue"}
+					</Button>
+				</form>
+			</main>
 		</SignInLayout>
 	);
 };

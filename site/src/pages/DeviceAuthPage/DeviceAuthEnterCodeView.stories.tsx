@@ -27,10 +27,10 @@ export const Submitting: Story = {
 	},
 };
 
-export const InvalidCode: Story = {
+export const NotRecognized: Story = {
 	args: {
 		initialUserCode: "WDJB-MJHT",
-		error: "invalid",
+		error: "not-recognized",
 	},
 };
 
@@ -38,5 +38,17 @@ export const ExpiredCode: Story = {
 	args: {
 		initialUserCode: "WDJB-MJHT",
 		error: "expired",
+	},
+};
+
+/** Submitting an incomplete code: the button stays enabled and the field explains. */
+export const IncompleteCode: Story = {
+	args: {
+		initialUserCode: "WDJB",
+	},
+	play: async ({ canvas, userEvent }) => {
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Continue" }),
+		);
 	},
 };

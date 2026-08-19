@@ -32,6 +32,12 @@ type Story = StoryObj<typeof DeviceAuthConfirmView>;
 
 export const Default: Story = {};
 
+export const LongClientName: Story = {
+	args: {
+		clientName: "Internal platform provisioning service (staging)",
+	},
+};
+
 export const SingleScope: Story = {
 	args: {
 		clientName: "JetBrains Toolbox",
