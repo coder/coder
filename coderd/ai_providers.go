@@ -584,8 +584,9 @@ func buildHostnameCollisionMap(rows []database.AIProvider) map[string][]string {
 
 // aiProviderHostnameWarningFromMap is the pure helper for the list
 // handler. namesByHost is the pre-built collision map from the outer
-// rows. Only providers whose name sorts after another enabled provider
-// on the same hostname get a warning; the alphabetical winner does not.
+// rows, in database order (ORDER BY name ASC). Only providers whose
+// name appears after another enabled provider on the same hostname
+// get a warning; the first provider in database order does not.
 func aiProviderHostnameWarningFromMap(provider database.AIProvider, namesByHost map[string][]string) *codersdk.AIProviderStatus {
 	if !provider.Enabled || provider.Deleted {
 		return nil

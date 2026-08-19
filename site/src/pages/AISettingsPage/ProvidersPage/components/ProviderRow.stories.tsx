@@ -115,7 +115,7 @@ export const WithHostnameCollisionWarning: Story = {
 			},
 		},
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const badge = canvas.getByText(/warning/i);
 		await expect(badge).toBeInTheDocument();
@@ -128,7 +128,6 @@ export const WithHostnameCollisionWarning: Story = {
 		badge.focus();
 		await userEvent.keyboard("{Enter}");
 		await userEvent.keyboard(" ");
-		// If the row navigated, the badge would unmount.
-		await expect(badge).toBeInTheDocument();
+		await expect(args.onClick).not.toHaveBeenCalled();
 	},
 };
