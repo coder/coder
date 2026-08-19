@@ -127,8 +127,11 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const {
 		icon: StatusIcon,
 		className: statusClassName,
+		label: statusLabel,
+		prIcon,
 		diffStatus,
-	} = getChatDisplayConfig(chat);
+	} = getChatDisplayConfig(chat, hasChildren);
+	const PRIcon = prIcon?.icon;
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;
@@ -199,6 +202,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											? `agents-tree-executing-${chat.id}`
 											: undefined
 									}
+									role="img"
+									aria-label={statusLabel}
 									className={cn("size-3.5 shrink-0", statusClassName)}
 								/>
 							</div>
@@ -253,6 +258,13 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												<BotIcon className="size-3.5" aria-hidden="true" />
 											</span>
 										)}
+										{PRIcon && prIcon && (
+											<PRIcon
+												role="img"
+												aria-label={prIcon.label}
+												className={cn("size-3.5 shrink-0", prIcon.className)}
+											/>
+										)}
 										{hasLinkedDiffStatus && hasLineStats && (
 											<span
 												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
@@ -297,6 +309,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											// keep the timestamp visible.
 											hasMenuActions &&
 												"[@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden",
+											// The active chat keeps the actions trigger visible, so
+											// the timestamp stays hidden there.
+											hasMenuActions && isActiveChat && "hidden",
 										)}
 									>
 										{chat.has_unread && !isActiveChat ? (
@@ -331,7 +346,12 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										<Button
 											size="icon"
 											variant="subtle"
-											className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+											className={cn(
+												"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
+												// Keep the trigger visible on the active chat so it is
+												// reachable without hovering.
+												isActiveChat && "opacity-100",
+											)}
 											aria-label={`Open actions for ${chat.title}`}
 										>
 											<EllipsisVerticalIcon className="size-3.5" />
