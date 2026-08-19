@@ -16,6 +16,70 @@ The command is for local development only. It does not run in CI.
 
 The command supports Docker servers running on `amd64` or `arm64`.
 
+## Bootstrap a Lima VM with mTLS
+
+Use `setup-local-cluster-lima.sh` to prepare a fresh, apt-based Lima VM and deploy the complete local environment. The script expects rootful Docker, installs missing development tools, clones Coder into the guest's writable `~/src/coder` directory, creates the cluster, adds a license, and configures AI Gateway to connect to Coder with mTLS.
+
+Create a Lima VM from macOS:
+
+```console
+limactl start \
+  --name coder-dev \
+  --cpus 6 \
+  --memory 16 \
+  --disk 100 \
+  template:docker-rootful
+```
+
+Run the bootstrap script inside the VM. Supply the license using a file when possible:
+
+```console
+CODER_DEV_LICENSE_FILE="$HOME/coder-license.jwt" \
+  ./scripts/develop-local-cluster/setup-local-cluster-lima.sh
+```
+
+You can instead set `CODER_DEV_LICENSE` or omit both variables to enter the license at a hidden interactive prompt. The script removes `CODER_DEV_LICENSE` from the subprocess environment before running installers and build commands.
+
+The bootstrap script:
+
+1. Installs missing base packages such as Git, Make, OpenSSL, jq, and vim.
+2. Installs checksum-pinned mise, kubectl, and k9s.
+3. Uses mise to install the repository-pinned Go, Node.js, pnpm, Helm, and kind versions.
+4. Clones or updates Coder in `~/src/coder` and checks out `pawel/develop-local-cluster`.
+5. Runs `develop-local-cluster.sh` to deploy PostgreSQL and Coder.
+6. Adds the license before deploying the Premium provisioner and AI Gateway components.
+7. Generates a development CA, Coder server certificate, and AI Gateway client certificate.
+8. Configures AI Gateway to use Coder's HTTPS service with mTLS.
+9. Verifies that Coder rejects a client without a certificate, accepts the generated client certificate, and reports AI Gateway ready.
+
+Common bootstrap overrides:
+
+| Environment variable             | Default                             |
+|----------------------------------|-------------------------------------|
+| `CODER_REPO_URL`                 | `https://github.com/coder/coder`    |
+| `CODER_REPO_REF`                 | `pawel/develop-local-cluster`       |
+| `CODER_REPO_DIR`                 | `~/src/coder`                       |
+| `CODER_DEV_CLUSTER_NAME`         | `coder-local`                       |
+| `CODER_DEV_CLUSTER_NAMESPACE`    | `coder`                             |
+| `CODER_DEV_CLUSTER_GATEWAY_PORT` | `4001`                              |
+| `CODER_DEV_CLUSTER_BUILD_JOBS`   | `2`                                 |
+| `KUBECTL_VERSION`                | `v1.35.0`                           |
+| `K9S_VERSION`                    | Latest release at installation time |
+| `MTLS_CERT_DAYS`                 | `30`                                |
+| `MTLS_VALIDATION_PORT`           | `30443`                             |
+
+Set `CODER_DEV_CLUSTER_BUILD_JOBS=1` if the VM is still under memory pressure during the Vite production build.
+
+The generated certificates and Helm values are stored under:
+
+```text
+.coderv2/clusters/coder-local/mtls
+```
+
+The mTLS validation uses a temporary loopback-only port-forward and removes it when validation completes. The normal development Coder URL remains `http://127.0.0.1:3000`; that HTTP endpoint does not require a client certificate. This setup validates and protects the AI Gateway-to-Coder HTTPS connection, but it does not disable Coder's HTTP service.
+
+If a fresh bootstrap fails after creating the cluster, the script removes the new cluster and its local resources. It does not delete a cluster that existed before the script started.
+
 ## Quick start
 
 Create the cluster:
