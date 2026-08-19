@@ -95,8 +95,9 @@ export const TotalAgentHoursUsage: Story = {
 		const agentHoursHeading = canvas.getByRole("heading", {
 			name: "Total agent hours",
 		});
-		await expect(canvas.getByText("435.8")).toBeInTheDocument();
-		await expect(canvas.getByText("2,000")).toBeInTheDocument();
+		const agentHoursCard = within(agentHoursHeading.closest("section")!);
+		await expect(agentHoursCard.getByText("435.8")).toBeInTheDocument();
+		await expect(agentHoursCard.getByText("2,000")).toBeInTheDocument();
 		const managedAgentsSection = canvas.getByText(
 			"Agent Workspace Builds Disabled",
 		);
