@@ -96,7 +96,7 @@ func compare(oldRows, newRows []pricebook.Row) diff {
 		switch {
 		case !ok:
 			d.added = append(d.added, r.Key())
-		case !samePrices(prev, r):
+		case !prev.SamePrices(r):
 			d.changed = append(d.changed, r.Key())
 		}
 	}
@@ -110,22 +110,6 @@ func compare(oldRows, newRows []pricebook.Row) diff {
 		sort.Slice(keys, func(i, j int) bool { return less(keys[i], keys[j]) })
 	}
 	return d
-}
-
-// samePrices reports whether two rows for the same model carry identical
-// prices. A price moving to or from null counts as a change.
-func samePrices(a, b pricebook.Row) bool {
-	return equalPrice(a.InputPrice, b.InputPrice) &&
-		equalPrice(a.OutputPrice, b.OutputPrice) &&
-		equalPrice(a.CacheReadPrice, b.CacheReadPrice) &&
-		equalPrice(a.CacheWritePrice, b.CacheWritePrice)
-}
-
-func equalPrice(a, b *int64) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
-	}
-	return *a == *b
 }
 
 // render writes the Markdown summary: counts, then the models in each

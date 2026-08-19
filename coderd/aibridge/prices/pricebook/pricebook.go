@@ -1,7 +1,10 @@
 // Package pricebook defines the serialized AI Gateway model price book.
 package pricebook
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"io"
+)
 
 // Row is one provider and model entry in the generated price book. Pointer
 // fields preserve the distinction between a missing price and an explicit zero.
@@ -39,4 +42,29 @@ func Parse(data []byte) ([]Row, error) {
 		return nil, err
 	}
 	return rows, nil
+}
+
+// Write encodes a price book in the on-disk form of the generated artifact.
+func Write(w io.Writer, rows []Row) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(rows)
+}
+
+// SamePrices reports whether two rows carry identical prices. Provider and
+// model are ignored, so it is only meaningful for rows with the same Key. A
+// price moving to or from null counts as a difference, matching the null
+// handling in the batch SQL upsert.
+func (r Row) SamePrices(other Row) bool {
+	return equalPrice(r.InputPrice, other.InputPrice) &&
+		equalPrice(r.OutputPrice, other.OutputPrice) &&
+		equalPrice(r.CacheReadPrice, other.CacheReadPrice) &&
+		equalPrice(r.CacheWritePrice, other.CacheWritePrice)
+}
+
+func equalPrice(a, b *int64) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }

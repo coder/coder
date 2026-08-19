@@ -17,7 +17,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"sort"
@@ -117,8 +116,8 @@ func runPrices(upstream map[string]upstreamProvider) error {
 	if err := validate(rows); err != nil {
 		return err
 	}
-	if err := write(os.Stdout, rows); err != nil {
-		return err
+	if err := pricebook.Write(os.Stdout, rows); err != nil {
+		return xerrors.Errorf("encode: %w", err)
 	}
 	_, _ = fmt.Fprintf(os.Stderr, "aibridgepricesgen: wrote %d prices for %d provider(s)\n", len(rows), len(providers.Supported))
 	return nil
@@ -208,13 +207,4 @@ func toMicros(price *float64) *int64 {
 	}
 	micros := int64(math.Round(*price * 1_000_000))
 	return &micros
-}
-
-func write(w io.Writer, rows []pricebook.Row) error {
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(rows); err != nil {
-		return xerrors.Errorf("encode: %w", err)
-	}
-	return nil
 }
