@@ -85,7 +85,7 @@ type ExecuteResult struct {
 	Truncated           *workspacesdk.ProcessTruncation `json:"truncated,omitempty"`
 	Note                string                          `json:"note,omitempty"`
 	BackgroundProcessID string                          `json:"background_process_id,omitempty"`
-	Command string `json:"command,omitempty"`
+	Command             string                          `json:"command,omitempty"`
 
 	Running bool `json:"running,omitempty"`
 
