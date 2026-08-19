@@ -26,7 +26,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -73,7 +72,7 @@ func generateQuickgenObject[T any](
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
 ) (*fantasy.ObjectResult[T], error) {
-	call.Temperature = ptr.Ref(quickgenTemperature)
+	call.Temperature = new(quickgenTemperature)
 	var result *fantasy.ObjectResult[T]
 	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 		var genErr error

@@ -27,7 +27,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -105,8 +104,8 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 
 		expected := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.ActivityBumpMillis = ptr.Ref((3 * time.Hour).Milliseconds())
-			ctr.TimeTilAutostopNotifyMillis = ptr.Ref((5 * time.Minute).Milliseconds())
+			ctr.ActivityBumpMillis = new((3 * time.Hour).Milliseconds())
+			ctr.TimeTilAutostopNotifyMillis = new((5 * time.Minute).Milliseconds())
 		})
 		assert.Equal(t, (3 * time.Hour).Milliseconds(), expected.ActivityBumpMillis)
 		assert.Equal(t, (5 * time.Minute).Milliseconds(), expected.TimeTilAutostopNotifyMillis)
@@ -177,7 +176,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 			Name:             "testing",
 			VersionID:        version.ID,
-			DefaultTTLMillis: ptr.Ref(int64(-1)),
+			DefaultTTLMillis: new(int64(-1)),
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -195,7 +194,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 			Name:                        "testing",
 			VersionID:                   version.ID,
-			TimeTilAutostopNotifyMillis: ptr.Ref(int64(30_000)),
+			TimeTilAutostopNotifyMillis: new(int64(30_000)),
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -215,7 +214,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 			Name:                        "testing",
 			VersionID:                   version.ID,
-			TimeTilAutostopNotifyMillis: ptr.Ref(time.Minute.Milliseconds()),
+			TimeTilAutostopNotifyMillis: new(time.Minute.Milliseconds()),
 		})
 		require.NoError(t, err)
 		assert.Equal(t, time.Minute.Milliseconds(), got.TimeTilAutostopNotifyMillis)
@@ -231,7 +230,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 			Name:                        "testing",
 			VersionID:                   version.ID,
-			TimeTilAutostopNotifyMillis: ptr.Ref(int64(-1)),
+			TimeTilAutostopNotifyMillis: new(int64(-1)),
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -251,7 +250,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 			Name:             "testing",
 			VersionID:        version.ID,
-			DefaultTTLMillis: ptr.Ref(int64(0)),
+			DefaultTTLMillis: new(int64(0)),
 		})
 		require.NoError(t, err)
 		require.Zero(t, got.DefaultTTLMillis)
@@ -320,8 +319,8 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 				Name:               "testing",
 				VersionID:          version.ID,
-				AllowUserAutostart: ptr.Ref(false),
-				AllowUserAutostop:  ptr.Ref(false),
+				AllowUserAutostart: new(false),
+				AllowUserAutostop:  new(false),
 			})
 			require.NoError(t, err)
 
@@ -343,8 +342,8 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 				Name:               "testing",
 				VersionID:          version.ID,
-				AllowUserAutostart: ptr.Ref(false),
-				AllowUserAutostop:  ptr.Ref(false),
+				AllowUserAutostart: new(false),
+				AllowUserAutostop:  new(false),
 			})
 			require.NoError(t, err)
 			// ignored and use AGPL defaults
@@ -536,7 +535,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 				Name:              "testing",
 				VersionID:         version.ID,
-				MaxPortShareLevel: ptr.Ref(codersdk.WorkspaceAgentPortShareLevelPublic),
+				MaxPortShareLevel: new(codersdk.WorkspaceAgentPortShareLevelPublic),
 			})
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
@@ -1001,15 +1000,15 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, (1 * time.Hour).Milliseconds(), template.ActivityBumpMillis)
 
 		req := codersdk.UpdateTemplateMeta{
-			Name:                         ptr.Ref("new-template-name"),
-			DisplayName:                  ptr.Ref("Displayed Name 456"),
-			Description:                  ptr.Ref("lorem ipsum dolor sit amet et cetera"),
-			Icon:                         ptr.Ref("/icon/new-icon.png"),
-			DefaultTTLMillis:             ptr.Ref(12 * time.Hour.Milliseconds()),
-			ActivityBumpMillis:           ptr.Ref(3 * time.Hour.Milliseconds()),
-			TimeTilAutostopNotifyMillis:  ptr.Ref(5 * time.Minute.Milliseconds()),
-			AllowUserCancelWorkspaceJobs: ptr.Ref(false),
-			AgentsAllowed:                ptr.Ref(false),
+			Name:                         new("new-template-name"),
+			DisplayName:                  new("Displayed Name 456"),
+			Description:                  new("lorem ipsum dolor sit amet et cetera"),
+			Icon:                         new("/icon/new-icon.png"),
+			DefaultTTLMillis:             new(12 * time.Hour.Milliseconds()),
+			ActivityBumpMillis:           new(3 * time.Hour.Milliseconds()),
+			TimeTilAutostopNotifyMillis:  new(5 * time.Minute.Milliseconds()),
+			AllowUserCancelWorkspaceJobs: new(false),
+			AgentsAllowed:                new(false),
 		}
 		// It is unfortunate we need to sleep, but the test can fail if the
 		// updatedAt is too close together.
@@ -1082,7 +1081,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		time.Sleep(time.Millisecond * 5)
 
 		req := codersdk.UpdateTemplateMeta{
-			DeprecationMessage: ptr.Ref("APGL cannot deprecate"),
+			DeprecationMessage: new("APGL cannot deprecate"),
 		}
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1125,7 +1124,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.True(t, got.Deprecated, "template is deprecated to start")
 
 		req := codersdk.UpdateTemplateMeta{
-			DeprecationMessage: ptr.Ref(""),
+			DeprecationMessage: new(""),
 		}
 
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
@@ -1158,7 +1157,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		// Ensure the same value port share level is a no-op
 		level = codersdk.WorkspaceAgentPortShareLevelPublic
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:              ptr.Ref(coderdtest.RandomUsername(t)),
+			Name:              new(coderdtest.RandomUsername(t)),
 			MaxPortShareLevel: &level,
 		})
 		require.NoError(t, err)
@@ -1171,14 +1170,14 @@ func TestPatchTemplateMeta(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
+			ctr.DefaultTTLMillis = new(24 * time.Hour.Milliseconds())
 		})
 		// It is unfortunate we need to sleep, but the test can fail if the
 		// updatedAt is too close together.
 		time.Sleep(time.Millisecond * 5)
 
 		req := codersdk.UpdateTemplateMeta{
-			DefaultTTLMillis: ptr.Ref(int64(0)),
+			DefaultTTLMillis: new(int64(0)),
 		}
 
 		// We're too fast! Sleep so we can be sure that updatedAt is greater
@@ -1205,14 +1204,14 @@ func TestPatchTemplateMeta(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
+			ctr.DefaultTTLMillis = new(24 * time.Hour.Milliseconds())
 		})
 		// It is unfortunate we need to sleep, but the test can fail if the
 		// updatedAt is too close together.
 		time.Sleep(time.Millisecond * 5)
 
 		req := codersdk.UpdateTemplateMeta{
-			DefaultTTLMillis: ptr.Ref(int64(-1)),
+			DefaultTTLMillis: new(int64(-1)),
 		}
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1260,9 +1259,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.FailureTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
-				ctr.TimeTilDormantMillis = ptr.Ref(0 * time.Hour.Milliseconds())
-				ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref(0 * time.Hour.Milliseconds())
+				ctr.FailureTTLMillis = new(0 * time.Hour.Milliseconds())
+				ctr.TimeTilDormantMillis = new(0 * time.Hour.Milliseconds())
+				ctr.TimeTilDormantAutoDeleteMillis = new(0 * time.Hour.Milliseconds())
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1273,12 +1272,12 @@ func TestPatchTemplateMeta(t *testing.T) {
 				DisplayName:                    &template.DisplayName,
 				Description:                    &template.Description,
 				Icon:                           &template.Icon,
-				DefaultTTLMillis:               ptr.Ref(int64(0)),
+				DefaultTTLMillis:               new(int64(0)),
 				AutostopRequirement:            &template.AutostopRequirement,
 				AllowUserCancelWorkspaceJobs:   &template.AllowUserCancelWorkspaceJobs,
-				FailureTTLMillis:               ptr.Ref(failureTTL.Milliseconds()),
-				TimeTilDormantMillis:           ptr.Ref(inactivityTTL.Milliseconds()),
-				TimeTilDormantAutoDeleteMillis: ptr.Ref(timeTilDormantAutoDelete.Milliseconds()),
+				FailureTTLMillis:               new(failureTTL.Milliseconds()),
+				TimeTilDormantMillis:           new(inactivityTTL.Milliseconds()),
+				TimeTilDormantAutoDeleteMillis: new(timeTilDormantAutoDelete.Milliseconds()),
 			})
 			require.NoError(t, err)
 
@@ -1295,9 +1294,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.FailureTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
-				ctr.TimeTilDormantMillis = ptr.Ref(0 * time.Hour.Milliseconds())
-				ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref(0 * time.Hour.Milliseconds())
+				ctr.FailureTTLMillis = new(0 * time.Hour.Milliseconds())
+				ctr.TimeTilDormantMillis = new(0 * time.Hour.Milliseconds())
+				ctr.TimeTilDormantAutoDeleteMillis = new(0 * time.Hour.Milliseconds())
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1311,9 +1310,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 				DefaultTTLMillis:               &template.DefaultTTLMillis,
 				AutostopRequirement:            &template.AutostopRequirement,
 				AllowUserCancelWorkspaceJobs:   &template.AllowUserCancelWorkspaceJobs,
-				FailureTTLMillis:               ptr.Ref(failureTTL.Milliseconds()),
-				TimeTilDormantMillis:           ptr.Ref(inactivityTTL.Milliseconds()),
-				TimeTilDormantAutoDeleteMillis: ptr.Ref(timeTilDormantAutoDelete.Milliseconds()),
+				FailureTTLMillis:               new(failureTTL.Milliseconds()),
+				TimeTilDormantMillis:           new(inactivityTTL.Milliseconds()),
+				TimeTilDormantAutoDeleteMillis: new(timeTilDormantAutoDelete.Milliseconds()),
 			})
 			require.NoError(t, err)
 			require.Zero(t, got.FailureTTLMillis)
@@ -1354,7 +1353,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
+				ctr.DefaultTTLMillis = new(24 * time.Hour.Milliseconds())
 			})
 			require.Equal(t, allowAutostart.Load(), template.AllowUserAutostart)
 			require.Equal(t, allowAutostop.Load(), template.AllowUserAutostop)
@@ -1372,8 +1371,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 				DefaultTTLMillis:             &template.DefaultTTLMillis,
 				AutostopRequirement:          &template.AutostopRequirement,
 				AllowUserCancelWorkspaceJobs: &template.AllowUserCancelWorkspaceJobs,
-				AllowUserAutostart:           ptr.Ref(allowAutostart.Load()),
-				AllowUserAutostop:            ptr.Ref(allowAutostop.Load()),
+				AllowUserAutostart:           new(allowAutostart.Load()),
+				AllowUserAutostop:            new(allowAutostop.Load()),
 			})
 			require.NoError(t, err)
 
@@ -1389,7 +1388,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
+				ctr.DefaultTTLMillis = new(24 * time.Hour.Milliseconds())
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1400,11 +1399,11 @@ func TestPatchTemplateMeta(t *testing.T) {
 				DisplayName:                  &template.DisplayName,
 				Description:                  &template.Description,
 				Icon:                         &template.Icon,
-				DefaultTTLMillis:             ptr.Ref(template.DefaultTTLMillis + 1),
+				DefaultTTLMillis:             new(template.DefaultTTLMillis + 1),
 				AutostopRequirement:          &template.AutostopRequirement,
 				AllowUserCancelWorkspaceJobs: &template.AllowUserCancelWorkspaceJobs,
-				AllowUserAutostart:           ptr.Ref(false),
-				AllowUserAutostop:            ptr.Ref(false),
+				AllowUserAutostart:           new(false),
+				AllowUserAutostop:            new(false),
 			})
 			require.NoError(t, err)
 			require.True(t, got.AllowUserAutostart)
@@ -1421,7 +1420,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.Description = "original description"
 			ctr.Icon = "/icon/original-icon.png"
-			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
+			ctr.DefaultTTLMillis = new(24 * time.Hour.Milliseconds())
 		})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1456,7 +1455,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.TimeTilAutostopNotifyMillis = ptr.Ref((5 * time.Minute).Milliseconds())
+			ctr.TimeTilAutostopNotifyMillis = new((5 * time.Minute).Milliseconds())
 		})
 		require.Equal(t, (5 * time.Minute).Milliseconds(), template.TimeTilAutostopNotifyMillis)
 
@@ -1464,7 +1463,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 		// Patch an unrelated field, omitting TimeTilAutostopNotifyMillis.
 		req := codersdk.UpdateTemplateMeta{
-			Description: ptr.Ref("updated description"),
+			Description: new("updated description"),
 		}
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -1483,13 +1482,13 @@ func TestPatchTemplateMeta(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.Description = "original description"
-			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
+			ctr.DefaultTTLMillis = new(24 * time.Hour.Milliseconds())
 		})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		req := codersdk.UpdateTemplateMeta{
-			DefaultTTLMillis: ptr.Ref(-int64(time.Hour)),
+			DefaultTTLMillis: new(-int64(time.Hour)),
 		}
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		var apiErr *codersdk.Error
@@ -1519,7 +1518,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 		// Sub-minute (non-zero) values are rejected.
 		req := codersdk.UpdateTemplateMeta{
-			TimeTilAutostopNotifyMillis: ptr.Ref(int64(30_000)),
+			TimeTilAutostopNotifyMillis: new(int64(30_000)),
 		}
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		var apiErr *codersdk.Error
@@ -1531,7 +1530,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 		// Negative values are rejected.
 		req = codersdk.UpdateTemplateMeta{
-			TimeTilAutostopNotifyMillis: ptr.Ref(int64(-1)),
+			TimeTilAutostopNotifyMillis: new(int64(-1)),
 		}
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.ErrorAs(t, err, &apiErr)
@@ -1548,7 +1547,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.TimeTilAutostopNotifyMillis = ptr.Ref((5 * time.Minute).Milliseconds())
+			ctr.TimeTilAutostopNotifyMillis = new((5 * time.Minute).Milliseconds())
 		})
 		require.Equal(t, (5 * time.Minute).Milliseconds(), template.TimeTilAutostopNotifyMillis)
 
@@ -1556,7 +1555,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 		// Explicitly disable by sending 0, which must not be treated as omitted.
 		req := codersdk.UpdateTemplateMeta{
-			TimeTilAutostopNotifyMillis: ptr.Ref(int64(0)),
+			TimeTilAutostopNotifyMillis: new(int64(0)),
 		}
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -1573,7 +1572,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			ctr.Icon = "/icon/code.png"
 		})
 		req := codersdk.UpdateTemplateMeta{
-			Icon: ptr.Ref(""),
+			Icon: new(""),
 		}
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1632,7 +1631,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				Description:                  &template.Description,
 				Icon:                         &template.Icon,
 				AllowUserCancelWorkspaceJobs: &template.AllowUserCancelWorkspaceJobs,
-				DefaultTTLMillis:             ptr.Ref(time.Hour.Milliseconds()),
+				DefaultTTLMillis:             new(time.Hour.Milliseconds()),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					// wrong order
 					DaysOfWeek: []string{"saturday", "friday"},
@@ -1709,7 +1708,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				Description:                  &template.Description,
 				Icon:                         &template.Icon,
 				AllowUserCancelWorkspaceJobs: &template.AllowUserCancelWorkspaceJobs,
-				DefaultTTLMillis:             ptr.Ref(time.Hour.Milliseconds()),
+				DefaultTTLMillis:             new(time.Hour.Milliseconds()),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					DaysOfWeek: []string{},
 					Weeks:      0,
@@ -1746,7 +1745,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				Description:                  &template.Description,
 				Icon:                         &template.Icon,
 				AllowUserCancelWorkspaceJobs: &template.AllowUserCancelWorkspaceJobs,
-				DefaultTTLMillis:             ptr.Ref(time.Hour.Milliseconds()),
+				DefaultTTLMillis:             new(time.Hour.Milliseconds()),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					DaysOfWeek: []string{"monday"},
 					Weeks:      2,
@@ -1817,7 +1816,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.False(t, template.DisableModuleCache, "default is false")
 
 		req := codersdk.UpdateTemplateMeta{
-			DisableModuleCache: ptr.Ref(true),
+			DisableModuleCache: new(true),
 		}
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1838,7 +1837,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.True(t, updated.DisableModuleCache, "expected true")
 
 		// back to false
-		req.DisableModuleCache = ptr.Ref(false)
+		req.DisableModuleCache = new(false)
 		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
 		assert.False(t, updated.DisableModuleCache, "expected false")
@@ -1860,7 +1859,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			ctr.DisplayName = displayName
 			ctr.Description = description
 			ctr.Icon = icon
-			ctr.DefaultTTLMillis = ptr.Ref(defaultTTLMillis)
+			ctr.DefaultTTLMillis = new(defaultTTLMillis)
 		})
 		require.Equal(t, displayName, reference.DisplayName)
 		require.Equal(t, description, reference.Description)
@@ -1870,7 +1869,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			DisplayName:      &displayName,
 			Description:      &description,
 			Icon:             &icon,
-			DefaultTTLMillis: ptr.Ref(defaultTTLMillis),
+			DefaultTTLMillis: new(defaultTTLMillis),
 		}
 
 		type expected struct {
@@ -1889,22 +1888,22 @@ func TestPatchTemplateMeta(t *testing.T) {
 		tests := []testCase{
 			{
 				name:     "Only update default_ttl_ms",
-				req:      codersdk.UpdateTemplateMeta{DefaultTTLMillis: ptr.Ref(99 * time.Hour.Milliseconds())},
+				req:      codersdk.UpdateTemplateMeta{DefaultTTLMillis: new(99 * time.Hour.Milliseconds())},
 				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: reference.Icon, defaultTTLMillis: 99 * time.Hour.Milliseconds()},
 			},
 			{
 				name:     "Clear display name",
-				req:      codersdk.UpdateTemplateMeta{DisplayName: ptr.Ref("")},
+				req:      codersdk.UpdateTemplateMeta{DisplayName: new("")},
 				expected: expected{displayName: "", description: reference.Description, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
 			},
 			{
 				name:     "Clear description",
-				req:      codersdk.UpdateTemplateMeta{Description: ptr.Ref("")},
+				req:      codersdk.UpdateTemplateMeta{Description: new("")},
 				expected: expected{displayName: reference.DisplayName, description: "", icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
 			},
 			{
 				name:     "Clear icon",
-				req:      codersdk.UpdateTemplateMeta{Icon: ptr.Ref("")},
+				req:      codersdk.UpdateTemplateMeta{Icon: new("")},
 				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: "", defaultTTLMillis: defaultTTLMillis},
 			},
 			// A request whose only field is nil is a true no-op under the new
@@ -1963,9 +1962,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 			ctr.DisplayName = "Original Display"
 			ctr.Description = "Original description"
 			ctr.Icon = "/icon/original.png"
-			ctr.DefaultTTLMillis = ptr.Ref((24 * time.Hour).Milliseconds())
-			ctr.AllowUserCancelWorkspaceJobs = ptr.Ref(true)
-			ctr.AgentsAllowed = ptr.Ref(false)
+			ctr.DefaultTTLMillis = new((24 * time.Hour).Milliseconds())
+			ctr.AllowUserCancelWorkspaceJobs = new(true)
+			ctr.AgentsAllowed = new(false)
 		})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1997,9 +1996,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 		owner := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.AllowUserCancelWorkspaceJobs = ptr.Ref(true)
-			ctr.AgentsAllowed = ptr.Ref(false)
-			ctr.DefaultTTLMillis = ptr.Ref((24 * time.Hour).Milliseconds())
+			ctr.AllowUserCancelWorkspaceJobs = new(true)
+			ctr.AgentsAllowed = new(false)
+			ctr.DefaultTTLMillis = new((24 * time.Hour).Milliseconds())
 		})
 		require.True(t, template.AllowUserCancelWorkspaceJobs)
 		require.False(t, template.AgentsAllowed)
@@ -2021,7 +2020,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		// Conversely, sending only AllowUserCancelWorkspaceJobs must not zero
 		// out DefaultTTLMillis.
 		updated, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			AllowUserCancelWorkspaceJobs: ptr.Ref(false),
+			AllowUserCancelWorkspaceJobs: new(false),
 		})
 		require.NoError(t, err)
 		assert.False(t, updated.AllowUserCancelWorkspaceJobs)

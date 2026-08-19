@@ -180,7 +180,8 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 					return err
 				}
 
-				schedStr = ptr.Ref(sched.String())
+				schedStr = new(string)
+				*schedStr = sched.String()
 
 				// Check if the template has autostart requirements that may conflict
 				// with the user's schedule.
@@ -252,7 +253,8 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 				if err != nil {
 					return err
 				}
-				durMillis = ptr.Ref(dur.Milliseconds())
+				durMillis = new(int64)
+				*durMillis = dur.Milliseconds()
 			}
 
 			if err := client.UpdateWorkspaceTTL(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceTTLRequest{

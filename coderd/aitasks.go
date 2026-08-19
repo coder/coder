@@ -30,7 +30,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/taskname"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -292,10 +291,10 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 	var taskAppHealth *codersdk.WorkspaceAppHealth
 
 	if dbTask.WorkspaceAgentLifecycleState.Valid {
-		taskAgentLifecycle = ptr.Ref(codersdk.WorkspaceAgentLifecycle(dbTask.WorkspaceAgentLifecycleState.WorkspaceAgentLifecycleState))
+		taskAgentLifecycle = new(codersdk.WorkspaceAgentLifecycle(dbTask.WorkspaceAgentLifecycleState.WorkspaceAgentLifecycleState))
 	}
 	if dbTask.WorkspaceAppHealth.Valid {
-		taskAppHealth = ptr.Ref(codersdk.WorkspaceAppHealth(dbTask.WorkspaceAppHealth.WorkspaceAppHealth))
+		taskAppHealth = new(codersdk.WorkspaceAppHealth(dbTask.WorkspaceAppHealth.WorkspaceAppHealth))
 	}
 
 	// If we have an agent ID from the task, find the agent health info
@@ -996,7 +995,7 @@ func (api *API) fetchSnapshotTaskLogs(ctx context.Context, taskID uuid.UUID) (co
 	return codersdk.TaskLogsResponse{
 		Logs:       logs,
 		Snapshot:   true,
-		SnapshotAt: ptr.Ref(snapshot.LogSnapshotCreatedAt),
+		SnapshotAt: new(snapshot.LogSnapshotCreatedAt),
 	}, nil
 }
 

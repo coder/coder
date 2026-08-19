@@ -13,7 +13,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -141,7 +140,7 @@ func TestPostLicense(t *testing.T) {
 		t.Parallel()
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		coderdenttest.AddLicense(t, client,
-			*(&coderdenttest.LicenseOptions{}).AgentRuntimeHours(100, ptr.Ref[int64](80), ptr.Ref[int64](120)))
+			*(&coderdenttest.LicenseOptions{}).AgentRuntimeHours(100, new(int64(80)), new(int64(120))))
 		// The claims round-trip through GET /api/v2/entitlements.
 		//nolint:gocritic // This test asserts license state, not authz behavior.
 		entitlements, err := client.Entitlements(context.Background())

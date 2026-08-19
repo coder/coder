@@ -43,7 +43,6 @@ import (
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
@@ -652,23 +651,23 @@ func TestWorkspace(t *testing.T) {
 				name:                      "Single Preset - No Preset Parameters But With Template Parameters",
 				presets:                   []*proto.Preset{emptyPreset},
 				templateVersionParameters: templateVersionParameters,
-				selectedPresetIndex:       ptr.Ref(0),
+				selectedPresetIndex:       new(0),
 			},
 			{
 				name:                "Single Preset - No Preset Parameters And No Template Parameters",
 				presets:             []*proto.Preset{emptyPreset},
-				selectedPresetIndex: ptr.Ref(0),
+				selectedPresetIndex: new(0),
 			},
 			{
 				name:                "Single Preset - With Preset Parameters But No Template Parameters",
 				presets:             []*proto.Preset{presetWithParameters},
-				selectedPresetIndex: ptr.Ref(0),
+				selectedPresetIndex: new(0),
 			},
 			{
 				name:                      "Single Preset - With Matching Parameters",
 				presets:                   []*proto.Preset{presetWithParameters},
 				templateVersionParameters: templateVersionParameters,
-				selectedPresetIndex:       ptr.Ref(0),
+				selectedPresetIndex:       new(0),
 			},
 			{
 				name: "Single Preset - With Partial Matching Parameters",
@@ -677,7 +676,7 @@ func TestWorkspace(t *testing.T) {
 					Parameters: presetParameters,
 				}},
 				templateVersionParameters: templateVersionParameters[:2],
-				selectedPresetIndex:       ptr.Ref(0),
+				selectedPresetIndex:       new(0),
 			},
 			{
 				name: "Multiple Presets - No Parameters",
@@ -686,7 +685,7 @@ func TestWorkspace(t *testing.T) {
 					{Name: "preset2"},
 					{Name: "preset3"},
 				},
-				selectedPresetIndex: ptr.Ref(0),
+				selectedPresetIndex: new(0),
 			},
 			{
 				name: "Multiple Presets - First Has Parameters",
@@ -698,7 +697,7 @@ func TestWorkspace(t *testing.T) {
 					{Name: "preset2"},
 					{Name: "preset3"},
 				},
-				selectedPresetIndex: ptr.Ref(0),
+				selectedPresetIndex: new(0),
 			},
 			{
 				name: "Multiple Presets - First Has Matching Parameters",
@@ -708,7 +707,7 @@ func TestWorkspace(t *testing.T) {
 					{Name: "preset3"},
 				},
 				templateVersionParameters: templateVersionParameters,
-				selectedPresetIndex:       ptr.Ref(0),
+				selectedPresetIndex:       new(0),
 			},
 			{
 				name: "Multiple Presets - Middle Has Parameters",
@@ -717,7 +716,7 @@ func TestWorkspace(t *testing.T) {
 					presetWithParameters,
 					{Name: "preset3"},
 				},
-				selectedPresetIndex: ptr.Ref(1),
+				selectedPresetIndex: new(1),
 			},
 			{
 				name: "Multiple Presets - Middle Has Matching Parameters",
@@ -727,7 +726,7 @@ func TestWorkspace(t *testing.T) {
 					{Name: "preset3"},
 				},
 				templateVersionParameters: templateVersionParameters,
-				selectedPresetIndex:       ptr.Ref(1),
+				selectedPresetIndex:       new(1),
 			},
 			{
 				name: "Multiple Presets - Last Has Parameters",
@@ -736,7 +735,7 @@ func TestWorkspace(t *testing.T) {
 					{Name: "preset2"},
 					presetWithParameters,
 				},
-				selectedPresetIndex: ptr.Ref(2),
+				selectedPresetIndex: new(2),
 			},
 			{
 				name: "Multiple Presets - Last Has Matching Parameters",
@@ -746,7 +745,7 @@ func TestWorkspace(t *testing.T) {
 					presetWithParameters,
 				},
 				templateVersionParameters: templateVersionParameters,
-				selectedPresetIndex:       ptr.Ref(2),
+				selectedPresetIndex:       new(2),
 			},
 			{
 				name: "Multiple Presets - All Have Parameters",
@@ -764,7 +763,7 @@ func TestWorkspace(t *testing.T) {
 						Parameters: presetParameters[2:3],
 					},
 				},
-				selectedPresetIndex: ptr.Ref(1),
+				selectedPresetIndex: new(1),
 			},
 			{
 				name: "Multiple Presets - All Have Partially Matching Parameters",
@@ -783,7 +782,7 @@ func TestWorkspace(t *testing.T) {
 					},
 				},
 				templateVersionParameters: templateVersionParameters,
-				selectedPresetIndex:       ptr.Ref(1),
+				selectedPresetIndex:       new(1),
 			},
 			{
 				name: "Multiple presets - With Overlapping Matching Parameters",
@@ -804,7 +803,7 @@ func TestWorkspace(t *testing.T) {
 					},
 				},
 				templateVersionParameters: templateVersionParameters,
-				selectedPresetIndex:       ptr.Ref(0),
+				selectedPresetIndex:       new(0),
 			},
 			{
 				name: "Multiple Presets - With Parameters But Not Used",
@@ -1291,8 +1290,8 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			TemplateID:        template.ID,
 			TemplateVersionID: versionTest.ID,
 			Name:              name,
-			AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
-			TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
+			AutostartSchedule: new("CRON_TZ=US/Central 30 9 * * 1-5"),
+			TTLMillis:         new((8 * time.Hour).Milliseconds()),
 		}
 		_, err := client.CreateWorkspace(context.Background(), user.OrganizationID, codersdk.Me, req)
 
@@ -1326,7 +1325,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.DefaultTTLMillis = ptr.Ref(int64(0))
+			ctr.DefaultTTLMillis = new(int64(0))
 		})
 		// Given: the template has no default TTL set
 		require.Zero(t, template.DefaultTTLMillis)
@@ -1334,7 +1333,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 
 		// When: we create a workspace with autostop not enabled
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.TTLMillis = ptr.Ref(int64(0))
+			cwr.TTLMillis = new(int64(0))
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
@@ -1349,7 +1348,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		templateTTL := 24 * time.Hour.Milliseconds()
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.DefaultTTLMillis = ptr.Ref(templateTTL)
+			ctr.DefaultTTLMillis = new(templateTTL)
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -1378,7 +1377,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			req := codersdk.CreateWorkspaceRequest{
 				TemplateID: template.ID,
 				Name:       "testing",
-				TTLMillis:  ptr.Ref((59 * time.Second).Milliseconds()),
+				TTLMillis:  new((59 * time.Second).Milliseconds()),
 			}
 			_, err := client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
 			require.Error(t, err)
@@ -2273,7 +2272,7 @@ func TestWorkspaceFilter(t *testing.T) {
 		})
 
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Shared: ptr.Ref(true),
+			Shared: new(true),
 		})
 		require.NoError(t, err, "fetch workspaces")
 		require.Equal(t, 1, workspaces.Count, "expected only one workspace")
@@ -2310,7 +2309,7 @@ func TestWorkspaceFilter(t *testing.T) {
 		})
 
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Shared: ptr.Ref(false),
+			Shared: new(false),
 		})
 		require.NoError(t, err, "fetch workspaces")
 		require.Equal(t, 1, workspaces.Count, "expected only one workspace")
@@ -3343,12 +3342,12 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 	}{
 		{
 			name:          "disable autostart",
-			schedule:      ptr.Ref(""),
+			schedule:      new(""),
 			expectedError: "",
 		},
 		{
 			name:             "friday to monday",
-			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
+			schedule:         new("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
 			expectedError:    "",
 			at:               time.Date(2022, 5, 6, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 5, 9, 9, 30, 0, 0, dublinLoc),
@@ -3356,7 +3355,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		},
 		{
 			name:             "monday to tuesday",
-			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
+			schedule:         new("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
 			expectedError:    "",
 			at:               time.Date(2022, 5, 9, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 5, 10, 9, 30, 0, 0, dublinLoc),
@@ -3365,7 +3364,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		{
 			// DST in Ireland began on Mar 27 in 2022 at 0100. Forward 1 hour.
 			name:             "DST start",
-			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * *"),
+			schedule:         new("CRON_TZ=Europe/Dublin 30 9 * * *"),
 			expectedError:    "",
 			at:               time.Date(2022, 3, 26, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 3, 27, 9, 30, 0, 0, dublinLoc),
@@ -3374,7 +3373,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		{
 			// DST in Ireland ends on Oct 30 in 2022 at 0200. Back 1 hour.
 			name:             "DST end",
-			schedule:         ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * *"),
+			schedule:         new("CRON_TZ=Europe/Dublin 30 9 * * *"),
 			expectedError:    "",
 			at:               time.Date(2022, 10, 29, 9, 31, 0, 0, dublinLoc),
 			expectedNext:     time.Date(2022, 10, 30, 9, 30, 0, 0, dublinLoc),
@@ -3382,17 +3381,17 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		},
 		{
 			name:          "invalid location",
-			schedule:      ptr.Ref("CRON_TZ=Imaginary/Place 30 9 * * 1-5"),
+			schedule:      new("CRON_TZ=Imaginary/Place 30 9 * * 1-5"),
 			expectedError: "parse schedule: provided bad location Imaginary/Place: unknown time zone Imaginary/Place",
 		},
 		{
 			name:          "invalid schedule",
-			schedule:      ptr.Ref("asdf asdf asdf "),
+			schedule:      new("asdf asdf asdf "),
 			expectedError: `validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
 		},
 		{
 			name:          "only 3 values",
-			schedule:      ptr.Ref("CRON_TZ=Europe/Dublin 30 9 *"),
+			schedule:      new("CRON_TZ=Europe/Dublin 30 9 *"),
 			expectedError: `validate weekly schedule: expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix`,
 		},
 	}
@@ -3501,7 +3500,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
-			Schedule: ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
+			Schedule: new("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
 		})
 		require.ErrorContains(t, err, "Autostart is not allowed for workspaces using this template")
 	})
@@ -3513,7 +3512,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			_      = coderdtest.CreateFirstUser(t, client)
 			wsid   = uuid.New()
 			req    = codersdk.UpdateWorkspaceAutostartRequest{
-				Schedule: ptr.Ref("9 30 1-5"),
+				Schedule: new("9 30 1-5"),
 			}
 		)
 
@@ -3541,35 +3540,35 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			ttlMillis:     nil,
 			expectedError: "",
 			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.DefaultTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds())
+				ctr.DefaultTTLMillis = new((8 * time.Hour).Milliseconds())
 			},
 		},
 		{
 			name:          "update ttl",
-			ttlMillis:     ptr.Ref(12 * time.Hour.Milliseconds()),
+			ttlMillis:     new(12 * time.Hour.Milliseconds()),
 			expectedError: "",
 			modifyTemplate: func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.DefaultTTLMillis = ptr.Ref((8 * time.Hour).Milliseconds())
+				ctr.DefaultTTLMillis = new((8 * time.Hour).Milliseconds())
 			},
 		},
 		{
 			name:          "below minimum ttl",
-			ttlMillis:     ptr.Ref((30 * time.Second).Milliseconds()),
+			ttlMillis:     new((30 * time.Second).Milliseconds()),
 			expectedError: "time until shutdown must be at least one minute",
 		},
 		{
 			name:          "minimum ttl",
-			ttlMillis:     ptr.Ref(time.Minute.Milliseconds()),
+			ttlMillis:     new(time.Minute.Milliseconds()),
 			expectedError: "",
 		},
 		{
 			name:          "maximum ttl",
-			ttlMillis:     ptr.Ref((24 * 30 * time.Hour).Milliseconds()),
+			ttlMillis:     new((24 * 30 * time.Hour).Milliseconds()),
 			expectedError: "",
 		},
 		{
 			name:          "above maximum ttl",
-			ttlMillis:     ptr.Ref((24*30*time.Hour + time.Minute).Milliseconds()),
+			ttlMillis:     new((24*30*time.Hour + time.Minute).Milliseconds()),
 			expectedError: "time until shutdown must be less than 30 days",
 		},
 	}
@@ -3636,7 +3635,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		}{
 			{
 				name:    "RemoveAutostopRemovesDeadline",
-				fromTTL: ptr.Ref((8 * time.Hour).Milliseconds()),
+				fromTTL: new((8 * time.Hour).Milliseconds()),
 				toTTL:   nil,
 				afterUpdate: func(t *testing.T, before, after codersdk.NullTime) {
 					require.NotZero(t, before)
@@ -3646,7 +3645,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			{
 				name:    "AddAutostopDoesNotAddDeadline",
 				fromTTL: nil,
-				toTTL:   ptr.Ref((8 * time.Hour).Milliseconds()),
+				toTTL:   new((8 * time.Hour).Milliseconds()),
 				afterUpdate: func(t *testing.T, before, after codersdk.NullTime) {
 					require.Zero(t, before)
 					require.Zero(t, after)
@@ -3654,8 +3653,8 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			},
 			{
 				name:    "IncreaseAutostopDoesNotModifyDeadline",
-				fromTTL: ptr.Ref((4 * time.Hour).Milliseconds()),
-				toTTL:   ptr.Ref((8 * time.Hour).Milliseconds()),
+				fromTTL: new((4 * time.Hour).Milliseconds()),
+				toTTL:   new((8 * time.Hour).Milliseconds()),
 				afterUpdate: func(t *testing.T, before, after codersdk.NullTime) {
 					require.NotZero(t, before)
 					require.NotZero(t, after)
@@ -3664,8 +3663,8 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			},
 			{
 				name:    "DecreaseAutostopDoesNotModifyDeadline",
-				fromTTL: ptr.Ref((8 * time.Hour).Milliseconds()),
-				toTTL:   ptr.Ref((4 * time.Hour).Milliseconds()),
+				fromTTL: new((8 * time.Hour).Milliseconds()),
+				toTTL:   new((4 * time.Hour).Milliseconds()),
 				afterUpdate: func(t *testing.T, before, after codersdk.NullTime) {
 					require.NotZero(t, before)
 					require.NotZero(t, after)
@@ -3728,7 +3727,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			deadline    = 8 * time.Hour
 			maxDeadline = 10 * time.Hour
 			workspace   = coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-				cwr.TTLMillis = ptr.Ref(deadline.Milliseconds())
+				cwr.TTLMillis = new(deadline.Milliseconds())
 			})
 			build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		)
@@ -3806,7 +3805,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		defer cancel()
 
 		err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
-			TTLMillis: ptr.Ref(time.Hour.Milliseconds()),
+			TTLMillis: new(time.Hour.Milliseconds()),
 		})
 		require.ErrorContains(t, err, "Custom autostop TTL is not allowed for workspaces using this template")
 	})
@@ -3818,7 +3817,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			_      = coderdtest.CreateFirstUser(t, client)
 			wsid   = uuid.New()
 			req    = codersdk.UpdateWorkspaceTTLRequest{
-				TTLMillis: ptr.Ref(time.Hour.Milliseconds()),
+				TTLMillis: new(time.Hour.Milliseconds()),
 			}
 		)
 
@@ -3844,7 +3843,7 @@ func TestWorkspaceExtend(t *testing.T) {
 		_           = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template    = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace   = coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.TTLMillis = ptr.Ref(ttl.Milliseconds())
+			cwr.TTLMillis = new(ttl.Milliseconds())
 		})
 		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	)
@@ -4572,8 +4571,8 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 								DisplayName:         secondParameterDisplayName,
 								Type:                secondParameterType,
 								Description:         secondParameterDescription,
-								ValidationMin:       ptr.Ref(int32(1)),
-								ValidationMax:       ptr.Ref(int32(3)),
+								ValidationMin:       new(int32(1)),
+								ValidationMax:       new(int32(3)),
 								ValidationMonotonic: string(secondParameterValidationMonotonic),
 								FormType:            proto.ParameterFormType_INPUT,
 							},
@@ -4706,8 +4705,8 @@ func TestWorkspaceWithMultiSelectFailure(t *testing.T) {
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:          template.ID,
 		Name:                coderdtest.RandomUsername(t),
-		AutostartSchedule:   ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
-		TTLMillis:           ptr.Ref((8 * time.Hour).Milliseconds()),
+		AutostartSchedule:   new("CRON_TZ=US/Central 30 9 * * 1-5"),
+		TTLMillis:           new((8 * time.Hour).Milliseconds()),
 		AutomaticUpdates:    codersdk.AutomaticUpdatesNever,
 		RichParameterValues: expectedBuildParameters,
 	}
@@ -4949,7 +4948,7 @@ func TestWorkspaceDormant(t *testing.T) {
 		)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref[int64](timeTilDormantAutoDelete.Milliseconds())
+			ctr.TimeTilDormantAutoDeleteMillis = new(timeTilDormantAutoDelete.Milliseconds())
 		})
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
@@ -5210,7 +5209,7 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 			DefaultTTL:      int64(8 * time.Hour),
 		})
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			ActivityBumpMillis: ptr.Ref(8 * time.Hour.Milliseconds()),
+			ActivityBumpMillis: new(8 * time.Hour.Milliseconds()),
 		})
 		require.NoError(t, err)
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -5370,7 +5369,7 @@ func TestWorkspaceNotifications(t *testing.T) {
 				version         = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 				_               = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 				template        = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-					ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref[int64](timeTilDormantAutoDelete.Milliseconds())
+					ctr.TimeTilDormantAutoDeleteMillis = new(timeTilDormantAutoDelete.Milliseconds())
 				})
 				workspace = coderdtest.CreateWorkspace(t, client, template.ID)
 				_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
@@ -6776,7 +6775,8 @@ func TestWorkspaceBuildsEnqueuedMetric(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-		cwr.AutostartSchedule = ptr.Ref(sched.String())
+		cwr.AutostartSchedule = new(string)
+		*cwr.AutostartSchedule = sched.String()
 	})
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 

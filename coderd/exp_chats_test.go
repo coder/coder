@@ -49,7 +49,6 @@ import (
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -610,7 +609,7 @@ func TestPostChats(t *testing.T) {
 					Text: "think hard from the start",
 				},
 			},
-			ReasoningEffort: ptr.Ref("high"),
+			ReasoningEffort: new("high"),
 		})
 		require.NoError(t, err)
 
@@ -645,7 +644,7 @@ func TestPostChats(t *testing.T) {
 					Text: "hello",
 				},
 			},
-			ReasoningEffort: ptr.Ref(" HIGH "),
+			ReasoningEffort: new(" HIGH "),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid reasoning_effort value.", sdkErr.Message)
@@ -699,7 +698,7 @@ func TestPostChats(t *testing.T) {
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "hello",
 			}},
-			ModelConfigID: ptr.Ref(disabledConfig.ID),
+			ModelConfigID: &disabledConfig.ID,
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
@@ -725,7 +724,7 @@ func TestPostChats(t *testing.T) {
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "hello",
 			}},
-			ModelConfigID: ptr.Ref(providerDisabledConfig.ID),
+			ModelConfigID: &providerDisabledConfig.ID,
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid model_config_id: provider is not enabled for this model.", sdkErr.Message)
@@ -739,7 +738,7 @@ func TestPostChats(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		defaultConfig := createChatModelConfig(t, client)
 		_, err := client.UpdateAIProvider(ctx, defaultConfig.AIProviderID.String(), codersdk.UpdateAIProviderRequest{
-			Enabled: ptr.Ref(false),
+			Enabled: new(false),
 		})
 		require.NoError(t, err)
 
@@ -1502,7 +1501,7 @@ func TestListChats(t *testing.T) {
 		// Getting a specific chat returns 404 because dbauthz
 		// wraps authorization failures as not-found.
 		err = memberClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-			Title: ptr.Ref("new title"),
+			Title: new("new title"),
 		})
 		requireSDKError(t, err, http.StatusNotFound)
 	})
@@ -1641,7 +1640,7 @@ func TestListChats(t *testing.T) {
 
 		// Pin the earliest chat.
 		err := client.UpdateChat(ctx, pinnedDBChat.ID, codersdk.UpdateChatRequest{
-			PinOrder: ptr.Ref(int32(1)),
+			PinOrder: new(int32(1)),
 		})
 		require.NoError(t, err)
 
@@ -1691,11 +1690,11 @@ func TestListChats(t *testing.T) {
 		// PinChatByID and UpdateChatPinOrder do not touch
 		// updated_at, so the cursor ordering stays stable.
 		err := client.UpdateChat(ctx, createdChatIDs[0], codersdk.UpdateChatRequest{
-			PinOrder: ptr.Ref(int32(1)),
+			PinOrder: new(int32(1)),
 		})
 		require.NoError(t, err)
 		err = client.UpdateChat(ctx, createdChatIDs[1], codersdk.UpdateChatRequest{
-			PinOrder: ptr.Ref(int32(1)),
+			PinOrder: new(int32(1)),
 		})
 		require.NoError(t, err)
 
@@ -1957,7 +1956,7 @@ func TestListChats(t *testing.T) {
 			uuid.NullUUID{},
 		)
 		require.NoError(t, client.UpdateChat(ctx, archivedWithPR.ID, codersdk.UpdateChatRequest{
-			Archived: ptr.Ref(true),
+			Archived: new(true),
 		}))
 
 		t.Run("MatchesRoot", func(t *testing.T) {
@@ -2686,12 +2685,12 @@ func TestWatchChats(t *testing.T) {
 			}
 		}
 
-		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 		require.NoError(t, err)
 		deletedEvents := collectLifecycleEvents(codersdk.ChatWatchEventKindDeleted)
 		assertLifecycleEvents(deletedEvents, true)
 
-		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: new(false)})
 		require.NoError(t, err)
 		createdEvents := collectLifecycleEvents(codersdk.ChatWatchEventKindCreated)
 		assertLifecycleEvents(createdEvents, false)
@@ -2943,8 +2942,8 @@ func TestListChatProviders(t *testing.T) {
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "openai",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 		require.False(t, provider.HasAPIKey)
@@ -3009,7 +3008,7 @@ func TestCreateChatProvider(t *testing.T) {
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "bedrock",
 			DisplayName:          "AWS Bedrock",
-			CentralAPIKeyEnabled: ptr.Ref(true),
+			CentralAPIKeyEnabled: new(true),
 		})
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, provider.ID)
@@ -3041,9 +3040,9 @@ func TestCreateChatProvider(t *testing.T) {
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:                   "bedrock",
 			DisplayName:                "AWS Bedrock Fallback",
-			CentralAPIKeyEnabled:       ptr.Ref(true),
-			AllowUserAPIKey:            ptr.Ref(true),
-			AllowCentralAPIKeyFallback: ptr.Ref(true),
+			CentralAPIKeyEnabled:       new(true),
+			AllowUserAPIKey:            new(true),
+			AllowCentralAPIKeyFallback: new(true),
 		})
 		require.NoError(t, err)
 		require.False(t, provider.HasAPIKey)
@@ -3068,7 +3067,7 @@ func TestCreateChatProvider(t *testing.T) {
 			Provider:             "bedrock",
 			DisplayName:          "AWS Bedrock Token",
 			APIKey:               "bedrock-bearer-token",
-			CentralAPIKeyEnabled: ptr.Ref(true),
+			CentralAPIKeyEnabled: new(true),
 		})
 		require.NoError(t, err)
 		require.Equal(t, "bedrock", provider.Provider)
@@ -3087,7 +3086,7 @@ func TestCreateChatProvider(t *testing.T) {
 		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "openai",
 			DisplayName:          "OpenAI",
-			CentralAPIKeyEnabled: ptr.Ref(true),
+			CentralAPIKeyEnabled: new(true),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, missingCentralKeyMessage, sdkErr.Message)
@@ -3171,8 +3170,8 @@ func TestCreateChatProvider(t *testing.T) {
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "openai",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 		require.False(t, provider.CentralAPIKeyEnabled)
@@ -3234,9 +3233,9 @@ func TestCreateChatProvider(t *testing.T) {
 			_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 				Provider:                   "openai",
 				APIKey:                     "test-api-key",
-				CentralAPIKeyEnabled:       ptr.Ref(testCase.central),
-				AllowUserAPIKey:            ptr.Ref(testCase.user),
-				AllowCentralAPIKeyFallback: ptr.Ref(testCase.fallback),
+				CentralAPIKeyEnabled:       new(testCase.central),
+				AllowUserAPIKey:            new(testCase.user),
+				AllowCentralAPIKeyFallback: new(testCase.fallback),
 			})
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 			require.Equalf(t, "Invalid credential policy.", sdkErr.Message, "case %s", testCase.name)
@@ -3317,15 +3316,15 @@ func TestUpdateChatProvider(t *testing.T) {
 			Provider:             "bedrock",
 			DisplayName:          "AWS Bedrock",
 			APIKey:               "bedrock-bearer-token",
-			CentralAPIKeyEnabled: ptr.Ref(true),
+			CentralAPIKeyEnabled: new(true),
 		})
 		require.NoError(t, err)
 		require.True(t, provider.HasAPIKey)
 		require.True(t, provider.CentralAPIKeyEnabled)
 
 		updated, err := client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
-			APIKey:               ptr.Ref(""),
-			CentralAPIKeyEnabled: ptr.Ref(true),
+			APIKey:               new(""),
+			CentralAPIKeyEnabled: new(true),
 		})
 		require.NoError(t, err)
 		require.Equal(t, provider.ID, updated.ID)
@@ -3403,8 +3402,8 @@ func TestUpdateChatProvider(t *testing.T) {
 		require.NoError(t, err)
 
 		updated, err := client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 		require.True(t, updated.AllowUserAPIKey)
@@ -3423,13 +3422,13 @@ func TestUpdateChatProvider(t *testing.T) {
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "openai",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 
 		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
-			CentralAPIKeyEnabled: ptr.Ref(true),
+			CentralAPIKeyEnabled: new(true),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, missingCentralKeyMessage, sdkErr.Message)
@@ -3449,7 +3448,7 @@ func TestUpdateChatProvider(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
-			APIKey: ptr.Ref(""),
+			APIKey: new(""),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, missingCentralKeyMessage, sdkErr.Message)
@@ -3464,13 +3463,13 @@ func TestUpdateChatProvider(t *testing.T) {
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "openai",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 
 		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
-			CentralAPIKeyEnabled: ptr.Ref(true),
+			CentralAPIKeyEnabled: new(true),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, missingCentralKeyMessage, sdkErr.Message)
@@ -3517,9 +3516,9 @@ func TestUpdateChatProvider(t *testing.T) {
 
 		for _, testCase := range testCases {
 			_, err := client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
-				CentralAPIKeyEnabled:       ptr.Ref(testCase.central),
-				AllowUserAPIKey:            ptr.Ref(testCase.user),
-				AllowCentralAPIKeyFallback: ptr.Ref(testCase.fallback),
+				CentralAPIKeyEnabled:       new(testCase.central),
+				AllowUserAPIKey:            new(testCase.user),
+				AllowCentralAPIKeyFallback: new(testCase.fallback),
 			})
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 			require.Equalf(t, "Invalid credential policy.", sdkErr.Message, "case %s", testCase.name)
@@ -3540,7 +3539,7 @@ func TestUpdateChatProvider(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
-			APIKey: ptr.Ref(strings.Repeat("a", chatProviderAPIKeySizeLimit+1)),
+			APIKey: new(strings.Repeat("a", chatProviderAPIKeySizeLimit+1)),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "API key too large.", sdkErr.Message)
@@ -3561,7 +3560,7 @@ func TestUpdateChatProvider(t *testing.T) {
 		require.NoError(t, err)
 
 		updated, err := client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
-			APIKey: ptr.Ref(strings.Repeat("a", chatProviderAPIKeySizeLimit)),
+			APIKey: new(strings.Repeat("a", chatProviderAPIKeySizeLimit)),
 		})
 		require.NoError(t, err)
 		require.True(t, updated.HasAPIKey)
@@ -3632,8 +3631,8 @@ func TestUserChatProviderConfigs(t *testing.T) {
 
 		anthropicProvider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "anthropic",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 
@@ -3659,8 +3658,8 @@ func TestUserChatProviderConfigs(t *testing.T) {
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "anthropic",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 
@@ -3680,8 +3679,8 @@ func TestUserChatProviderConfigs(t *testing.T) {
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "anthropic",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 
@@ -3691,7 +3690,7 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
-			Enabled: ptr.Ref(false),
+			Enabled: new(false),
 		})
 		require.NoError(t, err)
 
@@ -3710,8 +3709,8 @@ func TestUserChatProviderConfigs(t *testing.T) {
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "anthropic",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 
@@ -3723,8 +3722,8 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		centralAPIKey := "central-key"
 		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
 			APIKey:               &centralAPIKey,
-			CentralAPIKeyEnabled: ptr.Ref(true),
-			AllowUserAPIKey:      ptr.Ref(false),
+			CentralAPIKeyEnabled: new(true),
+			AllowUserAPIKey:      new(false),
 		})
 		require.NoError(t, err)
 
@@ -3734,7 +3733,7 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		requireNoUserProviderConfig(t, configs, "anthropic")
 
 		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
-			AllowUserAPIKey: ptr.Ref(true),
+			AllowUserAPIKey: new(true),
 		})
 		require.NoError(t, err)
 
@@ -3756,9 +3755,9 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:                   "anthropic",
 			APIKey:                     "central-key",
-			CentralAPIKeyEnabled:       ptr.Ref(true),
-			AllowUserAPIKey:            ptr.Ref(true),
-			AllowCentralAPIKeyFallback: ptr.Ref(true),
+			CentralAPIKeyEnabled:       new(true),
+			AllowUserAPIKey:            new(true),
+			AllowCentralAPIKeyFallback: new(true),
 		})
 		require.NoError(t, err)
 
@@ -3793,8 +3792,8 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:                   "openai",
 			APIKey:                     "test-central-key",
-			AllowUserAPIKey:            ptr.Ref(true),
-			AllowCentralAPIKeyFallback: ptr.Ref(true),
+			AllowUserAPIKey:            new(true),
+			AllowCentralAPIKeyFallback: new(true),
 		})
 		require.NoError(t, err)
 
@@ -3809,8 +3808,8 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		require.True(t, listed.HasCentralAPIKeyFallback)
 
 		_, err = client.UpdateChatProvider(ctx, provider.ID, codersdk.UpdateChatProviderConfigRequest{
-			CentralAPIKeyEnabled:       ptr.Ref(false),
-			AllowCentralAPIKeyFallback: ptr.Ref(false),
+			CentralAPIKeyEnabled:       new(false),
+			AllowCentralAPIKeyFallback: new(false),
 		})
 		require.NoError(t, err)
 
@@ -3829,8 +3828,8 @@ func TestUserChatProviderConfigs(t *testing.T) {
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "anthropic",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 
@@ -3872,9 +3871,9 @@ func TestUserChatProviderConfigs(t *testing.T) {
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "anthropic",
-			Enabled:              ptr.Ref(false),
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			Enabled:              new(false),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 
@@ -3914,8 +3913,8 @@ func TestUserChatProviderConfigs(t *testing.T) {
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "anthropic",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 
@@ -3935,8 +3934,8 @@ func TestUserChatProviderConfigs(t *testing.T) {
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "anthropic",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 
@@ -3971,8 +3970,8 @@ func TestUserChatProviderConfigs(t *testing.T) {
 
 		provider, err := adminClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "anthropic",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 
@@ -4005,8 +4004,8 @@ func TestUpsertUserChatProviderKey(t *testing.T) {
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "anthropic",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 
@@ -4027,8 +4026,8 @@ func TestUpsertUserChatProviderKey(t *testing.T) {
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:             "anthropic",
-			CentralAPIKeyEnabled: ptr.Ref(false),
-			AllowUserAPIKey:      ptr.Ref(true),
+			CentralAPIKeyEnabled: new(false),
+			AllowUserAPIKey:      new(true),
 		})
 		require.NoError(t, err)
 
@@ -4258,7 +4257,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 				return xerrors.Errorf("create claimed config: %w", err)
 			}
 			claimed, err = client.UpdateChatModelConfig(ctx, created.ID, codersdk.UpdateChatModelConfigRequest{
-				IsDefault: ptr.Ref(true),
+				IsDefault: new(true),
 			})
 			if err != nil {
 				return xerrors.Errorf("promote claimed config: %w", err)
@@ -4295,8 +4294,8 @@ func TestCreateChatModelConfig(t *testing.T) {
 			ContextLimit: &contextLimit,
 			ModelConfig: &codersdk.ChatModelCallConfig{
 				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-					Default: ptr.Ref("medium"),
-					Max:     ptr.Ref("xhigh"),
+					Default: new("medium"),
+					Max:     new("xhigh"),
 				},
 			},
 		})
@@ -4326,7 +4325,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 			ContextLimit: &contextLimit,
 			ModelConfig: &codersdk.ChatModelCallConfig{
 				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-					Default: ptr.Ref("high"),
+					Default: new("high"),
 				},
 			},
 		})
@@ -4351,8 +4350,8 @@ func TestCreateChatModelConfig(t *testing.T) {
 			ContextLimit: &contextLimit,
 			ModelConfig: &codersdk.ChatModelCallConfig{
 				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-					Default: ptr.Ref(" HIGH "),
-					Max:     ptr.Ref("high"),
+					Default: new(" HIGH "),
+					Max:     new("high"),
 				},
 			},
 		})
@@ -4381,8 +4380,8 @@ func TestCreateChatModelConfig(t *testing.T) {
 			ContextLimit: &contextLimit,
 			ModelConfig: &codersdk.ChatModelCallConfig{
 				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-					Default: ptr.Ref("xhigh"),
-					Max:     ptr.Ref("low"),
+					Default: new("xhigh"),
+					Max:     new("low"),
 				},
 			},
 		})
@@ -4958,7 +4957,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		store.failNextUpdateChatModelConfig.Store(true)
 
 		_, err = client.UpdateChatModelConfig(ctx, defaultConfig.ID, codersdk.UpdateChatModelConfigRequest{
-			IsDefault: ptr.Ref(false),
+			IsDefault: new(false),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusInternalServerError)
 		require.Equal(t, "Failed to update chat model config.", sdkErr.Message)
@@ -5444,7 +5443,7 @@ func TestGetChat(t *testing.T) {
 		// An archived root should still embed its cascaded
 		// archived children (guards against the filter getting
 		// hardcoded to false).
-		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 		require.NoError(t, err)
 
 		archivedResult, err := client.GetChat(ctx, parentChat.ID)
@@ -5864,7 +5863,7 @@ func TestPatchChat(t *testing.T) {
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "set plan mode")
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				PlanMode: ptr.Ref(codersdk.ChatPlanModePlan),
+				PlanMode: new(codersdk.ChatPlanModePlan),
 			})
 			require.NoError(t, err)
 
@@ -5891,12 +5890,12 @@ func TestPatchChat(t *testing.T) {
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "clear plan mode")
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				PlanMode: ptr.Ref(codersdk.ChatPlanModePlan),
+				PlanMode: new(codersdk.ChatPlanModePlan),
 			})
 			require.NoError(t, err)
 
 			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				PlanMode: ptr.Ref(codersdk.ChatPlanMode("")),
+				PlanMode: new(codersdk.ChatPlanMode("")),
 			})
 			require.NoError(t, err)
 
@@ -5923,7 +5922,7 @@ func TestPatchChat(t *testing.T) {
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "invalid plan mode")
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				PlanMode: ptr.Ref(codersdk.ChatPlanMode("invalid")),
+				PlanMode: new(codersdk.ChatPlanMode("invalid")),
 			})
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 			require.Equal(t, "Invalid plan_mode value.", sdkErr.Message)
@@ -6124,7 +6123,7 @@ func TestPatchChat(t *testing.T) {
 			coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				Title: ptr.Ref("renamed title"),
+				Title: new("renamed title"),
 			})
 			require.NoError(t, err)
 
@@ -6145,7 +6144,7 @@ func TestPatchChat(t *testing.T) {
 			coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				Title: ptr.Ref("   padded title   "),
+				Title: new("   padded title   "),
 			})
 			require.NoError(t, err)
 
@@ -6164,7 +6163,7 @@ func TestPatchChat(t *testing.T) {
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "keep original")
 
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				Title: ptr.Ref("   "),
+				Title: new("   "),
 			})
 			requireSDKError(t, err, http.StatusBadRequest)
 
@@ -6184,7 +6183,7 @@ func TestPatchChat(t *testing.T) {
 
 			tooLong := strings.Repeat("a", 201)
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				Title: ptr.Ref(tooLong),
+				Title: &tooLong,
 			})
 			requireSDKError(t, err, http.StatusBadRequest)
 
@@ -6243,7 +6242,7 @@ func TestPatchChat(t *testing.T) {
 					coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
 					err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-						Title: ptr.Ref(tc.title),
+						Title: new(tc.title),
 					})
 					updated := getChat(ctx, t, client, chat.ID)
 					if tc.expectOK {
@@ -6285,7 +6284,7 @@ func TestPatchChat(t *testing.T) {
 			require.NoError(t, err)
 
 			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				Title: ptr.Ref("renamed in place"),
+				Title: new("renamed in place"),
 			})
 			require.NoError(t, err)
 
@@ -6323,7 +6322,7 @@ func TestPatchChat(t *testing.T) {
 			require.NoError(t, err)
 
 			err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-				Title: ptr.Ref("steady title"),
+				Title: new("steady title"),
 			})
 			require.NoError(t, err)
 
@@ -6351,7 +6350,7 @@ func TestPatchChat(t *testing.T) {
 
 			go func() {
 				_ = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-					Title: ptr.Ref("announced name"),
+					Title: new("announced name"),
 				})
 			}()
 
@@ -6413,7 +6412,7 @@ func TestArchiveChat(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, chatsBeforeArchive, 2)
 
-		err = client.UpdateChat(ctx, chatToArchive.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		err = client.UpdateChat(ctx, chatToArchive.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 		require.NoError(t, err)
 
 		// Default (no filter) returns only non-archived chats.
@@ -6455,7 +6454,7 @@ func TestArchiveChat(t *testing.T) {
 		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
-		err := client.UpdateChat(ctx, uuid.New(), codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		err := client.UpdateChat(ctx, uuid.New(), codersdk.UpdateChatRequest{Archived: new(true)})
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
@@ -6500,7 +6499,7 @@ func TestArchiveChat(t *testing.T) {
 		})
 
 		// Archive the parent via the API.
-		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 		require.NoError(t, err)
 
 		// archived:false should exclude the entire archived family.
@@ -6581,7 +6580,7 @@ func TestArchiveChat(t *testing.T) {
 
 		// Archive state changes must target the root chat and cascade.
 		// Child archive attempts are rejected to preserve the family invariant.
-		err = client.UpdateChat(ctx, child.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		err = client.UpdateChat(ctx, child.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 		requireSDKError(t, err, http.StatusBadRequest)
 
 		dbChild, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), child.ID)
@@ -6618,7 +6617,7 @@ func TestUnarchiveChat(t *testing.T) {
 		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
 		// Archive the chat first.
-		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 		require.NoError(t, err)
 
 		// Verify it's archived.
@@ -6629,7 +6628,7 @@ func TestUnarchiveChat(t *testing.T) {
 		require.Len(t, archivedChats, 1)
 		require.True(t, archivedChats[0].Archived)
 		// Unarchive the chat.
-		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
+		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: new(false)})
 		require.NoError(t, err)
 
 		// Verify it's no longer archived.
@@ -6687,10 +6686,10 @@ func TestUnarchiveChat(t *testing.T) {
 			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
 		})
 
-		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 		require.NoError(t, err)
 
-		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: new(false)})
 		require.NoError(t, err)
 
 		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
@@ -6763,7 +6762,7 @@ func TestUnarchiveChat(t *testing.T) {
 		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
 		// Trying to unarchive a non-archived chat should fail.
-		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
+		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: new(false)})
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
 
@@ -6799,7 +6798,7 @@ func TestUnarchiveChat(t *testing.T) {
 			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
 		})
 
-		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		err = client.UpdateChat(ctx, parentChat.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 		require.NoError(t, err)
 
 		// Unarchiving the child while the parent stays archived
@@ -6807,7 +6806,7 @@ func TestUnarchiveChat(t *testing.T) {
 		// (active list excludes the parent, archived list's child
 		// query filters archived=true so the now-unarchived child
 		// is also excluded).
-		err = client.UpdateChat(ctx, child.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
+		err = client.UpdateChat(ctx, child.ID, codersdk.UpdateChatRequest{Archived: new(false)})
 		requireSDKError(t, err, http.StatusBadRequest)
 
 		dbChild, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), child.ID)
@@ -6852,7 +6851,7 @@ func TestUnarchiveChat(t *testing.T) {
 
 		// Archive state changes must target the root chat, even when
 		// the child is a legacy lone-archived row.
-		err = client.UpdateChat(ctx, child.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
+		err = client.UpdateChat(ctx, child.ID, codersdk.UpdateChatRequest{Archived: new(false)})
 		requireSDKError(t, err, http.StatusBadRequest)
 
 		dbChild, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), child.ID)
@@ -6867,7 +6866,7 @@ func TestUnarchiveChat(t *testing.T) {
 		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
-		err := client.UpdateChat(ctx, uuid.New(), codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
+		err := client.UpdateChat(ctx, uuid.New(), codersdk.UpdateChatRequest{Archived: new(false)})
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 }
@@ -6911,11 +6910,11 @@ func TestChatPinOrder(t *testing.T) {
 		second := createChat(ctx, t, client, firstUser.OrganizationID, "second pinned chat")
 		third := createChat(ctx, t, client, firstUser.OrganizationID, "third pinned chat")
 
-		err := client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		err := client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{PinOrder: new(int32(1))})
 		require.NoError(t, err)
-		err = client.UpdateChat(ctx, second.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		err = client.UpdateChat(ctx, second.ID, codersdk.UpdateChatRequest{PinOrder: new(int32(1))})
 		require.NoError(t, err)
-		err = client.UpdateChat(ctx, third.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		err = client.UpdateChat(ctx, third.ID, codersdk.UpdateChatRequest{PinOrder: new(int32(1))})
 		require.NoError(t, err)
 
 		first = getChat(ctx, t, client, first.ID)
@@ -6925,7 +6924,7 @@ func TestChatPinOrder(t *testing.T) {
 		require.EqualValues(t, 2, second.PinOrder)
 		require.EqualValues(t, 3, third.PinOrder)
 
-		err = client.UpdateChat(ctx, third.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		err = client.UpdateChat(ctx, third.ID, codersdk.UpdateChatRequest{PinOrder: new(int32(1))})
 		require.NoError(t, err)
 
 		first = getChat(ctx, t, client, first.ID)
@@ -6935,7 +6934,7 @@ func TestChatPinOrder(t *testing.T) {
 		require.EqualValues(t, 3, second.PinOrder)
 		require.EqualValues(t, 1, third.PinOrder)
 
-		err = client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(0))})
+		err = client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{PinOrder: new(int32(0))})
 		require.NoError(t, err)
 
 		first = getChat(ctx, t, client, first.ID)
@@ -6960,13 +6959,13 @@ func TestChatPinOrder(t *testing.T) {
 		coderdtest.WaitForChatSettled(ctx, t, api, second.ID)
 
 		// Pin both.
-		err := client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		err := client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{PinOrder: new(int32(1))})
 		require.NoError(t, err)
-		err = client.UpdateChat(ctx, second.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		err = client.UpdateChat(ctx, second.ID, codersdk.UpdateChatRequest{PinOrder: new(int32(1))})
 		require.NoError(t, err)
 
 		// Archive the first — pin_order should be cleared.
-		err = client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		err = client.UpdateChat(ctx, first.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 		require.NoError(t, err)
 
 		first = getChat(ctx, t, client, first.ID)
@@ -6987,7 +6986,7 @@ func TestChatPinOrder(t *testing.T) {
 		_ = createChatModelConfig(t, client)
 
 		chat := createChat(ctx, t, client, firstUser.OrganizationID, "negative pin order")
-		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(-1))})
+		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{PinOrder: new(int32(-1))})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Pin order must be non-negative.", sdkErr.Message)
 
@@ -7015,7 +7014,7 @@ func TestChatPinOrder(t *testing.T) {
 			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
 		})
 
-		err := client.UpdateChat(ctx, child.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))})
+		err := client.UpdateChat(ctx, child.ID, codersdk.UpdateChatRequest{PinOrder: new(int32(1))})
 
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Cannot pin a child chat.", sdkErr.Message)
@@ -7148,7 +7147,7 @@ func TestPostChatMessages(t *testing.T) {
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "switch to a provider-disabled model",
 			}},
-			ModelConfigID: ptr.Ref(providerDisabledConfig.ID),
+			ModelConfigID: &providerDisabledConfig.ID,
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid model_config_id: provider is not enabled for this model.", sdkErr.Message)
@@ -7172,7 +7171,7 @@ func TestPostChatMessages(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = client.UpdateAIProvider(ctx, defaultConfig.AIProviderID.String(), codersdk.UpdateAIProviderRequest{
-			Enabled: ptr.Ref(false),
+			Enabled: new(false),
 		})
 		require.NoError(t, err)
 
@@ -7291,7 +7290,7 @@ func TestPostChatMessages(t *testing.T) {
 		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
 		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-			Archived: ptr.Ref(true),
+			Archived: new(true),
 		})
 		require.NoError(t, err)
 
@@ -7345,7 +7344,7 @@ func TestSendMessageWithModelOverrideUpdatesLastModelConfigID(t *testing.T) {
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "switch to model b",
 		}},
-		ModelConfigID: ptr.Ref(modelConfigB.ID),
+		ModelConfigID: new(modelConfigB.ID),
 	})
 	require.NoError(t, err)
 	require.False(t, resp.Queued)
@@ -7387,7 +7386,7 @@ func TestSendMessageWithReasoningEffortUpdatesLastReasoningEffort(t *testing.T) 
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "think hard about this",
 		}},
-		ReasoningEffort: ptr.Ref("high"),
+		ReasoningEffort: new("high"),
 	})
 	require.NoError(t, err)
 	require.False(t, resp.Queued)
@@ -7443,7 +7442,7 @@ func TestSendMessageRejectsInvalidReasoningEffort(t *testing.T) {
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "hello",
 		}},
-		ReasoningEffort: ptr.Ref(" HIGH "),
+		ReasoningEffort: new(" HIGH "),
 	})
 	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 	require.Equal(t, "Invalid reasoning_effort value.", sdkErr.Message)
@@ -7481,7 +7480,7 @@ func TestSendMessageQueuesReasoningEffort(t *testing.T) {
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "queue this with effort",
 		}},
-		ReasoningEffort: ptr.Ref("high"),
+		ReasoningEffort: new("high"),
 		BusyBehavior:    codersdk.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
@@ -7529,8 +7528,8 @@ func TestSendMessageQueuesEffectiveModelConfigID(t *testing.T) {
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "queue this with model b",
 		}},
-		ModelConfigID:   ptr.Ref(modelConfigB.ID),
-		ReasoningEffort: ptr.Ref("high"),
+		ModelConfigID:   new(modelConfigB.ID),
+		ReasoningEffort: new("high"),
 		BusyBehavior:    codersdk.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
@@ -7671,7 +7670,7 @@ func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "watch the direct send override",
 			}},
-			ModelConfigID: ptr.Ref(modelConfigB.ID),
+			ModelConfigID: new(modelConfigB.ID),
 		})
 		require.NoError(t, err)
 
@@ -7710,7 +7709,7 @@ func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "queue the promoted model override",
 			}},
-			ModelConfigID: ptr.Ref(modelConfigB.ID),
+			ModelConfigID: new(modelConfigB.ID),
 			BusyBehavior:  codersdk.ChatBusyBehaviorQueue,
 		})
 		require.NoError(t, err)
@@ -8692,7 +8691,7 @@ func TestPatchChatMessage(t *testing.T) {
 			want      string
 		}{
 			{name: "PreservesByDefault", want: "low"},
-			{name: "Overrides", requested: ptr.Ref("high"), want: "high"},
+			{name: "Overrides", requested: new("high"), want: "high"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -8708,7 +8707,7 @@ func TestPatchChatMessage(t *testing.T) {
 						Type: codersdk.ChatInputPartTypeText,
 						Text: "before edit effort",
 					}},
-					ReasoningEffort: ptr.Ref("low"),
+					ReasoningEffort: new("low"),
 				})
 				require.NoError(t, err)
 
@@ -8763,7 +8762,7 @@ func TestPatchChatMessage(t *testing.T) {
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "after invalid effort edit",
 			}},
-			ReasoningEffort: ptr.Ref(" HIGH "),
+			ReasoningEffort: new(" HIGH "),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid reasoning_effort value.", sdkErr.Message)
@@ -9088,7 +9087,7 @@ func TestPatchChatMessage(t *testing.T) {
 		require.NotZero(t, userMessageID)
 
 		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-			Archived: ptr.Ref(true),
+			Archived: new(true),
 		})
 		require.NoError(t, err)
 
@@ -9296,7 +9295,7 @@ func TestPatchChatMessage(t *testing.T) {
 		require.NotZero(t, userMessageID)
 
 		_, err = client.UpdateAIProvider(ctx, defaultConfig.AIProviderID.String(), codersdk.UpdateAIProviderRequest{
-			Enabled: ptr.Ref(false),
+			Enabled: new(false),
 		})
 		require.NoError(t, err)
 
@@ -12453,8 +12452,8 @@ func createAdditionalChatModelConfigWithReasoningEffort(
 	t.Helper()
 	return createAdditionalChatModelConfigWithModelConfig(t, client, provider, model, &codersdk.ChatModelCallConfig{
 		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-			Default: ptr.Ref(defaultEffort),
-			Max:     ptr.Ref(maxEffort),
+			Default: new(defaultEffort),
+			Max:     new(maxEffort),
 		},
 	})
 }
@@ -12494,7 +12493,7 @@ func createDisabledChatModelConfig(
 	modelConfig := createAdditionalChatModelConfig(t, client, provider, model)
 	ctx := testutil.Context(t, testutil.WaitLong)
 	updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
-		Enabled: ptr.Ref(false),
+		Enabled: new(false),
 	})
 	require.NoError(t, err)
 	return updated
@@ -12513,7 +12512,7 @@ func createProviderDisabledChatModelConfig(
 	modelConfig := createAdditionalChatModelConfig(t, client, provider, model)
 	ctx := testutil.Context(t, testutil.WaitLong)
 	_, err := client.UpdateAIProvider(ctx, modelConfig.AIProviderID.String(), codersdk.UpdateAIProviderRequest{
-		Enabled: ptr.Ref(false),
+		Enabled: new(false),
 	})
 	require.NoError(t, err)
 	return modelConfig
@@ -12628,7 +12627,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "You are a helpful coding assistant.",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
+			IncludeDefaultSystemPrompt: new(true),
 		})
 
 		resp := getChatSystemPrompt(t, ctx)
@@ -12643,7 +12642,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		// Unset by sending an empty string.
 		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
+			IncludeDefaultSystemPrompt: new(true),
 		})
 
 		resp := getChatSystemPrompt(t, ctx)
@@ -12657,7 +12656,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "",
-			IncludeDefaultSystemPrompt: ptr.Ref(false),
+			IncludeDefaultSystemPrompt: new(false),
 		})
 
 		resp := getChatSystemPrompt(t, ctx)
@@ -12667,7 +12666,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
+			IncludeDefaultSystemPrompt: new(true),
 		})
 
 		resp = getChatSystemPrompt(t, ctx)
@@ -12693,7 +12692,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "",
-			IncludeDefaultSystemPrompt: ptr.Ref(false),
+			IncludeDefaultSystemPrompt: new(false),
 		})
 		require.NoError(t, err)
 
@@ -12767,7 +12766,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "Custom instructions for all users.",
-			IncludeDefaultSystemPrompt: ptr.Ref(false),
+			IncludeDefaultSystemPrompt: new(false),
 		})
 
 		resp := getChatSystemPrompt(t, ctx)
@@ -12776,7 +12775,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 		updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "Different instructions.",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
+			IncludeDefaultSystemPrompt: new(true),
 		})
 
 		resp = getChatSystemPrompt(t, ctx)
@@ -12790,7 +12789,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 			updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 				SystemPrompt:               "",
-				IncludeDefaultSystemPrompt: ptr.Ref(true),
+				IncludeDefaultSystemPrompt: new(true),
 			})
 
 			resp := getChatSystemPrompt(t, ctx)
@@ -12805,7 +12804,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 			updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 				SystemPrompt:               "Custom instructions",
-				IncludeDefaultSystemPrompt: ptr.Ref(true),
+				IncludeDefaultSystemPrompt: new(true),
 			})
 
 			resp := getChatSystemPrompt(t, ctx)
@@ -12820,7 +12819,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 			updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 				SystemPrompt:               "Custom only",
-				IncludeDefaultSystemPrompt: ptr.Ref(false),
+				IncludeDefaultSystemPrompt: new(false),
 			})
 
 			resp := getChatSystemPrompt(t, ctx)
@@ -12835,7 +12834,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 			updateChatSystemPrompt(t, ctx, codersdk.UpdateChatSystemPromptRequest{
 				SystemPrompt:               "",
-				IncludeDefaultSystemPrompt: ptr.Ref(false),
+				IncludeDefaultSystemPrompt: new(false),
 			})
 
 			resp := getChatSystemPrompt(t, ctx)
@@ -12863,7 +12862,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "Keep custom instructions",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
+			IncludeDefaultSystemPrompt: new(true),
 		})
 		require.NoError(t, err)
 
@@ -12912,7 +12911,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "Do not use the default prompt",
-			IncludeDefaultSystemPrompt: ptr.Ref(false),
+			IncludeDefaultSystemPrompt: new(false),
 		})
 		require.NoError(t, err)
 
@@ -12951,7 +12950,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 		err := memberClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "This should fail.",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
+			IncludeDefaultSystemPrompt: new(true),
 		})
 		requireSDKError(t, err, http.StatusForbidden)
 
@@ -12976,7 +12975,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		tooLong := strings.Repeat("a", 131073)
 		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               tooLong,
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
+			IncludeDefaultSystemPrompt: new(true),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "System prompt exceeds maximum length.", sdkErr.Message)
@@ -12997,7 +12996,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		// identity.
 		err := auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "You are a test assistant.",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
+			IncludeDefaultSystemPrompt: new(true),
 		})
 		require.NoError(t, err)
 
@@ -13014,7 +13013,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		mAudit.ResetLogs()
 		err = auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "You are a test assistant.",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
+			IncludeDefaultSystemPrompt: new(true),
 		})
 		require.NoError(t, err)
 		require.Empty(t, mAudit.AuditLogs())
@@ -13028,7 +13027,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		mAudit.ResetLogs()
 		err = auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "Renamed assistant.",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
+			IncludeDefaultSystemPrompt: new(true),
 		})
 		require.NoError(t, err)
 		logs = mAudit.AuditLogs()
@@ -13042,7 +13041,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		mAudit.ResetLogs()
 		err = auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "Custom without default.",
-			IncludeDefaultSystemPrompt: ptr.Ref(false),
+			IncludeDefaultSystemPrompt: new(false),
 		})
 		require.NoError(t, err)
 		require.Len(t, mAudit.AuditLogs(), 1)
@@ -13129,7 +13128,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		store.failNextUpsertChatSystemPrompt.Store(true)
 		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "First prompt.",
-			IncludeDefaultSystemPrompt: ptr.Ref(false),
+			IncludeDefaultSystemPrompt: new(false),
 		})
 		requireSDKError(t, err, http.StatusInternalServerError)
 		// The failed request records the attempt with an empty diff.
@@ -13146,7 +13145,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		mAudit.ResetLogs()
 		err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
+			IncludeDefaultSystemPrompt: new(true),
 		})
 		require.NoError(t, err)
 		logs = mAudit.AuditLogs()
@@ -13158,7 +13157,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		mAudit.ResetLogs()
 		err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
+			IncludeDefaultSystemPrompt: new(true),
 		})
 		require.NoError(t, err)
 		require.Empty(t, mAudit.AuditLogs())
@@ -13222,11 +13221,11 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 			explicit *bool
 		}{
 			{"EmptyPromptOmittedToggle", "", nil},
-			{"EmptyPromptExplicitTrue", "", ptr.Ref(true)},
-			{"EmptyPromptExplicitFalse", "", ptr.Ref(false)},
+			{"EmptyPromptExplicitTrue", "", new(true)},
+			{"EmptyPromptExplicitFalse", "", new(false)},
 			{"NonEmptyPromptOmittedToggle", "Custom instructions.", nil},
-			{"NonEmptyPromptExplicitTrue", "Custom instructions.", ptr.Ref(true)},
-			{"NonEmptyPromptExplicitFalse", "Custom instructions.", ptr.Ref(false)},
+			{"NonEmptyPromptExplicitTrue", "Custom instructions.", new(true)},
+			{"NonEmptyPromptExplicitFalse", "Custom instructions.", new(false)},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -13287,7 +13286,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 		err := auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt:               "Seed prompt.",
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
+			IncludeDefaultSystemPrompt: new(true),
 		})
 		require.NoError(t, err)
 		require.Len(t, mAudit.AuditLogs(), 1)
@@ -13304,7 +13303,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 				<-start
 				errs <- auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 					SystemPrompt:               "Concurrent prompt.",
-					IncludeDefaultSystemPrompt: ptr.Ref(true),
+					IncludeDefaultSystemPrompt: new(true),
 				})
 			}()
 		}
@@ -13995,7 +13994,7 @@ func TestChatModelOverrides(t *testing.T) {
 			t.Run("AdminCanSetReasoningEffort", func(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 
-				err := putOverrideWithEffort(ctx, adminClient, setting.context, reasoningModel.ID.String(), ptr.Ref("high"))
+				err := putOverrideWithEffort(ctx, adminClient, setting.context, reasoningModel.ID.String(), new("high"))
 				require.NoError(t, err)
 
 				raw, err := setting.dbGet(ctx, db)
@@ -14005,7 +14004,7 @@ func TestChatModelOverrides(t *testing.T) {
 				resp, err := getOverride(ctx, adminClient, setting.context)
 				require.NoError(t, err)
 				require.Equal(t, reasoningModel.ID.String(), resp.modelConfigID)
-				require.Equal(t, ptr.Ref("high"), resp.reasoningEffort)
+				require.Equal(t, new("high"), resp.reasoningEffort)
 				require.False(t, resp.isMalformed)
 
 				err = putOverride(ctx, adminClient, setting.context, "")
@@ -14025,7 +14024,7 @@ func TestChatModelOverrides(t *testing.T) {
 			t.Run("ReasoningEffortRequiresModel", func(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 
-				err := putOverrideWithEffort(ctx, adminClient, setting.context, "", ptr.Ref("high"))
+				err := putOverrideWithEffort(ctx, adminClient, setting.context, "", new("high"))
 				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 				require.Equal(t, "reasoning_effort requires model_config_id.", sdkErr.Message)
 			})
@@ -14033,7 +14032,7 @@ func TestChatModelOverrides(t *testing.T) {
 			t.Run("ReasoningEffortMustBeSelectable", func(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 
-				err := putOverrideWithEffort(ctx, adminClient, setting.context, reasoningModel.ID.String(), ptr.Ref("xhigh"))
+				err := putOverrideWithEffort(ctx, adminClient, setting.context, reasoningModel.ID.String(), new("xhigh"))
 				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 				require.Equal(t, "Invalid reasoning_effort value.", sdkErr.Message)
 				require.Equal(t, "Must be one of none, minimal, low, medium, high.", sdkErr.Detail)
@@ -14042,7 +14041,7 @@ func TestChatModelOverrides(t *testing.T) {
 			t.Run("ReasoningEffortUnsupportedModel", func(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 
-				err := putOverrideWithEffort(ctx, adminClient, setting.context, openAIModel.ID.String(), ptr.Ref("high"))
+				err := putOverrideWithEffort(ctx, adminClient, setting.context, openAIModel.ID.String(), new("high"))
 				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 				require.Equal(t, "Invalid reasoning_effort value.", sdkErr.Message)
 				require.Equal(t, "This model does not support reasoning effort.", sdkErr.Detail)
@@ -14241,8 +14240,8 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 	modelConfigRequest.Model = "claude-personal-reasoning-" + uuid.NewString()
 	modelConfigRequest.ModelConfig = &codersdk.ChatModelCallConfig{
 		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-			Default: ptr.Ref("medium"),
-			Max:     ptr.Ref("high"),
+			Default: new("medium"),
+			Max:     new("high"),
 		},
 	}
 	reasoningModelConfig, err := adminClient.CreateChatModelConfig(ctx, modelConfigRequest)
@@ -14407,13 +14406,13 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 	t.Run("GETIncludesDeploymentDefaultReasoningEffort", func(t *testing.T) {
 		err := adminClient.UpdateChatModelOverride(ctx, codersdk.ChatModelOverrideContextGeneral, codersdk.UpdateChatModelOverrideRequest{
 			ModelConfigID:   reasoningModelConfig.ID.String(),
-			ReasoningEffort: ptr.Ref("high"),
+			ReasoningEffort: new("high"),
 		})
 		require.NoError(t, err)
 
 		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx)
 		require.NoError(t, err)
-		assertDeploymentDefault(resp, codersdk.ChatModelOverrideContextGeneral, reasoningModelConfig.ID.String(), ptr.Ref("high"), false)
+		assertDeploymentDefault(resp, codersdk.ChatModelOverrideContextGeneral, reasoningModelConfig.ID.String(), new("high"), false)
 	})
 
 	t.Run("PUTDisabledReturns403AndPreservesRows", func(t *testing.T) {
@@ -14528,21 +14527,21 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode:            codersdk.ChatPersonalModelOverrideModeModel,
 			ModelConfigID:   reasoningModelConfig.ID.String(),
-			ReasoningEffort: ptr.Ref("high"),
+			ReasoningEffort: new("high"),
 		})
 		require.NoError(t, err)
 
 		require.Equal(t, "model:"+reasoningModelConfig.ID.String()+":high", getRaw(codersdk.ChatPersonalModelOverrideContextGeneral))
 		resp, err := memberClient.GetUserChatPersonalModelOverrides(ctx)
 		require.NoError(t, err)
-		assertOverrideWithEffort(resp, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.ChatPersonalModelOverrideModeModel, reasoningModelConfig.ID.String(), ptr.Ref("high"), true, false)
+		assertOverrideWithEffort(resp, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.ChatPersonalModelOverrideModeModel, reasoningModelConfig.ID.String(), new("high"), true, false)
 	})
 
 	t.Run("PUTReasoningEffortRejectsNonModelMode", func(t *testing.T) {
 		rawBefore := getRaw(codersdk.ChatPersonalModelOverrideContextGeneral)
 		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode:            codersdk.ChatPersonalModelOverrideModeDeploymentDefault,
-			ReasoningEffort: ptr.Ref("high"),
+			ReasoningEffort: new("high"),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "reasoning_effort requires mode model.", sdkErr.Message)
@@ -14554,7 +14553,7 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode:            codersdk.ChatPersonalModelOverrideModeModel,
 			ModelConfigID:   reasoningModelConfig.ID.String(),
-			ReasoningEffort: ptr.Ref("xhigh"),
+			ReasoningEffort: new("xhigh"),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid reasoning_effort value.", sdkErr.Message)
@@ -14567,7 +14566,7 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 		err := memberClient.UpdateUserChatPersonalModelOverride(ctx, codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode:            codersdk.ChatPersonalModelOverrideModeModel,
 			ModelConfigID:   modelConfig.ID.String(),
-			ReasoningEffort: ptr.Ref("high"),
+			ReasoningEffort: new("high"),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid reasoning_effort value.", sdkErr.Message)
@@ -14747,7 +14746,7 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("ExplicitModelConfigWins", func(t *testing.T) {
-		chat := createChat(adminClient, "explicit model config wins", ptr.Ref(defaultModel.ID))
+		chat := createChat(adminClient, "explicit model config wins", new(defaultModel.ID))
 		require.Equal(t, defaultModel.ID, chat.LastModelConfigID)
 	})
 
@@ -14799,8 +14798,8 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 			ContextLimit: &contextLimit,
 			ModelConfig: &codersdk.ChatModelCallConfig{
 				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-					Default: ptr.Ref("medium"),
-					Max:     ptr.Ref("high"),
+					Default: new("medium"),
+					Max:     new("high"),
 				},
 			},
 		})
@@ -14808,13 +14807,13 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 		err = adminClient.UpdateUserChatPersonalModelOverride(ctx, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
 			Mode:            codersdk.ChatPersonalModelOverrideModeModel,
 			ModelConfigID:   reasoningModel.ID.String(),
-			ReasoningEffort: ptr.Ref("high"),
+			ReasoningEffort: new("high"),
 		})
 		require.NoError(t, err)
 
 		chat := createChat(adminClient, "root model override uses saved reasoning effort", nil)
 		require.Equal(t, reasoningModel.ID, chat.LastModelConfigID)
-		require.Equal(t, ptr.Ref("high"), chat.LastReasoningEffort)
+		require.Equal(t, new("high"), chat.LastReasoningEffort)
 	})
 
 	t.Run("UnavailableRootModelFallsBackToDefault", func(t *testing.T) {
@@ -15577,7 +15576,7 @@ func TestChatAdvisorConfig_RoundTripModelConfigID(t *testing.T) {
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 2048,
 		ModelConfigID:   modelConfig.ID,
-		ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+		ReasoningEffort: new(codersdk.ChatModelReasoningEffortHigh),
 	}
 
 	err := adminClient.UpdateChatAdvisorConfig(ctx, want)
@@ -15652,7 +15651,7 @@ func TestChatAdvisorConfig_ReasoningEffortRequiresModelConfig(t *testing.T) {
 	coderdtest.CreateFirstUser(t, adminClient.Client)
 
 	err := adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
-		ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+		ReasoningEffort: new(codersdk.ChatModelReasoningEffortHigh),
 	})
 	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 	require.Equal(t, "reasoning_effort requires model_config_id.", sdkErr.Message)
@@ -15675,7 +15674,7 @@ func TestChatAdvisorConfig_ReasoningEffortMustBeSelectable(t *testing.T) {
 
 	err := adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
 		ModelConfigID:   modelConfig.ID,
-		ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+		ReasoningEffort: new(codersdk.ChatModelReasoningEffortHigh),
 	})
 	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 	require.Equal(t, "Invalid reasoning_effort value.", sdkErr.Message)
@@ -15728,7 +15727,7 @@ func TestChatAdvisorConfig_OverwriteClearsPreviousValues(t *testing.T) {
 		MaxUsesPerRun:   5,
 		MaxOutputTokens: 1024,
 		ModelConfigID:   modelConfig.ID,
-		ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+		ReasoningEffort: new(codersdk.ChatModelReasoningEffortHigh),
 	}
 	err := adminClient.UpdateChatAdvisorConfig(ctx, rich)
 	require.NoError(t, err)
@@ -16340,7 +16339,7 @@ func TestGetChatsByWorkspace(t *testing.T) {
 		ws := newWorkspace().Do()
 		chat := insertChat(ctx, "soon to be archived", ws.Workspace.ID)
 
-		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 		require.NoError(t, err)
 
 		result, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{ws.Workspace.ID})
@@ -16355,7 +16354,7 @@ func TestGetChatsByWorkspace(t *testing.T) {
 
 		// Insert an older chat and archive it.
 		olderChat := insertChat(ctx, "older archived", ws.Workspace.ID)
-		err := client.UpdateChat(ctx, olderChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		err := client.UpdateChat(ctx, olderChat.ID, codersdk.UpdateChatRequest{Archived: new(true)})
 		require.NoError(t, err)
 
 		// Insert two active chats — the second is newer due to insert
@@ -17371,7 +17370,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 
 		ctx, _, sharedClient, chat, _ := setup(t)
 		err := sharedClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-			Archived: ptr.Ref(true),
+			Archived: new(true),
 		})
 
 		requireSDKError(t, err, http.StatusNotFound)

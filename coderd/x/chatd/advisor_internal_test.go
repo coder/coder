@@ -17,7 +17,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -318,8 +317,8 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		rawOptions, err := json.Marshal(codersdk.ChatModelCallConfig{
 			Temperature: func() *float64 { v := 0.42; return &v }(),
 			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-				Default: ptr.Ref(codersdk.ChatModelReasoningEffortLow),
-				Max:     ptr.Ref(codersdk.ChatModelReasoningEffortXHigh),
+				Default: new(codersdk.ChatModelReasoningEffortLow),
+				Max:     new(codersdk.ChatModelReasoningEffortXHigh),
 			},
 		})
 		require.NoError(t, err)
@@ -350,7 +349,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			database.Chat{},
 			codersdk.AdvisorConfig{
 				ModelConfigID:   configID,
-				ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+				ReasoningEffort: new(codersdk.ChatModelReasoningEffortHigh),
 			},
 			fallbackModel,
 			fallbackCallConfig,
@@ -639,12 +638,12 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			fallbackModel,
 			codersdk.ChatModelCallConfig{
 				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-					Default: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
-					Max:     ptr.Ref(codersdk.ChatModelReasoningEffortXHigh),
+					Default: new(codersdk.ChatModelReasoningEffortHigh),
+					Max:     new(codersdk.ChatModelReasoningEffortXHigh),
 				},
 				ProviderOptions: &codersdk.ChatModelProviderOptions{
 					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-						User: ptr.Ref("advisor-user"),
+						User: new("advisor-user"),
 					},
 				},
 			},

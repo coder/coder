@@ -7,11 +7,6 @@ type number interface {
 	constraints.Integer | constraints.Float
 }
 
-// Ref returns a reference to v.
-func Ref[T any](v T) *T {
-	return &v
-}
-
 // NilOrEmpty returns true if s is nil or the empty string.
 func NilOrEmpty(s *string) bool {
 	return s == nil || *s == ""

@@ -87,7 +87,6 @@ import (
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
@@ -985,7 +984,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		OrganizationIDs: organizationIDs,
 		// Always create users as active in tests to ignore an extra audit log
 		// when logging in.
-		UserStatus: ptr.Ref(codersdk.UserStatusActive),
+		UserStatus: new(codersdk.UserStatusActive),
 	}
 	for _, m := range mutators {
 		m(&req)
@@ -1533,8 +1532,8 @@ func CreateWorkspace(t testing.TB, client *codersdk.Client, templateID uuid.UUID
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
 		Name:              RandomUsername(t),
-		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
-		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
+		AutostartSchedule: new("CRON_TZ=US/Central 30 9 * * 1-5"),
+		TTLMillis:         new((8 * time.Hour).Milliseconds()),
 		AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
 	}
 	for _, mutator := range mutators {

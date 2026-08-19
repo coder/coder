@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -175,9 +174,9 @@ func TestPatchGroup(t *testing.T) {
 
 		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			Name:           "ddd502d2-2984-4724-b5bf-1109a4d7462d", // GUID should fit.
-			AvatarURL:      ptr.Ref("https://google.com"),
-			QuotaAllowance: ptr.Ref(20),
-			DisplayName:    ptr.Ref(displayName),
+			AvatarURL:      new("https://google.com"),
+			QuotaAllowance: new(20),
+			DisplayName:    new(displayName),
 		})
 		require.NoError(t, err)
 		require.Equal(t, displayName, group.DisplayName)
@@ -208,8 +207,8 @@ func TestPatchGroup(t *testing.T) {
 
 		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			Name:           "bye",
-			AvatarURL:      ptr.Ref("https://google.com"),
-			QuotaAllowance: ptr.Ref(20),
+			AvatarURL:      new("https://google.com"),
+			QuotaAllowance: new(20),
 		})
 		require.NoError(t, err)
 		require.Equal(t, displayName, group.DisplayName)
@@ -388,7 +387,7 @@ func TestPatchGroup(t *testing.T) {
 
 		group1, err = userAdminClient.PatchGroup(ctx, group1.ID, codersdk.PatchGroupRequest{
 			Name:      group2.Name,
-			AvatarURL: ptr.Ref("https://google.com"),
+			AvatarURL: new("https://google.com"),
 		})
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
@@ -552,7 +551,7 @@ func TestPatchGroup(t *testing.T) {
 			userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 			ctx := testutil.Context(t, testutil.WaitLong)
 			_, err := userAdminClient.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
-				DisplayName: ptr.Ref("hi"),
+				DisplayName: new("hi"),
 			})
 			require.Error(t, err)
 			cerr, ok := codersdk.AsError(err)
@@ -619,7 +618,7 @@ func TestPatchGroup(t *testing.T) {
 
 			expectedQuota := 123
 			group, err = userAdminClient.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
-				QuotaAllowance: ptr.Ref(expectedQuota),
+				QuotaAllowance: new(expectedQuota),
 			})
 			require.NoError(t, err)
 			require.Equal(t, expectedQuota, group.QuotaAllowance)

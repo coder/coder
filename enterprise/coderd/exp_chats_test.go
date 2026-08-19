@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -58,8 +57,8 @@ func createOpenAIModelConfigForTest(
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4",
 		DisplayName:          "GPT-4",
-		ContextLimit:         ptr.Ref(int64(1000)),
-		CompressionThreshold: ptr.Ref(int32(70)),
+		ContextLimit:         new(int64(1000)),
+		CompressionThreshold: new(int32(70)),
 	})
 	require.NoError(t, err)
 	return model
@@ -1099,9 +1098,9 @@ func TestCreateChatNonDefaultOrg(t *testing.T) {
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4o-mini",
 		DisplayName:          "Test Model",
-		IsDefault:            ptr.Ref(true),
-		ContextLimit:         ptr.Ref(int64(1000)),
-		CompressionThreshold: ptr.Ref(int32(70)),
+		IsDefault:            new(true),
+		ContextLimit:         new(int64(1000)),
+		CompressionThreshold: new(int32(70)),
 	})
 	require.NoError(t, err)
 
@@ -1168,9 +1167,9 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4o-mini",
 		DisplayName:          "Test Model",
-		IsDefault:            ptr.Ref(true),
-		ContextLimit:         ptr.Ref(int64(1000)),
-		CompressionThreshold: ptr.Ref(int32(70)),
+		IsDefault:            new(true),
+		ContextLimit:         new(int64(1000)),
+		CompressionThreshold: new(int32(70)),
 	})
 	require.NoError(t, err)
 

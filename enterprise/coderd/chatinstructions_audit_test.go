@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/testutil"
@@ -118,7 +117,7 @@ func TestChatInstructionSettingsOldCaptureBestEffort(t *testing.T) {
 	store.fail.Store(true)
 	err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 		SystemPrompt:               "Changed prompt.",
-		IncludeDefaultSystemPrompt: ptr.Ref(true),
+		IncludeDefaultSystemPrompt: new(true),
 	})
 	require.NoError(t, err)
 	require.Empty(t, backend.entries())
@@ -169,7 +168,7 @@ func TestChatInstructionSettingsIncludeDefaultPresence(t *testing.T) {
 	backend.reset()
 	err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 		SystemPrompt:               "Legacy custom instructions.",
-		IncludeDefaultSystemPrompt: ptr.Ref(false),
+		IncludeDefaultSystemPrompt: new(false),
 	})
 	require.NoError(t, err)
 	require.Len(t, backend.entries(), 1)
@@ -186,7 +185,7 @@ func TestChatInstructionSettingsIncludeDefaultPresence(t *testing.T) {
 	backend.reset()
 	err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 		SystemPrompt:               "Legacy custom instructions.",
-		IncludeDefaultSystemPrompt: ptr.Ref(false),
+		IncludeDefaultSystemPrompt: new(false),
 	})
 	require.NoError(t, err)
 	require.Empty(t, backend.entries())

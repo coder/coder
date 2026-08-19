@@ -10,7 +10,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -231,9 +230,9 @@ func (api *API) oauth2ProviderSettings(rw http.ResponseWriter, r *http.Request) 
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderSettings{
-		DynamicClientRegistrationEnabled: ptr.Ref(enabled),
-	})
+	settings := new(codersdk.OAuth2ProviderSettings)
+	settings.DynamicClientRegistrationEnabled = &enabled
+	httpapi.Write(ctx, rw, http.StatusOK, *settings)
 }
 
 // @Summary Update OAuth2 provider settings.
@@ -297,7 +296,7 @@ func (api *API) putOAuth2ProviderSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderSettings{
-		DynamicClientRegistrationEnabled: ptr.Ref(resolvedEnabled),
+		DynamicClientRegistrationEnabled: new(resolvedEnabled),
 	})
 }
 

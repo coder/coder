@@ -47,7 +47,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
@@ -4231,7 +4230,7 @@ func (api *API) resolveChatGitAccessToken(
 			}
 			token := strings.TrimSpace(link.OAuthAccessToken)
 			if token != "" {
-				return ptr.Ref(token), nil
+				return new(token), nil
 			}
 		}
 	}
@@ -4287,7 +4286,7 @@ func (api *API) resolveChatGitAccessToken(
 
 		token := strings.TrimSpace(link.OAuthAccessToken)
 		if token != "" {
-			return ptr.Ref(token), nil
+			return new(token), nil
 		}
 	}
 
