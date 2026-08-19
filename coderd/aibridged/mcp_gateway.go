@@ -95,6 +95,15 @@ type mcpGatewayError struct {
 	} `json:"error"`
 }
 
+// writeMCPGatewayNotFound writes a JSON 404 that names the problem. The
+// bare http.NotFound plain-text body is indistinguishable from a router
+// miss, which makes misconfigured slugs needlessly hard to debug.
+func writeMCPGatewayNotFound(rw http.ResponseWriter, message string) {
+	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
+	rw.WriteHeader(http.StatusNotFound)
+	_ = json.NewEncoder(rw).Encode(map[string]string{"message": message})
+}
+
 func mcpGatewayServerSlug(path string) (string, bool) {
 	if path == "/mcp" || path == "/mcp/" {
 		return "", true
@@ -359,7 +368,7 @@ func (s *Server) endMCPGatewayRecording(ctx context.Context, client DRPCClient, 
 func (s *Server) serveMCPGateway(rw http.ResponseWriter, r *http.Request, client DRPCClient, token, slug string) {
 	ctx := r.Context()
 	if slug == "" {
-		http.NotFound(rw, r)
+		writeMCPGatewayNotFound(rw, "the request path must name an MCP server slug: /mcp/{server-slug}")
 		return
 	}
 
@@ -370,7 +379,8 @@ func (s *Server) serveMCPGateway(rw http.ResponseWriter, r *http.Request, client
 		return
 	}
 	if !configResponse.GetFound() || configResponse.GetConfig() == nil {
-		http.NotFound(rw, r)
+		writeMCPGatewayNotFound(rw, fmt.Sprintf(
+			"no enabled MCP server with slug %q; check the slug and enabled state under admin AI settings, MCP Servers", slug))
 		return
 	}
 	cfg := configResponse.GetConfig()
