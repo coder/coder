@@ -85,20 +85,10 @@ type ExecuteResult struct {
 	Truncated           *workspacesdk.ProcessTruncation `json:"truncated,omitempty"`
 	Note                string                          `json:"note,omitempty"`
 	BackgroundProcessID string                          `json:"background_process_id,omitempty"`
-	// Command identifies the process for process_output
-	// results, so both the model and the UI can label the
-	// output without correlating against earlier calls.
 	Command string `json:"command,omitempty"`
-	// Running reports that the process was still alive when the
-	// result was produced (the wait timed out or a snapshot was
-	// requested). The caller should keep polling; the UI uses it
-	// to avoid presenting the check as finished.
+
 	Running bool `json:"running,omitempty"`
-	// Backgrounded marks an intentional run_in_background=true
-	// launch. background_process_id is also set on foreground
-	// timeout results so the caller can re-attach, so its
-	// presence alone does not imply an intentional background
-	// launch; this flag does.
+
 	Backgrounded bool `json:"backgrounded,omitempty"`
 }
 

@@ -59,9 +59,6 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			? "preview"
 			: "collapsed";
 	const isRunning = status === "running";
-	// A backgrounded call's duration is the spawn time (often ~0ms),
-	// not the process lifetime, so the suffix is suppressed to
-	// avoid lying about how long the process ran for.
 	const durationLabel = isBackgrounded ? "" : formatShellDurationMs(durationMs);
 	const { commandLabel, durationSuffix } = getShellCommandLine({
 		command,

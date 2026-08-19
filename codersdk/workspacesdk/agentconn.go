@@ -943,8 +943,6 @@ type ProcessOutputResponse struct {
 	Truncated *ProcessTruncation `json:"truncated,omitempty"`
 	Running   bool               `json:"running"`
 	ExitCode  *int               `json:"exit_code,omitempty"`
-	// Command identifies the process so callers can label the
-	// output without a separate list call.
 	Command string `json:"command,omitempty"`
 }
 
