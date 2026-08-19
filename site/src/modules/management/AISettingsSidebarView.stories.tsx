@@ -68,6 +68,21 @@ export const ProvidersActive: Story = {
 	},
 };
 
+export const MCPServersActive: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers" },
+			routing: [{ path: "/ai/settings/mcp-servers", useStoryElement: true }],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toBeVisible();
+	},
+};
+
 export const NoDeploymentConfig: Story = {
 	args: {
 		permissions: {
@@ -78,6 +93,7 @@ export const NoDeploymentConfig: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.queryByText("Coder Agents")).not.toBeInTheDocument();
+		expect(canvas.queryByText("MCP servers")).not.toBeInTheDocument();
 		expect(canvas.queryByText("Templates")).not.toBeInTheDocument();
 	},
 };
