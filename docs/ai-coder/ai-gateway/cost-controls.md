@@ -198,14 +198,21 @@ https://github.com/coder/coder/blob/release/<VERSION>/coderd/aibridge/prices/dat
 
 Replace `<VERSION>` with your Coder minor version, for example `2.36`.
 
+To use your own price for any of these models, see
+[Set model prices](#set-model-prices).
+
 > [!IMPORTANT]
-> Approximate spend can differ from provider-reported amounts, and some usage might not count toward spend:
+> Spend is an approximation. It can differ from what the provider bills, and
+> some usage does not count toward it at all:
 >
-> - Approximate spend excludes negotiated discounts, committed-use pricing, and
->   provider-specific billing rules.
-> - Requests to models that are missing from the price table record token usage
->   but add nothing to a user's spend. A user who only calls unpriced models is
->   effectively unlimited.
+> - Prices default to the price book's list prices. A custom price brings spend
+>   closer to the rates a deployment actually pays, though billing rules that
+>   are not a per-token rate, such as committed-use discounts, cannot be
+>   represented.
+> - A model with no price adds nothing to spend. Its token usage is still
+>   recorded, but it never counts toward a limit, so a user who calls only
+>   unpriced models is effectively unlimited. Setting a price for the model
+>   closes the gap.
 
 Monitor `coder_ai_gateway_cost_control_unpriced_token_usage_records_total`,
 labeled by `provider`, `provider_type`, and `model`, to detect unpriced usage.
@@ -216,10 +223,10 @@ price for it yourself.
 
 ### Set model prices
 
-Use the experimental `coder exp ai-model-prices` command to set prices for
-models the price book does not cover. It requires AI Governance, which is
-included with a Premium license, and the `ai_model_price:update` permission.
-Run `coder exp ai-model-prices --help` for the full reference.
+Use the experimental `coder exp ai-model-prices` command to set model prices
+for your deployment. It requires AI Governance, which is included with a
+Premium license, and the `ai_model_price:update` permission. Run
+`coder exp ai-model-prices --help` for the full reference.
 
 List the prices this deployment holds, optionally narrowed to one provider or
 model:
@@ -249,7 +256,8 @@ coder exp ai-model-prices update prices.json
 >
 > - Prices are not retroactive. Usage recorded before you set a price stays
 >   unpriced, so past spend does not change.
-> - You can only set prices for models the price book does not cover.
+> - A price you set takes precedence over the price book and stays in effect
+>   across upgrades, so it does not pick up price book updates.
 > - This command is experimental and can change without notice.
 
 ## Monitor spend

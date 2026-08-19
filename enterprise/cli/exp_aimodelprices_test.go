@@ -293,7 +293,7 @@ func TestAIModelPricesUpdate(t *testing.T) {
 		require.Contains(t, apply(), "No changes to apply.")
 	})
 
-	t.Run("RejectsAModelInThePriceBook", func(t *testing.T) {
+	t.Run("OverridesAModelInThePriceBook", func(t *testing.T) {
 		t.Parallel()
 
 		// Given: a model Coder already prices.
@@ -301,17 +301,29 @@ func TestAIModelPricesUpdate(t *testing.T) {
 		inv, conf := newCLI(t,
 			"exp", "ai-model-prices", "update",
 			"--provider", "anthropic", "--model", "claude-opus-5",
-			"--input-price", "100", "--output-price", "null",
-			"--cache-read-price", "null", "--cache-write-price", "null",
+			"--input-price", "100", "--output-price", "200",
+			"--cache-read-price", "300", "--cache-write-price", "null",
 			"--yes",
 		)
 		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
-		inv.Stdout = &bytes.Buffer{}
 
-		// When: it is priced. Then: the server rejects it.
-		err := inv.Run()
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "price book")
+		var stdout bytes.Buffer
+		inv.Stdout = &stdout
+
+		// When: it is priced through the CLI.
+		require.NoError(t, inv.Run())
+		require.Contains(t, stdout.String(), "Updated prices for 1 model(s).")
+
+		// Then: the override is what the deployment reports.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		prices, err := codersdk.NewExperimentalClient(client).ListAIModelPrices(ctx,
+			codersdk.AIModelPricesFilter{Provider: "anthropic", Model: "claude-opus-5"})
+		require.NoError(t, err)
+		require.Len(t, prices, 1)
+		require.Equal(t, int64(100), *prices[0].InputPrice)
+		require.Equal(t, int64(200), *prices[0].OutputPrice)
+		require.Equal(t, int64(300), *prices[0].CacheReadPrice)
+		require.Nil(t, prices[0].CacheWritePrice)
 	})
 }
 
