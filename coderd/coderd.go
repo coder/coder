@@ -1063,6 +1063,9 @@ func New(options *Options) *API {
 		WSWatcher:           api.wsWatcher,
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
+		ProxyHeaderPassUserID:    options.DeploymentValues.ProxyHeaderPassUserID.Value(),
+		ProxyHeaderPassUsername:  options.DeploymentValues.ProxyHeaderPassUsername.Value(),
+		ProxyHeaderPassUserEmail: options.DeploymentValues.ProxyHeaderPassUserEmail.Value(),
 		CookiesConfig:            options.DeploymentValues.HTTPCookies,
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	})

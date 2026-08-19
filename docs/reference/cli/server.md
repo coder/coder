@@ -1216,6 +1216,36 @@ Disable workspace sharing. Workspace ACL checking is disabled and only owners ca
 
 Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.
 
+### --proxy-header-pass-user-id
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>bool</code>                             |
+| Environment | <code>$CODER_PROXY_HEADER_PASS_USER_ID</code> |
+| YAML        | <code>proxyHeaderPassUserID</code>            |
+
+Include the X-Coder-User-Id header containing the visitor's user ID when proxying requests to workspace apps.
+
+### --proxy-header-pass-username
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>bool</code>                              |
+| Environment | <code>$CODER_PROXY_HEADER_PASS_USERNAME</code> |
+| YAML        | <code>proxyHeaderPassUsername</code>           |
+
+Include the X-Coder-Username header containing the visitor's username when proxying requests to workspace apps.
+
+### --proxy-header-pass-user-email
+
+|             |                                                  |
+|-------------|--------------------------------------------------|
+| Type        | <code>bool</code>                                |
+| Environment | <code>$CODER_PROXY_HEADER_PASS_USER_EMAIL</code> |
+| YAML        | <code>proxyHeaderPassUserEmail</code>            |
+
+Include the X-Coder-User-Email header containing the visitor's email address when proxying requests to workspace apps.
+
 ### --session-duration
 
 |             |                                              |

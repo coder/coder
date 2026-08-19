@@ -20887,6 +20887,15 @@ const docTemplate = `{
                 "provisioner": {
                     "$ref": "#/definitions/codersdk.ProvisionerConfig"
                 },
+                "proxy_header_pass_user_email": {
+                    "type": "boolean"
+                },
+                "proxy_header_pass_user_id": {
+                    "type": "boolean"
+                },
+                "proxy_header_pass_username": {
+                    "type": "boolean"
+                },
                 "proxy_health_status_interval": {
                     "type": "integer"
                 },

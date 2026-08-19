@@ -27,10 +27,24 @@ type SignedToken struct {
 	AgentID      uuid.UUID             `json:"agent_id"`
 	AppURL       string                `json:"app_url"`
 	CORSBehavior codersdk.CORSBehavior `json:"cors_behavior"`
+
+	// VisitorUserID is the ID of the authenticated user visiting the app,
+	// as opposed to UserID which is the workspace owner. This is uuid.Nil
+	// for unauthenticated (public) requests.
+	VisitorUserID uuid.UUID `json:"visitor_user_id"`
+	// VisitorUsername is the username of the authenticated visitor.
+	VisitorUsername string `json:"visitor_username,omitempty"`
+	// VisitorEmail is the email address of the authenticated visitor.
+	VisitorEmail string `json:"visitor_email,omitempty"`
 }
 
 // MatchesRequest returns true if the token matches the request. Any token that
 // does not match the request should be considered invalid.
+//
+// Visitor identity fields (VisitorUserID, VisitorUsername, VisitorEmail) are
+// intentionally excluded from this comparison. Cookie scoping ensures that
+// each browser session has its own signed app token, so a token issued for
+// one visitor cannot be reused by another visitor's session.
 func (t SignedToken) MatchesRequest(req Request) bool {
 	tokenBasePath := t.Request.BasePath
 	if !strings.HasSuffix(tokenBasePath, "/") {

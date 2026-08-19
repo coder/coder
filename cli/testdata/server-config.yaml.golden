@@ -566,6 +566,18 @@ disableWorkspaceSharing: false
 # their chats.
 # (default: <unset>, type: bool)
 disableChatSharing: false
+# Include the X-Coder-User-Id header containing the visitor's user ID when
+# proxying requests to workspace apps.
+# (default: <unset>, type: bool)
+proxyHeaderPassUserID: false
+# Include the X-Coder-Username header containing the visitor's username when
+# proxying requests to workspace apps.
+# (default: <unset>, type: bool)
+proxyHeaderPassUsername: false
+# Include the X-Coder-User-Email header containing the visitor's email address
+# when proxying requests to workspace apps.
+# (default: <unset>, type: bool)
+proxyHeaderPassUserEmail: false
 # These options change the behavior of how clients interact with the Coder.
 # Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 client:

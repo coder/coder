@@ -122,6 +122,30 @@ Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The
 - Environment variable: `CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS`
 - CLI flag: [`--external-token-encryption-keys`](../../reference/cli/server.md#--external-token-encryption-keys)
 
+### Pass user email header to workspace apps
+
+Include the X-Coder-User-Email header containing the visitor's email address when proxying requests to workspace apps.
+
+- Environment variable: `CODER_PROXY_HEADER_PASS_USER_EMAIL`
+- CLI flag: [`--proxy-header-pass-user-email`](../../reference/cli/server.md#--proxy-header-pass-user-email)
+- YAML key: `proxyHeaderPassUserEmail`
+
+### Pass user ID header to workspace apps
+
+Include the X-Coder-User-Id header containing the visitor's user ID when proxying requests to workspace apps.
+
+- Environment variable: `CODER_PROXY_HEADER_PASS_USER_ID`
+- CLI flag: [`--proxy-header-pass-user-id`](../../reference/cli/server.md#--proxy-header-pass-user-id)
+- YAML key: `proxyHeaderPassUserID`
+
+### Pass username header to workspace apps
+
+Include the X-Coder-Username header containing the visitor's username when proxying requests to workspace apps.
+
+- Environment variable: `CODER_PROXY_HEADER_PASS_USERNAME`
+- CLI flag: [`--proxy-header-pass-username`](../../reference/cli/server.md#--proxy-header-pass-username)
+- YAML key: `proxyHeaderPassUsername`
+
 ### Postgres auth
 
 Type of auth to use when connecting to postgres. For AWS RDS, using IAM authentication (awsiamrds) is recommended.

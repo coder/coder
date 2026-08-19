@@ -108,7 +108,13 @@ type ServerOptions struct {
 	// Subdomain apps are safer with their cookies scoped to the subdomain, and XSS
 	// calls to the dashboard are not possible due to CORs.
 	DisablePathApps bool
-	CookiesConfig   codersdk.HTTPCookieConfig
+	// ProxyHeaderPassUserID, ProxyHeaderPassUsername, and
+	// ProxyHeaderPassUserEmail control which visitor identity headers are
+	// injected into proxied workspace app requests.
+	ProxyHeaderPassUserID    bool
+	ProxyHeaderPassUsername  bool
+	ProxyHeaderPassUserEmail bool
+	CookiesConfig            codersdk.HTTPCookieConfig
 
 	AgentProvider  AgentProvider
 	StatsCollector *StatsCollector
@@ -683,6 +689,29 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 			}
 		}
 		return nil
+	}
+
+	// Strip any incoming X-Coder-* headers to prevent spoofing by
+	// workspace apps or external clients.
+	for name := range r.Header {
+		if strings.HasPrefix(name, "X-Coder-") {
+			r.Header.Del(name)
+		}
+	}
+
+	// Inject the authenticated visitor's identity as headers so workspace
+	// apps can identify who is accessing them. Each header is gated by an
+	// admin deployment setting.
+	if appToken.VisitorUserID != uuid.Nil {
+		if s.ProxyHeaderPassUserID {
+			r.Header.Set(codersdk.VisitorUserIDHeader, appToken.VisitorUserID.String())
+		}
+		if s.ProxyHeaderPassUsername {
+			r.Header.Set(codersdk.VisitorUsernameHeader, appToken.VisitorUsername)
+		}
+		if s.ProxyHeaderPassUserEmail {
+			r.Header.Set(codersdk.VisitorUserEmailHeader, appToken.VisitorEmail)
+		}
 	}
 
 	// This strips the session token from a workspace app request.

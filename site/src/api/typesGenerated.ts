@@ -4788,6 +4788,9 @@ export interface DeploymentValues {
 	readonly workspace_hostname_suffix?: string;
 	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly hide_ai_tasks?: boolean;
+	readonly proxy_header_pass_user_id?: boolean;
+	readonly proxy_header_pass_username?: boolean;
+	readonly proxy_header_pass_user_email?: boolean;
 	readonly ai?: AIConfig;
 	readonly stats_collection?: StatsCollectionConfig;
 	readonly template_builder?: TemplateBuilderConfig;
@@ -10690,6 +10693,19 @@ export interface VariableValue {
 	readonly name: string;
 	readonly value: string;
 }
+
+// From codersdk/client.go
+export const VisitorUserEmailHeader = "X-Coder-User-Email";
+
+// From codersdk/client.go
+/**
+ * Visitor identity headers injected by the workspace app proxy.
+ * These identify the authenticated user visiting a workspace app.
+ */
+export const VisitorUserIDHeader = "X-Coder-User-Id";
+
+// From codersdk/client.go
+export const VisitorUsernameHeader = "X-Coder-Username";
 
 // From codersdk/notifications.go
 export interface WebpushMessage {
