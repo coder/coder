@@ -25,6 +25,9 @@ export const TRIAL_OFFER_TITLE = "Start a 30-day trial of Coder Premium";
 export const TRIAL_OFFER_DESCRIPTION =
 	"Control what agents can access, who can use which templates, and how your infrastructure scales. No credit card required.";
 
+export const PREMIUM_TRIAL_UPSELL =
+	"Coder Premium adds enterprise-grade AI governance, role-based access controls, and high availability to your self-hosted development platform. Control what agents can access, who can use which templates, and how your infrastructure scales.";
+
 // REMARK: Keep these consts in sync with codersdk.CreateTrialLicenseRequest.
 export const MAX_EMAIL_LENGTH = 254;
 export const MAX_NAME_LENGTH = 60;

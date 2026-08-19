@@ -77,7 +77,7 @@ export const TrialActive: Story = {
 			}),
 		).toBeVisible();
 		await expect(
-			canvas.getByRole("link", { name: /talk to sales/i }),
+			canvas.getByRole("link", { name: /contact sales/i }),
 		).toHaveAttribute("href", "https://coder.com/contact/sales");
 		await expect(
 			canvas.queryByLabelText(/^Business email/),
@@ -120,7 +120,7 @@ export const TrialExpiryUnavailable: Story = {
 		await expect(canvas.queryByText(/remaining/)).not.toBeInTheDocument();
 		await expect(canvas.queryByText(/NaN|undefined/)).not.toBeInTheDocument();
 		await expect(
-			canvas.getByRole("link", { name: /talk to sales/i }),
+			canvas.getByRole("link", { name: /contact sales/i }),
 		).toBeVisible();
 	},
 };
@@ -138,7 +138,7 @@ export const TrialExpired: Story = {
 		await expect(canvas.queryByText(/remaining/)).not.toBeInTheDocument();
 		await expect(canvas.queryByText(/-3/)).not.toBeInTheDocument();
 		await expect(
-			canvas.getByRole("link", { name: /talk to sales/i }),
+			canvas.getByRole("link", { name: /contact sales/i }),
 		).toBeVisible();
 	},
 };

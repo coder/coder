@@ -21,13 +21,13 @@ export const TrialActivePanel: FC<TrialActivePanelProps> = ({
 				</div>
 			) : null}
 
-			<p className="m-0 text-sm text-content-secondary">
+			<p className="m-0 px-8 text-sm text-content-primary">
 				Contact our sales team to extend your trial or upgrade to Coder Premium.
 			</p>
 
-			<Button asChild>
+			<Button asChild className="w-full">
 				<a href={CONTACT_SALES_LINK} target="_blank" rel="noreferrer">
-					Talk to sales
+					Contact sales
 				</a>
 			</Button>
 		</div>
