@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -136,6 +137,90 @@ func TestPagination(t *testing.T) {
 				require.NoError(t, err, "decode response")
 				require.Contains(t, apiError.Message, c.ExpectedError, "expected error")
 			}
+		})
+	}
+}
+
+func TestPaginationBounded(t *testing.T) {
+	t.Parallel()
+	const maxLimit = 100
+	testCases := []struct {
+		Name string
+
+		// Limit is omitted from the query when nil.
+		Limit  *string
+		Offset string
+
+		ExpectedError  string
+		ExpectedParams codersdk.Pagination
+	}{
+		{
+			Name:           "OmittedLimitDefaultsToMax",
+			ExpectedParams: codersdk.Pagination{Limit: maxLimit},
+		},
+		{
+			Name:           "MaxLimit",
+			Limit:          ptr.Ref("100"),
+			ExpectedParams: codersdk.Pagination{Limit: maxLimit},
+		},
+		{
+			Name:           "BelowMaxLimit",
+			Limit:          ptr.Ref("25"),
+			Offset:         "50",
+			ExpectedParams: codersdk.Pagination{Limit: 25, Offset: 50},
+		},
+		{
+			Name:          "ZeroLimit",
+			Limit:         ptr.Ref("0"),
+			ExpectedError: "must be an integer between 1 and 100",
+		},
+		{
+			Name:          "AboveMaxLimit",
+			Limit:         ptr.Ref("101"),
+			ExpectedError: "must be an integer between 1 and 100",
+		},
+		{
+			Name:          "NegativeLimit",
+			Limit:         ptr.Ref("-1"),
+			ExpectedError: "must be an integer between 1 and 100",
+		},
+		{
+			Name:          "UnparseableLimit",
+			Limit:         ptr.Ref("bogus"),
+			ExpectedError: "must be a valid integer",
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			rw := httptest.NewRecorder()
+			r, err := http.NewRequestWithContext(context.Background(), "GET", "https://example.com", nil)
+			require.NoError(t, err, "new request")
+
+			query := r.URL.Query()
+			if c.Limit != nil {
+				query.Set("limit", *c.Limit)
+			}
+			if c.Offset != "" {
+				query.Set("offset", c.Offset)
+			}
+			r.URL.RawQuery = query.Encode()
+
+			params, ok := coderd.ParsePaginationBounded(rw, r, maxLimit)
+			if c.ExpectedError == "" {
+				require.True(t, ok, "expect ok")
+				require.Equal(t, c.ExpectedParams, params, "expected params")
+				return
+			}
+
+			require.False(t, ok, "expect !ok")
+			require.Equal(t, http.StatusBadRequest, rw.Code, "bad request status code")
+			var apiError codersdk.Error
+			require.NoError(t, json.NewDecoder(rw.Body).Decode(&apiError), "decode response")
+			require.Len(t, apiError.Validations, 1, "one validation error")
+			require.Equal(t, "limit", apiError.Validations[0].Field)
+			require.Contains(t, apiError.Validations[0].Detail, c.ExpectedError)
 		})
 	}
 }

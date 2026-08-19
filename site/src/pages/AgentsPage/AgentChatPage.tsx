@@ -58,9 +58,9 @@ import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { userSkills } from "#/api/queries/userSkills";
 import { preferenceSettings } from "#/api/queries/users";
 import {
+	allWorkspaces,
 	workspaceById,
 	workspaceByIdKey,
-	workspaces,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
@@ -923,7 +923,7 @@ const AgentChatPage: FC = () => {
 	const preferencesQuery = useQuery(preferenceSettings());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
-	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
+	const workspacesQuery = useQuery(allWorkspaces({ q: "owner:me" }));
 	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
 		workspacesQuery.data?.workspaces ?? [],
 		workspace,

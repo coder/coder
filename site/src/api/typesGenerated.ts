@@ -7097,9 +7097,10 @@ export interface Pagination {
 	 */
 	readonly after_id?: string;
 	/**
-	 * Limit sets the maximum number of users to be returned
-	 * in a single page. If the limit is <= 0, there is no limit
-	 * and all users are returned.
+	 * Limit sets the maximum number of records to be returned in a single
+	 * page. An endpoint that bounds its page size rejects a limit outside its
+	 * range; otherwise a limit <= 0 means no limit and every record is
+	 * returned.
 	 */
 	readonly limit?: number;
 	/**
@@ -11623,6 +11624,15 @@ export interface WorkspaceUser extends MinimalUser {
 	readonly role: WorkspaceRole;
 }
 
+// From codersdk/pagination.go
+/**
+ * WorkspacesPageLimit is the largest page size the workspaces list endpoint
+ * accepts and the page size clients use when reading that endpoint to
+ * exhaustion. A request that omits limit receives this many rows; a limit of 0
+ * or greater than this is rejected.
+ */
+export const WorkspacesPageLimit = 1000;
+
 // From codersdk/workspaces.go
 export interface WorkspacesRequest extends Pagination {
 	readonly q?: string;
@@ -11631,5 +11641,11 @@ export interface WorkspacesRequest extends Pagination {
 // From codersdk/workspaces.go
 export interface WorkspacesResponse {
 	readonly workspaces: readonly Workspace[];
+	/**
+	 * Count is the number of workspaces matching the filter before the limit and
+	 * offset are applied. Workspaces the requester cannot fully read are omitted
+	 * from the page after the limit is applied, so a page shorter than the limit
+	 * does not mean the result set is exhausted.
+	 */
 	readonly count: number;
 }

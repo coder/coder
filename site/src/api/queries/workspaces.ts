@@ -225,7 +225,29 @@ export function workspacesKey(req: WorkspacesRequest = {}) {
 export function workspaces(req: WorkspacesRequest = {}) {
 	return {
 		queryKey: workspacesKey(req),
-		queryFn: () => API.getWorkspaces(req),
+		queryFn: ({ signal }) => API.getWorkspaces(req, signal),
+	} as const satisfies QueryOptions<WorkspacesResponse>;
+}
+
+type AllWorkspacesRequest = Omit<
+	WorkspacesRequest,
+	"limit" | "offset" | "after_id"
+>;
+
+export function allWorkspacesKey(req: AllWorkspacesRequest = {}) {
+	// The `all` marker keeps this distinct from the single-page key for the same
+	// filter. The key stays two segments long with an object at the end so it
+	// keeps the shape a workspace list key is matched by.
+	return [...workspacesQueryKeyPrefix, { ...req, all: true }] as const;
+}
+
+// allWorkspaces reads every page of the filtered result set. The request count
+// scales with the result set and a page that fails discards the rows already
+// read, so prefer a filter that fits in one page.
+export function allWorkspaces(req: AllWorkspacesRequest = {}) {
+	return {
+		queryKey: allWorkspacesKey(req),
+		queryFn: ({ signal }) => API.getAllWorkspaces(req, signal),
 	} as const satisfies QueryOptions<WorkspacesResponse>;
 }
 

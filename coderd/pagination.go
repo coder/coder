@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -22,6 +23,41 @@ func ParsePagination(w http.ResponseWriter, r *http.Request) (p codersdk.Paginat
 		Limit:  int(parser.PositiveInt32(queryParams, 0, "limit")),
 		Offset: int(parser.PositiveInt32(queryParams, 0, "offset")),
 	}
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return params, false
+	}
+
+	return params, true
+}
+
+// ParsePaginationBounded extracts pagination query params from the http request
+// and resolves limit against maxLimit. An omitted limit resolves to maxLimit. A
+// limit that is present must be an integer in [1, maxLimit]; anything else is
+// rejected rather than clamped. If an error is encountered, the error is written
+// to w and ok is set to false.
+func ParsePaginationBounded(w http.ResponseWriter, r *http.Request, maxLimit int) (p codersdk.Pagination, ok bool) {
+	ctx := r.Context()
+	queryParams := r.URL.Query()
+	parser := httpapi.NewQueryParamParser()
+	params := codersdk.Pagination{
+		AfterID: parser.UUID(queryParams, uuid.Nil, "after_id"),
+		Offset:  int(parser.PositiveInt32(queryParams, 0, "offset")),
+	}
+
+	limitErrs := len(parser.Errors)
+	params.Limit = parser.Int(queryParams, maxLimit, "limit")
+	limitParsed := len(parser.Errors) == limitErrs
+	if limitParsed && (params.Limit < 1 || params.Limit > maxLimit) {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "limit",
+			Detail: fmt.Sprintf("Query param \"limit\" must be an integer between 1 and %d.", maxLimit),
+		})
+	}
+
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
 			Message:     "Query parameters have invalid values.",

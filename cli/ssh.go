@@ -171,7 +171,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				return []string{}
 			}
 
-			res, err := client.Workspaces(inv.Context(), codersdk.WorkspaceFilter{
+			workspaces, err := client.AllWorkspaces(inv.Context(), codersdk.WorkspaceFilter{
 				Owner: codersdk.Me,
 			})
 			if err != nil {
@@ -181,7 +181,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			var mu sync.Mutex
 			var completions []string
 			var wg sync.WaitGroup
-			for _, ws := range res.Workspaces {
+			for _, ws := range workspaces {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()

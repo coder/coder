@@ -265,18 +265,20 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 	// List workspaces (paginated)
 	eg.Go(func() error {
 		var (
-			offset int
-			limit  = 200
-			all    []codersdk.Workspace
-			count  int
+			offset     int
+			all        []codersdk.Workspace
+			seen       = make(map[uuid.UUID]struct{})
+			count      int
+			incomplete bool
 		)
 		capTotal := workspacesCap
 		for {
-			resp, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{Offset: offset, Limit: limit})
+			resp, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{Offset: offset, Limit: codersdk.WorkspacesPageLimit})
 			if err != nil {
 				// Log and continue if forbidden; otherwise return error
 				if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized) {
-					log.Warn(ctx, "unable to list workspaces")
+					log.Warn(ctx, "unable to list workspaces", slog.F("offset", offset))
+					incomplete = true
 					break
 				}
 				return xerrors.Errorf("list workspaces: %w", err)
@@ -284,35 +286,49 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 			if d.Workspaces == nil {
 				d.Workspaces = &resp
 			}
-			// sanitize env vars on agents in each workspace before appending
-			for i := range resp.Workspaces {
-				ws := &resp.Workspaces[i]
+			// The order depends on build state, which changes between requests, so a
+			// workspace can move to a page that has not been read yet.
+			for _, ws := range resp.Workspaces {
+				if _, ok := seen[ws.ID]; ok {
+					continue
+				}
+				seen[ws.ID] = struct{}{}
 				for _, res := range ws.LatestBuild.Resources {
 					for _, agt := range res.Agents {
 						// safe to call even if map is nil (range in sanitizeEnv would be empty)
 						sanitizeEnv(agt.EnvironmentVariables)
 					}
 				}
+				all = append(all, ws)
 			}
-			all = append(all, resp.Workspaces...)
 			count = resp.Count
-			// Stop early once we've reached the cap; trim any overflow from the last page.
+			// Stop early once we've reached the cap; trim any overflow from the last
+			// page. The cap limits how many workspaces are kept, not how many are
+			// requested per page.
 			if capTotal > 0 && len(all) >= capTotal {
 				if len(all) > capTotal {
 					all = all[:capTotal]
 				}
 				break
 			}
-			if offset+len(resp.Workspaces) >= count || len(resp.Workspaces) == 0 {
+			// The offset advances by the requested limit rather than by the number
+			// of rows returned, since a page can be shorter than the limit without
+			// the set being exhausted.
+			offset += codersdk.WorkspacesPageLimit
+			if offset >= count {
 				break
 			}
-			offset += len(resp.Workspaces)
 		}
 		if d.Workspaces != nil {
 			// Replace with aggregated list
 			d.Workspaces.Workspaces = all
 			// Preserve server-reported total so Run() can log accurate truncation.
 			d.Workspaces.Count = count
+			if incomplete {
+				// The scan stopped early, so the server total describes a set this
+				// list does not cover.
+				d.Workspaces.Count = len(all)
+			}
 		}
 		return nil
 	})

@@ -96,7 +96,11 @@ type WorkspacesRequest struct {
 
 type WorkspacesResponse struct {
 	Workspaces []Workspace `json:"workspaces"`
-	Count      int         `json:"count"`
+	// Count is the number of workspaces matching the filter before the limit and
+	// offset are applied. Workspaces the requester cannot fully read are omitted
+	// from the page after the limit is applied, so a page shorter than the limit
+	// does not mean the result set is exhausted.
+	Count int `json:"count"`
 }
 
 type ProvisionerLogLevel string
@@ -612,7 +616,8 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 	}
 }
 
-// Workspaces returns all workspaces the authenticated user has access to.
+// Workspaces returns a single page of the workspaces the authenticated user has
+// access to. An unset filter Limit resolves to the endpoint's maximum page size.
 func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (WorkspacesResponse, error) {
 	page := Pagination{
 		Offset: filter.Offset,
@@ -630,6 +635,43 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (Worksp
 
 	var wres WorkspacesResponse
 	return wres, ReadBodyAsJSON(res, &wres)
+}
+
+// AllWorkspaces requests successive pages of workspaces matching the filter and
+// returns every row it receives, skipping rows it has already returned. Limit
+// and Offset on the filter are ignored.
+//
+// The offset advances by the requested page size rather than by the number of
+// rows received, since a page can be shorter than the limit without the result
+// set being exhausted. The scan ends when the offset reaches Count.
+//
+// The pages are separate requests, so the result is not a snapshot. The order
+// depends on workspace state that changes between requests: a row that moves
+// later is skipped here by ID, and one that moves earlier can pass the current
+// offset and be missed. A page that fails ends the call and discards the rows
+// already read.
+func (c *Client) AllWorkspaces(ctx context.Context, filter WorkspaceFilter) ([]Workspace, error) {
+	filter.Limit = WorkspacesPageLimit
+	filter.Offset = 0
+	var all []Workspace
+	seen := make(map[uuid.UUID]struct{})
+	for {
+		page, err := c.Workspaces(ctx, filter)
+		if err != nil {
+			return nil, err
+		}
+		for _, workspace := range page.Workspaces {
+			if _, ok := seen[workspace.ID]; ok {
+				continue
+			}
+			seen[workspace.ID] = struct{}{}
+			all = append(all, workspace)
+		}
+		filter.Offset += WorkspacesPageLimit
+		if filter.Offset >= page.Count {
+			return all, nil
+		}
+	}
 }
 
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.

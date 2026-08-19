@@ -13811,7 +13811,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Page limit",
+                        "description": "Page limit, from 1 to 1000. Defaults to 1000 when omitted.",
                         "name": "limit",
                         "in": "query"
                     },
@@ -13827,6 +13827,12 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspacesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters, including a limit outside 1 to 1000",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -29035,6 +29041,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "count": {
+                    "description": "Count is the number of workspaces matching the filter before the limit and\noffset are applied. Workspaces the requester cannot fully read are omitted\nfrom the page after the limit is applied, so a page shorter than the limit\ndoes not mean the result set is exhausted.",
                     "type": "integer"
                 },
                 "workspaces": {

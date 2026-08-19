@@ -7,6 +7,12 @@ import (
 	"github.com/google/uuid"
 )
 
+// WorkspacesPageLimit is the largest page size the workspaces list endpoint
+// accepts and the page size clients use when reading that endpoint to
+// exhaustion. A request that omits limit receives this many rows; a limit of 0
+// or greater than this is rejected.
+const WorkspacesPageLimit = 1000
+
 // Pagination sets pagination options for the endpoints that support it.
 type Pagination struct {
 	// AfterID returns all or up to Limit results after the given
@@ -15,9 +21,10 @@ type Pagination struct {
 	// set AfterID to the last UUID returned by the previous
 	// request.
 	AfterID uuid.UUID `json:"after_id,omitempty" format:"uuid"`
-	// Limit sets the maximum number of users to be returned
-	// in a single page. If the limit is <= 0, there is no limit
-	// and all users are returned.
+	// Limit sets the maximum number of records to be returned in a single
+	// page. An endpoint that bounds its page size rejects a limit outside its
+	// range; otherwise a limit <= 0 means no limit and every record is
+	// returned.
 	Limit int `json:"limit,omitempty"`
 	// Offset is used to indicate which page to return. An offset of 0
 	// returns the first 'limit' number of users.

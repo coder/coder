@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -333,4 +336,98 @@ func assertNotNilNotEmpty[T any](t *testing.T, v T, msg string) {
 	if assert.NotNil(t, v, msg+" but was nil") {
 		assert.NotEmpty(t, v, msg+" but was empty")
 	}
+}
+
+// TestDeploymentInfoWorkspacesIncomplete serves one full page and then denies
+// the next one, which is what a token losing access mid-scan looks like.
+func TestDeploymentInfoWorkspacesIncomplete(t *testing.T) {
+	t.Parallel()
+
+	const serverTotal = codersdk.WorkspacesPageLimit * 2
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v2/workspaces" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		// The client omits a zero offset, so an absent value is the first page.
+		if offset := r.URL.Query().Get("offset"); offset != "" && offset != "0" {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(codersdk.Response{Message: "forbidden"})
+			return
+		}
+
+		workspaces := make([]codersdk.Workspace, codersdk.WorkspacesPageLimit)
+		for i := range workspaces {
+			workspaces[i].ID = uuid.New()
+		}
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(codersdk.WorkspacesResponse{
+			Workspaces: workspaces,
+			Count:      serverTotal,
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	d := support.DeploymentInfo(ctx, codersdk.New(u),
+		slog.Make(sloghuman.Sink(io.Discard)), 0)
+
+	require.NotNil(t, d.Workspaces)
+	require.Len(t, d.Workspaces.Workspaces, codersdk.WorkspacesPageLimit)
+	// The count describes the rows in the bundle, not the larger set the server
+	// reported for a scan that did not finish.
+	require.Equal(t, codersdk.WorkspacesPageLimit, d.Workspaces.Count)
+}
+
+// TestDeploymentInfoWorkspacesRepeated returns the same workspace on two pages,
+// which is what a build finishing between requests looks like.
+func TestDeploymentInfoWorkspacesRepeated(t *testing.T) {
+	t.Parallel()
+
+	repeated := codersdk.Workspace{ID: uuid.New(), Name: "repeated"}
+	unique := codersdk.Workspace{ID: uuid.New(), Name: "unique"}
+	pages := [][]codersdk.Workspace{
+		{repeated},
+		{repeated, unique},
+	}
+	var page int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v2/workspaces" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		var workspaces []codersdk.Workspace
+		if page < len(pages) {
+			workspaces = pages[page]
+		}
+		page++
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(codersdk.WorkspacesResponse{
+			Workspaces: workspaces,
+			Count:      codersdk.WorkspacesPageLimit + 1,
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	d := support.DeploymentInfo(ctx, codersdk.New(u),
+		slog.Make(sloghuman.Sink(io.Discard)), 0)
+
+	require.NotNil(t, d.Workspaces)
+	names := make([]string, 0, len(d.Workspaces.Workspaces))
+	for _, ws := range d.Workspaces.Workspaces {
+		names = append(names, ws.Name)
+	}
+	require.Equal(t, []string{"repeated", "unique"}, names)
 }

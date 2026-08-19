@@ -17770,10 +17770,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name         | Type                                              | Required | Restrictions | Description |
-|--------------|---------------------------------------------------|----------|--------------|-------------|
-| `count`      | integer                                           | false    |              |             |
-| `workspaces` | array of [codersdk.Workspace](#codersdkworkspace) | false    |              |             |
+| Name         | Type                                              | Required | Restrictions | Description                                                                                                                                                                                                                                                                 |
+|--------------|---------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `count`      | integer                                           | false    |              | Count is the number of workspaces matching the filter before the limit and offset are applied. Workspaces the requester cannot fully read are omitted from the page after the limit is applied, so a page shorter than the limit does not mean the result set is exhausted. |
+| `workspaces` | array of [codersdk.Workspace](#codersdkworkspace) | false    |              |                                                                                                                                                                                                                                                                             |
 
 ## derp.BytesSentRecv
 

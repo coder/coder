@@ -18,6 +18,7 @@ const meta: Meta<typeof TemplatePageHeader> = {
 			{
 				key: workspacesKey({
 					q: `organization:${MockTemplate.organization_name} template:${MockTemplate.name}`,
+					limit: 1,
 				}),
 				data: {
 					workspaces: [],
@@ -57,6 +58,7 @@ export const HasWorkspaces: Story = {
 			{
 				key: workspacesKey({
 					q: `organization:${MockTemplate.organization_name} template:${MockTemplate.name}`,
+					limit: 1,
 				}),
 				data: {
 					workspaces: [MockWorkspace],

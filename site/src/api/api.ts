@@ -1259,10 +1259,60 @@ class ApiMethods {
 
 	getWorkspaces = async (
 		req: TypesGen.WorkspacesRequest,
+		signal?: AbortSignal,
 	): Promise<TypesGen.WorkspacesResponse> => {
 		const url = getURLWithSearchParams("/api/v2/workspaces", req);
-		const response = await this.axios.get<TypesGen.WorkspacesResponse>(url);
+		const response = await this.axios.get<TypesGen.WorkspacesResponse>(url, {
+			signal,
+		});
 		return response.data;
+	};
+
+	/**
+	 * Requests successive pages of workspaces until the offset reaches the total
+	 * the server reports, skipping workspaces an earlier page already returned.
+	 * The offset advances by the page size rather than by the number of rows
+	 * received, since a page can be shorter than the limit without the result set
+	 * being exhausted.
+	 *
+	 * The pages are separate requests, so the result is not a snapshot. The order
+	 * depends on workspace state that changes between requests: a workspace that
+	 * moves later is skipped here by ID, and one that moves earlier can pass the
+	 * current offset and be missed. A page that fails rejects the whole call and
+	 * discards the rows already read; aborting `signal` rejects the page in
+	 * flight.
+	 *
+	 * `count` is the total the server reported for the last page and can exceed
+	 * the length of `workspaces`.
+	 */
+	getAllWorkspaces = async (
+		req: Omit<TypesGen.WorkspacesRequest, "limit" | "offset"> = {},
+		signal?: AbortSignal,
+	): Promise<TypesGen.WorkspacesResponse> => {
+		const workspaces: TypesGen.Workspace[] = [];
+		const seen = new Set<string>();
+		let count = 0;
+		let offset = 0;
+		do {
+			const page = await this.getWorkspaces(
+				{
+					...req,
+					limit: TypesGen.WorkspacesPageLimit,
+					offset,
+				},
+				signal,
+			);
+			for (const workspace of page.workspaces) {
+				if (seen.has(workspace.id)) {
+					continue;
+				}
+				seen.add(workspace.id);
+				workspaces.push(workspace);
+			}
+			count = page.count;
+			offset += TypesGen.WorkspacesPageLimit;
+		} while (offset < count);
+		return { workspaces, count };
 	};
 
 	getWorkspaceByOwnerAndName = async (

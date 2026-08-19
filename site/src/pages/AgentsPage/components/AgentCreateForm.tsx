@@ -433,14 +433,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 	const isForbidden = !canCreateChat || noPermittedOrgs;
 
-	// Filter workspaces by the selected organization. We use
-	// client-side filtering of the full "owner:me" fetch rather
-	// than re-querying with an org filter because it avoids
-	// extra loading/error states on org change. The full list is
-	// already small (user's own workspaces) and limit: 0
-	// guarantees completeness. If workspace counts grow large
-	// enough to warrant pagination, this should switch to a
-	// server-side organization:<name> query filter.
+	// Filter workspaces by the selected organization. Filtering the fetched
+	// "owner:me" list on the client rather than re-querying with an org filter
+	// avoids extra loading and error states on org change.
 	const filteredWorkspaces =
 		showOrganizations && effectiveOrg
 			? workspaceOptions.filter((ws) => ws.organization_id === effectiveOrg.id)

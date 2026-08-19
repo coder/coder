@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"sync/atomic"
 	"testing"
 
@@ -308,5 +309,154 @@ func TestResolveWorkspace(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "invalid workspace identifier: \"a/b/c\"")
 		require.EqualValues(t, 0, hits.Load(), "invalid identifiers should fail before any HTTP request")
+	})
+}
+
+func TestAllWorkspaces(t *testing.T) {
+	t.Parallel()
+
+	// newClient serves pages of the given sizes, recording the limit and offset
+	// of every request. count is reported as the total on every response, and
+	// every row across every page gets a distinct ID.
+	newClient := func(t *testing.T, count int, pageSizes ...int) (*codersdk.Client, *[][2]int) {
+		t.Helper()
+		var requests [][2]int
+		page := 0
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+			offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+			requests = append(requests, [2]int{limit, offset})
+
+			rows := 0
+			if page < len(pageSizes) {
+				rows = pageSizes[page]
+			}
+			page++
+
+			workspaces := make([]codersdk.Workspace, rows)
+			for i := range workspaces {
+				workspaces[i].ID = uuid.New()
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(codersdk.WorkspacesResponse{
+				Workspaces: workspaces,
+				Count:      count,
+			})
+		}))
+		t.Cleanup(srv.Close)
+
+		u, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+		return codersdk.New(u), &requests
+	}
+
+	t.Run("SinglePage", func(t *testing.T) {
+		t.Parallel()
+
+		client, requests := newClient(t, 3, 3)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		workspaces, err := client.AllWorkspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, workspaces, 3)
+		require.Equal(t, [][2]int{{codersdk.WorkspacesPageLimit, 0}}, *requests)
+	})
+
+	t.Run("AdvancesByPageSize", func(t *testing.T) {
+		t.Parallel()
+
+		const count = codersdk.WorkspacesPageLimit*2 + 10
+		client, requests := newClient(t, count,
+			codersdk.WorkspacesPageLimit, codersdk.WorkspacesPageLimit, 10)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		workspaces, err := client.AllWorkspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, workspaces, count)
+		require.Equal(t, [][2]int{
+			{codersdk.WorkspacesPageLimit, 0},
+			{codersdk.WorkspacesPageLimit, codersdk.WorkspacesPageLimit},
+			{codersdk.WorkspacesPageLimit, codersdk.WorkspacesPageLimit * 2},
+		}, *requests)
+	})
+
+	// A page can be shorter than the requested limit because the endpoint drops
+	// rows after applying the limit, so a short page must not end the scan.
+	t.Run("ShortPageContinues", func(t *testing.T) {
+		t.Parallel()
+
+		const count = codersdk.WorkspacesPageLimit + 20
+		client, requests := newClient(t, count, 40, 20)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		workspaces, err := client.AllWorkspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, workspaces, 60)
+		require.Len(t, *requests, 2)
+	})
+
+	t.Run("EmptyResult", func(t *testing.T) {
+		t.Parallel()
+
+		client, requests := newClient(t, 0, 0)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		workspaces, err := client.AllWorkspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Empty(t, workspaces)
+		require.Len(t, *requests, 1)
+	})
+
+	t.Run("OverridesCallerPagination", func(t *testing.T) {
+		t.Parallel()
+
+		client, requests := newClient(t, 1, 1)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := client.AllWorkspaces(ctx, codersdk.WorkspaceFilter{
+			Limit:  codersdk.WorkspacesPageLimit + 50,
+			Offset: 500,
+		})
+		require.NoError(t, err)
+		require.Equal(t, [][2]int{{codersdk.WorkspacesPageLimit, 0}}, *requests)
+	})
+
+	// The order the endpoint applies depends on workspace state, so a row can
+	// move to a later page while the pages are being read and be returned twice.
+	t.Run("SkipsRepeatedRows", func(t *testing.T) {
+		t.Parallel()
+
+		repeated := codersdk.Workspace{ID: uuid.New()}
+		unique := codersdk.Workspace{ID: uuid.New()}
+		pages := [][]codersdk.Workspace{
+			{repeated},
+			{repeated, unique},
+		}
+		page := 0
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var workspaces []codersdk.Workspace
+			if page < len(pages) {
+				workspaces = pages[page]
+			}
+			page++
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(codersdk.WorkspacesResponse{
+				Workspaces: workspaces,
+				Count:      codersdk.WorkspacesPageLimit + 1,
+			})
+		}))
+		t.Cleanup(srv.Close)
+
+		u, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		workspaces, err := codersdk.New(u).AllWorkspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.Workspace{repeated, unique}, workspaces)
 	})
 }

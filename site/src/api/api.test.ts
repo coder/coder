@@ -8,6 +8,7 @@ import {
 } from "#/testHelpers/entities";
 import { API, getURLWithSearchParams, ParameterValidationError } from "./api";
 import type * as TypesGen from "./typesGenerated";
+import { WorkspacesPageLimit } from "./typesGenerated";
 
 const axiosInstance = API.getAxiosInstance();
 
@@ -658,5 +659,113 @@ describe("api.ts", () => {
 				expectedError,
 			);
 		});
+	});
+});
+
+describe("getAllWorkspaces", () => {
+	let nextWorkspaceID = 0;
+
+	// Every row gets an ID distinct from every other row handed out by this
+	// helper, so pages never overlap unless a test builds them that way.
+	const workspacePage = (count: number, rows: number) => ({
+		workspaces: Array.from({ length: rows }, () => ({
+			...MockWorkspace,
+			id: `ws-${nextWorkspaceID++}`,
+		})),
+		count,
+	});
+
+	it("issues a single request when the total fits in one page", async () => {
+		const page = workspacePage(3, 3);
+		const getWorkspaces = vi
+			.spyOn(API, "getWorkspaces")
+			.mockResolvedValueOnce(page);
+
+		const result = await API.getAllWorkspaces({ q: "owner:me" });
+
+		expect(getWorkspaces).toHaveBeenCalledTimes(1);
+		expect(getWorkspaces).toHaveBeenCalledWith(
+			{
+				q: "owner:me",
+				limit: WorkspacesPageLimit,
+				offset: 0,
+			},
+			undefined,
+		);
+		expect(result).toStrictEqual(page);
+	});
+
+	it("advances the offset by the page size until the total is reached", async () => {
+		const total = WorkspacesPageLimit * 2 + 10;
+		const getWorkspaces = vi
+			.spyOn(API, "getWorkspaces")
+			.mockResolvedValueOnce(workspacePage(total, WorkspacesPageLimit))
+			.mockResolvedValueOnce(workspacePage(total, WorkspacesPageLimit))
+			.mockResolvedValueOnce(workspacePage(total, 10));
+
+		const result = await API.getAllWorkspaces();
+
+		expect(getWorkspaces.mock.calls.map(([req]) => req?.offset)).toStrictEqual([
+			0,
+			WorkspacesPageLimit,
+			WorkspacesPageLimit * 2,
+		]);
+		expect(result.workspaces).toHaveLength(total);
+		expect(result.count).toBe(total);
+	});
+
+	it("keeps requesting pages when a page is shorter than the page size", async () => {
+		const total = WorkspacesPageLimit + 20;
+		const getWorkspaces = vi
+			.spyOn(API, "getWorkspaces")
+			.mockResolvedValueOnce(workspacePage(total, 40))
+			.mockResolvedValueOnce(workspacePage(total, 50));
+
+		const result = await API.getAllWorkspaces();
+
+		expect(getWorkspaces).toHaveBeenCalledTimes(2);
+		expect(result.workspaces).toHaveLength(90);
+		expect(result.count).toBe(total);
+	});
+
+	// The order the endpoint applies depends on workspace state, so a row can
+	// move to a later page while the pages are being read and be returned twice.
+	it("skips a workspace an earlier page already returned", async () => {
+		const total = WorkspacesPageLimit + 1;
+		const repeated = { ...MockWorkspace, id: "repeated" };
+		const unique = { ...MockWorkspace, id: "unique" };
+		vi.spyOn(API, "getWorkspaces")
+			.mockResolvedValueOnce({ workspaces: [repeated], count: total })
+			.mockResolvedValueOnce({ workspaces: [repeated, unique], count: total });
+
+		const result = await API.getAllWorkspaces();
+
+		expect(result.workspaces).toStrictEqual([repeated, unique]);
+	});
+
+	it("passes the abort signal to every page", async () => {
+		const total = WorkspacesPageLimit + 50;
+		const controller = new AbortController();
+		const getWorkspaces = vi
+			.spyOn(API, "getWorkspaces")
+			.mockResolvedValueOnce(workspacePage(total, WorkspacesPageLimit))
+			.mockResolvedValueOnce(workspacePage(total, 50));
+
+		await API.getAllWorkspaces({ q: "owner:me" }, controller.signal);
+
+		expect(getWorkspaces).toHaveBeenCalledTimes(2);
+		for (const [, signal] of getWorkspaces.mock.calls) {
+			expect(signal).toBe(controller.signal);
+		}
+	});
+
+	it("rejects without returning the pages it already read", async () => {
+		vi.spyOn(API, "getWorkspaces")
+			.mockResolvedValueOnce(
+				workspacePage(WorkspacesPageLimit + 50, WorkspacesPageLimit),
+			)
+			.mockRejectedValueOnce(new Error("canceled"));
+
+		await expect(API.getAllWorkspaces()).rejects.toThrow("canceled");
 	});
 });
