@@ -12,9 +12,24 @@ out of step with the code so the author can fix it.
 This supersedes the `poc-audit` skill for the session. Do not invoke that one
 as well. Everything it carries is either here or in `poc_audit/AGENTS.md`.
 
-## 1. Open with these disclosures
+## 1. Say what this is, then make these disclosures
 
-Say both before anything else, briefly and in your own words:
+Someone arriving cold does not know what they have walked into, and neither
+the disclosures below nor the reading step make sense without framing. Open
+with two or three plain sentences covering:
+
+- **What these documents are.** Design work for a proof of concept covering
+  audit, entity lifecycle, entity identity, and credentials for
+  `workspace_agent` entities. They record positions and findings. None of it
+  is built, so nothing in them describes how the system behaves today.
+- **What is about to happen.** You will read all of them, which takes a
+  moment, then answer their questions, asking after each answer how it landed.
+  It ends whenever they want it to.
+
+Speak plainly. "Corpus" is internal vocabulary; say "these documents" unless
+you introduce the word. Saying you are loading them into context is fine.
+
+Then say both of these, briefly and in your own words:
 
 - Candor is preferable to cheerleading. Saying a passage is confusing helps
   the next person read it. Saying it was fine when it was not helps nobody.
@@ -22,8 +37,7 @@ Say both before anything else, briefly and in your own words:
   under the participant's name. Delivery through git is a proof of concept
   convenience rather than part of the process, and is expected to be replaced.
 
-Then invite questions of their own, and say that the three below exist only
-for someone who does not yet know enough to have a question.
+Then ask what they want to know.
 
 ## 2. Load the corpus
 
@@ -32,24 +46,56 @@ single document. The confidence reporting in step 4 depends on having read all
 of it: no answer can honestly claim the corpus is silent on something you have
 not read.
 
+Tell the participant what you are doing in concrete terms, that you are
+reading the design documents in `poc_audit/` and it will take a moment.
+
 If the corpus no longer fits comfortably, stop and ask the participant to run
 this in a larger context. Do not proceed with a partial read.
 
-## 3. Offer three starting questions
+## 3. Ask what they want to know
 
-As a fallback only, and say so:
+Ask before offering anything. A question the participant brings themselves is
+worth more, to them and to the record both, because it shows what a newcomer
+actually wonders and in what words they arrive at it. Producing a list
+unprompted steers them towards your questions and away from their own.
+
+Only if they have no question yet, offer these three, and say that is what
+they are for:
 
 1. Why not reuse the existing `audit_logs` table?
 2. What makes an event auditable?
 3. What does "actor" mean here, and who counts as one?
 
-A question the participant brings themselves is worth more, to them and to the
-record both, because it shows what a newcomer actually wonders and in what
-words they arrive at it.
+Present them and stop. Do not answer one unless the participant picks it.
 
 ## 4. Answer under an explicit statement of what you know
 
 Every answer carries a label and its citations.
+
+Keep answers short: a few sentences to a short paragraph, then offer to go
+deeper rather than pre-empting. A newcomer handed six paragraphs cannot say
+which part was unclear, and step 5 depends on them being able to.
+
+**Terms of art.** These documents run on a vocabulary a newcomer does not
+have, and `poc_audit/AGENTS.md` records which document is authoritative for
+which term. An answer resting on one that has not been introduced is opaque
+however correct it is, and glossing five of them in one answer is no better,
+because five new ideas still arrive at once.
+
+So before answering, notice which terms the answer will be load-bearing on,
+and then:
+
+- Introduce at most one or two in a single answer. Gloss each in a clause and
+  say which document defines it properly.
+- If an honest answer needs more than that, say so rather than delivering them
+  all. Name the one the others rest on, offer to take that first, and let the
+  participant choose the order.
+- Keep account of what you have introduced. Once a term has been introduced
+  and the participant has not objected, use it freely.
+
+This is a brake rather than a prohibition. The vocabulary is what these
+documents are written in, and acquiring it is much of what the participant
+came for.
 
 **Label**, from this vocabulary, which is a starting point rather than a closed
 set:
@@ -109,11 +155,18 @@ still leaves everything it covered.
 YAML front matter, then the exchanges:
 
 ```yaml
+record_version: 1
 participant: <name>
 date: <YYYY-MM-DD>
 corpus_tree: <output of: git rev-parse HEAD:poc_audit>
 corpus_commit: <output of: git rev-parse HEAD>
 ```
+
+`record_version` describes the shape of this file, not the version of this
+skill. It comes first because a later reader has to know the shape before
+interpreting any other field. Bump it whenever the fields change, and leave
+older records untouched: they remain readable under the version they were
+written at, even when they are no longer directly comparable to newer ones.
 
 `corpus_tree` is the durable identifier. This branch has been rebased before,
 which rewrites every commit hash while leaving the tree of an unchanged
@@ -121,8 +174,15 @@ directory identical. The commit is recorded for convenience; the tree is what
 pins which corpus was actually read.
 
 Each exchange records the question as the participant phrased it, whether it
-was seeded or spontaneous, the label used, the citations, their verdict in
-their own words, and any consents. Where the verdict is simply that the answer
+was seeded or spontaneous, the label used, the citations, the terms of art the
+answer rested on with the ones you introduced there marked, their verdict in
+their own words, and any consents.
+
+The terms field is the one whose value is least obvious. Across sessions it
+shows which ideas a reader has to acquire before a given question can be
+answered at all, and which of them cost an introduction every single time.
+That is evidence about the shape of these documents rather than about any one
+reader. Where the verdict is simply that the answer
 was clear, that alone is enough, but keep the citations either way. Across
 sessions they show which parts of the corpus are load-bearing and which are
 never reached.
@@ -169,6 +229,18 @@ nuisance:
   working-tree representation.
 
 ## Not yet in scope
+
+A dependency graph of the vocabulary, generated from the documents themselves,
+would let a session know in advance which terms a question rests on instead of
+discovering it while answering. Nothing generates one today. The terms
+recorded against each exchange are the nearest thing available, and are
+evidence to check such a graph against rather than a substitute for it.
+
+There is deliberately no worked example of an answer. If one is ever added it
+should use a fictional subject unrelated to this or any other particular body
+of documents, so that it demonstrates the form without asserting anything that
+can go stale, and it should be offered only when a participant says the form
+is unclear.
 
 This session records misalignments it happens to encounter while answering
 questions. It does not sweep the corpus against the code looking for them.
