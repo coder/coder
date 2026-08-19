@@ -330,9 +330,14 @@ export const WorkspaceTerminal = ({
 		return () => {
 			window.removeEventListener("resize", refit);
 			resizeObserver.disconnect();
-			fitAddonRef.current = undefined;
-			nextTerminal.dispose();
-			setTerminal(undefined);
+			if (fitAddonRef.current === fitAddon) {
+				fitAddonRef.current = undefined;
+			}
+			setTerminal((current) =>
+				current === nextTerminal ? undefined : current,
+			);
+			// xterm queues an initial viewport sync that reads renderer services.
+			setTimeout(() => nextTerminal.dispose(), 0);
 		};
 	}, [
 		isVisible,
