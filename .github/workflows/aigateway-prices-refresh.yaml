@@ -20,12 +20,6 @@ on:
     # 09:00 UTC every Thursday, leaving three business days before Tuesday releases.
     - cron: "0 9 * * 4"
   workflow_dispatch: # allows manual runs for testing
-  # TEMPORARY: schedule and workflow_dispatch only fire from the default
-  # branch, so this trigger is the only way to exercise the workflow before
-  # it merges. Drop this commit once the run has been verified.
-  push:
-    branches:
-      - yevhenii/aigov-578-automate-updates-to-the-shipped-ai-model-price-book
 
 permissions: {}
 
