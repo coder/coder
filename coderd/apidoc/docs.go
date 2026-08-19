@@ -18949,6 +18949,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "file_transfer_info": {
+                    "description": "FileTransferInfo is only set when ` + "`" + `type` + "`" + ` is\n` + "`" + `ConnectionTypeFileOperation` + "`" + `.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ConnectionLogFileTransferInfo"
+                        }
+                    ]
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -18960,7 +18968,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.MinimalOrganization"
                 },
                 "ssh_info": {
-                    "description": "SSHInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypeSSH` + "`" + `\n- ` + "`" + `ConnectionTypeReconnectingPTY` + "`" + `\n- ` + "`" + `ConnectionTypeVSCode` + "`" + `\n- ` + "`" + `ConnectionTypeJetBrains` + "`" + `",
+                    "description": "SSHInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypeSSH` + "`" + `\n- ` + "`" + `ConnectionTypeReconnectingPTY` + "`" + `\n- ` + "`" + `ConnectionTypeVSCode` + "`" + `\n- ` + "`" + `ConnectionTypeJetBrains` + "`" + `\n- ` + "`" + `ConnectionTypeFileTransfer` + "`" + `",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ConnectionLogSSHInfo"
@@ -18990,6 +18998,68 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "workspace_owner_username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ConnectionLogFileAction": {
+            "type": "string",
+            "enum": [
+                "download",
+                "upload",
+                "bidirectional",
+                "remove",
+                "rmdir",
+                "rename",
+                "symlink",
+                "setattr",
+                "hardlink"
+            ],
+            "x-enum-varnames": [
+                "ConnectionLogFileActionDownload",
+                "ConnectionLogFileActionUpload",
+                "ConnectionLogFileActionBidirectional",
+                "ConnectionLogFileActionRemove",
+                "ConnectionLogFileActionRmdir",
+                "ConnectionLogFileActionRename",
+                "ConnectionLogFileActionSymlink",
+                "ConnectionLogFileActionSetattr",
+                "ConnectionLogFileActionHardlink"
+            ]
+        },
+        "codersdk.ConnectionLogFileProtocol": {
+            "type": "string",
+            "enum": [
+                "sftp",
+                "scp",
+                "rsync"
+            ],
+            "x-enum-varnames": [
+                "ConnectionLogFileProtocolSFTP",
+                "ConnectionLogFileProtocolSCP",
+                "ConnectionLogFileProtocolRsync"
+            ]
+        },
+        "codersdk.ConnectionLogFileTransferInfo": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "$ref": "#/definitions/codersdk.ConnectionLogFileAction"
+                },
+                "connection_id": {
+                    "description": "ConnectionID matches the connection ID of the file_transfer\nsession the operation occurred in.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "path": {
+                    "description": "Path is the path the operation was performed on. For SCP and\nrsync this is the requested root path from the command line, not\nnecessarily every file transferred.",
+                    "type": "string"
+                },
+                "protocol": {
+                    "$ref": "#/definitions/codersdk.ConnectionLogFileProtocol"
+                },
+                "target": {
+                    "description": "Target is only set for operations with a second path, such as the\ndestination of a rename or the target of a symlink.",
                     "type": "string"
                 }
             }
@@ -19065,7 +19135,9 @@ const docTemplate = `{
                 "reconnecting_pty",
                 "workspace_app",
                 "port_forwarding",
-                "tunnel"
+                "tunnel",
+                "file_transfer",
+                "file_operation"
             ],
             "x-enum-varnames": [
                 "ConnectionTypeSSH",
@@ -19074,7 +19146,9 @@ const docTemplate = `{
                 "ConnectionTypeReconnectingPTY",
                 "ConnectionTypeWorkspaceApp",
                 "ConnectionTypePortForwarding",
-                "ConnectionTypeTunnel"
+                "ConnectionTypeTunnel",
+                "ConnectionTypeFileTransfer",
+                "ConnectionTypeFileOperation"
             ]
         },
         "codersdk.ConvertLoginRequest": {

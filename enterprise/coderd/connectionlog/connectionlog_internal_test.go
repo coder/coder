@@ -196,6 +196,43 @@ func Test_addToBatch(t *testing.T) {
 		require.Equal(t, disconnect.Time, got.disconnectTime)
 	})
 
+	t.Run("FileOperationsNeverDedup", func(t *testing.T) {
+		t.Parallel()
+
+		b := &DBBatcher{
+			maxBatchSize: 100,
+			dedupedBatch: make(map[uuid.UUID]batchEntry),
+		}
+
+		wsID := uuid.New()
+		connID := uuid.New()
+
+		// A file-transfer session's connect/disconnect pair and two
+		// file operations sharing its connection ID. The operations
+		// must not merge with the session entry or each other.
+		connect := fakeConnectEvent(wsID, "agent1", connID)
+		connect.Type = database.ConnectionTypeFileTransfer
+		disconnect := fakeDisconnectEvent(wsID, "agent1", connID)
+		disconnect.Type = database.ConnectionTypeFileTransfer
+
+		op1 := fakeConnectEvent(wsID, "agent1", connID)
+		op1.Type = database.ConnectionTypeFileOperation
+		op1.FilePath = sql.NullString{String: "/tmp/a", Valid: true}
+		op2 := fakeConnectEvent(wsID, "agent1", connID)
+		op2.Type = database.ConnectionTypeFileOperation
+		op2.FilePath = sql.NullString{String: "/tmp/b", Valid: true}
+
+		b.addToBatch(connect)
+		b.addToBatch(op1)
+		b.addToBatch(op2)
+		b.addToBatch(disconnect)
+
+		require.Equal(t, 3, b.batchLen())
+		require.Len(t, b.dedupedBatch, 1, "session pair should merge")
+		require.Len(t, b.nullConnIDBatch, 2, "file operations must be insert-only")
+		require.Equal(t, database.ConnectionStatusDisconnected, b.dedupedBatch[connID].ConnectionStatus)
+	})
+
 	t.Run("DuplicateDisconnectsPreserveConnectTime", func(t *testing.T) {
 		t.Parallel()
 

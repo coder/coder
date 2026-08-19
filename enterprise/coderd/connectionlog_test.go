@@ -295,4 +295,112 @@ func TestConnectionLogs(t *testing.T) {
 		require.True(t, logs.ConnectionLogs[0].SSHInfo.DisconnectTime.Equal(now))
 		require.Equal(t, updatedClog.DisconnectReason.String, logs.ConnectionLogs[0].SSHInfo.DisconnectReason)
 	})
+
+	t.Run("FileTransferInfo", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		client, db, _ := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			ConnectionLogging: true,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAuditLog:      1,
+					codersdk.FeatureConnectionLog: 1,
+				},
+			},
+		})
+
+		now := dbtime.Now()
+		connID := uuid.New()
+		ws := createWorkspace(t, db)
+		// A file-transfer session row and two file operation rows
+		// sharing its connection ID. The operations must insert as
+		// separate rows despite the shared connection ID.
+		session := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			Time:             now.Add(-time.Hour),
+			Type:             database.ConnectionTypeFileTransfer,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
+		})
+		_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			Time:             now.Add(-time.Minute),
+			Type:             database.ConnectionTypeFileOperation,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceName:    session.WorkspaceName,
+			AgentName:        session.AgentName,
+			ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
+			FileProtocol: database.NullConnectionLogFileProtocol{
+				ConnectionLogFileProtocol: database.ConnectionLogFileProtocolSftp,
+				Valid:                     true,
+			},
+			FileAction: database.NullConnectionLogFileAction{
+				ConnectionLogFileAction: database.ConnectionLogFileActionDownload,
+				Valid:                   true,
+			},
+			FilePath: sql.NullString{String: "/home/coder/secret.txt", Valid: true},
+		})
+		_ = dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			Time:             now,
+			Type:             database.ConnectionTypeFileOperation,
+			WorkspaceID:      ws.ID,
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceName:    session.WorkspaceName,
+			AgentName:        session.AgentName,
+			ConnectionID:     uuid.NullUUID{UUID: connID, Valid: true},
+			FileProtocol: database.NullConnectionLogFileProtocol{
+				ConnectionLogFileProtocol: database.ConnectionLogFileProtocolSftp,
+				Valid:                     true,
+			},
+			FileAction: database.NullConnectionLogFileAction{
+				ConnectionLogFileAction: database.ConnectionLogFileActionRename,
+				Valid:                   true,
+			},
+			FilePath:   sql.NullString{String: "/home/coder/a.txt", Valid: true},
+			FileTarget: sql.NullString{String: "/home/coder/b.txt", Valid: true},
+		})
+
+		// The session and its operations are grouped by connection_id.
+		logs, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{
+			SearchQuery: "connection_id:" + connID.String(),
+		})
+		require.NoError(t, err)
+		require.Len(t, logs.ConnectionLogs, 3)
+
+		// Results are ordered by connect_time descending.
+		renameLog := logs.ConnectionLogs[0]
+		require.Equal(t, codersdk.ConnectionTypeFileOperation, renameLog.Type)
+		require.Nil(t, renameLog.SSHInfo)
+		require.Nil(t, renameLog.WebInfo)
+		require.NotNil(t, renameLog.FileTransferInfo)
+		require.Equal(t, connID, renameLog.FileTransferInfo.ConnectionID)
+		require.Equal(t, codersdk.ConnectionLogFileProtocolSFTP, renameLog.FileTransferInfo.Protocol)
+		require.Equal(t, codersdk.ConnectionLogFileActionRename, renameLog.FileTransferInfo.Action)
+		require.Equal(t, "/home/coder/a.txt", renameLog.FileTransferInfo.Path)
+		require.Equal(t, "/home/coder/b.txt", renameLog.FileTransferInfo.Target)
+
+		readLog := logs.ConnectionLogs[1]
+		require.NotNil(t, readLog.FileTransferInfo)
+		require.Equal(t, codersdk.ConnectionLogFileActionDownload, readLog.FileTransferInfo.Action)
+		require.Equal(t, "/home/coder/secret.txt", readLog.FileTransferInfo.Path)
+		require.Empty(t, readLog.FileTransferInfo.Target)
+
+		sessionLog := logs.ConnectionLogs[2]
+		require.Equal(t, codersdk.ConnectionTypeFileTransfer, sessionLog.Type)
+		require.NotNil(t, sessionLog.SSHInfo)
+		require.Nil(t, sessionLog.FileTransferInfo)
+
+		// File operations are point-in-time events and excluded from
+		// status filter results.
+		logs, err = client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{
+			SearchQuery: "status:ongoing connection_id:" + connID.String(),
+		})
+		require.NoError(t, err)
+		require.Len(t, logs.ConnectionLogs, 1)
+		require.Equal(t, codersdk.ConnectionTypeFileTransfer, logs.ConnectionLogs[0].Type)
+	})
 }

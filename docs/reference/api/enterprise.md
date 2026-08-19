@@ -485,6 +485,13 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
     {
       "agent_name": "string",
       "connect_time": "2019-08-24T14:15:22Z",
+      "file_transfer_info": {
+        "action": "download",
+        "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
+        "path": "string",
+        "protocol": "sftp",
+        "target": "string"
+      },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "ip": "string",
       "organization": {

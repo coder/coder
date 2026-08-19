@@ -1,8 +1,53 @@
 import type { FC, ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
-import type { ConnectionLog } from "#/api/typesGenerated";
+import type {
+	ConnectionLog,
+	ConnectionLogFileAction,
+	ConnectionLogFileProtocol,
+} from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
 import { connectionTypeToFriendlyName } from "#/utils/connection";
+
+const fileProtocolToFriendlyName = (
+	protocol: ConnectionLogFileProtocol,
+): string => {
+	switch (protocol) {
+		case "sftp":
+			return "SFTP";
+		case "scp":
+			return "SCP";
+		case "rsync":
+			return "rsync";
+	}
+};
+
+// fileActionToDescription phrases the file action for a sentence like
+// "SFTP session <action> <path>". For SCP/rsync the path is the
+// requested root, so the phrasing stays non-committal about individual
+// files.
+const fileActionToDescription = (action: ConnectionLogFileAction): string => {
+	switch (action) {
+		case "download":
+			return "downloaded";
+		case "upload":
+			return "uploaded";
+		case "bidirectional":
+			// Opened for both directions at once; either may have occurred.
+			return "downloaded and/or uploaded";
+		case "remove":
+			return "removed";
+		case "rmdir":
+			return "removed directory";
+		case "rename":
+			return "renamed";
+		case "symlink":
+			return "created symlink";
+		case "setattr":
+			return "changed attributes of";
+		case "hardlink":
+			return "created hard link to";
+	}
+};
 
 interface ConnectionLogDescriptionProps {
 	connectionLog: ConnectionLog;
@@ -11,8 +56,13 @@ interface ConnectionLogDescriptionProps {
 export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 	connectionLog,
 }) => {
-	const { type, workspace_owner_username, workspace_name, web_info } =
-		connectionLog;
+	const {
+		type,
+		workspace_owner_username,
+		workspace_name,
+		web_info,
+		file_transfer_info,
+	} = connectionLog;
 
 	switch (type) {
 		case "port_forwarding":
@@ -75,7 +125,8 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 		case "reconnecting_pty":
 		case "ssh":
 		case "jetbrains":
-		case "vscode": {
+		case "vscode":
+		case "file_transfer": {
 			const friendlyType = connectionTypeToFriendlyName(type);
 			return (
 				<span>
@@ -86,6 +137,31 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 						</RouterLink>
 					</Link>{" "}
 					workspace{" "}
+				</span>
+			);
+		}
+
+		case "file_operation": {
+			if (!file_transfer_info) return null;
+			const { protocol, action, path, target } = file_transfer_info;
+			const friendlyProtocol = fileProtocolToFriendlyName(protocol);
+			const actionText = fileActionToDescription(action);
+			return (
+				<span>
+					{friendlyProtocol} session {actionText} <strong>{path}</strong>
+					{target && (
+						<>
+							{" "}
+							→ <strong>{target}</strong>
+						</>
+					)}{" "}
+					in {workspace_owner_username}'s{" "}
+					<Link asChild showExternalIcon={false} className="text-base">
+						<RouterLink to={`/@${workspace_owner_username}/${workspace_name}`}>
+							<strong>{workspace_name}</strong>
+						</RouterLink>
+					</Link>{" "}
+					workspace
 				</span>
 			);
 		}

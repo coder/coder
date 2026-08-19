@@ -437,6 +437,22 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			String: takeFirst(seed.DisconnectReason.String, ""),
 			Valid:  takeFirst(seed.DisconnectReason.Valid, false),
 		},
+		FileProtocol: database.NullConnectionLogFileProtocol{
+			ConnectionLogFileProtocol: takeFirst(seed.FileProtocol.ConnectionLogFileProtocol, ""),
+			Valid:                     takeFirst(seed.FileProtocol.Valid, false),
+		},
+		FileAction: database.NullConnectionLogFileAction{
+			ConnectionLogFileAction: takeFirst(seed.FileAction.ConnectionLogFileAction, ""),
+			Valid:                   takeFirst(seed.FileAction.Valid, false),
+		},
+		FilePath: sql.NullString{
+			String: takeFirst(seed.FilePath.String, ""),
+			Valid:  takeFirst(seed.FilePath.Valid, false),
+		},
+		FileTarget: sql.NullString{
+			String: takeFirst(seed.FileTarget.String, ""),
+			Valid:  takeFirst(seed.FileTarget.Valid, false),
+		},
 		ConnectionStatus: takeFirst(seed.ConnectionStatus, database.ConnectionStatusConnected),
 	}
 
@@ -463,6 +479,10 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		ConnectionID:     []uuid.UUID{arg.ConnectionID.UUID},
 		DisconnectReason: []string{arg.DisconnectReason.String},
 		DisconnectTime:   []time.Time{disconnectTime.Time},
+		FileProtocol:     []string{string(arg.FileProtocol.ConnectionLogFileProtocol)},
+		FileAction:       []string{string(arg.FileAction.ConnectionLogFileAction)},
+		FilePath:         []string{arg.FilePath.String},
+		FileTarget:       []string{arg.FileTarget.String},
 	})
 	require.NoError(t, err, "insert connection log")
 
@@ -470,10 +490,13 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 	// conflict the DB keeps the original row's ID, so we can't
 	// rely on arg.ID. Match on the conflict key for rows with a
 	// connection_id, or by primary key for NULL connection_id.
+	// File operation rows are excluded from the conflict index (they
+	// share their parent session's connection_id and always insert as
+	// fresh rows), so they are matched by primary key too.
 	rows, err := db.GetConnectionLogsOffset(genCtx, database.GetConnectionLogsOffsetParams{})
 	require.NoError(t, err, "query connection logs")
 	for _, row := range rows {
-		if arg.ConnectionID.Valid {
+		if arg.ConnectionID.Valid && !arg.FileAction.Valid {
 			if row.ConnectionLog.ConnectionID == arg.ConnectionID &&
 				row.ConnectionLog.WorkspaceID == arg.WorkspaceID &&
 				row.ConnectionLog.AgentName == arg.AgentName {

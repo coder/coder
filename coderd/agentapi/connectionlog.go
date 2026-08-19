@@ -6,9 +6,9 @@ import (
 	"sync/atomic"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
@@ -110,6 +110,11 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		UserAgent: sql.NullString{},
 		// N/A
 		SlugOrPort: sql.NullString{},
+		// Only set for file operation events.
+		FileProtocol: database.NullConnectionLogFileProtocol{},
+		FileAction:   database.NullConnectionLogFileAction{},
+		FilePath:     sql.NullString{},
+		FileTarget:   sql.NullString{},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("export connection log: %w", err)
@@ -119,10 +124,99 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 }
 
 // ReportFileOperations records file operations observed during a
-// file-transfer session (SFTP, SCP, rsync) as connection log entries.
-// The schema and protocol land ahead of the implementation; agents
-// treat reports as best effort and tolerate this error, matching the
-// PushContextState rollout in API v2.10.
-func (*ConnLogAPI) ReportFileOperations(context.Context, *agentproto.ReportFileOperationsRequest) (*agentproto.ReportFileOperationsResponse, error) {
-	return nil, drpcerr.WithCode(xerrors.New("ReportFileOperations is not yet implemented"), drpcerr.Unimplemented)
+// file-transfer session (SFTP, SCP, rsync) as point-in-time connection
+// log entries. Each operation shares the connection_id of its parent
+// session so they can be grouped together.
+func (a *ConnLogAPI) ReportFileOperations(ctx context.Context, req *agentproto.ReportFileOperationsRequest) (*agentproto.ReportFileOperationsResponse, error) {
+	if len(req.GetOperations()) == 0 {
+		return &agentproto.ReportFileOperationsResponse{}, nil
+	}
+
+	var ws database.WorkspaceIdentity
+	if dbws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
+		ws = dbws
+	}
+	if ws.Equal(database.WorkspaceIdentity{}) {
+		workspace, err := a.Database.GetWorkspaceByAgentID(ctx, a.AgentID)
+		if err != nil {
+			return nil, xerrors.Errorf("get workspace by agent id: %w", err)
+		}
+		ws = database.WorkspaceIdentityFromWorkspace(workspace)
+	}
+
+	connLogger := *a.ConnectionLogger.Load()
+	for _, op := range req.GetOperations() {
+		connectionID, err := uuid.FromBytes(op.GetConnectionId())
+		if err != nil {
+			return nil, xerrors.Errorf("connection id from bytes: %w", err)
+		}
+		if connectionID == uuid.Nil {
+			return nil, xerrors.New("connection ID cannot be nil")
+		}
+		protocol, err := db2sdk.ConnectionLogFileProtocolFromAgentProtoFileTransferProtocol(op.GetProtocol())
+		if err != nil {
+			return nil, err
+		}
+		action, err := db2sdk.ConnectionLogFileActionFromAgentProtoFileTransferAction(op.GetAction())
+		if err != nil {
+			return nil, err
+		}
+		if op.GetPath() == "" {
+			return nil, xerrors.New("file operation path cannot be empty")
+		}
+
+		err = connLogger.Upsert(ctx, database.UpsertConnectionLogParams{
+			ID:               uuid.New(),
+			Time:             op.GetTimestamp().AsTime(),
+			OrganizationID:   ws.OrganizationID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceID:      ws.ID,
+			WorkspaceName:    ws.Name,
+			AgentName:        a.AgentName,
+			Type:             database.ConnectionTypeFileOperation,
+			FileProtocol: database.NullConnectionLogFileProtocol{
+				ConnectionLogFileProtocol: protocol,
+				Valid:                     true,
+			},
+			FileAction: database.NullConnectionLogFileAction{
+				ConnectionLogFileAction: action,
+				Valid:                   true,
+			},
+			FilePath: sql.NullString{String: op.GetPath(), Valid: true},
+			FileTarget: sql.NullString{
+				String: op.GetTarget(),
+				Valid:  op.GetTarget() != "",
+			},
+			// The parent file-transfer session's connection ID, so the
+			// operation can be grouped with it. File operation rows are
+			// excluded from the connect/disconnect pairing index, so
+			// sharing the ID never merges rows.
+			ConnectionID: uuid.NullUUID{
+				UUID:  connectionID,
+				Valid: true,
+			},
+			// File operations are point-in-time events: they are always
+			// "connected" and never receive a disconnect event.
+			ConnectionStatus: database.ConnectionStatusConnected,
+
+			// It's not possible to tell which user connected. Once we have
+			// the capability, this may be reported by the agent.
+			UserID: uuid.NullUUID{Valid: false},
+			// N/A
+			Code: sql.NullInt32{},
+			// N/A
+			IP: pqtype.Inet{},
+			// N/A
+			UserAgent: sql.NullString{},
+			// N/A
+			SlugOrPort: sql.NullString{},
+			// N/A
+			DisconnectReason: sql.NullString{},
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("export file operation log: %w", err)
+		}
+	}
+
+	return &agentproto.ReportFileOperationsResponse{}, nil
 }

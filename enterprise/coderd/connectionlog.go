@@ -128,8 +128,9 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 	}
 
 	var (
-		webInfo *codersdk.ConnectionLogWebInfo
-		sshInfo *codersdk.ConnectionLogSSHInfo
+		webInfo          *codersdk.ConnectionLogWebInfo
+		sshInfo          *codersdk.ConnectionLogSSHInfo
+		fileTransferInfo *codersdk.ConnectionLogFileTransferInfo
 	)
 
 	switch dblog.ConnectionLog.Type {
@@ -145,7 +146,8 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 	case database.ConnectionTypeSsh,
 		database.ConnectionTypeReconnectingPty,
 		database.ConnectionTypeJetbrains,
-		database.ConnectionTypeVscode:
+		database.ConnectionTypeVscode,
+		database.ConnectionTypeFileTransfer:
 		sshInfo = &codersdk.ConnectionLogSSHInfo{
 			ConnectionID:     dblog.ConnectionLog.ConnectionID.UUID,
 			DisconnectReason: dblog.ConnectionLog.DisconnectReason.String,
@@ -155,6 +157,14 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		}
 		if dblog.ConnectionLog.Code.Valid {
 			sshInfo.ExitCode = &dblog.ConnectionLog.Code.Int32
+		}
+	case database.ConnectionTypeFileOperation:
+		fileTransferInfo = &codersdk.ConnectionLogFileTransferInfo{
+			ConnectionID: dblog.ConnectionLog.ConnectionID.UUID,
+			Protocol:     codersdk.ConnectionLogFileProtocol(dblog.ConnectionLog.FileProtocol.ConnectionLogFileProtocol),
+			Action:       codersdk.ConnectionLogFileAction(dblog.ConnectionLog.FileAction.ConnectionLogFileAction),
+			Path:         dblog.ConnectionLog.FilePath.String,
+			Target:       dblog.ConnectionLog.FileTarget.String,
 		}
 	}
 
@@ -176,5 +186,6 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		IP:                     ip,
 		WebInfo:                webInfo,
 		SSHInfo:                sshInfo,
+		FileTransferInfo:       fileTransferInfo,
 	}
 }
