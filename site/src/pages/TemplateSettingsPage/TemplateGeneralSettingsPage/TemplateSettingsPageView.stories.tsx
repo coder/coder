@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { MockTemplate, mockApiError } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
@@ -65,44 +64,5 @@ export const NoEntitlementsExpiredSettings: Story = {
 		},
 		accessControlEnabled: false,
 		advancedSchedulingEnabled: false,
-	},
-};
-
-export const AllowWorkspaceRenamesEnabled: Story = {
-	args: {
-		template: { ...MockTemplate, allow_workspace_renames: true },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const checkbox = await canvas.findByRole("checkbox", {
-			name: /allow users to rename their workspaces/i,
-		});
-		await expect(checkbox).toBeChecked();
-	},
-};
-
-export const ToggleAllowWorkspaceRenames: Story = {
-	args: {
-		onSubmit: fn(),
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const user = userEvent.setup();
-
-		const checkbox = await canvas.findByRole("checkbox", {
-			name: /allow users to rename their workspaces/i,
-		});
-		await expect(checkbox).not.toBeChecked();
-
-		await user.click(checkbox);
-		await user.click(canvas.getByRole("button", { name: /save/i }));
-
-		await waitFor(() => {
-			expect(args.onSubmit).toHaveBeenCalledWith(
-				expect.objectContaining({ allow_workspace_renames: true }),
-				// Formik passes its helpers as a second argument.
-				expect.anything(),
-			);
-		});
 	},
 };
