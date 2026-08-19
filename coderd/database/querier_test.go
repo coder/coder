@@ -19198,6 +19198,43 @@ func TestGetAIModelPrices(t *testing.T) {
 			want:       []string{"anthropic/model-a", "anthropic/model-b", "openai/model-a"},
 			wantPrices: []int64{9, 2, 3},
 		},
+		{
+			// anthropic/model-a reports the price book's row, which the
+			// unfiltered listing hides.
+			name:       "BySourceDefault",
+			customSeed: customSeed,
+			params:     database.GetAIModelPricesParams{Source: string(database.AIModelPriceSourceDefault)},
+			want:       []string{"anthropic/model-a", "anthropic/model-b", "openai/model-a"},
+			wantPrices: []int64{1, 2, 3},
+		},
+		{
+			name:       "BySourceCustom",
+			customSeed: customSeed,
+			params:     database.GetAIModelPricesParams{Source: string(database.AIModelPriceSourceCustom)},
+			want:       []string{"anthropic/model-a"},
+			wantPrices: []int64{9},
+		},
+		{
+			// anthropic/model-a reports twice, custom ahead of the price book.
+			name:       "BySourceAll",
+			customSeed: customSeed,
+			params: database.GetAIModelPricesParams{
+				Provider: "anthropic",
+				Model:    "model-a",
+				Source:   string(codersdk.AIModelPriceSourceFilterAll),
+			},
+			want:       []string{"anthropic/model-a", "anthropic/model-a"},
+			wantPrices: []int64{9, 1},
+		},
+		{
+			name:       "BySourceAndProvider",
+			customSeed: customSeed,
+			params: database.GetAIModelPricesParams{
+				Provider: "openai",
+				Source:   string(database.AIModelPriceSourceCustom),
+			},
+			want: nil,
+		},
 	}
 
 	for _, tt := range tests {

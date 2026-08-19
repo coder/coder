@@ -407,6 +407,82 @@ func TestAIModelPricesList(t *testing.T) {
 		require.Contains(t, stdout.String(), "$15.00")
 		require.Contains(t, stdout.String(), "$0.0036")
 		require.Contains(t, stdout.String(), "-")
+		require.Contains(t, stdout.String(), "custom")
+	})
+
+	t.Run("FiltersBySource", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: anthropic/claude-opus-5 priced by the seeded book and then
+		// overridden, so it carries a row under each source.
+		client := setupAIModelPricesCLI(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		list := func(source string) []codersdk.AIModelPrice {
+			inv, conf := newCLI(t, "exp", "ai-model-prices", "list",
+				"--provider", "anthropic", "--model", "claude-opus-5",
+				"--source", source, "--output", "json")
+			clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
+
+			var stdout bytes.Buffer
+			inv.Stdout = &stdout
+			require.NoError(t, inv.Run())
+
+			var prices []codersdk.AIModelPrice
+			require.NoError(t, json.Unmarshal(stdout.Bytes(), &prices))
+			return prices
+		}
+
+		// The book's row is captured rather than hardcoded, so the assertion
+		// survives a price book update.
+		seeded := list("default")
+		require.Len(t, seeded, 1)
+
+		//nolint:gocritic // Managing AI model prices is owner-only.
+		require.NoError(t, codersdk.NewExperimentalClient(client).UpsertAIModelPrices(ctx,
+			codersdk.UpsertAIModelPricesRequest{
+				Prices: []codersdk.AIModelPriceUpsert{{
+					Provider: "anthropic", Model: "claude-opus-5", InputPrice: new(int64(100)),
+				}},
+			}))
+
+		// When: each source is listed. Then: the model reports under either
+		// filter, at the price that source holds.
+		def := list("default")
+		require.Len(t, def, 1)
+		require.Equal(t, codersdk.AIModelPriceSourceDefault, def[0].Source)
+		require.Equal(t, seeded[0].InputPrice, def[0].InputPrice)
+		require.Equal(t, seeded[0].OutputPrice, def[0].OutputPrice)
+		require.Equal(t, seeded[0].CacheReadPrice, def[0].CacheReadPrice)
+		require.Equal(t, seeded[0].CacheWritePrice, def[0].CacheWritePrice)
+
+		// The request set an input price only, so the other three are null.
+		custom := list("custom")
+		require.Len(t, custom, 1)
+		require.Equal(t, codersdk.AIModelPriceSourceCustom, custom[0].Source)
+		require.Equal(t, int64(100), *custom[0].InputPrice)
+		require.Nil(t, custom[0].OutputPrice)
+		require.Nil(t, custom[0].CacheReadPrice)
+		require.Nil(t, custom[0].CacheWritePrice)
+
+		// The "all" source reports both rows at once, custom first.
+		all := list("all")
+		require.Len(t, all, 2)
+		require.Equal(t, custom[0], all[0])
+		require.Equal(t, def[0], all[1])
+	})
+
+	t.Run("RejectsAnUnknownSource", func(t *testing.T) {
+		t.Parallel()
+
+		client := setupAIModelPricesCLI(t)
+		inv, conf := newCLI(t, "exp", "ai-model-prices", "list", "--source", "seeded")
+		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
+
+		// When: an unknown source is passed. Then: the flag rejects it.
+		err := inv.Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "seeded")
 	})
 
 	t.Run("SaysWhenNothingMatches", func(t *testing.T) {

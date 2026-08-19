@@ -47,8 +47,16 @@ LIMIT 1;
 
 -- name: GetAIModelPrices :many
 -- Returns the price in effect for each model, preferring a custom price over
--- the price book.
-SELECT DISTINCT ON (provider, model) *
+-- the price book. Filtering by source narrows the rows considered first, so a
+-- model carrying both prices reports the one from the named source.
+-- The source 'all' reports every row instead. It joins the DISTINCT ON key, so
+-- each source forms its own group and nothing collapses. Every other source
+-- contributes the same constant, leaving the key as (provider, model).
+SELECT DISTINCT ON (
+    provider,
+    model,
+    CASE WHEN @source::text = 'all' THEN source::text ELSE '' END
+) *
 FROM ai_model_prices
     -- Filter by provider
 WHERE CASE
@@ -62,7 +70,17 @@ WHERE CASE
             model = @model
         ELSE true
     END
-ORDER BY provider ASC, model ASC, CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC;
+    -- Filter by source
+    AND CASE
+        WHEN @source::text NOT IN ('', 'all') THEN
+            source = @source::ai_model_price_source
+        ELSE true
+    END
+ORDER BY
+    provider ASC,
+    model ASC,
+    CASE WHEN @source::text = 'all' THEN source::text ELSE '' END ASC,
+    CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC;
 
 -- name: GetGroupAIBudget :one
 SELECT *

@@ -2894,32 +2894,51 @@ func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg Get
 }
 
 const getAIModelPrices = `-- name: GetAIModelPrices :many
-SELECT DISTINCT ON (provider, model) provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source
+SELECT DISTINCT ON (
+    provider,
+    model,
+    CASE WHEN $1::text = 'all' THEN source::text ELSE '' END
+) provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source
 FROM ai_model_prices
     -- Filter by provider
 WHERE CASE
-        WHEN $1::text != '' THEN
-            provider = $1
+        WHEN $2::text != '' THEN
+            provider = $2
         ELSE true
     END
     -- Filter by model
     AND CASE
-        WHEN $2::text != '' THEN
-            model = $2
+        WHEN $3::text != '' THEN
+            model = $3
         ELSE true
     END
-ORDER BY provider ASC, model ASC, CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
+    -- Filter by source
+    AND CASE
+        WHEN $1::text NOT IN ('', 'all') THEN
+            source = $1::ai_model_price_source
+        ELSE true
+    END
+ORDER BY
+    provider ASC,
+    model ASC,
+    CASE WHEN $1::text = 'all' THEN source::text ELSE '' END ASC,
+    CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
 `
 
 type GetAIModelPricesParams struct {
+	Source   string `db:"source" json:"source"`
 	Provider string `db:"provider" json:"provider"`
 	Model    string `db:"model" json:"model"`
 }
 
 // Returns the price in effect for each model, preferring a custom price over
-// the price book.
+// the price book. Filtering by source narrows the rows considered first, so a
+// model carrying both prices reports the one from the named source.
+// The source 'all' reports every row instead. It joins the DISTINCT ON key, so
+// each source forms its own group and nothing collapses. Every other source
+// contributes the same constant, leaving the key as (provider, model).
 func (q *sqlQuerier) GetAIModelPrices(ctx context.Context, arg GetAIModelPricesParams) ([]AIModelPrice, error) {
-	rows, err := q.db.QueryContext(ctx, getAIModelPrices, arg.Provider, arg.Model)
+	rows, err := q.db.QueryContext(ctx, getAIModelPrices, arg.Source, arg.Provider, arg.Model)
 	if err != nil {
 		return nil, err
 	}
