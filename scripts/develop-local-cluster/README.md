@@ -98,7 +98,7 @@ Defaults are suitable for one worktree:
 | Coder URL               | `http://127.0.0.1:3000`     |
 | AI Gateway URL          | `http://127.0.0.1:4001`     |
 
-Use flags or `CODER_DEV_CLUSTER_*` environment variables to override cluster name, namespaces, ports, password, starter template, and other settings. Flags take precedence over environment variables.
+Use flags or `CODER_DEV_CLUSTER_*` environment variables to override cluster name, namespaces, ports, password, starter template, build concurrency, and other settings. Flags take precedence over environment variables. Coder builds default to two parallel jobs to avoid exhausting memory in development VMs. Set `CODER_DEV_CLUSTER_BUILD_JOBS` or `--build-jobs` to tune this limit.
 
 Pass additional Helm values after generated development values with repeatable flags:
 

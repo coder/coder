@@ -67,6 +67,7 @@ type clusterConfig struct {
 	gatewayPort        int64
 	password           string
 	starterTemplate    string
+	buildJobs          int64
 	keepOnFailure      bool
 	noLicensePrompt    bool
 	coderValues        []string
@@ -153,6 +154,13 @@ configuration, cleanup behavior, and the full workflow.`,
 				Default:     "kubernetes",
 				Description: "Starter template to create after premium setup. Set to empty to skip.",
 				Value:       serpent.StringOf(&cfg.starterTemplate),
+			},
+			{
+				Flag:        "build-jobs",
+				Env:         "CODER_DEV_CLUSTER_BUILD_JOBS",
+				Default:     "2",
+				Description: "Maximum parallel jobs when building Coder.",
+				Value:       serpent.Int64Of(&cfg.buildJobs),
 			},
 			{
 				Flag:        "keep-on-failure",
@@ -340,6 +348,9 @@ func (cfg *clusterConfig) resolve() error {
 	}
 	if cfg.coderPort == cfg.gatewayPort {
 		return xerrors.New("coder-port and gateway-port must differ")
+	}
+	if cfg.buildJobs < 1 {
+		return xerrors.New("build-jobs must be at least 1")
 	}
 	if err := validatePort(cfg.coderPort, "coder-port"); err != nil {
 		return err
@@ -858,7 +869,7 @@ func (cfg *clusterConfig) buildAndLoadImage(ctx context.Context) error {
 
 func (cfg *clusterConfig) buildCoderBinary(ctx context.Context, osName, arch string) error {
 	target := fmt.Sprintf("build/coder_%s_%s", osName, arch)
-	return cfg.run(ctx, nil, "make", "-j", target)
+	return cfg.run(ctx, nil, "make", fmt.Sprintf("-j%d", cfg.buildJobs), target)
 }
 
 func (cfg *clusterConfig) ensureChartDependencies(ctx context.Context) error {

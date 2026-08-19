@@ -21,6 +21,7 @@ CODER_REPO_DIR="${CODER_REPO_DIR:-${HOME}/src/coder}"
 CODER_DEV_CLUSTER_NAME="${CODER_DEV_CLUSTER_NAME:-coder-local}"
 CODER_DEV_CLUSTER_NAMESPACE="${CODER_DEV_CLUSTER_NAMESPACE:-coder}"
 CODER_DEV_CLUSTER_GATEWAY_PORT="${CODER_DEV_CLUSTER_GATEWAY_PORT:-4001}"
+CODER_DEV_CLUSTER_BUILD_JOBS="${CODER_DEV_CLUSTER_BUILD_JOBS:-2}"
 CODER_DEV_LICENSE_FILE="${CODER_DEV_LICENSE_FILE:-}"
 coder_dev_license="${CODER_DEV_LICENSE:-}"
 unset CODER_DEV_LICENSE
@@ -29,7 +30,7 @@ K9S_VERSION="${K9S_VERSION:-}"
 MTLS_CERT_DAYS="${MTLS_CERT_DAYS:-30}"
 MTLS_VALIDATION_PORT="${MTLS_VALIDATION_PORT:-30443}"
 
-export CODER_DEV_CLUSTER_NAME CODER_DEV_CLUSTER_NAMESPACE CODER_DEV_CLUSTER_GATEWAY_PORT
+export CODER_DEV_CLUSTER_NAME CODER_DEV_CLUSTER_NAMESPACE CODER_DEV_CLUSTER_GATEWAY_PORT CODER_DEV_CLUSTER_BUILD_JOBS
 export PATH="${HOME}/.local/bin:${PATH}"
 
 log() {
@@ -434,7 +435,7 @@ main() {
 
 	cleanup_failed_bootstrap() {
 		local exit_code="$?"
-		if [[ "${exit_code}" -ne 0 && "${cluster_existed}" == false ]] && kind get clusters 2>/dev/null | grep -Fxq "${CODER_DEV_CLUSTER_NAME}"; then
+		if [[ "${exit_code}" -ne 0 && "${cluster_existed:-false}" == false ]] && kind get clusters 2>/dev/null | grep -Fxq "${CODER_DEV_CLUSTER_NAME}"; then
 			printf '\nBootstrap failed, removing newly created cluster %s\n' "${CODER_DEV_CLUSTER_NAME}" >&2
 			cluster_command down || true
 		fi
