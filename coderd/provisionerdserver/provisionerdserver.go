@@ -2873,14 +2873,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		appSlugs   = make(map[string]struct{})
 	)
 
-	// Agents only exist while a workspace is running. Stop and delete builds
-	// tear down the compute the agent runs on, so any agent Terraform still
-	// reports for those transitions can never connect and would be surfaced as
-	// unhealthy. Whether an agent appears in a stop build at all depends on the
-	// shape of the Terraform dependency graph, so template authors otherwise
-	// have to gate coder_agent on start_count to get consistent behavior.
+	// Agents can't connect to compute that a build tore down, so any agent
+	// Terraform still reports for these transitions would only surface as
+	// unhealthy.
 	protoAgents := protoResource.Agents
-	if transition != database.WorkspaceTransitionStart {
+	if transition == database.WorkspaceTransitionStop || transition == database.WorkspaceTransitionDelete {
 		protoAgents = nil
 	}
 
