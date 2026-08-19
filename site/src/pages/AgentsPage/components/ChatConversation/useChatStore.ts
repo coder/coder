@@ -622,13 +622,20 @@ export const useChatStore = (
 							streamReportedWaiting = nextStatus === "waiting";
 							wsStatusReceivedRef.current = true;
 							store.clearRetryState();
+							const prevStatus = store.getSnapshot().chatStatus;
 							store.applyServerChatStatus(nextStatus);
 							if (nextStatus === "waiting") {
 								discardBufferedParts();
 							}
 							if (nextStatus !== "error") {
 								clearChatErrorReasonEvent(chatID);
-								store.clearStreamError();
+								// Only an errored chat starting a new turn
+								// supersedes the stored error. A status from a
+								// turn that was already running must not clear
+								// an unrelated request failure.
+								if (prevStatus === "error") {
+									store.clearStreamError();
+								}
 							}
 							updateSidebarChat((chat) =>
 								chat.status === nextStatus

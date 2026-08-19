@@ -3310,6 +3310,78 @@ describe("useChatStore", () => {
 		expect(result.current.chatStatus).toBe("running");
 	});
 
+	// A status from a turn that was already running must not clear a stored
+	// request failure, because the failed prompt was never retried.
+	it("keeps streamError when a running turn emits a non-error status", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+
+		const chatID = "chat-keeps-request-error";
+		const existingMessage = buildMessage(
+			chatID,
+			1,
+			"user",
+			"create a workspace",
+		);
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: { ...buildChat(chatID), status: "running" },
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					store,
+					chatStatus: useChatSelector(store, selectChatStatus),
+					streamError: useChatSelector(store, selectStreamError),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// A queued send fails while the prior turn is still running.
+		act(() => {
+			result.current.store.setStreamError({
+				kind: "generic",
+				message: "Prompt could not be sent.",
+			});
+		});
+		expect(result.current.streamError).not.toBeNull();
+
+		// The still-running turn completes and emits a non-error status.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "waiting" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("waiting");
+		});
+		expect(result.current.streamError).not.toBeNull();
+	});
+
 	it("uses fallback message when error event has no message", async () => {
 		immediateAnimationFrame();
 

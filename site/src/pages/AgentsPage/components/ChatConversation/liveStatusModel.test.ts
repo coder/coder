@@ -159,6 +159,17 @@ describe("deriveLiveStatus", () => {
 		});
 	});
 
+	it("does not stream stale output while a retry is in flight after an error", () => {
+		expect(
+			derive({
+				streamState: buildStreamState({
+					blocks: [{ type: "response", text: "Partial response" }],
+				}),
+				chatStatus: "error",
+			}),
+		).toEqual({ phase: "idle", hasAccumulatedOutput: false });
+	});
+
 	it("passes provider detail through failed status", () => {
 		expect(
 			derive({

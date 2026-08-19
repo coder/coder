@@ -114,18 +114,16 @@ export const deriveLiveStatus = ({
 	chatStatus,
 }: DeriveLiveStatusParams): LiveStatusModel => {
 	const hasAccumulatedOutput = getHasAccumulatedOutput(streamState);
+	// Suppress stale stream output whenever the status is terminal (error).
+	const showOutput = chatStatus === "error" ? false : hasAccumulatedOutput;
 
 	if (retryState) {
 		return toRetryingLiveStatus(retryState, { hasAccumulatedOutput });
 	}
 
 	if (streamError) {
-		// Terminal stream errors clear the stream, so any output left is
-		// a stale leftover. Request and parse errors leave the stream
-		// live, so keep their output visible.
 		return toFailedLiveStatus(streamError, {
-			hasAccumulatedOutput:
-				chatStatus === "error" ? false : hasAccumulatedOutput,
+			hasAccumulatedOutput: showOutput,
 		});
 	}
 
@@ -144,13 +142,15 @@ export const deriveLiveStatus = ({
 		return { phase: "starting", hasAccumulatedOutput };
 	}
 
-	if (streamState !== null) {
+	if (streamState !== null && chatStatus !== "error") {
 		return { phase: "streaming", hasAccumulatedOutput };
 	}
 
 	if (persistedError) {
-		return toFailedLiveStatus(persistedError, { hasAccumulatedOutput });
+		return toFailedLiveStatus(persistedError, {
+			hasAccumulatedOutput: showOutput,
+		});
 	}
 
-	return { phase: "idle", hasAccumulatedOutput };
+	return { phase: "idle", hasAccumulatedOutput: showOutput };
 };
