@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync/atomic"
 	"testing"
 
@@ -100,6 +101,10 @@ func sdkError(status int, message string) error {
 		StatusCode: status,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(bytes.NewBufferString(`{"message":"` + message + `"}`)),
+		Request: &http.Request{
+			Method: http.MethodGet,
+			URL:    &url.URL{Scheme: "https", Host: "example.com", Path: "/api/v2/ai-gateway/serve"},
+		},
 	})
 }
 
@@ -182,6 +187,10 @@ func TestClient_FatalDialErrors(t *testing.T) {
 			}
 			require.ErrorContains(t, srv.Err(), "dial coderd")
 			require.ErrorContains(t, srv.Err(), "dial rejected")
+			var gotSDKErr *codersdk.Error
+			require.ErrorAs(t, srv.Err(), &gotSDKErr)
+			require.Equal(t, tc.status, gotSDKErr.StatusCode())
+			require.Equal(t, "https://example.com/api/v2/ai-gateway/serve", gotSDKErr.URL())
 			require.False(t, srv.Ready())
 			require.Equal(t, int32(1), calls.Load(), "a fatal status must not be retried")
 

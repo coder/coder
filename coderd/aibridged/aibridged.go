@@ -119,7 +119,11 @@ connectLoop:
 				// intermediary is not distinguished.
 				case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
 					err = xerrors.Errorf("dial coderd: %w", err)
-					s.logger.Error(s.lifecycleCtx, "fatal error dialing coderd", slog.Error(err))
+					s.logger.Error(s.lifecycleCtx, "fatal error dialing coderd",
+						slog.Error(err),
+						slog.F("status_code", sdkErr.StatusCode()),
+						slog.F("url", sdkErr.URL()),
+					)
 					s.cancelFn(err)
 					return
 				default:
