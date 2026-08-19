@@ -206,9 +206,11 @@ func (e HBAISeats) Fields() map[string]any {
 // is the total agent-loop runtime in milliseconds consumed by Coder Agents
 // (chats) in one UTC hour. Two kinds of windows are measured. Model steps
 // span model streaming (including provider-executed tools) and stream
-// retries, ending when the model stream finishes. Local tool batches span
-// the start of the batch until the last billed tool completes; tools in a
-// batch run in parallel, so the batch bills one window rather than a sum.
+// retries, ending when the model stream finishes. Local tool batches bill
+// the union of the billed tools' execution windows: tools in a batch run
+// in parallel, so the batch bills one window rather than a sum, and a
+// tool that runs serially after its siblings is measured from its own
+// start.
 // Sub-agent orchestration tools (spawn_agent, wait_agent, and the rest of
 // that category) are excluded because each sub-agent chat bills its own
 // runtime. Also excluded: client-executed (dynamic) tools and chats handed

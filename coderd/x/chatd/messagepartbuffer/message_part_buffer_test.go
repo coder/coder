@@ -256,6 +256,62 @@ func TestBuffer_ToolCompletions(t *testing.T) {
 	require.True(t, buffer.ToolCompletions(key)[0].CompletedAt.IsZero())
 }
 
+func TestBuffer_RecordToolStart(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
+	defer buffer.Close()
+
+	key := testEpisodeKey()
+	require.ErrorIs(t, buffer.RecordToolStart(key, 0, "call-1", clock.Now()), messagepartbuffer.ErrEpisodeNotFound)
+
+	require.NoError(t, buffer.CreateEpisode(key))
+	// Seeded occurrences carry no start: a dispatched serial call
+	// waits behind its concurrent siblings, so seeding must not make
+	// it look like running work.
+	require.NoError(t, buffer.StartToolBatch(key, []messagepartbuffer.DispatchedToolCall{
+		{CallIndex: 0, ToolCallID: "call-1"},
+		{CallIndex: 1, ToolCallID: "call-dup"},
+		{CallIndex: 2, ToolCallID: "call-dup"},
+	}))
+	for _, completion := range buffer.ToolCompletions(key) {
+		require.True(t, completion.StartedAt.IsZero(), "seeding must not mark occurrences as started")
+	}
+
+	// A start stamps the occurrence addressed by its dispatch index,
+	// not the first occurrence with a matching ID: the duplicate's
+	// second occurrence launching must leave the first unstarted.
+	clock.Advance(time.Second)
+	secondDupStartedAt := clock.Now()
+	require.NoError(t, buffer.RecordToolStart(key, 2, "call-dup", secondDupStartedAt))
+	require.Equal(t, []messagepartbuffer.ToolCompletion{
+		{CallIndex: 0, ToolCallID: "call-1"},
+		{CallIndex: 1, ToolCallID: "call-dup"},
+		{CallIndex: 2, ToolCallID: "call-dup", StartedAt: secondDupStartedAt},
+	}, buffer.ToolCompletions(key))
+
+	// A start whose dispatch index does not match falls back to the
+	// first unstarted occurrence with the ID.
+	clock.Advance(time.Second)
+	firstDupStartedAt := clock.Now()
+	require.NoError(t, buffer.RecordToolStart(key, 7, "call-dup", firstDupStartedAt))
+	require.Equal(t, firstDupStartedAt, buffer.ToolCompletions(key)[1].StartedAt)
+
+	// A start whose ID was never seeded is dropped rather than
+	// appended: it cannot correlate to an unresolved call, so it could
+	// never bill.
+	require.NoError(t, buffer.RecordToolStart(key, 9, "call-unseeded", clock.Now()))
+	require.Len(t, buffer.ToolCompletions(key), 3)
+
+	// The billing snapshot carries start marks through the close.
+	billing, err := buffer.CloseEpisodeForBilling(key)
+	require.NoError(t, err)
+	require.Equal(t, secondDupStartedAt, billing.ToolCompletions[2].StartedAt)
+	require.ErrorIs(t, buffer.RecordToolStart(key, 0, "call-1", clock.Now()), messagepartbuffer.ErrEpisodeClosed)
+	require.True(t, buffer.ToolCompletions(key)[0].StartedAt.IsZero())
+}
+
 func TestBuffer_CloseEpisodeForBilling(t *testing.T) {
 	t.Parallel()
 

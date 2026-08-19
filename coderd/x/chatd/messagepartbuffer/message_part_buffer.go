@@ -246,24 +246,28 @@ type DispatchedToolCall struct {
 }
 
 // ToolCompletion tracks one dispatched tool call occurrence in an
-// episode's local tool batch. CompletedAt is zero while the call is
-// still running.
+// episode's local tool batch. StartedAt is zero until the call begins
+// executing, which for a serial tool call happens only after every
+// concurrent sibling has settled; CompletedAt is zero while the call
+// has not finished.
 type ToolCompletion struct {
 	// CallIndex mirrors DispatchedToolCall.CallIndex. It is -1 for
 	// completions recorded without a matching seeded occurrence, which
 	// never correlate to an unresolved call.
 	CallIndex   int
 	ToolCallID  string
+	StartedAt   time.Time
 	CompletedAt time.Time
 }
 
 // StartToolBatch stamps the instant the episode begins executing its local
 // tool batch, which starts the batch's billable runtime window, and seeds
-// one still-running entry per dispatched tool call occurrence. Readers can
-// then distinguish a dispatched call that is still running (seeded, zero
-// completion) from one never dispatched at all (absent), such as a call
-// denied by a lifecycle hook or rejected as ambiguous before execution,
-// and duplicate tool call IDs keep distinct per-occurrence states.
+// one not-yet-started entry per dispatched tool call occurrence. Readers
+// can then distinguish a dispatched call awaiting launch (seeded, zero
+// start), one that is executing (started, zero completion), and one never
+// dispatched at all (absent), such as a call denied by a lifecycle hook or
+// rejected as ambiguous before execution, and duplicate tool call IDs keep
+// distinct per-occurrence states.
 func (b *Buffer) StartToolBatch(key Key, calls []DispatchedToolCall) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -284,6 +288,46 @@ func (b *Buffer) StartToolBatch(key Key, calls []DispatchedToolCall) error {
 			CallIndex:  call.CallIndex,
 			ToolCallID: call.ToolCallID,
 		})
+	}
+	return nil
+}
+
+// RecordToolStart records the instant a dispatched local tool call
+// occurrence began executing. Concurrent calls start with the batch, but
+// calls whose tools run serially launch only after every concurrent
+// sibling has settled, so an interrupt must bill each call from its own
+// start and must not treat a dispatched call that never launched as
+// running work. dispatchIndex addresses the exact occurrence seeded by
+// StartToolBatch, mirroring RecordToolCompletion; when it does not match,
+// the stamp falls back to the first unstarted occurrence with the ID. A
+// start with no seeded occurrence is dropped: it cannot correlate to an
+// unresolved call, so it could never bill.
+func (b *Buffer) RecordToolStart(key Key, dispatchIndex int, toolCallID string, startedAt time.Time) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return ErrMessagePartBufferClosed
+	}
+	episode, err := b.getEpisodeLocked(key)
+	if err != nil {
+		return err
+	}
+	if episode.closed {
+		return ErrEpisodeClosed
+	}
+	if dispatchIndex >= 0 && dispatchIndex < len(episode.toolCompletions) {
+		entry := &episode.toolCompletions[dispatchIndex]
+		if entry.ToolCallID == toolCallID && entry.StartedAt.IsZero() {
+			entry.StartedAt = startedAt
+			return nil
+		}
+	}
+	for i := range episode.toolCompletions {
+		entry := &episode.toolCompletions[i]
+		if entry.ToolCallID == toolCallID && entry.StartedAt.IsZero() {
+			entry.StartedAt = startedAt
+			return nil
+		}
 	}
 	return nil
 }

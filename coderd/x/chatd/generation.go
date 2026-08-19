@@ -906,6 +906,7 @@ func (s *taskStarter) executeLocalTools(
 			ToolNameAliases:    subagentToolNameAliases,
 			UnbilledToolNames:  unbilledSubagentToolNames,
 			OnBatchStart:       onBatchStart,
+			OnToolStart:        attempt.recordToolStart,
 			OnToolComplete:     attempt.recordToolCompletion,
 			PublishMessagePart: attempt.publish,
 			Logger:             s.opts.Logger,
@@ -1129,6 +1130,15 @@ type generationAttempt struct {
 	// calls that were rejected before execution. It is always non-nil
 	// when beginGenerationAttempt succeeds.
 	startToolBatch func(calls []messagepartbuffer.DispatchedToolCall)
+	// recordToolStart records the instant a tool call occurrence began
+	// executing on the buffer episode. Concurrent calls start with the
+	// batch, but serial calls launch only after every concurrent
+	// sibling settles, so an interrupt needs the marks to bill each
+	// call from its actual start and to skip a dispatched call that
+	// never launched. callIndex addresses the occurrence within the
+	// dispatched batch, matching the order startToolBatch seeded. It
+	// is always non-nil when beginGenerationAttempt succeeds.
+	recordToolStart func(callIndex int, toolCallID string, startedAt time.Time)
 	// recordToolCompletion records a tool call occurrence's completion
 	// instant on the buffer episode as the batch executes, so an
 	// interrupt can end an already-finished tool's billable window at
@@ -1185,6 +1195,9 @@ func (s *taskStarter) beginGenerationAttempt(
 		},
 		startToolBatch: func(calls []messagepartbuffer.DispatchedToolCall) {
 			_ = s.opts.MessagePartBuffer.StartToolBatch(key, calls)
+		},
+		recordToolStart: func(callIndex int, toolCallID string, startedAt time.Time) {
+			_ = s.opts.MessagePartBuffer.RecordToolStart(key, callIndex, toolCallID, startedAt)
 		},
 		recordToolCompletion: func(callIndex int, toolCallID string, completedAt time.Time) {
 			_ = s.opts.MessagePartBuffer.RecordToolCompletion(key, callIndex, toolCallID, completedAt)

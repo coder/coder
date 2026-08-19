@@ -279,6 +279,18 @@ type ExecuteLocalToolsOptions struct {
 	// interrupt whose cancellation lands before dispatch bill calls
 	// that never ran as if they were still running.
 	OnBatchStart func()
+	// OnToolStart, when set, is invoked with each local tool call's
+	// occurrence index, ID, and the instant the call begins executing.
+	// Concurrent calls start together when the batch launches, but
+	// calls whose tools opt in to SerialToolCalls launch only after
+	// every concurrent sibling has settled, so their start marks
+	// arrive later. The interrupt path uses the marks to bill each
+	// interrupted call from its actual start rather than the batch
+	// start, and to avoid billing a dispatched serial call that never
+	// began executing. Serial calls invoke it from the batch goroutine
+	// after concurrent siblings finished, so implementations must be
+	// safe for use from a different goroutine than OnBatchStart.
+	OnToolStart func(callIndex int, toolCallID string, startedAt time.Time)
 	// OnToolComplete, when set, is invoked with each local tool call's
 	// completion instant as the tool finishes, the same instant
 	// PersistedStep.ToolResultCreatedAt later carries. Tool results are
@@ -651,6 +663,18 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	// reach execution when lifecycle hooks are disabled, would
 	// overwrite each other and corrupt the window.
 	orderedCompletions := make([]time.Time, 0, len(localCalls))
+	// Start instants aligned with localCalls by occurrence. Concurrent
+	// calls start at batchStart, but serial calls launch only after
+	// every concurrent sibling settles, so billing them from
+	// batchStart would charge the whole concurrent phase, including
+	// waits on unbilled tools.
+	orderedStarts := make([]time.Time, len(localCalls))
+	onToolStart := func(callIndex int, toolCallID string, startedAt time.Time) {
+		orderedStarts[callIndex] = startedAt
+		if opts.OnToolStart != nil {
+			opts.OnToolStart(callIndex, toolCallID, startedAt)
+		}
+	}
 	toolResults := executeTools(
 		ctx,
 		opts.Clock,
@@ -667,6 +691,8 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		opts.BuiltinToolNames,
 		maxResultBytes,
 		opts.ToolNameAliases,
+		batchStart,
+		onToolStart,
 		opts.OnToolComplete,
 		func(tr fantasy.ToolResultContent, completedAt time.Time) {
 			// onResult fires once per local call in call order, so
@@ -689,6 +715,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	batchRuntime, batchRuntimeToolCallID := billableBatchWindow(
 		batchStart,
 		localCalls,
+		orderedStarts,
 		orderedCompletions,
 		opts.UnbilledToolNames,
 	)
@@ -703,21 +730,25 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 }
 
 // billableBatchWindow computes one local tool batch's billable runtime:
-// the span from batchStart to the latest completion among billed tools.
-// Because all calls in a batch start together, that span equals the
-// union of the billed tools' execution intervals, so parallel calls are
-// billed once rather than summed, and unbilled tools (for example
-// sub-agent orchestration) never extend the window even when they run
-// longest. completions is aligned with toolCalls by occurrence, so
-// duplicate tool call IDs each keep their own completion. Returns the
-// ID of the tool call whose completion ends the window, with ties
-// broken by call order; a zero duration means no billed tool completed
-// or the window rounds to nothing. The ID can be empty even when the
-// window exists, because providers can emit calls without IDs and
-// those still execute and bill.
+// the union of the billed tools' execution intervals. Concurrent calls
+// all start together at batchStart, so parallel calls are billed once
+// rather than summed, and unbilled tools (for example sub-agent
+// orchestration) never extend the window even when they run longest.
+// Calls whose tools opt in to SerialToolCalls launch only after every
+// concurrent sibling settles, so each is measured from its own instant
+// in starts, and a span where only unbilled tools were running never
+// bills. starts and completions are aligned with toolCalls by
+// occurrence, so duplicate tool call IDs each keep their own window; a
+// zero start means the call launched with the batch. Returns the ID of
+// the tool call whose completion ends the window, with ties broken by
+// call order; a zero duration means no billed tool completed or the
+// window rounds to nothing. The ID can be empty even when the window
+// exists, because providers can emit calls without IDs and those still
+// execute and bill.
 func billableBatchWindow(
 	batchStart time.Time,
 	toolCalls []fantasy.ToolCallContent,
+	starts []time.Time,
 	completions []time.Time,
 	unbilledToolNames map[string]bool,
 ) (time.Duration, string) {
@@ -725,6 +756,7 @@ func billableBatchWindow(
 		found      bool
 		windowEnd  time.Time
 		toolCallID string
+		intervals  []BilledInterval
 	)
 	for i, tc := range toolCalls {
 		if i >= len(completions) {
@@ -737,6 +769,11 @@ func billableBatchWindow(
 		if end.IsZero() {
 			continue
 		}
+		start := batchStart
+		if i < len(starts) && !starts[i].IsZero() {
+			start = starts[i]
+		}
+		intervals = append(intervals, BilledInterval{Start: start, End: end})
 		// Strictly-after keeps the earliest call on ties.
 		if end.After(windowEnd) {
 			found = true
@@ -744,10 +781,65 @@ func billableBatchWindow(
 			toolCallID = tc.ToolCallID
 		}
 	}
-	if !found || !windowEnd.After(batchStart) {
+	if !found {
 		return 0, ""
 	}
-	return windowEnd.Sub(batchStart), toolCallID
+	runtime := BilledIntervalsDuration(intervals)
+	if runtime <= 0 {
+		return 0, ""
+	}
+	return runtime, toolCallID
+}
+
+// BilledInterval is one billed tool call's execution window.
+type BilledInterval struct {
+	Start time.Time
+	End   time.Time
+}
+
+// BilledIntervalsDuration returns the total length of the union of the
+// given intervals. Overlapping windows, such as concurrent tool calls
+// sharing a batch start, bill once rather than summing, while gaps,
+// such as a span where only unbilled tools were running before a
+// serial call launched, bill nothing. Intervals whose End precedes
+// their Start are ignored. The interrupt path shares this helper so a
+// canceled batch bills the same window the committed step would have
+// reported.
+func BilledIntervalsDuration(intervals []BilledInterval) time.Duration {
+	valid := make([]BilledInterval, 0, len(intervals))
+	for _, iv := range intervals {
+		if iv.End.Before(iv.Start) {
+			continue
+		}
+		valid = append(valid, iv)
+	}
+	slices.SortFunc(valid, func(a, b BilledInterval) int {
+		return a.Start.Compare(b.Start)
+	})
+	var (
+		total    time.Duration
+		curStart time.Time
+		curEnd   time.Time
+		open     bool
+	)
+	for _, iv := range valid {
+		if !open {
+			curStart, curEnd, open = iv.Start, iv.End, true
+			continue
+		}
+		if iv.Start.After(curEnd) {
+			total += curEnd.Sub(curStart)
+			curStart, curEnd = iv.Start, iv.End
+			continue
+		}
+		if iv.End.After(curEnd) {
+			curEnd = iv.End
+		}
+	}
+	if open {
+		total += curEnd.Sub(curStart)
+	}
+	return total
 }
 
 // prepareMessagesForRequest applies the prompt preparation pipeline used
@@ -1196,6 +1288,8 @@ func executeTools(
 	builtinToolNames map[string]bool,
 	maxResultBytes int,
 	toolNameAliases map[string]string,
+	batchStart time.Time,
+	onStart func(callIndex int, toolCallID string, startedAt time.Time),
 	onComplete func(callIndex int, toolCallID string, completedAt time.Time),
 	onResult func(fantasy.ToolResultContent, time.Time),
 ) []fantasy.ToolResultContent {
@@ -1298,6 +1392,11 @@ func executeTools(
 			serialIndexes = append(serialIndexes, i)
 			continue
 		}
+		// Concurrent calls all start executing now, at the batch
+		// start already stamped by the caller.
+		if onStart != nil {
+			onStart(i, tc.ToolCallID, batchStart)
+		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -1318,6 +1417,13 @@ func executeTools(
 	notifyStepToolResultObservers(toolMap, toolNameAliases, localToolCalls, observed, settled)
 
 	for _, i := range serialIndexes {
+		// A serial call starts executing only here, after every
+		// concurrent sibling settled, so its start mark is stamped at
+		// launch rather than at batchStart: billing it from
+		// batchStart would charge the whole concurrent phase.
+		if onStart != nil {
+			onStart(i, localToolCalls[i].ToolCallID, clockNow(clock))
+		}
 		runCall(i, localToolCalls[i])
 	}
 

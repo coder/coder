@@ -61,8 +61,9 @@ Example of a failed request (e.g. Tallyman Server is blocked by your network):
 Total Coder Agent runtime is summed from per-message runtime (`runtime_ms` on chat messages).
 
 An assistant message's runtime is the wall-clock duration of the model invocation that produced its content, measured from just before the request to the model provider opens until the response is fully consumed.
-A tool message's runtime is the wall-clock duration of the local tool batch that produced it, measured from the start of the batch until the last counted tool finishes.
+A tool message's runtime is the wall-clock duration of the local tool batch that produced it: the combined time during which at least one counted tool was executing.
 Tools in a batch run in parallel, so each batch records one window on one tool message rather than a per-tool sum.
+A tool that runs serially after the rest of the batch is measured from its own start, so time when only excluded tools were running is never counted.
 
 What counts:
 

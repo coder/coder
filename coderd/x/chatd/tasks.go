@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
@@ -776,16 +777,18 @@ type interruptedToolBatchBilling struct {
 	batchStartedAt time.Time
 	// toolCompletions holds the live batch's dispatched tool call
 	// occurrences, each keyed by its position in the step's unresolved
-	// call order: seeded with zero completions when the batch started
-	// and stamped as each tool finished. A stamped occurrence ends its
-	// billable window at its completion, so a batch whose billed tools
-	// all finished early does not bill the longer window of a
-	// still-running unbilled tool such as wait_agent. A seeded but
-	// unstamped occurrence was still running when the interrupt
-	// landed. A call with no occurrence at its position was never
-	// dispatched, such as a call rejected as malformed or ambiguous
-	// before execution, and bills nothing even though it too receives
-	// a cancellation row.
+	// call order: seeded when the batch started, marked as each call
+	// began executing, and stamped as each tool finished. A completed
+	// occurrence bills the interval from its start to its completion,
+	// so a batch whose billed tools all finished early does not bill
+	// the longer window of a still-running unbilled tool such as
+	// wait_agent. A started but uncompleted occurrence was still
+	// running when the interrupt landed. A seeded occurrence that
+	// never started is a serial call that was still waiting behind
+	// its siblings, and bills nothing. A call with no occurrence at
+	// its position was never dispatched, such as a call rejected as
+	// malformed or ambiguous before execution, and bills nothing even
+	// though it too receives a cancellation row.
 	toolCompletions []messagepartbuffer.ToolCompletion
 }
 
@@ -825,6 +828,7 @@ func committedPendingLocalToolCancellationMessages(
 	var (
 		windowEnd    time.Time
 		windowRowIdx = -1
+		intervals    []chatloop.BilledInterval
 	)
 	result := make([]chatstate.Message, 0, len(localCalls))
 	for i, call := range localCalls {
@@ -852,28 +856,44 @@ func committedPendingLocalToolCancellationMessages(
 		}
 		// Only dispatched calls bill: a call with no occurrence at its
 		// position was rejected before execution, and an ID mismatch
-		// means the seed does not describe this call. A stamped
-		// occurrence finished at that instant; a seeded but unstamped
-		// one was still running, so its window ends at the interrupt.
-		// Strictly-after keeps the earliest call on ties, matching
-		// billableBatchWindow.
+		// means the seed does not describe this call. A completed
+		// occurrence bills its execution interval; a started but
+		// uncompleted one was still running, so its window ends at the
+		// interrupt. A dispatched occurrence that never started is a
+		// serial call still waiting behind its siblings when the
+		// interrupt landed, and bills nothing. Strictly-after keeps
+		// the earliest call on ties, matching billableBatchWindow.
 		occurrence, ok := dispatched[i]
 		if !ok || occurrence.ToolCallID != call.ToolCallID {
 			continue
 		}
+		start := occurrence.StartedAt
 		end := occurrence.CompletedAt
 		if end.IsZero() {
+			if start.IsZero() {
+				continue
+			}
 			end = interruptedAt
 		}
+		if start.IsZero() {
+			// Live execution always marks a start before a
+			// completion; fall back to the batch start rather than
+			// dropping a completed call's billed work.
+			start = billing.batchStartedAt
+		}
+		intervals = append(intervals, chatloop.BilledInterval{Start: start, End: end})
 		if end.After(windowEnd) {
 			windowEnd = end
 			windowRowIdx = len(result) - 1
 		}
 	}
-	// Mirror the committed-batch policy: bill the partial window once, on
-	// the cancellation row of the billed tool call that defines it.
-	if windowRowIdx >= 0 && windowEnd.After(billing.batchStartedAt) {
-		result[windowRowIdx].RuntimeMs = nullInt64IfNonZero(windowEnd.Sub(billing.batchStartedAt).Milliseconds())
+	// Mirror the committed-batch policy: bill the union of the billed
+	// calls' execution intervals once, on the cancellation row of the
+	// billed tool call whose window ends last. The union never charges
+	// a span where only unbilled tools were running, such as a
+	// sub-agent wait that delayed a serial call's launch.
+	if windowRowIdx >= 0 {
+		result[windowRowIdx].RuntimeMs = nullInt64IfNonZero(chatloop.BilledIntervalsDuration(intervals).Milliseconds())
 	}
 	return result, nil
 }

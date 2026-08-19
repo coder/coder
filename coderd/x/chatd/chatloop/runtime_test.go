@@ -195,6 +195,15 @@ func blockingTool(name string, release <-chan struct{}, response fantasy.ToolRes
 	)
 }
 
+// serialTool wraps a tool so its calls run serially after every
+// concurrent sibling settles, matching tools that opt in via
+// SerialToolCalls.
+type serialTool struct {
+	fantasy.AgentTool
+}
+
+func (serialTool) SerialToolCalls() bool { return true }
+
 // Parallel billed tools bill one shared window ending at the slowest
 // tool's completion, never the sum of their durations. The slower tool
 // returns an error result: errored tools bill their wall clock too.
@@ -610,4 +619,165 @@ func TestExecuteLocalTools_OnToolCompleteReportsLiveCompletions(t *testing.T) {
 		"call-fast": fast.completedAt,
 		"call-slow": slow.completedAt,
 	}, outcome.Step.ToolResultCreatedAt)
+}
+
+// A billed serial tool queued behind a long-running unbilled tool bills
+// only its own execution: it launches only after every concurrent
+// sibling settles, so measuring it from the batch start would charge
+// the whole unbilled wait that delayed its launch.
+func TestExecuteLocalTools_SerialCallBillsFromItsOwnStart(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	trap := clock.Trap().Now()
+	defer trap.Close()
+
+	waitGo := make(chan struct{})
+	serialGo := make(chan struct{})
+	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
+		Tools: []fantasy.AgentTool{
+			blockingTool("wait_agent", waitGo, fantasy.NewTextResponse("child report")),
+			serialTool{blockingTool("serial_tool", serialGo, fantasy.NewTextResponse("done"))},
+		},
+		ActiveTools:       []string{"wait_agent", "serial_tool"},
+		UnbilledToolNames: map[string]bool{"wait_agent": true},
+		ToolCalls: []fantasy.ToolCallContent{
+			{ToolCallID: "call-wait", ToolName: "wait_agent", Input: "{}"},
+			{ToolCallID: "call-serial", ToolName: "serial_tool", Input: "{}"},
+		},
+	})
+
+	// Batch start.
+	trap.MustWait(ctx).MustRelease(ctx)
+	// The unbilled wait completes 10 minutes in.
+	clock.Advance(10 * time.Minute)
+	close(waitGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+	// The serial call launches only now and stamps its start.
+	trap.MustWait(ctx).MustRelease(ctx)
+	// It completes 2 seconds later.
+	clock.Advance(2 * time.Second)
+	close(serialGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+
+	outcome := testutil.RequireReceive(ctx, t, resultCh)
+	require.Equal(t, 2*time.Second, outcome.BatchRuntime,
+		"a serial call bills its own execution, not the unbilled wait that delayed its launch")
+	require.Equal(t, "call-serial", outcome.BatchRuntimeToolCallID)
+}
+
+// A batch mixing billed concurrent and billed serial calls bills the
+// union of their execution intervals: the concurrent window and the
+// serial call's own window sum, while the gap where only the unbilled
+// tool was running is never charged.
+func TestExecuteLocalTools_SerialAfterBilledSiblingBillsUnion(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	trap := clock.Trap().Now()
+	defer trap.Close()
+
+	execGo := make(chan struct{})
+	waitGo := make(chan struct{})
+	serialGo := make(chan struct{})
+	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
+		Tools: []fantasy.AgentTool{
+			blockingTool("execute", execGo, fantasy.NewTextResponse("done")),
+			blockingTool("wait_agent", waitGo, fantasy.NewTextResponse("child report")),
+			serialTool{blockingTool("serial_tool", serialGo, fantasy.NewTextResponse("done"))},
+		},
+		ActiveTools:       []string{"execute", "wait_agent", "serial_tool"},
+		UnbilledToolNames: map[string]bool{"wait_agent": true},
+		ToolCalls: []fantasy.ToolCallContent{
+			{ToolCallID: "call-execute", ToolName: "execute", Input: "{}"},
+			{ToolCallID: "call-wait", ToolName: "wait_agent", Input: "{}"},
+			{ToolCallID: "call-serial", ToolName: "serial_tool", Input: "{}"},
+		},
+	})
+
+	// Batch start.
+	trap.MustWait(ctx).MustRelease(ctx)
+	// execute completes 3 seconds in.
+	clock.Advance(3 * time.Second)
+	close(execGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+	// wait_agent keeps blocking until 10 seconds.
+	clock.Advance(7 * time.Second)
+	close(waitGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+	// The serial call launches at 10 seconds.
+	trap.MustWait(ctx).MustRelease(ctx)
+	// It completes at 12 seconds.
+	clock.Advance(2 * time.Second)
+	close(serialGo)
+	trap.MustWait(ctx).MustRelease(ctx)
+
+	outcome := testutil.RequireReceive(ctx, t, resultCh)
+	require.Equal(t, 5*time.Second, outcome.BatchRuntime,
+		"the 3s concurrent window and the 2s serial window bill; the 7s span where only wait_agent ran does not")
+	require.Equal(t, "call-serial", outcome.BatchRuntimeToolCallID,
+		"the serial call's completion ends the window")
+}
+
+// BilledIntervalsDuration merges overlapping windows and skips gaps, so
+// parallel calls bill once and spans without billed work bill nothing.
+func TestBilledIntervalsDuration(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	at := base.Add
+	for _, tc := range []struct {
+		name      string
+		intervals []chatloop.BilledInterval
+		want      time.Duration
+	}{
+		{name: "empty", want: 0},
+		{
+			name: "overlapping intervals bill once",
+			intervals: []chatloop.BilledInterval{
+				{Start: at(0), End: at(10 * time.Second)},
+				{Start: at(0), End: at(4 * time.Second)},
+			},
+			want: 10 * time.Second,
+		},
+		{
+			name: "gap between intervals is not billed",
+			intervals: []chatloop.BilledInterval{
+				{Start: at(0), End: at(3 * time.Second)},
+				{Start: at(10 * time.Second), End: at(12 * time.Second)},
+			},
+			want: 5 * time.Second,
+		},
+		{
+			name: "unsorted contained interval adds nothing",
+			intervals: []chatloop.BilledInterval{
+				{Start: at(2 * time.Second), End: at(4 * time.Second)},
+				{Start: at(0), End: at(10 * time.Second)},
+			},
+			want: 10 * time.Second,
+		},
+		{
+			name: "touching intervals merge without a gap",
+			intervals: []chatloop.BilledInterval{
+				{Start: at(0), End: at(3 * time.Second)},
+				{Start: at(3 * time.Second), End: at(5 * time.Second)},
+			},
+			want: 5 * time.Second,
+		},
+		{
+			name: "inverted interval is ignored",
+			intervals: []chatloop.BilledInterval{
+				{Start: at(5 * time.Second), End: at(0)},
+				{Start: at(0), End: at(2 * time.Second)},
+			},
+			want: 2 * time.Second,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, chatloop.BilledIntervalsDuration(tc.intervals))
+		})
+	}
 }
