@@ -46,6 +46,11 @@ provider "docker" {
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
+# Using this data source opts the workspace into an AI agent identity:
+# coderd detects it at template import and mints a scoped session token
+# at build time, sponsored by the workspace owner.
+data "coder_workspace_ai_agent" "me" {}
+
 data "coder_parameter" "kvm_gid" {
   name         = "kvm_gid"
   display_name = "KVM device group ID"
@@ -184,6 +189,11 @@ resource "docker_container" "workspace" {
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.main.token}",
     "CODER_SANDBOX_AGENT_TOKEN=${coder_agent.ai.token}",
+    # Scoped AI identity token, delivered to the guest agent as
+    # CODER_SESSION_TOKEN so sandboxed tools can reach the AI gateway,
+    # including its MCP endpoint. Empty when the deployment does not
+    # provision an AI agent identity.
+    "CODER_SANDBOX_SESSION_TOKEN=${data.coder_workspace_ai_agent.me.session_token}",
     "CODER_SANDBOX_IMAGE=${var.sandbox_image}",
     "CODER_SANDBOX_MEMORY_MIB=${var.sandbox_memory_mib}",
     "CODER_SANDBOX_CPUS=${var.sandbox_cpus}",
