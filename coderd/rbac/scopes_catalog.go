@@ -133,9 +133,14 @@ func CanonicalScopeName(name ScopeName) ScopeName {
 	return name
 }
 
-// ExternalScopeNames returns a sorted list of all public scopes, which
-// includes the `all` and `application_connect` special scopes, curated
-// low-level resource:action names, and curated composite coder:* scopes.
+// ExternalScopeNames returns a sorted list of all public scopes: the canonical
+// `coder:all` and `coder:application_connect` spellings, the curated low-level
+// resource:action names, and the curated composite coder:* scopes.
+//
+// Every name returned is canonical, so the list omits the bare `all` and
+// `application_connect` aliases IsExternalScope also accepts. A caller matching
+// a client-supplied name against this list must run it through
+// CanonicalScopeName first, or reject a spelling the same package calls public.
 func ExternalScopeNames() []string {
 	names := make([]string, 0, len(externalLowLevel)+len(externalComposite)+2)
 	names = append(names, string(ScopeAll))
