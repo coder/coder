@@ -357,15 +357,24 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	// rejections, which are terminal) resolve their own entries, so the
 	// warning clears as soon as the actual failing events recover, while
 	// failures recorded for events outside this batch stay untouched.
-	var publishedIDs, failedIDs []string
+	// Failed events carry their insertion time: the marker mirrors the
+	// stuck probe's insertion-age basis so an event that breached the
+	// threshold before its first failed attempt keeps warning while its
+	// row is held in flight by a retry.
+	insertedAts := make(map[string]time.Time, len(events))
+	for _, event := range events {
+		insertedAts[event.ID] = event.InsertedAt
+	}
+	var publishedIDs []string
+	failed := map[string]time.Time{}
 	for i, id := range dbUpdate.IDs {
 		if dbUpdate.SetPublishedAts[i] {
 			publishedIDs = append(publishedIDs, id)
 		} else {
-			failedIDs = append(failedIDs, id)
+			failed[id] = insertedAts[id]
 		}
 	}
-	p.recordBatchOutcome(ctx, publishedIDs, failedIDs)
+	p.recordBatchOutcome(ctx, publishedIDs, failed)
 
 	var returnErr error
 	if len(resp.RejectedEvents) > 0 {
@@ -378,9 +387,9 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 // failing-events marker after the batch's database update committed.
 // Best-effort: a missed update only delays the warning (or its clearing)
 // by one publish cycle, and unresolved entries expire by staleness.
-func (p *tallymanPublisher) recordBatchOutcome(ctx context.Context, publishedIDs, failedIDs []string) {
+func (p *tallymanPublisher) recordBatchOutcome(ctx context.Context, publishedIDs []string, failed map[string]time.Time) {
 	// nolint:gocritic // Maintaining the usage publishing failing-events marker is a system function.
-	err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), p.db, p.clock.Now(), publishedIDs, failedIDs)
+	err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), p.db, p.clock.Now(), publishedIDs, failed)
 	if err != nil {
 		p.log.Warn(ctx, "record usage publishing batch outcome", slog.Error(err))
 	}

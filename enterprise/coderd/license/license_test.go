@@ -4100,7 +4100,7 @@ func TestUsagePublishingStatus(t *testing.T) {
 		// marker entry throughout the outage.
 		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
 			Events: map[string]license.UsagePublishingEventFailure{
-				"1": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+				"1": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
 			},
 		})
 
@@ -4186,7 +4186,7 @@ func TestUsagePublishingStatus(t *testing.T) {
 		now := time.Now()
 		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
 			Events: map[string]license.UsagePublishingEventFailure{
-				"1": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+				"1": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
 			},
 		})
 
@@ -4209,7 +4209,7 @@ func TestUsagePublishingStatus(t *testing.T) {
 		now := time.Now()
 		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
 			Events: map[string]license.UsagePublishingEventFailure{
-				"1": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-2 * time.Hour)},
+				"1": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-2 * time.Hour)},
 			},
 		})
 
@@ -4230,7 +4230,7 @@ func TestUsagePublishingStatus(t *testing.T) {
 		now := time.Now()
 		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
 			Events: map[string]license.UsagePublishingEventFailure{
-				"failing-elsewhere": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+				"failing-elsewhere": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
 			},
 		})
 		//nolint:gocritic // Unit test.
@@ -4255,8 +4255,8 @@ func TestUsagePublishingStatus(t *testing.T) {
 		now := time.Now()
 		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
 			Events: map[string]license.UsagePublishingEventFailure{
-				"old": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
-				"new": {FirstFailedAt: now.Add(-10 * time.Minute), LastFailedAt: now.Add(-10 * time.Minute)},
+				"old": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+				"new": {StuckSince: now.Add(-10 * time.Minute), LastFailedAt: now.Add(-10 * time.Minute)},
 			},
 		})
 		//nolint:gocritic // Unit test.
@@ -4276,15 +4276,15 @@ func TestUsagePublishingStatus(t *testing.T) {
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 
 		// A stalled replica reporting an older failure for an event must
-		// not rewind the entry's evidence or reset its streak start.
+		// not rewind the entry's evidence.
 		now := time.Now()
 		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
 			Events: map[string]license.UsagePublishingEventFailure{
-				"1": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+				"1": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
 			},
 		})
 		//nolint:gocritic // Unit test.
-		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now.Add(-20*time.Minute), nil, []string{"1"})
+		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now.Add(-20*time.Minute), nil, map[string]time.Time{"1": now.Add(-25 * time.Hour)})
 		require.NoError(t, err)
 
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
@@ -4310,27 +4310,44 @@ func TestUsagePublishingStatus(t *testing.T) {
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 
-	t.Run("FreshFailureAfterStaleEntryStartsNewStreak", func(t *testing.T) {
+	t.Run("FailureCarriesInsertionAge", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
 		db, _ := dbtestutil.NewDB(t)
 		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
 
-		// A failure stamped after the event's entry went stale starts a new
-		// streak rather than inheriting the resolved one's first failure.
+		// An event that waited past the failure threshold before its first
+		// failed attempt warns immediately: the marker records the event's
+		// insertion age, not the attempt time, so the warning holds even
+		// while an active retry keeps the row out of the stuck probe's
+		// view.
 		now := time.Now()
-		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
-			Events: map[string]license.UsagePublishingEventFailure{
-				"1": {FirstFailedAt: now.Add(-50 * time.Hour), LastFailedAt: now.Add(-2 * time.Hour)},
-			},
-		})
 		//nolint:gocritic // Unit test.
-		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now.Add(-10*time.Minute), nil, []string{"1"})
+		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now.Add(-10*time.Minute), nil, map[string]time.Time{"1": now.Add(-25 * time.Hour)})
 		require.NoError(t, err)
 
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
 		require.NoError(t, err)
-		// The new streak is only 10 minutes old, well within the threshold.
+		require.Contains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
+		require.NotNil(t, entitlements.UsagePublishing.FailingSince)
+		require.WithinDuration(t, now.Add(-25*time.Hour), *entitlements.UsagePublishing.FailingSince, time.Second)
+	})
+
+	t.Run("FreshEventFailureWithinThresholdDoesNotWarn", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		db, _ := dbtestutil.NewDB(t)
+		insertPublishingLicense(ctx, t, db, coderdenttest.LicenseOptions{})
+
+		// A failing event whose insertion age is still within the failure
+		// threshold does not warn yet.
+		now := time.Now()
+		//nolint:gocritic // Unit test.
+		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now.Add(-10*time.Minute), nil, map[string]time.Time{"1": now.Add(-20 * time.Minute)})
+		require.NoError(t, err)
+
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+		require.NoError(t, err)
 		require.NotContains(t, entitlements.Warnings, codersdk.LicenseUsagePublishingFailingWarningText)
 		require.Nil(t, entitlements.UsagePublishing.FailingSince)
 	})
@@ -4347,9 +4364,9 @@ func TestUsagePublishingStatus(t *testing.T) {
 		now := time.Now()
 		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
 			Events: map[string]license.UsagePublishingEventFailure{
-				"tracked": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+				"tracked": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
 			},
-			Overflow: &license.UsagePublishingEventFailure{FirstFailedAt: now.Add(-30 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+			Overflow: &license.UsagePublishingEventFailure{StuckSince: now.Add(-30 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
 		})
 		//nolint:gocritic // Unit test.
 		err := license.RecordUsagePublishingBatchOutcome(dbauthz.AsSystemRestricted(ctx), db, now, []string{"tracked"}, nil)
@@ -4375,14 +4392,15 @@ func TestUsagePublishingStatus(t *testing.T) {
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
 		seedFailingEvents(ctx, t, db, license.UsagePublishingFailingEvents{
 			Events: map[string]license.UsagePublishingEventFailure{
-				"oldest": {FirstFailedAt: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
+				"oldest": {StuckSince: now.Add(-25 * time.Hour), LastFailedAt: now.Add(-10 * time.Minute)},
 			},
 		})
-		failedIDs := make([]string, 150)
-		for i := range failedIDs {
-			failedIDs[i] = fmt.Sprintf("event-%d", i)
+		failed := make(map[string]time.Time, 150)
+		for i := range 150 {
+			// Fresh insertion times, newer than the seeded oldest entry.
+			failed[fmt.Sprintf("event-%d", i)] = now.Add(-time.Duration(i) * time.Minute)
 		}
-		err := license.RecordUsagePublishingBatchOutcome(sysCtx, db, now, nil, failedIDs)
+		err := license.RecordUsagePublishingBatchOutcome(sysCtx, db, now, nil, failed)
 		require.NoError(t, err)
 
 		raw, err := db.GetRuntimeConfig(sysCtx, license.UsagePublishingFailingEventsKey)

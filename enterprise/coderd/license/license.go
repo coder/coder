@@ -86,11 +86,15 @@ type usagePublishingEnabledMarker struct {
 // unpublished backlog for failed rows, and because entries are keyed by
 // event ID, a fully published batch on one replica only resolves its own
 // events; failures another replica's rows justify stay recorded until
-// those exact rows publish. As a fallback for replicas that die mid-streak
-// or rows that age out of the publish window, an entry whose
-// last_failed_at is older than usagePublishingFailureStaleAfter counts as
-// resolved: while a failing event remains pending, some replica retries it
-// every publish cycle and re-stamps it.
+// those exact rows publish. Each entry carries the event's insertion time
+// as its stuck base, mirroring GetUsagePublishStatus, so an event that
+// breached the failure threshold before its first failed attempt keeps
+// warning while an active retry holds its row out of the query's view. As
+// a fallback for replicas that die mid-streak or rows that age out of the
+// publish window, an entry whose last_failed_at is older than
+// usagePublishingFailureStaleAfter counts as resolved: while a failing
+// event remains pending, some replica retries it every publish cycle and
+// re-stamps it.
 const UsagePublishingFailingEventsKey = "usage_publishing_failing_events"
 
 // usagePublishingFailureStaleAfter is how old an entry's last_failed_at
@@ -105,10 +109,13 @@ const usagePublishingFailureStaleAfter = time.Hour
 // UsagePublishingFailingEvents.Overflow).
 const usagePublishingFailingEventsCap = 100
 
-// UsagePublishingEventFailure records one failing event's streak.
+// UsagePublishingEventFailure records one failing event.
 type UsagePublishingEventFailure struct {
-	// FirstFailedAt is when this event's current failure streak started.
-	FirstFailedAt time.Time `json:"first_failed_at"`
+	// StuckSince is the event's insertion time: the effective start of its
+	// publish failure, matching the stuck probe's insertion-age basis in
+	// GetUsagePublishStatus (detection clamps it to enabled_since the same
+	// way).
+	StuckSince time.Time `json:"stuck_since"`
 	// LastFailedAt is the most recent failed publish attempt for the event.
 	LastFailedAt time.Time `json:"last_failed_at"`
 }
@@ -116,9 +123,9 @@ type UsagePublishingEventFailure struct {
 // UsagePublishingFailingEvents is the JSON value stored under
 // UsagePublishingFailingEventsKey.
 type UsagePublishingFailingEvents struct {
-	// Events maps a usage event ID to its failure streak. Capped at
+	// Events maps a usage event ID to its failure record. Capped at
 	// usagePublishingFailingEventsCap entries, keeping the oldest
-	// first_failed_at values because they determine the warning.
+	// stuck_since values because they determine the warning.
 	Events map[string]UsagePublishingEventFailure `json:"events"`
 	// Overflow aggregates failures dropped by the entry cap. Detection
 	// treats a fresh overflow conservatively as an unresolved failure:
@@ -130,14 +137,13 @@ type UsagePublishingFailingEvents struct {
 // RecordUsagePublishingBatchOutcome updates the failing-events marker with
 // a publish batch's per-event outcomes after the batch's database update
 // committed. Published events (including permanent rejections, which are
-// terminal) remove their entries; events left unpublished gain or refresh
+// terminal) remove their entries; events left unpublished (failed, keyed by
+// event ID with the event's insertion time as the value) gain or refresh
 // one. Per-entry stamps are monotonic so a stalled replica cannot move
-// evidence backward, and an entry whose previous stamp went stale starts a
-// new streak because the old failure resolved (see
-// UsagePublishingFailingEventsKey). It runs under the marker advisory lock
-// so concurrent publishers cannot interleave. The caller must pass a
-// system-authorized context.
-func RecordUsagePublishingBatchOutcome(ctx context.Context, db database.Store, now time.Time, publishedIDs, failedIDs []string) error {
+// evidence backward. It runs under the marker advisory lock so concurrent
+// publishers cannot interleave. The caller must pass a system-authorized
+// context.
+func RecordUsagePublishingBatchOutcome(ctx context.Context, db database.Store, now time.Time, publishedIDs []string, failed map[string]time.Time) error {
 	return db.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, database.LockIDUsagePublishingEnabledMarker); err != nil {
 			return xerrors.Errorf("acquire usage publishing marker lock: %w", err)
@@ -151,7 +157,7 @@ func RecordUsagePublishingBatchOutcome(ctx context.Context, db database.Store, n
 				marker = UsagePublishingFailingEvents{}
 			}
 		case xerrors.Is(err, sql.ErrNoRows):
-			if len(failedIDs) == 0 {
+			if len(failed) == 0 {
 				// Healthy deployments have no marker and write nothing.
 				return nil
 			}
@@ -164,20 +170,25 @@ func RecordUsagePublishingBatchOutcome(ctx context.Context, db database.Store, n
 		for _, id := range publishedIDs {
 			delete(marker.Events, id)
 		}
-		for _, id := range failedIDs {
+		for id, insertedAt := range failed {
+			if insertedAt.IsZero() || insertedAt.After(now) {
+				// Defensive: a missing insertion time falls back to the
+				// attempt time, which is never earlier than insertion.
+				insertedAt = now
+			}
 			entry, ok := marker.Events[id]
 			if ok && !now.After(entry.LastFailedAt) {
 				// A stalled replica must not move the stamp backward.
 				continue
 			}
-			if !ok || now.Sub(entry.LastFailedAt) > usagePublishingFailureStaleAfter {
-				// No fresh streak for this event; this failure starts one.
-				entry.FirstFailedAt = now
-			}
+			// The stuck base is the event's insertion time, constant per
+			// row, so gaps between failed attempts never reset failure age
+			// (mirroring the stuck probe's insertion-age basis).
+			entry.StuckSince = insertedAt
 			entry.LastFailedAt = now
 			marker.Events[id] = entry
 		}
-		// Entries whose streak went stale are resolved (see
+		// Entries whose last failure went stale are resolved (see
 		// UsagePublishingFailingEventsKey); drop them so the marker cannot
 		// grow without bound across distinct events over time.
 		for id, entry := range marker.Events {
@@ -189,24 +200,24 @@ func RecordUsagePublishingBatchOutcome(ctx context.Context, db database.Store, n
 			marker.Overflow = nil
 		}
 		// Enforce the entry cap by folding the newest entries into the
-		// overflow aggregate. The oldest first_failed_at values stay
-		// resolvable per event because they determine the warning.
+		// overflow aggregate. The oldest stuck_since values stay resolvable
+		// per event because they determine the warning.
 		for len(marker.Events) > usagePublishingFailingEventsCap {
 			newestID := ""
 			var newest UsagePublishingEventFailure
 			for id, entry := range marker.Events {
-				if newestID == "" || entry.FirstFailedAt.After(newest.FirstFailedAt) {
+				if newestID == "" || entry.StuckSince.After(newest.StuckSince) {
 					newestID = id
 					newest = entry
 				}
 			}
 			delete(marker.Events, newestID)
 			if marker.Overflow == nil {
-				marker.Overflow = &UsagePublishingEventFailure{FirstFailedAt: newest.FirstFailedAt, LastFailedAt: newest.LastFailedAt}
+				marker.Overflow = &UsagePublishingEventFailure{StuckSince: newest.StuckSince, LastFailedAt: newest.LastFailedAt}
 				continue
 			}
-			if newest.FirstFailedAt.Before(marker.Overflow.FirstFailedAt) {
-				marker.Overflow.FirstFailedAt = newest.FirstFailedAt
+			if newest.StuckSince.Before(marker.Overflow.StuckSince) {
+				marker.Overflow.StuckSince = newest.StuckSince
 			}
 			if newest.LastFailedAt.After(marker.Overflow.LastFailedAt) {
 				marker.Overflow.LastFailedAt = newest.LastFailedAt
@@ -365,11 +376,11 @@ func Entitlements(
 			}
 			var oldestFailing time.Time
 			fold := func(entry UsagePublishingEventFailure) {
-				if entry.FirstFailedAt.IsZero() || now.Sub(entry.LastFailedAt) > usagePublishingFailureStaleAfter {
+				if entry.StuckSince.IsZero() || now.Sub(entry.LastFailedAt) > usagePublishingFailureStaleAfter {
 					return
 				}
-				if oldestFailing.IsZero() || entry.FirstFailedAt.Before(oldestFailing) {
-					oldestFailing = entry.FirstFailedAt
+				if oldestFailing.IsZero() || entry.StuckSince.Before(oldestFailing) {
+					oldestFailing = entry.StuckSince
 				}
 			}
 			for _, entry := range marker.Events {
