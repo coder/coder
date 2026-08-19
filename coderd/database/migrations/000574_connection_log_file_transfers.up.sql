@@ -51,13 +51,6 @@ COMMENT ON COLUMN connection_logs.file_target IS 'Only set for file operation ev
 
 -- Recreate the connect/disconnect pairing index so it excludes file
 -- operation rows, which share the connection_id of their parent session.
--- The predicate uses file_action rather than the new enum value because
--- enum values added in this transaction cannot be referenced within it.
---
--- Locking: the rebuild holds an ACCESS EXCLUSIVE lock and connection_logs
--- is unbounded (retention is opt-in), so it may take a while on large
--- deployments. CONCURRENTLY is not an option inside a migration
--- transaction; precedent: 000161.
 DROP INDEX idx_connection_logs_connection_id_workspace_id_agent_name;
 CREATE UNIQUE INDEX idx_connection_logs_connection_id_workspace_id_agent_name
 ON connection_logs (connection_id, workspace_id, agent_name)
