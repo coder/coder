@@ -17,7 +17,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -143,11 +142,11 @@ func (b *DBBatcher) Add(
 ) {
 	// Normalize and cap outside the lock.
 	sessionCounts := normalizedSessionCounts(st)
-	if len(sessionCounts) > codersdk.MaxSessionCountEntries {
+	if len(sessionCounts) > maxSessionCountEntries {
 		b.log.Warn(context.Background(), "too many distinct session types, overflow counted under unknown",
 			slog.F("agent_id", agentID),
 			slog.F("reported", len(sessionCounts)),
-			slog.F("max", codersdk.MaxSessionCountEntries),
+			slog.F("max", maxSessionCountEntries),
 		)
 	}
 	sessionCounts = capSessionCounts(sessionCounts)

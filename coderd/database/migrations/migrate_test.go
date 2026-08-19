@@ -2895,11 +2895,11 @@ func TestMigration000565OAuth2ClientTypeConstraint(t *testing.T) {
 }
 
 //nolint:tparallel,paralleltest // Subtests share one database with transaction-local fixtures.
-func TestMigration000569WorkspaceAgentSessionCountsGuard(t *testing.T) {
+func TestMigration000580WorkspaceAgentSessionCountsGuard(t *testing.T) {
 	t.Parallel()
 
 	const (
-		priorMigrationVersion = 568
+		priorMigrationVersion = 573
 		noStatsAgeHours       = -1
 	)
 
@@ -2918,7 +2918,7 @@ func TestMigration000569WorkspaceAgentSessionCountsGuard(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	migrationSQL, err := os.ReadFile("000569_workspace_agent_session_counts.up.sql")
+	migrationSQL, err := os.ReadFile("000580_workspace_agent_session_counts.up.sql")
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -3027,7 +3027,7 @@ func TestMigration000569WorkspaceAgentSessionCountsGuard(t *testing.T) {
 		`)
 		require.NoError(t, err)
 
-		downSQL, err := os.ReadFile("000569_workspace_agent_session_counts.down.sql")
+		downSQL, err := os.ReadFile("000580_workspace_agent_session_counts.down.sql")
 		require.NoError(t, err)
 		_, err = tx.ExecContext(ctx, string(downSQL))
 		require.NoError(t, err)
