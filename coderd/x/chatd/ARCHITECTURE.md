@@ -846,7 +846,6 @@ The generation goroutine supports:
 
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
-  - TODO(human): document that effective MCP server configs are now scoped to the chat's organization (generation preparation only loads configs from the chat's organization).
 - file links
 - workspace binding
 - plan mode
