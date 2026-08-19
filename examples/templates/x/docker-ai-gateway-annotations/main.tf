@@ -76,8 +76,35 @@ locals {
   # Claude Code namespaces MCP tools as mcp__<server>__<tool>.
   annotation_tool = "mcp__coder-ai-gateway__coder_annotate_interception"
 
-  # Merges the annotation tool into permissions.allow. Claude Code writes
-  # settings.json itself, so the file usually exists already.
+  # SessionStart hook. Claude Code passes the hook event as JSON on stdin and
+  # injects the hook's stdout into the model's context, so printing the session
+  # ID is enough to make it available to the annotation tool. Printing nothing
+  # leaves the session unidentified and the tool falls back to the initiator's
+  # most recent activity.
+  session_hook_script = <<-EOT
+    import json
+    import sys
+
+    try:
+        payload = json.load(sys.stdin)
+    except ValueError:
+        sys.exit(0)
+
+    session_id = payload.get("session_id")
+    if not isinstance(session_id, str) or not session_id:
+        sys.exit(0)
+
+    print(
+        "Coder AI Gateway session ID: " + session_id + ". "
+        "Pass this value verbatim as `session_id` on every "
+        "`${local.annotation_tool}` call."
+    )
+  EOT
+
+  # Merges the annotation tool into permissions.allow and the SessionStart hook
+  # into hooks. Claude Code writes settings.json itself, so the file usually
+  # exists already. Both merges are keyed on the exact value so repeated starts
+  # do not duplicate entries.
   settings_merge_script = <<-EOT
     import json
     import os
@@ -85,6 +112,7 @@ locals {
 
     path = os.path.expanduser("~/.claude/settings.json")
     tool = sys.argv[1]
+    hook_command = sys.argv[2]
     try:
         with open(path) as handle:
             settings = json.load(handle)
@@ -96,6 +124,21 @@ locals {
     allow = permissions.setdefault("allow", [])
     if tool not in allow:
         allow.append(tool)
+
+    hooks = settings.setdefault("hooks", {})
+    session_start = hooks.setdefault("SessionStart", [])
+    installed = any(
+        hook.get("command") == hook_command
+        for matcher in session_start
+        if isinstance(matcher, dict)
+        for hook in matcher.get("hooks", [])
+        if isinstance(hook, dict)
+    )
+    if not installed:
+        session_start.append(
+            {"hooks": [{"type": "command", "command": hook_command}]}
+        )
+
     with open(path, "w") as handle:
         json.dump(settings, handle, indent=2)
         handle.write("\n")
@@ -124,6 +167,9 @@ locals {
       whenever a value changes or a new issue or pull request appears.
     - Pass only the fields you are confident about. Omitted fields keep their
       previous value, and issues and pull requests accumulate.
+    - The session context reports a Coder AI Gateway session ID. Pass it
+      verbatim as `session_id` on every call, so the annotation lands on this
+      session. Omit the field only when no session ID has been reported.
     - Never guess values and never ask the user for them.
     - Do not mention the tool or the annotation to the user; just call it and
       carry on with the actual task.
@@ -225,10 +271,14 @@ resource "coder_script" "claude_code" {
     fi
 
     # Pre-approve the tool so annotating does not raise a permission prompt
-    # mid-task.
+    # mid-task, and install the hook that reports the session ID.
+    mkdir -p "$HOME/.claude/hooks"
+    session_hook="$HOME/.claude/hooks/coder-ai-gateway-session.py"
+    echo '${base64encode(local.session_hook_script)}' | base64 -d >"$session_hook"
+
     merge_script="$HOME/.claude/.coder-merge-settings.py"
     echo '${base64encode(local.settings_merge_script)}' | base64 -d >"$merge_script"
-    python3 "$merge_script" '${local.annotation_tool}'
+    python3 "$merge_script" '${local.annotation_tool}' "python3 $session_hook"
   EOT
 }
 

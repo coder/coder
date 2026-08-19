@@ -22,6 +22,7 @@ Two pieces of configuration make that work:
 |-----------------------------------------------|-------------------------------------------------------------------------------|
 | `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` | Claude Code sends Anthropic traffic through the AI Gateway as the workspace owner, so each request is recorded as an interception. |
 | MCP server `coder-ai-gateway`                   | Registers `coder_annotate_interception` with Claude Code so it can attach a repository, branch, Linear issues, and GitHub pull requests to the interception. |
+| `SessionStart` hook                             | Prints the Claude Code session ID into the model's context, so the tool can be told which session to annotate. |
 
 The gateway serves each provider under its configured name, so
 `ANTHROPIC_BASE_URL` is `<access-url>/api/v2/ai-gateway/<provider-name>`. Set
@@ -36,7 +37,22 @@ The MCP server is registered against the `annotations` toolset:
 ```
 
 That toolset exposes only the annotation tool and sends server instructions
-describing when to call it, so no prompt file or `CLAUDE.md` is needed.
+describing when to call it. The start script also writes the same
+instructions to `~/.claude/CLAUDE.md`, appends them to the system prompt of
+the Claude Code app, and pre-approves the tool in `~/.claude/settings.json`,
+because server instructions alone did not reliably produce a call.
+
+## Session targeting
+
+The start script installs a `SessionStart` hook at
+`~/.claude/hooks/coder-ai-gateway-session.py`. Claude Code passes the hook
+event as JSON on stdin and injects the hook's stdout into the model's
+context, so the hook prints the session ID and instructs the model to pass
+it as `session_id`. The gateway records the same identifier as
+`client_session_id` from the `X-Claude-Code-Session-Id` header, so the
+server resolves the exact interception instead of the caller's most recent
+one. Without a session ID the tool falls back to the most recent
+interception.
 
 ## Deployment requirements
 
@@ -77,9 +93,12 @@ describing when to call it, so no prompt file or `CLAUDE.md` is needed.
 
 ## Limitations
 
-- The tool annotates the most recent interception initiated by the calling
-  user. Running another AI Gateway client concurrently under the same
-  account can send an annotation to the wrong interception.
+- Without a `session_id` the tool annotates the most recent interception
+  initiated by the calling user, so a concurrent AI Gateway client under
+  the same account can absorb the annotation.
+- A `session_id` is asserted by the model. The lookup is scoped to the
+  calling user, so a wrong value can only reach that user's own
+  interceptions.
 - `claude mcp add-json` stores the workspace owner's session token in
   `~/.claude.json`.
 - Annotation values other than server-derived capabilities are asserted by
