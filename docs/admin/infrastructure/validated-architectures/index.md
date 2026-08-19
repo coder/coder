@@ -125,13 +125,10 @@ offline use.
 
 ### AI Gateway
 
-[AI Gateway](../../../ai-coder/ai-gateway/index.md) proxies AI provider traffic
-and records each AI session. It runs inside `coderd` by default, and can also
-run as a [standalone deployment](../../../ai-coder/ai-gateway/standalone.md)
-that scales independently of the control plane. Size replicas from your own AI
-request volume and `CODER_AI_GATEWAY_MAX_CONCURRENCY`. For the chart's resource
-requests and autoscaling defaults, refer to the
-[AI Gateway Helm chart README](https://github.com/coder/coder/blob/main/helm/ai-gateway/README.md).
+[AI Gateway](../../../ai-coder/ai-gateway/index.md) proxies AI provider traffic and records each AI session.
+It runs inside `coderd` by default and can also run as a [standalone deployment](../../../ai-coder/ai-gateway/standalone.md) that scales independently of the control plane.
+Size replicas based on your AI request volume and `CODER_AI_GATEWAY_MAX_CONCURRENCY`.
+For the chart's resource requests and autoscaling defaults, refer to the [AI Gateway Helm chart README](../../../../helm/ai-gateway/README.md).
 
 ## Kubernetes Infrastructure
 
