@@ -45,6 +45,9 @@ const OrganizationSettingsLayout = lazy(
 	() => import("./modules/management/OrganizationSettingsLayout"),
 );
 const CliAuthPage = lazy(() => import("./pages/CliAuthPage/CliAuthPage"));
+const DeviceAuthPage = lazy(
+	() => import("./pages/DeviceAuthPage/DeviceAuthPage"),
+);
 const CliInstallPage = lazy(
 	() => import("./pages/CliInstallPage/CliInstallPage"),
 );
@@ -826,6 +829,7 @@ export const router = createBrowserRouter(
 					element={<TerminalPage />}
 				/>
 				<Route path="/cli-auth" element={<CliAuthPage />} />
+				<Route path="/device" element={<DeviceAuthPage />} />
 				<Route path="/coder-cup" element={<CoderCupPage />} />
 				<Route path="/icons" element={<IconsPage />} />
 				<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
