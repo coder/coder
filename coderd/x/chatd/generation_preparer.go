@@ -42,7 +42,7 @@ func (server *Server) effectiveMCPServerConfigs(
 	var configs []database.MCPServerConfig
 	if len(chat.MCPServerIDs) > 0 {
 		var err error
-		configs, err = server.db.GetMCPServerConfigsByIDs(ctx, chat.MCPServerIDs)
+		configs, err = enabledMCPServerConfigsForChatOrg(ctx, server.db, chat.OrganizationID, chat.MCPServerIDs)
 		if err != nil {
 			// Best-effort for the user-selected set, matching prior
 			// behavior: a load failure degrades the turn rather than
@@ -54,7 +54,7 @@ func (server *Server) effectiveMCPServerConfigs(
 	if isExploreSubagentMode(chat.Mode) {
 		return configs, nil
 	}
-	forced, err := server.db.GetForcedMCPServerConfigs(ctx)
+	forced, err := server.db.GetForcedMCPServerConfigsByOrganization(ctx, chat.OrganizationID)
 	if err != nil {
 		// Fail closed: running the turn without the forced set would
 		// silently bypass a security policy.
@@ -909,4 +909,20 @@ func latestAssistantText(messages []database.ChatMessage) string {
 		return strings.TrimSpace(textFromParts(parts))
 	}
 	return ""
+}
+
+func enabledMCPServerConfigsForChatOrg(
+	ctx context.Context,
+	db database.Store,
+	organizationID uuid.UUID,
+	ids []uuid.UUID,
+) ([]database.MCPServerConfig, error) {
+	configs, err := db.GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams{
+		OrganizationID: organizationID,
+		IDs:            ids,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get enabled MCP server configs for organization: %w", err)
+	}
+	return configs, nil
 }
