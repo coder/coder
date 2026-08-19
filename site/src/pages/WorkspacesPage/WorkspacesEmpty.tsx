@@ -54,7 +54,7 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 				description={`${defaultMessage} To create a workspace, you first need to create a template.`}
 				cta={
 					<Button asChild>
-						<Link to="/templates">Go to templates</Link>
+						<Link to="/templates/new/builder">Create a template</Link>
 					</Button>
 				}
 				className="pb-0"
