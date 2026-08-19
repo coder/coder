@@ -1,4 +1,4 @@
-package chatd_test
+package codersdk_test
 
 import (
 	"strings"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestSanitizePromptText(t *testing.T) {
@@ -265,11 +265,11 @@ func TestSanitizePromptText(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := chatd.SanitizePromptText(tt.input)
+			got := codersdk.SanitizePromptText(tt.input)
 			require.Equal(t, tt.want, got)
 
 			// Verify idempotency: f(f(x)) == f(x).
-			again := chatd.SanitizePromptText(got)
+			again := codersdk.SanitizePromptText(got)
 			require.Equal(t, got, again,
 				"SanitizePromptText is not idempotent for case %q", tt.name)
 		})
@@ -304,7 +304,7 @@ func TestIsVisibleCanonicalList(t *testing.T) {
 
 	for _, r := range stripped {
 		input := "a" + string(r) + "b"
-		got := chatd.SanitizePromptText(input)
+		got := codersdk.SanitizePromptText(input)
 		require.Equalf(t, "ab", got, "U+%04X should be stripped", r)
 	}
 
@@ -321,7 +321,7 @@ func TestIsVisibleCanonicalList(t *testing.T) {
 	for _, r := range preserved {
 		input := "a" + string(r) + "b"
 		want := "a" + string(r) + "b"
-		got := chatd.SanitizePromptText(input)
+		got := codersdk.SanitizePromptText(input)
 		require.Equalf(t, want, got, "U+%04X should be preserved", r)
 	}
 }

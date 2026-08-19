@@ -1126,7 +1126,7 @@
 						},
 						{
 							"title": "Licensing \u0026 Usage",
-							"description": "Licensing and usage details for Coder Agents.",
+							"description": "Compare Coder Agents licenses and learn how Coder measures and reports Agent Time usage.",
 							"path": "./ai-coder/agents/licensing-usage.md"
 						},
 						{
@@ -1342,12 +1342,6 @@
 									"state": ["premium"]
 								}
 							]
-						},
-						{
-							"title": "Usage Data Reporting",
-							"description": "Learn what AI usage data AI Governance reports to Coder for billing and reporting.",
-							"path": "./ai-coder/usage-data-reporting.md",
-							"state": ["premium"]
 						}
 					]
 				},
