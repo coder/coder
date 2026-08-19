@@ -101,21 +101,34 @@ export const DeviceAuthEnterCodeView: FC<DeviceAuthEnterCodeViewProps> = ({
 							autoFocus
 							autoComplete="off"
 							spellCheck={false}
-							placeholder="WDJB-MJHT"
+							/*
+							 * A mask, not a sample code: a realistic placeholder like
+							 * "WDJB-MJHT" reads as an already-filled field.
+							 */
+							placeholder="XXXX-XXXX"
 							value={userCode}
 							onChange={(event) =>
 								setUserCode(formatUserCode(event.target.value))
 							}
 							aria-invalid={fieldError ? true : undefined}
-							aria-describedby={fieldError ? "user-code-error" : undefined}
+							aria-describedby={
+								fieldError ? "user-code-error" : "user-code-hint"
+							}
 							className="text-center font-mono"
 						/>
-						{fieldError && (
+						{fieldError ? (
 							<p
 								id="user-code-error"
 								className="m-0 text-xs text-content-destructive"
 							>
 								{fieldError}
+							</p>
+						) : (
+							<p
+								id="user-code-hint"
+								className="m-0 text-xs text-content-secondary"
+							>
+								Eight characters, like WDJB-MJHT.
 							</p>
 						)}
 					</div>
