@@ -1,4 +1,4 @@
-import { CircleCheckIcon, OctagonXIcon } from "lucide-react";
+import { CheckIcon, OctagonXIcon } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import {
@@ -6,7 +6,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { signalTooltipLabel } from "./utils";
 
 type BackgroundProcessChipProps = {
@@ -93,23 +92,29 @@ export const BackgroundProcessChip: React.FC<BackgroundProcessChipProps> = ({
 	}
 
 	const failed = exitCode !== undefined && exitCode !== 0;
+	if (!failed) {
+		return (
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<span
+						role="status"
+						aria-label="Background process exited successfully"
+						className="flex items-center gap-1 px-0.5 py-0.5 text-content-secondary"
+					>
+						<CheckIcon aria-hidden className="size-3.5 shrink-0" />
+					</span>
+				</TooltipTrigger>
+				<TooltipContent>Background process exited successfully</TooltipContent>
+			</Tooltip>
+		);
+	}
 	return (
 		<span
 			role="status"
-			aria-label={
-				failed
-					? `Background process exited with code ${exitCode}`
-					: "Background process exited successfully"
-			}
-			className={cn(
-				"flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-2xs leading-none",
-				failed
-					? "bg-surface-red text-content-destructive"
-					: "text-content-secondary",
-			)}
+			aria-label={`Background process exited with code ${exitCode}`}
+			className="flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-2xs leading-none bg-surface-red text-content-destructive"
 		>
-			{!failed && <CircleCheckIcon aria-hidden className="size-3.5 shrink-0" />}
-			exit {exitCode ?? 0}
+			exit {exitCode}
 		</span>
 	);
 };

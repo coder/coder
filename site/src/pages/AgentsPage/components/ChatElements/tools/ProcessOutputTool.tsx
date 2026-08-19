@@ -1,4 +1,4 @@
-import { CircleCheckIcon, OctagonXIcon } from "lucide-react";
+import { OctagonXIcon } from "lucide-react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -32,10 +32,12 @@ const getProcessOutputLabel = ({
 	command,
 	modelIntent,
 	isRunning,
+	isFailed,
 }: {
 	command: string | undefined;
 	modelIntent: string | undefined;
 	isRunning: boolean;
+	isFailed: boolean;
 }): string => {
 	const trimmedCommand = command?.trim() ?? "";
 	const intent = modelIntent
@@ -47,7 +49,10 @@ const getProcessOutputLabel = ({
 	if (!trimmedCommand) {
 		return "Process output";
 	}
-	return `${isRunning ? "Checking" : "Checked"} ${trimmedCommand}`;
+	if (isRunning) {
+		return `Checking ${trimmedCommand}`;
+	}
+	return `${isFailed ? "Failed" : "Checked"} ${trimmedCommand}`;
 };
 
 export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
@@ -68,9 +73,11 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 		autoDisplayState,
 	);
 
-	const showExitCode = exitCode !== null;
+	// A clean exit is the expected outcome of a check, so only
+	// failures earn a badge. The label verb carries the rest.
+	const isFailed = exitCode !== null && exitCode !== 0;
 	const hasOutput = output.length > 0;
-	const hasHeaderActions = Boolean(killedBySignal) || showExitCode || hasOutput;
+	const hasHeaderActions = Boolean(killedBySignal) || isFailed || hasOutput;
 
 	return (
 		<ToolCall.Root
@@ -89,7 +96,12 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 				<ToolCall.HeaderButton>
 					<ToolCall.LeadingIcon name="process_output" />
 					<ToolCall.Label>
-						{getProcessOutputLabel({ command, modelIntent, isRunning })}
+						{getProcessOutputLabel({
+							command,
+							modelIntent,
+							isRunning,
+							isFailed,
+						})}
 					</ToolCall.Label>
 					<ToolCall.Status />
 					<ToolCall.Chevron />
@@ -106,18 +118,8 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 								</TooltipContent>
 							</Tooltip>
 						)}
-						{showExitCode && (
-							<span
-								className={cn(
-									"flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-2xs leading-none",
-									exitCode === 0
-										? "text-content-secondary"
-										: "bg-surface-red text-content-destructive",
-								)}
-							>
-								{exitCode === 0 && (
-									<CircleCheckIcon aria-hidden className="size-3.5 shrink-0" />
-								)}
+						{isFailed && (
+							<span className="rounded px-1.5 py-0.5 font-mono text-2xs leading-none bg-surface-red text-content-destructive">
 								exit {exitCode}
 							</span>
 						)}

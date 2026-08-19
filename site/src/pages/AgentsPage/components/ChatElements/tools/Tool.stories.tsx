@@ -605,9 +605,16 @@ export const ExecuteBackgroundedExited: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("status", { name: /exited successfully/ }),
-		).toHaveTextContent("exit 0");
+		const status = canvas.getByRole("status", {
+			name: "Background process exited successfully",
+		});
+		expect(status).toBeInTheDocument();
+		// Quiet success: a check icon, no "exit 0" text.
+		expect(status.textContent).toBe("");
+		await userEvent.hover(status);
+		expect(await screen.findByRole("tooltip")).toHaveTextContent(
+			"Background process exited successfully",
+		);
 	},
 };
 
@@ -744,13 +751,13 @@ export const ProcessOutputChecked: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("Checked npm start")).toBeVisible();
+		expect(canvas.getByText("Failed npm start")).toBeVisible();
 		expect(canvas.getByText("exit 1")).toBeVisible();
 		expect(canvas.getByText(/EADDRINUSE/)).toBeVisible();
 	},
 };
 
-export const ProcessOutputExitZeroChip: Story = {
+export const ProcessOutputExitZeroNoBadge: Story = {
 	args: {
 		name: "process_output",
 		status: "completed",
@@ -763,7 +770,27 @@ export const ProcessOutputExitZeroChip: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("exit 0")).toBeVisible();
+		// Clean exit stays quiet: no badge, the Checked verb carries it.
+		expect(canvas.getByText("Checked npm start")).toBeVisible();
+		expect(canvas.queryByText(/exit/)).not.toBeInTheDocument();
+	},
+};
+
+export const ProcessOutputFailedLabel: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: { process_id: "process-123" },
+		result: {
+			command: "npm start",
+			output: "EADDRINUSE",
+			exit_code: 1,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Failed npm start")).toBeVisible();
+		expect(canvas.getByText("exit 1")).toBeVisible();
 	},
 };
 
