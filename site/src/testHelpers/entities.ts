@@ -3138,6 +3138,32 @@ export const MockDisconnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 	},
 };
 
+export const MockFileTransferConnectionLog: TypesGen.ConnectionLog = {
+	...MockDisconnectedSSHConnectionLog,
+	id: "104d54e8-2fd8-42f6-9cf9-e57eabb384fd",
+	type: "file_transfer",
+	ssh_info: {
+		connection_id: "8b3f81ed-b3ba-4b4a-a15b-c437936b2286",
+		disconnect_reason: "process exited with error status: 65",
+		disconnect_time: "2022-05-19T16:49:57.122Z",
+		exit_code: 65, // File transfer blocked.
+	},
+};
+
+export const MockFileOperationConnectionLog: TypesGen.ConnectionLog = {
+	...MockConnectedSSHConnectionLog,
+	id: "b2cd7b2e-2fd8-42f6-9cf9-e57eabb384fd",
+	type: "file_operation",
+	ssh_info: undefined,
+	file_transfer_info: {
+		connection_id: "8b3f81ed-b3ba-4b4a-a15b-c437936b2286",
+		protocol: "sftp",
+		action: "download",
+		path: "/home/coder/secrets.env",
+		target: undefined,
+	},
+};
+
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
 	credits_consumed: 0,
 	budget: 100,

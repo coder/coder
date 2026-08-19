@@ -33,7 +33,12 @@ type ConnectionLog struct {
 	// - `ConnectionTypeReconnectingPTY`
 	// - `ConnectionTypeVSCode`
 	// - `ConnectionTypeJetBrains`
+	// - `ConnectionTypeFileTransfer`
 	SSHInfo *ConnectionLogSSHInfo `json:"ssh_info,omitempty"`
+
+	// FileTransferInfo is only set when `type` is
+	// `ConnectionTypeFileOperation`.
+	FileTransferInfo *ConnectionLogFileTransferInfo `json:"file_transfer_info,omitempty"`
 }
 
 // ConnectionType is the type of connection that the agent is receiving.
@@ -49,6 +54,13 @@ const (
 	// ConnectionTypeTunnel records accepted and denied tailnet tunnel
 	// requests made by authenticated users.
 	ConnectionTypeTunnel ConnectionType = "tunnel"
+	// ConnectionTypeFileTransfer records file-transfer sessions (SFTP,
+	// SCP, rsync), which would otherwise be recorded as plain SSH.
+	ConnectionTypeFileTransfer ConnectionType = "file_transfer"
+	// ConnectionTypeFileOperation records individual file operations
+	// observed during a file-transfer session. Events share the
+	// connection ID of their parent file_transfer session.
+	ConnectionTypeFileOperation ConnectionType = "file_operation"
 )
 
 // ConnectionLogStatus is the status of a connection log entry.
@@ -89,6 +101,53 @@ type ConnectionLogSSHInfo struct {
 	// ExitCode is the exit code of the SSH session. It is omitted if a
 	// disconnect event with the same connection ID has not yet been seen.
 	ExitCode *int32 `json:"exit_code,omitempty"`
+}
+
+// ConnectionLogFileProtocol is the protocol that carried a file
+// operation.
+type ConnectionLogFileProtocol string
+
+const (
+	ConnectionLogFileProtocolSFTP  ConnectionLogFileProtocol = "sftp"
+	ConnectionLogFileProtocolSCP   ConnectionLogFileProtocol = "scp"
+	ConnectionLogFileProtocolRsync ConnectionLogFileProtocol = "rsync"
+)
+
+// ConnectionLogFileAction is the kind of file operation observed.
+// A download is a transfer from the workspace to the client, an upload
+// is a transfer from the client to the workspace, and bidirectional is
+// a file opened for both at once, where either may have occurred.
+type ConnectionLogFileAction string
+
+const (
+	ConnectionLogFileActionDownload      ConnectionLogFileAction = "download"
+	ConnectionLogFileActionUpload        ConnectionLogFileAction = "upload"
+	ConnectionLogFileActionBidirectional ConnectionLogFileAction = "bidirectional"
+	ConnectionLogFileActionRemove        ConnectionLogFileAction = "remove"
+	ConnectionLogFileActionRmdir         ConnectionLogFileAction = "rmdir"
+	ConnectionLogFileActionRename        ConnectionLogFileAction = "rename"
+	ConnectionLogFileActionSymlink       ConnectionLogFileAction = "symlink"
+	// ConnectionLogFileActionSetattr records file attribute changes:
+	// truncation, permissions, ownership, and timestamps.
+	ConnectionLogFileActionSetattr ConnectionLogFileAction = "setattr"
+	// ConnectionLogFileActionHardlink records creation of a hard link.
+	// Path is the existing file, Target is the new link.
+	ConnectionLogFileActionHardlink ConnectionLogFileAction = "hardlink"
+)
+
+type ConnectionLogFileTransferInfo struct {
+	// ConnectionID matches the connection ID of the file_transfer
+	// session the operation occurred in.
+	ConnectionID uuid.UUID                 `json:"connection_id" format:"uuid"`
+	Protocol     ConnectionLogFileProtocol `json:"protocol"`
+	Action       ConnectionLogFileAction   `json:"action"`
+	// Path is the path the operation was performed on. For SCP and
+	// rsync this is the requested root path from the command line, not
+	// necessarily every file transferred.
+	Path string `json:"path"`
+	// Target is only set for operations with a second path, such as the
+	// destination of a rename or the target of a symlink.
+	Target string `json:"target,omitempty"`
 }
 
 type ConnectionLogsRequest struct {

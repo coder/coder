@@ -4316,6 +4316,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "agent_name": "string",
   "connect_time": "2019-08-24T14:15:22Z",
+  "file_transfer_info": {
+    "action": "download",
+    "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
+    "path": "string",
+    "protocol": "sftp",
+    "target": "string"
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "ip": "string",
   "organization": {
@@ -4370,20 +4377,71 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                       | Type                                                           | Required | Restrictions | Description                                                                                                                                              |
-|----------------------------|----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_name`               | string                                                         | false    |              |                                                                                                                                                          |
-| `connect_time`             | string                                                         | false    |              |                                                                                                                                                          |
-| `id`                       | string                                                         | false    |              |                                                                                                                                                          |
-| `ip`                       | string                                                         | false    |              |                                                                                                                                                          |
-| `organization`             | [codersdk.MinimalOrganization](#codersdkminimalorganization)   | false    |              |                                                                                                                                                          |
-| `ssh_info`                 | [codersdk.ConnectionLogSSHInfo](#codersdkconnectionlogsshinfo) | false    |              | Ssh info is only set when `type` is one of: - `ConnectionTypeSSH` - `ConnectionTypeReconnectingPTY` - `ConnectionTypeVSCode` - `ConnectionTypeJetBrains` |
-| `type`                     | [codersdk.ConnectionType](#codersdkconnectiontype)             | false    |              |                                                                                                                                                          |
-| `web_info`                 | [codersdk.ConnectionLogWebInfo](#codersdkconnectionlogwebinfo) | false    |              | Web info is only set when `type` is one of: - `ConnectionTypePortForwarding` - `ConnectionTypeWorkspaceApp` - `ConnectionTypeTunnel`                     |
-| `workspace_id`             | string                                                         | false    |              |                                                                                                                                                          |
-| `workspace_name`           | string                                                         | false    |              |                                                                                                                                                          |
-| `workspace_owner_id`       | string                                                         | false    |              |                                                                                                                                                          |
-| `workspace_owner_username` | string                                                         | false    |              |                                                                                                                                                          |
+| Name                       | Type                                                                             | Required | Restrictions | Description                                                                                                                                                                             |
+|----------------------------|----------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name`               | string                                                                           | false    |              |                                                                                                                                                                                         |
+| `connect_time`             | string                                                                           | false    |              |                                                                                                                                                                                         |
+| `file_transfer_info`       | [codersdk.ConnectionLogFileTransferInfo](#codersdkconnectionlogfiletransferinfo) | false    |              | File transfer info is only set when `type` is `ConnectionTypeFileOperation`.                                                                                                            |
+| `id`                       | string                                                                           | false    |              |                                                                                                                                                                                         |
+| `ip`                       | string                                                                           | false    |              |                                                                                                                                                                                         |
+| `organization`             | [codersdk.MinimalOrganization](#codersdkminimalorganization)                     | false    |              |                                                                                                                                                                                         |
+| `ssh_info`                 | [codersdk.ConnectionLogSSHInfo](#codersdkconnectionlogsshinfo)                   | false    |              | Ssh info is only set when `type` is one of: - `ConnectionTypeSSH` - `ConnectionTypeReconnectingPTY` - `ConnectionTypeVSCode` - `ConnectionTypeJetBrains` - `ConnectionTypeFileTransfer` |
+| `type`                     | [codersdk.ConnectionType](#codersdkconnectiontype)                               | false    |              |                                                                                                                                                                                         |
+| `web_info`                 | [codersdk.ConnectionLogWebInfo](#codersdkconnectionlogwebinfo)                   | false    |              | Web info is only set when `type` is one of: - `ConnectionTypePortForwarding` - `ConnectionTypeWorkspaceApp` - `ConnectionTypeTunnel`                                                    |
+| `workspace_id`             | string                                                                           | false    |              |                                                                                                                                                                                         |
+| `workspace_name`           | string                                                                           | false    |              |                                                                                                                                                                                         |
+| `workspace_owner_id`       | string                                                                           | false    |              |                                                                                                                                                                                         |
+| `workspace_owner_username` | string                                                                           | false    |              |                                                                                                                                                                                         |
+
+## codersdk.ConnectionLogFileAction
+
+```json
+"download"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                             |
+|------------------------------------------------------------------------------------------------------|
+| `bidirectional`, `download`, `hardlink`, `remove`, `rename`, `rmdir`, `setattr`, `symlink`, `upload` |
+
+## codersdk.ConnectionLogFileProtocol
+
+```json
+"sftp"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)               |
+|------------------------|
+| `rsync`, `scp`, `sftp` |
+
+## codersdk.ConnectionLogFileTransferInfo
+
+```json
+{
+  "action": "download",
+  "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
+  "path": "string",
+  "protocol": "sftp",
+  "target": "string"
+}
+```
+
+### Properties
+
+| Name            | Type                                                                     | Required | Restrictions | Description                                                                                                                                                       |
+|-----------------|--------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`        | [codersdk.ConnectionLogFileAction](#codersdkconnectionlogfileaction)     | false    |              |                                                                                                                                                                   |
+| `connection_id` | string                                                                   | false    |              | Connection ID matches the connection ID of the file_transfer session the operation occurred in.                                                                   |
+| `path`          | string                                                                   | false    |              | Path is the path the operation was performed on. For SCP and rsync this is the requested root path from the command line, not necessarily every file transferred. |
+| `protocol`      | [codersdk.ConnectionLogFileProtocol](#codersdkconnectionlogfileprotocol) | false    |              |                                                                                                                                                                   |
+| `target`        | string                                                                   | false    |              | Target is only set for operations with a second path, such as the destination of a rename or the target of a symlink.                                             |
 
 ## codersdk.ConnectionLogResponse
 
@@ -4393,6 +4451,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     {
       "agent_name": "string",
       "connect_time": "2019-08-24T14:15:22Z",
+      "file_transfer_info": {
+        "action": "download",
+        "connection_id": "d3547de1-d1f2-4344-b4c2-17169b7526f9",
+        "path": "string",
+        "protocol": "sftp",
+        "target": "string"
+      },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "ip": "string",
       "organization": {
@@ -4531,9 +4596,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                       |
-|------------------------------------------------------------------------------------------------|
-| `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `tunnel`, `vscode`, `workspace_app` |
+| Value(s)                                                                                                                          |
+|-----------------------------------------------------------------------------------------------------------------------------------|
+| `file_operation`, `file_transfer`, `jetbrains`, `port_forwarding`, `reconnecting_pty`, `ssh`, `tunnel`, `vscode`, `workspace_app` |
 
 ## codersdk.ConvertLoginRequest
 

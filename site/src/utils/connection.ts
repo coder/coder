@@ -16,6 +16,10 @@ export const connectionTypeToFriendlyName = (type: ConnectionType): string => {
 			return "Workspace App";
 		case "tunnel":
 			return "Tunnel";
+		case "file_transfer":
+			return "File Transfer";
+		case "file_operation":
+			return "File Operation";
 	}
 };
 
@@ -34,7 +38,9 @@ export const connectionTypeIsWeb = (type: ConnectionType): boolean => {
 		case "reconnecting_pty":
 		case "ssh":
 		case "jetbrains":
-		case "vscode": {
+		case "vscode":
+		case "file_transfer":
+		case "file_operation": {
 			return false;
 		}
 	}

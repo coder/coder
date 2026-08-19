@@ -3,6 +3,8 @@ import { Table, TableBody } from "#/components/Table/Table";
 import {
 	MockConnectedSSHConnectionLog,
 	MockDisconnectedSSHConnectionLog,
+	MockFileOperationConnectionLog,
+	MockFileTransferConnectionLog,
 	MockWebConnectionLog,
 } from "#/testHelpers/entities";
 import { ConnectionLogRow } from "./ConnectionLogRow";
@@ -65,6 +67,84 @@ export const DisconnectedSSHError: Story = {
 			ssh_info: {
 				...MockDisconnectedSSHConnectionLog.ssh_info!,
 				exit_code: 130, // 128 + SIGINT
+			},
+		},
+	},
+};
+
+export const BlockedFileTransfer: Story = {
+	args: {
+		connectionLog: MockFileTransferConnectionLog,
+	},
+};
+
+export const CompletedFileTransfer: Story = {
+	args: {
+		connectionLog: {
+			...MockFileTransferConnectionLog,
+			ssh_info: {
+				...MockFileTransferConnectionLog.ssh_info!,
+				disconnect_reason: "",
+				exit_code: 0,
+			},
+		},
+	},
+};
+
+export const FileOperationDownload: Story = {
+	args: {
+		connectionLog: MockFileOperationConnectionLog,
+	},
+};
+
+export const FileOperationUpload: Story = {
+	args: {
+		connectionLog: {
+			...MockFileOperationConnectionLog,
+			file_transfer_info: {
+				...MockFileOperationConnectionLog.file_transfer_info!,
+				action: "upload",
+				path: "/home/coder/upload.tar.gz",
+			},
+		},
+	},
+};
+
+export const FileOperationRename: Story = {
+	args: {
+		connectionLog: {
+			...MockFileOperationConnectionLog,
+			file_transfer_info: {
+				...MockFileOperationConnectionLog.file_transfer_info!,
+				action: "rename",
+				path: "/home/coder/old-name.txt",
+				target: "/home/coder/new-name.txt",
+			},
+		},
+	},
+};
+
+export const FileOperationSCPUpload: Story = {
+	args: {
+		connectionLog: {
+			...MockFileOperationConnectionLog,
+			file_transfer_info: {
+				...MockFileOperationConnectionLog.file_transfer_info!,
+				protocol: "scp",
+				action: "upload",
+				path: "/home/coder/project",
+			},
+		},
+	},
+};
+
+export const FileOperationLongPath: Story = {
+	args: {
+		connectionLog: {
+			...MockFileOperationConnectionLog,
+			file_transfer_info: {
+				...MockFileOperationConnectionLog.file_transfer_info!,
+				path: "/home/coder/some/deeply/nested/directory/structure/with/a/very/long/path/to/an/important/file/that/should/not/break/the/layout.json",
 			},
 		},
 	},

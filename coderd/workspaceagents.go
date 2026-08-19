@@ -1509,6 +1509,10 @@ func (api *API) logTunnelConnection(agentID uuid.UUID, statusCode int32, userID 
 		SlugOrPort:       sql.NullString{},
 		ConnectionID:     uuid.NullUUID{},
 		DisconnectReason: sql.NullString{},
+		FileProtocol:     database.NullConnectionLogFileProtocol{},
+		FileAction:       database.NullConnectionLogFileAction{},
+		FilePath:         sql.NullString{},
+		FileTarget:       sql.NullString{},
 		ConnectionStatus: database.ConnectionStatusConnected,
 	})
 	if err != nil {

@@ -3696,8 +3696,69 @@ export interface ConnectionLog {
 	 * - `ConnectionTypeReconnectingPTY`
 	 * - `ConnectionTypeVSCode`
 	 * - `ConnectionTypeJetBrains`
+	 * - `ConnectionTypeFileTransfer`
 	 */
 	readonly ssh_info?: ConnectionLogSSHInfo;
+	/**
+	 * FileTransferInfo is only set when `type` is
+	 * `ConnectionTypeFileOperation`.
+	 */
+	readonly file_transfer_info?: ConnectionLogFileTransferInfo;
+}
+
+// From codersdk/connectionlog.go
+export type ConnectionLogFileAction =
+	| "bidirectional"
+	| "download"
+	| "hardlink"
+	| "remove"
+	| "rename"
+	| "rmdir"
+	| "setattr"
+	| "symlink"
+	| "upload";
+
+export const ConnectionLogFileActions: ConnectionLogFileAction[] = [
+	"bidirectional",
+	"download",
+	"hardlink",
+	"remove",
+	"rename",
+	"rmdir",
+	"setattr",
+	"symlink",
+	"upload",
+];
+
+// From codersdk/connectionlog.go
+export type ConnectionLogFileProtocol = "rsync" | "scp" | "sftp";
+
+export const ConnectionLogFileProtocols: ConnectionLogFileProtocol[] = [
+	"rsync",
+	"scp",
+	"sftp",
+];
+
+// From codersdk/connectionlog.go
+export interface ConnectionLogFileTransferInfo {
+	/**
+	 * ConnectionID matches the connection ID of the file_transfer
+	 * session the operation occurred in.
+	 */
+	readonly connection_id: string;
+	readonly protocol: ConnectionLogFileProtocol;
+	readonly action: ConnectionLogFileAction;
+	/**
+	 * Path is the path the operation was performed on. For SCP and
+	 * rsync this is the requested root path from the command line, not
+	 * necessarily every file transferred.
+	 */
+	readonly path: string;
+	/**
+	 * Target is only set for operations with a second path, such as the
+	 * destination of a rename or the target of a symlink.
+	 */
+	readonly target?: string;
 }
 
 // From codersdk/connectionlog.go
@@ -3761,6 +3822,8 @@ export const ConnectionMethods: ConnectionMethod[] = ["derp", "direct", ""];
 
 // From codersdk/connectionlog.go
 export type ConnectionType =
+	| "file_operation"
+	| "file_transfer"
 	| "jetbrains"
 	| "port_forwarding"
 	| "reconnecting_pty"
@@ -3770,6 +3833,8 @@ export type ConnectionType =
 	| "workspace_app";
 
 export const ConnectionTypes: ConnectionType[] = [
+	"file_operation",
+	"file_transfer",
 	"jetbrains",
 	"port_forwarding",
 	"reconnecting_pty",
