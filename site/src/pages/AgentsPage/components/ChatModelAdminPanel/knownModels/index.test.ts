@@ -141,6 +141,12 @@ describe("formatPricePerMillionTokens", () => {
 		expect(formatPricePerMillionTokens(0.125)).toBe("$0.125");
 	});
 
+	it("shows a threshold for positive prices below four decimals", () => {
+		expect(formatPricePerMillionTokens(0.000001)).toBe("<$0.0001");
+		expect(formatPricePerMillionTokens(0.000049)).toBe("<$0.0001");
+		expect(formatPricePerMillionTokens(0.0001)).toBe("$0.0001");
+	});
+
 	it("formats zero", () => {
 		expect(formatPricePerMillionTokens(0)).toBe("$0");
 	});

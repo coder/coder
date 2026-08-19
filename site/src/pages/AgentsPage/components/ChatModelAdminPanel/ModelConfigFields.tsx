@@ -709,6 +709,15 @@ export const PricingEstimateFields: FC<{
 			}
 		: knownModel;
 
+	if (livePricesQuery.isError) {
+		return (
+			<p className="m-0 flex items-center gap-1.5 text-xs text-content-secondary sm:col-span-full">
+				<InfoIcon className="size-3.5 shrink-0" />
+				Couldn't load pricing.
+			</p>
+		);
+	}
+
 	if (
 		!livePriceLoading &&
 		(costs === undefined ||

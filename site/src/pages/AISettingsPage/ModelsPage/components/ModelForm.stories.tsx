@@ -632,6 +632,33 @@ export const CostEstimateLoading: Story = {
 	},
 };
 
+// When the price book lookup fails, the section says so instead of falling
+// back to the catalog, because the model may have a deployment override.
+export const CostEstimateError: Story = {
+	args: {
+		editingModel: mockClaude,
+		selectedProviderState: MockAnthropicProviderState,
+		onDeleteModel: fn(async () => undefined),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getAIModelPrices").mockRejectedValue(
+			new Error("request failed"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /cost estimate/i }),
+		);
+		await expect(
+			canvas.getByText("Couldn't load pricing."),
+		).toBeInTheDocument();
+		// The catalog numbers must not render on error.
+		expect(canvas.queryByDisplayValue("3")).not.toBeInTheDocument();
+		expect(canvas.queryByDisplayValue("15")).not.toBeInTheDocument();
+	},
+};
+
 export const UseResponsesAPIForOpenAI: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
