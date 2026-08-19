@@ -1,5 +1,4 @@
 import {
-	BotIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
@@ -247,17 +246,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										)}
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
-										{hasChildren && (
-											<span
-												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums text-content-secondary"
-												title={`${childIDs.length} ${
-													childIDs.length === 1 ? "subagent" : "subagents"
-												}`}
-											>
-												{childIDs.length}
-												<BotIcon className="size-3.5" aria-hidden="true" />
-											</span>
-										)}
 										{PRIcon && prIcon && (
 											<PRIcon
 												role="img"
