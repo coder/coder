@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"testing"
 	"time"
 
@@ -30,12 +31,13 @@ type chatOperationalSettingsAuditFixture struct {
 }
 
 type chatOperationalSettingAuditCase struct {
-	name      string
-	key       string
-	diffField string
-	oldValue  string
-	newValue  string
-	write     func(context.Context, *codersdk.ExperimentalClient) error
+	name             string
+	key              string
+	diffField        string
+	oldValue         string
+	newValue         string
+	effectiveDefault string
+	write            func(context.Context, *codersdk.ExperimentalClient, string) error
 }
 
 func newChatOperationalSettingsAuditFixture(t *testing.T) chatOperationalSettingsAuditFixture {
@@ -98,93 +100,118 @@ func requireChatOperationalSettingsAuditDiff(t *testing.T, log database.AuditLog
 func TestChatOperationalSettingsAudit(t *testing.T) {
 	t.Parallel()
 
-	retentionDays := chatOperationalSettingAuditCase{
-		name:      "RetentionDays",
-		key:       "agents_chat_retention_days",
-		diffField: "chat_retention_days",
-		oldValue:  "30",
-		newValue:  "47",
-		write: func(ctx context.Context, client *codersdk.ExperimentalClient) error {
-			return client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 47})
+	settings := []chatOperationalSettingAuditCase{
+		{
+			name:             "RetentionDays",
+			key:              "agents_chat_retention_days",
+			diffField:        "chat_retention_days",
+			oldValue:         "30",
+			newValue:         "47",
+			effectiveDefault: "30",
+			write: func(ctx context.Context, client *codersdk.ExperimentalClient, value string) error {
+				parsed, err := strconv.ParseInt(value, 10, 32)
+				if err != nil {
+					return err
+				}
+				return client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: int32(parsed)})
+			},
+		},
+		{
+			name:             "DebugRetentionDays",
+			key:              "agents_chat_debug_retention_days",
+			diffField:        "chat_debug_retention_days",
+			oldValue:         "7",
+			newValue:         "47",
+			effectiveDefault: strconv.FormatInt(int64(codersdk.DefaultChatDebugRetentionDays), 10),
+			write: func(ctx context.Context, client *codersdk.ExperimentalClient, value string) error {
+				parsed, err := strconv.ParseInt(value, 10, 32)
+				if err != nil {
+					return err
+				}
+				return client.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{DebugRetentionDays: int32(parsed)})
+			},
+		},
+		{
+			name:             "AutoArchiveDays",
+			key:              "agents_chat_auto_archive_days",
+			diffField:        "chat_auto_archive_days",
+			oldValue:         "14",
+			newValue:         "47",
+			effectiveDefault: strconv.FormatInt(int64(codersdk.DefaultChatAutoArchiveDays), 10),
+			write: func(ctx context.Context, client *codersdk.ExperimentalClient, value string) error {
+				parsed, err := strconv.ParseInt(value, 10, 32)
+				if err != nil {
+					return err
+				}
+				return client.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{AutoArchiveDays: int32(parsed)})
+			},
+		},
+		{
+			name:             "WorkspaceTTL",
+			key:              "agents_workspace_ttl",
+			diffField:        "workspace_ttl",
+			oldValue:         time.Hour.String(),
+			newValue:         (2 * time.Hour).String(),
+			effectiveDefault: "0s",
+			write: func(ctx context.Context, client *codersdk.ExperimentalClient, value string) error {
+				ttl, err := time.ParseDuration(value)
+				if err != nil {
+					return err
+				}
+				return client.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+					WorkspaceTTLMillis: ttl.Milliseconds(),
+				})
+			},
+		},
+		{
+			name:      "ComputerUseProvider",
+			key:       "agents_computer_use_provider",
+			diffField: "computer_use_provider",
+			oldValue:  string(codersdk.ChatComputerUseProviderAnthropic),
+			newValue:  string(codersdk.ChatComputerUseProviderOpenAI),
+			write: func(ctx context.Context, client *codersdk.ExperimentalClient, value string) error {
+				return client.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
+					Provider: codersdk.ChatComputerUseProvider(value),
+				})
+			},
+		},
+		{
+			name:             "DebugLogging",
+			key:              "agents_chat_debug_logging_allow_users",
+			diffField:        "debug_logging_allow_users",
+			oldValue:         "false",
+			newValue:         "true",
+			effectiveDefault: "false",
+			write: func(ctx context.Context, client *codersdk.ExperimentalClient, value string) error {
+				allowUsers, err := strconv.ParseBool(value)
+				if err != nil {
+					return err
+				}
+				return client.UpdateChatDebugLogging(ctx, codersdk.UpdateChatDebugLoggingAllowUsersRequest{AllowUsers: allowUsers})
+			},
+		},
+		{
+			name:             "PersonalModelOverrides",
+			key:              "agents_chat_personal_model_overrides_enabled",
+			diffField:        "personal_model_overrides_enabled",
+			oldValue:         "false",
+			newValue:         "true",
+			effectiveDefault: "false",
+			write: func(ctx context.Context, client *codersdk.ExperimentalClient, value string) error {
+				allowUsers, err := strconv.ParseBool(value)
+				if err != nil {
+					return err
+				}
+				return client.UpdateChatPersonalModelOverridesAdminSettings(ctx, codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest{
+					AllowUsers: allowUsers,
+				})
+			},
 		},
 	}
-	debugRetentionDays := chatOperationalSettingAuditCase{
-		name:      "DebugRetentionDays",
-		key:       "agents_chat_debug_retention_days",
-		diffField: "chat_debug_retention_days",
-		oldValue:  "7",
-		newValue:  "47",
-		write: func(ctx context.Context, client *codersdk.ExperimentalClient) error {
-			return client.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{DebugRetentionDays: 47})
-		},
-	}
-	autoArchiveDays := chatOperationalSettingAuditCase{
-		name:      "AutoArchiveDays",
-		key:       "agents_chat_auto_archive_days",
-		diffField: "chat_auto_archive_days",
-		oldValue:  "14",
-		newValue:  "47",
-		write: func(ctx context.Context, client *codersdk.ExperimentalClient) error {
-			return client.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{AutoArchiveDays: 47})
-		},
-	}
-	workspaceTTL := chatOperationalSettingAuditCase{
-		name:      "WorkspaceTTL",
-		key:       "agents_workspace_ttl",
-		diffField: "workspace_ttl",
-		oldValue:  "1h0m0s",
-		newValue:  "2h0m0s",
-		write: func(ctx context.Context, client *codersdk.ExperimentalClient) error {
-			return client.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
-				WorkspaceTTLMillis: (2 * time.Hour).Milliseconds(),
-			})
-		},
-	}
-	computerUseProvider := chatOperationalSettingAuditCase{
-		name:      "ComputerUseProvider",
-		key:       "agents_computer_use_provider",
-		diffField: "computer_use_provider",
-		oldValue:  string(codersdk.ChatComputerUseProviderAnthropic),
-		newValue:  string(codersdk.ChatComputerUseProviderOpenAI),
-		write: func(ctx context.Context, client *codersdk.ExperimentalClient) error {
-			return client.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
-				Provider: codersdk.ChatComputerUseProviderOpenAI,
-			})
-		},
-	}
-	debugLogging := chatOperationalSettingAuditCase{
-		name:      "DebugLogging",
-		key:       "agents_chat_debug_logging_allow_users",
-		diffField: "debug_logging_allow_users",
-		oldValue:  "false",
-		newValue:  "true",
-		write: func(ctx context.Context, client *codersdk.ExperimentalClient) error {
-			return client.UpdateChatDebugLogging(ctx, codersdk.UpdateChatDebugLoggingAllowUsersRequest{AllowUsers: true})
-		},
-	}
-	personalModelOverrides := chatOperationalSettingAuditCase{
-		name:      "PersonalModelOverrides",
-		key:       "agents_chat_personal_model_overrides_enabled",
-		diffField: "personal_model_overrides_enabled",
-		oldValue:  "false",
-		newValue:  "true",
-		write: func(ctx context.Context, client *codersdk.ExperimentalClient) error {
-			return client.UpdateChatPersonalModelOverridesAdminSettings(ctx, codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest{
-				AllowUsers: true,
-			})
-		},
-	}
+	retentionDays := settings[0]
+	computerUseProvider := settings[4]
 
-	typedFields := []chatOperationalSettingAuditCase{
-		retentionDays,
-		debugRetentionDays,
-		autoArchiveDays,
-		workspaceTTL,
-		computerUseProvider,
-		debugLogging,
-		personalModelOverrides,
-	}
-	for _, setting := range typedFields {
+	for _, setting := range settings {
 		t.Run(setting.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -193,76 +220,25 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 				Key:   setting.key,
 				Value: setting.oldValue,
 			}))
-			require.NoError(t, setting.write(fixture.ctx, fixture.client))
+			require.NoError(t, setting.write(fixture.ctx, fixture.client, setting.newValue))
 
 			log := fixture.onlyAuditLog(t)
 			requireChatOperationalSettingsAuditDiff(t, log, setting.diffField, setting.oldValue, setting.newValue)
 		})
-	}
 
-	effectiveDefaults := []struct {
-		name  string
-		key   string
-		write func(context.Context, *codersdk.ExperimentalClient) error
-	}{
-		{
-			name: "RetentionDaysEffectiveDefault",
-			key:  retentionDays.key,
-			write: func(ctx context.Context, client *codersdk.ExperimentalClient) error {
-				return client.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 30})
-			},
-		},
-		{
-			name: "DebugRetentionDaysEffectiveDefault",
-			key:  debugRetentionDays.key,
-			write: func(ctx context.Context, client *codersdk.ExperimentalClient) error {
-				return client.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{
-					DebugRetentionDays: codersdk.DefaultChatDebugRetentionDays,
-				})
-			},
-		},
-		{
-			name: "AutoArchiveDaysEffectiveDefault",
-			key:  autoArchiveDays.key,
-			write: func(ctx context.Context, client *codersdk.ExperimentalClient) error {
-				return client.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{
-					AutoArchiveDays: codersdk.DefaultChatAutoArchiveDays,
-				})
-			},
-		},
-		{
-			name: "WorkspaceTTLEffectiveDefault",
-			key:  workspaceTTL.key,
-			write: func(ctx context.Context, client *codersdk.ExperimentalClient) error {
-				return client.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
-					WorkspaceTTLMillis: codersdk.DefaultChatWorkspaceTTL,
-				})
-			},
-		},
-		{
-			name: "DebugLoggingEffectiveDefault",
-			key:  debugLogging.key,
-			write: func(ctx context.Context, client *codersdk.ExperimentalClient) error {
-				return client.UpdateChatDebugLogging(ctx, codersdk.UpdateChatDebugLoggingAllowUsersRequest{AllowUsers: false})
-			},
-		},
-		{
-			name: "PersonalModelOverridesEffectiveDefault",
-			key:  personalModelOverrides.key,
-			write: func(ctx context.Context, client *codersdk.ExperimentalClient) error {
-				return client.UpdateChatPersonalModelOverridesAdminSettings(ctx, codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest{
-					AllowUsers: false,
-				})
-			},
-		},
-	}
-	for _, setting := range effectiveDefaults {
-		t.Run(setting.name, func(t *testing.T) {
+		if setting.effectiveDefault == "" {
+			continue
+		}
+		t.Run(setting.name+"EffectiveDefault", func(t *testing.T) {
 			t.Parallel()
 
 			fixture := newChatOperationalSettingsAuditFixture(t)
 			require.NoError(t, fixture.db.DeleteRuntimeConfig(fixture.systemCtx, setting.key))
-			require.NoError(t, setting.write(fixture.ctx, fixture.client))
+			require.NoError(t, setting.write(fixture.ctx, fixture.client, setting.effectiveDefault))
+
+			stored, err := fixture.db.GetChatSiteConfigValue(fixture.systemCtx, setting.key)
+			require.NoError(t, err)
+			require.Equal(t, database.GetChatSiteConfigValueRow{}, stored)
 			require.Empty(t, fixture.auditLogs(t))
 		})
 	}
@@ -272,7 +248,7 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 
 		fixture := newChatOperationalSettingsAuditFixture(t)
 		require.NoError(t, fixture.db.DeleteRuntimeConfig(fixture.systemCtx, computerUseProvider.key))
-		require.NoError(t, computerUseProvider.write(fixture.ctx, fixture.client))
+		require.NoError(t, computerUseProvider.write(fixture.ctx, fixture.client, computerUseProvider.newValue))
 
 		log := fixture.onlyAuditLog(t)
 		requireChatOperationalSettingsAuditDiff(t, log, computerUseProvider.diffField, "", computerUseProvider.newValue)
@@ -286,7 +262,7 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 			Key:   retentionDays.key,
 			Value: retentionDays.oldValue,
 		}))
-		require.NoError(t, retentionDays.write(fixture.ctx, fixture.client))
+		require.NoError(t, retentionDays.write(fixture.ctx, fixture.client, retentionDays.newValue))
 
 		log := fixture.onlyAuditLog(t)
 		require.Equal(t, database.AuditActionWrite, log.Action)
@@ -297,15 +273,19 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 		require.EqualValues(t, 204, log.StatusCode)
 	})
 
-	t.Run("IdenticalWrite", func(t *testing.T) {
+	t.Run("IdenticalStoredValue", func(t *testing.T) {
 		t.Parallel()
 
 		fixture := newChatOperationalSettingsAuditFixture(t)
 		require.NoError(t, fixture.db.UpsertRuntimeConfig(fixture.systemCtx, database.UpsertRuntimeConfigParams{
-			Key:   debugLogging.key,
-			Value: debugLogging.newValue,
+			Key:   retentionDays.key,
+			Value: retentionDays.newValue,
 		}))
-		require.NoError(t, debugLogging.write(fixture.ctx, fixture.client))
+		require.NoError(t, retentionDays.write(fixture.ctx, fixture.client, retentionDays.newValue))
+
+		stored, err := fixture.db.GetChatSiteConfigValue(fixture.systemCtx, retentionDays.key)
+		require.NoError(t, err)
+		require.Equal(t, database.GetChatSiteConfigValueRow{Value: retentionDays.newValue, Exists: true}, stored)
 		require.Empty(t, fixture.auditLogs(t))
 	})
 
@@ -330,7 +310,7 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 			Key:   retentionDays.key,
 			Value: malformed,
 		}))
-		require.NoError(t, fixture.client.UpdateChatRetentionDays(fixture.ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 60}))
+		require.NoError(t, retentionDays.write(fixture.ctx, fixture.client, "60"))
 
 		log := fixture.onlyAuditLog(t)
 		requireChatOperationalSettingsAuditDiff(t, log, retentionDays.diffField, malformed, "60")

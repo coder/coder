@@ -639,6 +639,63 @@ type failNextGetChatSiteConfigValueStore struct {
 	failNextGetChatSiteConfigValue *atomic.Bool
 }
 
+type failNextChatOperationalSettingTransactionStore struct {
+	database.Store
+
+	failNextTransaction *atomic.Bool
+}
+
+func newFailNextChatOperationalSettingTransactionStore(store database.Store) *failNextChatOperationalSettingTransactionStore {
+	return &failNextChatOperationalSettingTransactionStore{
+		Store:               store,
+		failNextTransaction: &atomic.Bool{},
+	}
+}
+
+func (s *failNextChatOperationalSettingTransactionStore) InTx(
+	function func(database.Store) error,
+	txOpts *database.TxOptions,
+) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		if err := function(tx); err != nil {
+			return err
+		}
+		if s.failNextTransaction.CompareAndSwap(true, false) {
+			return stderrors.New("forced chat operational setting transaction failure")
+		}
+		return nil
+	}, txOpts)
+}
+
+type failNextUpsertChatRetentionDaysStore struct {
+	database.Store
+
+	failNextUpsert *atomic.Bool
+}
+
+func newFailNextUpsertChatRetentionDaysStore(store database.Store) *failNextUpsertChatRetentionDaysStore {
+	return &failNextUpsertChatRetentionDaysStore{
+		Store:          store,
+		failNextUpsert: &atomic.Bool{},
+	}
+}
+
+func (s *failNextUpsertChatRetentionDaysStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&failNextUpsertChatRetentionDaysStore{
+			Store:          tx,
+			failNextUpsert: s.failNextUpsert,
+		})
+	}, txOpts)
+}
+
+func (s *failNextUpsertChatRetentionDaysStore) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {
+	if s.failNextUpsert.CompareAndSwap(true, false) {
+		return stderrors.New("forced chat retention days upsert failure")
+	}
+	return s.Store.UpsertChatRetentionDays(ctx, retentionDays)
+}
+
 func newFailNextGetChatSiteConfigValueStore(store database.Store) *failNextGetChatSiteConfigValueStore {
 	return &failNextGetChatSiteConfigValueStore{
 		Store:                          store,
@@ -16848,6 +16905,200 @@ func TestChatWorkspaceTTL(t *testing.T) {
 		WorkspaceTTLMillis: 2_595_600_000,
 	})
 	requireSDKError(t, err, http.StatusBadRequest)
+}
+
+//nolint:tparallel,paralleltest // Subtests share one auditor and coderdtest instance.
+func TestChatOperationalSettingsAuditDeniedWrites(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	mAudit := audit.NewMock()
+	adminClient := newChatClient(t, func(opts *coderdtest.Options) {
+		opts.Auditor = mAudit
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+	writes := map[string]func() error{
+		"RetentionDays": func() error {
+			return memberClient.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: 90})
+		},
+		"DebugRetentionDays": func() error {
+			return memberClient.UpdateChatDebugRetentionDays(ctx, codersdk.UpdateChatDebugRetentionDaysRequest{DebugRetentionDays: 90})
+		},
+		"AutoArchiveDays": func() error {
+			return memberClient.UpdateChatAutoArchiveDays(ctx, codersdk.UpdateChatAutoArchiveDaysRequest{AutoArchiveDays: 90})
+		},
+		"WorkspaceTTL": func() error {
+			return memberClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{WorkspaceTTLMillis: time.Hour.Milliseconds()})
+		},
+		"ComputerUseProvider": func() error {
+			return memberClient.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{Provider: codersdk.ChatComputerUseProviderOpenAI})
+		},
+		"DebugLogging": func() error {
+			return memberClient.UpdateChatDebugLogging(ctx, codersdk.UpdateChatDebugLoggingAllowUsersRequest{AllowUsers: true})
+		},
+		"PersonalModelOverrides": func() error {
+			return memberClient.UpdateChatPersonalModelOverridesAdminSettings(ctx, codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest{AllowUsers: true})
+		},
+	}
+	for name, write := range writes {
+		t.Run(name, func(t *testing.T) {
+			mAudit.ResetLogs()
+
+			err := write()
+			requireSDKError(t, err, http.StatusForbidden)
+
+			logs := mAudit.AuditLogs()
+			require.Len(t, logs, 1)
+			require.Equal(t, database.ResourceTypeChatOperationalSettings, logs[0].ResourceType)
+			require.NotEqual(t, uuid.Nil, logs[0].ResourceID)
+			require.Empty(t, logs[0].ResourceTarget)
+			require.EqualValues(t, http.StatusForbidden, logs[0].StatusCode)
+			require.JSONEq(t, "{}", string(logs[0].Diff))
+		})
+	}
+}
+
+func TestChatRetentionDays_AuditNoOpSkipsWrite(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	rawDB, pubsub := dbtestutil.NewDB(t)
+	store := newFailNextUpsertChatRetentionDaysStore(rawDB)
+	mAudit := audit.NewMock()
+	adminClient := newChatClient(t, func(opts *coderdtest.Options) {
+		opts.Database = store
+		opts.Pubsub = pubsub
+		opts.Auditor = mAudit
+	})
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+	mAudit.ResetLogs()
+
+	require.NoError(t, rawDB.UpsertChatRetentionDays(ctx, 47))
+	store.failNextUpsert.Store(true)
+	require.NoError(t, adminClient.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{
+		RetentionDays: 47,
+	}))
+
+	require.True(t, store.failNextUpsert.Load(), "the no-op request must not execute the upsert")
+	stored, err := rawDB.GetChatSiteConfigValue(ctx, "agents_chat_retention_days")
+	require.NoError(t, err)
+	require.Equal(t, database.GetChatSiteConfigValueRow{Value: "47", Exists: true}, stored)
+	require.Empty(t, mAudit.AuditLogs())
+}
+
+func TestChatRetentionDays_AuditInfrastructureFailureRejectsWrite(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		retentionDays int32
+		store         func(database.Store) (database.Store, func())
+	}{
+		{
+			name:          "BaselineRead",
+			retentionDays: 90,
+			store: func(db database.Store) (database.Store, func()) {
+				store := newFailNextGetChatSiteConfigValueStore(db)
+				return store, func() { store.failNextGetChatSiteConfigValue.Store(true) }
+			},
+		},
+		{
+			name:          "Lock",
+			retentionDays: 90,
+			store: func(db database.Store) (database.Store, func()) {
+				store := newFailNextAcquireLockStore(db, database.GenLockID("agents_chat_retention_days"))
+				return store, func() { store.failNextAcquireLock.Store(true) }
+			},
+		},
+		{
+			name:          "TransactionAfterNoChange",
+			retentionDays: 30,
+			store: func(db database.Store) (database.Store, func()) {
+				store := newFailNextChatOperationalSettingTransactionStore(db)
+				return store, func() { store.failNextTransaction.Store(true) }
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			rawDB, pubsub := dbtestutil.NewDB(t)
+			store, fail := tt.store(rawDB)
+			mAudit := audit.NewMock()
+			adminClient := newChatClient(t, func(opts *coderdtest.Options) {
+				opts.Database = store
+				opts.Pubsub = pubsub
+				opts.Auditor = mAudit
+			})
+			coderdtest.CreateFirstUser(t, adminClient.Client)
+			mAudit.ResetLogs()
+
+			before, err := rawDB.GetChatSiteConfigValue(ctx, "agents_chat_retention_days")
+			require.NoError(t, err)
+
+			fail()
+			err = adminClient.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{
+				RetentionDays: tt.retentionDays,
+			})
+			requireSDKError(t, err, http.StatusInternalServerError)
+
+			response, err := adminClient.GetChatRetentionDays(ctx)
+			require.NoError(t, err)
+			require.Equal(t, int32(30), response.RetentionDays)
+
+			after, err := rawDB.GetChatSiteConfigValue(ctx, "agents_chat_retention_days")
+			require.NoError(t, err)
+			require.Equal(t, before, after)
+
+			logs := mAudit.AuditLogs()
+			require.Len(t, logs, 1)
+			require.EqualValues(t, http.StatusInternalServerError, logs[0].StatusCode)
+			require.JSONEq(t, "{}", string(logs[0].Diff))
+		})
+	}
+}
+
+func TestChatRetentionDays_AuditConcurrentIdenticalWritesSingleEntry(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	mAudit := audit.NewMock()
+	adminClient := newChatClient(t, func(opts *coderdtest.Options) {
+		opts.Auditor = mAudit
+	})
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+	mAudit.ResetLogs()
+
+	const writes = 2
+	start := make(chan struct{})
+	errs := make(chan error, writes)
+	var wg sync.WaitGroup
+	for range writes {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			errs <- adminClient.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{
+				RetentionDays: 90,
+			})
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	logs := mAudit.AuditLogs()
+	require.Len(t, logs, 1)
+	require.Equal(t, database.ResourceTypeChatOperationalSettings, logs[0].ResourceType)
+	require.Equal(t, database.AuditActionWrite, logs[0].Action)
 }
 
 func TestChatRetentionDays(t *testing.T) {

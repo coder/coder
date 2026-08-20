@@ -4787,6 +4787,8 @@ func (api *API) getChatPersonalModelOverridesAdminSettings(rw http.ResponseWrite
 	})
 }
 
+const chatOperationalSettingsLockTimeout = 5 * time.Second
+
 type chatOperationalSetting string
 
 const (
@@ -4842,9 +4844,20 @@ func (s chatOperationalSetting) auditValue(value string, id uuid.UUID) database.
 	return settings
 }
 
-// auditedChatOperationalSettingWrite captures the raw old value and performs
-// the write in one transaction. It suppresses the audit entry when the
-// effective value does not change.
+func (api *API) initChatOperationalSettingsAudit(
+	rw http.ResponseWriter,
+	r *http.Request,
+) (*audit.Request[database.ChatOperationalSettings], func(bool)) {
+	aReq, commitAudit := audit.InitRequestWithCancel[database.ChatOperationalSettings](rw, &audit.RequestParams{
+		Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionWrite,
+	})
+	aReq.New.ID = uuid.New()
+	return aReq, commitAudit
+}
+
+// auditedChatOperationalSettingWrite captures the effective old value and
+// performs the write in one transaction. It suppresses the audit entry when
+// the effective value does not change.
 func (api *API) auditedChatOperationalSettingWrite(
 	ctx context.Context,
 	aReq *audit.Request[database.ChatOperationalSettings],
@@ -4854,7 +4867,14 @@ func (api *API) auditedChatOperationalSettingWrite(
 	write func(database.Store) error,
 ) error {
 	var noChange bool
+	lockCtx, lockCancel := context.WithTimeout(ctx, chatOperationalSettingsLockTimeout)
+	defer lockCancel()
+
 	err := api.Database.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(lockCtx, database.GenLockID(string(setting))); err != nil {
+			return xerrors.Errorf("acquire chat operational setting write lock: %w", err)
+		}
+
 		old, err := tx.GetChatSiteConfigValue(ctx, string(setting))
 		if err != nil {
 			return err
@@ -4863,20 +4883,19 @@ func (api *API) auditedChatOperationalSettingWrite(
 		if !old.Exists {
 			oldValue = setting.defaultValue()
 		}
+		if oldValue == newValue {
+			noChange = true
+			return nil
+		}
 		if err := write(tx); err != nil {
 			return err
 		}
 
 		aReq.Old = setting.auditValue(oldValue, uuid.Nil)
-		aReq.New = setting.auditValue(newValue, uuid.New())
-		noChange = oldValue == newValue
+		aReq.New = setting.auditValue(newValue, aReq.New.ID)
 		return nil
 	}, nil)
 	if err != nil {
-		api.Logger.Warn(ctx, "chat operational setting transaction failed",
-			slog.F("key", setting),
-			slog.Error(err),
-		)
 		return err
 	}
 	if noChange {
@@ -4888,15 +4907,13 @@ func (api *API) auditedChatOperationalSettingWrite(
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putChatPersonalModelOverridesAdminSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	aReq, commitAudit := api.initChatOperationalSettingsAudit(rw, r)
+	defer commitAudit(true)
+
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}
-
-	aReq, commitAudit := audit.InitRequestWithCancel[database.ChatOperationalSettings](rw, &audit.RequestParams{
-		Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionWrite,
-	})
-	defer commitAudit(true)
 
 	var req codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -5163,15 +5180,13 @@ func (api *API) getChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putChatComputerUseProvider(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	aReq, commitAudit := api.initChatOperationalSettingsAudit(rw, r)
+	defer commitAudit(true)
+
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}
-
-	aReq, commitAudit := audit.InitRequestWithCancel[database.ChatOperationalSettings](rw, &audit.RequestParams{
-		Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionWrite,
-	})
-	defer commitAudit(true)
 
 	var req codersdk.UpdateChatComputerUseProviderRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -5235,15 +5250,13 @@ func (api *API) getChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	aReq, commitAudit := api.initChatOperationalSettingsAudit(rw, r)
+	defer commitAudit(true)
+
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}
-
-	aReq, commitAudit := audit.InitRequestWithCancel[database.ChatOperationalSettings](rw, &audit.RequestParams{
-		Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionWrite,
-	})
-	defer commitAudit(true)
 
 	var req codersdk.UpdateChatDebugLoggingAllowUsersRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -5469,15 +5482,13 @@ func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	aReq, commitAudit := api.initChatOperationalSettingsAudit(rw, r)
+	defer commitAudit(true)
+
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}
-
-	aReq, commitAudit := audit.InitRequestWithCancel[database.ChatOperationalSettings](rw, &audit.RequestParams{
-		Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionWrite,
-	})
-	defer commitAudit(true)
 
 	var req codersdk.UpdateChatWorkspaceTTLRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -5568,15 +5579,13 @@ const retentionDaysMaximum = 3650 // ~10 years
 // @x-apidocgen {"skip": true}
 func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	aReq, commitAudit := api.initChatOperationalSettingsAudit(rw, r)
+	defer commitAudit(true)
+
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}
-
-	aReq, commitAudit := audit.InitRequestWithCancel[database.ChatOperationalSettings](rw, &audit.RequestParams{
-		Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionWrite,
-	})
-	defer commitAudit(true)
 
 	var req codersdk.UpdateChatRetentionDaysRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -5630,15 +5639,13 @@ const chatDebugRetentionDaysMaximum = 3650 // ~10 years
 // retention window. Admin-only.
 func (api *API) putChatDebugRetentionDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	aReq, commitAudit := api.initChatOperationalSettingsAudit(rw, r)
+	defer commitAudit(true)
+
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}
-
-	aReq, commitAudit := audit.InitRequestWithCancel[database.ChatOperationalSettings](rw, &audit.RequestParams{
-		Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionWrite,
-	})
-	defer commitAudit(true)
 
 	var req codersdk.UpdateChatDebugRetentionDaysRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -5693,15 +5700,13 @@ const autoArchiveDaysMaximum = 3650 // ~10 years
 // window. Admin-only; documented in docs/ai-coder/agents/chats-api.md.
 func (api *API) putChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	aReq, commitAudit := api.initChatOperationalSettingsAudit(rw, r)
+	defer commitAudit(true)
+
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}
-
-	aReq, commitAudit := audit.InitRequestWithCancel[database.ChatOperationalSettings](rw, &audit.RequestParams{
-		Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionWrite,
-	})
-	defer commitAudit(true)
 
 	var req codersdk.UpdateChatAutoArchiveDaysRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
