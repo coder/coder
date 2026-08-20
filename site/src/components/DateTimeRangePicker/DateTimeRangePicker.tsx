@@ -3,9 +3,10 @@
  * hidden until "Custom range" is chosen.
  */
 
-import { CalendarIcon, CheckIcon, ChevronDownIcon } from "lucide-react";
+import { CalendarIcon, CheckIcon } from "lucide-react";
 import { type FC, type KeyboardEvent, useEffect, useId, useState } from "react";
 import type { DateRange as DayPickerDateRange } from "react-day-picker";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button, type ButtonProps } from "#/components/Button/Button";
 import { Calendar } from "#/components/Calendar/Calendar";
 import { Input } from "#/components/Input/Input";
@@ -210,7 +211,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
-				<Button variant="outline" size={size}>
+				<Button variant="outline" size={size} className="group">
 					<CalendarIcon className="size-4 text-content-secondary" />
 					<span>{triggerLabel}</span>
 					<ChevronDownIcon className="size-3.5 text-content-secondary" />
