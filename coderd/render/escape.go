@@ -16,6 +16,13 @@ const (
 	// them everywhere would corrupt values such as "bobby-workspace" and "1.5".
 	blockStart = `#-+.>|`
 
+	// leadingEmphasis characters carry inline meaning anywhere but also open a
+	// block construct in leading position: "* " starts a bullet list, and three
+	// or more of either character starts a thematic break. They are escaped in
+	// leading position for the same reason as blockStart, which costs emphasis
+	// that begins on a line boundary and keeps "user_override" intact.
+	leadingEmphasis = `*_`
+
 	// foldStart characters also carry meaning only at the start of a line, but
 	// neither renderer honors a backslash before them, so escaping would leave
 	// a literal backslash in the output. The preceding line break is replaced
@@ -27,10 +34,12 @@ const (
 // renders as literal text through both HTMLFromNotificationMarkdown and
 // PlaintextFromMarkdown.
 //
-// Emphasis characters ("*", "_" and backtick) are deliberately left alone. They
-// can only produce <em>, <strong>, <del> or <code>, never a link or a heading,
-// and escaping "_" would corrupt label values such as "user_override" that body
-// templates compare with `eq`.
+// Emphasis characters ("*", "_" and backtick) are deliberately left alone away
+// from a line's leading position. They can only produce <em>, <strong>, <del> or
+// <code> there, never a link or a heading, and escaping "_" everywhere would
+// corrupt label values such as "user_override" that body templates compare with
+// `eq`. In leading position "*" and "_" do open a block construct, so they are
+// escaped, see leadingEmphasis.
 //
 // Line breaks are preserved so multi-line values keep their shape. Other control
 // characters are dropped: they have no display value and are the carrier for
@@ -88,13 +97,17 @@ func isStrippable(r rune) bool {
 }
 
 // escapeLine escapes every inlineCritical character in the line, plus a single
-// blockStart character in leading position.
+// blockStart or leadingEmphasis character in leading position, plus the "."
+// that closes an ordered-list marker.
 func escapeLine(line string) string {
 	var b strings.Builder
 	b.Grow(len(line))
 
 	leading := true
-	for _, r := range line {
+	// digitRun reports whether the line so far is nothing but indentation and
+	// digits, which is the only position where "." opens an ordered list.
+	digitRun := false
+	for i, r := range line {
 		switch {
 		case r < 0x80 && strings.ContainsRune(inlineCritical, r):
 			_ = b.WriteByte('\\')
@@ -103,15 +116,31 @@ func escapeLine(line string) string {
 			// Indentation keeps the next character in leading position.
 			_, _ = b.WriteRune(r)
 			continue
-		case leading && r < 0x80 && strings.ContainsRune(blockStart, r):
+		case leading && r < 0x80 && strings.ContainsRune(blockStart+leadingEmphasis, r):
+			_ = b.WriteByte('\\')
+			_, _ = b.WriteRune(r)
+		case digitRun && r == '.' && closesMarker(line, i):
+			// The "1." of an ordered list. Its sibling "1)" needs no case
+			// because ")" is inlineCritical and is always escaped.
 			_ = b.WriteByte('\\')
 			_, _ = b.WriteRune(r)
 		default:
 			_, _ = b.WriteRune(r)
 		}
+		digitRun = (leading || digitRun) && r >= '0' && r <= '9'
 		leading = false
 	}
 	return b.String()
+}
+
+// closesMarker reports whether the single-byte list-marker delimiter at i is
+// followed by a space or ends the line. CommonMark requires that of a marker,
+// which is what keeps a value such as "1.5" out of the escaped set: templates
+// compare numeric label values with `eq`, so escaping one changes control flow.
+// Tabs need no handling here because stripControl has already folded them into
+// spaces.
+func closesMarker(line string, i int) bool {
+	return i+1 == len(line) || line[i+1] == ' '
 }
 
 // opensFoldConstruct reports whether a line's first non-space character is a

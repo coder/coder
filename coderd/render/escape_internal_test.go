@@ -66,7 +66,7 @@ func TestEscapableSet(t *testing.T) {
 
 	// Every character EscapeMarkdown emits a backslash before must be honored
 	// by both renderers, or the escape shows up as literal text.
-	for _, r := range inlineCritical + blockStart {
+	for _, r := range inlineCritical + blockStart + leadingEmphasis {
 		assert.Contains(t, wantHTML, string(r), "gomarkdown does not honor \\%s", string(r))
 		assert.Contains(t, wantPlain, string(r), "glamour does not honor \\%s", string(r))
 	}
@@ -95,6 +95,9 @@ func TestEscapeMarkdownControlValues(t *testing.T) {
 		"initiator",
 		"user-override",
 		"1.5",
+		// A "." only closes a list marker when a space or the line end follows
+		// it, so digit-dot values are untouched.
+		"10.0.0.1",
 		"bobby-workspace",
 	} {
 		require.Equal(t, v, EscapeMarkdown(v), "escaping changed a control value")
@@ -138,8 +141,16 @@ func TestEscapeMarkdown(t *testing.T) {
 			{"SetextH1Repeated", "Eve\n===\n===\nx"},
 			{"SetextH2", "Eve\n---\nx"},
 			{"ThematicBreak", "Eve\n----\nx"},
+			{"ThematicBreakStars", "Eve\n***\nnext"},
+			{"ThematicBreakUnderscores", "Eve\n___\nnext"},
+			{"ThematicBreakSpacedStars", "Eve\n* * *\nnext"},
+			{"ThematicBreakSpacedUnderscores", "Eve\n_ _ _\nnext"},
 			{"BulletList", "Eve\n- one\n- two"},
+			{"BulletListStar", "Eve\n* one\n* two"},
+			{"BulletListStarIndented", "Eve\n  * one\n  * two"},
 			{"OrderedList", "Eve\n1. one\n2. two"},
+			{"OrderedListMultiDigit", "Eve\n99. one\n100. two"},
+			{"OrderedListParen", "Eve\n1) one\n2) two"},
 			{"Blockquote", "Eve\n> quoted"},
 			{"Table", "a | b\n--- | ---\nc | d"},
 			{"JavascriptScheme", "[click](javascript:alert(1))"},
@@ -150,20 +161,27 @@ func TestEscapeMarkdown(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				escaped := EscapeMarkdown(tc.value)
-				html := HTMLFromNotificationMarkdown(body(escaped))
-				plain, err := PlaintextFromMarkdown(body(escaped))
-				require.NoError(t, err)
+				// Every value is rendered twice: as written, and with its line
+				// breaks doubled. A blank line is what lets a block construct
+				// interrupt the surrounding paragraph, so a marker can look
+				// neutralized with a single break and still open a list or a
+				// thematic break once a blank line precedes it.
+				for _, value := range []string{tc.value, strings.ReplaceAll(tc.value, "\n", "\n\n")} {
+					escaped := EscapeMarkdown(value)
+					html := HTMLFromNotificationMarkdown(body(escaped))
+					plain, err := PlaintextFromMarkdown(body(escaped))
+					require.NoError(t, err)
 
-				for _, tag := range structuralTags {
-					assert.NotContains(t, html, tag, "rendered HTML: %s", html)
-				}
-				// A backslash in the output is only acceptable if the value
-				// contained one: otherwise a character was escaped that the
-				// renderer does not honor, and the escape shows up as text.
-				if !strings.Contains(tc.value, `\`) {
-					assert.NotContains(t, html, `\`, "literal backslash leaked into HTML")
-					assert.NotContains(t, plain, `\`, "literal backslash leaked into plaintext")
+					for _, tag := range structuralTags {
+						assert.NotContains(t, html, tag, "value %q rendered HTML: %s", value, html)
+					}
+					// A backslash in the output is only acceptable if the value
+					// contained one: otherwise a character was escaped that the
+					// renderer does not honor, and the escape shows up as text.
+					if !strings.Contains(value, `\`) {
+						assert.NotContains(t, html, `\`, "value %q leaked a literal backslash into HTML", value)
+						assert.NotContains(t, plain, `\`, "value %q leaked a literal backslash into plaintext", value)
+					}
 				}
 			})
 		}
@@ -242,10 +260,17 @@ func TestEscapeMarkdown(t *testing.T) {
 	t.Run("EmphasisIsNotEscaped", func(t *testing.T) {
 		t.Parallel()
 
-		// Emphasis characters are left alone on purpose: they cannot carry a
-		// destination, and escaping "_" corrupts control values. Documenting the
-		// residual here so a future tightening is a deliberate choice.
-		require.Equal(t, "*_`~", EscapeMarkdown("*_`~"))
+		// Away from a line's leading position, emphasis characters are left
+		// alone on purpose: they cannot carry a destination, and escaping "_"
+		// corrupts control values. Documenting the residual here so a future
+		// tightening is a deliberate choice.
+		require.Equal(t, "Eve *_`~", EscapeMarkdown("Eve *_`~"))
+
+		// In leading position "*" and "_" open a bullet list or a thematic
+		// break, so the first one is escaped. Backtick and "~" stay as they are:
+		// they can only reach a code block, which carries no destination.
+		require.Equal(t, "\\*_`~", EscapeMarkdown("*_`~"))
+		require.Equal(t, "\\_*`~", EscapeMarkdown("_*`~"))
 	})
 }
 
