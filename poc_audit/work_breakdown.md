@@ -38,7 +38,15 @@ mints an identifier for the AI agent, issues it a credential, and records both.
 
 ### Status
 
-Complete. The acceptance test passes.
+Complete as of 2026-08-13, at commit `f5a9eff1fc`. The acceptance test passed
+then.
+
+That is a historical statement rather than a standing one. Nothing re-runs it
+against the design as it has since developed, and confirming it would mean
+checking out code from that date, which nobody should have reason to do. Read it
+as a record of when this package was considered finished, not as a claim about
+the tree in front of you. The commit is given for precision and may not survive
+a rebase of this branch; the date will.
 
 ### New behavior
 
@@ -255,3 +263,57 @@ control plane. `UpdateAppStatus` already follows this path and is the model.
 - **The executable prints the minted identifier to standard output** so the
   test can read it out of the script log. Nothing in a real workspace would
   want that line.
+
+## WP2. Bring all three journals to mature form
+
+### Summary
+
+Every journal and ledger in the proof of concept is built to the patterns in
+`implementation_patterns.md`, and the three entities that have lifecycles each
+have their own pair. Completing this package means no journal in the tree is
+still in a shape the corpus has moved past.
+
+### Status
+
+Not started. Blocked on the credential lifecycle, which is not yet designed.
+
+### What forces the work
+
+`authorization_lifecycle_journal` and `authorization_lifecycle_ledger` were
+written to the current patterns. `entity_journal` was not, and predates most of
+them. It is one journal for every entity rather than one for each, so it carries
+a `subject_type` that per-entity journals make unnecessary; it has a single
+`recorded_at` where two dates are now required; its `id BIGSERIAL PRIMARY KEY`
+is a row identifier where an entry identifier and a line number are now
+required;
+and it has no lines, so no entry in it can be a multiline entry.
+
+`entity_ai_agents` has no state column, so the AI agent's states are recorded
+nowhere, and no posting reference, so nothing says which entry last posted to
+a row.
+
+None of that is a defect in what was built. It is the distance between the first
+thing written and the patterns arrived at since, and closing it is the point of
+this package.
+
+### New behavior
+
+- One journal and one ledger for each of the three entities: AI agent,
+  authorization, and credential.
+- The AI agent lifecycle recorded as transitions against the machine in
+  `entity_model.md`, rather than a single `created` event.
+- The event vocabulary settled once across all three machines rather than grown
+  one entity at a time, and written in the bare verb form the naming rule asks
+  for.
+- Creation of an AI agent writing three entries in one transaction, one to each
+  journal, as `entity_model.md` describes.
+
+### Acceptance tests
+
+Undecided, and they should be written before the implementation is. The WP1
+test is extended to assert that the grant of authorization is recorded, which is
+the smallest thing that cannot pass under the present code.
+
+### PoC cheats
+
+Not yet enumerated. They will be, before this package is called complete.
