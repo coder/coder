@@ -243,6 +243,11 @@ install_repo_tools() {
 	printf 'available: protoc (%s)\n' "$(protoc --version)"
 	printf 'available: protoc-gen-go (%s)\n' "$(protoc-gen-go --version)"
 	printf 'available: protoc-gen-go-drpc\n'
+
+	# Git does not preserve mtimes, so a fresh checkout can make committed
+	# generated files appear older than their inputs and trigger code generation
+	# during an ordinary build.
+	make gen/mark-fresh
 }
 
 cluster_command() {
