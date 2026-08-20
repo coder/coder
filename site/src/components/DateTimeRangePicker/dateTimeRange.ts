@@ -115,14 +115,15 @@ export const toClockFields = (
 
 /**
  * Summarizes a custom range for the trigger button, favoring the most
- * compact form: "April 12", "April 10-16", "Mar 28 - Apr 2", or a
- * fully qualified pair when the years differ.
+ * compact form: "April 12, 9:00 AM - 11:00 AM" for intra-day ranges,
+ * "April 10-16", "Mar 28 - Apr 2", or a fully qualified pair when the
+ * years differ.
  */
 export const formatCustomLabel = (start: Date, end: Date): string => {
 	const from = dayjs(start);
 	const to = dayjs(end);
 	if (from.isSame(to, "day")) {
-		return from.format("MMMM D");
+		return `${from.format("MMMM D, h:mm A")} - ${to.format("h:mm A")}`;
 	}
 	if (from.isSame(to, "month")) {
 		return `${from.format("MMMM D")}-${to.format("D")}`;

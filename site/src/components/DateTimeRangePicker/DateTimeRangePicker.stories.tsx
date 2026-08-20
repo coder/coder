@@ -60,30 +60,39 @@ export const OpenShowsOnlyQuickPicks: Story = {
 
 		await waitFor(() => {
 			expect(
-				screen.getByRole("button", { name: "Custom range" }),
+				screen.getByRole("radio", { name: "Custom range" }),
 			).toBeInTheDocument();
 		});
-		const popover = within(screen.getByRole("dialog"));
+		const quickPicks = within(screen.getByRole("radiogroup"));
 
 		expect(
-			popover.getByRole("button", { name: "Last 15 min" }),
+			quickPicks.getByRole("radio", { name: "Last 15 min" }),
 		).toBeInTheDocument();
 		expect(
-			popover.getByRole("button", { name: "Last hour" }),
+			quickPicks.getByRole("radio", { name: "Last hour" }),
 		).toBeInTheDocument();
-		expect(popover.getByRole("button", { name: "Today" })).toBeInTheDocument();
 		expect(
-			popover.getByRole("button", { name: "This week" }),
+			quickPicks.getByRole("radio", { name: "Today" }),
 		).toBeInTheDocument();
-
-		// The active preset is marked as selected.
 		expect(
-			popover.getByRole("button", { name: "Last 15 min" }),
-		).toHaveAttribute("aria-pressed", "true");
+			quickPicks.getByRole("radio", { name: "This week" }),
+		).toBeInTheDocument();
+		expect(
+			quickPicks.getByRole("radio", { name: "Last 15 min" }),
+		).toBeChecked();
 
 		// Calendar and time fields stay hidden until Custom range is chosen.
 		expect(screen.queryByRole("grid")).toBeNull();
 		expect(screen.queryByLabelText("From")).toBeNull();
+
+		// Arrow keys move focus through the radiogroup.
+		quickPicks.getByRole("radio", { name: "Last 15 min" }).focus();
+		await userEvent.keyboard("{ArrowDown}");
+		expect(quickPicks.getByRole("radio", { name: "Last hour" })).toHaveFocus();
+		await userEvent.keyboard("{ArrowUp}{ArrowUp}");
+		expect(
+			quickPicks.getByRole("radio", { name: "Custom range" }),
+		).toHaveFocus();
 	},
 };
 
@@ -98,12 +107,12 @@ export const SelectQuickPick: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
 
-		const preset = await screen.findByRole("button", { name: "Last hour" });
+		const preset = await screen.findByRole("radio", { name: "Last hour" });
 		await userEvent.click(preset);
 
 		// Selecting a quick pick commits immediately and closes the dropdown.
 		await waitFor(() => {
-			expect(screen.queryByRole("button", { name: "Custom range" })).toBeNull();
+			expect(screen.queryByRole("radio", { name: "Custom range" })).toBeNull();
 		});
 		expect(
 			canvas.getByRole("button", { name: /Last hour/ }),
@@ -120,10 +129,10 @@ export const CustomRangeExpanded: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
 
-		const customButton = await screen.findByRole("button", {
+		const customRadio = await screen.findByRole("radio", {
 			name: "Custom range",
 		});
-		await userEvent.click(customButton);
+		await userEvent.click(customRadio);
 
 		// Calendar, time fields, and footer appear beside the quick picks.
 		await waitFor(() => {
@@ -133,8 +142,13 @@ export const CustomRangeExpanded: Story = {
 		expect(screen.getByLabelText("To")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
 
-		// Apply stays disabled until a date range is selected.
+		// Apply stays disabled until a full date range is selected.
 		expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+
+		// Future dates cannot be selected.
+		expect(
+			screen.getByRole("button", { name: /April 17th, 2026/ }),
+		).toBeDisabled();
 	},
 };
 
@@ -150,21 +164,28 @@ export const ApplyCustomRange: Story = {
 		await userEvent.click(canvas.getByRole("button"));
 
 		await userEvent.click(
-			await screen.findByRole("button", { name: "Custom range" }),
+			await screen.findByRole("radio", { name: "Custom range" }),
 		);
 		await waitFor(() => {
 			expect(screen.getByRole("grid")).toBeInTheDocument();
 		});
 
-		// Pick April 10 through April 16 on the calendar.
+		const applyButton = screen.getByRole("button", { name: "Apply" });
 		await userEvent.click(
 			screen.getByRole("button", { name: /April 10th, 2026/ }),
 		);
+		// One boundary is not a range yet.
+		expect(applyButton).toBeDisabled();
 		await userEvent.click(
 			screen.getByRole("button", { name: /April 16th, 2026/ }),
 		);
 
-		const applyButton = screen.getByRole("button", { name: "Apply" });
+		// Set the To boundary to noon via the meridiem select.
+		await userEvent.click(
+			screen.getByRole("combobox", { name: "To AM or PM" }),
+		);
+		await userEvent.click(await screen.findByRole("option", { name: "PM" }));
+
 		await waitFor(() => {
 			expect(applyButton).toBeEnabled();
 		});
@@ -198,12 +219,18 @@ export const InvalidTimeDisablesApply: Story = {
 		await userEvent.clear(fromInput);
 		await userEvent.type(fromInput, "99:99");
 
+		// The message waits for blur, but Apply is blocked immediately.
+		expect(screen.queryByRole("alert")).toBeNull();
+		expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+		await userEvent.tab();
 		await waitFor(() => {
 			expect(
 				screen.getByText("Enter a valid time, e.g. 09:30:00"),
 			).toBeInTheDocument();
 		});
-		expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+		expect(fromInput).toHaveAccessibleDescription(
+			"Enter a valid time, e.g. 09:30:00",
+		);
 
 		// Fixing the time re-enables Apply.
 		await userEvent.clear(fromInput);
@@ -217,8 +244,8 @@ export const InvalidTimeDisablesApply: Story = {
 export const EndBeforeStartShowsError: Story = {
 	args: {
 		value: {
-			start: new Date(2026, 3, 10, 0, 0, 0),
-			end: new Date(2026, 3, 10, 0, 0, 0),
+			start: new Date(2026, 3, 10, 9, 0, 0),
+			end: new Date(2026, 3, 10, 10, 0, 0),
 		},
 		onChange: () => {},
 	},
@@ -230,7 +257,6 @@ export const EndBeforeStartShowsError: Story = {
 			expect(screen.getByRole("grid")).toBeInTheDocument();
 		});
 
-		// Same day with To earlier than From is rejected.
 		const fromInput = screen.getByLabelText("From");
 		await userEvent.clear(fromInput);
 		await userEvent.type(fromInput, "11:00:00");
@@ -256,7 +282,7 @@ export const CancelDiscardsDraft: Story = {
 
 		await userEvent.click(trigger);
 		await userEvent.click(
-			await screen.findByRole("button", { name: "Custom range" }),
+			await screen.findByRole("radio", { name: "Custom range" }),
 		);
 		await userEvent.click(
 			screen.getByRole("button", { name: /April 10th, 2026/ }),
@@ -267,5 +293,21 @@ export const CancelDiscardsDraft: Story = {
 			expect(screen.queryByRole("grid")).toBeNull();
 		});
 		expect(canvas.getByRole("button").textContent).toBe(originalText);
+	},
+};
+
+export const IntraDayTriggerLabel: Story = {
+	args: {
+		value: {
+			start: new Date(2026, 3, 12, 9, 0, 0),
+			end: new Date(2026, 3, 12, 11, 0, 0),
+		},
+		onChange: () => {},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /April 12, 9:00 AM - 11:00 AM/ }),
+		).toBeInTheDocument();
 	},
 };
