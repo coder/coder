@@ -17,6 +17,7 @@ import {
 	MockGPT5BelowThresholdModelPrice,
 	MockGPT5ModelPrice,
 } from "#/testHelpers/chatModels";
+import { createDeferred } from "#/testHelpers/deferred";
 import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
 import {
 	MockAnthropicProviderState,
@@ -593,7 +594,11 @@ export const CostEstimateShowsLoadingWhileDebouncePending: Story = {
 		selectedProviderState: MockAnthropicProviderState,
 	},
 	beforeEach: () => {
-		spyOn(API.experimental, "getAIModelPrices").mockResolvedValue([]);
+		const priceLookup = createDeferred<TypesGen.AIModelPrice[]>();
+		spyOn(API.experimental, "getAIModelPrices").mockReturnValue(
+			priceLookup.promise,
+		);
+		return () => priceLookup.resolve([]);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -604,6 +609,7 @@ export const CostEstimateShowsLoadingWhileDebouncePending: Story = {
 			canvas.getByLabelText(/model identifier/i),
 			"claude-haiku-4-5",
 		);
+		await userEvent.tab();
 		await waitForPriceLoading(canvas);
 		// The catalog price must not render while the lookup is pending.
 		expect(canvas.queryByDisplayValue("1")).not.toBeInTheDocument();
