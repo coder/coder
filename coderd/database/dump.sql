@@ -611,7 +611,8 @@ CREATE TYPE resource_type AS ENUM (
     'user_ai_budget_override',
     'oauth2_provider_settings',
     'chat_instruction_settings',
-    'mcp_server_config'
+    'mcp_server_config',
+    'chat_operational_settings'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (

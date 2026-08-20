@@ -3613,6 +3613,7 @@ const (
 	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
 	ResourceTypeChatInstructionSettings     ResourceType = "chat_instruction_settings"
 	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
+	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3689,7 +3690,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeUserAIBudgetOverride,
 		ResourceTypeOauth2ProviderSettings,
 		ResourceTypeChatInstructionSettings,
-		ResourceTypeMCPServerConfig:
+		ResourceTypeMCPServerConfig,
+		ResourceTypeChatOperationalSettings:
 		return true
 	}
 	return false
@@ -3735,6 +3737,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeOauth2ProviderSettings,
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
+		ResourceTypeChatOperationalSettings,
 	}
 }
 

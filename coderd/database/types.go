@@ -70,6 +70,18 @@ type ChatInstructionSettings struct {
 	PlanModeInstructions          string `db:"plan_mode_instructions" json:"plan_mode_instructions"`
 }
 
+// ChatOperationalSettings contains deployment-wide chat settings for audit logging.
+type ChatOperationalSettings struct {
+	ID                            uuid.UUID `db:"id" json:"id"`
+	ChatRetentionDays             string    `db:"chat_retention_days" json:"chat_retention_days"`
+	ChatDebugRetentionDays        string    `db:"chat_debug_retention_days" json:"chat_debug_retention_days"`
+	ChatAutoArchiveDays           string    `db:"chat_auto_archive_days" json:"chat_auto_archive_days"`
+	WorkspaceTTL                  string    `db:"workspace_ttl" json:"workspace_ttl"`
+	ComputerUseProvider           string    `db:"computer_use_provider" json:"computer_use_provider"`
+	DebugLoggingAllowUsers        string    `db:"debug_logging_allow_users" json:"debug_logging_allow_users"`
+	PersonalModelOverridesEnabled string    `db:"personal_model_overrides_enabled" json:"personal_model_overrides_enabled"`
+}
+
 type Actions []policy.Action
 
 func (a *Actions) Scan(src interface{}) error {
