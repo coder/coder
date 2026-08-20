@@ -154,7 +154,7 @@ export const MenuStaysAnchoredWhileTyping: Story = {
 		// Headless runs do not fire floating-ui's layout-shift tracking,
 		// so force a reposition through its resize listener, then hold
 		// the position stable long enough to catch a moved anchor.
-		window.dispatchEvent(new Event("resize"));
+		dispatchEvent(new Event("resize"));
 		for (let frame = 0; frame < 30; frame++) {
 			const rect = wrapper.getBoundingClientRect();
 			expect({ top: rect.top, left: rect.left }).toEqual({
