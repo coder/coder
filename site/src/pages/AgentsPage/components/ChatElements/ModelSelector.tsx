@@ -163,9 +163,10 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					type="button"
 					variant="subtle"
 					className={cn(
-						// The img overrides undo Button's default-size img rules
+						// px-2 + gap-1 match the workspace and MCP pills. The img
+						// overrides undo Button's default-size img rules
 						// (size-icon-lg, p-0.5) so the provider icon renders at 12px.
-						"h-7 md:h-auto min-w-0 shrink justify-start gap-0.5 rounded-full border-0 bg-surface-secondary px-1 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link md:w-auto md:shrink-0 md:gap-1.5 [&>svg]:!size-3.5 [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition [&>svg]:hover:text-content-primary [&>img]:!size-3 [&>img]:!p-0",
+						"h-7 md:h-auto min-w-0 shrink justify-start gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link md:w-auto md:shrink-0 [&>svg]:!size-3.5 [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition [&>svg]:hover:text-content-primary [&>img]:!size-3 [&>img]:!p-0",
 						className,
 					)}
 					onTouchStart={onTriggerTouchStart}
