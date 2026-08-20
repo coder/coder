@@ -236,7 +236,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										<span
 											className={cn(
 												"block flex-1 truncate text-[13px] text-content-primary",
-												isActive && "font-medium",
+												isActive ? "font-medium" : "opacity-85",
 											)}
 										>
 											{chat.title}
