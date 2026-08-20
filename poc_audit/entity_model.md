@@ -536,6 +536,90 @@ as well: a credential expiring, being revoked, or never having existed leaves
 the authorization exactly where it was. The two can be reconciled against each
 other only because neither determines the other.
 
+### The credential lifecycle
+
+A credential is a means of exercising authority. It is not the authority. A
+grant stands whether or not a credential has been issued, and a credential
+outliving the grant behind it is a capability nobody authorized. The two are
+reconciled against each other only because neither determines the other.
+
+**A credential's identity is not its secret.** Every credential today is a
+password, which makes it tempting to let the password stand for the credential
+carrying it. Both halves of that are wrong. A credential is named by an
+identifier minted for it, and the secret it holds is one kind among the kinds
+this system may later carry.
+
+| State     | Meaning                                                              |
+|-----------|----------------------------------------------------------------------|
+| `valid`   | The system will accept this credential as authenticating its holder. |
+| `invalid` | Terminal. It once would have, and no longer will.                    |
+
+The names are the ones security practice already uses, so nothing here needs
+inventing.
+
+| From    | Transition | To        | Kind      |
+|---------|------------|-----------|-----------|
+| none    | `issue`    | `valid`   | commanded |
+| `valid` | `revoke`   | `invalid` | commanded |
+| `valid` | `lapse`    | `invalid` | observed  |
+
+**`issue` and `revoke` are both in scope** for the proof of concept. Revocation
+will need something written to demonstrate it.
+
+**Expiry is unsettled and deliberately absent.** Automatic invalidation after a
+period is common enough that this will want it eventually. The question held
+open is not whether to support it but whether an expiry belongs in the entry
+that issues the credential, so that its end is foreseen at its beginning, or
+arrives later as a transition like any other. Authorization raises the same
+question and has no answer either, so whatever settles one should settle both.
+
+**Rotation is out of scope, and is what multiline entries are for.** Rotating a
+credential is issuing one and revoking another: two subjects, one entry. The
+overlap exists so that no interval passes without a valid credential, and
+recording it as two entries would assert the very gap the overlap is there to
+prevent. Simultaneous issuance of several kinds of credential has the same
+shape, and is not wanted either.
+
+#### How the credential machine is read
+
+`issue` arises when the control plane confers a means of acting on a party that
+already holds the authority to act. It is perfected by the entry, and the secret
+is handed to the holder once and never read back.
+
+`revoke` arises when a party withdraws a credential deliberately, whether
+because it is suspected, superseded, or no longer wanted.
+
+`lapse` arises when what the credential rests on goes away: the holder ceases to
+exist, or the authorization it serves ends. Nobody decides it, so the actor is
+whoever noticed.
+
+**Lapse ought to coincide with the end of the authorization, and in practice may
+not.** Every valid credential should become invalid at the moment the
+authorization supporting it ends. What is likely is that invalidation follows
+soon after, leaving an interval in which a credential remains valid although the
+authority it serves has gone.
+
+That is the second gap in this work handed to reconciliation rather than to a
+check, after a grant naming an agent that was never created. The check reads the
+credential ledger for rows still `valid` whose authorization has reached
+`terminated`, and the interval it finds is the measure of how far invalidation
+lags. It needs no state beyond the two ledgers.
+
+#### Relative lifespans, and what follows from them
+
+In the proof of concept an AI agent, its authorization, and its credential stand
+one to one to one, and AI agents are expected to be short lived. In general the
+three come apart, and in a particular direction: **an authorization is shorter
+lived than the agent holding it, and a credential shorter lived than the
+authorization it serves.**
+
+So the rate at which credentials are issued should be expected to be high, and
+the credential ledger to grow faster than either of the others. That is a reason
+to partition it by state if it ever matters, not a reason to give currently
+valid credentials a table of their own. Keeping the retired rows is what makes
+revocation a posting rather than a deletion. See "A ledger keeps its retired
+rows, in one table" in `poc_audit/implementation_patterns.md`.
+
 ### What happens when an AI agent comes into being
 
 Three events occur, and three entries are made:
@@ -669,6 +753,25 @@ no home is filed under the nearest one that exists.
 actors their own identity should take this row with it, rather than leaving a
 non-person filed among people and every query about users carrying an exception
 for it.
+
+### valid_credentials is a stub, and is to be replaced by a ledger
+
+`coderd/database/migrations/000575_valid_credentials.up.sql` creates a table
+holding `actor_type`, `actor`, and a plaintext `password`, with no key and no
+identifier for the credential itself. Its own comment states the design:
+membership is validity, so revoking a credential deletes its row.
+
+It was built to get one end to end cycle working, and three of its decisions do
+not survive the positions since taken. A credential now needs an identity, since
+a journal subject must be nameable. Revocation now updates a state rather than
+deleting a row, because a ledger keeps its retired rows and deleting would make
+the entry that ends a life an exception to posting. And a table restricted to
+what is currently valid is the shape the ledger decision rejects; the reason
+given for it, keeping the hot set small under a high rate of issuance, is what
+partitioning is for.
+
+**Nothing is to be called `valid_credentials`.** Its replacement is a credential
+lifecycle ledger in the pattern of the others.
 
 ### The code records one event where three belong
 
