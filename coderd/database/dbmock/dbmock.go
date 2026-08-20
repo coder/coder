@@ -11,7 +11,6 @@ package dbmock
 
 import (
 	context "context"
-	json "encoding/json"
 	reflect "reflect"
 	time "time"
 
@@ -43,6 +42,21 @@ func NewMockStore(ctrl *gomock.Controller) *MockStore {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
+}
+
+// AcquireExternalAuthLinkRefreshLease mocks base method.
+func (m *MockStore) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireExternalAuthLinkRefreshLease", ctx, arg)
+	ret0, _ := ret[0].(database.ExternalAuthLink)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AcquireExternalAuthLinkRefreshLease indicates an expected call of AcquireExternalAuthLinkRefreshLease.
+func (mr *MockStoreMockRecorder) AcquireExternalAuthLinkRefreshLease(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireExternalAuthLinkRefreshLease", reflect.TypeOf((*MockStore)(nil).AcquireExternalAuthLinkRefreshLease), ctx, arg)
 }
 
 // AcquireLock mocks base method.
@@ -9504,6 +9518,20 @@ func (mr *MockStoreMockRecorder) RegisterWorkspaceProxy(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterWorkspaceProxy", reflect.TypeOf((*MockStore)(nil).RegisterWorkspaceProxy), ctx, arg)
 }
 
+// ReleaseExternalAuthLinkRefreshLease mocks base method.
+func (m *MockStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg database.ReleaseExternalAuthLinkRefreshLeaseParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseExternalAuthLinkRefreshLease", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReleaseExternalAuthLinkRefreshLease indicates an expected call of ReleaseExternalAuthLinkRefreshLease.
+func (mr *MockStoreMockRecorder) ReleaseExternalAuthLinkRefreshLease(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseExternalAuthLinkRefreshLease", reflect.TypeOf((*MockStore)(nil).ReleaseExternalAuthLinkRefreshLease), ctx, arg)
+}
+
 // RemoveUserFromGroups mocks base method.
 func (m *MockStore) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -10235,20 +10263,6 @@ func (m *MockStore) UpdateExternalAuthLink(ctx context.Context, arg database.Upd
 func (mr *MockStoreMockRecorder) UpdateExternalAuthLink(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateExternalAuthLink", reflect.TypeOf((*MockStore)(nil).UpdateExternalAuthLink), ctx, arg)
-}
-
-// UpdateExternalAuthLinkRefreshToken mocks base method.
-func (m *MockStore) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg database.UpdateExternalAuthLinkRefreshTokenParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateExternalAuthLinkRefreshToken", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateExternalAuthLinkRefreshToken indicates an expected call of UpdateExternalAuthLinkRefreshToken.
-func (mr *MockStoreMockRecorder) UpdateExternalAuthLinkRefreshToken(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateExternalAuthLinkRefreshToken", reflect.TypeOf((*MockStore)(nil).UpdateExternalAuthLinkRefreshToken), ctx, arg)
 }
 
 // UpdateGitSSHKey mocks base method.
@@ -11701,17 +11715,17 @@ func (mr *MockStoreMockRecorder) UpdateWorkspacesTTLByTemplateID(ctx, arg any) *
 }
 
 // UpsertAIModelPrices mocks base method.
-func (m *MockStore) UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error {
+func (m *MockStore) UpsertAIModelPrices(ctx context.Context, arg database.UpsertAIModelPricesParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertAIModelPrices", ctx, seed)
+	ret := m.ctrl.Call(m, "UpsertAIModelPrices", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpsertAIModelPrices indicates an expected call of UpsertAIModelPrices.
-func (mr *MockStoreMockRecorder) UpsertAIModelPrices(ctx, seed any) *gomock.Call {
+func (mr *MockStoreMockRecorder) UpsertAIModelPrices(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAIModelPrices", reflect.TypeOf((*MockStore)(nil).UpsertAIModelPrices), ctx, seed)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAIModelPrices", reflect.TypeOf((*MockStore)(nil).UpsertAIModelPrices), ctx, arg)
 }
 
 // UpsertAISeatState mocks base method.

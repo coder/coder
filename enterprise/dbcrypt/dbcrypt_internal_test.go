@@ -100,32 +100,6 @@ func TestUserLinks(t *testing.T) {
 		require.EqualValues(t, expectedClaims, rawLink.Claims)
 	})
 
-	t.Run("UpdateExternalAuthLinkRefreshToken", func(t *testing.T) {
-		t.Parallel()
-		db, crypt, ciphers := setup(t)
-		user := dbgen.User(t, crypt, database.User{})
-		link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
-			UserID: user.ID,
-		})
-
-		err := crypt.UpdateExternalAuthLinkRefreshToken(ctx, database.UpdateExternalAuthLinkRefreshTokenParams{
-			OAuthRefreshToken:      "",
-			OAuthRefreshTokenKeyID: link.OAuthRefreshTokenKeyID.String,
-			OldOauthRefreshToken:   link.OAuthRefreshToken,
-			UpdatedAt:              dbtime.Now(),
-			ProviderID:             link.ProviderID,
-			UserID:                 link.UserID,
-		})
-		require.NoError(t, err)
-
-		rawLink, err := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
-			ProviderID: link.ProviderID,
-			UserID:     link.UserID,
-		})
-		require.NoError(t, err)
-		requireEncryptedEquals(t, ciphers[0], rawLink.OAuthRefreshToken, "")
-	})
-
 	t.Run("GetUserLinkByLinkedID", func(t *testing.T) {
 		t.Parallel()
 		t.Run("OK", func(t *testing.T) {
@@ -353,6 +327,61 @@ func TestExternalAuthLinks(t *testing.T) {
 			_, err := crypt.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 				UserID:     link.UserID,
 				ProviderID: link.ProviderID,
+			})
+			require.Error(t, err, "expected an error")
+			var derr *DecryptFailedError
+			require.ErrorAs(t, err, &derr, "expected a decrypt error")
+		})
+	})
+
+	t.Run("AcquireExternalAuthLinkRefreshLease", func(t *testing.T) {
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+			db, crypt, ciphers := setup(t)
+			link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
+				OAuthAccessToken:  "access",
+				OAuthRefreshToken: "refresh",
+			})
+			link, err := db.AcquireExternalAuthLinkRefreshLease(ctx, database.AcquireExternalAuthLinkRefreshLeaseParams{
+				UserID:     link.UserID,
+				ProviderID: link.ProviderID,
+				TimeoutMs:  10,
+			})
+			require.NoError(t, err)
+			requireEncryptedEquals(t, ciphers[0], link.OAuthAccessToken, "access")
+			requireEncryptedEquals(t, ciphers[0], link.OAuthRefreshToken, "refresh")
+		})
+		t.Run("Decrypt", func(t *testing.T) {
+			t.Parallel()
+			_, crypt, ciphers := setup(t)
+			link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
+				OAuthAccessToken:  "access",
+				OAuthRefreshToken: "refresh",
+			})
+			link, err := crypt.AcquireExternalAuthLinkRefreshLease(ctx, database.AcquireExternalAuthLinkRefreshLeaseParams{
+				UserID:     link.UserID,
+				ProviderID: link.ProviderID,
+				TimeoutMs:  10,
+			})
+			require.NoError(t, err)
+			require.Equal(t, "access", link.OAuthAccessToken)
+			require.Equal(t, "refresh", link.OAuthRefreshToken)
+			require.Equal(t, ciphers[0].HexDigest(), link.OAuthAccessTokenKeyID.String)
+			require.Equal(t, ciphers[0].HexDigest(), link.OAuthRefreshTokenKeyID.String)
+		})
+		t.Run("DecryptErr", func(t *testing.T) {
+			t.Parallel()
+			db, crypt, ciphers := setup(t)
+			link := dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+				OAuthAccessToken:       fakeBase64RandomData(t, 32),
+				OAuthRefreshToken:      fakeBase64RandomData(t, 32),
+				OAuthAccessTokenKeyID:  sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
+				OAuthRefreshTokenKeyID: sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
+			})
+			link, err := crypt.AcquireExternalAuthLinkRefreshLease(ctx, database.AcquireExternalAuthLinkRefreshLeaseParams{
+				UserID:     link.UserID,
+				ProviderID: link.ProviderID,
+				TimeoutMs:  10,
 			})
 			require.Error(t, err, "expected an error")
 			var derr *DecryptFailedError

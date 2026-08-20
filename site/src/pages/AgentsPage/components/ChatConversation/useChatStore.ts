@@ -569,17 +569,10 @@ export const useChatStore = (
 						continue;
 					}
 
-					// Only flush buffered parts before events that
-					// need them applied first. `message` events
-					// commit durable state that must include all
-					// stream parts. `error` events should surface
-					// partial output. Other events (status, retry,
-					// queue_update) must not flush. Status changes
-					// need to be visible before parts so the
-					// Thinking indicator can render, and retry
-					// clears stream state which a flush would
-					// re-populate.
-					if (streamEvent.type === "message" || streamEvent.type === "error") {
+					// Flush buffered parts before a durable message
+					// commits them. Other events must not flush because
+					// some clear the stream and a flush would restore it.
+					if (streamEvent.type === "message") {
 						flushMessageParts();
 					}
 
@@ -629,12 +622,20 @@ export const useChatStore = (
 							streamReportedWaiting = nextStatus === "waiting";
 							wsStatusReceivedRef.current = true;
 							store.clearRetryState();
+							const prevStatus = store.getSnapshot().chatStatus;
 							store.applyServerChatStatus(nextStatus);
 							if (nextStatus === "waiting") {
 								discardBufferedParts();
 							}
 							if (nextStatus !== "error") {
 								clearChatErrorReasonEvent(chatID);
+								// Only an errored chat starting a new turn
+								// supersedes the stored error. A status from a
+								// turn that was already running must not clear
+								// an unrelated request failure.
+								if (prevStatus === "error") {
+									store.clearStreamError();
+								}
 							}
 							updateSidebarChat((chat) =>
 								chat.status === nextStatus
@@ -648,10 +649,15 @@ export const useChatStore = (
 								kind: "generic",
 								message: "Chat processing failed.",
 							};
-							streamReportedWaiting = false;
+							// An error ends the turn. Clear the partial
+							// stream so no tool keeps spinning. Parts stay
+							// ungated because the next turn can send a part
+							// before its running status.
+							discardBufferedParts();
 							wsStatusReceivedRef.current = true;
 							store.applyServerChatStatus("error");
 							store.setStreamError(reason);
+							store.clearStreamState();
 							store.clearRetryState();
 							setChatErrorReasonEvent(chatID, reason);
 							updateSidebarChat((chat) =>
