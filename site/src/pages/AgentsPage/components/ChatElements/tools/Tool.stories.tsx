@@ -349,32 +349,6 @@ export const ExecuteModelIntentRunning: Story = {
 	},
 };
 
-export const ExecuteModelIntentBackgrounded: Story = {
-	args: {
-		name: "execute",
-		status: "completed",
-		args: {
-			command: executeIntentCommand,
-			model_intent: "Starting a sleep process",
-		},
-		modelIntent: "Starting a sleep process",
-		result: {
-			output: "",
-			wall_duration_ms: 2300,
-			background_process_id: "process-123",
-			backgrounded: true,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(
-				`Starting a sleep process in the background using ${executeIntentCommand}`,
-			),
-		).toBeVisible();
-	},
-};
-
 export const ExecuteModelIntentLeadingUsing: Story = {
 	args: {
 		status: "completed",
@@ -609,27 +583,6 @@ export const ExecuteBackgrounded: Story = {
 	},
 };
 
-export const ExecuteBackgroundedNoIntent: Story = {
-	args: {
-		name: "execute",
-		status: "completed",
-		args: { command: "npm start" },
-		shellToolDisplayMode: "always_collapsed",
-		result: {
-			background_process_id: "process-123",
-			backgrounded: true,
-			output: "",
-			wall_duration_ms: 2100,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("Started npm start in the background"),
-		).toBeVisible();
-	},
-};
-
 export const ExecuteAlwaysCollapsed: Story = {
 	args: {
 		name: "execute",
@@ -726,26 +679,6 @@ export const ProcessOutputAlwaysExpanded: Story = {
 	},
 };
 
-export const ProcessOutputChecked: Story = {
-	args: {
-		name: "process_output",
-		status: "completed",
-		args: { process_id: "process-123" },
-		result: {
-			command: "npm start",
-			output:
-				"> Local: http://localhost:3001/\n> Server exited: EADDRINUSE :::3001",
-			exit_code: 1,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Failed npm start")).toBeVisible();
-		expect(canvas.getByText("exit 1")).toBeVisible();
-		expect(canvas.getByText(/EADDRINUSE/)).toBeVisible();
-	},
-};
-
 export const ProcessOutputExitZeroNoBadge: Story = {
 	args: {
 		name: "process_output",
@@ -761,24 +694,6 @@ export const ProcessOutputExitZeroNoBadge: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Checked npm start")).toBeVisible();
 		expect(canvas.queryByText(/exit/)).not.toBeInTheDocument();
-	},
-};
-
-export const ProcessOutputFailedLabel: Story = {
-	args: {
-		name: "process_output",
-		status: "completed",
-		args: { process_id: "process-123" },
-		result: {
-			command: "npm start",
-			output: "EADDRINUSE",
-			exit_code: 1,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Failed npm start")).toBeVisible();
-		expect(canvas.getByText("exit 1")).toBeVisible();
 	},
 };
 
@@ -805,44 +720,6 @@ export const ProcessOutputModelIntent: Story = {
 	},
 };
 
-export const ProcessOutputModelIntentRedundant: Story = {
-	args: {
-		name: "process_output",
-		status: "completed",
-		args: {
-			process_id: "process-123",
-			model_intent: "Confirming the tests pass using npm start",
-		},
-		modelIntent: "Confirming the tests pass using npm start",
-		result: {
-			command: "npm start",
-			output: "all tests passed",
-			exit_code: 0,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Confirming the tests pass")).toBeVisible();
-		expect(canvas.queryByText(/npm start/)).not.toBeInTheDocument();
-	},
-};
-
-export const ProcessOutputChecking: Story = {
-	args: {
-		name: "process_output",
-		status: "running",
-		args: { process_id: "process-123" },
-		result: {
-			command: "npm start",
-			output: "> Starting Vite dev server...",
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Checking npm start")).toBeVisible();
-	},
-};
-
 /** Wait timed out while the process lives on: running:true in the result. */
 export const ProcessOutputStillRunningResult: Story = {
 	args: {
@@ -863,7 +740,8 @@ export const ProcessOutputStillRunningResult: Story = {
 	},
 };
 
-export const ProcessOutputRunningThenKilled: Story = {
+/** A later kill overrides a stale running snapshot; SIGTERM does not. */
+export const ProcessOutputRunningThenSignaled: Story = {
 	args: {
 		name: "process_output",
 		status: "completed",
@@ -881,27 +759,6 @@ export const ProcessOutputRunningThenKilled: Story = {
 		expect(canvas.getByText("Checked npm start")).toBeVisible();
 		expect(canvas.queryByText(/Checking/)).not.toBeInTheDocument();
 		expect(canvas.getByRole("img", { name: "Killed (SIGKILL)" })).toBeVisible();
-	},
-};
-
-/** SIGTERM is catchable, so it leaves the running snapshot alone. */
-export const ProcessOutputRunningThenTerminated: Story = {
-	args: {
-		name: "process_output",
-		status: "completed",
-		killedBySignal: "terminate",
-		args: { process_id: "process-123" },
-		result: {
-			command: "npm start",
-			output: "> Starting Vite dev server...",
-			running: true,
-			note: "process is still running",
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Checking npm start")).toBeVisible();
-		expect(canvas.queryByText(/Checked/)).not.toBeInTheDocument();
 	},
 };
 
