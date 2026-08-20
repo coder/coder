@@ -279,6 +279,7 @@ export const SubagentTool: React.FC<{
 					<ScrollArea
 						className="mt-1.5 rounded-md border border-solid border-border-default"
 						viewportClassName="max-h-64"
+						viewportTabIndex={0}
 						scrollBarClassName="w-1.5"
 					>
 						<div className="px-3 py-2">
@@ -291,6 +292,7 @@ export const SubagentTool: React.FC<{
 					<ScrollArea
 						className="mt-1.5 rounded-md border border-solid border-border-default"
 						viewportClassName="max-h-64"
+						viewportTabIndex={0}
 						scrollBarClassName="w-1.5"
 					>
 						<div className="px-3 py-2">
@@ -303,6 +305,7 @@ export const SubagentTool: React.FC<{
 					<ScrollArea
 						className="mt-1.5 rounded-md border border-solid border-border-default"
 						viewportClassName="max-h-64"
+						viewportTabIndex={0}
 						scrollBarClassName="w-1.5"
 					>
 						<div className="px-3 py-2">

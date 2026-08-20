@@ -83,6 +83,7 @@ export const EditFilesTool: React.FC<{
 										? "max-h-[80vh]"
 										: "max-h-64"
 								}
+								viewportTabIndex={0}
 								scrollBarClassName="w-1.5"
 							>
 								<FileDiff

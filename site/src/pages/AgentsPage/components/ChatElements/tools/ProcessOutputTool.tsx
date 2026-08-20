@@ -143,6 +143,7 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 				<ScrollArea
 					className="mt-2 rounded-xl bg-surface-secondary/60 text-2xs"
 					viewportClassName="max-h-64"
+					viewportTabIndex={0}
 					scrollBarClassName="w-1.5"
 				>
 					<pre
