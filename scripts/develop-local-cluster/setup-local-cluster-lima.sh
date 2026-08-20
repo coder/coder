@@ -232,7 +232,8 @@ install_repo_tools() {
 		kind \
 		protoc \
 		protoc-gen-go \
-		go:storj.io/drpc/cmd/protoc-gen-go-drpc
+		go:storj.io/drpc/cmd/protoc-gen-go-drpc \
+		go:github.com/coder/sqlc/cmd/sqlc
 	eval "$(mise activate bash)"
 
 	printf 'available: Go (%s)\n' "$(go version)"
@@ -243,6 +244,7 @@ install_repo_tools() {
 	printf 'available: protoc (%s)\n' "$(protoc --version)"
 	printf 'available: protoc-gen-go (%s)\n' "$(protoc-gen-go --version)"
 	printf 'available: protoc-gen-go-drpc\n'
+	printf 'available: sqlc (%s)\n' "$(sqlc version)"
 
 	# Git does not preserve mtimes, so a fresh checkout can make committed
 	# generated files appear older than their inputs and trigger code generation

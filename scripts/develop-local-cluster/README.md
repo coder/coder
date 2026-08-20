@@ -62,7 +62,7 @@ The bootstrap script:
 
 1. Installs missing base packages such as Git, Make, OpenSSL, jq, and vim.
 2. Installs checksum-pinned mise, kubectl, and k9s.
-3. Uses mise to install the repository-pinned Go, Node.js, pnpm, Helm, kind, and Protocol Buffers build tools, then marks committed generated files as fresh so a new clone does not regenerate them during the first build.
+3. Uses mise to install the repository-pinned Go, Node.js, pnpm, Helm, kind, Protocol Buffers, and SQL generation tools, then marks committed generated files as fresh so a new clone does not regenerate them during the first build.
 4. Clones or updates Coder in `~/src/coder` and checks out `pawel/develop-local-cluster` by default.
 5. Runs `develop-local-cluster.sh` to deploy PostgreSQL and Coder.
 6. Adds the license before deploying the Premium provisioner and AI Gateway components.
