@@ -188,6 +188,7 @@ export function FilterCombobox({
 						onSelectCategory={actions.selectCategory}
 						onSelectSuggestion={actions.selectValueSuggestion}
 						onSelectSearchResult={actions.selectSearchResult}
+						onRetry={actions.retryTypeahead}
 					/>
 				) : (
 					<CategoryOptionsList
@@ -239,6 +240,7 @@ type TypeaheadListProps = Readonly<{
 	onSelectCategory: (categoryKey: string) => void;
 	onSelectSuggestion: (token: string) => void;
 	onSelectSearchResult: (result: SearchResult) => void;
+	onRetry: () => void;
 }>;
 
 function TypeaheadList({
@@ -252,6 +254,7 @@ function TypeaheadList({
 	onSelectCategory,
 	onSelectSuggestion,
 	onSelectSearchResult,
+	onRetry,
 }: TypeaheadListProps) {
 	const valueSuggestionsByCategory = Map.groupBy(
 		valueSuggestions,
@@ -343,8 +346,11 @@ function TypeaheadList({
 					</div>
 				)}
 				{typeaheadError && !typeaheadLoading && (
-					<div className="px-2 py-2.5 text-center text-sm text-content-secondary">
-						Couldn&rsquo;t load suggestions.
+					<div className="flex flex-col items-center gap-2 px-2 py-2.5 text-center text-sm text-content-secondary">
+						<span>Couldn&rsquo;t load suggestions.</span>
+						<Button size="sm" variant="outline" onClick={onRetry}>
+							Retry
+						</Button>
 					</div>
 				)}
 			</FilterComboboxList>

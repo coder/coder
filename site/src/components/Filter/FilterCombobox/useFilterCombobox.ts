@@ -350,14 +350,39 @@ export const useFilterCombobox = ({
 		((valueSuggestionsLoading && valueSuggestions.length === 0) ||
 			(hasSearchResults && searchResultsLoading && searchResults.length === 0));
 
+	const typeaheadEmpty =
+		hasTypeaheadQuery &&
+		!typeaheadLoading &&
+		!typeaheadError &&
+		listedCategories.length === 0 &&
+		valueSuggestions.length === 0 &&
+		searchResults.length === 0;
+
+	// Announce a live-region message for each terminal state so screen readers
+	// hear loading, failures, and empty results rather than silence.
 	let statusMessage = "";
 	if (activeCategory) {
 		statusMessage = activeOptionsLoading
 			? `Loading ${activeCategory.label} options`
-			: `Filtering by ${activeCategory.label}`;
+			: activeOptionsError
+				? `Couldn't load ${activeCategory.label} options`
+				: `Filtering by ${activeCategory.label}`;
 	} else if (typeaheadLoading) {
 		statusMessage = "Loading suggestions";
+	} else if (typeaheadError) {
+		statusMessage = "Couldn't load suggestions";
+	} else if (typeaheadEmpty) {
+		statusMessage = "No filters found";
 	}
+
+	// Refetch both typeahead sources so one retry covers a failed suggestion
+	// lookup and a failed workspace preview.
+	const retryTypeahead = () => {
+		for (const query of suggestionQueries) {
+			void query.refetch();
+		}
+		void searchResultsQuery.refetch();
+	};
 
 	const updateFromChips = (tokens: string[], freeText?: string) => {
 		const nextFreeText = freeText ?? committedFreeText;
@@ -541,6 +566,7 @@ export const useFilterCombobox = ({
 			dismiss: handleDismiss,
 			removeChip: handleRemoveChip,
 			retryActiveOptions,
+			retryTypeahead,
 			selectCategory,
 			selectCategoryOption,
 			selectValueSuggestion,

@@ -370,10 +370,12 @@ export const PreservesChipInsertionOrder: Story = {
 			name: "Search and filter…",
 		});
 
-		const chipTexts = () =>
-			Array.from(
-				canvasElement.querySelectorAll('[data-slot="combobox-chip"]'),
-			).map((chip) => chip.textContent?.replace(/\s+/g, "") ?? "");
+		const chipTokens = () =>
+			canvas
+				.getAllByRole("button", { name: /^Remove / })
+				.map((button) =>
+					(button.getAttribute("aria-label") ?? "").replace(/^Remove /, ""),
+				);
 
 		await userEvent.click(input);
 		await userEvent.type(input, "template:");
@@ -392,7 +394,7 @@ export const PreservesChipInsertionOrder: Story = {
 		);
 
 		await waitFor(() =>
-			expect(chipTexts()).toEqual([
+			expect(chipTokens()).toEqual([
 				"owner:me",
 				"template:docker",
 				"status:running",
@@ -490,5 +492,129 @@ export const AttributesCommitBooleanChips: Story = {
 		// Both boolean chips coexist because each attribute owns a distinct key.
 		await expect(canvas.getByText("outdated:true")).toBeVisible();
 		await expect(canvas.getByText("shared:true")).toBeVisible();
+	},
+};
+
+// Escape closes the popup without clearing the committed chips.
+export const DismissOnEscape: Story = {
+	render: () => <FilterComboboxHarness initialQuery="owner:me" />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /Status/i })).toBeVisible(),
+		);
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() =>
+			expect(
+				body.queryByRole("option", { name: /Status/i }),
+			).not.toBeInTheDocument(),
+		);
+		await expect(canvas.getByText("owner:me")).toBeVisible();
+	},
+};
+
+// Pressing outside the input dismisses the popup while keeping the chips.
+export const DismissOnOutsideClick: Story = {
+	render: () => <FilterComboboxHarness initialQuery="owner:me" />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /Status/i })).toBeVisible(),
+		);
+		await userEvent.click(canvasElement.ownerDocument.body);
+		await waitFor(() =>
+			expect(
+				body.queryByRole("option", { name: /Status/i }),
+			).not.toBeInTheDocument(),
+		);
+		await expect(canvas.getByText("owner:me")).toBeVisible();
+	},
+};
+
+// A failed category lookup surfaces a Retry that refetches the options.
+export const CategoryOptionsErrorRetry: Story = {
+	render: () => {
+		let attempts = 0;
+		return (
+			<FilterComboboxHarness
+				initialQuery=""
+				categories={[
+					{
+						key: "status",
+						label: "Status",
+						icon: <CircleDotIcon />,
+						getOptions: async (query) => {
+							attempts += 1;
+							if (attempts === 1) {
+								throw new Error("boom");
+							}
+							return filterOptions(statusOptions, query);
+						},
+					},
+				]}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "status:");
+		const retry = await body.findByRole("button", { name: /retry/i });
+		await userEvent.click(retry);
+		await waitFor(() => expect(body.getByText("Running")).toBeVisible());
+	},
+};
+
+// A failed suggestion lookup surfaces a Retry that refetches the typeahead.
+export const TypeaheadErrorRetry: Story = {
+	render: () => {
+		let attempts = 0;
+		return (
+			<FilterComboboxHarness
+				initialQuery=""
+				categories={[
+					{
+						key: "owner",
+						label: "Owner",
+						icon: <UserIcon />,
+						getOptions: async (query) => {
+							attempts += 1;
+							if (attempts === 1) {
+								throw new Error("boom");
+							}
+							return filterOptions([{ label: "alice", value: "alice" }], query);
+						},
+					},
+				]}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "alice");
+		const retry = await body.findByRole("button", { name: /retry/i });
+		await userEvent.click(retry);
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /alice/i })).toBeVisible(),
+		);
 	},
 };
