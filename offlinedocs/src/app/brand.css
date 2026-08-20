@@ -146,6 +146,17 @@ samp {
 }
 
 /*
+ * Fumadocs' own ScrollArea also renders a Radix scrollbar (client-side, it
+ * fades when idle). With the native scrollbar re-enabled above, an overflowing
+ * nav shows two scrollbars at once. Hide the Radix one so only the always-on
+ * native scrollbar remains. The Radix scrollbar carries no dedicated
+ * attribute, so it is matched as the viewport's sibling.
+ */
+#nd-sidebar [data-radix-scroll-area-viewport] ~ [data-orientation] {
+	display: none !important;
+}
+
+/*
  * Doc screenshots sit on a Coder brand backdrop. The frame adds padding so
  * the backdrop shows as a border around the screenshot, and swaps the
  * backdrop image with the theme (light vs dark brand art). The images are
