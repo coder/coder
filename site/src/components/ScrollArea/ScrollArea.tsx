@@ -13,6 +13,7 @@ interface ScrollAreaProps
 	scrollThumbClassName?: string;
 	viewportClassName?: string;
 	viewportTabIndex?: number;
+	viewportAriaLabel?: string;
 	/** Which scrollbar(s) to show. Defaults to "vertical". */
 	orientation?: "vertical" | "horizontal" | "both";
 }
@@ -24,6 +25,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	scrollThumbClassName,
 	viewportClassName,
 	viewportTabIndex,
+	viewportAriaLabel,
 	orientation = "vertical",
 	children,
 	...props
@@ -35,6 +37,8 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 		>
 			<ScrollAreaPrimitive.Viewport
 				tabIndex={viewportTabIndex}
+				role={viewportAriaLabel ? "region" : undefined}
+				aria-label={viewportAriaLabel}
 				className={cn("h-full w-full rounded-[inherit]", viewportClassName)}
 			>
 				{children}
