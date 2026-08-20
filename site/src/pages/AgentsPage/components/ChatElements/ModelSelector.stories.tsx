@@ -220,6 +220,10 @@ export const FormFieldTriggerKeepsIconAndLabelAdjacent: Story = {
 			label.getBoundingClientRect().left - icon.getBoundingClientRect().right;
 		expect(gap).toBeGreaterThanOrEqual(0);
 		expect(gap).toBeLessThan(12);
+		// The call site's h-10 must control the trigger height at every
+		// breakpoint so the field matches adjacent h-10 form buttons.
+		const trigger = canvas.getByRole("combobox", { name: "Claude Sonnet 4" });
+		expect(trigger.getBoundingClientRect().height).toBe(40);
 	},
 };
 
