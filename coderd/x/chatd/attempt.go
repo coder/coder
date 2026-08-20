@@ -31,6 +31,9 @@ type stepData struct {
 	ContextLimit sql.NullInt64
 	Runtime      time.Duration
 
+	// BatchRuntime is the local-tool batch window. Model steps use Runtime.
+	BatchRuntime time.Duration
+
 	ToolCallCreatedAt    map[string]time.Time
 	ToolResultCreatedAt  map[string]time.Time
 	ReasoningStartedAt   []time.Time

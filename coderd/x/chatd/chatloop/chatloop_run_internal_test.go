@@ -949,6 +949,9 @@ func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
 		map[string]bool{},
 		defaultToolResultBytes,
 		map[string]string{"observer_alias": "observer_tool"},
+		time.Time{},
+		nil,
+		nil,
 		nil,
 	)
 
@@ -1020,6 +1023,9 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 		map[string]bool{},
 		defaultToolResultBytes,
 		map[string]string{"observer_alias": "observer_tool"},
+		time.Time{},
+		nil,
+		nil,
 		nil,
 	)
 
@@ -1097,6 +1103,9 @@ func TestExecuteToolsReconcilesResultsBeforeSerialCalls(t *testing.T) {
 		map[string]bool{},
 		defaultToolResultBytes,
 		nil,
+		time.Time{},
+		nil,
+		nil,
 		nil,
 	)
 
@@ -1163,6 +1172,9 @@ func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 		"fake", "fake-model",
 		map[string]bool{},
 		defaultToolResultBytes,
+		nil,
+		time.Time{},
+		nil,
 		nil,
 		nil,
 	)
