@@ -5,6 +5,23 @@ const FILTER_TOKEN_RE = /([\w-]+):"([^"]+)"|([\w-]+):(\S+)/g;
 
 export const chipToken = (key: string, value: string) => `${key}:${value}`;
 
+// Collapses a stream of key/value pairs to one chip per key, keeping each key's
+// first-seen position and its last-seen value. Shared by `queryToChips` (pairs
+// from a query string) and `dedupeChips` (pairs from existing tokens).
+const dedupeInOrder = (
+	pairs: Iterable<{ key: string; value: string }>,
+): string[] => {
+	const order: string[] = [];
+	const byKey = new Map<string, string>();
+	for (const { key, value } of pairs) {
+		if (!byKey.has(key)) {
+			order.push(key);
+		}
+		byKey.set(key, value);
+	}
+	return order.map((key) => chipToken(key, byKey.get(key) as string));
+};
+
 export const parseChipToken = (
 	token: string,
 	chipKeys: readonly string[],
@@ -14,7 +31,9 @@ export const parseChipToken = (
 		return null;
 	}
 
-	const key = token.slice(0, separatorIndex);
+	// Chip keys are canonical lowercase; normalize so `Owner:me` round-trips the
+	// same as `owner:me` (matches the case-insensitive typed-prefix matching).
+	const key = token.slice(0, separatorIndex).toLowerCase();
 	const value = token.slice(separatorIndex + 1);
 	if (!chipKeys.includes(key) || value.length === 0) {
 		return null;
@@ -32,20 +51,16 @@ export const queryToChips = (
 	query: string,
 	chipKeys: readonly string[],
 ): string[] => {
-	const order: string[] = [];
-	const byKey = new Map<string, string>();
+	const pairs: { key: string; value: string }[] = [];
 	for (const match of query.matchAll(FILTER_TOKEN_RE)) {
-		const key = match[1] ?? match[3];
+		const key = (match[1] ?? match[3])?.toLowerCase();
 		const value = match[2] ?? match[4];
 		if (!key || !value || !chipKeys.includes(key)) {
 			continue;
 		}
-		if (!byKey.has(key)) {
-			order.push(key);
-		}
-		byKey.set(key, value);
+		pairs.push({ key, value });
 	}
-	return order.map((key) => chipToken(key, byKey.get(key) as string));
+	return dedupeInOrder(pairs);
 };
 
 /**
@@ -56,19 +71,14 @@ export const dedupeChips = (
 	tokens: readonly string[],
 	chipKeys: readonly string[],
 ): string[] => {
-	const order: string[] = [];
-	const byKey = new Map<string, string>();
+	const pairs: { key: string; value: string }[] = [];
 	for (const token of tokens) {
 		const parsed = parseChipToken(token, chipKeys);
-		if (!parsed) {
-			continue;
+		if (parsed) {
+			pairs.push(parsed);
 		}
-		if (!byKey.has(parsed.key)) {
-			order.push(parsed.key);
-		}
-		byKey.set(parsed.key, parsed.value);
 	}
-	return order.map((key) => chipToken(key, byKey.get(key) as string));
+	return dedupeInOrder(pairs);
 };
 
 /**
@@ -85,13 +95,17 @@ export const extractFreeText = (
 ): string => {
 	return query
 		.replace(FILTER_TOKEN_RE, (match, quotedKey, _quoted, bareKey) => {
-			const key = quotedKey ?? bareKey;
-			return chipKeys.includes(key) ? " " : match;
+			const key = (quotedKey ?? bareKey)?.toLowerCase();
+			return key && chipKeys.includes(key) ? " " : match;
 		})
 		.replace(/\s+/g, " ")
 		.trim();
 };
 
+/**
+ * Serializes committed chip tokens plus trailing free text back into a single
+ * query string. Round-trip partner of `queryToChips` / `extractFreeText`.
+ */
 export const composeFilterQuery = (
 	tokens: readonly string[],
 	chipKeys: readonly string[],
@@ -121,31 +135,43 @@ export const parseTypedCategoryPrefix = (
 	raw: string,
 	categories: readonly CategoryMatchSource[],
 ): { categoryKey: string; query: string; freeText: string } | null => {
-	// Allow `owner:` at the start, or after name search text: `pink owner:`.
-	const match = /^(.*?)\s*(\w+)\s*:(.*)$/.exec(raw);
-	if (!match) {
-		return null;
-	}
+	const resolveCategory = (typedKey: string) =>
+		categories.find((entry) => {
+			if (entry.key === typedKey || entry.label.toLowerCase() === typedKey) {
+				return true;
+			}
+			return entry.aliases?.some((alias) => alias.toLowerCase() === typedKey);
+		});
 
-	const typedKey = match[2]?.toLowerCase();
-	if (!typedKey) {
-		return null;
-	}
-
-	const category = categories.find((entry) => {
-		if (entry.key === typedKey || entry.label.toLowerCase() === typedKey) {
-			return true;
+	// Scan every `key:` fragment and keep the last one that resolves to a
+	// category: that is the prefix the user is actively typing. Anchoring to the
+	// tail (rather than the first lazy match) means prior non-category tokens
+	// like `has-agent:connected` become free text instead of aborting the parse.
+	// `[\w-]+` keeps hyphenated keys consistent with the rest of this module.
+	let chosen: {
+		category: CategoryMatchSource;
+		index: number;
+		end: number;
+	} | null = null;
+	for (const match of raw.matchAll(/([\w-]+)\s*:/g)) {
+		const typedKey = match[1]?.toLowerCase();
+		if (!typedKey) {
+			continue;
 		}
-		return entry.aliases?.some((alias) => alias.toLowerCase() === typedKey);
-	});
-	if (!category) {
+		const category = resolveCategory(typedKey);
+		if (category) {
+			const index = match.index ?? 0;
+			chosen = { category, index, end: index + match[0].length };
+		}
+	}
+	if (!chosen) {
 		return null;
 	}
 
 	return {
-		categoryKey: category.key,
-		query: match[3] ?? "",
-		freeText: (match[1] ?? "").trim(),
+		categoryKey: chosen.category.key,
+		query: raw.slice(chosen.end),
+		freeText: raw.slice(0, chosen.index).trim(),
 	};
 };
 

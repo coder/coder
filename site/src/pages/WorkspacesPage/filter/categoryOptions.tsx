@@ -6,11 +6,12 @@ import { users } from "#/api/queries/users";
 import type { WorkspaceStatus } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import type { FilterOption } from "#/components/Filter/FilterCombobox";
-import {
-	StatusIndicatorDot,
-	type StatusIndicatorDotProps,
-} from "#/components/StatusIndicator/StatusIndicator";
+import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
+import { variantByStatusType } from "#/modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import { getDisplayWorkspaceStatus } from "#/utils/workspace";
+
+// Owner suggestions are capped; the picker is a prefix search, not a full list.
+const OWNER_SUGGESTIONS_LIMIT = 25;
 
 const STATUS_OPTIONS: WorkspaceStatus[] = [
 	"running",
@@ -18,29 +19,6 @@ const STATUS_OPTIONS: WorkspaceStatus[] = [
 	"failed",
 	"pending",
 ];
-
-const getStatusIndicatorVariant = (
-	status: WorkspaceStatus,
-): StatusIndicatorDotProps["variant"] => {
-	switch (status) {
-		case "running":
-			return "success";
-		case "starting":
-		case "pending":
-			return "pending";
-		case undefined:
-		case "canceling":
-		case "canceled":
-		case "stopping":
-		case "stopped":
-			return "inactive";
-		case "deleting":
-		case "deleted":
-			return "warning";
-		case "failed":
-			return "failed";
-	}
-};
 
 export const getStatusFilterOptions = async (
 	query: string,
@@ -54,7 +32,7 @@ export const getStatusFilterOptions = async (
 			startIcon: (
 				<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
 					<StatusIndicatorDot
-						variant={getStatusIndicatorVariant(status)}
+						variant={variantByStatusType[display.type]}
 						size="md"
 					/>
 				</span>
@@ -109,7 +87,9 @@ export const getOwnerFilterOptions = async (
 	me: Readonly<{ username: string; avatar_url?: string }>,
 	queryClient: QueryClient,
 ): Promise<FilterOption[]> => {
-	const usersRes = await queryClient.fetchQuery(users({ q: query, limit: 25 }));
+	const usersRes = await queryClient.fetchQuery(
+		users({ q: query, limit: OWNER_SUGGESTIONS_LIMIT }),
+	);
 	const options = usersRes.users
 		.filter((user) => user.username !== me.username)
 		.map<FilterOption>((user) => ({
@@ -123,7 +103,9 @@ export const getOwnerFilterOptions = async (
 	return [
 		{
 			label: `${me.username} (you)`,
-			value: me.username,
+			// Commit the backend's per-session `owner:me` sentinel, matching the
+			// page's `owner:me` fallback, rather than a static `owner:<username>`.
+			value: "me",
 			startIcon: (
 				<Avatar fallback={me.username} src={me.avatar_url} size="md" />
 			),
@@ -200,6 +182,10 @@ export const getOrganizationFilterOptions = async (
 	// Reuse the shared `permittedOrganizations` query, which fetches the org list
 	// and applies the `audit_log:read` authorization gate, rather than duplicating
 	// that logic under a private key.
+	// TODO(DEVEX-421 follow-up): the `audit_log:read` gate is carried over from the
+	// old `useOrganizationsFilterMenu` and is wrong for workspace filtering. A
+	// plain member sees an empty org list here. Replace it with a workspace-read /
+	// org-membership check.
 	const permitted = await queryClient.fetchQuery(
 		permittedOrganizations({
 			object: { resource_type: "audit_log" },
