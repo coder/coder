@@ -26,9 +26,9 @@ Load only the guidance relevant to the task:
 | Docs scope and routing                              | [content guidelines](docs/.style/content-guidelines.md) |
 | Docs structure and research                         | [DOCS_STYLE_GUIDE.md](.claude/docs/DOCS_STYLE_GUIDE.md) |
 | New, moved, or restructured docs                    | [write-docs skill](.claude/skills/write-docs/SKILL.md)  |
-| Frontend                                            | [site/AGENTS.md](site/AGENTS.md)                        |
+| Frontend                                            | [frontend skill](.claude/skills/frontend/SKILL.md)      |
 
-For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRONTEND_PATTERNS.md). For chatd work, read [coderd/x/chatd/ARCHITECTURE.md](coderd/x/chatd/ARCHITECTURE.md). When the docs style guide and the content guidelines conflict, the content guidelines govern scope and routing.
+Load the [frontend skill](.claude/skills/frontend/SKILL.md) before reading or editing anything under `site/`; it is the canonical source for the FE1 to FE10 contract and frontend conventions (`site/AGENTS.md` is a stub that points to it). For chatd work, read [coderd/x/chatd/ARCHITECTURE.md](coderd/x/chatd/ARCHITECTURE.md). When the docs style guide and the content guidelines conflict, the content guidelines govern scope and routing.
 
 ## Workflow
 
@@ -56,7 +56,7 @@ For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRO
 | Pre-commit checks | `make pre-commit`        |
 | Pre-push checks   | `make pre-push`          |
 
-Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live in `site/AGENTS.md`.
+Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live in the [frontend skill](.claude/skills/frontend/SKILL.md) (`references/frontend-guide.md`).
 
 ## Repository guardrails
 
@@ -66,7 +66,7 @@ Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live
 - **Public API:** add the required Swagger annotations for new public HTTP endpoints.
 - **Transactions:** keep `InTx` work on the transaction handle. Prefer explicit database-to-SDK converters.
 - **Concurrent tests:** call `t.Parallel()`, use unique identifiers, and do not use `time.Sleep` to mask timing problems.
-- **Frontend:** reuse shared UI primitives and test components or pages through Storybook stories. Plain Vitest files are for pure logic only.
+- **Frontend:** load the [frontend skill](.claude/skills/frontend/SKILL.md) before touching `site/`. Reuse shared UI primitives and test components or pages through Storybook stories. Plain Vitest files are for pure logic only.
 - **GitHub Actions:** set top-level `permissions: {}` and grant only required permissions per job.
 
 ## Code and writing style
