@@ -9197,7 +9197,22 @@ WHERE
                     AND cm.deleted = false
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
-                    AND cm.search_tsv @@ websearch_to_tsquery('english', $16)
+                    -- Match each vector with the config that produced
+                    -- it. Rows not yet re-vectorized by the sweep
+                    -- (search_tsv_config IS NULL) hold 'simple'
+                    -- lexemes, so an 'english' tsquery would miss them
+                    -- (stored lexeme 'refactoring' never matches the
+                    -- stemmed query 'refactor'). Querying stale rows
+                    -- with 'simple' preserves their pre-migration
+                    -- matching until the sweep rewrites them; once the
+                    -- backlog drains the second arm matches no rows.
+                    -- Both arms use constant tsqueries so the planner
+                    -- can serve the OR as a bitmap over
+                    -- idx_chat_messages_search_tsv.
+                    AND (
+                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $16))
+                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $16))
+                    )
             )
             -- Skip an explicit pr_number lookup unless the search is a valid bigint.
             OR CASE
