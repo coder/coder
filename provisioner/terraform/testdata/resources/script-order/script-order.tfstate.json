@@ -1,0 +1,607 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.15.5",
+  "values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "data.coder_script_order.overlapping",
+          "mode": "data",
+          "type": "coder_script_order",
+          "name": "overlapping",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "id": "ae6b882e-7e75-4c45-90ed-db584e2d0e51",
+            "rule": [
+              {
+                "after": [
+                  "coder_script.root_start"
+                ],
+                "requires": "success",
+                "run": [
+                  "coder_script.counted[1]",
+                  "coder_script.keyed[\"worker\"]"
+                ]
+              },
+              {
+                "after": [
+                  "module.prerequisites"
+                ],
+                "requires": "completion",
+                "run": [
+                  "module.dependents"
+                ]
+              }
+            ]
+          },
+          "sensitive_values": {
+            "rule": [
+              {
+                "after": [
+                  false
+                ],
+                "run": [
+                  false,
+                  false
+                ]
+              },
+              {
+                "after": [
+                  false
+                ],
+                "run": [
+                  false
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "address": "data.coder_script_order.primary",
+          "mode": "data",
+          "type": "coder_script_order",
+          "name": "primary",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "id": "f6c28208-f25f-4445-a959-2a2e26910c9d",
+            "rule": [
+              {
+                "after": [
+                  "coder_script.root_start"
+                ],
+                "requires": "success",
+                "run": [
+                  "coder_script.counted"
+                ]
+              },
+              {
+                "after": [
+                  "coder_script.counted[1]"
+                ],
+                "requires": "completion",
+                "run": [
+                  "coder_script.keyed"
+                ]
+              },
+              {
+                "after": [
+                  "module.prerequisites"
+                ],
+                "requires": "completion",
+                "run": [
+                  "module.dependents"
+                ]
+              },
+              {
+                "after": [
+                  "coder_script.stop_a"
+                ],
+                "requires": "success",
+                "run": [
+                  "coder_script.stop_b"
+                ]
+              }
+            ]
+          },
+          "sensitive_values": {
+            "rule": [
+              {
+                "after": [
+                  false
+                ],
+                "run": [
+                  false
+                ]
+              },
+              {
+                "after": [
+                  false
+                ],
+                "run": [
+                  false
+                ]
+              },
+              {
+                "after": [
+                  false
+                ],
+                "run": [
+                  false
+                ]
+              },
+              {
+                "after": [
+                  false
+                ],
+                "run": [
+                  false
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "address": "coder_agent.main",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "main",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "api_key_scope": "all",
+            "arch": "amd64",
+            "auth": "token",
+            "connection_timeout": 120,
+            "dir": null,
+            "display_apps": [
+              {
+                "port_forwarding_helper": true,
+                "ssh_helper": true,
+                "vscode": true,
+                "vscode_insiders": false,
+                "web_terminal": true
+              }
+            ],
+            "env": null,
+            "id": "8ef96744-7278-4405-afcc-f5fb77f898fa",
+            "init_script": "",
+            "metadata": [],
+            "motd_file": null,
+            "order": null,
+            "os": "linux",
+            "resources_monitoring": [],
+            "shutdown_script": null,
+            "startup_script": null,
+            "startup_script_behavior": "non-blocking",
+            "token": "72b8de2c-dbf9-4dcb-a6c7-2112091de0c5",
+            "troubleshooting_url": null
+          },
+          "sensitive_values": {
+            "display_apps": [
+              {}
+            ],
+            "metadata": [],
+            "resources_monitoring": [],
+            "token": true
+          }
+        },
+        {
+          "address": "coder_script.counted[0]",
+          "mode": "managed",
+          "type": "coder_script",
+          "name": "counted",
+          "index": 0,
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "agent_id": "8ef96744-7278-4405-afcc-f5fb77f898fa",
+            "cron": null,
+            "display_name": "Counted 0",
+            "icon": null,
+            "id": "86c3826b-4d8f-4e42-8c89-c9ae0936fc60",
+            "log_path": null,
+            "run_on_start": true,
+            "run_on_stop": false,
+            "script": "echo counted 0",
+            "start_blocks_login": false,
+            "timeout": 0
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.main"
+          ]
+        },
+        {
+          "address": "coder_script.counted[1]",
+          "mode": "managed",
+          "type": "coder_script",
+          "name": "counted",
+          "index": 1,
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "agent_id": "8ef96744-7278-4405-afcc-f5fb77f898fa",
+            "cron": null,
+            "display_name": "Counted 1",
+            "icon": null,
+            "id": "154e864c-3202-4cae-a6fe-2851dbdef241",
+            "log_path": null,
+            "run_on_start": true,
+            "run_on_stop": false,
+            "script": "echo counted 1",
+            "start_blocks_login": false,
+            "timeout": 0
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.main"
+          ]
+        },
+        {
+          "address": "coder_script.keyed[\"api\"]",
+          "mode": "managed",
+          "type": "coder_script",
+          "name": "keyed",
+          "index": "api",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "agent_id": "8ef96744-7278-4405-afcc-f5fb77f898fa",
+            "cron": null,
+            "display_name": "Keyed api",
+            "icon": null,
+            "id": "0183c3df-7ac7-4917-b22c-ad7da66712f0",
+            "log_path": null,
+            "run_on_start": true,
+            "run_on_stop": false,
+            "script": "echo keyed api",
+            "start_blocks_login": false,
+            "timeout": 0
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.main"
+          ]
+        },
+        {
+          "address": "coder_script.keyed[\"worker\"]",
+          "mode": "managed",
+          "type": "coder_script",
+          "name": "keyed",
+          "index": "worker",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "agent_id": "8ef96744-7278-4405-afcc-f5fb77f898fa",
+            "cron": null,
+            "display_name": "Keyed worker",
+            "icon": null,
+            "id": "e1d85ff5-8332-4519-8eb9-89f62518b6b8",
+            "log_path": null,
+            "run_on_start": true,
+            "run_on_stop": false,
+            "script": "echo keyed worker",
+            "start_blocks_login": false,
+            "timeout": 0
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.main"
+          ]
+        },
+        {
+          "address": "coder_script.root_start",
+          "mode": "managed",
+          "type": "coder_script",
+          "name": "root_start",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "agent_id": "8ef96744-7278-4405-afcc-f5fb77f898fa",
+            "cron": null,
+            "display_name": "Root start",
+            "icon": null,
+            "id": "8dcecf0d-1f9b-449d-b9a8-94344f71028b",
+            "log_path": null,
+            "run_on_start": true,
+            "run_on_stop": false,
+            "script": "echo root start",
+            "start_blocks_login": false,
+            "timeout": 0
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.main"
+          ]
+        },
+        {
+          "address": "coder_script.stop_a",
+          "mode": "managed",
+          "type": "coder_script",
+          "name": "stop_a",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "agent_id": "8ef96744-7278-4405-afcc-f5fb77f898fa",
+            "cron": null,
+            "display_name": "Stop A",
+            "icon": null,
+            "id": "4824277b-31c0-4e6a-83ca-686fc6f99da1",
+            "log_path": null,
+            "run_on_start": false,
+            "run_on_stop": true,
+            "script": "echo stop A",
+            "start_blocks_login": false,
+            "timeout": 0
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.main"
+          ]
+        },
+        {
+          "address": "coder_script.stop_b",
+          "mode": "managed",
+          "type": "coder_script",
+          "name": "stop_b",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "agent_id": "8ef96744-7278-4405-afcc-f5fb77f898fa",
+            "cron": null,
+            "display_name": "Stop B",
+            "icon": null,
+            "id": "042438f1-6b7b-403e-9cdb-9e2df98ce1a9",
+            "log_path": null,
+            "run_on_start": false,
+            "run_on_stop": true,
+            "script": "echo stop B",
+            "start_blocks_login": false,
+            "timeout": 0
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.main"
+          ]
+        },
+        {
+          "address": "coder_script.unordered",
+          "mode": "managed",
+          "type": "coder_script",
+          "name": "unordered",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "agent_id": "8ef96744-7278-4405-afcc-f5fb77f898fa",
+            "cron": null,
+            "display_name": "Unordered",
+            "icon": null,
+            "id": "4dedfb7a-435a-4a4a-a464-95c116771ec7",
+            "log_path": null,
+            "run_on_start": true,
+            "run_on_stop": false,
+            "script": "echo unordered",
+            "start_blocks_login": false,
+            "timeout": 0
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.main"
+          ]
+        },
+        {
+          "address": "null_resource.workspace",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "workspace",
+          "provider_name": "registry.terraform.io/hashicorp/null",
+          "schema_version": 0,
+          "values": {
+            "id": "4346877974126598019",
+            "triggers": null
+          },
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.main"
+          ]
+        }
+      ],
+      "child_modules": [
+        {
+          "resources": [
+            {
+              "address": "module.dependents.data.coder_script_order.nested",
+              "mode": "data",
+              "type": "coder_script_order",
+              "name": "nested",
+              "provider_name": "registry.terraform.io/coder/coder",
+              "schema_version": 1,
+              "values": {
+                "id": "80e1bd95-39a3-434a-994e-0880eb981da5",
+                "rule": [
+                  {
+                    "after": [
+                      "coder_script.module_script"
+                    ],
+                    "requires": "success",
+                    "run": [
+                      "module.nested"
+                    ]
+                  }
+                ]
+              },
+              "sensitive_values": {
+                "rule": [
+                  {
+                    "after": [
+                      false
+                    ],
+                    "run": [
+                      false
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "address": "module.dependents.coder_script.module_script",
+              "mode": "managed",
+              "type": "coder_script",
+              "name": "module_script",
+              "provider_name": "registry.terraform.io/coder/coder",
+              "schema_version": 1,
+              "values": {
+                "agent_id": "8ef96744-7278-4405-afcc-f5fb77f898fa",
+                "cron": null,
+                "display_name": "dependent module",
+                "icon": null,
+                "id": "1cae67a1-d682-44ec-9a9c-9469052de509",
+                "log_path": null,
+                "run_on_start": true,
+                "run_on_stop": false,
+                "script": "echo dependent module",
+                "start_blocks_login": false,
+                "timeout": 0
+              },
+              "sensitive_values": {},
+              "depends_on": [
+                "coder_agent.main"
+              ]
+            }
+          ],
+          "address": "module.dependents",
+          "child_modules": [
+            {
+              "resources": [
+                {
+                  "address": "module.dependents.module.nested.coder_script.nested",
+                  "mode": "managed",
+                  "type": "coder_script",
+                  "name": "nested",
+                  "provider_name": "registry.terraform.io/coder/coder",
+                  "schema_version": 1,
+                  "values": {
+                    "agent_id": "8ef96744-7278-4405-afcc-f5fb77f898fa",
+                    "cron": null,
+                    "display_name": "dependent nested",
+                    "icon": null,
+                    "id": "a36d8206-3965-4a2d-8d3a-c3a755e1e5fd",
+                    "log_path": null,
+                    "run_on_start": true,
+                    "run_on_stop": false,
+                    "script": "echo dependent nested",
+                    "start_blocks_login": false,
+                    "timeout": 0
+                  },
+                  "sensitive_values": {},
+                  "depends_on": [
+                    "coder_agent.main"
+                  ]
+                }
+              ],
+              "address": "module.dependents.module.nested"
+            }
+          ]
+        },
+        {
+          "resources": [
+            {
+              "address": "module.prerequisites.data.coder_script_order.nested",
+              "mode": "data",
+              "type": "coder_script_order",
+              "name": "nested",
+              "provider_name": "registry.terraform.io/coder/coder",
+              "schema_version": 1,
+              "values": {
+                "id": "0fdd2950-5f0b-40b0-ac81-be32e41a662d",
+                "rule": [
+                  {
+                    "after": [
+                      "coder_script.module_script"
+                    ],
+                    "requires": "success",
+                    "run": [
+                      "module.nested"
+                    ]
+                  }
+                ]
+              },
+              "sensitive_values": {
+                "rule": [
+                  {
+                    "after": [
+                      false
+                    ],
+                    "run": [
+                      false
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "address": "module.prerequisites.coder_script.module_script",
+              "mode": "managed",
+              "type": "coder_script",
+              "name": "module_script",
+              "provider_name": "registry.terraform.io/coder/coder",
+              "schema_version": 1,
+              "values": {
+                "agent_id": "8ef96744-7278-4405-afcc-f5fb77f898fa",
+                "cron": null,
+                "display_name": "prerequisite module",
+                "icon": null,
+                "id": "82be566d-5392-4c46-ba22-ce379d4be778",
+                "log_path": null,
+                "run_on_start": true,
+                "run_on_stop": false,
+                "script": "echo prerequisite module",
+                "start_blocks_login": false,
+                "timeout": 0
+              },
+              "sensitive_values": {},
+              "depends_on": [
+                "coder_agent.main"
+              ]
+            }
+          ],
+          "address": "module.prerequisites",
+          "child_modules": [
+            {
+              "resources": [
+                {
+                  "address": "module.prerequisites.module.nested.coder_script.nested",
+                  "mode": "managed",
+                  "type": "coder_script",
+                  "name": "nested",
+                  "provider_name": "registry.terraform.io/coder/coder",
+                  "schema_version": 1,
+                  "values": {
+                    "agent_id": "8ef96744-7278-4405-afcc-f5fb77f898fa",
+                    "cron": null,
+                    "display_name": "prerequisite nested",
+                    "icon": null,
+                    "id": "6e66880c-5d56-44a8-86aa-6eaf8ec88257",
+                    "log_path": null,
+                    "run_on_start": true,
+                    "run_on_stop": false,
+                    "script": "echo prerequisite nested",
+                    "start_blocks_login": false,
+                    "timeout": 0
+                  },
+                  "sensitive_values": {},
+                  "depends_on": [
+                    "coder_agent.main"
+                  ]
+                }
+              ],
+              "address": "module.prerequisites.module.nested"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

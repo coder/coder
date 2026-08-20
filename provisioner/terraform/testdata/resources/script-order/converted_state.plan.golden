@@ -1,0 +1,262 @@
+{
+  "Resources": [
+    {
+      "name": "workspace",
+      "type": "null_resource",
+      "agents": [
+        {
+          "name": "main",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": ""
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "scripts": [
+            {
+              "display_name": "Counted 0",
+              "script": "echo counted 0",
+              "run_on_start": true,
+              "resource_address": "coder_script.counted[0]",
+              "dependencies": [
+                {
+                  "prerequisite_resource_address": "coder_script.root_start",
+                  "requirement": 1
+                }
+              ]
+            },
+            {
+              "display_name": "Counted 1",
+              "script": "echo counted 1",
+              "run_on_start": true,
+              "resource_address": "coder_script.counted[1]",
+              "dependencies": [
+                {
+                  "prerequisite_resource_address": "coder_script.root_start",
+                  "requirement": 1
+                }
+              ]
+            },
+            {
+              "display_name": "Keyed api",
+              "script": "echo keyed api",
+              "run_on_start": true,
+              "resource_address": "coder_script.keyed[\"api\"]",
+              "dependencies": [
+                {
+                  "prerequisite_resource_address": "coder_script.counted[1]",
+                  "requirement": 2
+                }
+              ]
+            },
+            {
+              "display_name": "Keyed worker",
+              "script": "echo keyed worker",
+              "run_on_start": true,
+              "resource_address": "coder_script.keyed[\"worker\"]",
+              "dependencies": [
+                {
+                  "prerequisite_resource_address": "coder_script.counted[1]",
+                  "requirement": 2
+                },
+                {
+                  "prerequisite_resource_address": "coder_script.root_start",
+                  "requirement": 1
+                }
+              ]
+            },
+            {
+              "display_name": "Root start",
+              "script": "echo root start",
+              "run_on_start": true,
+              "resource_address": "coder_script.root_start"
+            },
+            {
+              "display_name": "Stop A",
+              "script": "echo stop A",
+              "run_on_stop": true,
+              "resource_address": "coder_script.stop_a"
+            },
+            {
+              "display_name": "Stop B",
+              "script": "echo stop B",
+              "run_on_stop": true,
+              "resource_address": "coder_script.stop_b",
+              "dependencies": [
+                {
+                  "prerequisite_resource_address": "coder_script.stop_a",
+                  "requirement": 1
+                }
+              ]
+            },
+            {
+              "display_name": "Unordered",
+              "script": "echo unordered",
+              "run_on_start": true,
+              "resource_address": "coder_script.unordered"
+            },
+            {
+              "display_name": "dependent module",
+              "script": "echo dependent module",
+              "run_on_start": true,
+              "resource_address": "module.dependents.coder_script.module_script",
+              "dependencies": [
+                {
+                  "prerequisite_resource_address": "module.prerequisites.coder_script.module_script",
+                  "requirement": 2
+                },
+                {
+                  "prerequisite_resource_address": "module.prerequisites.module.nested.coder_script.nested",
+                  "requirement": 2
+                }
+              ]
+            },
+            {
+              "display_name": "dependent nested",
+              "script": "echo dependent nested",
+              "run_on_start": true,
+              "resource_address": "module.dependents.module.nested.coder_script.nested",
+              "dependencies": [
+                {
+                  "prerequisite_resource_address": "module.dependents.coder_script.module_script",
+                  "requirement": 1
+                },
+                {
+                  "prerequisite_resource_address": "module.prerequisites.coder_script.module_script",
+                  "requirement": 2
+                },
+                {
+                  "prerequisite_resource_address": "module.prerequisites.module.nested.coder_script.nested",
+                  "requirement": 2
+                }
+              ]
+            },
+            {
+              "display_name": "prerequisite module",
+              "script": "echo prerequisite module",
+              "run_on_start": true,
+              "resource_address": "module.prerequisites.coder_script.module_script"
+            },
+            {
+              "display_name": "prerequisite nested",
+              "script": "echo prerequisite nested",
+              "run_on_start": true,
+              "resource_address": "module.prerequisites.module.nested.coder_script.nested",
+              "dependencies": [
+                {
+                  "prerequisite_resource_address": "module.prerequisites.coder_script.module_script",
+                  "requirement": 1
+                }
+              ]
+            }
+          ],
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false,
+  "ScriptOrder": {
+    "Graphs": [
+      {
+        "RuntimeAddress": "coder_agent.main",
+        "Phase": "shutdown",
+        "Scripts": [
+          "coder_script.stop_a",
+          "coder_script.stop_b"
+        ],
+        "Dependencies": [
+          {
+            "ScriptAddress": "coder_script.stop_b",
+            "PrerequisiteAddress": "coder_script.stop_a",
+            "Requirement": "success"
+          }
+        ]
+      },
+      {
+        "RuntimeAddress": "coder_agent.main",
+        "Phase": "startup",
+        "Scripts": [
+          "coder_script.counted[0]",
+          "coder_script.counted[1]",
+          "coder_script.keyed[\"api\"]",
+          "coder_script.keyed[\"worker\"]",
+          "coder_script.root_start",
+          "module.dependents.coder_script.module_script",
+          "module.dependents.module.nested.coder_script.nested",
+          "module.prerequisites.coder_script.module_script",
+          "module.prerequisites.module.nested.coder_script.nested"
+        ],
+        "Dependencies": [
+          {
+            "ScriptAddress": "coder_script.counted[0]",
+            "PrerequisiteAddress": "coder_script.root_start",
+            "Requirement": "success"
+          },
+          {
+            "ScriptAddress": "coder_script.counted[1]",
+            "PrerequisiteAddress": "coder_script.root_start",
+            "Requirement": "success"
+          },
+          {
+            "ScriptAddress": "coder_script.keyed[\"api\"]",
+            "PrerequisiteAddress": "coder_script.counted[1]",
+            "Requirement": "completion"
+          },
+          {
+            "ScriptAddress": "coder_script.keyed[\"worker\"]",
+            "PrerequisiteAddress": "coder_script.counted[1]",
+            "Requirement": "completion"
+          },
+          {
+            "ScriptAddress": "coder_script.keyed[\"worker\"]",
+            "PrerequisiteAddress": "coder_script.root_start",
+            "Requirement": "success"
+          },
+          {
+            "ScriptAddress": "module.dependents.coder_script.module_script",
+            "PrerequisiteAddress": "module.prerequisites.coder_script.module_script",
+            "Requirement": "completion"
+          },
+          {
+            "ScriptAddress": "module.dependents.coder_script.module_script",
+            "PrerequisiteAddress": "module.prerequisites.module.nested.coder_script.nested",
+            "Requirement": "completion"
+          },
+          {
+            "ScriptAddress": "module.dependents.module.nested.coder_script.nested",
+            "PrerequisiteAddress": "module.dependents.coder_script.module_script",
+            "Requirement": "success"
+          },
+          {
+            "ScriptAddress": "module.dependents.module.nested.coder_script.nested",
+            "PrerequisiteAddress": "module.prerequisites.coder_script.module_script",
+            "Requirement": "completion"
+          },
+          {
+            "ScriptAddress": "module.dependents.module.nested.coder_script.nested",
+            "PrerequisiteAddress": "module.prerequisites.module.nested.coder_script.nested",
+            "Requirement": "completion"
+          },
+          {
+            "ScriptAddress": "module.prerequisites.module.nested.coder_script.nested",
+            "PrerequisiteAddress": "module.prerequisites.coder_script.module_script",
+            "Requirement": "success"
+          }
+        ]
+      }
+    ]
+  }
+}

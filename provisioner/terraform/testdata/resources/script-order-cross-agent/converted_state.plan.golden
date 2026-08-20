@@ -1,0 +1,1 @@
+"validate script order graph: script order data source \"data.coder_script_order.cross_agent\" rule 0: selector \"coder_script.two\" expands to script \"coder_script.two\" on agent runtime \"coder_agent.two\", but selector \"coder_script.one\" expands to script \"coder_script.one\" on agent runtime \"coder_agent.one\"; cross-agent dependencies are not supported"
