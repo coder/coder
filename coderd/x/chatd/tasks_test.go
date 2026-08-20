@@ -528,11 +528,6 @@ func interruptedBatchFixture(
 
 func (b interruptedBatch) interrupt(t *testing.T, f *taskTestFixture) []database.ChatMessage {
 	t.Helper()
-	return b.interruptWithSnapshot(t, f, nil)
-}
-
-func (b interruptedBatch) interruptWithSnapshot(t *testing.T, f *taskTestFixture, snapshot *interruptEpisodeSnapshot) []database.ChatMessage {
-	t.Helper()
 	interrupting := f.interruptChat(t, b.chat.ID)
 	err := b.starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:            b.chat.ID,
@@ -541,7 +536,6 @@ func (b interruptedBatch) interruptWithSnapshot(t *testing.T, f *taskTestFixture
 		HistoryVersion:    interrupting.HistoryVersion,
 		GenerationAttempt: interrupting.GenerationAttempt,
 		Status:            database.ChatStatusInterrupting,
-		InterruptSnapshot: snapshot,
 	})
 	require.NoError(t, err)
 	messages, err := f.db.GetChatMessagesByChatID(testutil.Context(t, testutil.WaitShort), database.GetChatMessagesByChatIDParams{ChatID: b.chat.ID})
@@ -588,81 +582,11 @@ func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T
 	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, batch.clock.Now()))
 	batch.clock.Advance(5 * time.Second)
 
-	snapshot := &interruptEpisodeSnapshot{}
-	messages := batch.interruptWithSnapshot(t, f, snapshot)
+	messages := batch.interrupt(t, f)
 	execRow := findToolResultMessage(t, messages, execCallID)
 	require.Equal(t, sql.NullInt64{Int64: 3_000, Valid: true}, execRow.RuntimeMs)
 	waitRow := findToolResultMessage(t, messages, waitCallID)
 	require.False(t, waitRow.RuntimeMs.Valid)
-	require.True(t, snapshot.loaded)
-	require.Equal(t, batch.key, snapshot.key)
-	require.Len(t, snapshot.billing.toolCompletions, 2)
-}
-
-func TestInterruptTask_RetrySnapshotOutlivesEpisodeEviction(t *testing.T) {
-	t.Parallel()
-
-	f := newTaskTestFixture(t)
-	execCallID := "call_" + uuid.NewString()
-	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
-		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
-	})
-
-	// Use only the carried snapshot; the buffer has no episode state.
-	batch.clock.Advance(2 * time.Second)
-	startedAt := batch.clock.Now()
-	batch.clock.Advance(7 * time.Second)
-	snapshot := &interruptEpisodeSnapshot{
-		loaded: true,
-		key:    batch.key,
-		billing: interruptEpisodeBilling{
-			interruptedAt:   batch.clock.Now(),
-			toolCompletions: map[int]messagepartbuffer.ToolCompletion{0: {StartedAt: startedAt}},
-		},
-	}
-
-	messages := batch.interruptWithSnapshot(t, f, snapshot)
-	execRow := findToolResultMessage(t, messages, execCallID)
-	require.Equal(t, sql.NullInt64{Int64: 7_000, Valid: true}, execRow.RuntimeMs)
-}
-
-func TestInterruptTask_SnapshotCapturedBeforeChatRead(t *testing.T) {
-	t.Parallel()
-
-	f := newTaskTestFixture(t)
-	execCallID := "call_" + uuid.NewString()
-	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
-		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
-	})
-	buffer := batch.starter.opts.MessagePartBuffer
-
-	batch.clock.Advance(2 * time.Second)
-	require.NoError(t, buffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
-	batch.clock.Advance(3 * time.Second)
-
-	snapshot := &interruptEpisodeSnapshot{}
-	err := batch.starter.StartInterrupt(testutil.Context(t, testutil.WaitShort), chatWorkerTaskStartInput{
-		ChatID:            batch.chat.ID,
-		WorkerID:          batch.workerID,
-		RunnerID:          batch.runnerID,
-		HistoryVersion:    batch.key.HistoryVersion,
-		GenerationAttempt: batch.key.GenerationAttempt,
-		Status:            database.ChatStatusInterrupting,
-		InterruptSnapshot: snapshot,
-	})
-	require.Error(t, err)
-	require.True(t, snapshot.loaded, "the snapshot must be captured before the chat read")
-	require.Equal(t, batch.key, snapshot.key)
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	batch.clock.Advance(10 * time.Second).MustWait(ctx)
-	batch.clock.Advance(15 * time.Second).MustWait(ctx)
-	_, err = buffer.GetParts(batch.key)
-	require.ErrorIs(t, err, messagepartbuffer.ErrEpisodeNotFound)
-
-	messages := batch.interruptWithSnapshot(t, f, snapshot)
-	execRow := findToolResultMessage(t, messages, execCallID)
-	require.Equal(t, sql.NullInt64{Int64: 3_000, Valid: true}, execRow.RuntimeMs)
 }
 
 func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
