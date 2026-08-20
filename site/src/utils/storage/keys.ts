@@ -6,10 +6,10 @@
  *
  * Existing key names and serialized value formats are preserved so
  * upgrading (or rolling back) does not lose users' stored
- * preferences. Entity-scoped values additionally gain a companion
- * timestamp key so orphans can be expired by the sweep.
+ * preferences.
  */
 
+import { boolean, date, type InferType, number, object, string } from "yup";
 import type {
 	Region,
 	WorkspaceAgentPortShareProtocol,
@@ -25,15 +25,13 @@ import {
 	type SweepAction,
 	stringCodec,
 	stringLiteralCodec,
+	yupCodec,
 } from "./storage";
 
 export { clearEntityStorage, sweepExpiredStorage } from "./storage";
 
-const dayMs = 24 * 60 * 60 * 1000;
-/** Drafts match the pre-existing 30 day attachment sweep window. */
-const draftTtlMs = 30 * dayMs;
-/** Per-entity UI preferences are kept longer than drafts. */
-const entityPreferenceTtlMs = 90 * dayMs;
+/** Matches the pre-existing 30 day draft attachment sweep window. */
+const draftTtlMs = 30 * 24 * 60 * 60 * 1000;
 
 // -- Global preferences -----------------------------------------------------
 
@@ -102,36 +100,26 @@ export const lastModelConfigIdStorage = defineStorageKey<string | null>({
  * Metadata for already-uploaded create-form attachments so they
  * survive page navigations without re-uploading.
  */
-type PersistedChatAttachment = {
-	fileId: string;
-	fileName: string;
-	fileType: string;
-	lastModified: number;
-	organizationId: string;
-};
+const persistedChatAttachmentSchema = object({
+	fileId: string().defined(),
+	fileName: string().defined(),
+	fileType: string().defined(),
+	lastModified: number().defined(),
+	organizationId: string().defined(),
+});
 
-const isPersistedChatAttachment = (
-	item: unknown,
-): item is PersistedChatAttachment => {
-	if (typeof item !== "object" || item === null) {
-		return false;
-	}
-	const record = item as Record<string, unknown>;
-	return (
-		typeof record.fileId === "string" &&
-		typeof record.fileName === "string" &&
-		typeof record.fileType === "string" &&
-		typeof record.lastModified === "number" &&
-		typeof record.organizationId === "string"
-	);
-};
+type PersistedChatAttachment = InferType<typeof persistedChatAttachmentSchema>;
 
 // Filters entry-by-entry so one legacy or corrupt record (for example
 // pre-org-scoping data) does not discard valid siblings.
 const isPersistedChatAttachments = (
 	parsed: unknown,
 ): PersistedChatAttachment[] | undefined =>
-	Array.isArray(parsed) ? parsed.filter(isPersistedChatAttachment) : undefined;
+	Array.isArray(parsed)
+		? parsed.filter((item): item is PersistedChatAttachment =>
+				persistedChatAttachmentSchema.isValidSync(item, { strict: true }),
+			)
+		: undefined;
 
 export const persistedAttachmentsStorage = defineStorageKey<
 	PersistedChatAttachment[] | null
@@ -163,78 +151,40 @@ export const preloadReloadStorage = defineStorageKey<number | null>({
 	area: "session",
 });
 
-const isRegion = (parsed: unknown): Region | undefined => {
-	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-		return undefined;
-	}
-	const record = parsed as Record<string, unknown>;
-	// Rebuild from the validated fields rather than asserting the
-	// stored object, so extra or stale properties never leak through.
-	if (
-		typeof record.id !== "string" ||
-		typeof record.name !== "string" ||
-		typeof record.display_name !== "string" ||
-		typeof record.icon_url !== "string" ||
-		typeof record.healthy !== "boolean" ||
-		typeof record.path_app_url !== "string" ||
-		typeof record.wildcard_hostname !== "string"
-	) {
-		return undefined;
-	}
-	return {
-		id: record.id,
-		name: record.name,
-		display_name: record.display_name,
-		icon_url: record.icon_url,
-		healthy: record.healthy,
-		path_app_url: record.path_app_url,
-		wildcard_hostname: record.wildcard_hostname,
-	};
-};
+const regionSchema = object({
+	id: string().defined(),
+	name: string().defined(),
+	display_name: string().defined(),
+	icon_url: string().defined(),
+	healthy: boolean().defined(),
+	path_app_url: string().defined(),
+	wildcard_hostname: string().defined(),
+});
 
 export const userSelectedProxyStorage = defineStorageKey<Region | null>({
 	key: "user-selected-proxy",
-	codec: jsonCodec(isRegion),
+	codec: yupCodec<Region>(regionSchema),
 	defaultValue: null,
 });
 
 /** Mirrors ProxyLatencyReport in contexts/useProxyLatency.ts. */
-type StoredProxyLatencyReport = {
-	accurate: boolean;
-	latencyMS: number;
-	at: Date;
-	nextHopProtocol?: string;
-};
+const proxyLatencyReportSchema = object({
+	accurate: boolean().defined(),
+	// Negative latency would sort ahead of every real measurement.
+	latencyMS: number().defined().min(0),
+	at: date().defined(),
+	nextHopProtocol: string().optional(),
+});
+
+type StoredProxyLatencyReport = InferType<typeof proxyLatencyReportSchema>;
 
 type StoredProxyLatencies = Record<string, StoredProxyLatencyReport[]>;
-
-/**
- * Latencies persist `at` as an ISO string, so decoding revives it to
- * a Date the way the previous hand-rolled reviver did.
- */
-const isStoredProxyLatencyReport = (
-	entry: unknown,
-): entry is StoredProxyLatencyReport => {
-	if (typeof entry !== "object" || entry === null) {
-		return false;
-	}
-	const record = entry as Record<string, unknown>;
-	return (
-		typeof record.accurate === "boolean" &&
-		typeof record.latencyMS === "number" &&
-		Number.isFinite(record.latencyMS) &&
-		// Negative latency would sort ahead of every real measurement.
-		record.latencyMS >= 0 &&
-		record.at instanceof Date &&
-		!Number.isNaN(record.at.getTime()) &&
-		(record.nextHopProtocol === undefined ||
-			typeof record.nextHopProtocol === "string")
-	);
-};
 
 const proxyLatenciesCodec: StorageCodec<StoredProxyLatencies> = {
 	decode: (raw) => {
 		try {
+			// Latencies persist `at` as an ISO string; revive it to a Date
+			// before validating against the schema.
 			const parsed: unknown = JSON.parse(raw, (key, value) =>
 				key === "at" ? new Date(value) : value,
 			);
@@ -251,7 +201,10 @@ const proxyLatenciesCodec: StorageCodec<StoredProxyLatencies> = {
 			const validated: StoredProxyLatencies = {};
 			for (const [proxyId, reports] of Object.entries(parsed)) {
 				if (Array.isArray(reports)) {
-					validated[proxyId] = reports.filter(isStoredProxyLatencyReport);
+					validated[proxyId] = reports.filter(
+						(report): report is StoredProxyLatencyReport =>
+							proxyLatencyReportSchema.isValidSync(report, { strict: true }),
+					);
 				}
 			}
 			return validated;
@@ -293,7 +246,6 @@ export const chatDraftInputStorage = defineEntityStorageKey<string | null>({
 	entity: "chat",
 	codec: stringCodec,
 	defaultValue: null,
-	ttlMs: draftTtlMs,
 });
 
 export const chatSidebarTabStorage = defineEntityStorageKey<string | null>({
@@ -301,7 +253,6 @@ export const chatSidebarTabStorage = defineEntityStorageKey<string | null>({
 	entity: "chat",
 	codec: stringCodec,
 	defaultValue: null,
-	ttlMs: entityPreferenceTtlMs,
 });
 
 const emptyTabs: readonly unknown[] = [];
@@ -321,7 +272,6 @@ export const chatRightPanelTabsStorage = defineEntityStorageKey<
 	entity: "chat",
 	codec: jsonCodec<readonly unknown[]>(isJsonArray),
 	defaultValue: emptyTabs,
-	ttlMs: entityPreferenceTtlMs,
 });
 
 export const chatDefaultTerminalHiddenStorage = defineEntityStorageKey<boolean>(
@@ -330,7 +280,6 @@ export const chatDefaultTerminalHiddenStorage = defineEntityStorageKey<boolean>(
 		entity: "chat",
 		codec: booleanCodec,
 		defaultValue: false,
-		ttlMs: entityPreferenceTtlMs,
 	},
 );
 
@@ -372,9 +321,8 @@ const sweepChatDraftAttachments = (raw: string, nowMs: number): SweepAction => {
 /**
  * Draft attachment records for a chat, keyed by organization and chat
  * ID (`forId(organizationId, chatId)`). Records carry their own
- * timestamps, so the family needs no companion timestamp key; domain
- * logic lives in chatDraftAttachmentStorage.ts and works with the raw
- * JSON string.
+ * timestamps; domain logic lives in chatDraftAttachmentStorage.ts and
+ * works with the raw JSON string.
  */
 export const chatDraftAttachmentsStorage = defineEntityStorageKey<
 	string | null
@@ -383,11 +331,6 @@ export const chatDraftAttachmentsStorage = defineEntityStorageKey<
 	entity: "chat",
 	codec: stringCodec,
 	defaultValue: null,
-	ttlMs: draftTtlMs,
-	timestamped: false,
-	// chatDraftAttachmentStorage checks PersistResult and retries with
-	// lighter payloads, so reads must reflect persisted bytes only.
-	overlay: false,
 	entityIdFromSuffix: (suffix) => suffix.split(".").at(-1) ?? suffix,
 	sweepValue: sweepChatDraftAttachments,
 });
@@ -401,7 +344,6 @@ export const modelConfigReasoningEffortStorage = defineEntityStorageKey<
 	entity: "modelConfig",
 	codec: stringCodec,
 	defaultValue: null,
-	ttlMs: entityPreferenceTtlMs,
 });
 
 export const workspaceListeningPortsProtocolStorage =
@@ -413,7 +355,6 @@ export const workspaceListeningPortsProtocolStorage =
 			"https",
 		]),
 		defaultValue: "http",
-		ttlMs: entityPreferenceTtlMs,
 	});
 
 // -- Legacy keys ------------------------------------------------------------

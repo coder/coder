@@ -13,6 +13,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	emptyInputDraftStorage,
 	lastModelConfigIdStorage,
+	modelConfigReasoningEffortStorage,
 	selectedWorkspaceIdStorage,
 } from "#/utils/storage/keys";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -23,11 +24,7 @@ import {
 	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 } from "../utils/modelOptions";
-import {
-	getReasoningEffortForModel,
-	pickReasoningEffort,
-	saveReasoningEffortForModel,
-} from "../utils/reasoningEffort";
+import { pickReasoningEffort } from "../utils/reasoningEffort";
 import { AgentChatInput } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
@@ -249,7 +246,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? rootPersonalModelOverride?.reasoning_effort
 			: undefined;
 	const persistedReasoningEffort = (() => {
-		const stored = getReasoningEffortForModel(selectedModel);
+		const stored = modelConfigReasoningEffortStorage.forId(selectedModel).get();
 		const efforts = selectedModelOption?.reasoningEfforts;
 		return stored && efforts?.includes(stored) ? stored : undefined;
 	})();
@@ -441,7 +438,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			...current,
 			[selectedModel]: value,
 		}));
-		saveReasoningEffortForModel(selectedModel, value);
+		modelConfigReasoningEffortStorage.forId(selectedModel).set(value);
 	};
 
 	const isForbidden = !canCreateChat || noPermittedOrgs;

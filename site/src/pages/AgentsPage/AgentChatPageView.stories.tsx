@@ -44,7 +44,6 @@ import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
 import type { ModelSelectorOption } from "./components/ChatElements";
-import { getPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 
 // ---------------------------------------------------------------------------
 // Shared constants & helpers
@@ -1692,7 +1691,7 @@ export const PersistsSidebarTabClick: Story = {
 			expect(gitTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		expect(getPersistedSidebarTabId(AGENT_ID)).toBe("git");
+		expect(chatSidebarTabStorage.forId(AGENT_ID).get()).toBe("git");
 	},
 };
 
@@ -1721,7 +1720,7 @@ export const PreservesUnavailableSidebarTab: Story = {
 
 		expect(canvas.queryByRole("tab", { name: "Terminal" })).toBeNull();
 
-		expect(getPersistedSidebarTabId(AGENT_ID)).toBe("terminal");
+		expect(chatSidebarTabStorage.forId(AGENT_ID).get()).toBe("terminal");
 	},
 };
 
@@ -1873,7 +1872,7 @@ export const PreservesUnavailableBrowserTab: Story = {
 
 		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
 
-		expect(getPersistedSidebarTabId(AGENT_ID)).toBe("browser");
+		expect(chatSidebarTabStorage.forId(AGENT_ID).get()).toBe("browser");
 	},
 };
 
@@ -1918,7 +1917,7 @@ export const DoesNotPersistForArchivedChat: Story = {
 			expect(gitTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		expect(getPersistedSidebarTabId(AGENT_ID)).toBeNull();
+		expect(chatSidebarTabStorage.forId(AGENT_ID).get()).toBeNull();
 	},
 };
 

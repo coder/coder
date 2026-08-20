@@ -877,16 +877,9 @@ const AgentChatPage: FC = () => {
 	// rendered or handed to children; the raw preference stays local.
 	const showSidebarPanel = sidebarPanelPreference && !panelSuppressedOnNarrow;
 
-	const handleSetShowSidebarPanel = (
-		next: boolean | ((prev: boolean) => boolean),
-	) => {
+	const handleSetShowSidebarPanel = (next: boolean) => {
 		clearSuppression();
-		// Evaluate updaters against the storage snapshot, not the render
-		// closure, so calls compose before a render commits and never
-		// clobber a newer preference written by another tab.
-		setSidebarPanelPreference(
-			typeof next === "function" ? next(rightPanelOpenStorage.get()) : next,
-		);
+		setSidebarPanelPreference(next);
 	};
 
 	const chatQuery = useQuery({

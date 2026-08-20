@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -17,7 +17,11 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
-import { lastModelConfigIdStorage } from "#/utils/storage/keys";
+import { useStorage } from "#/hooks/useStorage";
+import {
+	chimeOnCompletionStorage,
+	lastModelConfigIdStorage,
+} from "#/utils/storage/keys";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
@@ -26,7 +30,6 @@ import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
-import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import {
 	countConfiguredProviderConfigs,
 	getUnsupportedProviderNames,
@@ -55,7 +58,9 @@ const AgentCreatePage: FC = () => {
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
 	const webPush = useWebpushNotifications();
-	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
+	const [chimeEnabled, setChimeEnabledState] = useStorage(
+		chimeOnCompletionStorage,
+	);
 
 	const { options: catalogModelOptions, isModelCatalogLoading } =
 		resolveModelSelector(
@@ -126,9 +131,7 @@ const AgentCreatePage: FC = () => {
 		: undefined;
 
 	const handleChimeToggle = () => {
-		const next = !chimeEnabled;
-		setChimeEnabledState(next);
-		setChimeEnabled(next);
+		setChimeEnabledState(!chimeEnabled);
 	};
 
 	const handleNotificationToggle = async () => {

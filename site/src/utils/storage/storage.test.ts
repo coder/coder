@@ -49,27 +49,23 @@ const sessionKey = defineStorageKey<string | null>({
 	area: "session",
 });
 
-const dayMs = 24 * 60 * 60 * 1000;
 const chatNote = defineEntityStorageKey<string | null>({
 	prefix: "test.chat-note.",
 	entity: "chat",
 	codec: stringCodec,
 	defaultValue: null,
-	ttlMs: 30 * dayMs,
 });
 const chatTabs = defineEntityStorageKey<readonly string[]>({
 	prefix: "test.chat-tabs.",
 	entity: "chat",
 	codec: jsonCodec<readonly string[]>(isStringArray),
 	defaultValue: [],
-	ttlMs: 90 * dayMs,
 });
 const chatComposite = defineEntityStorageKey<string | null>({
 	prefix: "test.chat-composite.",
 	entity: "chat",
 	codec: stringCodec,
 	defaultValue: null,
-	ttlMs: 30 * dayMs,
 	entityIdFromSuffix: (suffix) => suffix.split(".").at(-1) ?? suffix,
 });
 const workspaceFlag = defineEntityStorageKey<boolean>({
@@ -77,54 +73,26 @@ const workspaceFlag = defineEntityStorageKey<boolean>({
 	entity: "workspace",
 	codec: booleanCodec,
 	defaultValue: false,
-	ttlMs: 90 * dayMs,
 });
-// Registered for its custom sweep behavior only.
+// Registered for its custom sweep behavior only. Mirrors chat draft
+// attachments: values carry their own expiry information.
 defineEntityStorageKey<string | null>({
 	prefix: "test.custom-sweep.",
 	entity: "chat",
 	codec: stringCodec,
 	defaultValue: null,
-	ttlMs: 30 * dayMs,
-	timestamped: false,
-	sweepValue: (raw) => (raw === "stale" ? "remove" : "keep"),
-});
-// Mirrors chat draft attachments: manages its own quota fallback.
-const noOverlayNote = defineEntityStorageKey<string | null>({
-	prefix: "test.no-overlay.",
-	entity: "chat",
-	codec: stringCodec,
-	defaultValue: null,
-	ttlMs: 30 * dayMs,
-	timestamped: false,
-	overlay: false,
-	sweepValue: () => "keep",
+	sweepValue: (raw) => {
+		if (raw === "stale") {
+			return "remove";
+		}
+		if (raw.startsWith("trim:")) {
+			return { rewrite: raw.slice("trim:".length) };
+		}
+		return "keep";
+	},
 });
 
 registerLegacyStorageKeys(["test.legacy-one", "test.legacy-two"]);
-
-const timestampKeyFor = (key: string): string =>
-	`coder.storage.timestamps.${key}`;
-
-const envelopeFor = (data: string, atMs: number): string =>
-	JSON.stringify({ v: 1, t: atMs, d: data });
-
-const stampFor = (key: string, atMs: number): void => {
-	const raw = localStorage.getItem(key);
-	if (raw === null) {
-		throw new Error(`no value stored at ${key}`);
-	}
-	// Mirrors the module's FNV-1a fingerprint.
-	let hash = 0x811c9dc5;
-	for (let index = 0; index < raw.length; index++) {
-		hash ^= raw.charCodeAt(index);
-		hash = Math.imul(hash, 0x01000193);
-	}
-	localStorage.setItem(
-		timestampKeyFor(key),
-		JSON.stringify({ t: atMs, h: (hash >>> 0).toString(16) }),
-	);
-};
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -188,25 +156,21 @@ describe("storage core", () => {
 		expect(boolKey.set(true)).toEqual({ ok: false, reason: "quota" });
 	});
 
-	it("keeps the requested value visible when persistence fails", () => {
+	it("keeps reads on persisted bytes when persistence fails", () => {
+		boolKey.set(true);
 		const listener = vi.fn();
 		const unsubscribe = boolKey.subscribe(listener);
 		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
 			throw new DOMException("full", "QuotaExceededError");
 		});
 
-		expect(boolKey.set(true).ok).toBe(false);
+		expect(boolKey.set(false).ok).toBe(false);
 
-		// Subscribers are notified and reads serve the in-memory value
-		// even though nothing persisted.
-		expect(listener).toHaveBeenCalledTimes(1);
+		// Reads keep reflecting what actually persisted; callers can
+		// inspect the returned PersistResult for their own handling.
+		expect(listener).not.toHaveBeenCalled();
 		expect(boolKey.get()).toBe(true);
-		expect(localStorage.getItem("test.bool")).toBeNull();
-
-		// remove() clears the overlay too.
-		boolKey.remove();
-		expect(listener).toHaveBeenCalledTimes(2);
-		expect(boolKey.get()).toBe(false);
+		expect(localStorage.getItem("test.bool")).toBe("true");
 		unsubscribe();
 	});
 
@@ -296,39 +260,15 @@ describe("entity-scoped keys", () => {
 		expect(chatNote.forId("chat-1")).not.toBe(chatNote.forId("chat-2"));
 	});
 
-	it("writes the raw value plus a companion timestamp", () => {
-		vi.spyOn(Date, "now").mockReturnValue(1000);
+	it("keeps values in the pre-existing raw formats", () => {
 		chatNote.forId("chat-1").set("draft");
-		// The value bytes stay in the legacy raw format so older
-		// clients can still read them.
+		// The value bytes stay in the legacy raw format so clients from
+		// before this module can still read them.
 		expect(localStorage.getItem("test.chat-note.chat-1")).toBe("draft");
-		const stamp = JSON.parse(
-			localStorage.getItem(timestampKeyFor("test.chat-note.chat-1")) ?? "null",
-		);
-		expect(stamp.t).toBe(1000);
-		expect(typeof stamp.h).toBe("string");
 		expect(chatNote.forId("chat-1").get()).toBe("draft");
-	});
-
-	it("reads values written before companions existed", () => {
-		localStorage.setItem("test.chat-note.chat-1", "old draft");
-		expect(chatNote.forId("chat-1").get()).toBe("old draft");
 
 		localStorage.setItem("test.chat-tabs.chat-1", JSON.stringify(["files"]));
 		expect(chatTabs.forId("chat-1").get()).toEqual(["files"]);
-	});
-
-	it("removes the companion timestamp along with the value", () => {
-		const handle = chatNote.forId("chat-1");
-		handle.set("draft");
-		expect(
-			localStorage.getItem(timestampKeyFor("test.chat-note.chat-1")),
-		).not.toBeNull();
-		handle.remove();
-		expect(localStorage.getItem("test.chat-note.chat-1")).toBeNull();
-		expect(
-			localStorage.getItem(timestampKeyFor("test.chat-note.chat-1")),
-		).toBeNull();
 	});
 
 	it("clears every key owned by an entity across families", () => {
@@ -348,51 +288,14 @@ describe("entity-scoped keys", () => {
 		expect(localStorage.getItem("test.workspace-flag.chat-1")).not.toBeNull();
 	});
 
-	it("clears cached values when enumeration is unavailable", () => {
+	it("survives unavailable enumeration during entity cleanup", () => {
 		const handle = chatNote.forId("chat-1");
 		handle.set("draft");
-		// Prime the snapshot cache, then break enumeration.
-		expect(handle.get()).toBe("draft");
 		vi.spyOn(Storage.prototype, "key").mockImplementation(() => {
 			throw new Error("denied");
 		});
 
-		clearEntityStorage("chat", "chat-1");
-
-		expect(handle.get()).toBeNull();
-		vi.restoreAllMocks();
-		expect(localStorage.getItem("test.chat-note.chat-1")).toBeNull();
-	});
-
-	it("keeps reads on persisted bytes for overlay: false keys", () => {
-		const handle = noOverlayNote.forId("chat-1");
-		handle.set("persisted");
-		const listener = vi.fn();
-		const unsubscribe = handle.subscribe(listener);
-		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-			throw new DOMException("full", "QuotaExceededError");
-		});
-
-		expect(handle.set("unpersisted").ok).toBe(false);
-
-		// Reads keep reflecting the persisted bytes so callers with
-		// their own quota handling can reconcile.
-		expect(handle.get()).toBe("persisted");
-		expect(listener).not.toHaveBeenCalled();
-		unsubscribe();
-	});
-
-	it("clears overlay-only values that never persisted", () => {
-		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-			throw new DOMException("full", "QuotaExceededError");
-		});
-		const handle = chatNote.forId("chat-1");
-		expect(handle.set("draft").ok).toBe(false);
-		expect(handle.get()).toBe("draft");
-
-		clearEntityStorage("chat", "chat-1");
-
-		expect(handle.get()).toBeNull();
+		expect(() => clearEntityStorage("chat", "chat-1")).not.toThrow();
 	});
 
 	it("notifies subscribers when entity cleanup removes their key", () => {
@@ -419,102 +322,19 @@ describe("sweepExpiredStorage", () => {
 		_resetStorageForTesting();
 	});
 
-	it("removes values with expired companions and keeps fresh ones", () => {
-		const now = 100 * dayMs;
-		localStorage.setItem("test.chat-note.old", "stale draft");
-		stampFor("test.chat-note.old", now - 31 * dayMs);
-		localStorage.setItem("test.chat-note.new", "fresh draft");
-		stampFor("test.chat-note.new", now - dayMs);
-		localStorage.setItem("test.chat-tabs.old", JSON.stringify(["files"]));
-		stampFor("test.chat-tabs.old", now - 89 * dayMs);
-
-		sweepExpiredStorage(now);
-
-		expect(localStorage.getItem("test.chat-note.old")).toBeNull();
-		expect(
-			localStorage.getItem(timestampKeyFor("test.chat-note.old")),
-		).toBeNull();
-		expect(localStorage.getItem("test.chat-note.new")).toBe("fresh draft");
-		// 89 days is within the 90 day preference TTL.
-		expect(localStorage.getItem("test.chat-tabs.old")).not.toBeNull();
-	});
-
-	it("stamps unstamped values so their TTL clock starts", () => {
-		const now = 100 * dayMs;
-		localStorage.setItem("test.chat-note.legacy", "legacy draft");
-
-		sweepExpiredStorage(now);
-
-		// The value bytes are untouched; only a companion appears.
-		expect(localStorage.getItem("test.chat-note.legacy")).toBe("legacy draft");
-		const stamp = JSON.parse(
-			localStorage.getItem(timestampKeyFor("test.chat-note.legacy")) ?? "null",
-		);
-		expect(stamp.t).toBe(now);
-		expect(chatNote.forId("legacy").get()).toBe("legacy draft");
-	});
-
-	it("re-stamps values changed by clients that do not write companions", () => {
-		const now = 100 * dayMs;
-		localStorage.setItem("test.chat-note.shared", "first");
-		stampFor("test.chat-note.shared", now - 60 * dayMs);
-		// An old client overwrites the value without updating the stamp.
-		localStorage.setItem("test.chat-note.shared", "updated by old client");
-
-		sweepExpiredStorage(now);
-
-		// The stale stamp must not expire the freshly updated value.
-		expect(localStorage.getItem("test.chat-note.shared")).toBe(
-			"updated by old client",
-		);
-		const stamp = JSON.parse(
-			localStorage.getItem(timestampKeyFor("test.chat-note.shared")) ?? "null",
-		);
-		expect(stamp.t).toBe(now);
-	});
-
-	it("migrates pre-release envelope values back to raw values", () => {
-		const now = 100 * dayMs;
-		localStorage.setItem(
-			"test.chat-note.wrapped",
-			envelopeFor("wrapped draft", now - dayMs),
-		);
-		localStorage.setItem(
-			"test.chat-note.expired-wrap",
-			envelopeFor("stale draft", now - 31 * dayMs),
-		);
-
-		sweepExpiredStorage(now);
-
-		expect(localStorage.getItem("test.chat-note.wrapped")).toBe(
-			"wrapped draft",
-		);
-		const stamp = JSON.parse(
-			localStorage.getItem(timestampKeyFor("test.chat-note.wrapped")) ?? "null",
-		);
-		// The original write time is preserved through the migration.
-		expect(stamp.t).toBe(now - dayMs);
-		expect(localStorage.getItem("test.chat-note.expired-wrap")).toBeNull();
-	});
-
-	it("removes orphaned companion timestamps", () => {
-		localStorage.setItem(timestampKeyFor("test.chat-note.gone"), "{}");
-
-		sweepExpiredStorage(Date.now());
-
-		expect(
-			localStorage.getItem(timestampKeyFor("test.chat-note.gone")),
-		).toBeNull();
-	});
-
 	it("applies custom family sweep logic", () => {
 		localStorage.setItem("test.custom-sweep.a", "stale");
 		localStorage.setItem("test.custom-sweep.b", "fresh");
+		localStorage.setItem("test.custom-sweep.c", "trim:partial");
+		// Families without custom sweep logic are untouched.
+		localStorage.setItem("test.chat-note.chat-1", "draft");
 
 		sweepExpiredStorage(Date.now());
 
 		expect(localStorage.getItem("test.custom-sweep.a")).toBeNull();
 		expect(localStorage.getItem("test.custom-sweep.b")).toBe("fresh");
+		expect(localStorage.getItem("test.custom-sweep.c")).toBe("partial");
+		expect(localStorage.getItem("test.chat-note.chat-1")).toBe("draft");
 	});
 
 	it("removes registered legacy keys unconditionally", () => {
@@ -603,5 +423,19 @@ describe("useStorage", () => {
 
 		expect(result.current[0]).toBe("draft");
 		expect(chatNote.forId("chat-9").get()).toBe("draft");
+	});
+
+	it("evaluates updaters against the storage snapshot", () => {
+		const { result } = renderHook(() => useStorage(numberKey));
+
+		// Two updater calls before a render commits compose instead of
+		// both reading the same stale render closure.
+		act(() => {
+			result.current[1]((prev) => (prev ?? 0) + 1);
+			result.current[1]((prev) => (prev ?? 0) + 1);
+		});
+
+		expect(result.current[0]).toBe(2);
+		expect(localStorage.getItem("test.number")).toBe("2");
 	});
 });

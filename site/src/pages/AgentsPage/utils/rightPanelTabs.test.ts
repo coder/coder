@@ -11,19 +11,20 @@ import {
 	MockWorkspaceApp,
 } from "#/testHelpers/entities";
 import {
+	chatDefaultTerminalHiddenStorage,
 	chatRightPanelTabsStorage,
 	clearEntityStorage,
 } from "#/utils/storage/keys";
 import {
-	getPersistedDefaultTerminalHidden,
-	getPersistedRightPanelTabs,
-	savePersistedDefaultTerminalHidden,
-	savePersistedRightPanelTabs,
-} from "./rightPanelTabStorage";
-import {
+	isUserRightPanelTab,
 	type UserRightPanelTab,
 	validateUserRightPanelTabs,
 } from "./rightPanelTabs";
+
+// Mirrors how AgentChatPageView reads persisted tabs: raw descriptors
+// narrowed so stale shapes from older builds are dropped on read.
+const readPersistedTabs = (chatID: string): UserRightPanelTab[] =>
+	chatRightPanelTabsStorage.forId(chatID).get().filter(isUserRightPanelTab);
 
 type TerminalRightPanelTab = Extract<UserRightPanelTab, { kind: "terminal" }>;
 
@@ -202,48 +203,15 @@ describe("right-panel tab storage", () => {
 		localStorage.clear();
 	});
 
-	it("persists tabs per chat", () => {
-		const tabs: UserRightPanelTab[] = [terminalTab()];
-
-		savePersistedRightPanelTabs("chat-1", tabs);
-
-		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
-		expect(getPersistedRightPanelTabs("chat-2")).toEqual([]);
-	});
-
-	it("persists command-app terminal tabs", () => {
+	it("round-trips every persisted tab kind per chat", () => {
 		const tabs: UserRightPanelTab[] = [
+			terminalTab(),
 			terminalTab({
 				id: "terminal-claude",
 				label: "Claude Code",
 				initialCommand: "claude",
 				sourceAppId: MockWorkspaceApp.id,
 			}),
-		];
-
-		savePersistedRightPanelTabs("chat-1", tabs);
-
-		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
-	});
-
-	it("clears all persisted right-panel state for a chat", () => {
-		const tabs: UserRightPanelTab[] = [terminalTab()];
-
-		savePersistedRightPanelTabs("chat-1", tabs);
-		savePersistedDefaultTerminalHidden("chat-1", true);
-		savePersistedRightPanelTabs("chat-2", tabs);
-		savePersistedDefaultTerminalHidden("chat-2", true);
-
-		clearEntityStorage("chat", "chat-1");
-
-		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);
-		expect(getPersistedDefaultTerminalHidden("chat-1")).toBe(false);
-		expect(getPersistedRightPanelTabs("chat-2")).toEqual(tabs);
-		expect(getPersistedDefaultTerminalHidden("chat-2")).toBe(true);
-	});
-
-	it("persists workspace_app tabs", () => {
-		const tabs: UserRightPanelTab[] = [
 			{
 				id: "app-preview",
 				kind: "workspace_app",
@@ -251,15 +219,6 @@ describe("right-panel tab storage", () => {
 				agentId: MockWorkspaceAgent.id,
 				appId: MockWorkspaceApp.id,
 			},
-		];
-
-		savePersistedRightPanelTabs("chat-1", tabs);
-
-		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
-	});
-
-	it("persists port tabs", () => {
-		const tabs: UserRightPanelTab[] = [
 			{
 				id: "port-3000",
 				kind: "port",
@@ -270,9 +229,26 @@ describe("right-panel tab storage", () => {
 			},
 		];
 
-		savePersistedRightPanelTabs("chat-1", tabs);
+		chatRightPanelTabsStorage.forId("chat-1").set(tabs);
 
-		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
+		expect(readPersistedTabs("chat-1")).toEqual(tabs);
+		expect(readPersistedTabs("chat-2")).toEqual([]);
+	});
+
+	it("clears all persisted right-panel state for a chat", () => {
+		const tabs: UserRightPanelTab[] = [terminalTab()];
+
+		chatRightPanelTabsStorage.forId("chat-1").set(tabs);
+		chatDefaultTerminalHiddenStorage.forId("chat-1").set(true);
+		chatRightPanelTabsStorage.forId("chat-2").set(tabs);
+		chatDefaultTerminalHiddenStorage.forId("chat-2").set(true);
+
+		clearEntityStorage("chat", "chat-1");
+
+		expect(readPersistedTabs("chat-1")).toEqual([]);
+		expect(chatDefaultTerminalHiddenStorage.forId("chat-1").get()).toBe(false);
+		expect(readPersistedTabs("chat-2")).toEqual(tabs);
+		expect(chatDefaultTerminalHiddenStorage.forId("chat-2").get()).toBe(true);
 	});
 
 	it("ignores invalid stored values", () => {
@@ -281,7 +257,7 @@ describe("right-panel tab storage", () => {
 			JSON.stringify([{ id: "bad-tab", kind: "port" }]),
 		);
 
-		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);
+		expect(readPersistedTabs("chat-1")).toEqual([]);
 	});
 
 	it("ignores port tabs with out-of-range ports", () => {
@@ -299,7 +275,7 @@ describe("right-panel tab storage", () => {
 			]),
 		);
 
-		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);
+		expect(readPersistedTabs("chat-1")).toEqual([]);
 	});
 
 	it("restores stored terminal tabs with string reconnect tokens", () => {
@@ -309,46 +285,15 @@ describe("right-panel tab storage", () => {
 			JSON.stringify(tabs),
 		);
 
-		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
-	});
-});
-
-describe("default terminal hidden storage", () => {
-	beforeEach(() => {
-		localStorage.clear();
+		expect(readPersistedTabs("chat-1")).toEqual(tabs);
 	});
 
-	it("round trips a hidden terminal flag", () => {
-		savePersistedDefaultTerminalHidden("chat-1", true);
+	it("treats malformed default-terminal-hidden values as visible", () => {
+		localStorage.setItem(
+			`${chatDefaultTerminalHiddenStorage.prefix}chat-1`,
+			"yes",
+		);
 
-		expect(getPersistedDefaultTerminalHidden("chat-1")).toBe(true);
-		expect(getPersistedDefaultTerminalHidden("chat-2")).toBe(false);
-	});
-
-	it("removes the stored flag when saving false", () => {
-		savePersistedDefaultTerminalHidden("chat-1", true);
-
-		savePersistedDefaultTerminalHidden("chat-1", false);
-
-		expect(getPersistedDefaultTerminalHidden("chat-1")).toBe(false);
-		expect(localStorage.length).toBe(0);
-	});
-
-	it("ignores undefined chat IDs", () => {
-		savePersistedDefaultTerminalHidden(undefined, true);
-
-		expect(getPersistedDefaultTerminalHidden(undefined)).toBe(false);
-		expect(localStorage.length).toBe(0);
-	});
-
-	it("treats malformed values as visible", () => {
-		savePersistedDefaultTerminalHidden("chat-1", true);
-		const key = localStorage.key(0);
-		if (!key) {
-			throw new Error("expected default terminal hidden key to be stored");
-		}
-		localStorage.setItem(key, "yes");
-
-		expect(getPersistedDefaultTerminalHidden("chat-1")).toBe(false);
+		expect(chatDefaultTerminalHiddenStorage.forId("chat-1").get()).toBe(false);
 	});
 });

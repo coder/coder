@@ -1,9 +1,10 @@
 import type { FC } from "react";
 import { Switch } from "#/components/Switch/Switch";
-import { useChatFullWidth } from "../hooks/useChatFullWidth";
+import { useStorage } from "#/hooks/useStorage";
+import { chatFullWidthStorage } from "#/utils/storage/keys";
 
 export const ChatFullWidthSettings: FC = () => {
-	const [enabled, setEnabled] = useChatFullWidth();
+	const [enabled, setEnabled] = useStorage(chatFullWidthStorage);
 
 	return (
 		<div className="flex flex-col gap-2">
