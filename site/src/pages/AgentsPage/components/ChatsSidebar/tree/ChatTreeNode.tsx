@@ -346,7 +346,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 									aria-label="Shared chat"
 								/>
 							)}
-							{hasMenuActions && (
+							{hasMenuActions && !isArchivingThisChat && (
 								<DropdownMenu>
 									<DropdownMenuTrigger asChild>
 										<Button
