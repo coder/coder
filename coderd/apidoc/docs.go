@@ -26055,7 +26055,8 @@ const docTemplate = `{
                 "chat_model_config",
                 "user_secret",
                 "user_skill",
-                "chat_instruction_settings"
+                "chat_instruction_settings",
+                "chat_operational_settings"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -26096,7 +26097,8 @@ const docTemplate = `{
                 "ResourceTypeChatModelConfig",
                 "ResourceTypeUserSecret",
                 "ResourceTypeUserSkill",
-                "ResourceTypeChatInstructionSettings"
+                "ResourceTypeChatInstructionSettings",
+                "ResourceTypeChatOperationalSettings"
             ]
         },
         "codersdk.Response": {

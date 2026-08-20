@@ -633,6 +633,38 @@ func (s *chatModelConfigHookStore) GetChatModelConfigByID(
 	return s.Store.GetChatModelConfigByID(ctx, id)
 }
 
+type failNextGetChatSiteConfigValueStore struct {
+	database.Store
+
+	failNextGetChatSiteConfigValue *atomic.Bool
+}
+
+func newFailNextGetChatSiteConfigValueStore(store database.Store) *failNextGetChatSiteConfigValueStore {
+	return &failNextGetChatSiteConfigValueStore{
+		Store:                          store,
+		failNextGetChatSiteConfigValue: &atomic.Bool{},
+	}
+}
+
+func (s *failNextGetChatSiteConfigValueStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&failNextGetChatSiteConfigValueStore{
+			Store:                          tx,
+			failNextGetChatSiteConfigValue: s.failNextGetChatSiteConfigValue,
+		})
+	}, txOpts)
+}
+
+func (s *failNextGetChatSiteConfigValueStore) GetChatSiteConfigValue(
+	ctx context.Context,
+	configKey string,
+) (database.GetChatSiteConfigValueRow, error) {
+	if s.failNextGetChatSiteConfigValue.CompareAndSwap(true, false) {
+		return database.GetChatSiteConfigValueRow{}, stderrors.New("forced chat site configuration read failure")
+	}
+	return s.Store.GetChatSiteConfigValue(ctx, configKey)
+}
+
 func insertAssistantMessage(
 	t *testing.T,
 	db database.Store,

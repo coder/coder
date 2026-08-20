@@ -19517,3 +19517,35 @@ func TestGetAIModelPrices(t *testing.T) {
 		})
 	}
 }
+
+func TestGetChatSiteConfigValue(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+
+	require.NoError(t, db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+		Key:   "agents_chat_retention_days",
+		Value: "30",
+	}))
+	require.NoError(t, db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+		Key:   "agents_unset",
+		Value: "not a chat setting",
+	}))
+	require.NoError(t, db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+		Key:   "derp_mesh_key",
+		Value: "secret",
+	}))
+
+	value, err := db.GetChatSiteConfigValue(ctx, "agents_chat_retention_days")
+	require.NoError(t, err)
+	require.Equal(t, database.GetChatSiteConfigValueRow{Value: "30", Exists: true}, value)
+
+	value, err = db.GetChatSiteConfigValue(ctx, "agents_unset")
+	require.NoError(t, err)
+	require.Equal(t, database.GetChatSiteConfigValueRow{}, value)
+
+	value, err = db.GetChatSiteConfigValue(ctx, "derp_mesh_key")
+	require.NoError(t, err)
+	require.Equal(t, database.GetChatSiteConfigValueRow{}, value)
+}

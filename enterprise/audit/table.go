@@ -40,6 +40,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatInstructionSettings":       {codersdk.AuditActionWrite},
+	"ChatOperationalSettings":       {codersdk.AuditActionWrite},
 }
 
 type Action string
@@ -567,6 +568,16 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"content":     ActionTrack,
 		"created_at":  ActionIgnore,
 		"updated_at":  ActionIgnore,
+	},
+	&database.ChatOperationalSettings{}: {
+		"id":                               ActionIgnore,
+		"chat_retention_days":              ActionTrack,
+		"chat_debug_retention_days":        ActionTrack,
+		"chat_auto_archive_days":           ActionTrack,
+		"workspace_ttl":                    ActionTrack,
+		"computer_use_provider":            ActionTrack,
+		"debug_logging_allow_users":        ActionTrack,
+		"personal_model_overrides_enabled": ActionTrack,
 	},
 	&database.UserSecret{}: {
 		"id":          ActionTrack,
