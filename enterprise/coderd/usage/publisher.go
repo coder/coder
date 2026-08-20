@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -39,6 +41,76 @@ const (
 
 var errUsagePublishingDisabled = xerrors.New("usage publishing is not enabled by any license")
 
+const (
+	publisherMetricsNamespace = "coderd"
+	publisherMetricsSubsystem = "usage_events"
+
+	publishResultLabelResult    = "result"
+	publishResultLabelEventType = "event_type"
+
+	publishResultAccepted            = "accepted"
+	publishResultRejectedTemporarily = "rejected_temporarily"
+	publishResultRejectedPermanently = "rejected_permanently"
+)
+
+// publisherMetrics contains the Prometheus metrics for the usage publisher.
+type publisherMetrics struct {
+	// publishResults counts per-event publish outcomes from real Tallyman
+	// responses. Requests that fail entirely are counted by sendErrors
+	// instead.
+	publishResults *prometheus.CounterVec
+	// sendErrors counts ingest requests that failed entirely (HTTP error,
+	// non-200 response, or an undecodable body), one increment per request.
+	sendErrors prometheus.Counter
+
+	// pendingEvents is the number of unpublished events still inside the
+	// 30-day publishing window, including events currently claimed by a
+	// replica.
+	pendingEvents prometheus.Gauge
+	// pendingOldestAgeSeconds is the age of the oldest pending event, or 0
+	// when there are no pending events.
+	pendingOldestAgeSeconds prometheus.Gauge
+	// expiredEvents is the number of unpublished events older than 30 days.
+	// These will never be published as Tallyman would permanently reject
+	// them.
+	expiredEvents prometheus.Gauge
+}
+
+func newPublisherMetrics(reg prometheus.Registerer) publisherMetrics {
+	return publisherMetrics{
+		publishResults: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Namespace: publisherMetricsNamespace,
+			Subsystem: publisherMetricsSubsystem,
+			Name:      "publish_results_total",
+			Help:      "The number of usage events published to Tallyman by outcome (accepted, rejected_temporarily, rejected_permanently) and event type. Only counts events from successful ingest requests; failed requests are counted by coderd_usage_events_publish_send_errors_total instead.",
+		}, []string{publishResultLabelResult, publishResultLabelEventType}),
+		sendErrors: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+			Namespace: publisherMetricsNamespace,
+			Subsystem: publisherMetricsSubsystem,
+			Name:      "publish_send_errors_total",
+			Help:      "The number of failed usage event ingest requests to Tallyman (HTTP errors, non-200 responses, or undecodable response bodies).",
+		}),
+		pendingEvents: promauto.With(reg).NewGauge(prometheus.GaugeOpts{
+			Namespace: publisherMetricsNamespace,
+			Subsystem: publisherMetricsSubsystem,
+			Name:      "pending",
+			Help:      "The number of unpublished usage events that are still within the 30-day publishing window, including events currently being published. Updated after each publish attempt (roughly every 17 minutes).",
+		}),
+		pendingOldestAgeSeconds: promauto.With(reg).NewGauge(prometheus.GaugeOpts{
+			Namespace: publisherMetricsNamespace,
+			Subsystem: publisherMetricsSubsystem,
+			Name:      "pending_oldest_age_seconds",
+			Help:      "The age in seconds of the oldest unpublished usage event within the 30-day publishing window, or 0 when there are none. Updated after each publish attempt (roughly every 17 minutes).",
+		}),
+		expiredEvents: promauto.With(reg).NewGauge(prometheus.GaugeOpts{
+			Namespace: publisherMetricsNamespace,
+			Subsystem: publisherMetricsSubsystem,
+			Name:      "expired",
+			Help:      "The number of unpublished usage events older than 30 days. These will never be published. Updated after each publish attempt (roughly every 17 minutes).",
+		}),
+	}
+}
+
 // Publisher publishes usage events ***somewhere***.
 type Publisher interface {
 	// Close closes the publisher and waits for it to finish.
@@ -60,6 +132,10 @@ type tallymanPublisher struct {
 	httpClient   *http.Client
 	clock        quartz.Clock
 	initialDelay time.Duration
+	registerer   prometheus.Registerer
+
+	// Created after options are applied:
+	metrics publisherMetrics
 }
 
 var _ Publisher = &tallymanPublisher{}
@@ -85,6 +161,10 @@ func NewTallymanPublisher(ctx context.Context, log slog.Logger, db database.Stor
 	for _, opt := range opts {
 		opt(publisher)
 	}
+	// promauto.With(nil) returns working metrics that are not registered
+	// anywhere, so callers that don't provide a registerer need no special
+	// casing.
+	publisher.metrics = newPublisherMetrics(publisher.registerer)
 	return publisher
 }
 
@@ -119,6 +199,15 @@ func PublisherWithIngestURL(ingestURL string) TallymanPublisherOption {
 func PublisherWithInitialDelay(initialDelay time.Duration) TallymanPublisherOption {
 	return func(p *tallymanPublisher) {
 		p.initialDelay = initialDelay
+	}
+}
+
+// PublisherWithPrometheusRegisterer sets the Prometheus registerer to register
+// the publisher's metrics with. If not set, the metrics are still collected
+// but are not registered anywhere.
+func PublisherWithPrometheusRegisterer(reg prometheus.Registerer) TallymanPublisherOption {
+	return func(p *tallymanPublisher) {
+		p.registerer = reg
 	}
 }
 
@@ -174,8 +263,27 @@ func (p *tallymanPublisher) publishLoop(ctx context.Context, deploymentID uuid.U
 		if err != nil {
 			p.log.Warn(ctx, "publish usage events to tallyman", slog.Error(err))
 		}
+		p.updateGauges(ctx)
 		ticker.Reset(tallymanPublishInterval)
 	}
+}
+
+// updateGauges refreshes the backlog gauges from the database. Errors are
+// logged and otherwise ignored, as stale gauges are not worth failing the
+// publish loop over.
+func (p *tallymanPublisher) updateGauges(ctx context.Context) {
+	stats, err := p.db.GetUsageEventsStats(ctx, dbtime.Time(p.clock.Now()))
+	if err != nil {
+		p.log.Warn(ctx, "get usage events stats for metrics", slog.Error(err))
+		return
+	}
+	p.metrics.pendingEvents.Set(float64(stats.PendingCount))
+	var oldestAge time.Duration
+	if !stats.OldestPendingCreatedAt.IsZero() {
+		oldestAge = p.clock.Now().Sub(stats.OldestPendingCreatedAt)
+	}
+	p.metrics.pendingOldestAgeSeconds.Set(oldestAge.Seconds())
+	p.metrics.expiredEvents.Set(float64(stats.ExpiredCount))
 }
 
 // publish publishes usage events to Tallyman in a loop until there is an error
@@ -244,6 +352,7 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	resp, err := p.sendPublishRequest(ctx, deploymentID, licenseJwt, tallymanReq)
 	allFailed := err != nil
 	if err != nil {
+		p.metrics.sendErrors.Inc()
 		p.log.Warn(ctx, "failed to send publish request to tallyman", slog.F("count", len(events)), slog.Error(err))
 		// Fake a response with all events temporarily rejected.
 		resp = usagetypes.TallymanV1IngestResponse{
@@ -282,18 +391,34 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	}
 	for i, event := range events {
 		dbUpdate.IDs[i] = event.ID
+		// countResult only increments the result counter for real Tallyman
+		// verdicts. When the request itself failed (allFailed), the faked
+		// all-temporarily-rejected response is already counted by sendErrors
+		// and should not skew per-event results.
+		countResult := func(result string) {
+			if !allFailed {
+				p.metrics.publishResults.WithLabelValues(result, event.EventType).Inc()
+			}
+		}
 		if _, ok := acceptedEvents[event.ID]; ok {
+			countResult(publishResultAccepted)
 			dbUpdate.FailureMessages[i] = ""
 			dbUpdate.SetPublishedAts[i] = true
 			continue
 		}
 		if rejectedEvent, ok := rejectedEvents[event.ID]; ok {
+			if rejectedEvent.Permanent {
+				countResult(publishResultRejectedPermanently)
+			} else {
+				countResult(publishResultRejectedTemporarily)
+			}
 			dbUpdate.FailureMessages[i] = rejectedEvent.Message
 			dbUpdate.SetPublishedAts[i] = rejectedEvent.Permanent
 			continue
 		}
 		// It's not good if this path gets hit, but we'll handle it as if it
 		// was a temporary rejection.
+		countResult(publishResultRejectedTemporarily)
 		dbUpdate.FailureMessages[i] = "tallyman did not include the event in the response"
 		dbUpdate.SetPublishedAts[i] = false
 	}

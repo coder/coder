@@ -526,6 +526,21 @@ coderd_proxyhealth_health_check_results{proxy_id=""} 0
 # HELP coderd_template_workspace_build_duration_seconds Duration from workspace build creation to agent ready, by template.
 # TYPE coderd_template_workspace_build_duration_seconds histogram
 coderd_template_workspace_build_duration_seconds{template_name="",organization_name="",transition="",status="",is_prebuild=""} 0
+# HELP coderd_usage_events_expired The number of unpublished usage events older than 30 days. These will never be published. Updated after each publish attempt (roughly every 17 minutes).
+# TYPE coderd_usage_events_expired gauge
+coderd_usage_events_expired 0
+# HELP coderd_usage_events_pending The number of unpublished usage events that are still within the 30-day publishing window, including events currently being published. Updated after each publish attempt (roughly every 17 minutes).
+# TYPE coderd_usage_events_pending gauge
+coderd_usage_events_pending 0
+# HELP coderd_usage_events_pending_oldest_age_seconds The age in seconds of the oldest unpublished usage event within the 30-day publishing window, or 0 when there are none. Updated after each publish attempt (roughly every 17 minutes).
+# TYPE coderd_usage_events_pending_oldest_age_seconds gauge
+coderd_usage_events_pending_oldest_age_seconds 0
+# HELP coderd_usage_events_publish_results_total The number of usage events published to Tallyman by outcome (accepted, rejected_temporarily, rejected_permanently) and event type. Only counts events from successful ingest requests; failed requests are counted by coderd_usage_events_publish_send_errors_total instead.
+# TYPE coderd_usage_events_publish_results_total counter
+coderd_usage_events_publish_results_total{result="",event_type=""} 0
+# HELP coderd_usage_events_publish_send_errors_total The number of failed usage event ingest requests to Tallyman (HTTP errors, non-200 responses, or undecodable response bodies).
+# TYPE coderd_usage_events_publish_send_errors_total counter
+coderd_usage_events_publish_send_errors_total 0
 # HELP coderd_workspace_builds_enqueued_total Total number of workspace build enqueue attempts.
 # TYPE coderd_workspace_builds_enqueued_total counter
 coderd_workspace_builds_enqueued_total{provisioner_type="",build_reason="",transition="",status=""} 0
