@@ -60,8 +60,6 @@ func (s *Server) Reload(ctx context.Context) error {
 				slog.F("provider", p.Name),
 				slog.Error(p.Err),
 			)
-		default:
-			continue
 		}
 	}
 	s.recordReloadSuccess(reload)
