@@ -44,53 +44,80 @@ const TRAIL_CHARS = new Set([
 // isTrail before consuming it.
 const PATH_CHECK_CHARS = new Set([...TRAIL_CHARS, "&", "<", "]"]);
 
+/** Caches isTrail verdicts by position so each character is classified once. */
+type TrailMemo = Map<number, boolean>;
+
 /**
  * Whether everything from index up to the next URL end (whitespace, `<`, or
  * end of text) is trailing punctuation that GFM excludes from the link.
+ * The verdict is a pure suffix property, so every construct-start position
+ * visited on the way shares the final result; memoizing them keeps repeated
+ * checks over long punctuation runs linear instead of quadratic.
  */
-const isTrail = (text: string, index: number): boolean => {
+const isTrail = (text: string, index: number, memo: TrailMemo): boolean => {
+	const pending: number[] = [];
 	let i = index;
-	for (;;) {
+	let result: boolean | undefined;
+	while (result === undefined) {
+		const known = memo.get(i);
+		if (known !== undefined) {
+			result = known;
+			break;
+		}
 		const ch = text[i];
 		if (ch === undefined || ch === "<" || isWhitespace(ch)) {
-			return true;
+			memo.set(i, true);
+			result = true;
+			break;
 		}
 		if (TRAIL_CHARS.has(ch)) {
+			pending.push(i);
 			i += 1;
 			continue;
 		}
 		// A trailing entity reference (`&amp;`) also counts as punctuation.
 		if (ch === "&") {
-			i += 1;
-			if (!isAsciiAlpha(text[i] ?? "")) {
-				return false;
+			pending.push(i);
+			let k = i + 1;
+			if (!isAsciiAlpha(text[k] ?? "")) {
+				result = false;
+				break;
 			}
-			while (isAsciiAlpha(text[i] ?? "")) {
-				i += 1;
+			while (isAsciiAlpha(text[k] ?? "")) {
+				k += 1;
 			}
-			if (text[i] !== ";") {
-				return false;
+			if (text[k] !== ";") {
+				result = false;
+				break;
 			}
-			i += 1;
+			i = k + 1;
 			continue;
 		}
 		// `]` ends the URL when followed by an end or by `(`/`[`, which could
 		// start a markdown resource or reference.
 		if (ch === "]") {
-			i += 1;
-			const next = text[i];
+			pending.push(i);
+			const next = text[i + 1];
 			if (
 				next === undefined ||
 				next === "(" ||
 				next === "[" ||
 				isWhitespace(next)
 			) {
-				return true;
+				result = true;
+				break;
 			}
+			i += 1;
 			continue;
 		}
-		return false;
+		memo.set(i, false);
+		result = false;
+		break;
 	}
+	for (const position of pending) {
+		memo.set(position, result);
+	}
+	return result;
 };
 
 /**
@@ -98,7 +125,11 @@ const isTrail = (text: string, index: number): boolean => {
  * null when invalid: empty, starting with punctuation or a control
  * character, or containing `_` in the last two dot-separated segments.
  */
-const scanDomain = (text: string, start: number): number | null => {
+const scanDomain = (
+	text: string,
+	start: number,
+	memo: TrailMemo,
+): number | null => {
 	const first = text[start];
 	if (
 		first === undefined ||
@@ -115,7 +146,7 @@ const scanDomain = (text: string, start: number): number | null => {
 	for (;;) {
 		const ch = text[i];
 		if (ch === "." || ch === "_") {
-			if (isTrail(text, i)) {
+			if (isTrail(text, i, memo)) {
 				break;
 			}
 			if (ch === "_") {
@@ -147,7 +178,7 @@ const scanDomain = (text: string, start: number): number | null => {
  * Scans the URL path after the domain, keeping balanced `()` pairs and
  * stopping before trailing punctuation, `<`, or whitespace.
  */
-const scanPath = (text: string, start: number): number => {
+const scanPath = (text: string, start: number, memo: TrailMemo): number => {
 	let openParens = 0;
 	let closeParens = 0;
 	let i = start;
@@ -167,7 +198,7 @@ const scanPath = (text: string, start: number): number => {
 			continue;
 		}
 		if (PATH_CHECK_CHARS.has(ch)) {
-			if (isTrail(text, i)) {
+			if (isTrail(text, i, memo)) {
 				break;
 			}
 			if (ch === ")") {
@@ -181,8 +212,73 @@ const scanPath = (text: string, start: number): number => {
 	return i;
 };
 
+interface FenceRegion {
+	start: number;
+	end: number;
+}
+
+/**
+ * Fenced code block regions: an opening line of 3+ backticks or tildes
+ * indented at most 3 columns, closed by a line of at least as many of the
+ * same character with nothing else on it, or running to the end of text.
+ * Backtick-fence info strings cannot contain a backtick. GFM does not
+ * autolink inside fenced code, and an opening line interrupts a paragraph.
+ */
+const computeFenceRegions = (text: string): FenceRegion[] => {
+	const regions: FenceRegion[] = [];
+	let open: { char: string; length: number; start: number } | null = null;
+	let lineStart = 0;
+	while (lineStart < text.length) {
+		let lineEnd = text.indexOf("\n", lineStart);
+		if (lineEnd === -1) {
+			lineEnd = text.length;
+		}
+		let columns = 0;
+		let i = lineStart;
+		while (i < lineEnd && (text[i] === " " || text[i] === "\t")) {
+			columns += text[i] === "\t" ? 4 - (columns % 4) : 1;
+			i += 1;
+		}
+		const ch = text[i];
+		if (columns <= 3 && (ch === "`" || ch === "~")) {
+			let runEnd = i;
+			while (runEnd < lineEnd && text[runEnd] === ch) {
+				runEnd += 1;
+			}
+			if (runEnd - i >= 3) {
+				if (open) {
+					let k = runEnd;
+					while (
+						k < lineEnd &&
+						(text[k] === " " || text[k] === "\t" || text[k] === "\r")
+					) {
+						k += 1;
+					}
+					if (ch === open.char && runEnd - i >= open.length && k === lineEnd) {
+						regions.push({
+							start: open.start,
+							end: Math.min(lineEnd + 1, text.length),
+						});
+						open = null;
+					}
+				} else if (ch === "~" || !text.slice(runEnd, lineEnd).includes("`")) {
+					open = { char: ch, length: runEnd - i, start: lineStart };
+				}
+			}
+		}
+		lineStart = lineEnd + 1;
+	}
+	if (open) {
+		regions.push({ start: open.start, end: text.length });
+	}
+	return regions;
+};
+
 interface BacktickRunIndex {
-	/** Exclusive end: code spans cannot cross the next blank line. */
+	/**
+	 * Exclusive end: code spans cannot cross the next blank line or fence
+	 * opener, both of which end the paragraph.
+	 */
 	limit: number;
 	byLength: Map<number, { positions: number[]; cursor: number }>;
 }
@@ -190,17 +286,19 @@ interface BacktickRunIndex {
 const BLANK_LINE_PATTERN = /\n[ \t\r]*\n/g;
 
 /**
- * Indexes the contiguous backtick runs from `from` to the next blank line,
- * grouped by run length. Escapes are deliberately ignored: CommonMark scans
- * for a closing backtick string without processing backslashes.
+ * Indexes the contiguous backtick runs from `from` to the next blank line
+ * or `capAt`, grouped by run length. Escapes are deliberately ignored:
+ * CommonMark scans for a closing backtick string without processing
+ * backslashes.
  */
 const buildBacktickRunIndex = (
 	text: string,
 	from: number,
+	capAt: number,
 ): BacktickRunIndex => {
 	BLANK_LINE_PATTERN.lastIndex = from;
 	const boundary = BLANK_LINE_PATTERN.exec(text);
-	const limit = boundary ? boundary.index : text.length;
+	const limit = Math.min(boundary ? boundary.index : text.length, capAt);
 	const byLength = new Map<number, { positions: number[]; cursor: number }>();
 	let i = from;
 	while (i < limit) {
@@ -256,10 +354,14 @@ const findCloser = (
  * Like micromark's text tokenizer, one forward walk attempts each construct
  * (backslash escape, code span, angle-bracket autolink, autolink literal)
  * and consumed regions are mutually exclusive, so URLs inside inline code
- * stay literal. Only explicit http(s) literals become URLs.
+ * and fenced code blocks stay literal. Only explicit http(s) literals
+ * become URLs.
  */
 export const splitTextForLinks = (text: string): LinkSegment[] => {
 	const segments: LinkSegment[] = [];
+	const trailMemo: TrailMemo = new Map();
+	const fenceRegions = computeFenceRegions(text);
+	let fenceCursor = 0;
 	let cursor = 0;
 	const pushUrl = (start: number, end: number) => {
 		if (start > cursor) {
@@ -303,6 +405,25 @@ export const splitTextForLinks = (text: string): LinkSegment[] => {
 	};
 
 	while (i < text.length) {
+		while (
+			fenceCursor < fenceRegions.length &&
+			fenceRegions[fenceCursor].end <= i
+		) {
+			fenceCursor += 1;
+		}
+		const fence = fenceRegions[fenceCursor];
+		if (fence !== undefined && i >= fence.start) {
+			// Fenced code: nothing inside is linkified, and its opening line
+			// interrupts the paragraph. The region ends at a line start.
+			labelDepth = 0;
+			lastLabelCloseIndex = -1;
+			lineIsBlank = true;
+			inIndent = true;
+			indentColumns = 0;
+			i = fence.end;
+			fenceCursor += 1;
+			continue;
+		}
 		const ch = text[i];
 		if (ch === "\n") {
 			if (lineIsBlank) {
@@ -339,7 +460,7 @@ export const splitTextForLinks = (text: string): LinkSegment[] => {
 				runEnd += 1;
 			}
 			if (!runIndex || i >= runIndex.limit) {
-				runIndex = buildBacktickRunIndex(text, i);
+				runIndex = buildBacktickRunIndex(text, i, fence?.start ?? text.length);
 			}
 			const closer = findCloser(runIndex, runEnd - i, runEnd);
 			if (closer !== null) {
@@ -394,9 +515,9 @@ export const splitTextForLinks = (text: string): LinkSegment[] => {
 				!inLinkContext &&
 				!(previous !== undefined && isAsciiAlpha(previous))
 			) {
-				const domainEnd = scanDomain(text, i + scheme);
+				const domainEnd = scanDomain(text, i + scheme, trailMemo);
 				if (domainEnd !== null) {
-					const end = scanPath(text, domainEnd);
+					const end = scanPath(text, domainEnd, trailMemo);
 					pushUrl(i, end);
 					i = end;
 					continue;

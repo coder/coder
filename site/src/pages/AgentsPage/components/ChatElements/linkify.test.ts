@@ -285,4 +285,48 @@ describe("splitTextForLinks", () => {
 			{ kind: "url", value: "http://localhost:3000" },
 		]);
 	});
+
+	it("keeps URLs inside fenced code blocks literal", () => {
+		const backtickFence = "```\nline\n\nhttp://localhost:3000\n```";
+		expect(splitTextForLinks(backtickFence)).toEqual([
+			{ kind: "text", value: backtickFence },
+		]);
+		const tildeFence = "~~~\nhttp://localhost:3000\n~~~";
+		expect(splitTextForLinks(tildeFence)).toEqual([
+			{ kind: "text", value: tildeFence },
+		]);
+	});
+
+	it("keeps URLs inside an unclosed fence literal", () => {
+		expect(splitTextForLinks("```\nhttp://localhost:3000")).toEqual([
+			{ kind: "text", value: "```\nhttp://localhost:3000" },
+		]);
+	});
+
+	it("linkifies after a closed fence", () => {
+		expect(splitTextForLinks("```\nx\n```\nhttp://localhost:3000")).toEqual([
+			{ kind: "text", value: "```\nx\n```\n" },
+			{ kind: "url", value: "http://localhost:3000" },
+		]);
+	});
+
+	it("does not treat a backtick run with a backtick info string as a fence", () => {
+		expect(splitTextForLinks("```a`\nhttp://localhost:3000")).toEqual([
+			{ kind: "text", value: "```a`\n" },
+			{ kind: "url", value: "http://localhost:3000" },
+		]);
+	});
+
+	it("stays linear on long trailing punctuation runs", () => {
+		const url = `http://localhost:3000/${".".repeat(10000)}`;
+		const start = performance.now();
+		expect(splitTextForLinks(`${url}x`)).toEqual([
+			{ kind: "url", value: `${url}x` },
+		]);
+		expect(splitTextForLinks(url)).toEqual([
+			{ kind: "url", value: "http://localhost:3000/" },
+			{ kind: "text", value: ".".repeat(10000) },
+		]);
+		expect(performance.now() - start).toBeLessThan(1000);
+	});
 });
