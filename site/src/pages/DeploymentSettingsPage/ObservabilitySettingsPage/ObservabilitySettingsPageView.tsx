@@ -45,7 +45,7 @@ export const ObservabilitySettingsPageView: FC<
 				) : (
 					<PaywallPremium
 						message="Audit Logging"
-						description="Audit logging lets auditors monitor user operations across your deployment. You need a Premium license to use this feature."
+						description="Monitor user operations across your deployment."
 						canViewPremium={canViewPremium}
 					/>
 				)}

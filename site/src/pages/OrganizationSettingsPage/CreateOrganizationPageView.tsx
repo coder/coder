@@ -100,7 +100,12 @@ export const CreateOrganizationPageView: FC<
 					<div className="mx-auto w-full max-w-4xl">
 						<PaywallPremium
 							message="Organizations"
-							description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
+							description="Run isolated business units on one deployment, each with its own users, templates, provisioners, and infrastructure."
+							features={[
+								"Isolate provisioners & infrastructure",
+								"Sync org membership from your IdP",
+								"Manage orgs at scale via Terraform",
+							]}
 							canViewPremium={permissions.viewAllLicenses}
 						/>
 					</div>

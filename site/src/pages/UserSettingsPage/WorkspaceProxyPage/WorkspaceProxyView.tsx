@@ -63,7 +63,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 			{showPaywall ? (
 				<PaywallPremium
 					message="Workspace Proxies"
-					description="Workspace proxies provide low-latency connections for geo-distributed teams."
+					description="Provide low-latency connections for geo-distributed teams."
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (

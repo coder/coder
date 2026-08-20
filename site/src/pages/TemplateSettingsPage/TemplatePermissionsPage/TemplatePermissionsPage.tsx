@@ -36,7 +36,11 @@ const TemplatePermissionsPage: FC = () => {
 			{!isTemplateRBACEnabled ? (
 				<PaywallPremium
 					message="Template permissions"
-					description="Control users and groups access to templates."
+					description="Restrict template access by user or group."
+					features={[
+						"Choose Use or Admin-level access",
+						"Prevent unauthorized template use",
+					]}
 					canViewPremium={authPermissions.viewAllLicenses}
 				/>
 			) : (

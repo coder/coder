@@ -84,7 +84,12 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 			) : (
 				<PaywallPremium
 					message="Audit logs"
-					description="Audit logs allow you to monitor user operations on your deployment."
+					description="See exactly who changed what and when, with every workspace, template, and user action logged for compliance and incident response."
+					features={[
+						"Configurable retention & auto-purge",
+						"API export to Splunk, Datadog & more",
+						"Meets SOC 2 & HIPAA audit requirements",
+					]}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}

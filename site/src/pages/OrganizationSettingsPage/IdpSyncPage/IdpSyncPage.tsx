@@ -132,7 +132,13 @@ const IdpSyncPage: FC = () => {
 				{!isIdpSyncEnabled ? (
 					<PaywallPremium
 						message="IdP Sync"
-						description="Configure group and role mappings to manage permissions outside of Coder."
+						description="Auto-sync groups & roles from your IdP."
+						features={[
+							"Sync groups & roles automatically",
+							"Configured per organization",
+							"No manual user assignment",
+							"Works with your OIDC provider",
+						]}
 						canViewPremium={permissions.viewAllLicenses}
 					/>
 				) : (

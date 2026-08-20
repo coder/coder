@@ -99,7 +99,7 @@ export const OrganizationProvisionersPageView: FC<
 			{showPaywall ? (
 				<PaywallPremium
 					message="Provisioners"
-					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
+					description="Provisioners run your Terraform to create templates and workspaces."
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (

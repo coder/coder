@@ -84,7 +84,12 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 			) : (
 				<PaywallPremium
 					message="Connection logs"
-					description="Connection logs allow you to see how and when users connect to workspaces."
+					description="Track every SSH, IDE & port-forward connection."
+					features={[
+						"Full record of SSH, IDE & app sessions",
+						"Filter by organization, user & type",
+						"Export to Splunk & other SIEMs",
+					]}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}

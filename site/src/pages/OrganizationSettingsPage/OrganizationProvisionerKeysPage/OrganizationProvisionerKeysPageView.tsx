@@ -62,7 +62,13 @@ export const OrganizationProvisionerKeysPageView: FC<
 			{showPaywall ? (
 				<PaywallPremium
 					message="Provisioners"
-					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
+					description="Scoped authentication keys for org provisioners."
+					features={[
+						"Scoped per organization & tag",
+						"Recommended provisioner authentication",
+						"Rotate keys without downtime",
+						"Fully isolated per organization",
+					]}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (

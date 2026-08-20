@@ -81,6 +81,11 @@ const IdpOrgSyncPage: FC = () => {
 					<PaywallPremium
 						message="IdP Organization Sync"
 						description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder."
+						features={[
+							"Sync groups & roles automatically",
+							"No manual user assignment",
+							"Works with your OIDC provider",
+						]}
 						canViewPremium={permissions.viewAllLicenses}
 					/>
 				) : (

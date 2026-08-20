@@ -67,7 +67,12 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 			{!isCustomRolesEnabled && (
 				<PaywallSmall
 					message="Custom Roles"
-					description="Create custom roles to grant users a tailored set of granular permissions."
+					description="Build roles with the exact permissions your team needs."
+					features={[
+						"Configure roles per organization",
+						"Go beyond the built-in role set",
+						"Assign custom roles to any user",
+					]}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}

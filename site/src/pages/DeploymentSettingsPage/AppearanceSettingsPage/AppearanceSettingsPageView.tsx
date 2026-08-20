@@ -57,7 +57,7 @@ export const AppearanceSettingsPageView: FC<
 			{!isEntitled ? (
 				<PaywallPremium
 					message="Appearance"
-					description="With a Premium license, you can customize branding and announcement banners for your deployment."
+					description="Customize branding and announcement banners for your deployment."
 					canViewPremium={canViewPremium}
 				/>
 			) : (
