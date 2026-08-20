@@ -13,11 +13,11 @@ import {
 } from "#/api/queries/organizations";
 import { organizationRoles } from "#/api/queries/roles";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { Link } from "#/components/Link/Link";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -123,17 +123,27 @@ const IdpSyncPage: FC = () => {
 		<div className="w-full max-w-screen-2xl pb-10">
 			{title}
 
-			<SettingsHeader>
+			<SettingsHeader
+				actions={
+					<SettingsHeaderDocsLink href={docs("/admin/users/idp-sync")} />
+				}
+			>
 				<SettingsHeaderTitle>IdP Sync</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Automatically assign groups or roles to a user based on their IdP
-					claims. <Link href={docs("/admin/users/idp-sync")}>View docs</Link>
+					claims.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 			{!isIdpSyncEnabled ? (
 				<PaywallPremium
 					message="IdP Sync"
-					description="Configure group and role mappings to manage permissions outside of Coder."
+					description="Auto-sync groups & roles from your IdP."
+					features={[
+						"Sync groups & roles automatically",
+						"Configured per organization",
+						"No manual user assignment",
+						"Works with your OIDC provider",
+					]}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (

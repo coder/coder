@@ -64,7 +64,7 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 	onSessionRowClick,
 }) => {
 	if (!isAISessionsEntitled) {
-		return <PaywallAIGovernance />;
+		return <PaywallAIGovernance variant="sessions" />;
 	}
 
 	if (!isAISessionsEnabled) {

@@ -14,9 +14,11 @@ import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 
@@ -47,7 +49,11 @@ export const AppearanceSettingsPageView: FC<
 
 	return (
 		<div>
-			<SettingsHeader>
+			<SettingsHeader
+				actions={
+					<SettingsHeaderDocsLink href={docs("/admin/setup/appearance")} />
+				}
+			>
 				<SettingsHeaderTitle>Appearance</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Customize the look and feel of your Coder deployment.
@@ -57,7 +63,13 @@ export const AppearanceSettingsPageView: FC<
 			{!isEntitled ? (
 				<PaywallPremium
 					message="Appearance"
-					description="With a Premium license, you can customize branding and announcement banners for your deployment."
+					description="Customize branding and announcement banners for your deployment."
+					features={[
+						"Custom application name and logo",
+						"Site-wide announcement banners for updates",
+						"Custom branded OIDC sign-in button",
+						"Custom support links in dropdown",
+					]}
 					canViewPremium={canViewPremium}
 				/>
 			) : (

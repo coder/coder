@@ -4,7 +4,6 @@ import {
 	PaywallContent,
 	PaywallCTALink,
 	PaywallDescription,
-	PaywallDocumentationLink,
 	PaywallFeature,
 	PaywallFeatures,
 	PaywallGuidance,
@@ -16,7 +15,6 @@ import {
 	PREMIUM_DEFAULT_HERO,
 	PREMIUM_FEATURES,
 	PREMIUM_PAGE_PATH,
-	PREMIUM_PRICING_LINK,
 } from "./Paywall";
 
 const PaywallSmall = ({
@@ -50,9 +48,6 @@ const PaywallSmall = ({
 				>
 					{description}
 				</PaywallDescription>
-				<PaywallDocumentationLink href={PREMIUM_PRICING_LINK}>
-					Learn more about premium
-				</PaywallDocumentationLink>
 			</PaywallContent>
 			<PaywallStack className={cn(compact && "gap-4")}>
 				<PaywallFeatures className={cn(compact && "pr-0")}>

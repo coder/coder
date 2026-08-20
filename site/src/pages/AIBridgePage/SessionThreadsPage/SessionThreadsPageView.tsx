@@ -62,7 +62,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	onBackClicked,
 }) => {
 	if (!isAISessionsEntitled) {
-		return <PaywallAIGovernance />;
+		return <PaywallAIGovernance variant="sessions" />;
 	}
 
 	if (!isAISessionsEnabled) {

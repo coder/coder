@@ -18,6 +18,7 @@ import {
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import { pixelWithTablet } from "#/testHelpers/pixel";
+import { docs } from "#/utils/docs";
 import { useResourceTypeFilterMenu } from "./AuditFilter";
 import { AuditPageView } from "./AuditPageView";
 
@@ -100,6 +101,9 @@ export const NotVisible: Story = {
 
 		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+		await expect(
+			canvas.getByRole("link", { name: /Read the docs/ }),
+		).toHaveAttribute("href", docs("/admin/security/audit-logs"));
 	},
 };
 

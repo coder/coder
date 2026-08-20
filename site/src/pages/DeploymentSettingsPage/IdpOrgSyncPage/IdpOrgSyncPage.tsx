@@ -7,12 +7,12 @@ import {
 	organizationIdpSyncSettings,
 	patchOrganizationSyncSettings,
 } from "#/api/queries/idpsync";
-import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -70,21 +70,30 @@ const IdpOrgSyncPage: FC = () => {
 
 			<div>
 				<SettingsHeader
-					actions={<ExportPolicyButton syncSettings={settingsQuery.data} />}
+					actions={
+						<div className="flex flex-row gap-2 items-center">
+							<SettingsHeaderDocsLink
+								href={docs("/admin/users/idp-sync#organization-sync")}
+							/>
+							<ExportPolicyButton syncSettings={settingsQuery.data} />
+						</div>
+					}
 				>
 					<SettingsHeaderTitle>Organization IdP Sync</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Automatically assign users to an organization based on their IdP
-						claims.{" "}
-						<Link href={docs("/admin/users/idp-sync#organization-sync")}>
-							View docs
-						</Link>
+						claims.
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 				{!isIdpSyncEnabled ? (
 					<PaywallPremium
 						message="IdP Organization Sync"
 						description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder."
+						features={[
+							"Sync groups & roles automatically",
+							"No manual user assignment",
+							"Works with your OIDC provider",
+						]}
 						canViewPremium={permissions.viewAllLicenses}
 					/>
 				) : (
