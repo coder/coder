@@ -673,7 +673,7 @@ func ResponseErrorFromKeyPool(keyPoolErr *keypool.Error) *ResponseError {
 		return nil
 	}
 	switch keyPoolErr.Kind {
-	case keypool.ErrorKindPermanent, keypool.ErrorKindUnauthorized:
+	case keypool.ErrorKindUnauthorized:
 		return newResponseError(
 			keyPoolErr.Error(),
 			string(constant.ValueOf[constant.APIError]()),

@@ -175,7 +175,7 @@ func (i *BlockingResponsesInterceptor) newResponseWithKey(ctx context.Context, s
 
 // newResponseWithKeyFailover walks the centralized key pool, trying each key
 // until one succeeds or the pool is exhausted. Keys are marked temporary on
-// 429 and permanent on 401/403. Errors that aren't key-specific don't trigger
+// 429 or 401. Errors that aren't key-specific don't trigger
 // failover and are returned to the caller. It returns the upstream response,
 // the number of key attempts made for this call, and any error.
 func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Context, srv responses.ResponseService, cp *intercept.CentralizedPool, opts []option.RequestOption) (*responses.Response, int, error) {
