@@ -171,41 +171,36 @@ func TestBuffer_ToolCompletions(t *testing.T) {
 	clock.Advance(time.Second)
 	firstStartedAt := clock.Now()
 	require.NoError(t, buffer.RecordToolStart(key, 1, firstStartedAt))
-	require.Equal(t, []messagepartbuffer.ToolCompletion{
-		{CallIndex: 2, StartedAt: secondStartedAt},
-		{CallIndex: 1, StartedAt: firstStartedAt},
-	}, buffer.ToolCompletions(key))
+	started := map[int]messagepartbuffer.ToolCompletion{
+		1: {StartedAt: firstStartedAt},
+		2: {StartedAt: secondStartedAt},
+	}
+	require.Equal(t, started, buffer.ToolCompletions(key))
 
 	clock.Advance(time.Second)
 	require.NoError(t, buffer.RecordToolStart(key, 2, clock.Now()))
 	require.NoError(t, buffer.RecordToolStart(key, -1, clock.Now()))
-	require.Equal(t, []messagepartbuffer.ToolCompletion{
-		{CallIndex: 2, StartedAt: secondStartedAt},
-		{CallIndex: 1, StartedAt: firstStartedAt},
-	}, buffer.ToolCompletions(key), "repeated and invalid starts must not replace or append occurrences")
+	require.Equal(t, started, buffer.ToolCompletions(key), "repeated and invalid starts must not replace or append occurrences")
 
 	clock.Advance(time.Second)
 	secondCompletedAt := clock.Now()
 	require.NoError(t, buffer.RecordToolCompletion(key, 2, secondCompletedAt))
-	require.Equal(t, []messagepartbuffer.ToolCompletion{
-		{CallIndex: 2, StartedAt: secondStartedAt, CompletedAt: secondCompletedAt},
-		{CallIndex: 1, StartedAt: firstStartedAt},
-	}, buffer.ToolCompletions(key))
 	clock.Advance(2 * time.Second)
 	firstCompletedAt := clock.Now()
 	require.NoError(t, buffer.RecordToolCompletion(key, 1, firstCompletedAt))
 	completions := buffer.ToolCompletions(key)
-	require.Equal(t, []messagepartbuffer.ToolCompletion{
-		{CallIndex: 2, StartedAt: secondStartedAt, CompletedAt: secondCompletedAt},
-		{CallIndex: 1, StartedAt: firstStartedAt, CompletedAt: firstCompletedAt},
+	require.Equal(t, map[int]messagepartbuffer.ToolCompletion{
+		1: {StartedAt: firstStartedAt, CompletedAt: firstCompletedAt},
+		2: {StartedAt: secondStartedAt, CompletedAt: secondCompletedAt},
 	}, completions)
 
-	completions[0].CompletedAt = clock.Now()
-	require.Equal(t, secondCompletedAt, buffer.ToolCompletions(key)[0].CompletedAt)
+	completion := completions[2]
+	completion.CompletedAt = clock.Now()
+	completions[2] = completion
+	require.Equal(t, secondCompletedAt, buffer.ToolCompletions(key)[2].CompletedAt)
 
 	clock.Advance(time.Second)
-	unseededAt := clock.Now()
-	require.NoError(t, buffer.RecordToolCompletion(key, 5, unseededAt))
+	require.NoError(t, buffer.RecordToolCompletion(key, 5, clock.Now()))
 	require.Len(t, buffer.ToolCompletions(key), 2, "completion without a start must be dropped")
 
 	require.NoError(t, buffer.CloseEpisode(key))

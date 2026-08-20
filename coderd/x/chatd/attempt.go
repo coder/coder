@@ -31,10 +31,8 @@ type stepData struct {
 	ContextLimit sql.NullInt64
 	Runtime      time.Duration
 
-	// BatchRuntime is the local-tool batch window persisted on the
-	// BatchRuntimeToolCallID tool row. Model steps use Runtime instead.
-	BatchRuntime           time.Duration
-	BatchRuntimeToolCallID string
+	// BatchRuntime is the local-tool batch window. Model steps use Runtime.
+	BatchRuntime time.Duration
 
 	ToolCallCreatedAt    map[string]time.Time
 	ToolResultCreatedAt  map[string]time.Time

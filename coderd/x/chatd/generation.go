@@ -862,7 +862,7 @@ func (s *taskStarter) executeLocalTools(
 		provider = prepared.Model.Provider()
 		modelName = prepared.Model.ModelID()
 	}
-	var outcome chatloop.ToolExecutionOutcome
+	var outcome chatloop.PersistedStep
 	var spawnDispatchErr error
 	if len(allowed) > 0 {
 		var onToolStart func(int, time.Time)
@@ -911,18 +911,16 @@ func (s *taskStarter) executeLocalTools(
 		// the tool run; its failure surfaces as a tool result error. The
 		// step still commits so a sibling tool that already ran keeps its
 		// result and is not re-executed, and the turn fails afterwards.
-		if hookErr := chathooks.DispatchFailureFromResults(outcome.Step.Content); hookErr != nil {
+		if hookErr := chathooks.DispatchFailureFromResults(outcome.Content); hookErr != nil {
 			spawnDispatchErr = chathooks.GenerationDispatchError(agenthooks.EventUserPromptSubmit, hookErr)
 		}
 	}
-	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), outcome.Step.Content)
+	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), outcome.Content)
 	for _, result := range denied {
-		outcome.Step.Content = append(outcome.Step.Content, result)
+		outcome.Content = append(outcome.Content, result)
 	}
-	chathooks.RestoreToolCallOrder(outcome.Step.Content, decision.localToolCalls)
-	step := stepDataFromPersisted(outcome.Step)
-	step.BatchRuntime = outcome.BatchRuntime
-	step.BatchRuntimeToolCallID = outcome.BatchRuntimeToolCallID
+	chathooks.RestoreToolCallOrder(outcome.Content, decision.localToolCalls)
+	step := stepDataFromPersisted(outcome)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
 		step:               step,
@@ -1581,6 +1579,7 @@ func stepDataFromPersisted(step chatloop.PersistedStep) stepData {
 		Usage:                step.Usage,
 		ContextLimit:         step.ContextLimit,
 		Runtime:              step.Runtime,
+		BatchRuntime:         step.BatchRuntime,
 		ToolCallCreatedAt:    step.ToolCallCreatedAt,
 		ToolResultCreatedAt:  step.ToolResultCreatedAt,
 		ReasoningStartedAt:   step.ReasoningStartedAt,

@@ -74,8 +74,11 @@ type PersistedStep struct {
 	Usage        fantasy.Usage
 	ContextLimit sql.NullInt64
 	// Runtime is the wall-clock duration from opening to consuming the
-	// model stream. Local tool batches use ToolExecutionOutcome.BatchRuntime.
+	// model stream.
 	Runtime time.Duration
+	// BatchRuntime is the union of billed local-tool execution intervals.
+	// Parallel calls count once and serial calls count from their own start.
+	BatchRuntime time.Duration
 	// PendingDynamicToolCalls lists tool calls that target
 	// dynamic tools. When non-empty the chatloop exits with
 	// ErrDynamicToolCall so the caller can execute them
@@ -281,18 +284,6 @@ type ExecuteLocalToolsOptions struct {
 	Logger             slog.Logger
 	Metrics            *Metrics
 	Clock              quartz.Clock
-}
-
-// ToolExecutionOutcome is the durable tool-result content from one batch.
-type ToolExecutionOutcome struct {
-	Step PersistedStep
-	// BatchRuntime is the union of billed tool execution intervals. Parallel
-	// calls count once and serial calls count only from their own start. Zero
-	// means no billed tool produced a result.
-	BatchRuntime time.Duration
-	// BatchRuntimeToolCallID is the ID on the billed interval ending last.
-	// Ties use call order; the ID can be empty or non-unique.
-	BatchRuntimeToolCallID string
 }
 
 // GenerateCompactionOptions configures one context compaction call.
@@ -551,7 +542,7 @@ func contentFilterError(provider string, metadata fantasy.ProviderMetadata) erro
 
 // ExecuteLocalTools runs local tool calls and returns durable tool results. It
 // does not retry or persist.
-func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (ToolExecutionOutcome, error) {
+func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (PersistedStep, error) {
 	if opts.Metrics == nil {
 		opts.Metrics = NopMetrics()
 	}
@@ -573,7 +564,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	// without capturing the publisher at construction time.
 	ctx = WithMessagePartPublisher(ctx, opts.PublishMessagePart)
 	if ctx.Err() != nil {
-		return ToolExecutionOutcome{}, ctx.Err()
+		return PersistedStep{}, ctx.Err()
 	}
 
 	localCalls := make([]fantasy.ToolCallContent, 0, len(opts.ToolCalls))
@@ -583,7 +574,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		}
 	}
 	if len(localCalls) == 0 {
-		return ToolExecutionOutcome{}, nil
+		return PersistedStep{}, nil
 	}
 
 	var result stepResult
@@ -605,12 +596,12 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 			result.content = append(result.content, tr)
 		}
 		if ctx.Err() != nil {
-			return ToolExecutionOutcome{}, ctx.Err()
+			return PersistedStep{}, ctx.Err()
 		}
-		return ToolExecutionOutcome{Step: PersistedStep{
+		return PersistedStep{
 			Content:             result.content,
 			ToolResultCreatedAt: result.toolResultCreatedAt,
-		}}, nil
+		}, nil
 	}
 
 	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
@@ -654,79 +645,49 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		},
 	)
 	if ctx.Err() != nil {
-		return ToolExecutionOutcome{}, ctx.Err()
+		return PersistedStep{}, ctx.Err()
 	}
 	for _, tr := range toolResults {
 		result.content = append(result.content, tr)
 	}
-	batchRuntime, batchRuntimeToolCallID := billableBatchWindow(
-		batchStart,
-		localCalls,
-		orderedStarts,
-		orderedCompletions,
-		opts.UnbilledToolNames,
-	)
-	return ToolExecutionOutcome{
-		Step: PersistedStep{
-			Content:             result.content,
-			ToolResultCreatedAt: result.toolResultCreatedAt,
-		},
-		BatchRuntime:           batchRuntime,
-		BatchRuntimeToolCallID: batchRuntimeToolCallID,
+	return PersistedStep{
+		Content:             result.content,
+		ToolResultCreatedAt: result.toolResultCreatedAt,
+		BatchRuntime: billableBatchDuration(
+			batchStart,
+			localCalls,
+			orderedStarts,
+			orderedCompletions,
+			opts.UnbilledToolNames,
+		),
 	}, nil
 }
 
-// billableBatchWindow returns the union of billed execution intervals and
-// the call ID whose interval ends last. Concurrent calls start at
-// batchStart; serial calls use their recorded starts. Unbilled tools and
-// gaps between billed intervals do not count.
-//
-// Starts and completions align with toolCalls by occurrence, so duplicate or
-// empty IDs stay distinct. A zero start means the call used batchStart. Ties
-// keep the earliest call.
-func billableBatchWindow(
+// billableBatchDuration returns the union of billed execution intervals.
+// Concurrent calls start at batchStart; serial calls use their recorded starts.
+// Unbilled tools and gaps between billed intervals do not count.
+func billableBatchDuration(
 	batchStart time.Time,
 	toolCalls []fantasy.ToolCallContent,
 	starts []time.Time,
 	completions []time.Time,
 	unbilledToolNames map[string]bool,
-) (time.Duration, string) {
-	var (
-		found      bool
-		windowEnd  time.Time
-		toolCallID string
-		intervals  []BilledInterval
-	)
+) time.Duration {
+	intervals := make([]BilledInterval, 0, len(toolCalls))
 	for i, tc := range toolCalls {
 		if i >= len(completions) {
 			break
 		}
-		if unbilledToolNames[tc.ToolName] {
-			continue
-		}
-		end := completions[i]
-		if end.IsZero() {
+		if unbilledToolNames[tc.ToolName] || completions[i].IsZero() {
 			continue
 		}
 		start := batchStart
 		if i < len(starts) && !starts[i].IsZero() {
 			start = starts[i]
 		}
-		intervals = append(intervals, BilledInterval{Start: start, End: end})
-		if end.After(windowEnd) {
-			found = true
-			windowEnd = end
-			toolCallID = tc.ToolCallID
-		}
+		intervals = append(intervals, BilledInterval{Start: start, End: completions[i]})
 	}
-	if !found {
-		return 0, ""
-	}
-	runtime := BilledIntervalsDuration(intervals)
-	if runtime <= 0 {
-		return 0, ""
-	}
-	return runtime, toolCallID
+	return BilledIntervalsDuration(intervals)
 }
 
 // BilledInterval is one billed tool call's execution window.
@@ -739,27 +700,18 @@ type BilledInterval struct {
 // Overlaps count once, gaps do not, and inverted intervals are ignored.
 // Committed and interrupted batches share this helper.
 func BilledIntervalsDuration(intervals []BilledInterval) time.Duration {
-	valid := make([]BilledInterval, 0, len(intervals))
-	for _, iv := range intervals {
-		if iv.End.Before(iv.Start) {
-			continue
-		}
-		valid = append(valid, iv)
+	valid := slices.DeleteFunc(slices.Clone(intervals), func(iv BilledInterval) bool {
+		return iv.End.Before(iv.Start)
+	})
+	if len(valid) == 0 {
+		return 0
 	}
 	slices.SortFunc(valid, func(a, b BilledInterval) int {
 		return a.Start.Compare(b.Start)
 	})
-	var (
-		total    time.Duration
-		curStart time.Time
-		curEnd   time.Time
-		open     bool
-	)
-	for _, iv := range valid {
-		if !open {
-			curStart, curEnd, open = iv.Start, iv.End, true
-			continue
-		}
+	curStart, curEnd := valid[0].Start, valid[0].End
+	var total time.Duration
+	for _, iv := range valid[1:] {
 		if iv.Start.After(curEnd) {
 			total += curEnd.Sub(curStart)
 			curStart, curEnd = iv.Start, iv.End
@@ -769,10 +721,7 @@ func BilledIntervalsDuration(intervals []BilledInterval) time.Duration {
 			curEnd = iv.End
 		}
 	}
-	if open {
-		total += curEnd.Sub(curStart)
-	}
-	return total
+	return total + curEnd.Sub(curStart)
 }
 
 // prepareMessagesForRequest applies the prompt preparation pipeline used

@@ -19,6 +19,7 @@ import (
 	"container/heap"
 	"context"
 	"encoding/json"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -102,9 +103,8 @@ type episodeState struct {
 	// that never invoke a model, such as local tool execution
 	// batches.
 	modelStartedAt time.Time
-	// toolCompletions stores started occurrences for interrupts. CallIndex
-	// distinguishes rejected-call gaps and duplicate IDs.
-	toolCompletions []ToolCompletion
+	// toolCompletions stores started occurrences by unresolved-call position.
+	toolCompletions map[int]ToolCompletion
 	closed          bool
 	closedAt        time.Time
 	closedHeapItem  *closedEpisodeItem
@@ -224,8 +224,6 @@ func (b *Buffer) StartModelInvocation(key Key) error {
 // ToolCompletion tracks a started tool-call occurrence. CompletedAt is zero
 // while the call is unfinished.
 type ToolCompletion struct {
-	// CallIndex is the occurrence's position in the unresolved call order.
-	CallIndex   int
 	StartedAt   time.Time
 	CompletedAt time.Time
 }
@@ -249,15 +247,13 @@ func (b *Buffer) RecordToolStart(key Key, callIndex int, startedAt time.Time) er
 	if callIndex < 0 {
 		return nil
 	}
-	for _, entry := range episode.toolCompletions {
-		if entry.CallIndex == callIndex {
-			return nil
-		}
+	if _, ok := episode.toolCompletions[callIndex]; ok {
+		return nil
 	}
-	episode.toolCompletions = append(episode.toolCompletions, ToolCompletion{
-		CallIndex: callIndex,
-		StartedAt: startedAt,
-	})
+	if episode.toolCompletions == nil {
+		episode.toolCompletions = make(map[int]ToolCompletion)
+	}
+	episode.toolCompletions[callIndex] = ToolCompletion{StartedAt: startedAt}
 	return nil
 }
 
@@ -276,15 +272,10 @@ func (b *Buffer) RecordToolCompletion(key Key, callIndex int, completedAt time.T
 	if episode.closed {
 		return ErrEpisodeClosed
 	}
-	for i := range episode.toolCompletions {
-		entry := &episode.toolCompletions[i]
-		if entry.CallIndex != callIndex {
-			continue
-		}
-		if entry.CompletedAt.IsZero() {
-			entry.CompletedAt = completedAt
-		}
-		break
+	entry, ok := episode.toolCompletions[callIndex]
+	if ok && entry.CompletedAt.IsZero() {
+		entry.CompletedAt = completedAt
+		episode.toolCompletions[callIndex] = entry
 	}
 	return nil
 }
@@ -377,14 +368,14 @@ func (b *Buffer) ModelInvokedAt(key Key) time.Time {
 // ToolCompletions returns copied started-occurrence state. A zero completion
 // means unfinished. Read it before CloseEpisode because closed episodes are
 // garbage collected.
-func (b *Buffer) ToolCompletions(key Key) []ToolCompletion {
+func (b *Buffer) ToolCompletions(key Key) map[int]ToolCompletion {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	episode := b.episodes[key]
 	if episode == nil {
 		return nil
 	}
-	return slices.Clone(episode.toolCompletions)
+	return maps.Clone(episode.toolCompletions)
 }
 
 // SubscribeToEpisode replays existing parts and streams new parts.

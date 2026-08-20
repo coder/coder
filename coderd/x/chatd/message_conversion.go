@@ -61,8 +61,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		messages = append(messages, assistantMessage(input.modelConfigID, contentVersion, assistantContent, input.step))
 	}
 
-	batchRuntimeAssigned := false
-	for _, toolResult := range toolResults {
+	for i, toolResult := range toolResults {
 		part := chatprompt.PartFromContentWithLogger(context.Background(), input.logger, toolResult)
 		applyToolMetadata(&part, input.toolNameToConfigID)
 		if part.ToolCallID != "" && input.step.ToolResultCreatedAt != nil {
@@ -75,12 +74,9 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 			return stepMessagesForCommit{}, xerrors.Errorf("marshal tool result: %w", err)
 		}
 		msg := baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, content)
-		// Assign the batch window to one matching tool row because usage sums
-		// runtime_ms. The first match handles duplicate and ID-less calls;
-		// zero stays NULL.
-		if !batchRuntimeAssigned && input.step.BatchRuntime > 0 && toolResult.ToolCallID == input.step.BatchRuntimeToolCallID {
+		// Usage sums runtime_ms across rows, so store the batch once.
+		if i == 0 {
 			msg.RuntimeMs = nullInt64IfNonZero(input.step.BatchRuntime.Milliseconds())
-			batchRuntimeAssigned = true
 		}
 		messages = append(messages, msg)
 	}

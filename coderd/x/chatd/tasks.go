@@ -254,7 +254,7 @@ type interruptEpisodeSnapshot struct {
 type interruptEpisodeBilling struct {
 	interruptedAt   time.Time
 	modelInvokedAt  time.Time
-	toolCompletions []messagepartbuffer.ToolCompletion
+	toolCompletions map[int]messagepartbuffer.ToolCompletion
 }
 
 // closeInterruptEpisode snapshots billing, closes the episode, and returns its
@@ -367,9 +367,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		messages := partialMessages
 		// Reuse the captured interrupt instant so database delay and retries do
 		// not inflate billing.
-		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, interruptedToolBatchBilling{
-			toolCompletions: episodeBilling.toolCompletions,
-		})
+		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, episodeBilling.toolCompletions)
 		if err != nil {
 			return xerrors.Errorf("committed pending local tool cancellation messages: %w", err)
 		}
@@ -745,21 +743,12 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 	return names
 }
 
-// interruptedToolBatchBilling is the live batch state used to bill
-// synthesized cancellation rows.
-type interruptedToolBatchBilling struct {
-	// toolCompletions contains started occurrences at unresolved-call
-	// positions. Completed calls bill to completion and running calls bill
-	// to the interrupt. Absent calls never started and bill nothing.
-	toolCompletions []messagepartbuffer.ToolCompletion
-}
-
 func committedPendingLocalToolCancellationMessages(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
 	interruptedAt time.Time,
-	billing interruptedToolBatchBilling,
+	toolCompletions map[int]messagepartbuffer.ToolCompletion,
 ) ([]chatstate.Message, error) {
 	messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
@@ -774,15 +763,6 @@ func committedPendingLocalToolCancellationMessages(
 	}
 	if len(localCalls) == 0 {
 		return nil, nil
-	}
-	// Match by unresolved-call position so rejected and duplicate-ID calls
-	// cannot share occurrence state.
-	started := make(map[int]messagepartbuffer.ToolCompletion, len(billing.toolCompletions))
-	for _, completion := range billing.toolCompletions {
-		if completion.CallIndex < 0 {
-			continue
-		}
-		started[completion.CallIndex] = completion
 	}
 	var (
 		windowEnd    time.Time
@@ -815,7 +795,7 @@ func committedPendingLocalToolCancellationMessages(
 		}
 		// Bill only matching started calls. Completed calls end at completion,
 		// running calls end at the interrupt, and ties keep the first call.
-		occurrence, ok := started[i]
+		occurrence, ok := toolCompletions[i]
 		if !ok {
 			continue
 		}

@@ -168,10 +168,10 @@ func executeToolBatch(
 	t *testing.T,
 	clock *quartz.Mock,
 	opts chatloop.ExecuteLocalToolsOptions,
-) <-chan chatloop.ToolExecutionOutcome {
+) <-chan chatloop.PersistedStep {
 	t.Helper()
 	opts.Clock = clock
-	resultCh := make(chan chatloop.ToolExecutionOutcome, 1)
+	resultCh := make(chan chatloop.PersistedStep, 1)
 	go func() {
 		outcome, err := chatloop.ExecuteLocalTools(context.Background(), opts)
 		assert.NoError(t, err)
@@ -229,10 +229,9 @@ func TestExecuteLocalTools_BatchWindowIsMaxNotSum(t *testing.T) {
 
 	outcome := testutil.RequireReceive(ctx, t, resultCh)
 	require.Equal(t, 60*time.Second, outcome.BatchRuntime)
-	require.Equal(t, "call-slow", outcome.BatchRuntimeToolCallID)
 }
 
-func TestExecuteLocalTools_SimultaneousCompletionsBillOnceByCallOrder(t *testing.T) {
+func TestExecuteLocalTools_SimultaneousCompletionsBillOnce(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -262,7 +261,6 @@ func TestExecuteLocalTools_SimultaneousCompletionsBillOnceByCallOrder(t *testing
 
 	outcome := testutil.RequireReceive(ctx, t, resultCh)
 	require.Equal(t, 10*time.Second, outcome.BatchRuntime)
-	require.Equal(t, "call-1", outcome.BatchRuntimeToolCallID)
 }
 
 func TestExecuteLocalTools_UnbilledToolNeverExtendsWindow(t *testing.T) {
@@ -298,7 +296,6 @@ func TestExecuteLocalTools_UnbilledToolNeverExtendsWindow(t *testing.T) {
 
 	outcome := testutil.RequireReceive(ctx, t, resultCh)
 	require.Equal(t, 10*time.Second, outcome.BatchRuntime)
-	require.Equal(t, "call-execute", outcome.BatchRuntimeToolCallID)
 }
 
 func TestExecuteLocalTools_UnbilledOnlyBatchBillsNothing(t *testing.T) {
@@ -328,7 +325,6 @@ func TestExecuteLocalTools_UnbilledOnlyBatchBillsNothing(t *testing.T) {
 
 	outcome := testutil.RequireReceive(ctx, t, resultCh)
 	require.Zero(t, outcome.BatchRuntime)
-	require.Empty(t, outcome.BatchRuntimeToolCallID)
 }
 
 func TestExecuteLocalTools_AliasNamesClassifyAsCalled(t *testing.T) {
@@ -368,7 +364,6 @@ func TestExecuteLocalTools_AliasNamesClassifyAsCalled(t *testing.T) {
 
 	outcome := testutil.RequireReceive(ctx, t, resultCh)
 	require.Equal(t, 10*time.Second, outcome.BatchRuntime)
-	require.Equal(t, "call-execute", outcome.BatchRuntimeToolCallID)
 }
 
 func TestExecuteLocalTools_DuplicateToolCallIDsKeepOccurrenceCompletions(t *testing.T) {
@@ -403,7 +398,6 @@ func TestExecuteLocalTools_DuplicateToolCallIDsKeepOccurrenceCompletions(t *test
 
 	outcome := testutil.RequireReceive(ctx, t, resultCh)
 	require.Equal(t, 60*time.Second, outcome.BatchRuntime)
-	require.Equal(t, "call-dup", outcome.BatchRuntimeToolCallID)
 }
 
 func TestExecuteLocalTools_ExecutionCallbacksFireOnlyForRuns(t *testing.T) {
@@ -438,7 +432,7 @@ func TestExecuteLocalTools_ExecutionCallbacksFireOnlyForRuns(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Len(t, outcome.Step.Content, 1)
+		require.Len(t, outcome.Content, 1)
 		require.Equal(t, 1, starts)
 		require.Equal(t, 1, completions)
 		require.True(t, startedWhenToolRan, "the start callback must fire before the tool runs")
@@ -480,7 +474,7 @@ func TestExecuteLocalTools_ExecutionCallbacksFireOnlyForRuns(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Len(t, outcome.Step.Content, 2, "the whole batch resolves to synthesized policy errors")
+		require.Len(t, outcome.Content, 2, "the whole batch resolves to synthesized policy errors")
 		require.False(t, started)
 		require.False(t, completed)
 	})
@@ -518,7 +512,6 @@ func TestExecuteLocalTools_EmptyToolCallIDStillBillsWindow(t *testing.T) {
 
 	outcome := testutil.RequireReceive(ctx, t, resultCh)
 	require.Equal(t, 60*time.Second, outcome.BatchRuntime)
-	require.Empty(t, outcome.BatchRuntimeToolCallID)
 }
 
 func TestExecuteLocalTools_OnToolCompleteReportsLiveCompletions(t *testing.T) {
@@ -568,7 +561,7 @@ func TestExecuteLocalTools_OnToolCompleteReportsLiveCompletions(t *testing.T) {
 	require.Equal(t, map[string]time.Time{
 		"call-fast": fast.completedAt,
 		"call-slow": slow.completedAt,
-	}, outcome.Step.ToolResultCreatedAt)
+	}, outcome.ToolResultCreatedAt)
 }
 
 func TestExecuteLocalTools_SerialCallBillsFromItsOwnStart(t *testing.T) {
@@ -607,7 +600,6 @@ func TestExecuteLocalTools_SerialCallBillsFromItsOwnStart(t *testing.T) {
 	outcome := testutil.RequireReceive(ctx, t, resultCh)
 	require.Equal(t, 2*time.Second, outcome.BatchRuntime,
 		"a serial call bills its own execution, not the unbilled wait that delayed its launch")
-	require.Equal(t, "call-serial", outcome.BatchRuntimeToolCallID)
 }
 
 func TestExecuteLocalTools_SerialAfterBilledSiblingBillsUnion(t *testing.T) {
@@ -652,8 +644,6 @@ func TestExecuteLocalTools_SerialAfterBilledSiblingBillsUnion(t *testing.T) {
 	outcome := testutil.RequireReceive(ctx, t, resultCh)
 	require.Equal(t, 5*time.Second, outcome.BatchRuntime,
 		"the 3s concurrent window and the 2s serial window bill; the 7s span where only wait_agent ran does not")
-	require.Equal(t, "call-serial", outcome.BatchRuntimeToolCallID,
-		"the serial call's completion ends the window")
 }
 
 func TestBilledIntervalsDuration(t *testing.T) {

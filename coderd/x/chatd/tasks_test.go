@@ -617,7 +617,7 @@ func TestInterruptTask_RetrySnapshotOutlivesEpisodeEviction(t *testing.T) {
 		key:    batch.key,
 		billing: interruptEpisodeBilling{
 			interruptedAt:   batch.clock.Now(),
-			toolCompletions: []messagepartbuffer.ToolCompletion{{CallIndex: 0, StartedAt: startedAt}},
+			toolCompletions: map[int]messagepartbuffer.ToolCompletion{0: {StartedAt: startedAt}},
 		},
 	}
 

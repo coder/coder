@@ -100,7 +100,7 @@ func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T
 	require.JSONEq(t, `{"stdout":"/tmp"}`, string(toolParts[0].Result))
 }
 
-func TestBuildCommitStepMessages_BatchRuntimeLandsOnWindowDefiningToolRow(t *testing.T) {
+func TestBuildCommitStepMessages_BatchRuntimeLandsOnFirstToolRow(t *testing.T) {
 	t.Parallel()
 
 	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
@@ -120,76 +120,13 @@ func TestBuildCommitStepMessages_BatchRuntimeLandsOnWindowDefiningToolRow(t *tes
 					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"/tmp"}`},
 				},
 			},
-			BatchRuntime:           10 * time.Second,
-			BatchRuntimeToolCallID: "call-2",
-		},
-	})
-	require.NoError(t, err)
-	require.Len(t, got.Messages, 2)
-	require.Equal(t, database.ChatMessageRoleTool, got.Messages[0].Role)
-	require.False(t, got.Messages[0].RuntimeMs.Valid)
-	require.Equal(t, database.ChatMessageRoleTool, got.Messages[1].Role)
-	require.Equal(t, sql.NullInt64{Int64: 10000, Valid: true}, got.Messages[1].RuntimeMs)
-}
-
-func TestBuildCommitStepMessages_DuplicateToolCallIDsBillOnce(t *testing.T) {
-	t.Parallel()
-
-	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
-		modelConfigID:  uuid.New(),
-		contentVersion: chatprompt.CurrentContentVersion,
-		logger:         slog.Make(),
-		step: stepData{
-			Content: []fantasy.Content{
-				fantasy.ToolResultContent{
-					ToolCallID: "call-1",
-					ToolName:   "execute",
-					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"first"}`},
-				},
-				fantasy.ToolResultContent{
-					ToolCallID: "call-1",
-					ToolName:   "execute",
-					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"second"}`},
-				},
-			},
-			BatchRuntime:           10 * time.Second,
-			BatchRuntimeToolCallID: "call-1",
+			BatchRuntime: 10 * time.Second,
 		},
 	})
 	require.NoError(t, err)
 	require.Len(t, got.Messages, 2)
 	require.Equal(t, sql.NullInt64{Int64: 10000, Valid: true}, got.Messages[0].RuntimeMs)
 	require.False(t, got.Messages[1].RuntimeMs.Valid)
-}
-
-func TestBuildCommitStepMessages_EmptyIDWindowLandsOnIDLessRow(t *testing.T) {
-	t.Parallel()
-
-	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
-		modelConfigID:  uuid.New(),
-		contentVersion: chatprompt.CurrentContentVersion,
-		logger:         slog.Make(),
-		step: stepData{
-			Content: []fantasy.Content{
-				fantasy.ToolResultContent{
-					ToolCallID: "call-fast",
-					ToolName:   "fast_tool",
-					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"fast"}`},
-				},
-				fantasy.ToolResultContent{
-					ToolCallID: "",
-					ToolName:   "idless_tool",
-					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"slow"}`},
-				},
-			},
-			BatchRuntime:           60 * time.Second,
-			BatchRuntimeToolCallID: "",
-		},
-	})
-	require.NoError(t, err)
-	require.Len(t, got.Messages, 2)
-	require.False(t, got.Messages[0].RuntimeMs.Valid, "the identified row is not the window-defining one")
-	require.Equal(t, sql.NullInt64{Int64: 60_000, Valid: true}, got.Messages[1].RuntimeMs)
 }
 
 func TestBuildCommitStepMessages_BatchAttachmentAssistantRowStaysNull(t *testing.T) {
@@ -208,8 +145,7 @@ func TestBuildCommitStepMessages_BatchAttachmentAssistantRowStaysNull(t *testing
 					ClientMetadata: `{"attachments":[{"file_id":"` + uuid.NewString() + `","media_type":"image/png","name":"shot.png"}]}`,
 				},
 			},
-			BatchRuntime:           3 * time.Second,
-			BatchRuntimeToolCallID: "call-1",
+			BatchRuntime: 3 * time.Second,
 		},
 	})
 	require.NoError(t, err)
