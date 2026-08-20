@@ -93,7 +93,7 @@ type staticParametersTool struct {
 
 func (t staticParametersTool) Info() fantasy.ToolInfo { return t.info }
 
-func (t staticParametersTool) ProviderOptions() fantasy.ProviderOptions { return nil }
+func (staticParametersTool) ProviderOptions() fantasy.ProviderOptions { return nil }
 
 // TestBuildToolDefinitionsNilPropertiesBecomesEmptyObject verifies that a
 // tool whose input schema has no properties (for example an MCP tool
