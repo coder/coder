@@ -4209,10 +4209,22 @@ func TestInsertWorkspaceResource(t *testing.T) {
 						Value: "I laugh in the face of danger.",
 					},
 				},
-				Scripts: []*sdkproto.Script{{
-					DisplayName: "Startup",
-					Icon:        "/test.png",
-				}},
+				Scripts: []*sdkproto.Script{
+					{
+						DisplayName:     "Clone",
+						Icon:            "/test.png",
+						ResourceAddress: "coder_script.clone",
+					},
+					{
+						DisplayName:     "Install",
+						Icon:            "/test.png",
+						ResourceAddress: "coder_script.install",
+						Dependencies: []*sdkproto.ScriptDependency{{
+							PrerequisiteResourceAddress: "coder_script.clone",
+							Requirement:                 sdkproto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS,
+						}},
+					},
+				},
 				DisplayApps: &sdkproto.DisplayApps{
 					Vscode:               true,
 					PortForwardingHelper: true,
@@ -4245,6 +4257,16 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			database.DisplayAppSSHHelper,
 			database.DisplayAppVscode,
 		}, agent.DisplayApps)
+
+		scripts, err := db.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{agent.ID})
+		require.NoError(t, err)
+		require.Len(t, scripts, 2)
+		scriptsByAddress := make(map[string]database.GetWorkspaceAgentScriptsByAgentIDsRow, len(scripts))
+		for _, script := range scripts {
+			scriptsByAddress[script.ResourceAddress] = script
+		}
+		require.JSONEq(t, `[]`, string(scriptsByAddress["coder_script.clone"].Dependencies))
+		require.JSONEq(t, `[{"prerequisite_resource_address":"coder_script.clone","requirement":"success"}]`, string(scriptsByAddress["coder_script.install"].Dependencies))
 	})
 
 	t.Run("AllDisplayApps", func(t *testing.T) {

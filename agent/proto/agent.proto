@@ -58,6 +58,8 @@ message WorkspaceAgentScript {
 	google.protobuf.Duration timeout = 8;
 	string display_name = 9;
 	bytes id = 10;
+	string resource_address = 11;
+	repeated WorkspaceAgentScriptDependency dependencies = 12;
 }
 
 message WorkspaceAgentMetadata {
@@ -655,6 +657,17 @@ message PushContextStateRequest {
 
 message PushContextStateResponse {
 	bool accepted = 1;
+}
+
+message WorkspaceAgentScriptDependency {
+	enum Requirement {
+		REQUIREMENT_UNSPECIFIED = 0;
+		REQUIREMENT_SUCCESS = 1;
+		REQUIREMENT_COMPLETION = 2;
+	}
+
+	string prerequisite_resource_address = 1;
+	Requirement requirement = 2;
 }
 
 service Agent {

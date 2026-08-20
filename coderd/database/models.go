@@ -6487,18 +6487,20 @@ type WorkspaceAgentPortShare struct {
 }
 
 type WorkspaceAgentScript struct {
-	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	LogSourceID      uuid.UUID `db:"log_source_id" json:"log_source_id"`
-	LogPath          string    `db:"log_path" json:"log_path"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	Script           string    `db:"script" json:"script"`
-	Cron             string    `db:"cron" json:"cron"`
-	StartBlocksLogin bool      `db:"start_blocks_login" json:"start_blocks_login"`
-	RunOnStart       bool      `db:"run_on_start" json:"run_on_start"`
-	RunOnStop        bool      `db:"run_on_stop" json:"run_on_stop"`
-	TimeoutSeconds   int32     `db:"timeout_seconds" json:"timeout_seconds"`
-	DisplayName      string    `db:"display_name" json:"display_name"`
-	ID               uuid.UUID `db:"id" json:"id"`
+	WorkspaceAgentID uuid.UUID       `db:"workspace_agent_id" json:"workspace_agent_id"`
+	LogSourceID      uuid.UUID       `db:"log_source_id" json:"log_source_id"`
+	LogPath          string          `db:"log_path" json:"log_path"`
+	CreatedAt        time.Time       `db:"created_at" json:"created_at"`
+	Script           string          `db:"script" json:"script"`
+	Cron             string          `db:"cron" json:"cron"`
+	StartBlocksLogin bool            `db:"start_blocks_login" json:"start_blocks_login"`
+	RunOnStart       bool            `db:"run_on_start" json:"run_on_start"`
+	RunOnStop        bool            `db:"run_on_stop" json:"run_on_stop"`
+	TimeoutSeconds   int32           `db:"timeout_seconds" json:"timeout_seconds"`
+	DisplayName      string          `db:"display_name" json:"display_name"`
+	ID               uuid.UUID       `db:"id" json:"id"`
+	ResourceAddress  string          `db:"resource_address" json:"resource_address"`
+	Dependencies     json.RawMessage `db:"dependencies" json:"dependencies"`
 }
 
 type WorkspaceAgentScriptTiming struct {

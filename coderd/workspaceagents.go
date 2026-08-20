@@ -112,8 +112,17 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	apiScripts, err := convertScripts(scripts)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent scripts.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	apiAgent, err := db2sdk.WorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), waws.WorkspaceAgent, db2sdk.Apps(dbApps, statuses, waws.WorkspaceAgent, waws.OwnerUsername, waws.WorkspaceTable), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), waws.WorkspaceAgent, db2sdk.Apps(dbApps, statuses, waws.WorkspaceAgent, waws.OwnerUsername, waws.WorkspaceTable), apiScripts, convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -1758,12 +1767,16 @@ func convertLogSources(dbLogSources []database.WorkspaceAgentLogSource) []coders
 	return logSources
 }
 
-func convertScripts(dbScripts []database.GetWorkspaceAgentScriptsByAgentIDsRow) []codersdk.WorkspaceAgentScript {
+func convertScripts(dbScripts []database.GetWorkspaceAgentScriptsByAgentIDsRow) ([]codersdk.WorkspaceAgentScript, error) {
 	scripts := make([]codersdk.WorkspaceAgentScript, 0)
-	for _, dbScript := range dbScripts {
-		scripts = append(scripts, db2sdk.WorkspaceAgentScript(dbScript))
+	for i, dbScript := range dbScripts {
+		script, err := db2sdk.WorkspaceAgentScript(dbScript)
+		if err != nil {
+			return nil, xerrors.Errorf("convert script %d: %w", i, err)
+		}
+		scripts = append(scripts, script)
 	}
-	return scripts
+	return scripts, nil
 }
 
 // @Summary Watch for workspace agent metadata updates

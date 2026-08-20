@@ -117,6 +117,17 @@ func TestManifest(t *testing.T) {
 				StartBlocksLogin: true,
 				Timeout:          time.Second,
 				DisplayName:      "foo",
+				ResourceAddress:  "coder_script.install",
+				Dependencies: []codersdk.WorkspaceAgentScriptDependency{
+					{
+						PrerequisiteResourceAddress: "coder_script.clone",
+						Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementSuccess,
+					},
+					{
+						PrerequisiteResourceAddress: "coder_script.configure",
+						Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementCompletion,
+					},
+				},
 			},
 			{
 				ID:               uuid.New(),
@@ -163,6 +174,37 @@ func TestManifest(t *testing.T) {
 	require.Equal(t, manifest.Metadata, back.Metadata)
 	require.Equal(t, manifest.Scripts, back.Scripts)
 	require.Equal(t, manifest.Devcontainers, back.Devcontainers)
+}
+
+func TestScriptDependencyConversionRejectsInvalidRequirements(t *testing.T) {
+	t.Parallel()
+
+	t.Run("FromProto", func(t *testing.T) {
+		t.Parallel()
+
+		id := uuid.New()
+		logSourceID := uuid.New()
+		_, err := agentsdk.AgentScriptFromProto(&proto.WorkspaceAgentScript{
+			Id:          id[:],
+			LogSourceId: logSourceID[:],
+			Dependencies: []*proto.WorkspaceAgentScriptDependency{{
+				PrerequisiteResourceAddress: "coder_script.clone",
+			}},
+		})
+		require.ErrorContains(t, err, "unsupported requirement")
+	})
+
+	t.Run("ToProto", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := agentsdk.ProtoFromScript(codersdk.WorkspaceAgentScript{
+			Dependencies: []codersdk.WorkspaceAgentScriptDependency{{
+				PrerequisiteResourceAddress: "coder_script.clone",
+				Requirement:                 "eventually",
+			}},
+		})
+		require.ErrorContains(t, err, "unsupported requirement")
+	})
 }
 
 func TestSubsystems(t *testing.T) {

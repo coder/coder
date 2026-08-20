@@ -78,6 +78,10 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("convert workspace apps: %w", err)
 	}
+	scripts, err := ProtoFromScripts(manifest.Scripts)
+	if err != nil {
+		return nil, xerrors.Errorf("convert workspace agent scripts: %w", err)
+	}
 	return &proto.Manifest{
 		ParentId:      manifest.ParentID[:],
 		AgentId:       manifest.AgentID[:],
@@ -94,7 +98,7 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 		DisableDirectConnections: manifest.DisableDirectConnections,
 		DerpForceWebsockets:      manifest.DERPForceWebSockets,
 		DerpMap:                  tailnet.DERPMapToProto(manifest.DERPMap),
-		Scripts:                  ProtoFromScripts(manifest.Scripts),
+		Scripts:                  scripts,
 		Apps:                     apps,
 		Metadata:                 ProtoFromMetadataDescriptions(manifest.Metadata),
 		Devcontainers:            ProtoFromDevcontainers(manifest.Devcontainers),
@@ -174,12 +178,16 @@ func AgentScriptsFromProto(protoScripts []*proto.WorkspaceAgentScript) ([]coders
 	return ret, nil
 }
 
-func ProtoFromScripts(scripts []codersdk.WorkspaceAgentScript) []*proto.WorkspaceAgentScript {
+func ProtoFromScripts(scripts []codersdk.WorkspaceAgentScript) ([]*proto.WorkspaceAgentScript, error) {
 	ret := make([]*proto.WorkspaceAgentScript, len(scripts))
 	for i, script := range scripts {
-		ret[i] = ProtoFromScript(script)
+		converted, err := ProtoFromScript(script)
+		if err != nil {
+			return nil, xerrors.Errorf("script %d: %w", i, err)
+		}
+		ret[i] = converted
 	}
-	return ret
+	return ret, nil
 }
 
 func AgentScriptFromProto(protoScript *proto.WorkspaceAgentScript) (codersdk.WorkspaceAgentScript, error) {
@@ -191,6 +199,10 @@ func AgentScriptFromProto(protoScript *proto.WorkspaceAgentScript) (codersdk.Wor
 	logSourceID, err := uuid.FromBytes(protoScript.LogSourceId)
 	if err != nil {
 		return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("parse log source id: %w", err)
+	}
+	dependencies, err := agentScriptDependenciesFromProto(protoScript.Dependencies)
+	if err != nil {
+		return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("parse dependencies: %w", err)
 	}
 
 	return codersdk.WorkspaceAgentScript{
@@ -204,10 +216,16 @@ func AgentScriptFromProto(protoScript *proto.WorkspaceAgentScript) (codersdk.Wor
 		StartBlocksLogin: protoScript.StartBlocksLogin,
 		Timeout:          protoScript.Timeout.AsDuration(),
 		DisplayName:      protoScript.DisplayName,
+		ResourceAddress:  protoScript.ResourceAddress,
+		Dependencies:     dependencies,
 	}, nil
 }
 
-func ProtoFromScript(s codersdk.WorkspaceAgentScript) *proto.WorkspaceAgentScript {
+func ProtoFromScript(s codersdk.WorkspaceAgentScript) (*proto.WorkspaceAgentScript, error) {
+	dependencies, err := protoFromAgentScriptDependencies(s.Dependencies)
+	if err != nil {
+		return nil, xerrors.Errorf("convert dependencies: %w", err)
+	}
 	return &proto.WorkspaceAgentScript{
 		Id:               s.ID[:],
 		LogSourceId:      s.LogSourceID[:],
@@ -219,6 +237,74 @@ func ProtoFromScript(s codersdk.WorkspaceAgentScript) *proto.WorkspaceAgentScrip
 		StartBlocksLogin: s.StartBlocksLogin,
 		Timeout:          durationpb.New(s.Timeout),
 		DisplayName:      s.DisplayName,
+		ResourceAddress:  s.ResourceAddress,
+		Dependencies:     dependencies,
+	}, nil
+}
+
+func agentScriptDependenciesFromProto(dependencies []*proto.WorkspaceAgentScriptDependency) ([]codersdk.WorkspaceAgentScriptDependency, error) {
+	if len(dependencies) == 0 {
+		return nil, nil
+	}
+
+	converted := make([]codersdk.WorkspaceAgentScriptDependency, len(dependencies))
+	for i, dependency := range dependencies {
+		if dependency.GetPrerequisiteResourceAddress() == "" {
+			return nil, xerrors.Errorf("dependency %d has an empty prerequisite resource address", i)
+		}
+		requirement, err := agentScriptDependencyRequirementFromProto(dependency.GetRequirement())
+		if err != nil {
+			return nil, xerrors.Errorf("dependency %d: %w", i, err)
+		}
+		converted[i] = codersdk.WorkspaceAgentScriptDependency{
+			PrerequisiteResourceAddress: dependency.GetPrerequisiteResourceAddress(),
+			Requirement:                 requirement,
+		}
+	}
+	return converted, nil
+}
+
+func protoFromAgentScriptDependencies(dependencies []codersdk.WorkspaceAgentScriptDependency) ([]*proto.WorkspaceAgentScriptDependency, error) {
+	if len(dependencies) == 0 {
+		return nil, nil
+	}
+
+	converted := make([]*proto.WorkspaceAgentScriptDependency, len(dependencies))
+	for i, dependency := range dependencies {
+		if dependency.PrerequisiteResourceAddress == "" {
+			return nil, xerrors.Errorf("dependency %d has an empty prerequisite resource address", i)
+		}
+		requirement, err := agentScriptDependencyRequirementToProto(dependency.Requirement)
+		if err != nil {
+			return nil, xerrors.Errorf("dependency %d: %w", i, err)
+		}
+		converted[i] = &proto.WorkspaceAgentScriptDependency{
+			PrerequisiteResourceAddress: dependency.PrerequisiteResourceAddress,
+			Requirement:                 requirement,
+		}
+	}
+	return converted, nil
+}
+
+func agentScriptDependencyRequirementFromProto(requirement proto.WorkspaceAgentScriptDependency_Requirement) (codersdk.WorkspaceAgentScriptDependencyRequirement, error) {
+	switch requirement {
+	case proto.WorkspaceAgentScriptDependency_REQUIREMENT_SUCCESS:
+		return codersdk.WorkspaceAgentScriptDependencyRequirementSuccess, nil
+	case proto.WorkspaceAgentScriptDependency_REQUIREMENT_COMPLETION:
+		return codersdk.WorkspaceAgentScriptDependencyRequirementCompletion, nil
+	default:
+		return "", xerrors.Errorf("unsupported requirement %q", requirement)
+	}
+}
+
+func agentScriptDependencyRequirementToProto(requirement codersdk.WorkspaceAgentScriptDependencyRequirement) (proto.WorkspaceAgentScriptDependency_Requirement, error) {
+	switch requirement {
+	case codersdk.WorkspaceAgentScriptDependencyRequirementSuccess:
+		return proto.WorkspaceAgentScriptDependency_REQUIREMENT_SUCCESS, nil
+	case codersdk.WorkspaceAgentScriptDependencyRequirementCompletion:
+		return proto.WorkspaceAgentScriptDependency_REQUIREMENT_COMPLETION, nil
+	default:
+		return proto.WorkspaceAgentScriptDependency_REQUIREMENT_UNSPECIFIED, xerrors.Errorf("unsupported requirement %q", requirement)
 	}
 }
 

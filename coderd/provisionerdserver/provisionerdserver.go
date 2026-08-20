@@ -3184,7 +3184,10 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
-		scriptsParams := agentScriptsFromProto(prAgent.Scripts)
+		scriptsParams, err := agentScriptsFromProto(prAgent.Scripts)
+		if err != nil {
+			return xerrors.Errorf("convert agent scripts: %w", err)
+		}
 
 		// Dev Containers require a script and log/source, so we do this before
 		// the logs insert below.
@@ -3231,6 +3234,8 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				scriptsParams.ScriptStartBlocksLogin = append(scriptsParams.ScriptStartBlocksLogin, false)
 				scriptsParams.ScriptRunOnStart = append(scriptsParams.ScriptRunOnStart, false)
 				scriptsParams.ScriptRunOnStop = append(scriptsParams.ScriptRunOnStop, false)
+				scriptsParams.ScriptResourceAddresses = append(scriptsParams.ScriptResourceAddresses, "")
+				scriptsParams.ScriptDependencies = append(scriptsParams.ScriptDependencies, "[]")
 			}
 
 			_, err = db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
@@ -3658,7 +3663,11 @@ func insertDevcontainerSubagent(
 		}
 	}
 
-	if err := insertAgentScriptsAndLogSources(ctx, db, subAgentID, agentScriptsFromProto(dc.GetScripts())); err != nil {
+	dcScriptsParams, err := agentScriptsFromProto(dc.GetScripts())
+	if err != nil {
+		return uuid.UUID{}, xerrors.Errorf("convert devcontainer agent scripts: %w", err)
+	}
+	if err := insertAgentScriptsAndLogSources(ctx, db, subAgentID, dcScriptsParams); err != nil {
 		return uuid.UUID{}, xerrors.Errorf("insert agent scripts and log sources: %w", err)
 	}
 
@@ -3729,34 +3738,38 @@ type agentScriptsParams struct {
 	LogSourceDisplayNames []string
 	LogSourceIcons        []string
 
-	ScriptIDs              []uuid.UUID
-	ScriptDisplayNames     []string
-	ScriptLogPaths         []string
-	ScriptSources          []string
-	ScriptCron             []string
-	ScriptTimeout          []int32
-	ScriptStartBlocksLogin []bool
-	ScriptRunOnStart       []bool
-	ScriptRunOnStop        []bool
+	ScriptIDs               []uuid.UUID
+	ScriptDisplayNames      []string
+	ScriptLogPaths          []string
+	ScriptSources           []string
+	ScriptCron              []string
+	ScriptTimeout           []int32
+	ScriptStartBlocksLogin  []bool
+	ScriptRunOnStart        []bool
+	ScriptRunOnStop         []bool
+	ScriptResourceAddresses []string
+	ScriptDependencies      []string
 }
 
 // agentScriptsFromProto converts a slice of proto scripts into the
 // agentScriptsParams struct needed for database insertion.
-func agentScriptsFromProto(scripts []*sdkproto.Script) agentScriptsParams {
+func agentScriptsFromProto(scripts []*sdkproto.Script) (agentScriptsParams, error) {
 	params := agentScriptsParams{
 		LogSourceIDs:          make([]uuid.UUID, 0, len(scripts)),
 		LogSourceDisplayNames: make([]string, 0, len(scripts)),
 		LogSourceIcons:        make([]string, 0, len(scripts)),
 
-		ScriptIDs:              make([]uuid.UUID, 0, len(scripts)),
-		ScriptDisplayNames:     make([]string, 0, len(scripts)),
-		ScriptLogPaths:         make([]string, 0, len(scripts)),
-		ScriptSources:          make([]string, 0, len(scripts)),
-		ScriptCron:             make([]string, 0, len(scripts)),
-		ScriptTimeout:          make([]int32, 0, len(scripts)),
-		ScriptStartBlocksLogin: make([]bool, 0, len(scripts)),
-		ScriptRunOnStart:       make([]bool, 0, len(scripts)),
-		ScriptRunOnStop:        make([]bool, 0, len(scripts)),
+		ScriptIDs:               make([]uuid.UUID, 0, len(scripts)),
+		ScriptDisplayNames:      make([]string, 0, len(scripts)),
+		ScriptLogPaths:          make([]string, 0, len(scripts)),
+		ScriptSources:           make([]string, 0, len(scripts)),
+		ScriptCron:              make([]string, 0, len(scripts)),
+		ScriptTimeout:           make([]int32, 0, len(scripts)),
+		ScriptStartBlocksLogin:  make([]bool, 0, len(scripts)),
+		ScriptRunOnStart:        make([]bool, 0, len(scripts)),
+		ScriptRunOnStop:         make([]bool, 0, len(scripts)),
+		ScriptResourceAddresses: make([]string, 0, len(scripts)),
+		ScriptDependencies:      make([]string, 0, len(scripts)),
 	}
 
 	for _, script := range scripts {
@@ -3773,9 +3786,50 @@ func agentScriptsFromProto(scripts []*sdkproto.Script) agentScriptsParams {
 		params.ScriptStartBlocksLogin = append(params.ScriptStartBlocksLogin, script.GetStartBlocksLogin())
 		params.ScriptRunOnStart = append(params.ScriptRunOnStart, script.GetRunOnStart())
 		params.ScriptRunOnStop = append(params.ScriptRunOnStop, script.GetRunOnStop())
+		params.ScriptResourceAddresses = append(params.ScriptResourceAddresses, script.GetResourceAddress())
+
+		dependencies, err := scriptDependenciesJSON(script.GetDependencies())
+		if err != nil {
+			return agentScriptsParams{}, xerrors.Errorf("script %q dependencies: %w", script.GetResourceAddress(), err)
+		}
+		params.ScriptDependencies = append(params.ScriptDependencies, dependencies)
 	}
 
-	return params
+	return params, nil
+}
+
+func scriptDependenciesJSON(dependencies []*sdkproto.ScriptDependency) (string, error) {
+	encoded := make([]codersdk.WorkspaceAgentScriptDependency, 0, len(dependencies))
+	for i, dependency := range dependencies {
+		requirement, err := scriptDependencyRequirementFromProto(dependency.GetRequirement())
+		if err != nil {
+			return "", xerrors.Errorf("dependency %d: %w", i, err)
+		}
+		if dependency.GetPrerequisiteResourceAddress() == "" {
+			return "", xerrors.Errorf("dependency %d has an empty prerequisite resource address", i)
+		}
+		encoded = append(encoded, codersdk.WorkspaceAgentScriptDependency{
+			PrerequisiteResourceAddress: dependency.GetPrerequisiteResourceAddress(),
+			Requirement:                 requirement,
+		})
+	}
+
+	data, err := json.Marshal(encoded)
+	if err != nil {
+		return "", xerrors.Errorf("marshal dependencies: %w", err)
+	}
+	return string(data), nil
+}
+
+func scriptDependencyRequirementFromProto(requirement sdkproto.ScriptDependencyRequirement) (codersdk.WorkspaceAgentScriptDependencyRequirement, error) {
+	switch requirement {
+	case sdkproto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS:
+		return codersdk.WorkspaceAgentScriptDependencyRequirementSuccess, nil
+	case sdkproto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_COMPLETION:
+		return codersdk.WorkspaceAgentScriptDependencyRequirementCompletion, nil
+	default:
+		return "", xerrors.Errorf("unsupported requirement %q", requirement)
+	}
 }
 
 // insertAgentScriptsAndLogSources inserts log sources and scripts for an agent (or
@@ -3811,6 +3865,8 @@ func insertAgentScriptsAndLogSources(ctx context.Context, db database.Store, age
 		RunOnStart:       params.ScriptRunOnStart,
 		RunOnStop:        params.ScriptRunOnStop,
 		DisplayName:      params.ScriptDisplayNames,
+		ResourceAddress:  params.ScriptResourceAddresses,
+		Dependencies:     params.ScriptDependencies,
 	})
 	if err != nil {
 		return xerrors.Errorf("insert scripts: %w", err)
