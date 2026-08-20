@@ -7,22 +7,22 @@ import {
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
 import { Spinner } from "#/components/Spinner/Spinner";
-import {
-	Combobox,
-	ComboboxChip,
-	ComboboxChips,
-	ComboboxChipsInput,
-	ComboboxContent,
-	ComboboxEmpty,
-	ComboboxGroup,
-	ComboboxInputGroup,
-	ComboboxItem,
-	ComboboxLabel,
-	ComboboxList,
-	ComboboxStatus,
-	ComboboxValue,
-} from "./Combobox";
 import { chipToken } from "./filterQuery";
+import {
+	FilterComboboxChip,
+	FilterComboboxChips,
+	FilterComboboxChipsInput,
+	FilterComboboxContent,
+	FilterComboboxEmpty,
+	FilterComboboxGroup,
+	FilterComboboxInputGroup,
+	FilterComboboxItem,
+	FilterComboboxLabel,
+	FilterComboboxList,
+	FilterComboboxRoot,
+	FilterComboboxStatus,
+	FilterComboboxValue,
+} from "./primitives";
 import type { FilterCategory, FilterOption, SearchResult } from "./types";
 import { useFilterCombobox } from "./useFilterCombobox";
 
@@ -76,7 +76,7 @@ export function FilterCombobox({
 	});
 
 	return (
-		<Combobox
+		<FilterComboboxRoot
 			open={open}
 			onDismiss={actions.dismiss}
 			value={chipValues}
@@ -86,16 +86,18 @@ export function FilterCombobox({
 			onItemHighlighted={actions.onItemHighlighted}
 			label={placeholder}
 		>
-			<ComboboxInputGroup className={className}>
+			<FilterComboboxInputGroup className={className}>
 				<InputGroupAddon className="min-h-10">
 					<SearchIcon aria-hidden className="size-icon-sm" />
 				</InputGroupAddon>
-				<ComboboxChips>
-					<ComboboxValue>
+				<FilterComboboxChips>
+					<FilterComboboxValue>
 						{(selected: string[]) => (
 							<>
 								{selected.map((token) => (
-									<ComboboxChip key={token}>{token}</ComboboxChip>
+									<FilterComboboxChip key={token} value={token}>
+										{token}
+									</FilterComboboxChip>
 								))}
 								{activeCategory && committedFreeText.length > 0 && (
 									<Badge
@@ -119,7 +121,7 @@ export function FilterCombobox({
 										{activeCategory.key}:
 									</Badge>
 								)}
-								<ComboboxChipsInput
+								<FilterComboboxChipsInput
 									ref={actions.setInputRef}
 									aria-label={placeholder}
 									aria-invalid={invalid || undefined}
@@ -131,8 +133,8 @@ export function FilterCombobox({
 								/>
 							</>
 						)}
-					</ComboboxValue>
-				</ComboboxChips>
+					</FilterComboboxValue>
+				</FilterComboboxChips>
 				<InputGroupAddon
 					align="inline-end"
 					className="w-10 items-center self-stretch border-0 border-l border-solid border-border p-0"
@@ -155,10 +157,10 @@ export function FilterCombobox({
 						<ListFilterIcon aria-hidden className="size-icon-sm" />
 					</InputGroupButton>
 				</InputGroupAddon>
-			</ComboboxInputGroup>
-			<ComboboxContent>
+			</FilterComboboxInputGroup>
+			<FilterComboboxContent>
 				{/* Keep mounted so polite status announcements stay consistent. */}
-				<ComboboxStatus>{statusMessage}</ComboboxStatus>
+				<FilterComboboxStatus>{statusMessage}</FilterComboboxStatus>
 				{typeahead.active ? (
 					<TypeaheadList
 						listedCategories={listedCategories}
@@ -184,8 +186,8 @@ export function FilterCombobox({
 						onSelectOption={actions.selectCategoryOption}
 					/>
 				)}
-			</ComboboxContent>
-		</Combobox>
+			</FilterComboboxContent>
+		</FilterComboboxRoot>
 	);
 }
 
@@ -241,10 +243,10 @@ function TypeaheadList({
 
 	return (
 		<>
-			{isEmpty && <ComboboxEmpty>No filters found.</ComboboxEmpty>}
-			<ComboboxList className="p-3 data-[empty]:p-3">
+			{isEmpty && <FilterComboboxEmpty>No filters found.</FilterComboboxEmpty>}
+			<FilterComboboxList className="p-3 data-[empty]:p-3">
 				{listedCategories.map((category) => (
-					<ComboboxItem
+					<FilterComboboxItem
 						className={OPTION_ITEM_CLASS}
 						key={category.key}
 						value={category.key}
@@ -259,14 +261,14 @@ function TypeaheadList({
 							</span>
 						)}
 						<span className="text-content-primary">{category.label}</span>
-					</ComboboxItem>
+					</FilterComboboxItem>
 				))}
 				{[...valueSuggestionsByCategory.entries()].map(
 					([categoryLabel, suggestions]) => (
-						<ComboboxGroup key={categoryLabel}>
-							<ComboboxLabel>{categoryLabel}</ComboboxLabel>
+						<FilterComboboxGroup key={categoryLabel}>
+							<FilterComboboxLabel>{categoryLabel}</FilterComboboxLabel>
 							{suggestions.map((suggestion) => (
-								<ComboboxItem
+								<FilterComboboxItem
 									className={OPTION_ITEM_CLASS}
 									key={suggestion.token}
 									value={suggestion.token}
@@ -278,16 +280,16 @@ function TypeaheadList({
 									<span className="text-content-primary">
 										{suggestion.option.label}
 									</span>
-								</ComboboxItem>
+								</FilterComboboxItem>
 							))}
-						</ComboboxGroup>
+						</FilterComboboxGroup>
 					),
 				)}
 				{showSearchSection && (
-					<ComboboxGroup>
-						<ComboboxLabel>{searchResultsLabel}</ComboboxLabel>
+					<FilterComboboxGroup>
+						<FilterComboboxLabel>{searchResultsLabel}</FilterComboboxLabel>
 						{searchResults.map((result) => (
-							<ComboboxItem
+							<FilterComboboxItem
 								className={OPTION_ITEM_CLASS}
 								key={result.value}
 								value={result.value}
@@ -315,9 +317,9 @@ function TypeaheadList({
 										</span>
 									)}
 								</span>
-							</ComboboxItem>
+							</FilterComboboxItem>
 						))}
-					</ComboboxGroup>
+					</FilterComboboxGroup>
 				)}
 				{typeaheadLoading && (
 					<div
@@ -332,7 +334,7 @@ function TypeaheadList({
 						Couldn&rsquo;t load suggestions.
 					</div>
 				)}
-			</ComboboxList>
+			</FilterComboboxList>
 		</>
 	);
 }
@@ -383,18 +385,18 @@ function CategoryOptionsList({
 
 	return (
 		<>
-			<ComboboxEmpty>No filters found.</ComboboxEmpty>
-			<ComboboxList className="p-3 data-[empty]:p-3">
+			<FilterComboboxEmpty>No filters found.</FilterComboboxEmpty>
+			<FilterComboboxList className="p-3 data-[empty]:p-3">
 				{activeCategoryKey !== null && (
-					<ComboboxGroup>
+					<FilterComboboxGroup>
 						{activeCategory && (
-							<ComboboxLabel>{activeCategory.label}</ComboboxLabel>
+							<FilterComboboxLabel>{activeCategory.label}</FilterComboboxLabel>
 						)}
 						{activeOptions.map((option) => {
 							const item =
 								option.token ?? chipToken(activeCategoryKey, option.value);
 							return (
-								<ComboboxItem
+								<FilterComboboxItem
 									className={OPTION_ITEM_CLASS}
 									key={item}
 									value={item}
@@ -404,12 +406,12 @@ function CategoryOptionsList({
 										<span aria-hidden>{option.startIcon}</span>
 									) : null}
 									<span className="text-content-primary">{option.label}</span>
-								</ComboboxItem>
+								</FilterComboboxItem>
 							);
 						})}
-					</ComboboxGroup>
+					</FilterComboboxGroup>
 				)}
-			</ComboboxList>
+			</FilterComboboxList>
 		</>
 	);
 }

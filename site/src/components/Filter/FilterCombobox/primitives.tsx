@@ -7,6 +7,7 @@ import {
 	type ReactNode,
 	type RefObject,
 	useContext,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -19,37 +20,44 @@ import {
 } from "#/components/Popover/Popover";
 import { cn } from "#/utils/cn";
 
-// A chip-based combobox for `FilterCombobox`, built on cmdk (listbox, keyboard
-// navigation) and Radix Popover (positioning, dismissal). `open` is
-// caller-owned; dropdown rows are actions that fire their own `onSelect`.
-const ComboboxAnchorContext =
+// Primitive layer for `FilterCombobox`, built on cmdk (listbox, keyboard
+// navigation) and Radix Popover (positioning, dismissal). These are prefixed
+// `FilterCombobox*` and kept single-consumer to avoid shadowing the unrelated
+// `components/Combobox` single-select primitives. They overlap cosmetically
+// with `components/Command`; a future consolidation into a variant-driven
+// `Command*` layer could remove the duplication (CRF-43).
+
+const FilterComboboxAnchorContext =
 	createContext<RefObject<HTMLDivElement | null> | null>(null);
 
-type ComboboxStateValue = {
+type FilterComboboxStateValue = {
 	value: string[];
 	inputValue: string;
 	onInputValueChange?: (value: string) => void;
-	onRemoveValue: (value: string) => void;
+	onRemoveValue?: (value: string) => void;
 };
 
-const ComboboxStateContext = createContext<ComboboxStateValue | null>(null);
+const FilterComboboxStateContext =
+	createContext<FilterComboboxStateValue | null>(null);
 
-function useComboboxState(): ComboboxStateValue {
-	const context = useContext(ComboboxStateContext);
+function useFilterComboboxState(): FilterComboboxStateValue {
+	const context = useContext(FilterComboboxStateContext);
 	if (!context) {
-		throw new Error("Combobox components must be used within a <Combobox />");
+		throw new Error(
+			"FilterCombobox primitives must be used within a <FilterComboboxRoot />",
+		);
 	}
 	return context;
 }
 
 // cmdk keeps a running count of the rows it renders; both the content wrapper
-// and the list drive a `data-empty` styling group from it so `ComboboxEmpty`
-// and empty-state padding can toggle via CSS.
-function useComboboxIsEmpty(): boolean {
+// and the list drive a `data-empty` styling group from it so
+// `FilterComboboxEmpty` and empty-state padding can toggle via CSS.
+function useFilterComboboxIsEmpty(): boolean {
 	return (useCommandState((state) => state.filtered.count) ?? 0) === 0;
 }
 
-type ComboboxProps = {
+type FilterComboboxRootProps = {
 	open?: boolean;
 	/** Fired when Radix requests a close (escape / outside press). */
 	onDismiss?: () => void;
@@ -63,7 +71,19 @@ type ComboboxProps = {
 	children?: ReactNode;
 };
 
-export function Combobox({
+/**
+ * Controlled root for the filter combobox. `open` is caller-owned (there is no
+ * PopoverTrigger), so the only event Radix originates is a close request,
+ * surfaced as `onDismiss`. Dropdown rows are actions that fire their own
+ * `onSelect`; `value` holds the committed chip tokens, removed via
+ * `onRemoveValue`.
+ *
+ * Note: `FilterComboboxContent` renders in-flow (`disablePortal`, required so
+ * cmdk can DOM-query its list). A consumer mounting this inside an
+ * `overflow: hidden`/`auto` ancestor or a Radix `Dialog` may see the popup
+ * clipped or z-index-inverted.
+ */
+export function FilterComboboxRoot({
 	open = false,
 	onDismiss,
 	value = [],
@@ -73,7 +93,7 @@ export function Combobox({
 	onItemHighlighted,
 	label,
 	children,
-}: ComboboxProps) {
+}: FilterComboboxRootProps) {
 	const anchorRef = useRef<HTMLDivElement | null>(null);
 	// cmdk only reports highlight changes through `onValueChange` when its value
 	// is controlled, so track the highlighted row here and surface it to callers.
@@ -83,16 +103,14 @@ export function Combobox({
 	const onDismissRef = useRef(onDismiss);
 	onDismissRef.current = onDismiss;
 
-	const state: ComboboxStateValue = {
-		value,
-		inputValue,
-		onInputValueChange,
-		onRemoveValue: (token) => onRemoveValue?.(token),
-	};
+	const state = useMemo<FilterComboboxStateValue>(
+		() => ({ value, inputValue, onInputValueChange, onRemoveValue }),
+		[value, inputValue, onInputValueChange, onRemoveValue],
+	);
 
 	return (
-		<ComboboxAnchorContext.Provider value={anchorRef}>
-			<ComboboxStateContext.Provider value={state}>
+		<FilterComboboxAnchorContext value={anchorRef}>
+			<FilterComboboxStateContext value={state}>
 				<CommandPrimitive
 					shouldFilter={false}
 					loop
@@ -104,12 +122,8 @@ export function Combobox({
 						onItemHighlightedRef.current?.(highlighted || undefined);
 					}}
 				>
-					{/*
-					 * There is no PopoverTrigger, so Radix never opens the popup on
-					 * its own; opens flow from the caller through `open`. The only
-					 * event Radix originates is a close request, which we forward as
-					 * `onDismiss`.
-					 */}
+					{/* No PopoverTrigger: opens are caller-driven via `open`; Radix only
+					    originates close requests, forwarded as `onDismiss`. */}
 					<Popover
 						open={open}
 						onOpenChange={(nextOpen) => {
@@ -122,30 +136,32 @@ export function Combobox({
 						{children}
 					</Popover>
 				</CommandPrimitive>
-			</ComboboxStateContext.Provider>
-		</ComboboxAnchorContext.Provider>
+			</FilterComboboxStateContext>
+		</FilterComboboxAnchorContext>
 	);
 }
 
-type ComboboxValueProps = {
+type FilterComboboxValueProps = {
 	children: (selected: string[]) => ReactNode;
 };
 
-export const ComboboxValue: FC<ComboboxValueProps> = ({ children }) => {
-	const { value } = useComboboxState();
+export const FilterComboboxValue: FC<FilterComboboxValueProps> = ({
+	children,
+}) => {
+	const { value } = useFilterComboboxState();
 	return <>{children(value)}</>;
 };
 
-type ComboboxContentProps = ComponentPropsWithRef<typeof PopoverContent>;
+type FilterComboboxContentProps = ComponentPropsWithRef<typeof PopoverContent>;
 
-export const ComboboxContent: FC<ComboboxContentProps> = ({
+export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
 	className,
 	align = "start",
 	sideOffset = 6,
 	...props
 }) => {
-	const anchorRef = useContext(ComboboxAnchorContext);
-	const isEmpty = useComboboxIsEmpty();
+	const anchorRef = useContext(FilterComboboxAnchorContext);
+	const isEmpty = useFilterComboboxIsEmpty();
 
 	return (
 		<PopoverContent
@@ -170,13 +186,15 @@ export const ComboboxContent: FC<ComboboxContentProps> = ({
 	);
 };
 
-type ComboboxListProps = ComponentPropsWithRef<typeof CommandPrimitive.List>;
+type FilterComboboxListProps = ComponentPropsWithRef<
+	typeof CommandPrimitive.List
+>;
 
-export const ComboboxList: FC<ComboboxListProps> = ({
+export const FilterComboboxList: FC<FilterComboboxListProps> = ({
 	className,
 	...props
 }) => {
-	const isEmpty = useComboboxIsEmpty();
+	const isEmpty = useFilterComboboxIsEmpty();
 
 	return (
 		<CommandPrimitive.List
@@ -191,14 +209,16 @@ export const ComboboxList: FC<ComboboxListProps> = ({
 	);
 };
 
-type ComboboxItemProps = ComponentPropsWithRef<typeof CommandPrimitive.Item>;
+type FilterComboboxItemProps = ComponentPropsWithRef<
+	typeof CommandPrimitive.Item
+>;
 
 /**
  * A dropdown row. Rows are actions, not toggles: pass `onSelect` to run the
  * row's behavior (open a category, add a chip, navigate to a result). cmdk
  * calls `onSelect` on click and on Enter for the highlighted row.
  */
-export const ComboboxItem: FC<ComboboxItemProps> = ({
+export const FilterComboboxItem: FC<FilterComboboxItemProps> = ({
 	className,
 	...props
 }) => {
@@ -218,9 +238,11 @@ export const ComboboxItem: FC<ComboboxItemProps> = ({
 	);
 };
 
-type ComboboxGroupProps = ComponentPropsWithRef<typeof CommandPrimitive.Group>;
+type FilterComboboxGroupProps = ComponentPropsWithRef<
+	typeof CommandPrimitive.Group
+>;
 
-export const ComboboxGroup: FC<ComboboxGroupProps> = ({
+export const FilterComboboxGroup: FC<FilterComboboxGroupProps> = ({
 	className,
 	...props
 }) => {
@@ -233,9 +255,9 @@ export const ComboboxGroup: FC<ComboboxGroupProps> = ({
 	);
 };
 
-type ComboboxLabelProps = ComponentPropsWithRef<"div">;
+type FilterComboboxLabelProps = ComponentPropsWithRef<"div">;
 
-export const ComboboxLabel: FC<ComboboxLabelProps> = ({
+export const FilterComboboxLabel: FC<FilterComboboxLabelProps> = ({
 	className,
 	...props
 }) => {
@@ -248,13 +270,14 @@ export const ComboboxLabel: FC<ComboboxLabelProps> = ({
 	);
 };
 
-type ComboboxEmptyProps = ComponentPropsWithRef<"div">;
+type FilterComboboxEmptyProps = ComponentPropsWithRef<"div">;
 
-export const ComboboxEmpty: FC<ComboboxEmptyProps> = ({
+export const FilterComboboxEmpty: FC<FilterComboboxEmptyProps> = ({
 	className,
 	...props
 }) => {
-	// Visibility is driven by the `data-empty` group set on `ComboboxContent`.
+	// Visibility is driven by the `data-empty` group set on
+	// `FilterComboboxContent`.
 	return (
 		<div
 			data-slot="combobox-empty"
@@ -268,9 +291,9 @@ export const ComboboxEmpty: FC<ComboboxEmptyProps> = ({
 	);
 };
 
-type ComboboxStatusProps = ComponentPropsWithRef<"div">;
+type FilterComboboxStatusProps = ComponentPropsWithRef<"div">;
 
-export const ComboboxStatus: FC<ComboboxStatusProps> = ({
+export const FilterComboboxStatus: FC<FilterComboboxStatusProps> = ({
 	className,
 	...props
 }) => {
@@ -285,13 +308,13 @@ export const ComboboxStatus: FC<ComboboxStatusProps> = ({
 	);
 };
 
-type ComboboxInputGroupProps = ComponentPropsWithRef<"div">;
+type FilterComboboxInputGroupProps = ComponentPropsWithRef<"div">;
 
-export const ComboboxInputGroup: FC<ComboboxInputGroupProps> = ({
+export const FilterComboboxInputGroup: FC<FilterComboboxInputGroupProps> = ({
 	className,
 	...props
 }) => {
-	const anchorRef = useContext(ComboboxAnchorContext);
+	const anchorRef = useContext(FilterComboboxAnchorContext);
 
 	return (
 		<PopoverAnchor asChild>
@@ -304,9 +327,9 @@ export const ComboboxInputGroup: FC<ComboboxInputGroupProps> = ({
 	);
 };
 
-type ComboboxChipsProps = ComponentPropsWithRef<"div">;
+type FilterComboboxChipsProps = ComponentPropsWithRef<"div">;
 
-export const ComboboxChips: FC<ComboboxChipsProps> = ({
+export const FilterComboboxChips: FC<FilterComboboxChipsProps> = ({
 	className,
 	...props
 }) => {
@@ -322,26 +345,34 @@ export const ComboboxChips: FC<ComboboxChipsProps> = ({
 	);
 };
 
-type ComboboxChipProps = ComponentPropsWithRef<typeof Badge> & {
+type FilterComboboxChipProps = ComponentPropsWithRef<typeof Badge> & {
+	/**
+	 * Token passed to `onRemoveValue` when the chip is removed. Decoupled from
+	 * `children` so the chip can render richer content than a bare string.
+	 * Falls back to the string/number children for convenience.
+	 */
+	value?: string;
 	showRemove?: boolean;
-	/** Accessible name for the remove control. Defaults to `Remove ${label}`. */
+	/** Accessible name for the remove control. Defaults to `Remove ${value}`. */
 	removeLabel?: string;
 };
 
-export const ComboboxChip: FC<ComboboxChipProps> = ({
+export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 	className,
 	children,
+	value,
 	showRemove = true,
 	removeLabel,
 	...props
 }) => {
-	const { onRemoveValue } = useComboboxState();
-	const chipText =
+	const { onRemoveValue } = useFilterComboboxState();
+	const childText =
 		typeof children === "string" || typeof children === "number"
 			? String(children)
 			: undefined;
+	const removeValue = value ?? childText;
 	const resolvedRemoveLabel =
-		removeLabel ?? (chipText ? `Remove ${chipText}` : "Remove filter");
+		removeLabel ?? (removeValue ? `Remove ${removeValue}` : "Remove filter");
 
 	return (
 		<Badge
@@ -362,8 +393,8 @@ export const ComboboxChip: FC<ComboboxChipProps> = ({
 					onMouseDown={(event) => event.preventDefault()}
 					onClick={(event) => {
 						event.stopPropagation();
-						if (chipText) {
-							onRemoveValue(chipText);
+						if (removeValue) {
+							onRemoveValue?.(removeValue);
 						}
 					}}
 				>
@@ -374,16 +405,16 @@ export const ComboboxChip: FC<ComboboxChipProps> = ({
 	);
 };
 
-type ComboboxChipsInputProps = ComponentPropsWithRef<
+type FilterComboboxChipsInputProps = ComponentPropsWithRef<
 	typeof CommandPrimitive.Input
 >;
 
-export const ComboboxChipsInput: FC<ComboboxChipsInputProps> = ({
+export const FilterComboboxChipsInput: FC<FilterComboboxChipsInputProps> = ({
 	className,
 	ref,
 	...props
 }) => {
-	const { inputValue, onInputValueChange } = useComboboxState();
+	const { inputValue, onInputValueChange } = useFilterComboboxState();
 
 	return (
 		<CommandPrimitive.Input
