@@ -64,6 +64,9 @@ const meta = {
 		},
 		host: "*.apps.example.com",
 		isRunning: true,
+		supportedSingletonTabs: ["browser", "desktop", "debug"],
+		visibleSingletonTabs: ["desktop"],
+		onToggleSingletonTab: fn(),
 		onNewTerminal: fn(),
 		onOpenWorkspaceApp: fn(),
 		onOpenCommandApp: fn(),
@@ -112,8 +115,42 @@ export const Default: Story = {
 			expect(body.getByText("Ports (3)")).toBeInTheDocument();
 		});
 
+		// Only the singleton panels are toggles. Terminals are unlimited, so
+		// "New Terminal" stays a plain action.
+		expect(
+			body.getByRole("menuitemcheckbox", { name: "Desktop" }),
+		).toHaveAttribute("aria-checked", "true");
+		expect(
+			body.getByRole("menuitemcheckbox", { name: "Browser" }),
+		).toHaveAttribute("aria-checked", "false");
+		expect(
+			body.getByRole("menuitemcheckbox", { name: "Debug" }),
+		).toHaveAttribute("aria-checked", "false");
+		// "New Terminal" stays a plain action, so it is not a checkbox toggle.
+		expect(
+			body.queryAllByRole("menuitemcheckbox", { name: "New Terminal" }),
+		).toHaveLength(0);
+
 		// Radix closes the menu after each item click, so reopen between
 		// callback assertions.
+		await userEvent.click(
+			body.getByRole("menuitemcheckbox", { name: "Browser" }),
+		);
+		await expect(args.onToggleSingletonTab).toHaveBeenCalledWith("browser");
+
+		await openMenu();
+		await userEvent.click(
+			body.getByRole("menuitemcheckbox", { name: "Desktop" }),
+		);
+		await expect(args.onToggleSingletonTab).toHaveBeenCalledWith("desktop");
+
+		await openMenu();
+		await userEvent.click(
+			body.getByRole("menuitemcheckbox", { name: "Debug" }),
+		);
+		await expect(args.onToggleSingletonTab).toHaveBeenCalledWith("debug");
+
+		await openMenu();
 		await userEvent.click(body.getByText("New Terminal"));
 		await expect(args.onNewTerminal).toHaveBeenCalledTimes(1);
 
@@ -142,6 +179,21 @@ export const Default: Story = {
 	},
 };
 
+export const UnsupportedSingletonPanels: Story = {
+	args: {
+		supportedSingletonTabs: [],
+		visibleSingletonTabs: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Add panel"));
+
+		const body = within(document.body);
+		await body.findByText("New Terminal");
+		expect(body.queryByRole("menuitemcheckbox")).toBeNull();
+	},
+};
+
 export const ExcludesAgentBrowserApp: Story = {
 	args: {
 		agent: {
@@ -156,6 +208,10 @@ export const ExcludesAgentBrowserApp: Story = {
 		const body = within(document.body);
 		await waitFor(() => {
 			expect(body.getByText("Preview")).toBeInTheDocument();
+			// The reserved app drives the Browser toggle instead of a normal app item.
+			expect(
+				body.getByRole("menuitemcheckbox", { name: "Browser" }),
+			).toBeVisible();
 		});
 		expect(body.queryByText("agent-browser")).toBeNull();
 	},
