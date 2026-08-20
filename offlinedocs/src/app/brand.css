@@ -260,50 +260,6 @@ samp {
 }
 
 /*
- * Flatten the "On this page" TOC rail into a single straight vertical bar.
- * Fumadocs (components/toc/default) draws the rail as an SVG <line>/<path>
- * whose x-offset steps with heading depth (getLineOffset: 8/16/24px) and
- * curves between depth changes, so the bar bends inward for nested entries.
- * Hide that generated geometry and the animated thumb track, then paint one
- * straight rail with a per-entry ::before at the base offset. Entries still
- * indent by depth through their own padding; only the bar is straightened.
- * The kept step-number badges (the SVG <g>) sit on the rail at the same
- * offset.
- */
-#nd-toc a[href^="#"] > svg > line,
-#nd-toc a[href^="#"] > svg > path {
-	display: none;
-}
-
-#nd-toc div:has(> a[href^="#"]) > div {
-	display: none;
-}
-
-#nd-toc a[href^="#"]::before {
-	content: "";
-	position: absolute;
-	inset-block: 0;
-	inset-inline-start: 8px;
-	width: 1px;
-	background-color: var(--color-fd-border);
-	/* Sit behind the step-number badge svg (z-index -1) so badges stay on top. */
-	z-index: -2;
-}
-
-/*
- * Active entry: a brighter, thicker rail segment and foreground (white on
- * dark) text, matching the left nav's active styling and the Coder product.
- */
-#nd-toc a[href^="#"][data-active="true"]::before {
-	width: 2px;
-	background-color: var(--color-fd-foreground);
-}
-
-#nd-toc a[href^="#"][data-active="true"] {
-	color: var(--color-fd-foreground);
-}
-
-/*
  * Theme switch: drop the bordered container box Fumadocs wraps the sun/moon
  * icons in, so the toggle reads as plain icons flush with the sidebar. The
  * active icon keeps its subtle highlight so the current theme is clear.
