@@ -397,12 +397,15 @@ func TestServer(t *testing.T) {
 			createUserPostRestart                 bool
 		}
 
-		waitAuthMethods := func(t *testing.T, ctx context.Context, accessURL *url.URL) codersdk.AuthMethods {
+		waitAuthMethods := func(t *testing.T, ctx context.Context, client *codersdk.Client) codersdk.AuthMethods {
 			t.Helper()
 
-			authMethodsURL := accessURL.JoinPath("api/v2/users/authmethods")
 			var authMethods codersdk.AuthMethods
-			testutil.RequireEventuallyResponseOK(ctx, t, authMethodsURL.String(), &authMethods)
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				var err error
+				authMethods, err = client.AuthMethods(ctx)
+				return err == nil
+			}, testutil.IntervalFast, "failed to get auth methods")
 			return authMethods
 		}
 
@@ -459,7 +462,8 @@ func TestServer(t *testing.T) {
 				require.NotNil(t, accessURL)
 			}
 
-			authMethods := waitAuthMethods(t, ctx, accessURL)
+			client := codersdk.New(accessURL)
+			authMethods := waitAuthMethods(t, ctx, client)
 			require.Equal(t, tc.expectGithubEnabled, authMethods.Github.Enabled)
 			require.Equal(t, tc.expectGithubDefaultProviderConfigured, authMethods.Github.DefaultProviderConfigured)
 
@@ -479,9 +483,10 @@ func TestServer(t *testing.T) {
 			inv, cfg = clitest.New(t, args...)
 			clitest.Start(t, inv)
 			accessURL = waitAccessURL(t, cfg)
+			client = codersdk.New(accessURL)
 
 			ctx = testutil.Context(t, testutil.WaitLong)
-			authMethods = waitAuthMethods(t, ctx, accessURL)
+			authMethods = waitAuthMethods(t, ctx, client)
 			require.Equal(t, tc.expectGithubEnabled, authMethods.Github.Enabled)
 			require.Equal(t, tc.expectGithubDefaultProviderConfigured, authMethods.Github.DefaultProviderConfigured)
 		}
