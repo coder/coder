@@ -99,3 +99,12 @@ type DRPCAgentClient210 interface {
 	DRPCAgentClient29
 	PushContextState(ctx context.Context, in *PushContextStateRequest) (*PushContextStateResponse, error)
 }
+
+// DRPCAgentClient211 is the Agent API at v2.11. It adds the
+// ReportFileOperations RPC for streaming per-file operations observed
+// during file-transfer sessions (SFTP, SCP, rsync), and the
+// FILE_TRANSFER connection type on ReportConnection.
+type DRPCAgentClient211 interface {
+	DRPCAgentClient210
+	ReportFileOperations(ctx context.Context, in *ReportFileOperationsRequest) (*ReportFileOperationsResponse, error)
+}

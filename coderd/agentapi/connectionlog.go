@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
@@ -115,4 +116,13 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// ReportFileOperations records file operations observed during a
+// file-transfer session (SFTP, SCP, rsync) as connection log entries.
+// The schema and protocol land ahead of the implementation; agents
+// treat reports as best effort and tolerate this error, matching the
+// PushContextState rollout in API v2.10.
+func (*ConnLogAPI) ReportFileOperations(context.Context, *agentproto.ReportFileOperationsRequest) (*agentproto.ReportFileOperationsResponse, error) {
+	return nil, drpcerr.WithCode(xerrors.New("ReportFileOperations is not yet implemented"), drpcerr.Unimplemented)
 }
