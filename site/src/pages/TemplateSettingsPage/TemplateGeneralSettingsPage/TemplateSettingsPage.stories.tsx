@@ -128,30 +128,6 @@ export const DeprecatesTemplateWithAccessControl: Story = {
 	},
 };
 
-export const DisablesDynamicParameters: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const user = userEvent.setup();
-		const updateTemplateMetaSpy = spyOn(
-			API,
-			"updateTemplateMeta",
-		).mockResolvedValue(MockTemplate);
-
-		const dynamicParameters = await canvas.findByRole("checkbox", {
-			name: /enable dynamic parameters for workspace creation/i,
-		});
-		await expect(dynamicParameters).toBeChecked();
-
-		await user.click(dynamicParameters);
-		await user.click(await canvas.findByRole("button", { name: /save/i }));
-
-		await waitFor(() => expect(updateTemplateMetaSpy).toHaveBeenCalledTimes(1));
-		expect(updateTemplateMetaSpy.mock.calls[0][1]).toEqual(
-			expect.objectContaining({ use_classic_parameter_flow: true }),
-		);
-	},
-};
-
 export const DoesNotDeprecateWithoutAccessControl: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

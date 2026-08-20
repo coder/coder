@@ -12,24 +12,27 @@ import {
 } from "#/testHelpers/entities";
 import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
 import { TemplateSettingsLayout } from "../TemplateSettingsLayout";
-import TemplateDataPage from "./TemplateDataPage";
+import TemplateParametersPage from "./TemplateParametersPage";
 
 const meta = {
-	title: "pages/TemplateSettingsPage/TemplateDataPage",
+	title: "pages/TemplateSettingsPage/TemplateParametersPage",
 	component: TemplateSettingsLayout,
 	decorators: [withToaster, withDashboardProvider],
 	parameters: {
 		layout: "fullscreen",
+		pixel: { exclude: true },
 		reactRouter: reactRouterParameters({
 			location: {
-				path: "/templates/:template/settings/data",
+				path: "/templates/:template/settings/parameters",
 				pathParams: { template: MockTemplate.name },
 			},
 			routing: [
 				{
 					path: "/templates/:template/settings",
 					useStoryElement: true,
-					children: [{ path: "data", element: <TemplateDataPage /> }],
+					children: [
+						{ path: "parameters", element: <TemplateParametersPage /> },
+					],
 				},
 			],
 		}),
@@ -72,6 +75,30 @@ const confirmRefresh = async (canvasElement: HTMLElement) => {
 	);
 	const dialog = within(await within(document.body).findByRole("dialog"));
 	await user.click(dialog.getByRole("button", { name: "Refresh" }));
+};
+
+export const DisablesDynamicParameters: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		const updateTemplateMetaSpy = spyOn(
+			API,
+			"updateTemplateMeta",
+		).mockResolvedValue(MockTemplate);
+
+		const checkbox = await canvas.findByRole("checkbox", {
+			name: /enable dynamic parameters for workspace creation/i,
+		});
+		await expect(checkbox).toBeChecked();
+		await user.click(checkbox);
+
+		await waitFor(() =>
+			expect(updateTemplateMetaSpy).toHaveBeenCalledWith(MockTemplate.id, {
+				use_classic_parameter_flow: true,
+			}),
+		);
+		await within(document.body).findByText("Dynamic parameters disabled.");
+	},
 };
 
 export const RefreshCreatesAndPublishesAVersion: Story = {

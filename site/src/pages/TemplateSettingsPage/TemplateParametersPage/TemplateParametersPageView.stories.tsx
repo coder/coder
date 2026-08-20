@@ -1,61 +1,88 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { MockTemplateVersion, mockApiError } from "#/testHelpers/entities";
-import { TemplateDataPageView } from "./TemplateDataPageView";
+import { TemplateParametersPageView } from "./TemplateParametersPageView";
 
-const meta: Meta<typeof TemplateDataPageView> = {
-	title: "pages/TemplateSettingsPage/TemplateDataPageView",
-	component: TemplateDataPageView,
+const meta: Meta<typeof TemplateParametersPageView> = {
+	title: "pages/TemplateSettingsPage/TemplateParametersPageView",
+	component: TemplateParametersPageView,
 	args: {
 		activeVersion: MockTemplateVersion,
-		canRefresh: true,
+		useClassicParameterFlow: false,
+		canUpdate: true,
+		isSaving: false,
 		isRefreshing: false,
+		onChangeClassicParameterFlow: fn(),
 		onRefresh: fn(),
 	},
 };
 
 export default meta;
-type Story = StoryObj<typeof TemplateDataPageView>;
+type Story = StoryObj<typeof TemplateParametersPageView>;
 
-export const Example: Story = {};
+export const DynamicParameters: Story = {};
+
+export const ClassicParameters: Story = {
+	args: {
+		useClassicParameterFlow: true,
+	},
+};
+
+export const Saving: Story = {
+	args: {
+		isSaving: true,
+	},
+};
 
 export const Refreshing: Story = {
 	args: {
 		isRefreshing: true,
+	},
+};
+
+export const NoPermission: Story = {
+	args: {
+		canUpdate: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
 			canvas.getByRole("button", { name: /refresh template data/i }),
 		).toBeDisabled();
-	},
-};
-
-export const NoPermission: Story = {
-	args: {
-		canRefresh: false,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		await expect(
-			canvas.queryByRole("button", { name: /refresh template data/i }),
-		).not.toBeInTheDocument();
+			canvas.getByRole("checkbox", {
+				name: /enable dynamic parameters for workspace creation/i,
+			}),
+		).toBeDisabled();
 	},
 };
 
-export const RefreshFailed: Story = {
+export const Failed: Story = {
 	args: {
 		error: mockApiError({
 			message: "Failed to import template version.",
 		}),
 	},
-	play: async ({ canvasElement }) => {
+};
+
+export const TogglesDynamicParameters: Story = {
+	parameters: { pixel: { exclude: true } },
+	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByText("Failed to import template version.");
+		const user = userEvent.setup();
+
+		const checkbox = canvas.getByRole("checkbox", {
+			name: /enable dynamic parameters for workspace creation/i,
+		});
+		await expect(checkbox).toBeChecked();
+
+		await user.click(checkbox);
+		await expect(args.onChangeClassicParameterFlow).toHaveBeenCalledWith(true);
 	},
 };
 
 export const ConfirmsBeforeRefreshing: Story = {
+	parameters: { pixel: { exclude: true } },
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
@@ -73,6 +100,7 @@ export const ConfirmsBeforeRefreshing: Story = {
 };
 
 export const CancelsRefresh: Story = {
+	parameters: { pixel: { exclude: true } },
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();

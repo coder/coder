@@ -7,8 +7,10 @@ import {
 } from "react-query";
 import { useParams } from "react-router";
 import { toast } from "sonner";
+import { API } from "#/api/api";
 import {
 	createAndBuildTemplateVersion,
+	templateByNameKey,
 	templateVersion,
 	templateVersionsQueryKey,
 	updateActiveTemplateVersion,
@@ -17,9 +19,9 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
-import { TemplateDataPageView } from "./TemplateDataPageView";
+import { TemplateParametersPageView } from "./TemplateParametersPageView";
 
-const TemplateDataPage: FC = () => {
+const TemplateParametersPage: FC = () => {
 	const { organization = "default" } = useParams<{ organization?: string }>();
 	const { template, permissions } = useTemplateSettings();
 	const queryClient = useQueryClient();
@@ -31,6 +33,16 @@ const TemplateDataPage: FC = () => {
 	} = useQuery({
 		...templateVersion(template.active_version_id),
 		placeholderData: keepPreviousData,
+	});
+	const saveMutation = useMutation({
+		mutationFn: (useClassicParameterFlow: boolean) =>
+			API.updateTemplateMeta(template.id, {
+				use_classic_parameter_flow: useClassicParameterFlow,
+			}),
+		onSuccess: () =>
+			queryClient.invalidateQueries({
+				queryKey: templateByNameKey(organization, template.name),
+			}),
 	});
 	const createAndBuildMutation = useMutation(
 		createAndBuildTemplateVersion(organization),
@@ -49,15 +61,37 @@ const TemplateDataPage: FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle(template.name, "Data")}</title>
+			<title>{pageTitle(template.name, "Parameters")}</title>
 
-			<TemplateDataPageView
+			<TemplateParametersPageView
 				activeVersion={activeVersion}
-				canRefresh={permissions.canUpdateTemplate}
+				useClassicParameterFlow={template.use_classic_parameter_flow}
+				canUpdate={permissions.canUpdateTemplate}
+				isSaving={saveMutation.isPending}
 				isRefreshing={
 					createAndBuildMutation.isPending || promoteMutation.isPending
 				}
-				error={createAndBuildMutation.error ?? promoteMutation.error}
+				error={
+					saveMutation.error ??
+					createAndBuildMutation.error ??
+					promoteMutation.error
+				}
+				onChangeClassicParameterFlow={async (useClassicParameterFlow) => {
+					saveMutation.reset();
+
+					try {
+						await saveMutation.mutateAsync(useClassicParameterFlow);
+						toast.success(
+							useClassicParameterFlow
+								? "Dynamic parameters disabled."
+								: "Dynamic parameters enabled.",
+						);
+					} catch {
+						// The mutation records the error, and the view renders it above
+						// the checkbox. Letting the rejection escape would only surface
+						// it a second time, as an unhandled rejection.
+					}
+				}}
 				onRefresh={async () => {
 					createAndBuildMutation.reset();
 					promoteMutation.reset();
@@ -90,4 +124,4 @@ const TemplateDataPage: FC = () => {
 	);
 };
 
-export default TemplateDataPage;
+export default TemplateParametersPage;

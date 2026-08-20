@@ -16,7 +16,9 @@ export const Sidebar: React.FC = () => {
 				<SettingsSidebarNavItem href="variables">
 					Variables
 				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="data">Data</SettingsSidebarNavItem>
+				<SettingsSidebarNavItem href="parameters">
+					Parameters
+				</SettingsSidebarNavItem>
 				<SettingsSidebarNavItem href="schedule">
 					Schedule
 				</SettingsSidebarNavItem>
