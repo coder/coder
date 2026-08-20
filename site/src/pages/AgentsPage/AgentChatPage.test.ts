@@ -18,6 +18,7 @@ import {
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 } from "#/testHelpers/entities";
+import { setupMatchMedia } from "#/testHelpers/matchMedia";
 import {
 	buildInactiveChatQueueReconciliation,
 	draftInputStorageKeyPrefix,
@@ -1410,65 +1411,27 @@ describe("isChatAgentBindingUnresolved", () => {
 describe("useRightPanelNarrowSuppression", () => {
 	const belowLgQuery = "(max-width: 1023px)";
 
-	const setupMatchMedia = (initialBelowLg: boolean) => {
-		let belowLg = initialBelowLg;
-		const listeners = new Set<EventListenerOrEventListenerObject>();
-		Object.defineProperty(window, "matchMedia", {
-			writable: true,
-			value: vi.fn((query: string): MediaQueryList => {
-				return {
-					get matches() {
-						return query === belowLgQuery ? belowLg : false;
-					},
-					media: query,
-					onchange: null,
-					addEventListener: (
-						_type: string,
-						listener: EventListenerOrEventListenerObject,
-					) => {
-						listeners.add(listener);
-					},
-					removeEventListener: (
-						_type: string,
-						listener: EventListenerOrEventListenerObject,
-					) => {
-						listeners.delete(listener);
-					},
-					dispatchEvent: vi.fn(() => true),
-					addListener: vi.fn(),
-					removeListener: vi.fn(),
-				} satisfies MediaQueryList;
-			}),
-		});
+	const setupBelowLg = (initialBelowLg: boolean) => {
+		const media = setupMatchMedia({ [belowLgQuery]: initialBelowLg });
 		return {
-			setBelowLg: (value: boolean) => {
-				belowLg = value;
-				const event = new Event("change");
-				for (const listener of listeners) {
-					if (typeof listener === "function") {
-						listener(event);
-					} else {
-						listener.handleEvent(event);
-					}
-				}
-			},
+			setBelowLg: (value: boolean) => media.setMatches(belowLgQuery, value),
 		};
 	};
 
 	it("suppresses the panel when mounted below the lg breakpoint", () => {
-		setupMatchMedia(true);
+		setupBelowLg(true);
 		const { result } = renderHook(() => useRightPanelNarrowSuppression());
 		expect(result.current.suppressed).toBe(true);
 	});
 
 	it("does not suppress the panel when mounted at or above lg", () => {
-		setupMatchMedia(false);
+		setupBelowLg(false);
 		const { result } = renderHook(() => useRightPanelNarrowSuppression());
 		expect(result.current.suppressed).toBe(false);
 	});
 
 	it("suppresses on narrowing and clears on widening", () => {
-		const media = setupMatchMedia(false);
+		const media = setupBelowLg(false);
 		const { result } = renderHook(() => useRightPanelNarrowSuppression());
 
 		act(() => media.setBelowLg(true));
@@ -1479,7 +1442,7 @@ describe("useRightPanelNarrowSuppression", () => {
 	});
 
 	it("stays cleared after an explicit clearSuppression until the next narrowing", () => {
-		const media = setupMatchMedia(false);
+		const media = setupBelowLg(false);
 		const { result } = renderHook(() => useRightPanelNarrowSuppression());
 
 		act(() => media.setBelowLg(true));

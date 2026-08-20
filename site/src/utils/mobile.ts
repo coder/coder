@@ -8,6 +8,19 @@ export const isMobileViewport = (): boolean => {
 	return window.matchMedia("(max-width: 639px)").matches;
 };
 
+/**
+ * Builds a `useSyncExternalStore` subscribe function that notifies on
+ * changes to the given media query, so every viewport hook shares one
+ * listener lifecycle implementation.
+ */
+export const createMediaQuerySubscribe =
+	(query: string) =>
+	(onStoreChange: () => void): (() => void) => {
+		const mediaQuery = window.matchMedia(query);
+		mediaQuery.addEventListener("change", onStoreChange);
+		return () => mediaQuery.removeEventListener("change", onStoreChange);
+	};
+
 export const belowMdViewportMediaQuery = "(max-width: 767px)";
 
 /**

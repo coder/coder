@@ -881,23 +881,20 @@ const AgentChatPage: FC = () => {
 	// Right panel open/closed state is owned here so the loading
 	// skeleton and the loaded view share the same layout, preventing
 	// a horizontal shift when data arrives.
-	const [showSidebarPanel, setShowSidebarPanel] = useState(() => {
+	const [sidebarPanelPreference, setSidebarPanelPreference] = useState(() => {
 		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
 	});
 	const { suppressed: panelSuppressedOnNarrow, clearSuppression } =
 		useRightPanelNarrowSuppression();
-	const effectiveShowSidebarPanel =
-		showSidebarPanel && !panelSuppressedOnNarrow;
+	// Canonical panel visibility: the persisted preference gated by the
+	// narrow-viewport suppression. Only this derived value may be
+	// rendered or handed to children; the raw preference stays local.
+	const showSidebarPanel = sidebarPanelPreference && !panelSuppressedOnNarrow;
 
-	const handleSetShowSidebarPanel = (
-		next: boolean | ((prev: boolean) => boolean),
-	) => {
+	const handleSetShowSidebarPanel = (next: boolean) => {
 		clearSuppression();
-		setShowSidebarPanel((prev) => {
-			const value = typeof next === "function" ? next(prev) : next;
-			localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(value));
-			return value;
-		});
+		setSidebarPanelPreference(next);
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(next));
 	};
 
 	const chatQuery = useQuery({
@@ -1936,7 +1933,7 @@ const AgentChatPage: FC = () => {
 				onPlanModeToggle={handlePlanModeToggle}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-				showRightPanel={effectiveShowSidebarPanel}
+				showRightPanel={showSidebarPanel}
 			/>
 		);
 	}
@@ -2038,7 +2035,7 @@ const AgentChatPage: FC = () => {
 			isWorkspaceLoading={isWorkspaceLoading}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			showSidebarPanel={effectiveShowSidebarPanel}
+			showSidebarPanel={showSidebarPanel}
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
 			diffStatusData={chatQuery.data?.diff_status}

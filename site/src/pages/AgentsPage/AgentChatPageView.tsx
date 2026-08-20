@@ -167,7 +167,7 @@ interface AgentChatPageViewProps {
 	// Right panel state (owned by the parent so loading and
 	// loaded views share the same layout).
 	showSidebarPanel: boolean;
-	onSetShowSidebarPanel: (next: boolean | ((prev: boolean) => boolean)) => void;
+	onSetShowSidebarPanel: (next: boolean) => void;
 
 	// Sidebar content data.
 	prNumber: number | undefined;
