@@ -35,6 +35,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useIsBelowMdViewport } from "#/hooks/useIsBelowMdViewport";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { cn } from "#/utils/cn";
 import { TaskDeleteDialog } from "../TaskDeleteDialog/TaskDeleteDialog";
@@ -51,7 +52,11 @@ export const TasksSidebar: FC = () => {
 		defaultValue: user.username,
 	});
 
-	const [isCollapsed, setIsCollapsed] = useState(false);
+	// Collapse by default on small viewports so the task list doesn't push the
+	// chat and app panels off screen. Users can still expand it manually.
+	const isBelowMdViewport = useIsBelowMdViewport();
+	const [manualIsCollapsed, setManualIsCollapsed] = useState<boolean>();
+	const isCollapsed = manualIsCollapsed ?? isBelowMdViewport;
 
 	if (!aiTasksEnabled) {
 		return null;
@@ -80,7 +85,7 @@ export const TasksSidebar: FC = () => {
 								<Button
 									size="icon"
 									variant="subtle"
-									onClick={() => setIsCollapsed((v) => !v)}
+									onClick={() => setManualIsCollapsed(!isCollapsed)}
 									className="[&_svg]:p-0"
 								>
 									<PanelLeftIcon />
