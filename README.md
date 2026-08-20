@@ -125,7 +125,7 @@ New integrations are always in progress. Open an issue to request one. Contribut
 
 ### Community
 
-- [**Coder Discord**](https://cdr.co/discord-5hw2sjadGU): Chat with the community and provide feedback on in-progress features
+- [**Coder Discord**](https://cdr.co/discord-5hw2sjadGU): Chat with the community, get support, and hear about new product updates first
 - [**Community Templates**](https://registry.coder.com/templates): Community-contributed workspace templates in the Coder Registry
 - [**Community Modules**](https://registry.coder.com/modules): Community-contributed modules to extend Coder templates
 - [**Coder Template GitHub Action**](https://github.com/marketplace/actions/update-coder-template): A GitHub Action that updates Coder templates
