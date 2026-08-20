@@ -52,7 +52,7 @@
 
 > See our [install guides](https://coder.com/docs/install) for other methods and a complete tutorial.
 
-Install Coder with the [install script](https://github.com/coder/coder/blob/main/install.sh) on Linux and macOS, or grab the latest binary or installer from [GitHub Releases](https://github.com/coder/coder/releases/latest) on Windows:
+Install Coder with the [install script](https://github.com/coder/coder/blob/main/install.sh) on Linux and macOS, or grab the latest binary or installer from [GitHub Releases](https://github.com/coder/coder/releases/) on Windows:
 
 ```shell
 curl -L https://coder.com/install.sh | sh
