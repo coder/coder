@@ -196,8 +196,10 @@ export const Disabled: Story = {
 
 // Form-style call sites (settings pages) stretch the trigger wider than
 // its content (w-full below the md breakpoint, fixed widths like
-// md:w-[18rem] above it) and pass justify-between; the provider icon and
-// label must stay adjacent instead of the label floating to the center.
+// md:w-[18rem] above it) and pass justify-between with an h-10 height.
+// The visual snapshot of this story guards that the provider icon and
+// label stay adjacent (instead of the label floating to the center) and
+// that the call site's h-10 wins over the component's base sizing.
 export const FormFieldTriggerKeepsIconAndLabelAdjacent: Story = {
 	args: {
 		options: allModels,
@@ -212,19 +214,6 @@ export const FormFieldTriggerKeepsIconAndLabelAdjacent: Story = {
 			</div>
 		),
 	],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const icon = canvas.getByTestId("model-selector-trigger-icon");
-		const label = canvas.getByText("Claude Sonnet 4");
-		const gap =
-			label.getBoundingClientRect().left - icon.getBoundingClientRect().right;
-		expect(gap).toBeGreaterThanOrEqual(0);
-		expect(gap).toBeLessThan(12);
-		// The call site's h-10 must control the trigger height at every
-		// breakpoint so the field matches adjacent h-10 form buttons.
-		const trigger = canvas.getByRole("combobox", { name: "Claude Sonnet 4" });
-		expect(trigger.getBoundingClientRect().height).toBe(40);
-	},
 };
 
 // ---------------------------------------------------------------------------
