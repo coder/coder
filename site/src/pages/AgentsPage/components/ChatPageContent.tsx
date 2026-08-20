@@ -11,7 +11,6 @@ import { chatFullWidthStorage } from "#/utils/storage/keys";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
-import { chatWidthClass } from "../utils/chatWidth";
 import { getProviderForModelOption } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
@@ -223,7 +222,12 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 			</ChatMessageScroller>
 			{/* The empty state sits outside the scroller content, which holds
 			    transcript rows only. */}
-			<div className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}>
+			<div
+				className={cn(
+					"mx-auto w-full px-4",
+					chatFullWidth ? "max-w-full" : "max-w-3xl",
+				)}
+			>
 				<LiveStreamTailContent
 					isTranscriptEmpty={parsedMessages.length === 0}
 					liveStatus={liveStatus}

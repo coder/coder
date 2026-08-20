@@ -42,14 +42,6 @@ function getSideBySideMaxWidth(panel: HTMLElement | null): number {
 	);
 }
 
-function loadPersistedWidth(): number {
-	const stored = rightPanelWidthStorage.get();
-	if (stored === null || stored < MIN_WIDTH || stored > getMaxWidth()) {
-		return DEFAULT_WIDTH;
-	}
-	return stored;
-}
-
 interface RightPanelProps {
 	isOpen: boolean;
 	isExpanded: boolean;
@@ -205,13 +197,19 @@ export const RightPanel = ({
 	onToggleSidebarCollapsed,
 	children,
 }: RightPanelProps) => {
-	const [width, setWidth] = useState(loadPersistedWidth);
+	const [width, setWidth] = useState(() => {
+		const stored = rightPanelWidthStorage.get();
+		if (stored === null || stored < MIN_WIDTH || stored > getMaxWidth()) {
+			return DEFAULT_WIDTH;
+		}
+		return stored;
+	});
 	const panelRef = useRef<HTMLDivElement>(null);
 
 	// Clamp width when the viewport or parent panel shrinks so the
 	// rendered side-by-side panel never overflows. The clamp is not
-	// persisted; loadPersistedWidth re-validates bounds on the next
-	// load.
+	// persisted; the stored width is re-validated against bounds on
+	// the next load.
 	useEffect(() => {
 		const handleResize = () => {
 			setWidth((prev) =>
