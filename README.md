@@ -102,9 +102,11 @@ Browse the [documentation](https://coder.com/docs) or visit a specific section b
 
 ## Support
 
-Feel free to [open an issue](https://github.com/coder/coder/issues/new) if you have questions, run into bugs, or have a feature request.
+[Open an issue](https://github.com/coder/coder/issues/new) for bugs and feature requests.
 
-[Join our Discord](https://discord.gg/coder) to provide feedback on in-progress features and chat with the community using Coder!
+For community support, showcasing what you built, and feedback on in-progress features, join our [Discord](https://discord.gg/coder) or [GitHub Discussions](https://github.com/coder/coder/discussions).
+
+Need dedicated support? Our Premium license includes it. See [coder.com/pricing](https://coder.com/pricing) for plans.
 
 ## Integrations
 
