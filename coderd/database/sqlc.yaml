@@ -297,6 +297,8 @@ sql:
           oauth2_token_url: OAuth2TokenURL
           oauth2_revocation_url: OAuth2RevocationURL
           oauth2_scopes: OAuth2Scopes
+          oauth2_issuer: OAuth2Issuer
+          oauth2_iss_required: OAuth2IssRequired
           api_key_header: APIKeyHeader
           api_key_value: APIKeyValue
           api_key_value_key_id: APIKeyValueKeyID

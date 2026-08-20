@@ -192,6 +192,14 @@ func (m queryMetricsStore) BackfillChatMessagesSearchTsv(ctx context.Context, ba
 	return r0, r1
 }
 
+func (m queryMetricsStore) BackfillMCPServerConfigIssuer(ctx context.Context, arg database.BackfillMCPServerConfigIssuerParams) (database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.BackfillMCPServerConfigIssuer(ctx, arg)
+	m.queryLatencies.WithLabelValues("BackfillMCPServerConfigIssuer").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BackfillMCPServerConfigIssuer").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
 	start := time.Now()
 	r0 := m.s.BackoffChatDiffStatus(ctx, arg)

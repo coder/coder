@@ -441,7 +441,7 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 			case "/.well-known/oauth-authorization-server":
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write([]byte(`{
-					"issuer": "` + r.Host + `",
+					"issuer": "` + "http://" + r.Host + `",
 					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
 					"token_endpoint": "` + "http://" + r.Host + `/token",
 					"registration_endpoint": "` + "http://" + r.Host + `/register",
@@ -2210,6 +2210,15 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 			})
 		}
 
+		// Capture the dynamic client registration request body so
+		// the test can assert on the metadata Coder sends. Guarded
+		// by a mutex because the handler runs on the server
+		// goroutine.
+		var (
+			registrationMu   sync.Mutex
+			registrationBody map[string]any
+		)
+
 		// Stand up a mock auth server that serves RFC 8414 metadata and
 		// a RFC 7591 dynamic client registration endpoint.
 		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2217,13 +2226,14 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 			case "/.well-known/oauth-authorization-server":
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write([]byte(`{
-					"issuer": "` + r.Host + `",
+					"issuer": "` + "http://" + r.Host + `",
 					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
 					"token_endpoint": "` + "http://" + r.Host + `/token",
 					"registration_endpoint": "` + "http://" + r.Host + `/register",
 					"revocation_endpoint": "` + "http://" + r.Host + `/revoke",
 					"response_types_supported": ["code"],
-					"scopes_supported": ["read", "write"]
+					"scopes_supported": ["read", "write"],
+					"authorization_response_iss_parameter_supported": true
 				}`))
 			case "/register":
 				if r.Method != http.MethodPost {
@@ -2234,6 +2244,9 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 					close(registrationStarted)
 					<-completeRegistration
 				})
+				registrationMu.Lock()
+				_ = json.NewDecoder(r.Body).Decode(&registrationBody)
+				registrationMu.Unlock()
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusCreated)
 				_, _ = w.Write([]byte(`{
@@ -2311,6 +2324,40 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		require.Equal(t, authServer.URL+"/token", created.OAuth2TokenURL)
 		require.Equal(t, authServer.URL+"/revoke", created.OAuth2RevocationURL)
 		require.Equal(t, "read write", created.OAuth2Scopes)
+		// The issuer from the RFC 8414 metadata is recorded so the
+		// OAuth2 callback can validate the iss response parameter
+		// (MCP 2026-07-28, SEP-2468/SEP-2352). The advertised RFC
+		// 9207 support is recorded so responses without iss are
+		// rejected.
+		require.Equal(t, authServer.URL, created.OAuth2Issuer)
+		require.True(t, created.OAuth2IssRequired)
+
+		// MCP 2026-07-28 (SEP-837): dynamic client registration
+		// declares Coder as a web application.
+		registrationMu.Lock()
+		require.Equal(t, "web", registrationBody["application_type"])
+		registrationMu.Unlock()
+
+		// Updates that do not touch the OAuth2 client or endpoints
+		// keep the recorded issuer.
+		newName := "Auto-Discovery Renamed"
+		renamed, err := client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
+			DisplayName: &newName,
+		})
+		require.NoError(t, err)
+		require.Equal(t, authServer.URL, renamed.OAuth2Issuer)
+
+		// Repointing the token endpoint breaks the issuer binding
+		// (SEP-2352), so the recorded issuer is cleared and iss
+		// validation is skipped until the config is recreated via
+		// discovery.
+		newTokenURL := authServer.URL + "/other-token"
+		repointed, err := client.UpdateMCPServerConfig(ctx, created.OrganizationID, created.ID, codersdk.UpdateMCPServerConfigRequest{
+			OAuth2TokenURL: &newTokenURL,
+		})
+		require.NoError(t, err)
+		require.Empty(t, repointed.OAuth2Issuer)
+		require.False(t, repointed.OAuth2IssRequired)
 
 		// An explicit revocation URL wins over the discovered one.
 		overridden, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
@@ -2517,7 +2564,7 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 			case "/.well-known/oauth-authorization-server":
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write([]byte(`{
-					"issuer": "` + r.Host + `",
+					"issuer": "` + "http://" + r.Host + `",
 					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
 					"token_endpoint": "` + "http://" + r.Host + `/token",
 					"registration_endpoint": "` + "http://" + r.Host + `/register",
@@ -3239,6 +3286,336 @@ func TestMCPServerOAuth2PKCE(t *testing.T) {
 	})
 }
 
+// TestMCPServerOAuth2IssuerValidation covers RFC 9207 iss validation
+// in the OAuth2 callback (MCP 2026-07-28, SEP-2468).
+func TestMCPServerOAuth2IssuerValidation(t *testing.T) {
+	t.Parallel()
+
+	// setup creates an oauth2 MCP server config with the given
+	// recorded issuer and RFC 9207 requirement flag and returns a
+	// function that performs the OAuth2 callback as a member and
+	// reports the response status. The mock token endpoint accepts
+	// any exchange.
+	setup := func(t *testing.T, issuer string, issRequired bool) func(q url.Values) int {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/token" && r.Method == http.MethodPost {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"access_token": "test-access-token",
+					"token_type": "Bearer",
+					"expires_in": 3600
+				}`))
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		t.Cleanup(tokenServer.Close)
+
+		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:    mcpDeploymentValues(t),
+			ChatProviderAPIKeys: &providerKeys,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "Issuer Test",
+			Slug:           "issuer-test",
+			Transport:      "streamable_http",
+			URL:            "https://mcp.example.com/issuer",
+			AuthType:       "oauth2",
+			OAuth2ClientID: "test-client",
+			OAuth2AuthURL:  "https://auth.example.com/authorize",
+			OAuth2TokenURL: tokenServer.URL + "/token",
+			Availability:   "default_on",
+			Enabled:        true,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.NoError(t, err)
+
+		// Manual configs never record an issuer, so it is seeded
+		// directly in the database the way discovery would have.
+		if issuer != "" || issRequired {
+			//nolint:gocritic // Seeding test state requires system access.
+			dbCtx := dbauthz.AsSystemRestricted(ctx)
+			existing, err := db.GetMCPServerConfigByID(dbCtx, created.ID)
+			require.NoError(t, err)
+			_, err = db.UpdateMCPServerConfig(dbCtx, database.UpdateMCPServerConfigParams{
+				ID:                      existing.ID,
+				DisplayName:             existing.DisplayName,
+				Slug:                    existing.Slug,
+				Description:             existing.Description,
+				IconURL:                 existing.IconURL,
+				Transport:               existing.Transport,
+				Url:                     existing.Url,
+				AuthType:                existing.AuthType,
+				OAuth2ClientID:          existing.OAuth2ClientID,
+				OAuth2ClientSecret:      existing.OAuth2ClientSecret,
+				OAuth2ClientSecretKeyID: existing.OAuth2ClientSecretKeyID,
+				OAuth2AuthURL:           existing.OAuth2AuthURL,
+				OAuth2TokenURL:          existing.OAuth2TokenURL,
+				OAuth2RevocationURL:     existing.OAuth2RevocationURL,
+				OAuth2Scopes:            existing.OAuth2Scopes,
+				OAuth2Issuer:            issuer,
+				OAuth2IssRequired:       issRequired,
+				APIKeyHeader:            existing.APIKeyHeader,
+				APIKeyValue:             existing.APIKeyValue,
+				APIKeyValueKeyID:        existing.APIKeyValueKeyID,
+				CustomHeaders:           existing.CustomHeaders,
+				CustomHeadersKeyID:      existing.CustomHeadersKeyID,
+				ToolAllowList:           existing.ToolAllowList,
+				ToolDenyList:            existing.ToolDenyList,
+				Availability:            existing.Availability,
+				Enabled:                 existing.Enabled,
+				ModelIntent:             existing.ModelIntent,
+				AllowInPlanMode:         existing.AllowInPlanMode,
+				ForwardCoderHeaders:     existing.ForwardCoderHeaders,
+				UpdatedBy:               existing.UpdatedBy.UUID,
+			})
+			require.NoError(t, err)
+		}
+
+		memberClient.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+
+		// doCallback performs the OAuth2 callback request and
+		// returns only the status code; the response body is
+		// closed here so callers cannot leak it.
+		doCallback := func(q url.Values) int {
+			state := "issuer-test-state"
+			callbackURL, err := memberClient.URL.Parse(
+				"/api/experimental/mcp/servers/" + created.ID.String() + "/oauth2/callback",
+			)
+			require.NoError(t, err)
+			q.Set("code", "test-auth-code")
+			q.Set("state", state)
+			callbackURL.RawQuery = q.Encode()
+
+			req, err := http.NewRequestWithContext(ctx, "GET", callbackURL.String(), nil)
+			require.NoError(t, err)
+			req.AddCookie(&http.Cookie{
+				Name:  codersdk.SessionTokenCookie,
+				Value: memberClient.SessionToken(),
+			})
+			req.AddCookie(&http.Cookie{
+				Name:  "mcp_oauth2_state_" + created.ID.String(),
+				Value: state,
+			})
+
+			res, err := memberClient.HTTPClient.Do(req)
+			require.NoError(t, err)
+			defer res.Body.Close()
+			return res.StatusCode
+		}
+		return doCallback
+	}
+
+	t.Run("MatchingIssuerSucceeds", func(t *testing.T) {
+		t.Parallel()
+		doCallback := setup(t, "https://issuer.example.com", false)
+		status := doCallback(url.Values{"iss": []string{"https://issuer.example.com"}})
+		require.Equal(t, http.StatusOK, status)
+	})
+
+	t.Run("MismatchedIssuerRejected", func(t *testing.T) {
+		t.Parallel()
+		doCallback := setup(t, "https://issuer.example.com", false)
+		status := doCallback(url.Values{"iss": []string{"https://attacker.example.com"}})
+		require.Equal(t, http.StatusBadRequest, status,
+			"callback must reject an iss that differs from the recorded issuer")
+	})
+
+	t.Run("MissingIssToleratedWhenNotAdvertised", func(t *testing.T) {
+		t.Parallel()
+		// Servers that never advertised RFC 9207 support may omit
+		// iss; the callback stays compatible with them.
+		doCallback := setup(t, "https://issuer.example.com", false)
+		status := doCallback(url.Values{})
+		require.Equal(t, http.StatusOK, status)
+	})
+
+	t.Run("MissingIssRejectedWhenAdvertised", func(t *testing.T) {
+		t.Parallel()
+		// RFC 9207 §2.4: once the authorization server advertised
+		// authorization_response_iss_parameter_supported, responses
+		// without iss must be rejected or a stripped response would
+		// bypass the mix-up protection.
+		doCallback := setup(t, "https://issuer.example.com", true)
+		status := doCallback(url.Values{})
+		require.Equal(t, http.StatusBadRequest, status,
+			"callback must reject a missing iss when the server advertised RFC 9207 support")
+	})
+
+	t.Run("RequiredMatchingIssuerSucceeds", func(t *testing.T) {
+		t.Parallel()
+		doCallback := setup(t, "https://issuer.example.com", true)
+		status := doCallback(url.Values{"iss": []string{"https://issuer.example.com"}})
+		require.Equal(t, http.StatusOK, status)
+	})
+
+	t.Run("NoRecordedIssuerSkipsValidation", func(t *testing.T) {
+		t.Parallel()
+		// Manually configured credentials have no recorded issuer
+		// to validate against.
+		doCallback := setup(t, "", false)
+		status := doCallback(url.Values{"iss": []string{"https://any.example.com"}})
+		require.Equal(t, http.StatusOK, status)
+	})
+
+	t.Run("ErrorResponseValidatesIss", func(t *testing.T) {
+		t.Parallel()
+		// RFC 9207 applies to error authorization responses too: a
+		// mismatched iss on an error redirect must be reported as a
+		// mix-up, not as the provider error it carries.
+		doCallback := setup(t, "https://issuer.example.com", true)
+		status := doCallback(url.Values{
+			"error": []string{"access_denied"},
+			"iss":   []string{"https://attacker.example.com"},
+		})
+		require.Equal(t, http.StatusBadRequest, status)
+
+		// And an error response omitting iss entirely is rejected
+		// when the server advertised RFC 9207 support.
+		doCallback2 := setup(t, "https://issuer.example.com", true)
+		status = doCallback2(url.Values{"error": []string{"access_denied"}})
+		require.Equal(t, http.StatusBadRequest, status)
+	})
+}
+
+// TestMCPServerOAuth2IssuerBackfill covers the connect-time lazy
+// backfill of the recorded issuer for configs that predate issuer
+// tracking or were configured manually.
+func TestMCPServerOAuth2IssuerBackfill(t *testing.T) {
+	t.Parallel()
+
+	// setup stands up a mock authorization server and a mock MCP
+	// server whose protected resource metadata points at it, then
+	// creates a manual oauth2 config (no recorded issuer) whose
+	// auth URL is authURLPath on the mock authorization server.
+	// It returns the admin client, the config, and the mock
+	// authorization server URL.
+	setup := func(t *testing.T, authURLPath string) (*codersdk.Client, codersdk.MCPServerConfig, string) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		var authServerURL string
+		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/.well-known/oauth-authorization-server" {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"issuer": "` + authServerURL + `",
+				"authorization_endpoint": "` + authServerURL + `/authorize",
+				"token_endpoint": "` + authServerURL + `/token",
+				"response_types_supported": ["code"],
+				"authorization_response_iss_parameter_supported": true
+			}`))
+		}))
+		t.Cleanup(authServer.Close)
+		authServerURL = authServer.URL
+
+		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/.well-known/oauth-protected-resource" {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"resource": "` + "http://" + r.Host + `",
+				"authorization_servers": ["` + authServer.URL + `"]
+			}`))
+		}))
+		t.Cleanup(mcpServer.Close)
+
+		adminClient := newMCPClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+		created, err := adminClient.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "Backfill Test",
+			Slug:           "backfill-test",
+			Transport:      "streamable_http",
+			URL:            mcpServer.URL,
+			AuthType:       "oauth2",
+			OAuth2ClientID: "manual-client",
+			OAuth2AuthURL:  authServer.URL + authURLPath,
+			OAuth2TokenURL: authServer.URL + "/token",
+			Availability:   "default_on",
+			Enabled:        true,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.NoError(t, err)
+		// Manual configs start without a recorded issuer, exactly
+		// like rows that predate issuer tracking.
+		require.Empty(t, created.OAuth2Issuer)
+		require.False(t, created.OAuth2IssRequired)
+
+		return adminClient, created, authServer.URL
+	}
+
+	// connect performs the OAuth2 connect redirect as the given
+	// client without following it.
+	connect := func(t *testing.T, client *codersdk.Client, organizationID, configID uuid.UUID) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+		connectURL := client.MCPServerOAuth2ConnectURL(organizationID, configID)
+		req, err := http.NewRequestWithContext(ctx, "GET", connectURL, nil)
+		require.NoError(t, err)
+		req.AddCookie(&http.Cookie{
+			Name:  codersdk.SessionTokenCookie,
+			Value: client.SessionToken(),
+		})
+		res, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
+	}
+
+	t.Run("AdoptedWhenEndpointMatches", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient, created, authServerURL := setup(t, "/authorize")
+		connect(t, adminClient, created.OrganizationID, created.ID)
+
+		refreshed, err := adminClient.MCPServerConfigByID(ctx, created.OrganizationID, created.ID)
+		require.NoError(t, err)
+		require.Equal(t, authServerURL, refreshed.OAuth2Issuer,
+			"connect must backfill the issuer when the discovered authorization endpoint matches")
+		require.True(t, refreshed.OAuth2IssRequired,
+			"connect must record the advertised RFC 9207 support")
+	})
+
+	t.Run("SkippedWhenEndpointDiffers", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The manual config points at a different authorization
+		// endpoint than the MCP server advertises, so adopting the
+		// discovered issuer would enforce the wrong value.
+		adminClient, created, _ := setup(t, "/custom-authorize")
+		connect(t, adminClient, created.OrganizationID, created.ID)
+
+		refreshed, err := adminClient.MCPServerConfigByID(ctx, created.OrganizationID, created.ID)
+		require.NoError(t, err)
+		require.Empty(t, refreshed.OAuth2Issuer,
+			"connect must not adopt an issuer for a mismatched authorization endpoint")
+		require.False(t, refreshed.OAuth2IssRequired)
+	})
+}
+
 func TestChatWithMCPServerIDs(t *testing.T) {
 	t.Parallel()
 
@@ -3291,6 +3668,70 @@ func createChatModelConfigForMCP(t testing.TB, client *codersdk.ExperimentalClie
 
 func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
 	t.Parallel()
+
+	// RFC 8414 §3.3: the issuer in the returned metadata must be
+	// identical to the authorization server identifier used for
+	// discovery. A mismatched issuer (e.g. root-level metadata for
+	// a path-scoped identifier) must fail creation rather than
+	// registering credentials with the wrong tenant.
+	t.Run("MismatchedIssuerRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-authorization-server/tenant",
+				"/.well-known/oauth-authorization-server":
+				w.Header().Set("Content-Type", "application/json")
+				// Root-scoped issuer even though the advertised
+				// identifier is path-scoped (/tenant).
+				_, _ = w.Write([]byte(`{
+					"issuer": "` + "http://" + r.Host + `",
+					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
+					"token_endpoint": "` + "http://" + r.Host + `/token",
+					"registration_endpoint": "` + "http://" + r.Host + `/register",
+					"response_types_supported": ["code"]
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(authServer.Close)
+
+		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/.well-known/oauth-protected-resource" {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"resource": "` + "http://" + r.Host + `",
+				"authorization_servers": ["` + authServer.URL + `/tenant"]
+			}`))
+		}))
+		t.Cleanup(mcpServer.Close)
+
+		client := newMCPClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   "Mismatched Issuer",
+			Slug:          "mismatched-issuer",
+			Transport:     "streamable_http",
+			URL:           mcpServer.URL,
+			AuthType:      "oauth2",
+			Availability:  "default_on",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.Error(t, err,
+			"auto-discovery must fail when the metadata issuer does not match the advertised identifier")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
 
 	t.Run("EmptyAuthorizationServers", func(t *testing.T) {
 		t.Parallel()
@@ -3513,10 +3954,15 @@ func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
 					"issuer": "` + "http://" + r.Host + `/auth"
 				}`))
 			case "/.well-known/oauth-authorization-server":
-				// Root-level: complete metadata.
+				// Root-level: complete metadata. The issuer still
+				// names the path-scoped identifier; hosting metadata
+				// only at the root well-known URI is a real-world
+				// pattern, but RFC 8414 §3.3 requires the issuer
+				// value itself to match the identifier used for
+				// discovery.
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write([]byte(`{
-					"issuer": "` + "http://" + r.Host + `",
+					"issuer": "` + "http://" + r.Host + `/auth",
 					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
 					"token_endpoint": "` + "http://" + r.Host + `/token",
 					"registration_endpoint": "` + "http://" + r.Host + `/register",

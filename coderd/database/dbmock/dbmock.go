@@ -207,6 +207,21 @@ func (mr *MockStoreMockRecorder) BackfillChatMessagesSearchTsv(ctx, batchSize an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackfillChatMessagesSearchTsv", reflect.TypeOf((*MockStore)(nil).BackfillChatMessagesSearchTsv), ctx, batchSize)
 }
 
+// BackfillMCPServerConfigIssuer mocks base method.
+func (m *MockStore) BackfillMCPServerConfigIssuer(ctx context.Context, arg database.BackfillMCPServerConfigIssuerParams) (database.MCPServerConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackfillMCPServerConfigIssuer", ctx, arg)
+	ret0, _ := ret[0].(database.MCPServerConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BackfillMCPServerConfigIssuer indicates an expected call of BackfillMCPServerConfigIssuer.
+func (mr *MockStoreMockRecorder) BackfillMCPServerConfigIssuer(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackfillMCPServerConfigIssuer", reflect.TypeOf((*MockStore)(nil).BackfillMCPServerConfigIssuer), ctx, arg)
+}
+
 // BackoffChatDiffStatus mocks base method.
 func (m *MockStore) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
 	m.ctrl.T.Helper()

@@ -163,6 +163,14 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 		if params.state != "" {
 			cancelQuery.Add("state", params.state)
 		}
+		// RFC 9207: authorization servers supporting the iss
+		// parameter include it in all authorization responses,
+		// including error responses. The issuer matches the
+		// value served by the RFC 8414 metadata endpoint. Set
+		// rather than Add so a registered redirect URI that
+		// already carries an iss query parameter cannot produce
+		// an ambiguous response with two values.
+		cancelQuery.Set("iss", accessURL.String())
 		cancel.RawQuery = cancelQuery.Encode()
 
 		cancelURI := cancel.String()
@@ -197,7 +205,7 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 
 // ProcessAuthorize handles POST /oauth2/authorize requests to process the user's authorization decision
 // and generate an authorization code.
-func ProcessAuthorize(db database.Store) http.HandlerFunc {
+func ProcessAuthorize(db database.Store, accessURL *url.URL) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		apiKey := httpmw.APIKey(r)
@@ -293,6 +301,14 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 		if params.state != "" {
 			newQuery.Add("state", params.state)
 		}
+		// RFC 9207 (MCP 2026-07-28, SEP-2468): identify the issuer
+		// in the authorization response so clients can detect
+		// authorization server mix-up attacks. The issuer matches
+		// the value served by the RFC 8414 metadata endpoint. Set
+		// rather than Add so a registered redirect URI that already
+		// carries an iss query parameter cannot produce an ambiguous
+		// response with two values.
+		newQuery.Set("iss", accessURL.String())
 		params.redirectURL.RawQuery = newQuery.Encode()
 
 		// (ThomasK33): Use a 302 redirect as some (external) OAuth 2 apps and browsers

@@ -199,6 +199,10 @@ func AuthorizeOAuth2App(t *testing.T, client *codersdk.Client, baseURL string, p
 	returnedState := redirectURL.Query().Get("state")
 	require.Equal(t, params.State, returnedState, "state parameter mismatch")
 
+	// Verify the RFC 9207 iss parameter identifies this
+	// authorization server (MCP 2026-07-28, SEP-2468).
+	require.Equal(t, baseURL, redirectURL.Query().Get("iss"), "iss parameter mismatch")
+
 	return code
 }
 

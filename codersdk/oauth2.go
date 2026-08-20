@@ -500,6 +500,9 @@ type OAuth2AuthorizationServerMetadata struct {
 	CodeChallengeMethodsSupported     []OAuth2PKCECodeChallengeMethod `json:"code_challenge_methods_supported,omitempty"`
 	ScopesSupported                   []string                        `json:"scopes_supported,omitempty"`
 	TokenEndpointAuthMethodsSupported []OAuth2TokenEndpointAuthMethod `json:"token_endpoint_auth_methods_supported,omitempty"`
+	// AuthorizationResponseIssParameterSupported indicates RFC 9207
+	// support: authorization responses include the iss parameter.
+	AuthorizationResponseIssParameterSupported bool `json:"authorization_response_iss_parameter_supported,omitempty"`
 }
 
 // OAuth2ProtectedResourceMetadata represents RFC 9728 OAuth 2.0 Protected Resource Metadata

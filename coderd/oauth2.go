@@ -139,7 +139,7 @@ func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Success 302 "Returns redirect with authorization code"
 // @Router /oauth2/authorize [post]
 func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
-	return oauth2provider.ProcessAuthorize(api.Database)
+	return oauth2provider.ProcessAuthorize(api.Database, api.AccessURL)
 }
 
 // @Summary OAuth2 token exchange.

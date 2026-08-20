@@ -5981,6 +5981,19 @@ export interface MCPServerConfig {
 	readonly oauth2_revocation_url?: string;
 	readonly oauth2_scopes?: string;
 	/**
+	 * OAuth2Issuer is the authorization server issuer identifier
+	 * recorded during discovery (RFC 8414). Empty for manually
+	 * configured credentials until connect-time discovery
+	 * backfills it.
+	 */
+	readonly oauth2_issuer?: string;
+	/**
+	 * OAuth2IssRequired is true when the authorization server
+	 * advertised RFC 9207 support, requiring authorization
+	 * responses to carry a matching iss parameter.
+	 */
+	readonly oauth2_iss_required?: boolean;
+	/**
 	 * API key fields (only populated for admins).
 	 */
 	readonly api_key_header?: string;
@@ -6504,6 +6517,11 @@ export interface OAuth2AuthorizationServerMetadata {
 	readonly code_challenge_methods_supported?: readonly OAuth2PKCECodeChallengeMethod[];
 	readonly scopes_supported?: readonly string[];
 	readonly token_endpoint_auth_methods_supported?: readonly OAuth2TokenEndpointAuthMethod[];
+	/**
+	 * AuthorizationResponseIssParameterSupported indicates RFC 9207
+	 * support: authorization responses include the iss parameter.
+	 */
+	readonly authorization_response_iss_parameter_supported?: boolean;
 }
 
 // From codersdk/oauth2.go

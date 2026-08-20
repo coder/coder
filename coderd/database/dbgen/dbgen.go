@@ -375,6 +375,8 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		OAuth2TokenURL:          seed.OAuth2TokenURL,
 		OAuth2RevocationURL:     seed.OAuth2RevocationURL,
 		OAuth2Scopes:            seed.OAuth2Scopes,
+		OAuth2Issuer:            seed.OAuth2Issuer,
+		OAuth2IssRequired:       seed.OAuth2IssRequired,
 		APIKeyHeader:            seed.APIKeyHeader,
 		APIKeyValue:             seed.APIKeyValue,
 		APIKeyValueKeyID:        seed.APIKeyValueKeyID,

@@ -21895,6 +21895,14 @@ const docTemplate = `{
                     "description": "OAuth2 fields (only populated for admins).",
                     "type": "string"
                 },
+                "oauth2_iss_required": {
+                    "description": "OAuth2IssRequired is true when the authorization server\nadvertised RFC 9207 support, requiring authorization\nresponses to carry a matching iss parameter.",
+                    "type": "boolean"
+                },
+                "oauth2_issuer": {
+                    "description": "OAuth2Issuer is the authorization server issuer identifier\nrecorded during discovery (RFC 8414). Empty for manually\nconfigured credentials until connect-time discovery\nbackfills it.",
+                    "type": "string"
+                },
                 "oauth2_revocation_url": {
                     "type": "string"
                 },
@@ -22404,6 +22412,10 @@ const docTemplate = `{
             "properties": {
                 "authorization_endpoint": {
                     "type": "string"
+                },
+                "authorization_response_iss_parameter_supported": {
+                    "description": "AuthorizationResponseIssParameterSupported indicates RFC 9207\nsupport: authorization responses include the iss parameter.",
+                    "type": "boolean"
                 },
                 "code_challenge_methods_supported": {
                     "type": "array",

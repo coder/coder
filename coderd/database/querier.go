@@ -75,6 +75,14 @@ type sqlcQuerier interface {
 	// serves this query.
 	// NULL means "pending", empty tsvector means "backfilled, no text".
 	BackfillChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
+	// Persists a discovered OAuth2 issuer for a config that has none
+	// recorded. The updated_at predicate provides optimistic
+	// concurrency against ANY admin edit made while discovery was
+	// running (including edits that leave the issuer empty, such as
+	// disabling the server or changing its URL): the update then
+	// matches zero rows and returns sql.ErrNoRows instead of binding a
+	// stale discovery result to the edited row.
+	BackfillMCPServerConfigIssuer(ctx context.Context, arg BackfillMCPServerConfigIssuerParams) (MCPServerConfig, error)
 	BackoffChatDiffStatus(ctx context.Context, arg BackoffChatDiffStatusParams) error
 	// Deletes heartbeat rows for the supplied (chat_id, runner_id) pairs.
 	BatchDeleteChatHeartbeats(ctx context.Context, arg BatchDeleteChatHeartbeatsParams) (int64, error)
