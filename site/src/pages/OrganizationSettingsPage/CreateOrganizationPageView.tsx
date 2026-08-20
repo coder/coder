@@ -92,15 +92,16 @@ export const CreateOrganizationPageView: FC<
 	const descriptionHelperId = `${descriptionField.id}-helper`;
 
 	return (
-		<section className="px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
-			<div className="flex flex-col gap-4 w-full mx-auto max-w-4xl">
-				<Button variant="subtle" asChild className="-ml-3 self-start">
+		<section className="px-4 sm:px-6 lg:px-10 py-6 lg:py-10 grid grid-cols-1 lg:grid-cols-[1fr_minmax(0,800px)_1fr] gap-x-4 gap-y-6">
+			<div>
+				<Button variant="subtle" asChild className="-ml-3">
 					<Link to="/organizations">
 						<ArrowLeftIcon />
 						<span>Back to organizations</span>
 					</Link>
 				</Button>
-
+			</div>
+			<div className="flex flex-col gap-4 w-full mx-auto max-w-2xl">
 				<div className="flex flex-col">
 					<SettingsHeader>
 						<SettingsHeaderTitle>New Organization</SettingsHeaderTitle>
