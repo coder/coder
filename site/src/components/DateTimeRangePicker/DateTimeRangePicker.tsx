@@ -83,6 +83,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	const [timeFields, setTimeFields] = useState<TimeFieldsState>(midnightFields);
 	const fromTimeId = useId();
 	const toTimeId = useId();
+	const errorId = useId();
 
 	const handleOpenChange = (next: boolean) => {
 		if (next) {
@@ -163,6 +164,10 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	const canApply =
 		draftStart !== null && draftEnd !== null && rangeError === null;
 
+	// A single message overlaid on the calendar keeps the popover size
+	// stable; inline errors would grow the panel and shift the layout.
+	const errorMessage = fromTimeError ?? toTimeError ?? rangeError;
+
 	const apply = () => {
 		if (draftStart && draftEnd) {
 			onChange({ start: draftStart, end: draftEnd });
@@ -229,16 +234,27 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 
 					{customExpanded && (
 						<div className="flex flex-col">
-							<Calendar
-								mode="range"
-								selected={selection}
-								onSelect={setSelection}
-								defaultMonth={
-									value.preset === undefined ? value.start : currentTime
-								}
-								disabled={{ after: currentTime }}
-								today={currentTime}
-							/>
+							<div className="relative">
+								<Calendar
+									mode="range"
+									selected={selection}
+									onSelect={setSelection}
+									defaultMonth={
+										value.preset === undefined ? value.start : currentTime
+									}
+									disabled={{ after: currentTime }}
+									today={currentTime}
+								/>
+								{errorMessage !== null && (
+									<div
+										id={errorId}
+										role="alert"
+										className="pointer-events-none absolute inset-x-3 bottom-3 rounded-md border border-solid border-border-destructive bg-surface-primary px-3 py-2 text-sm text-content-destructive shadow-md"
+									>
+										{errorMessage}
+									</div>
+								)}
+							</div>
 
 							{/* From/To time fields */}
 							<div className="flex flex-col gap-2 border-t border-border-default px-3 py-3">
@@ -247,7 +263,8 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 									label="From"
 									time={timeFields.from}
 									meridiem={timeFields.fromMeridiem}
-									error={fromTimeError}
+									invalid={fromTimeError !== null}
+									describedBy={fromTimeError !== null ? errorId : undefined}
 									onTimeChange={(time) =>
 										setTimeFields((fields) => ({ ...fields, from: time }))
 									}
@@ -269,7 +286,12 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 									label="To"
 									time={timeFields.to}
 									meridiem={timeFields.toMeridiem}
-									error={toTimeError}
+									invalid={toTimeError !== null}
+									describedBy={
+										toTimeError !== null && fromTimeError === null
+											? errorId
+											: undefined
+									}
 									onTimeChange={(time) =>
 										setTimeFields((fields) => ({ ...fields, to: time }))
 									}
@@ -287,14 +309,6 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 
 							{/* Apply footer */}
 							<div className="flex items-center justify-end gap-2 border-t border-border-default px-3 py-2">
-								{rangeError !== null && (
-									<span
-										role="alert"
-										className="mr-auto text-sm text-content-destructive"
-									>
-										{rangeError}
-									</span>
-								)}
 								<Button
 									variant="subtle"
 									size="sm"
@@ -351,7 +365,8 @@ interface TimeRowProps {
 	label: string;
 	time: string;
 	meridiem: Meridiem;
-	error: string | null;
+	invalid: boolean;
+	describedBy: string | undefined;
 	onTimeChange: (time: string) => void;
 	onBlur: () => void;
 	onMeridiemChange: (meridiem: Meridiem) => void;
@@ -362,60 +377,50 @@ const TimeRow: FC<TimeRowProps> = ({
 	label,
 	time,
 	meridiem,
-	error,
+	invalid,
+	describedBy,
 	onTimeChange,
 	onBlur,
 	onMeridiemChange,
 }) => (
-	<div className="flex flex-col gap-1">
-		<div className="flex items-center gap-2">
-			<Label
-				htmlFor={id}
-				className="w-10 shrink-0 text-sm text-content-secondary"
+	<div className="flex items-center gap-2">
+		<Label
+			htmlFor={id}
+			className="w-10 shrink-0 text-sm text-content-secondary"
+		>
+			{label}
+		</Label>
+		<Input
+			id={id}
+			value={time}
+			placeholder="12:00:00"
+			aria-invalid={invalid}
+			aria-describedby={describedBy}
+			className={cn(
+				"h-8 w-28 tabular-nums",
+				invalid && "border-border-destructive",
+			)}
+			onChange={(event) => onTimeChange(event.target.value)}
+			onBlur={onBlur}
+		/>
+		<Select
+			value={meridiem}
+			onValueChange={(next) => {
+				if (next === "AM" || next === "PM") {
+					onMeridiemChange(next);
+				}
+			}}
+		>
+			<SelectTrigger
+				aria-label={`${label} AM or PM`}
+				className="h-8 w-[4.5rem]"
 			>
-				{label}
-			</Label>
-			<Input
-				id={id}
-				value={time}
-				placeholder="12:00:00"
-				aria-invalid={error !== null}
-				aria-describedby={error !== null ? `${id}-error` : undefined}
-				className={cn(
-					"h-8 w-28 tabular-nums",
-					error !== null && "border-border-destructive",
-				)}
-				onChange={(event) => onTimeChange(event.target.value)}
-				onBlur={onBlur}
-			/>
-			<Select
-				value={meridiem}
-				onValueChange={(next) => {
-					if (next === "AM" || next === "PM") {
-						onMeridiemChange(next);
-					}
-				}}
-			>
-				<SelectTrigger
-					aria-label={`${label} AM or PM`}
-					className="h-8 w-[4.5rem]"
-				>
-					<SelectValue />
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem value="AM">AM</SelectItem>
-					<SelectItem value="PM">PM</SelectItem>
-				</SelectContent>
-			</Select>
-		</div>
-		{error !== null && (
-			<span
-				id={`${id}-error`}
-				role="alert"
-				className="pl-12 text-sm text-content-destructive"
-			>
-				{error}
-			</span>
-		)}
+				<SelectValue />
+			</SelectTrigger>
+			<SelectContent>
+				<SelectItem value="AM">AM</SelectItem>
+				<SelectItem value="PM">PM</SelectItem>
+			</SelectContent>
+		</Select>
 	</div>
 );

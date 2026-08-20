@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { DateTimeRangePicker } from "./DateTimeRangePicker";
 import type { DateTimeRangeValue } from "./dateTimeRange";
 
@@ -23,6 +23,7 @@ const meta: Meta<typeof DateTimeRangePicker> = {
 	component: DateTimeRangePicker,
 	args: {
 		now: fixedNow,
+		onChange: fn(),
 	},
 };
 
@@ -32,14 +33,12 @@ type Story = StoryObj<typeof DateTimeRangePicker>;
 export const Closed: Story = {
 	args: {
 		value: presetValue,
-		onChange: () => {},
 	},
 };
 
 export const ClosedWithCustomRange: Story = {
 	args: {
 		value: customValue,
-		onChange: () => {},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -52,7 +51,6 @@ export const ClosedWithCustomRange: Story = {
 export const OpenShowsOnlyQuickPicks: Story = {
 	args: {
 		value: presetValue,
-		onChange: () => {},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -123,7 +121,6 @@ export const SelectQuickPick: Story = {
 export const CustomRangeExpanded: Story = {
 	args: {
 		value: presetValue,
-		onChange: () => {},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -204,7 +201,6 @@ export const ApplyCustomRange: Story = {
 export const InvalidTimeDisablesApply: Story = {
 	args: {
 		value: customValue,
-		onChange: () => {},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -247,7 +243,6 @@ export const EndBeforeStartShowsError: Story = {
 			start: new Date(2026, 3, 10, 9, 0, 0),
 			end: new Date(2026, 3, 10, 10, 0, 0),
 		},
-		onChange: () => {},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -302,7 +297,6 @@ export const IntraDayTriggerLabel: Story = {
 			start: new Date(2026, 3, 12, 9, 0, 0),
 			end: new Date(2026, 3, 12, 11, 0, 0),
 		},
-		onChange: () => {},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
