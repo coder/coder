@@ -1,5 +1,6 @@
 import type {
 	DeploymentValues,
+	Entitlements,
 	Experiments,
 	Feature,
 	FeatureName,
@@ -17,6 +18,8 @@ declare module "@storybook/react-vite" {
 		| { event: "open" | "error" | "close" };
 	interface Parameters {
 		features?: (FeatureName | ({ name: FeatureName } & Partial<Feature>))[];
+		/** Overrides applied on top of the entitlements built from `features`. */
+		entitlements?: Partial<Entitlements>;
 		experiments?: Experiments;
 		showOrganizations?: boolean;
 		organizations?: Organization[];

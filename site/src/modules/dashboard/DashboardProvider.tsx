@@ -36,7 +36,15 @@ export const DashboardContext = createContext<DashboardValue | undefined>(
 export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const { permissions } = useAuthenticated();
-	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
+	const entitlementsQuery = useQuery({
+		...entitlements(metadata.entitlements),
+		// Entitlements now carry usage-driven warnings (agent runtime hours),
+		// and the embedded-metadata cache path disables every other refetch,
+		// so without polling a long-lived session would never show or clear
+		// the runtime hours banners.
+		refetchInterval: 5 * 60 * 1000,
+		refetchIntervalInBackground: false,
+	});
 	const experimentsQuery = useQuery(experiments(metadata.experiments));
 	const appearanceQuery = useQuery(appearance(metadata.appearance));
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));

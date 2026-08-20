@@ -7,7 +7,11 @@ import {
 import { buildInfoKey } from "#/api/queries/buildInfo";
 import { deploymentStatsQueryKey } from "#/api/queries/deployment";
 import { updateCheckQueryKey } from "#/api/queries/updateCheck";
-import type { UpdateCheckResponse } from "#/api/typesGenerated";
+import {
+	LicenseAgentRuntimeHoursAllocationReachedWarningText,
+	type UpdateCheckResponse,
+} from "#/api/typesGenerated";
+import { formatLicenseMessage } from "#/modules/dashboard/LicenseBanner/LicenseBanner";
 import {
 	MockBuildInfo,
 	MockDeploymentStats,
@@ -108,6 +112,48 @@ export const UpdateAvailable: Story = {
 		await expect(
 			screen.getByText(/Coder v0\.12\.9 is now available/),
 		).toBeVisible();
+	},
+};
+
+export const RuntimeHoursBannerForMember: Story = {
+	parameters: {
+		user: MockUserMember,
+		permissions: MockNoPermissions,
+		features: [{ name: "agent_runtime_hours", actual: 100, limit: 100 }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByText(
+				/used 100 of the 100 Coder Agent runtime hours .* Contact your deployment administrator/,
+			),
+		).toBeVisible();
+	},
+};
+
+// Admins keep the richer LicenseBanner warning for the same threshold, and
+// the member banner stays unmounted so the message never doubles up.
+export const RuntimeHoursWarningForAdmin: Story = {
+	parameters: {
+		features: [{ name: "agent_runtime_hours", actual: 100, limit: 100 }],
+		entitlements: {
+			warnings: [
+				formatLicenseMessage(
+					LicenseAgentRuntimeHoursAllocationReachedWarningText,
+					100,
+					100,
+				),
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByText(/used 100 of the 100 Coder Agent runtime hours/),
+		).toBeVisible();
+		await expect(
+			canvas.queryByText(/Contact your deployment administrator/),
+		).not.toBeInTheDocument();
 	},
 };
 

@@ -18,9 +18,6 @@ export const DashboardLayout: FC = () => {
 
 	return (
 		<>
-			{/* LicenseBanner already covers the runtime hours allocation for
-			    admins, so the member banner only mounts on its else branch to
-			    avoid double-bannering. */}
 			{canViewDeployment ? <LicenseBanner /> : <AgentRuntimeBanner />}
 			<AnnouncementBanners />
 

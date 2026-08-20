@@ -2,11 +2,6 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import {
-	type Entitlements,
-	LicenseAgentRuntimeHoursAllocationReachedWarningText,
-} from "#/api/typesGenerated";
-import { formatLicenseMessage } from "#/modules/dashboard/LicenseBanner/LicenseBanner";
-import {
 	MockEntitlements,
 	MockNoPermissions,
 	MockPermissions,
@@ -21,14 +16,12 @@ import { DashboardLayout } from "./DashboardLayout";
 const renderDashboardLayout = async ({
 	actual,
 	entitlement = "entitled",
-	features,
 	limit,
 	permissions = MockPermissions,
 	warnings,
 }: {
 	actual?: number;
 	entitlement?: "entitled" | "grace_period" | "not_entitled";
-	features?: Partial<Entitlements["features"]>;
 	limit?: number;
 	permissions?: typeof MockPermissions;
 	warnings?: string[];
@@ -48,7 +41,6 @@ const renderDashboardLayout = async ({
 						...(actual !== undefined ? { actual } : {}),
 						...(limit !== undefined ? { limit } : {}),
 					},
-					...features,
 				},
 			});
 		}),
@@ -103,54 +95,6 @@ test("shows AI Governance over-limit warning in LicenseBanner for admin users", 
 			/110 of 100 AI Governance add-on seats \(10 over the limit\)/,
 		),
 	).toBeInTheDocument();
-});
-
-test("shows the runtime hours allocation banner to non-admin users", async () => {
-	await renderDashboardLayout({
-		permissions: MockNoPermissions,
-		features: {
-			agent_runtime_hours: {
-				enabled: true,
-				entitlement: "entitled",
-				actual: 100,
-				limit: 100,
-			},
-		},
-	});
-
-	expect(
-		screen.getByText(
-			/used 100 of the 100 Coder Agent runtime hours .* Contact your deployment administrator/,
-		),
-	).toBeInTheDocument();
-});
-
-test("admin users keep the LicenseBanner warning without the member banner", async () => {
-	await renderDashboardLayout({
-		permissions: MockPermissions,
-		warnings: [
-			formatLicenseMessage(
-				LicenseAgentRuntimeHoursAllocationReachedWarningText,
-				100,
-				100,
-			),
-		],
-		features: {
-			agent_runtime_hours: {
-				enabled: true,
-				entitlement: "entitled",
-				actual: 100,
-				limit: 100,
-			},
-		},
-	});
-
-	expect(
-		screen.getByText(/used 100 of the 100 Coder Agent runtime hours/),
-	).toBeInTheDocument();
-	expect(
-		screen.queryByText(/Contact your deployment administrator/),
-	).not.toBeInTheDocument();
 });
 
 test("renders a skip link before navigation content", async () => {

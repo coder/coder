@@ -52,6 +52,7 @@ export const withDashboardProvider = (
 				}),
 			),
 		),
+		...parameters.entitlements,
 	};
 
 	return (
