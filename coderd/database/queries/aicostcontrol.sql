@@ -42,7 +42,7 @@ WHERE (
 SELECT *
 FROM ai_model_prices
 WHERE provider = @provider AND model = @model
-ORDER BY CASE WHEN source = 'custom' THEN 0 ELSE 1 END
+ORDER BY CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
 LIMIT 1;
 
 -- name: GetAIModelPrices :many
@@ -62,7 +62,7 @@ WHERE CASE
             model = @model
         ELSE true
     END
-ORDER BY provider, model, CASE WHEN source = 'custom' THEN 0 ELSE 1 END;
+ORDER BY provider ASC, model ASC, CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC;
 
 -- name: GetGroupAIBudget :one
 SELECT *

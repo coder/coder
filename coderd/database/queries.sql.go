@@ -2865,7 +2865,7 @@ const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel 
 SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source
 FROM ai_model_prices
 WHERE provider = $1 AND model = $2
-ORDER BY CASE WHEN source = 'custom' THEN 0 ELSE 1 END
+ORDER BY CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
 LIMIT 1
 `
 
@@ -2908,7 +2908,7 @@ WHERE CASE
             model = $2
         ELSE true
     END
-ORDER BY provider, model, CASE WHEN source = 'custom' THEN 0 ELSE 1 END
+ORDER BY provider ASC, model ASC, CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
 `
 
 type GetAIModelPricesParams struct {
