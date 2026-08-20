@@ -14,12 +14,8 @@ import {
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
-import {
-	getPreferredProxy,
-	ProxyProvider,
-	saveUserSelectedProxy,
-	useProxy,
-} from "./ProxyContext";
+import { userSelectedProxyStorage } from "#/utils/storage/keys";
+import { getPreferredProxy, ProxyProvider, useProxy } from "./ProxyContext";
 import type * as ProxyLatency from "./useProxyLatency";
 
 // Mock useProxyLatency to use a hard-coded latency.
@@ -343,7 +339,7 @@ describe("ProxyContextSelection", () => {
 
 		// Initial selection if present
 		if (storageProxy) {
-			saveUserSelectedProxy(storageProxy);
+			userSelectedProxyStorage.set(storageProxy);
 		}
 
 		// Mock the API response

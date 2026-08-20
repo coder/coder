@@ -60,7 +60,6 @@ import { RightPanelAddTabControl } from "./components/RightPanel/RightPanelAddTa
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
-import { chatWidthClass } from "./utils/chatWidth";
 import {
 	isUserRightPanelTab,
 	type PortSelection,
@@ -1150,7 +1149,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						<div
 							className={cn(
 								"mx-auto w-full py-6",
-								chatWidthClass(chatFullWidth),
+								chatFullWidth ? "max-w-full" : "max-w-3xl",
 							)}
 						>
 							<ChatConversationSkeleton />

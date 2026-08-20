@@ -285,9 +285,6 @@ export const chatDefaultTerminalHiddenStorage = defineEntityStorageKey<boolean>(
 
 // -- Chat draft attachments (own record format) ------------------------------
 
-const isRecordObject = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null;
-
 /**
  * Per-record prune preserving the pre-existing behavior of
  * pruneExpiredChatDraftAttachmentStorageKeys: records carry their own
@@ -304,7 +301,7 @@ const sweepChatDraftAttachments = (raw: string, nowMs: number): SweepAction => {
 		return "remove";
 	}
 	const activeRecords = parsed.filter((entry) => {
-		if (!isRecordObject(entry) || typeof entry.updatedAt !== "number") {
+		if (typeof entry?.updatedAt !== "number") {
 			return true;
 		}
 		return nowMs - entry.updatedAt <= draftTtlMs;
