@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -15,6 +17,75 @@ import (
 // per RFC 6749.
 func parseScopes(scope string) []string {
 	return strings.Fields(strings.TrimSpace(scope))
+}
+
+// The conversion from the persisted scope string to the scope list a key is
+// minted with. The rejections matter more than the happy path: every one of
+// them is a case where the alternative is minting a key with authority the
+// grant never established.
+func TestScopeStringToAPIKeyScopes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EveryNameKept", func(t *testing.T) {
+		t.Parallel()
+
+		scopes, err := scopeStringToAPIKeyScopes("workspace:ssh template:read")
+		require.NoError(t, err)
+		require.Equal(t, database.APIKeyScopes{
+			database.ApiKeyScopeWorkspaceSsh,
+			database.ApiKeyScopeTemplateRead,
+		}, scopes)
+	})
+
+	// The scope catalog and the api_key_scope enum are maintained separately.
+	// A name the catalog offers but the enum does not define is negotiable at
+	// authorization and unmintable at exchange, so the client would hold a
+	// code it can never redeem. Driving the whole catalog through the
+	// conversion catches that drift when a name is added on one side only.
+	t.Run("EveryCatalogNameMintable", func(t *testing.T) {
+		t.Parallel()
+
+		// ExternalScopeNames omits the backward-compatibility aliases
+		// IsExternalScope accepts, and neither alias is an enum member, so they
+		// are listed here and run through CanonicalScopeName the way
+		// authorization spells them before persisting. A new alias has to be
+		// added here too; the catalog exposes no way to enumerate them.
+		names := append(rbac.ExternalScopeNames(), "all", "application_connect")
+		require.NotEmpty(t, names)
+		for _, name := range names {
+			require.Truef(t, rbac.IsExternalScope(rbac.ScopeName(name)),
+				"scope %q is not negotiable, so this loop is not driving the catalog", name)
+
+			canonical := string(rbac.CanonicalScopeName(rbac.ScopeName(name)))
+			scopes, err := scopeStringToAPIKeyScopes(canonical)
+			require.NoErrorf(t, err, "scope %q can be negotiated but not minted", name)
+			require.Equal(t, database.APIKeyScopes{database.APIKeyScope(canonical)}, scopes)
+		}
+	})
+
+	t.Run("UnknownNameRejected", func(t *testing.T) {
+		t.Parallel()
+
+		// The valid name alongside it must not be minted on its own: a
+		// partial grant is still a grant nobody negotiated.
+		_, err := scopeStringToAPIKeyScopes("workspace:ssh not_a_real_scope")
+		require.ErrorIs(t, err, errUnmintableScope)
+		require.Contains(t, err.Error(), "not_a_real_scope")
+	})
+
+	// Unreachable through the column, which is NOT NULL and written only by
+	// authorization and the backfill, both of which emit at least one
+	// non-whitespace name. Pinned anyway: an empty list is what apikey.Generate
+	// reads as unrestricted, so treating it as anything but an error here would
+	// widen the grant rather than fail it.
+	t.Run("EmptyRejected", func(t *testing.T) {
+		t.Parallel()
+
+		for _, scope := range []string{"", "   "} {
+			_, err := scopeStringToAPIKeyScopes(scope)
+			require.ErrorIs(t, err, errUnmintableScope, "scope %q", scope)
+		}
+	})
 }
 
 // TestExtractTokenParams_Scopes tests OAuth2 scope parameter parsing
