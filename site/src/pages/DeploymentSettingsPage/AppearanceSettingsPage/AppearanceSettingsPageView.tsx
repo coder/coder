@@ -14,9 +14,11 @@ import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 
@@ -47,7 +49,11 @@ export const AppearanceSettingsPageView: FC<
 
 	return (
 		<div className="flex flex-col gap-8">
-			<SettingsHeader>
+			<SettingsHeader
+				actions={
+					<SettingsHeaderDocsLink href={docs("/admin/setup/appearance")} />
+				}
+			>
 				<SettingsHeaderTitle>Appearance</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Customize the look and feel of your Coder deployment.

@@ -12,10 +12,12 @@ import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import type { Permissions } from "#/modules/permissions";
 import { cn } from "#/utils/cn";
+import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -73,6 +75,9 @@ export const CreateOrganizationPageView: FC<
 					<ArrowLeftIcon size={20} />
 					Go Back
 				</Link>
+			</div>
+			<div className="absolute right-12">
+				<SettingsHeaderDocsLink href={docs("/admin/users/organizations")} />
 			</div>
 			<div className="flex flex-col gap-4 w-full min-w-96 mx-auto">
 				<div className="flex flex-col items-center">

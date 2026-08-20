@@ -8,8 +8,15 @@ import {
 	templateACL,
 } from "#/api/queries/templates";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
@@ -30,8 +37,21 @@ const TemplatePermissionsPage: FC = () => {
 	const removeGroupMutation = useMutation(setGroupRole(queryClient));
 
 	return (
-		<>
+		<div className="flex flex-col gap-12">
 			<title>{pageTitle(template.name, "Permissions")}</title>
+
+			<SettingsHeader
+				actions={
+					<SettingsHeaderDocsLink
+						href={docs("/admin/templates/template-permissions")}
+					/>
+				}
+			>
+				<SettingsHeaderTitle>Permissions</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Manage which members and groups can use this template.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			{!isTemplateRBACEnabled ? (
 				<PaywallPremium
@@ -186,7 +206,7 @@ const TemplatePermissionsPage: FC = () => {
 					}}
 				/>
 			)}
-		</>
+		</div>
 	);
 };
 

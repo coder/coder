@@ -9,6 +9,7 @@ import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -60,12 +61,13 @@ export const OrganizationProvisionersPageView: FC<
 }) => {
 	return (
 		<section className="w-full max-w-screen-2xl pb-10">
-			<SettingsHeader>
+			<SettingsHeader
+				actions={<SettingsHeaderDocsLink href={docs("/admin/provisioners")} />}
+			>
 				<SettingsHeaderTitle>Provisioners</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Coder server runs provisioner daemons which execute terraform during
-					workspace and template builds.{" "}
-					<Link href={docs("/admin/provisioners")}>View docs</Link>
+					workspace and template builds.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 

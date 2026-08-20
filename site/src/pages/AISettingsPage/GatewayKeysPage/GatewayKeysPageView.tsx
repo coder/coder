@@ -3,11 +3,11 @@ import type { FC } from "react";
 import type { AIGatewayKey } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { Link } from "#/components/Link/Link";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -47,19 +47,25 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 		<div>
 			<SettingsHeader
 				actions={
-					!showPaywall && (
-						<Button variant="outline" onClick={onCreateKey}>
-							<PlusIcon />
-							Create key
-						</Button>
-					)
+					<div className="flex flex-row gap-2 items-center">
+						<SettingsHeaderDocsLink
+							href={docs(
+								"/ai-coder/ai-gateway/standalone#create-a-gateway-key",
+							)}
+						/>
+						{!showPaywall && (
+							<Button variant="outline" onClick={onCreateKey}>
+								<PlusIcon />
+								Create key
+							</Button>
+						)}
+					</div>
 				}
 			>
 				<SettingsHeaderTitle>AI Gateway Keys</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Keys authenticate standalone AI Gateway replicas to this deployment.
-					The key value is shown only once when created.{" "}
-					<Link href={docs("/ai-coder/ai-gateway")}>View docs</Link>
+					The key value is shown only once when created.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 

@@ -11,11 +11,13 @@ import {
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
 import { Table, TableBody } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
 import type { Permissions } from "#/modules/permissions";
+import { docs } from "#/utils/docs";
 import { AuditFilter } from "./AuditFilter";
 import { AuditHelpPopover } from "./AuditHelpPopover";
 import { AuditLogRow } from "./AuditLogRow/AuditLogRow";
@@ -49,7 +51,11 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 
 	return (
 		<Margins className="pb-12">
-			<PageHeader>
+			<PageHeader
+				actions={
+					<SettingsHeaderDocsLink href={docs("/admin/security/audit-logs")} />
+				}
+			>
 				<PageHeaderTitle>
 					<div className="flex flex-row gap-2 items-center">
 						<span>Audit</span>

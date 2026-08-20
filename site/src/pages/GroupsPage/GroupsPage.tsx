@@ -14,12 +14,14 @@ import { Loader } from "#/components/Loader/Loader";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { useGroupsSettings } from "./GroupsPageProvider";
 import { GroupsPageView, joinGroupsSpend } from "./GroupsPageView";
@@ -112,7 +114,11 @@ const GroupsPage: FC = () => {
 			{title}
 
 			<div className="flex max-w-full flex-row items-baseline justify-between gap-4">
-				<SettingsHeader>
+				<SettingsHeader
+					actions={
+						<SettingsHeaderDocsLink href={docs("/admin/users/groups-roles")} />
+					}
+				>
 					<SettingsHeaderTitle>Groups</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Manage groups for this{" "}
