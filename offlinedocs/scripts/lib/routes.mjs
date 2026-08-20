@@ -1,13 +1,7 @@
 /*
- * Pure route-mapping logic for sync-docs.mjs.
- *
- * Turning docs-relative markdown paths and docs/manifest.json into output
- * routes, an ordering model, and the per-directory meta.json page lists is pure
- * over its inputs (a path, the manifest, a set of directory routes), so it lives
- * here, next to lib/transform.mjs, with no filesystem or network access and no
- * top-level side effects. sync-docs.mjs keeps the I/O and calls these builders,
- * so the route logic (where a slug collision or a manifest reorder can silently
- * drop or misorder a page) can be unit-tested without running the sync.
+ * Pure route-mapping logic for sync-docs.mjs: no filesystem or network access
+ * and no top-level side effects, so routes.test.mjs can pin it. See README.md
+ * for the route, collision, and ordering model.
  */
 import {
 	isIndexFile,
@@ -17,10 +11,8 @@ import {
 	titleCase,
 } from "./transform.mjs";
 
-// Every directory route implied by the corpus: for docs/a/b/c.md the routes
-// "a" and "a/b". A file whose own route equals one of these is emitted as that
-// directory's index.md rather than a sibling page, so the route and the
-// directory do not both try to own the same URL.
+// Every directory route implied by the corpus (for docs/a/b/c.md: "a" and
+// "a/b"). See README.md ("Directory routes and index collisions").
 export function buildDirRoutes(allMd) {
 	return new Set(
 		allMd.flatMap((rel) => {
@@ -30,9 +22,8 @@ export function buildDirRoutes(allMd) {
 	);
 }
 
-// Map a docs-relative markdown path to its output file (`outRel`) and `route`.
-// index/readme files become the directory index; a non-index file whose route
-// collides with a directory route also becomes that directory's index.md.
+// Map a docs-relative markdown path to its output file (`outRel`) and `route`,
+// applying the index/collision rule. See README.md.
 export function mapMdPath(relPath, dirRoutes) {
 	const parts = relPath.split("/");
 	const base = parts.pop();
@@ -49,12 +40,9 @@ export function mapMdPath(relPath, dirRoutes) {
 	return { outRel: `${route}.md`, route };
 }
 
-// Build `rel -> { outRel, route }` for every markdown file, and detect distinct
-// source files that map to the same output path. A collision (two basenames
-// that slugify the same, a case-only difference, or a file whose route collides
-// with a directory index) silently overwrites one published page with another,
-// so each is returned as `{ outRel, sources: [relA, relB, ...] }` for the caller
-// to fail on instead of shipping the loss.
+// Build `rel -> { outRel, route }` for every markdown file, and return every
+// output path that more than one source maps to as a collision for the caller
+// to fail on. See README.md ("Output collisions").
 export function buildFileMap(allMd, dirRoutes) {
 	const fileMap = new Map();
 	const byOut = new Map();
@@ -79,15 +67,9 @@ export function manifestRoute(node, dirRoutes) {
 		: null;
 }
 
-// Walk the manifest tree once, deriving the views used downstream:
-//   manifestMeta        route -> { title, description }
-//   manifestPathByRoute route -> the manifest path that first named it
-//   routeOrder          route -> first-seen index (the manifest's document order)
-//   childOrderByDir     directory route -> its child routes, in manifest order
-// A route that appears more than once (the manifest lists a page twice) keeps
-// its first metadata and order; later occurrences are ignored. This mirrors the
-// sync's historical tolerance of duplicate manifest entries rather than failing
-// on them.
+// Walk the manifest tree once, deriving route metadata, first-seen order, and
+// per-directory child order. A route listed more than once keeps its first
+// occurrence. See README.md ("Manifest model").
 export function buildManifestModel(manifest, dirRoutes) {
 	const manifestMeta = new Map();
 	const manifestPathByRoute = new Map();
@@ -127,13 +109,9 @@ export function buildManifestModel(manifest, dirRoutes) {
 	return { manifestMeta, manifestPathByRoute, routeOrder, childOrderByDir };
 }
 
-// Manifest routes that no source file backs. buildManifestModel records every
-// route the manifest names; if the manifest lists a path whose file was deleted
-// or renamed without updating the manifest, that route has no file to emit and
-// is dropped from the generated sidebar with no error (unlike the sync's other
-// defect classes, which count or write something). Return each as
-// `{ route, path }` for the caller to fail on. `backedRoutes` is the set of
-// routes that a docs file actually maps to.
+// Manifest routes that no source file backs (a manifest path whose file was
+// deleted or renamed), returned for the caller to fail on instead of dropping
+// them silently from the sidebar. See README.md ("Unbacked routes").
 export function findUnbackedManifestRoutes(
 	routeOrder,
 	manifestPathByRoute,
@@ -184,12 +162,8 @@ function minOrderUnder(route, routeOrder) {
 		.reduce((best, [, o]) => Math.min(best, o), Number.POSITIVE_INFINITY);
 }
 
-// Sort key for a meta.json entry, as a tuple compared left to right:
-//   bucket 0: the item is in the directory's manifest child order -> that index
-//   bucket 1: not listed, but ordered by its own manifest position -> that order
-//   bucket 2: unordered -> falls to the end, broken by name
-// Tuples keep listed items ahead of unlisted ones without the two large sentinel
-// numbers a single numeric key needed, so there is no corpus-size ceiling.
+// Sort key for a meta.json entry, a tuple compared left to right. See README.md
+// ("meta.json ordering") for the three buckets.
 function sortKey(item, childOrder, routeOrder) {
 	const pos = childOrder.indexOf(item.route);
 	if (pos >= 0) return [0, pos];
