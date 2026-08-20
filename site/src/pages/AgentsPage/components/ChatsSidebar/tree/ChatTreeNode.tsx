@@ -148,10 +148,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		isChildChat: isChildNode,
 	});
 
-	// Child rows are indented and never touch the sidebar's left edge, so their
-	// highlight keeps rounded left corners and a tighter left inset while the
-	// right side stays flush. Top-level rows go fully square, edge to edge.
-	// Left padding compensates the negative margin so text never shifts.
 	const hoverLayout = isChildNode
 		? "[@media(hover:hover)]:hover:-ml-1 [@media(hover:hover)]:hover:-mr-2 [@media(hover:hover)]:hover:pl-2 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-l-md [@media(hover:hover)]:hover:rounded-r-none"
 		: "[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
