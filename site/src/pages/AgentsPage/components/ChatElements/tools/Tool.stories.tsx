@@ -717,10 +717,17 @@ export const ProcessOutputModelIntent: Story = {
 			canvas.getByText("Waiting for the dev server to be ready"),
 		).toBeVisible();
 		expect(canvas.queryByText(/npm start/)).not.toBeInTheDocument();
+		expect(
+			canvas.getByRole("img", { name: "Tool call running" }),
+		).toBeVisible();
 	},
 };
 
-/** Wait timed out while the process lives on: running:true in the result. */
+/**
+ * Wait timed out while the process lives on: running:true in the result.
+ * The label keeps the present tense, but the row must not keep animating
+ * (spinner/shimmer) once the poll itself has completed.
+ */
 export const ProcessOutputStillRunningResult: Story = {
 	args: {
 		name: "process_output",
@@ -737,6 +744,9 @@ export const ProcessOutputStillRunningResult: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Checking npm start")).toBeVisible();
 		expect(canvas.queryByText(/Checked/)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("img", { name: "Tool call running" }),
+		).not.toBeInTheDocument();
 	},
 };
 
