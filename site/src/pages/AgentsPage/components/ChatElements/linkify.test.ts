@@ -231,4 +231,58 @@ describe("splitTextForLinks", () => {
 			{ kind: "text", value: "<b" },
 		]);
 	});
+
+	it("keeps URLs inside inline code spans literal", () => {
+		expect(splitTextForLinks("`http://localhost:3000`")).toEqual([
+			{ kind: "text", value: "`http://localhost:3000`" },
+		]);
+		expect(splitTextForLinks("run `http://localhost:3000/api` now")).toEqual([
+			{ kind: "text", value: "run `http://localhost:3000/api` now" },
+		]);
+		expect(splitTextForLinks("``http://localhost:3000``")).toEqual([
+			{ kind: "text", value: "``http://localhost:3000``" },
+		]);
+	});
+
+	it("keeps a code span crossing a single line ending literal", () => {
+		expect(splitTextForLinks("`start\nhttp://localhost:3000\nend`")).toEqual([
+			{ kind: "text", value: "`start\nhttp://localhost:3000\nend`" },
+		]);
+	});
+
+	it("linkifies after an unmatched backtick or a closed code span", () => {
+		expect(splitTextForLinks("` http://localhost:3000")).toEqual([
+			{ kind: "text", value: "` " },
+			{ kind: "url", value: "http://localhost:3000" },
+		]);
+		expect(splitTextForLinks("`cmd` http://localhost:3000")).toEqual([
+			{ kind: "text", value: "`cmd` " },
+			{ kind: "url", value: "http://localhost:3000" },
+		]);
+		expect(splitTextForLinks("`\n\nhttp://localhost:3000")).toEqual([
+			{ kind: "text", value: "`\n\n" },
+			{ kind: "url", value: "http://localhost:3000" },
+		]);
+	});
+
+	it("ignores bracket syntax inside a code span", () => {
+		expect(splitTextForLinks("`[` see http://localhost:3000")).toEqual([
+			{ kind: "text", value: "`[` see " },
+			{ kind: "url", value: "http://localhost:3000" },
+		]);
+	});
+
+	it("keeps a backtick inside a URL path", () => {
+		expect(splitTextForLinks("http://localhost:3000/a`b now")).toEqual([
+			{ kind: "url", value: "http://localhost:3000/a`b" },
+			{ kind: "text", value: " now" },
+		]);
+	});
+
+	it("does not treat an escaped bracket as a pending link label", () => {
+		expect(splitTextForLinks("\\[ http://localhost:3000")).toEqual([
+			{ kind: "text", value: "\\[ " },
+			{ kind: "url", value: "http://localhost:3000" },
+		]);
+	});
 });
