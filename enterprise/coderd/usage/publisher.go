@@ -35,6 +35,7 @@ const (
 	tallymanPublishInterval  = 17 * time.Minute
 	tallymanPublishTimeout   = 30 * time.Second
 	tallymanPublishBatchSize = 100
+	usagePublishDBTimeout    = 30 * time.Second
 )
 
 var errUsagePublishingDisabled = xerrors.New("usage publishing is not enabled by any license")
@@ -56,10 +57,12 @@ type tallymanPublisher struct {
 	done        chan struct{}
 
 	// Configured with options:
-	ingestURL    string
-	httpClient   *http.Client
-	clock        quartz.Clock
-	initialDelay time.Duration
+	ingestURL      string
+	httpClient     *http.Client
+	clock          quartz.Clock
+	initialDelay   time.Duration
+	publishTimeout time.Duration
+	publishHealth  *PublishHealth
 }
 
 var _ Publisher = &tallymanPublisher{}
@@ -78,9 +81,11 @@ func NewTallymanPublisher(ctx context.Context, log slog.Logger, db database.Stor
 		licenseKeys: keys,
 		done:        make(chan struct{}),
 
-		ingestURL:  tallymanIngestURLV1,
-		httpClient: http.DefaultClient,
-		clock:      quartz.NewReal(),
+		ingestURL:      tallymanIngestURLV1,
+		httpClient:     http.DefaultClient,
+		clock:          quartz.NewReal(),
+		publishTimeout: tallymanPublishTimeout,
+		publishHealth:  &PublishHealth{},
 	}
 	for _, opt := range opts {
 		opt(publisher)
@@ -119,6 +124,22 @@ func PublisherWithIngestURL(ingestURL string) TallymanPublisherOption {
 func PublisherWithInitialDelay(initialDelay time.Duration) TallymanPublisherOption {
 	return func(p *tallymanPublisher) {
 		p.initialDelay = initialDelay
+	}
+}
+
+// PublisherWithPublishTimeout sets the timeout for each Tallyman request.
+func PublisherWithPublishTimeout(timeout time.Duration) TallymanPublisherOption {
+	return func(p *tallymanPublisher) {
+		p.publishTimeout = timeout
+	}
+}
+
+// PublisherWithPublishHealth sets the process-local health tracker.
+func PublisherWithPublishHealth(health *PublishHealth) TallymanPublisherOption {
+	return func(p *tallymanPublisher) {
+		if health != nil {
+			p.publishHealth = health
+		}
 	}
 }
 
@@ -170,9 +191,16 @@ func (p *tallymanPublisher) publishLoop(ctx context.Context, deploymentID uuid.U
 		case <-ticker.C:
 		}
 
-		err := p.publish(ctx, deploymentID)
+		healthEpoch := p.publishHealth.currentEpoch()
+		err := p.publish(ctx, deploymentID, healthEpoch)
 		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			p.publishHealth.recordCycleFailure(healthEpoch, p.clock.Now())
 			p.log.Warn(ctx, "publish usage events to tallyman", slog.Error(err))
+		} else {
+			p.publishHealth.recordCycleHealthy(healthEpoch)
 		}
 		ticker.Reset(tallymanPublishInterval)
 	}
@@ -180,11 +208,9 @@ func (p *tallymanPublisher) publishLoop(ctx context.Context, deploymentID uuid.U
 
 // publish publishes usage events to Tallyman in a loop until there is an error
 // (or any rejection) or there are no more events to publish.
-func (p *tallymanPublisher) publish(ctx context.Context, deploymentID uuid.UUID) error {
+func (p *tallymanPublisher) publish(ctx context.Context, deploymentID uuid.UUID, healthEpoch uint64) error {
 	for {
-		publishCtx, publishCtxCancel := context.WithTimeout(ctx, tallymanPublishTimeout)
-		accepted, err := p.publishOnce(publishCtx, deploymentID)
-		publishCtxCancel()
+		accepted, err := p.publishOnce(ctx, deploymentID, healthEpoch)
 		if err != nil {
 			return xerrors.Errorf("publish usage events to tallyman: %w", err)
 		}
@@ -197,20 +223,24 @@ func (p *tallymanPublisher) publish(ctx context.Context, deploymentID uuid.UUID)
 
 // publishOnce publishes up to tallymanPublishBatchSize usage events to
 // tallyman. It returns the number of successfully published events.
-func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.UUID) (int, error) {
-	licenseJwt, err := p.getBestLicenseJWT(ctx)
+func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.UUID, healthEpoch uint64) (int, error) {
+	selectCtx, selectCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
+	licenseJwt, err := p.getBestLicenseJWT(selectCtx)
 	if xerrors.Is(err, errUsagePublishingDisabled) {
+		selectCtxCancel()
+		p.publishHealth.Reset()
 		return 0, nil
 	} else if err != nil {
+		selectCtxCancel()
 		return 0, xerrors.Errorf("find usage publishing license: %w", err)
 	}
 
-	events, err := p.db.SelectUsageEventsForPublishing(ctx, dbtime.Time(p.clock.Now()))
+	events, err := p.db.SelectUsageEventsForPublishing(selectCtx, dbtime.Time(p.clock.Now()))
+	selectCtxCancel()
 	if err != nil {
 		return 0, xerrors.Errorf("select usage events for publishing: %w", err)
 	}
 	if len(events) == 0 {
-		// No events to publish.
 		return 0, nil
 	}
 
@@ -241,7 +271,9 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		return 0, xerrors.Errorf("duplicate event IDs found in events for publishing")
 	}
 
-	resp, err := p.sendPublishRequest(ctx, deploymentID, licenseJwt, tallymanReq)
+	publishCtx, publishCtxCancel := context.WithTimeout(ctx, p.publishTimeout)
+	resp, err := p.sendPublishRequest(publishCtx, deploymentID, licenseJwt, tallymanReq)
+	publishCtxCancel()
 	allFailed := err != nil
 	if err != nil {
 		p.log.Warn(ctx, "failed to send publish request to tallyman", slog.F("count", len(events)), slog.Error(err))
@@ -274,28 +306,34 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		rejectedEvents[event.ID] = &event
 	}
 
+	publishedAt := p.clock.Now()
 	dbUpdate := database.UpdateUsageEventsPostPublishParams{
-		Now:             dbtime.Time(p.clock.Now()),
+		Now:             dbtime.Time(publishedAt),
 		IDs:             make([]string, len(events)),
 		FailureMessages: make([]string, len(events)),
 		SetPublishedAts: make([]bool, len(events)),
 	}
+	acceptedCount := 0
+	rejectedCount := 0
 	for i, event := range events {
 		dbUpdate.IDs[i] = event.ID
 		if _, ok := acceptedEvents[event.ID]; ok {
 			dbUpdate.FailureMessages[i] = ""
 			dbUpdate.SetPublishedAts[i] = true
+			acceptedCount++
 			continue
 		}
 		if rejectedEvent, ok := rejectedEvents[event.ID]; ok {
 			dbUpdate.FailureMessages[i] = rejectedEvent.Message
 			dbUpdate.SetPublishedAts[i] = rejectedEvent.Permanent
+			rejectedCount++
 			continue
 		}
 		// It's not good if this path gets hit, but we'll handle it as if it
 		// was a temporary rejection.
 		dbUpdate.FailureMessages[i] = "tallyman did not include the event in the response"
 		dbUpdate.SetPublishedAts[i] = false
+		rejectedCount++
 	}
 
 	// Collate rejected events into a single map of ID to failure message for
@@ -319,16 +357,21 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		}
 	}
 
-	err = p.db.UpdateUsageEventsPostPublish(ctx, dbUpdate)
+	updateCtx, updateCtxCancel := context.WithTimeout(ctx, usagePublishDBTimeout)
+	err = p.db.UpdateUsageEventsPostPublish(updateCtx, dbUpdate)
+	updateCtxCancel()
 	if err != nil {
 		return 0, xerrors.Errorf("update usage events post publish: %w", err)
 	}
+	if acceptedCount > 0 {
+		p.publishHealth.recordCyclePublished(healthEpoch, publishedAt)
+	}
 
 	var returnErr error
-	if len(resp.RejectedEvents) > 0 {
+	if rejectedCount > 0 {
 		returnErr = xerrors.New("some events were rejected by tallyman")
 	}
-	return len(resp.AcceptedEvents), returnErr
+	return acceptedCount, returnErr
 }
 
 // getBestLicenseJWT returns the best license JWT to use for the request. The

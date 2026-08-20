@@ -63,6 +63,22 @@ There are two ways to add a license to a Coder deployment:
 
 </div>
 
+## Usage data publishing
+
+Some licenses enable publishing usage data to Coder's servers. The
+`usage_publishing` object in `/api/v2/entitlements` reports whether publishing
+is enabled and the health observed by the coderd process that serves the
+request.
+
+Coder shows an administrator warning after publishing fails continuously for
+24 hours. The warning clears after the next publishing cycle that completes
+without an error. A cycle with no events to publish is successful.
+
+The status is process-local and best effort. Its timestamps reset when coderd
+restarts and can differ between replicas in a high availability deployment. If
+publishing is disabled by the active licenses, both timestamps are null and
+Coder does not show the warning.
+
 ## FAQ
 
 ### Find your deployment ID

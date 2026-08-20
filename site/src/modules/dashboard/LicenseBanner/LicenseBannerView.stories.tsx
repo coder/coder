@@ -9,6 +9,7 @@ import {
 	LicenseAIGovernance90PercentWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
+	LicenseUsagePublishingFailingWarningText,
 } from "#/api/typesGenerated";
 import {
 	MockAppearanceConfig,
@@ -402,6 +403,22 @@ export const AgentRuntimeHoursClaimsIgnored: Story = {
 			warnings: [LicenseAgentRuntimeHoursClaimsIgnoredWarningText],
 		}),
 	play: playMutedDiagnostic(LicenseAgentRuntimeHoursClaimsIgnoredWarningText),
+};
+
+export const UsagePublishingFailing: Story = {
+	render: () =>
+		renderLicenseBanner({
+			warnings: [LicenseUsagePublishingFailingWarningText],
+		}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("status")).toHaveTextContent(
+			LicenseUsagePublishingFailingWarningText,
+		);
+		await expect(
+			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
+		).not.toBeInTheDocument();
+	},
 };
 
 // An all-diagnostic banner must not claim license limits were exceeded,

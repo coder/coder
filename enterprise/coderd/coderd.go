@@ -98,6 +98,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.Entitlements == nil {
 		options.Entitlements = entitlements.New()
 	}
+	if options.UsagePublishHealth == nil {
+		options.UsagePublishHealth = &usage.PublishHealth{}
+	}
 	if options.Options.UsageInserter == nil {
 		options.Options.UsageInserter = &atomic.Pointer[agplusage.Inserter]{}
 	}
@@ -878,6 +881,7 @@ type Options struct {
 	EntitlementsUpdateInterval time.Duration
 	ProxyHealthInterval        time.Duration
 	LicenseKeys                map[string]ed25519.PublicKey
+	UsagePublishHealth         *usage.PublishHealth
 
 	// optional pre-shared key for authentication of external provisioner daemons
 	ProvisionerDaemonPSK string
@@ -988,6 +992,23 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		)
 		if err != nil {
 			return codersdk.Entitlements{}, err
+		}
+
+		if !reloadedEntitlements.UsagePublishing.PublishingEnabled {
+			api.UsagePublishHealth.Reset()
+		} else {
+			snapshot := api.UsagePublishHealth.Snapshot()
+			if !snapshot.LastPublishedAt.IsZero() {
+				lastPublishedAt := snapshot.LastPublishedAt
+				reloadedEntitlements.UsagePublishing.LastPublishedAt = &lastPublishedAt
+			}
+			if !snapshot.FailureStartedAt.IsZero() &&
+				dbtime.Now().Sub(snapshot.FailureStartedAt) >= license.UsagePublishingFailureThreshold {
+				failingSince := snapshot.FailureStartedAt
+				reloadedEntitlements.UsagePublishing.FailingSince = &failingSince
+				reloadedEntitlements.Warnings = append(reloadedEntitlements.Warnings,
+					codersdk.LicenseUsagePublishingFailingWarningText)
+			}
 		}
 
 		if reloadedEntitlements.RequireTelemetry && !api.DeploymentValues.Telemetry.Enable.Value() {

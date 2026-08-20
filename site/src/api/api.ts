@@ -1862,6 +1862,11 @@ class ApiMethods {
 					trial: false,
 					warnings: [],
 					refreshed_at: "",
+					usage_publishing: {
+						publishing_enabled: false,
+						last_published_at: null,
+						failing_since: null,
+					},
 				};
 			}
 			throw ex;

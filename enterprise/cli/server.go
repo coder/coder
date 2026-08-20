@@ -132,6 +132,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		// publishing enabled.
 		publisher := usage.NewTallymanPublisher(ctx, options.Logger, options.Database, o.LicenseKeys,
 			usage.PublisherWithHTTPClient(api.HTTPClient),
+			usage.PublisherWithPublishHealth(api.UsagePublishHealth),
 		)
 		err = publisher.Start()
 		if err != nil {

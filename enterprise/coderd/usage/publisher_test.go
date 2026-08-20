@@ -87,9 +87,11 @@ func TestIntegration(t *testing.T) {
 	// Wrap the publisher's DB in a dbauthz to ensure that the publisher has
 	// enough permissions.
 	authzDB := dbauthz.New(db, rbac.NewAuthorizer(prometheus.NewRegistry()), log, coderdtest.AccessControlStorePointer())
+	publishHealth := &usage.PublishHealth{}
 	publisher := usage.NewTallymanPublisher(ctx, log, authzDB, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
+		usage.PublisherWithPublishHealth(publishHealth),
 	)
 	defer publisher.Close()
 
@@ -159,6 +161,11 @@ func TestIntegration(t *testing.T) {
 	// The publisher should have published the events once.
 	require.Equal(t, 1, calls)
 
+	firstOutcomeAt := clock.Now()
+	snapshot := publishHealth.Snapshot()
+	require.Equal(t, firstOutcomeAt, snapshot.LastPublishedAt)
+	require.Equal(t, firstOutcomeAt, snapshot.FailureStartedAt)
+
 	// Set the handler for the next publish call. This call should only include
 	// the temporarily rejected event from earlier. This time we'll accept it.
 	handler = func(req usagetypes.TallymanV1IngestRequest) any {
@@ -182,6 +189,11 @@ func TestIntegration(t *testing.T) {
 	// The publisher should have published the events again.
 	require.Equal(t, 2, calls)
 
+	secondOutcomeAt := clock.Now()
+	snapshot = publishHealth.Snapshot()
+	require.Equal(t, secondOutcomeAt, snapshot.LastPublishedAt)
+	require.True(t, snapshot.FailureStartedAt.IsZero())
+
 	// There should be no more publish calls after this, so set the handler to
 	// nil.
 	handler = nil
@@ -193,6 +205,10 @@ func TestIntegration(t *testing.T) {
 	// No publish should have taken place since there are no more events to
 	// publish.
 	require.Equal(t, 2, calls)
+
+	snapshot = publishHealth.Snapshot()
+	require.Equal(t, secondOutcomeAt, snapshot.LastPublishedAt)
+	require.True(t, snapshot.FailureStartedAt.IsZero())
 
 	require.NoError(t, publisher.Close())
 }
@@ -218,9 +234,13 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 		}
 	}))
 
+	publishHealth := &usage.PublishHealth{}
+	publishHealth.RecordPublished(time.Now())
+	publishHealth.RecordFailure(time.Now())
 	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
+		usage.PublisherWithPublishHealth(publishHealth),
 	)
 	defer publisher.Close()
 
@@ -249,6 +269,12 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 	// The publisher should not have published the events.
 	require.Equal(t, 0, calls)
 
+	snapshot := publishHealth.Snapshot()
+	require.True(t, snapshot.LastPublishedAt.IsZero())
+	require.True(t, snapshot.FailureStartedAt.IsZero())
+	publishHealth.RecordPublished(time.Now())
+	publishHealth.RecordFailure(time.Now())
+
 	// Mock a single license with usage publishing disabled.
 	licenseJWT := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 		PublishUsageData: false,
@@ -269,6 +295,9 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 
 	// The publisher should still not have published the events.
 	require.Equal(t, 0, calls)
+	snapshot = publishHealth.Snapshot()
+	require.True(t, snapshot.LastPublishedAt.IsZero())
+	require.True(t, snapshot.FailureStartedAt.IsZero())
 }
 
 // TestPublisherClaimExpiry tests the claim query to ensure that events are not
@@ -371,9 +400,11 @@ func TestPublisherMissingEvents(t *testing.T) {
 		}
 	}))
 
+	publishHealth := &usage.PublishHealth{}
 	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
+		usage.PublisherWithPublishHealth(publishHealth),
 	)
 
 	// Expect the publisher to call SelectUsageEventsForPublishing, followed by
@@ -421,6 +452,10 @@ func TestPublisherMissingEvents(t *testing.T) {
 
 	// The publisher should have published the events once.
 	require.Equal(t, 1, calls)
+
+	snapshot := publishHealth.Snapshot()
+	require.Equal(t, now.Add(tickerCall.Duration), snapshot.FailureStartedAt)
+	require.True(t, snapshot.LastPublishedAt.IsZero())
 
 	require.NoError(t, publisher.Close())
 }
@@ -580,9 +615,11 @@ func TestPublisherTallymanError(t *testing.T) {
 		}
 	}))
 
+	publishHealth := &usage.PublishHealth{}
 	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
+		usage.PublisherWithPublishHealth(publishHealth),
 	)
 	defer publisher.Close()
 
@@ -626,6 +663,212 @@ func TestPublisherTallymanError(t *testing.T) {
 
 	// The publisher should have published the events once.
 	require.Equal(t, 1, calls)
+	snapshot := publishHealth.Snapshot()
+	require.Equal(t, now.Add(tickerCall.Duration), snapshot.FailureStartedAt)
+	require.True(t, snapshot.LastPublishedAt.IsZero())
+}
+
+func TestPublisherShutdownDoesNotRecordFailure(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	log := slogtest.Make(t, nil)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	clock := quartz.NewMock(t)
+	clock.Set(time.Now())
+
+	configureMockDeployment(t, db)
+	requestStarted := make(chan struct{}, 1)
+	httpClient := &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		requestStarted <- struct{}{}
+		<-req.Context().Done()
+		return nil, req.Context().Err()
+	})}
+
+	publishHealth := &usage.PublishHealth{}
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
+		usage.PublisherWithClock(clock),
+		usage.PublisherWithHTTPClient(httpClient),
+		usage.PublisherWithPublishTimeout(testutil.WaitLong),
+		usage.PublisherWithPublishHealth(publishHealth),
+	)
+
+	tickerTrap := clock.Trap().NewTicker()
+	defer tickerTrap.Close()
+	startErr := make(chan error)
+	go func() {
+		testutil.RequireSend(ctx, t, startErr, publisher.Start())
+	}()
+	tickerCall := tickerTrap.MustWait(ctx)
+	tickerCall.MustRelease(ctx)
+	require.NoError(t, testutil.RequireReceive(ctx, t, startErr))
+
+	events := []database.UsageEvent{{
+		ID:        uuid.NewString(),
+		EventType: string(usagetypes.UsageEventTypeDCManagedAgentsV1),
+		EventData: []byte(jsoninate(t, usagetypes.DCManagedAgentsV1{Count: 1})),
+	}}
+	db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), gomock.Any()).Return(events, nil)
+	db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), gomock.Any()).Return(context.Canceled)
+
+	clock.Advance(tickerCall.Duration)
+	testutil.RequireReceive(ctx, t, requestStarted)
+	require.NoError(t, publisher.Close())
+
+	snapshot := publishHealth.Snapshot()
+	require.True(t, snapshot.LastPublishedAt.IsZero())
+	require.True(t, snapshot.FailureStartedAt.IsZero())
+}
+
+func TestPublisherTimeoutRecordsFailure(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	log := slogtest.Make(t, nil)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	clock := quartz.NewMock(t)
+	now := time.Now()
+	clock.Set(now)
+
+	configureMockDeployment(t, db)
+	requestStarted := make(chan struct{}, 1)
+	httpClient := &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		requestStarted <- struct{}{}
+		<-req.Context().Done()
+		return nil, req.Context().Err()
+	})}
+
+	publishHealth := &usage.PublishHealth{}
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
+		usage.PublisherWithClock(clock),
+		usage.PublisherWithHTTPClient(httpClient),
+		usage.PublisherWithPublishTimeout(testutil.IntervalFast),
+		usage.PublisherWithPublishHealth(publishHealth),
+	)
+	defer publisher.Close()
+
+	tickerTrap := clock.Trap().NewTicker()
+	defer tickerTrap.Close()
+	startErr := make(chan error)
+	go func() {
+		testutil.RequireSend(ctx, t, startErr, publisher.Start())
+	}()
+	tickerCall := tickerTrap.MustWait(ctx)
+	tickerCall.MustRelease(ctx)
+	require.NoError(t, testutil.RequireReceive(ctx, t, startErr))
+
+	events := []database.UsageEvent{{
+		ID:        uuid.NewString(),
+		EventType: string(usagetypes.UsageEventTypeDCManagedAgentsV1),
+		EventData: []byte(jsoninate(t, usagetypes.DCManagedAgentsV1{Count: 1})),
+	}}
+	db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), gomock.Any()).Return(events, nil)
+	db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), gomock.Any()).Return(nil)
+
+	tickerResetTrap := clock.Trap().TickerReset()
+	defer tickerResetTrap.Close()
+	clock.Advance(tickerCall.Duration)
+	testutil.RequireReceive(ctx, t, requestStarted)
+	tickerResetTrap.MustWait(ctx).MustRelease(ctx)
+
+	snapshot := publishHealth.Snapshot()
+	require.Equal(t, now.Add(tickerCall.Duration), snapshot.FailureStartedAt)
+	require.True(t, snapshot.LastPublishedAt.IsZero())
+}
+
+func TestPublisherSelectErrorRecordsFailure(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	log := slogtest.Make(t, nil)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	clock := quartz.NewMock(t)
+	now := time.Now()
+	clock.Set(now)
+
+	configureMockDeployment(t, db)
+	publishHealth := &usage.PublishHealth{}
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
+		usage.PublisherWithClock(clock),
+		usage.PublisherWithPublishHealth(publishHealth),
+	)
+	defer publisher.Close()
+
+	tickerTrap := clock.Trap().NewTicker()
+	defer tickerTrap.Close()
+	startErr := make(chan error)
+	go func() {
+		testutil.RequireSend(ctx, t, startErr, publisher.Start())
+	}()
+	tickerCall := tickerTrap.MustWait(ctx)
+	tickerCall.MustRelease(ctx)
+	require.NoError(t, testutil.RequireReceive(ctx, t, startErr))
+
+	db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+	tickerResetTrap := clock.Trap().TickerReset()
+	defer tickerResetTrap.Close()
+	clock.Advance(tickerCall.Duration)
+	tickerResetTrap.MustWait(ctx).MustRelease(ctx)
+
+	snapshot := publishHealth.Snapshot()
+	require.Equal(t, now.Add(tickerCall.Duration), snapshot.FailureStartedAt)
+	require.True(t, snapshot.LastPublishedAt.IsZero())
+}
+
+func TestPublisherPostPublishUpdateError(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	log := slogtest.Make(t, nil)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	clock := quartz.NewMock(t)
+	now := time.Now()
+	clock.Set(now)
+
+	deploymentID, licenseJWT := configureMockDeployment(t, db)
+	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), licenseJWT, func(req usagetypes.TallymanV1IngestRequest) any {
+		return tallymanAcceptAllHandler(req)
+	}))
+	publishHealth := &usage.PublishHealth{}
+	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
+		usage.PublisherWithClock(clock),
+		usage.PublisherWithIngestURL(ingestURL),
+		usage.PublisherWithPublishHealth(publishHealth),
+	)
+	defer publisher.Close()
+
+	tickerTrap := clock.Trap().NewTicker()
+	defer tickerTrap.Close()
+	startErr := make(chan error)
+	go func() {
+		testutil.RequireSend(ctx, t, startErr, publisher.Start())
+	}()
+	tickerCall := tickerTrap.MustWait(ctx)
+	tickerCall.MustRelease(ctx)
+	require.NoError(t, testutil.RequireReceive(ctx, t, startErr))
+
+	events := []database.UsageEvent{{
+		ID:        uuid.NewString(),
+		EventType: string(usagetypes.UsageEventTypeDCManagedAgentsV1),
+		EventData: []byte(jsoninate(t, usagetypes.DCManagedAgentsV1{Count: 1})),
+	}}
+	db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), gomock.Any()).Return(events, nil)
+	db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), gomock.Any()).Return(assert.AnError)
+
+	tickerResetTrap := clock.Trap().TickerReset()
+	defer tickerResetTrap.Close()
+	clock.Advance(tickerCall.Duration)
+	tickerResetTrap.MustWait(ctx).MustRelease(ctx)
+
+	snapshot := publishHealth.Snapshot()
+	require.Equal(t, now.Add(tickerCall.Duration), snapshot.FailureStartedAt)
+	require.True(t, snapshot.LastPublishedAt.IsZero())
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func jsoninate(t *testing.T, v any) string {

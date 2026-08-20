@@ -7,6 +7,7 @@ import {
 	LicenseAIGovernanceOverLimitWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
+	LicenseUsagePublishingFailingWarningText,
 } from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
@@ -152,6 +153,9 @@ const messageLink = (message: string): LicenseBannerLink | undefined => {
 	// The soft-limit advisory fires inside the purchased allocation, so it
 	// does not get a sales link.
 	if (message.startsWith(agentRuntimeSoftLimitWarningPrefix)) {
+		return undefined;
+	}
+	if (message === LicenseUsagePublishingFailingWarningText) {
 		return undefined;
 	}
 	return {
