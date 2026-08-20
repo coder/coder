@@ -50,38 +50,25 @@
 
 ## Quickstart
 
-The easiest way to install Coder is the
-[install script](https://github.com/coder/coder/blob/main/install.sh) for Linux
-and macOS. For Windows, use the latest `..._installer.exe` file from GitHub
-Releases.
+Install Coder with the [install script](https://github.com/coder/coder/blob/main/install.sh) on Linux and macOS, or the latest `..._installer.exe` from GitHub Releases on Windows:
 
 ```shell
 curl -L https://coder.com/install.sh | sh
 ```
 
-Run the script with `--dry-run` to preview the commands without executing them, or `--help` for additional flags. See the [install guides](https://coder.com/docs/install) for other methods and a complete tutorial.
-
-To try Coder locally (works on Linux, macOS, and Windows), start the server and provision a workspace using Docker:
+Start the server and open [http://localhost:3000](http://localhost:3000) to create your initial user, create a Docker template, and provision your first workspace:
 
 ```shell
-# Start the Coder server (caches data in ~/.cache/coder)
 coder server
-
-# Navigate to http://localhost:3000 to create your initial user,
-# create a Docker template and provision a workspace
 ```
 
-Once you're ready for a production deployment:
+For a production deployment, add a PostgreSQL database (version 13 or higher) and an external access URL:
 
 ```shell
-# Automatically sets up an external access URL on *.try.coder.app
-coder server
-
-# Requires a PostgreSQL instance (version 13 or higher) and external access URL
 coder server --postgres-url <url> --access-url <url>
 ```
 
-Use `coder --help` to get a list of flags and environment variables.
+Without these flags, Coder uses a built-in database and sets up a `*.try.coder.app` access URL for evaluation. Use `coder --help` for the full list of flags and environment variables, or see the [install guides](https://coder.com/docs/install) for other install methods and a complete tutorial.
 
 ## Documentation
 
