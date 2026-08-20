@@ -50,22 +50,7 @@
 
 ## Quickstart
 
-The most convenient way to try Coder is to install it on your local machine and experiment with provisioning cloud development environments using Docker (works on Linux, macOS, and Windows).
-
-```shell
-# First, install Coder
-curl -L https://coder.com/install.sh | sh
-
-# Start the Coder server (caches data in ~/.cache/coder)
-coder server
-
-# Navigate to http://localhost:3000 to create your initial user,
-# create a Docker template and provision a workspace
-```
-
-## Install
-
-The easiest way to install Coder is to use the
+The easiest way to install Coder is the
 [install script](https://github.com/coder/coder/blob/main/install.sh) for Linux
 and macOS. For Windows, use the latest `..._installer.exe` file from GitHub
 Releases.
@@ -74,9 +59,19 @@ Releases.
 curl -L https://coder.com/install.sh | sh
 ```
 
-You can run the install script with `--dry-run` to see the commands that will be used to install without executing them. Run the install script with `--help` for additional flags.
+Run the script with `--dry-run` to preview the commands without executing them, or `--help` for additional flags. See the [install guides](https://coder.com/docs/install) for other methods and a complete tutorial.
 
-Once installed, you can start a production deployment with a single command:
+To try Coder locally (works on Linux, macOS, and Windows), start the server and provision a workspace using Docker:
+
+```shell
+# Start the Coder server (caches data in ~/.cache/coder)
+coder server
+
+# Navigate to http://localhost:3000 to create your initial user,
+# create a Docker template and provision a workspace
+```
+
+Once you're ready for a production deployment:
 
 ```shell
 # Automatically sets up an external access URL on *.try.coder.app
@@ -86,7 +81,7 @@ coder server
 coder server --postgres-url <url> --access-url <url>
 ```
 
-Use `coder --help` to get a list of flags and environment variables. See the [install guides](https://coder.com/docs/install) for a complete tutorial.
+Use `coder --help` to get a list of flags and environment variables.
 
 ## Documentation
 
