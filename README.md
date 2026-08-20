@@ -50,6 +50,8 @@
 
 ## Quickstart
 
+> See our [install guides](https://coder.com/docs/install) for other methods and a complete tutorial.
+
 Install Coder with the [install script](https://github.com/coder/coder/blob/main/install.sh) on Linux and macOS, or grab the latest binary or installer from [GitHub Releases](https://github.com/coder/coder/releases/latest) on Windows:
 
 ```shell
@@ -68,7 +70,7 @@ For a production deployment, add a PostgreSQL database (version 13 or higher) an
 coder server --postgres-url <url> --access-url <url>
 ```
 
-Without these flags, Coder uses a built-in database and sets up a `*.try.coder.app` access URL for evaluation. Use `coder --help` for the full list of flags and environment variables, or see the [install guides](https://coder.com/docs/install) for other install methods and a complete tutorial.
+Without these flags, Coder uses a built-in database and sets up a `*.try.coder.app` access URL for evaluation. Use `coder --help` for the full list of flags and environment variables.
 
 ## Documentation
 
