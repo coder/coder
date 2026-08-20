@@ -139,7 +139,17 @@ const mockThreadLongPrompt: AIBridgeThread = {
 };
 
 export const MultipleThreads: Story = {
-	args: { threads: [mockThread, mockThreadLong] },
+	args: { threads: [mockThread, mockThreadLong, mockThreadLongPrompt] },
+	play: async ({ canvas }) => {
+		// With no active query, the long prompt starts collapsed (Show more),
+		// not auto-expanded (Collapse).
+		await expect(
+			await canvas.findByRole("button", { name: "Show more" }),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("button", { name: "Collapse" }),
+		).not.toBeInTheDocument();
+	},
 };
 
 // A match past the 200px prompt cutoff expands the full prompt so the bolded
