@@ -6446,6 +6446,15 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 				require.False(t, result.ProviderExecuted)
 			}
 		}
+
+		messages := chatMessages(ctx, t, db, chat.ID)
+		billedToolRows := 0
+		for _, msg := range messages {
+			if msg.Role == database.ChatMessageRoleTool && msg.RuntimeMs.Valid {
+				billedToolRows++
+			}
+		}
+		require.LessOrEqual(t, billedToolRows, 1)
 	})
 }
 
