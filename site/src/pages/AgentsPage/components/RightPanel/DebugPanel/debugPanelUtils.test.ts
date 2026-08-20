@@ -826,6 +826,7 @@ describe("coerceRunSummary", () => {
 			stepCount: 3,
 			totalInputTokens: 120,
 			totalOutputTokens: 45,
+			mcpConnect: [],
 			warnings: [],
 		});
 	});
@@ -851,8 +852,51 @@ describe("coerceRunSummary", () => {
 			stepCount: undefined,
 			totalInputTokens: undefined,
 			totalOutputTokens: undefined,
+			mcpConnect: [],
 			warnings: [],
 		});
+	});
+
+	it("coerces MCP connect summaries and drops malformed entries", () => {
+		const summary = coerceRunSummary({
+			mcp_connect: [
+				{
+					slug: "registry",
+					outcome: "timeout",
+					duration_ms: 10000,
+					error: "connect: context deadline exceeded",
+				},
+				{
+					slug: "linear",
+					outcome: "connected",
+					duration_ms: 320,
+					tool_count: 12,
+				},
+				{ outcome: "error" },
+				"not-a-record",
+			],
+		});
+
+		expect(summary.mcpConnect).toEqual([
+			{
+				slug: "registry",
+				outcome: "timeout",
+				durationMs: 10000,
+				toolCount: undefined,
+				error: "connect: context deadline exceeded",
+			},
+			{
+				slug: "linear",
+				outcome: "connected",
+				durationMs: 320,
+				toolCount: 12,
+				error: undefined,
+			},
+		]);
+	});
+
+	it("returns an empty MCP connect list for non-array values", () => {
+		expect(coerceRunSummary({ mcp_connect: "oops" }).mcpConnect).toEqual([]);
 	});
 
 	it("unwraps JSON-string payloads before coercing", () => {

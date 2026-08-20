@@ -58,6 +58,46 @@ const connectTimeout = 10 * time.Second
 // take before being canceled.
 const toolCallTimeout = 60 * time.Second
 
+// slowConnectThreshold is the successful-connect duration above
+// which a warning is logged. Connects happen on every generation
+// step, so a consistently slow server taxes the whole chat even
+// when it stays inside the connect budget.
+const slowConnectThreshold = 5 * time.Second
+
+// ConnectOutcome classifies the result of one MCP server connect
+// attempt for logs and chat debug runs.
+type ConnectOutcome string
+
+const (
+	// ConnectOutcomeConnected means tools were discovered and the
+	// session is live.
+	ConnectOutcomeConnected ConnectOutcome = "connected"
+	// ConnectOutcomeTimeout means the connect budget elapsed before
+	// the server completed the handshake and tool listing.
+	ConnectOutcomeTimeout ConnectOutcome = "timeout"
+	// ConnectOutcomeError means the handshake or tool listing
+	// failed.
+	ConnectOutcomeError ConnectOutcome = "error"
+	// ConnectOutcomeNoTools means the server connected but no tools
+	// survived allow/deny filtering, so the session was closed.
+	ConnectOutcomeNoTools ConnectOutcome = "no_tools"
+)
+
+// ConnectSummary describes one MCP server connect attempt. It is
+// logged and recorded into chat debug runs so slow or failing
+// servers are visible instead of appearing as silent gaps in the
+// turn timeline.
+type ConnectSummary struct {
+	ConfigID   uuid.UUID      `json:"config_id"`
+	Slug       string         `json:"slug"`
+	Outcome    ConnectOutcome `json:"outcome"`
+	DurationMS int64          `json:"duration_ms"`
+	ToolCount  int            `json:"tool_count,omitempty"`
+	// Error is the redacted connect error, present unless the
+	// outcome is connected or no_tools.
+	Error string `json:"error,omitempty"`
+}
+
 // UserOIDCTokenSource resolves the OIDC access token for the calling
 // user. Implementations attempt to refresh tokens that are expired
 // or close to expiring and MUST return ("", nil) when the user has
@@ -74,8 +114,9 @@ type UserOIDCTokenSource interface {
 // their tools, and returns them as fantasy.AgentTool values.
 // Tools are sorted by their prefixed name so callers
 // receive a deterministic order. It skips servers that fail to
-// connect and logs warnings. The returned cleanup function
-// must be called to close all connections.
+// connect and logs warnings; per-server outcomes are returned as
+// ConnectSummary values sorted by slug. The returned cleanup
+// function must be called to close all connections.
 func ConnectAll(
 	ctx context.Context,
 	logger slog.Logger,
@@ -84,7 +125,7 @@ func ConnectAll(
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
-) ([]fantasy.AgentTool, func()) {
+) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	return connectAllWithHooks(
 		ctx, logger, configs, tokens, userID, oidcSrc, coderHeaders,
 		connectTimeout, connectHooks{},
@@ -110,7 +151,7 @@ func connectAllWithHooks(
 	coderHeaders map[string]string,
 	timeout time.Duration,
 	hooks connectHooks,
-) ([]fantasy.AgentTool, func()) {
+) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	// Index tokens by server config ID so auth header
 	// construction is O(1) per server.
 	tokensByConfigID := make(
@@ -121,9 +162,10 @@ func connectAllWithHooks(
 	}
 
 	var (
-		mu       sync.Mutex
-		sessions []*mcp.ClientSession
-		tools    []fantasy.AgentTool
+		mu        sync.Mutex
+		sessions  []*mcp.ClientSession
+		tools     []fantasy.AgentTool
+		summaries []ConnectSummary
 	)
 
 	// Build cleanup eagerly so it always closes any sessions
@@ -150,28 +192,59 @@ func connectAllWithHooks(
 		}
 
 		eg.Go(func() error {
+			start := time.Now()
 			serverTools, session, connectErr := connectOne(
 				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
 				timeout, hooks,
 			)
+			duration := time.Since(start)
+			summary := ConnectSummary{
+				ConfigID:   cfg.ID,
+				Slug:       cfg.Slug,
+				DurationMS: duration.Milliseconds(),
+				ToolCount:  len(serverTools),
+			}
+			switch {
+			case connectErr != nil && errors.Is(connectErr, context.DeadlineExceeded):
+				summary.Outcome = ConnectOutcomeTimeout
+				summary.Error = redactErrorURL(connectErr)
+			case connectErr != nil:
+				summary.Outcome = ConnectOutcomeError
+				summary.Error = redactErrorURL(connectErr)
+			case len(serverTools) == 0:
+				summary.Outcome = ConnectOutcomeNoTools
+			default:
+				summary.Outcome = ConnectOutcomeConnected
+			}
+
 			if connectErr != nil {
 				logger.Warn(ctx,
 					"skipping MCP server due to connection failure",
 					slog.F("server_slug", cfg.Slug),
 					slog.F("server_url", RedactURL(cfg.Url)),
+					slog.F("duration", duration),
 					slog.F("error", redactErrorURL(connectErr)),
 				)
-				// Connection failures are not propagated — the
-				// LLM simply won't have this server's tools.
-				return nil
+			} else if duration >= slowConnectThreshold {
+				logger.Warn(ctx,
+					"slow MCP server connect",
+					slog.F("server_slug", cfg.Slug),
+					slog.F("server_url", RedactURL(cfg.Url)),
+					slog.F("duration", duration),
+				)
 			}
 
 			mu.Lock()
-			if session != nil {
-				sessions = append(sessions, session)
+			summaries = append(summaries, summary)
+			if connectErr == nil {
+				if session != nil {
+					sessions = append(sessions, session)
+				}
+				tools = append(tools, serverTools...)
 			}
-			tools = append(tools, serverTools...)
 			mu.Unlock()
+			// Connection failures are not propagated; the
+			// LLM simply won't have this server's tools.
 			return nil
 		})
 	}
@@ -179,6 +252,15 @@ func connectAllWithHooks(
 	// All goroutines return nil; error is intentionally
 	// discarded.
 	_ = eg.Wait()
+
+	// Sort summaries for deterministic ordering regardless of
+	// goroutine completion order.
+	slices.SortFunc(summaries, func(a, b ConnectSummary) int {
+		return cmp.Or(
+			cmp.Compare(a.Slug, b.Slug),
+			cmp.Compare(a.ConfigID.String(), b.ConfigID.String()),
+		)
+	})
 
 	// Sort tools by prefixed name for deterministic ordering
 	// regardless of goroutine completion order. Ties, possible
@@ -230,7 +312,7 @@ func connectAllWithHooks(
 		}
 	}
 
-	return tools, cleanup
+	return tools, summaries, cleanup
 }
 
 // connectOne establishes a connection to a single MCP server,

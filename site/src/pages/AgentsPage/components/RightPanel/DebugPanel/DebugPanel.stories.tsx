@@ -712,6 +712,76 @@ export const RunWithNoSteps: Story = {
 	},
 };
 
+const mcpConnectRunId = "run-mcp-connect";
+const mcpConnectSummary = {
+	first_message: "MCP connect probe",
+	mcp_connect: [
+		{
+			config_id: "b8f9f3f2-4a3f-4f8a-9c5e-2f4f4be00001",
+			slug: "linear",
+			outcome: "connected",
+			duration_ms: 320,
+			tool_count: 12,
+		},
+		{
+			config_id: "b8f9f3f2-4a3f-4f8a-9c5e-2f4f4be00002",
+			slug: "registry",
+			outcome: "timeout",
+			duration_ms: 10000,
+			error: "connect: context deadline exceeded",
+		},
+	],
+};
+
+export const RunWithMCPConnectSummary: Story = {
+	parameters: {
+		queries: [
+			{
+				key: chatDebugRunsKey(CHAT_ID),
+				data: [
+					buildRunSummary({
+						id: mcpConnectRunId,
+						summary: mcpConnectSummary,
+					}),
+				],
+			},
+			{
+				key: chatDebugRunKey(CHAT_ID, mcpConnectRunId),
+				data: {
+					...MockRun,
+					id: mcpConnectRunId,
+					summary: mcpConnectSummary,
+					steps: [],
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		const runTrigger = await canvas.findByRole("button", {
+			name: /MCP connect probe/i,
+		});
+		await user.click(runTrigger);
+
+		const section = await canvas.findByRole("region", {
+			name: /MCP server connections/i,
+		});
+		const mcp = within(section);
+		await waitFor(() => {
+			expect(mcp.getByText("linear")).toBeVisible();
+			expect(mcp.getByText("connected")).toBeVisible();
+			expect(mcp.getByText("320ms")).toBeVisible();
+			expect(mcp.getByText("12 tools")).toBeVisible();
+			expect(mcp.getByText("registry")).toBeVisible();
+			expect(mcp.getByText("timeout")).toBeVisible();
+			expect(mcp.getByText("10.0s")).toBeVisible();
+			expect(mcp.getByText("connect: context deadline exceeded")).toBeVisible();
+		});
+	},
+};
+
 // ---------------------------------------------------------------------------
 // Core state stories.
 // ---------------------------------------------------------------------------

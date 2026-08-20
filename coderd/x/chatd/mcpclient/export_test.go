@@ -24,7 +24,7 @@ func ConnectAllForTest(
 	configs []database.MCPServerConfig,
 	timeout time.Duration,
 	reaperDone func(),
-) ([]fantasy.AgentTool, func()) {
+) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	return connectAllWithHooks(
 		ctx, logger, configs, nil, uuid.Nil, nil, nil,
 		timeout, connectHooks{reaperDone: reaperDone},
