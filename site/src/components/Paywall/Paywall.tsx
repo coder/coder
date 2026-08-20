@@ -16,7 +16,7 @@ export const PREMIUM_FEATURES = [
 export const PREMIUM_PAGE_PATH = "/deployment/premium";
 export const PREMIUM_DEFAULT_DESCRIPTION =
 	"You need a Premium license to use this feature.";
-export const PREMIUM_DEFAULT_HERO = "Get Access with Coder Premium";
+export const PREMIUM_DEFAULT_HERO = "Get access with a Coder trial";
 
 export type PaywallProps = React.ComponentProps<"div"> & {
 	message: string;
