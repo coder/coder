@@ -104,6 +104,24 @@ func IsExternalScope(name ScopeName) bool {
 	return false
 }
 
+// CanonicalScopeName maps the backward-compatibility aliases IsExternalScope
+// accepts onto the names the api_key_scope enum stores. Any other name is
+// returned unchanged.
+//
+// IsExternalScope answers whether a name may be requested; it does not answer
+// how that name is spelled once persisted. The aliases `all` and
+// `application_connect` are accepted but are not enum members, so a caller
+// that stores what it validated must canonicalize in between.
+func CanonicalScopeName(name ScopeName) ScopeName {
+	switch name {
+	case "all":
+		return ScopeAll
+	case "application_connect":
+		return ScopeApplicationConnect
+	}
+	return name
+}
+
 // ExternalScopeNames returns a sorted list of all public scopes, which
 // includes the `all` and `application_connect` special scopes, curated
 // low-level resource:action names, and curated composite coder:* scopes.
