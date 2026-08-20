@@ -114,6 +114,22 @@ func (m *FakeConnectionLogger) Contains(t testing.TB, expected database.UpsertCo
 			t.Logf("connection log %d: expected DisconnectReason %s, got %s", idx+1, expected.DisconnectReason.String, cl.DisconnectReason.String)
 			continue
 		}
+		if expected.FileProtocol.Valid && cl.FileProtocol.ConnectionLogFileProtocol != expected.FileProtocol.ConnectionLogFileProtocol {
+			t.Logf("connection log %d: expected FileProtocol %s, got %s", idx+1, expected.FileProtocol.ConnectionLogFileProtocol, cl.FileProtocol.ConnectionLogFileProtocol)
+			continue
+		}
+		if expected.FileAction.Valid && cl.FileAction.ConnectionLogFileAction != expected.FileAction.ConnectionLogFileAction {
+			t.Logf("connection log %d: expected FileAction %s, got %s", idx+1, expected.FileAction.ConnectionLogFileAction, cl.FileAction.ConnectionLogFileAction)
+			continue
+		}
+		if expected.FilePath.Valid && cl.FilePath.String != expected.FilePath.String {
+			t.Logf("connection log %d: expected FilePath %s, got %s", idx+1, expected.FilePath.String, cl.FilePath.String)
+			continue
+		}
+		if expected.FileTarget.Valid && cl.FileTarget.String != expected.FileTarget.String {
+			t.Logf("connection log %d: expected FileTarget %s, got %s", idx+1, expected.FileTarget.String, cl.FileTarget.String)
+			continue
+		}
 		if !expected.Time.IsZero() && expected.Time != cl.Time {
 			t.Logf("connection log %d: expected Time %s, got %s", idx+1, expected.Time, cl.Time)
 			continue

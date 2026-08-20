@@ -28,6 +28,56 @@ Agent-reported events do not identify the Coder user who connected. To
 attribute SSH and IDE activity to a user, correlate them with tunnel
 events for the same workspace and agent.
 
+## File Transfers
+
+The connection log records file-transfer sessions and the file operations
+performed within them. Like SSH and IDE sessions, these events are
+reported by workspace agents, and their receipt by the server is not
+guaranteed.
+
+When a client starts an SFTP, `scp`, or `rsync` session against a
+workspace, the session is recorded with the `file_transfer` type instead
+of `ssh`. Sessions denied by
+[`CODER_AGENT_BLOCK_FILE_TRANSFER`](../../reference/cli/agent.md#--block-file-transfer)
+are also recorded as `file_transfer`, with exit code `65`.
+
+While a transfer session is open, the agent streams the file operations
+it observes as `file_operation` events. Each records the protocol, the
+kind of operation, and the path:
+
+- **SFTP** sessions are served inside the agent, so each operation is
+  observed directly: downloads, uploads, directory creation and removal,
+  file removal, renames, symlinks, hard links, and attribute changes
+  (truncation, permissions, ownership, timestamps). A `bidirectional`
+  operation is a file opened for reading and writing at once, such as
+  in-place editing; treat it as though both a download and an upload may
+  have occurred. Attribute changes made through an already-open file
+  handle are not individually logged, but opening the handle itself is.
+- **`scp` and `rsync`** sessions run as external commands, so only the
+  direction and the requested root path from the command line are
+  recorded, not every file in a recursive transfer.
+- **`nc`** has no reliable file semantics and is not classified; it
+  appears as a plain `ssh` session.
+
+File operation events share the `connection_id` of their parent
+`file_transfer` session, so filtering by `connection_id:<uuid>` returns
+the session and all of its recorded operations. Identical operations are
+recorded once per session, and at most 512 operations are recorded per
+session. Like workspace app connections, file operation events are
+point-in-time records: they have no close time and are excluded from
+`status:` filter results.
+
+Recording file transfers requires that both the workspace agent and the
+Coder server support it (agent API v2.11). Older agents report transfer
+sessions as plain `ssh` events without file details.
+
+Keep in mind that file-transfer classification is best-effort and not a
+security boundary: a user with SSH access can move data in ways the agent
+cannot recognize, such as renamed binaries, `curl` uploads, or writing
+files through a shell. Use
+[`CODER_AGENT_BLOCK_FILE_TRANSFER`](../../reference/cli/agent.md#--block-file-transfer)
+together with endpoint controls if you need enforcement.
+
 ## Tunnel Connections
 
 The connection log records the authorization decision for each request to add a tunnel to a workspace agent.

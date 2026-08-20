@@ -13179,7 +13179,8 @@ const batchUpsertConnectionLogs = `-- name: BatchUpsertConnectionLogs :exec
 INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
     workspace_name, agent_name, type, code, ip, user_agent, user_id,
-    slug_or_port, connection_id, disconnect_reason, disconnect_time
+    slug_or_port, connection_id, disconnect_reason, disconnect_time,
+    file_protocol, file_action, file_path, file_target
 )
 SELECT
     u.id,
@@ -13199,7 +13200,11 @@ SELECT
     NULLIF(u.slug_or_port, ''),
     NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(u.disconnect_reason, ''),
-    NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz)
+    NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz),
+    NULLIF(u.file_protocol, '')::connection_log_file_protocol,
+    NULLIF(u.file_action, '')::connection_log_file_action,
+    NULLIF(u.file_path, ''),
+    NULLIF(u.file_target, '')
 FROM (
     SELECT
         unnest($1::uuid[]) AS id,
@@ -13218,7 +13223,11 @@ FROM (
         unnest($14::text[]) AS slug_or_port,
         unnest($15::uuid[]) AS connection_id,
         unnest($16::text[]) AS disconnect_reason,
-        unnest($17::timestamptz[]) AS disconnect_time
+        unnest($17::timestamptz[]) AS disconnect_time,
+        unnest($18::text[]) AS file_protocol,
+        unnest($19::text[]) AS file_action,
+        unnest($20::text[]) AS file_path,
+        unnest($21::text[]) AS file_target
 ) AS u
 ON CONFLICT (connection_id, workspace_id, agent_name) WHERE file_action IS NULL
 DO UPDATE SET
@@ -13267,12 +13276,15 @@ type BatchUpsertConnectionLogsParams struct {
 	ConnectionID     []uuid.UUID      `db:"connection_id" json:"connection_id"`
 	DisconnectReason []string         `db:"disconnect_reason" json:"disconnect_reason"`
 	DisconnectTime   []time.Time      `db:"disconnect_time" json:"disconnect_time"`
+	FileProtocol     []string         `db:"file_protocol" json:"file_protocol"`
+	FileAction       []string         `db:"file_action" json:"file_action"`
+	FilePath         []string         `db:"file_path" json:"file_path"`
+	FileTarget       []string         `db:"file_target" json:"file_target"`
 }
 
 // The pairing index is partial (file_action IS NULL): file operation
 // events share the connection_id of their parent session, never pair
-// with a disconnect event, and always insert as new rows. The predicate
-// is required for Postgres to infer the partial unique index.
+// with a disconnect event, and always insert as new rows.
 func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error {
 	_, err := q.db.ExecContext(ctx, batchUpsertConnectionLogs,
 		pq.Array(arg.ID),
@@ -13292,6 +13304,10 @@ func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUps
 		pq.Array(arg.ConnectionID),
 		pq.Array(arg.DisconnectReason),
 		pq.Array(arg.DisconnectTime),
+		pq.Array(arg.FileProtocol),
+		pq.Array(arg.FileAction),
+		pq.Array(arg.FilePath),
+		pq.Array(arg.FileTarget),
 	)
 	return err
 }

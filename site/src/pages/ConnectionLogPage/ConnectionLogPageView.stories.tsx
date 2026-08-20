@@ -13,6 +13,8 @@ import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
 import {
 	MockConnectedSSHConnectionLog,
 	MockDisconnectedSSHConnectionLog,
+	MockFileOperationConnectionLog,
+	MockFileTransferConnectionLog,
 	MockPermissions,
 	MockUserOwner,
 } from "#/testHelpers/entities";
@@ -43,6 +45,8 @@ const meta: Meta<typeof ConnectionLogPageView> = {
 		connectionLogs: [
 			MockConnectedSSHConnectionLog,
 			MockDisconnectedSSHConnectionLog,
+			MockFileTransferConnectionLog,
+			MockFileOperationConnectionLog,
 		],
 		isConnectionLogVisible: true,
 		filterProps: defaultFilterProps,

@@ -244,7 +244,11 @@ func (b *DBBatcher) addToBatch(item database.UpsertConnectionLogParams) {
 		entry.connectTime = item.Time
 	}
 
-	if !item.ConnectionID.Valid {
+	// File operation events share the connection_id of their parent
+	// file-transfer session but are point-in-time, insert-only rows.
+	// They must not be deduplicated against the session's connect and
+	// disconnect events (or each other), so they bypass the keyed batch.
+	if !item.ConnectionID.Valid || item.Type == database.ConnectionTypeFileOperation {
 		b.nullConnIDBatch = append(b.nullConnIDBatch, entry)
 		return
 	}
@@ -401,6 +405,10 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		connectionID     = make([]uuid.UUID, 0, count)
 		disconnectReason = make([]string, 0, count)
 		disconnectTime   = make([]time.Time, 0, count)
+		fileProtocol     = make([]string, 0, count)
+		fileAction       = make([]string, 0, count)
+		filePath         = make([]string, 0, count)
+		fileTarget       = make([]string, 0, count)
 	)
 
 	appendEntry := func(e batchEntry) {
@@ -421,6 +429,19 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		connectionID = append(connectionID, e.ConnectionID.UUID)
 		disconnectReason = append(disconnectReason, e.DisconnectReason.String)
 		disconnectTime = append(disconnectTime, e.disconnectTime)
+		// The batch query NULLIFs empty strings before casting to the
+		// enum types, so invalid values are stored as NULL.
+		var protocol, action string
+		if e.FileProtocol.Valid {
+			protocol = string(e.FileProtocol.ConnectionLogFileProtocol)
+		}
+		if e.FileAction.Valid {
+			action = string(e.FileAction.ConnectionLogFileAction)
+		}
+		fileProtocol = append(fileProtocol, protocol)
+		fileAction = append(fileAction, action)
+		filePath = append(filePath, e.FilePath.String)
+		fileTarget = append(fileTarget, e.FileTarget.String)
 	}
 
 	for _, entry := range b.dedupedBatch {
@@ -448,6 +469,10 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		ConnectionID:     connectionID,
 		DisconnectReason: disconnectReason,
 		DisconnectTime:   disconnectTime,
+		FileProtocol:     fileProtocol,
+		FileAction:       fileAction,
+		FilePath:         filePath,
+		FileTarget:       fileTarget,
 	}
 }
 

@@ -259,7 +259,8 @@ WHERE connection_logs.id = old_logs.id;
 INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
     workspace_name, agent_name, type, code, ip, user_agent, user_id,
-    slug_or_port, connection_id, disconnect_reason, disconnect_time
+    slug_or_port, connection_id, disconnect_reason, disconnect_time,
+    file_protocol, file_action, file_path, file_target
 )
 SELECT
     u.id,
@@ -279,7 +280,11 @@ SELECT
     NULLIF(u.slug_or_port, ''),
     NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(u.disconnect_reason, ''),
-    NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz)
+    NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz),
+    NULLIF(u.file_protocol, '')::connection_log_file_protocol,
+    NULLIF(u.file_action, '')::connection_log_file_action,
+    NULLIF(u.file_path, ''),
+    NULLIF(u.file_target, '')
 FROM (
     SELECT
         unnest(sqlc.arg('id')::uuid[]) AS id,
@@ -298,12 +303,15 @@ FROM (
         unnest(sqlc.arg('slug_or_port')::text[]) AS slug_or_port,
         unnest(sqlc.arg('connection_id')::uuid[]) AS connection_id,
         unnest(sqlc.arg('disconnect_reason')::text[]) AS disconnect_reason,
-        unnest(sqlc.arg('disconnect_time')::timestamptz[]) AS disconnect_time
+        unnest(sqlc.arg('disconnect_time')::timestamptz[]) AS disconnect_time,
+        unnest(sqlc.arg('file_protocol')::text[]) AS file_protocol,
+        unnest(sqlc.arg('file_action')::text[]) AS file_action,
+        unnest(sqlc.arg('file_path')::text[]) AS file_path,
+        unnest(sqlc.arg('file_target')::text[]) AS file_target
 ) AS u
 -- The pairing index is partial (file_action IS NULL): file operation
 -- events share the connection_id of their parent session, never pair
--- with a disconnect event, and always insert as new rows. The predicate
--- is required for Postgres to infer the partial unique index.
+-- with a disconnect event, and always insert as new rows.
 ON CONFLICT (connection_id, workspace_id, agent_name) WHERE file_action IS NULL
 DO UPDATE SET
     -- Pick the earliest real connect_time. The zero sentinel
