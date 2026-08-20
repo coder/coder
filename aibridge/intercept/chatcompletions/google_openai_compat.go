@@ -6,7 +6,7 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 
-	"github.com/coder/coder/v2/internal/googleopenai"
+	"github.com/coder/coder/v2/coderd/x/googleopenai"
 )
 
 func (i *interceptionBase) chatCompletionRequestBody() ([]byte, error) {

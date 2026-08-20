@@ -24,7 +24,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	"github.com/coder/coder/v2/internal/googleopenai"
+	"github.com/coder/coder/v2/coderd/x/googleopenai"
 )
 
 type BlockingInterception struct {

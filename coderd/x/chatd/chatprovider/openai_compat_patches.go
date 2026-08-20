@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/coder/coder/v2/internal/googleopenai"
+	"github.com/coder/coder/v2/coderd/x/googleopenai"
 )
 
 // OpenAI-compatible providers share an API shape but differ in the exact JSON

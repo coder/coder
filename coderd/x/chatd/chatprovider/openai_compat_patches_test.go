@@ -14,8 +14,8 @@ import (
 
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/googleopenai"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/internal/googleopenai"
 )
 
 func TestModelFromConfig_GeminiOpenAICompatThoughtSignatures(t *testing.T) {

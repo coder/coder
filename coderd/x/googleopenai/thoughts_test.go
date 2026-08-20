@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 
-	"github.com/coder/coder/v2/internal/googleopenai"
+	"github.com/coder/coder/v2/coderd/x/googleopenai"
 )
 
 // The fixtures mirror live captures from Google's OpenAI-compatible endpoint
