@@ -363,50 +363,282 @@ else
 	failures=$((failures + 1))
 fi
 
-# build_comment_body mirrors the body assembler in docs-preview.yaml:
-# it renders the first N pages of $final_rows into the exact
-# comment body the workflow posts, so the comment can be sized by
-# measuring the real bytes instead of estimating a per-page cost. Reads
-# the $final_rows, $total_pages, $url_prefix, $DOCS_PREVIEW_MARKER, and
-# $STATE_PREFIX globals set before each case below. Keep in sync with
-# docs-preview.yaml.
+# filter_changed_images runs the real image filter jq from
+# docs-preview.yaml over the pulls/files payload: keep non-removed docs/
+# image files outside docs/.style/, matching the extension set case-
+# insensitively, emitting one filename per line (no sha; the image
+# section is stateless). Mirror of the changed_images query.
+filter_changed_images() {
+	jq -r '.[] | select(.status != "removed") | select(.filename | test("^docs/.*\\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$"; "i")) | select((.filename | test("^docs/\\.style/")) | not) | .filename'
+}
+
+images_fixture='[
+  {"filename":"docs/images/a.png","sha":"a1","status":"modified"},
+  {"filename":"docs/images/user-guides/b.SVG","sha":"b1","status":"added"},
+  {"filename":"docs/images/old.gif","sha":"g1","status":"removed"},
+  {"filename":"docs/.style/logo.png","sha":"s1","status":"modified"},
+  {"filename":"docs/admin/notes.md","sha":"m1","status":"modified"},
+  {"filename":"docs/images/clip.mp4","sha":"v1","status":"added"},
+  {"filename":"site/logo.png","sha":"x1","status":"modified"}
+]'
+actual_images=$(printf '%s' "$images_fixture" | filter_changed_images | LC_ALL=C sort | tr '\n' '|')
+expected_images="docs/images/a.png|docs/images/user-guides/b.SVG|"
+if [ "$actual_images" = "$expected_images" ]; then
+	echo "PASS: filter_changed_images (removed/.style/md/non-docs/video excluded, case-insensitive)"
+else
+	echo "FAIL: filter_changed_images -> $actual_images (expected $expected_images)"
+	failures=$((failures + 1))
+fi
+
+# extract_ref_tokens, resolve_ref, and pages_for_image are spliced in here
+# verbatim from docs-preview.yaml so the mirror can't drift; the assertions
+# below drive them against a throwaway docs tree (not the real repo) so the
+# expectations stay stable. A page embeds an image only when one of its
+# Markdown/HTML references resolves to exactly that repo path, so prose
+# mentions and same-basename collisions in other directories don't match.
+extract_ref_tokens() {
+	local file="$1"
+	# Markdown: capture up to the first space or ) so an optional
+	# "title" after the path is dropped.
+	grep -oE '!\[[^]]*\]\([^)[:space:]]+' "$file" 2>/dev/null |
+		sed -E 's/^!\[[^]]*\]\(//' || true
+	# HTML: single- or double-quoted src, case-insensitive tag/attr.
+	grep -oiE '<img[^>]+src=("[^"]+"|'\''[^'\'']+'\'')' "$file" 2>/dev/null |
+		sed -E 's/.*src=//I; s/^["'\'']//; s/["'\'']$//' || true
+}
+
+resolve_ref() {
+	local file="$1" ref="$2" dir
+	ref="${ref%%#*}"  # drop #fragment
+	ref="${ref%%\?*}" # drop ?query
+	ref="${ref#<}"    # drop an optional <...> wrapper
+	ref="${ref%>}"
+	[ -z "$ref" ] && return 0
+	case "$ref" in
+	*://* | //* | mailto:* | data:*) return 0 ;;
+	esac
+	dir=$(dirname "$file")
+	realpath -m --relative-to="$PWD" "${PWD}/${dir}/${ref}" 2>/dev/null || true
+}
+
+pages_for_image() {
+	local image="$1" base candidates file token
+	base=$(basename "$image")
+	candidates=$(grep -rlF "$base" docs --include='*.md' 2>/dev/null |
+		grep -v '^docs/\.style/' || true)
+	[ -z "$candidates" ] && return 0
+	while IFS= read -r file; do
+		[ -z "$file" ] && continue
+		while IFS= read -r token; do
+			[ -z "$token" ] && continue
+			[ "$(basename "$token")" = "$base" ] || continue
+			if [ "$(resolve_ref "$file" "$token")" = "$image" ]; then
+				printf '%s\n' "$file"
+				break
+			fi
+		done < <(extract_ref_tokens "$file")
+	done <<<"$candidates"
+}
+
+img_fixture_root=$(mktemp -d)
+img_orig_pwd=$PWD
+mkdir -p \
+	"$img_fixture_root/docs/user-guides" \
+	"$img_fixture_root/docs/admin/sub" \
+	"$img_fixture_root/docs/images/other" \
+	"$img_fixture_root/docs/.style"
+# Two pages embed docs/images/shared.png at different depths (one Markdown,
+# one HTML): the nested-list case.
+cat >"$img_fixture_root/docs/user-guides/page.md" <<'MD'
+# UG
+
+![shot](../images/shared.png)
+MD
+cat >"$img_fixture_root/docs/admin/sub/deep.md" <<'MD'
+# Sub
+
+<img src="../../images/shared.png" alt="x">
+MD
+# A different shared.png in another dir must not cross-match.
+cat >"$img_fixture_root/docs/admin/collide.md" <<'MD'
+# Other
+
+![o](../images/other/shared.png)
+MD
+# Only a prose mention of the basename must not match.
+cat >"$img_fixture_root/docs/admin/prose.md" <<'MD'
+# Prose
+
+We refreshed shared.png last week.
+MD
+# An external image with the same basename must be ignored.
+cat >"$img_fixture_root/docs/admin/ext.md" <<'MD'
+# Ext
+
+![e](https://example.com/shared.png)
+MD
+# A .style page that references it is excluded by pages_for_image.
+cat >"$img_fixture_root/docs/.style/tool.md" <<'MD'
+# Style
+
+![s](../images/shared.png)
+MD
+
+cd "$img_fixture_root"
+actual_pfi=$(pages_for_image "docs/images/shared.png" | LC_ALL=C sort | tr '\n' '|')
+expected_pfi="docs/admin/sub/deep.md|docs/user-guides/page.md|"
+if [ "$actual_pfi" = "$expected_pfi" ]; then
+	echo "PASS: pages_for_image (md+html refs match; prose/external/.style excluded)"
+else
+	echo "FAIL: pages_for_image -> $actual_pfi (expected $expected_pfi)"
+	failures=$((failures + 1))
+fi
+actual_collide=$(pages_for_image "docs/images/other/shared.png" | LC_ALL=C sort | tr '\n' '|')
+expected_collide="docs/admin/collide.md|"
+if [ "$actual_collide" = "$expected_collide" ]; then
+	echo "PASS: pages_for_image (same-basename images in different dirs don't cross-match)"
+else
+	echo "FAIL: pages_for_image collision -> $actual_collide (expected $expected_collide)"
+	failures=$((failures + 1))
+fi
+cd "$img_orig_pwd"
+rm -rf "$img_fixture_root"
+
+# group_image_pairs runs the real grouping jq from docs-preview.yaml over
+# "<image>\t<page>" pairs: [{image, pages:[...]}] with images sorted and
+# each image's pages de-duplicated and sorted (jq unique sorts).
+group_image_pairs() {
+	jq -R -s '[splits("\n") | select(length > 0) | split("\t") | {image: .[0], page: .[1]}] | group_by(.image) | map({image: .[0].image, pages: (map(.page) | unique)}) | sort_by(.image)'
+}
+pairs_fixture=$(printf 'docs/images/b.png\tdocs/z.md\ndocs/images/a.png\tdocs/p2.md\ndocs/images/a.png\tdocs/p1.md\ndocs/images/a.png\tdocs/p1.md')
+actual_group=$(printf '%s\n' "$pairs_fixture" | group_image_pairs | jq -c .)
+expected_group='[{"image":"docs/images/a.png","pages":["docs/p1.md","docs/p2.md"]},{"image":"docs/images/b.png","pages":["docs/z.md"]}]'
+if [ "$actual_group" = "$expected_group" ]; then
+	echo "PASS: group_image_pairs (sorted images, de-duped sorted pages)"
+else
+	echo "FAIL: group_image_pairs -> $actual_group (expected $expected_group)"
+	failures=$((failures + 1))
+fi
+
+# build_comment_body and render_image_section mirror the body assembler
+# in docs-preview.yaml: they render $final_rows and $image_section_json
+# into the exact comment body the workflow posts, so the comment can be
+# sized by measuring the real bytes instead of estimating a per-page
+# cost. Read the $final_rows, $total_pages, $url_prefix, $image_section,
+# $image_section_json, $DOCS_PREVIEW_MARKER, $STATE_PREFIX, and IMAGE_*
+# globals set before each case below. Keep in sync with docs-preview.yaml.
 DOCS_PREVIEW_MARKER='<!-- docs-preview -->'
 STATE_PREFIX='docs-preview-state:'
 # Representative values for the Files-tab link in the omitted-pages
 # summary; the workflow supplies these from the GitHub Actions env.
 REPO='owner/repo'
 PR_NUMBER='123'
+# Caps that bound the image section, mirrored from docs-preview.yaml.
+IMAGE_SECTION_BUDGET=20000
+IMAGE_PAGES_MAX=25
+# Default so the page-only cases below can call build_comment_body under
+# set -u; the image cases set it via render_image_section.
+image_section=""
+
+page_url() {
+	local filename="$1" page_path url
+	page_path=$(map_doc_path "$filename")
+	url="$url_prefix"
+	if [ -n "$page_path" ]; then
+		url="${url}/${page_path}"
+	fi
+	printf '%s' "$url"
+}
+
+render_image_section() {
+	local budget="$1" count intro header out="" shown=0 i=0
+	local image np entry j pg url dropped candidate
+	count=$(printf '%s' "$image_section_json" | jq 'length')
+	if [ "$count" -eq 0 ]; then
+		return 0
+	fi
+	intro="These images changed. Each is listed with the page(s) that embed it so you can open the preview and see the new image in context. These links are informational and separate from the checklist above."
+	header="#### Changed images"$'\n\n'"${intro}"$'\n\n'
+	while [ "$i" -lt "$count" ]; do
+		image=$(printf '%s' "$image_section_json" | jq -r --argjson i "$i" '.[$i].image')
+		np=$(printf '%s' "$image_section_json" | jq --argjson i "$i" '.[$i].pages | length')
+		# The backticks are literal Markdown code-span delimiters.
+		entry="- \`${image}\`"$'\n'
+		j=0
+		while [ "$j" -lt "$np" ] && [ "$j" -lt "$IMAGE_PAGES_MAX" ]; do
+			pg=$(printf '%s' "$image_section_json" | jq -r --argjson i "$i" --argjson j "$j" '.[$i].pages[$j]')
+			url=$(page_url "$pg")
+			entry="${entry}  - [\`${pg}\`](${url})"$'\n'
+			j=$((j + 1))
+		done
+		if [ "$np" -gt "$IMAGE_PAGES_MAX" ]; then
+			entry="${entry}  - _and $((np - IMAGE_PAGES_MAX)) more page(s) embedding this image_"$'\n'
+		fi
+		# Keep the first image unconditionally (an empty section under
+		# a header would be self-contradicting); for every later image
+		# measure the would-be section first so the rendered block
+		# stays under budget.
+		if [ "$shown" -gt 0 ]; then
+			candidate="${header}${out}${entry}"
+			if [ "$(printf '%s' "$candidate" | LC_ALL=C wc -c)" -gt "$budget" ]; then
+				break
+			fi
+		fi
+		out="${out}${entry}"
+		shown=$((shown + 1))
+		i=$((i + 1))
+	done
+	dropped=$((count - shown))
+	if [ "$dropped" -gt 0 ]; then
+		out="${out}"$'\n'"_and ${dropped} more changed image(s) not listed to stay under GitHub's comment size limit._"$'\n'
+	fi
+	printf '%s%s' "$header" "$out"
+}
+
 build_comment_body() {
-	local n="$1" rows state_json state_b64 checklist="" intro
-	local filename checked page_path url box omitted
+	local n="$1" rows state_json state_b64 checklist="" intro page_block=""
+	local filename checked url box omitted
 
 	rows=$(printf '%s' "$final_rows" | jq -c --argjson n "$n" '.[:$n]')
 	state_json=$(printf '%s' "$rows" | jq -c 'map({(.filename): .sha}) | add // {}')
 	state_b64=$(printf '%s' "$state_json" | base64 -w0)
 
-	while IFS=$'\t' read -r filename checked; do
-		[ -z "$filename" ] && continue
-		page_path=$(map_doc_path "$filename")
-		url="$url_prefix"
-		if [ -n "$page_path" ]; then
-			url="${url}/${page_path}"
-		fi
-		box=" "
-		if [ "$checked" = "true" ]; then
-			box="x"
-		fi
-		checklist="${checklist}- [${box}] [\`${filename}\`](${url})"$'\n'
-	done < <(printf '%s' "$rows" | jq -r '.[] | [.filename, (.checked | tostring)] | @tsv')
+	if [ "$total_pages" -gt 0 ]; then
+		while IFS=$'\t' read -r filename checked; do
+			[ -z "$filename" ] && continue
+			url=$(page_url "$filename")
+			box=" "
+			if [ "$checked" = "true" ]; then
+				box="x"
+			fi
+			# The backticks are literal Markdown code-span delimiters.
+			checklist="${checklist}- [${box}] [\`${filename}\`](${url})"$'\n'
+		done < <(printf '%s' "$rows" | jq -r '.[] | [.filename, (.checked | tostring)] | @tsv')
 
-	omitted=$((total_pages - n))
-	if [ "$omitted" -gt 0 ]; then
-		checklist="${checklist}"$'\n'"_and ${omitted} more changed page(s) not listed to stay under GitHub's comment size limit. See the [Files tab](https://github.com/${REPO}/pull/${PR_NUMBER}/files) for the full list._"$'\n'
+		omitted=$((total_pages - n))
+		if [ "$omitted" -gt 0 ]; then
+			checklist="${checklist}"$'\n'"_and ${omitted} more changed page(s) not listed to stay under GitHub's comment size limit. See the [Files tab](https://github.com/${REPO}/pull/${PR_NUMBER}/files) for the full list._"$'\n'
+		fi
+
+		intro="Check off each page once it's been reviewed. If a page changes in a later push, its checkbox clears automatically so it gets a fresh look. Pages not yet wired into the docs navigation aren't listed here."
+		page_block="${intro}"$'\n\n'"${checklist}"
 	fi
 
-	intro="Check off each page once it's been reviewed. If a page changes in a later push, its checkbox clears automatically so it gets a fresh look. Pages not yet wired into the docs navigation aren't listed here."
-
-	printf '## Docs preview\n\n%s\n\n%s\n%s\n<!-- %s%s -->' \
-		"$intro" "$checklist" "$DOCS_PREVIEW_MARKER" "$STATE_PREFIX" "$state_b64"
+	# Emit only the sections that have content. The identity marker
+	# and the state marker are always present so the comment stays
+	# discoverable and round-trippable, even on an image-only PR
+	# whose state map is {}.
+	{
+		printf '## Docs preview\n\n'
+		if [ -n "$page_block" ]; then
+			printf '%s\n' "$page_block"
+		fi
+		if [ -n "$image_section" ]; then
+			printf '%s\n' "$image_section"
+		fi
+		printf '%s\n' "$DOCS_PREVIEW_MARKER"
+		printf '<!-- %s%s -->' "$STATE_PREFIX" "$state_b64"
+	}
 }
 
 # cap_pages mirrors the measure-and-binary-search cap in docs-preview.yaml:
@@ -490,6 +722,105 @@ if [ "$emitted_state" = "$expected_state" ]; then
 	echo "PASS: emitted marker round-trips through recovery"
 else
 	echo "FAIL: emitted marker round-trip -> $emitted_state (expected $expected_state)"
+	failures=$((failures + 1))
+fi
+
+# render_image_section renders a nested list of each changed image with a
+# preview link for every page that embeds it. A docs-root page
+# (docs/README.md) links to the branch root with no trailing path.
+url_prefix="https://coder.com/docs/@branch"
+IMAGE_PAGES_MAX=25
+image_section_json='[{"image":"docs/images/a.png","pages":["docs/user-guides/x.md","docs/y.md"]},{"image":"docs/images/b.png","pages":["docs/README.md"]}]'
+section=$(render_image_section "$IMAGE_SECTION_BUDGET")
+# shellcheck disable=SC2016 # backtick-quoted paths are literal Markdown.
+if printf '%s' "$section" | grep -qF '#### Changed images' &&
+	printf '%s' "$section" | grep -qF -- '- `docs/images/a.png`' &&
+	printf '%s' "$section" | grep -qF -- '  - [`docs/user-guides/x.md`](https://coder.com/docs/@branch/user-guides/x)' &&
+	printf '%s' "$section" | grep -qF -- '  - [`docs/README.md`](https://coder.com/docs/@branch)'; then
+	echo "PASS: render_image_section (nested preview links; README maps to docs root)"
+else
+	echo "FAIL: render_image_section basic ->"
+	printf '%s\n' "$section"
+	failures=$((failures + 1))
+fi
+
+# Per-image page cap: at most IMAGE_PAGES_MAX links, then an "and N more"
+# note. Page-link lines start with two spaces, a dash and a bracket; the
+# note line starts with an underscore, so ^  - \[ counts only the links.
+IMAGE_PAGES_MAX=2
+many_pages=$(jq -nc '[range(5) | "docs/p\(.).md"]')
+image_section_json=$(jq -nc --argjson p "$many_pages" '[{image: "docs/images/big.png", pages: $p}]')
+section=$(render_image_section "$IMAGE_SECTION_BUDGET")
+shown_links=$(printf '%s\n' "$section" | grep -cE '^  - \[')
+if [ "$shown_links" -eq 2 ] && printf '%s' "$section" | grep -qF 'more page(s) embedding this image'; then
+	echo "PASS: render_image_section (per-image page cap keeps 2 with an overflow note)"
+else
+	echo "FAIL: render_image_section page cap -> shown_links=$shown_links"
+	printf '%s\n' "$section"
+	failures=$((failures + 1))
+fi
+IMAGE_PAGES_MAX=25
+
+# Byte-budget truncation across images: with a 1-byte budget only the
+# first image (always kept) renders, and a trailing "and N more image(s)"
+# note reports the rest.
+image_section_json='[{"image":"docs/images/aaaaaaaaaa.png","pages":["docs/one.md"]},{"image":"docs/images/bbbbbbbbbb.png","pages":["docs/two.md"]},{"image":"docs/images/cccccccccc.png","pages":["docs/three.md"]}]'
+section=$(render_image_section 1)
+# shellcheck disable=SC2016 # backtick is a literal Markdown delimiter.
+imgs_shown=$(printf '%s\n' "$section" | grep -cE '^- `docs/images/')
+if [ "$imgs_shown" -eq 1 ] && printf '%s' "$section" | grep -qF 'more changed image(s) not listed'; then
+	echo "PASS: render_image_section (byte-budget truncation keeps first image + note)"
+else
+	echo "FAIL: render_image_section truncation -> imgs_shown=$imgs_shown"
+	printf '%s\n' "$section"
+	failures=$((failures + 1))
+fi
+
+# build_comment_body on an image-only PR (zero changed pages): the
+# checklist and its intro are omitted, the image section renders, both
+# hidden markers are present, and the state map is {}.
+final_rows='[]'
+total_pages=0
+url_prefix="https://coder.com/docs/@branch"
+image_section_json='[{"image":"docs/images/a.png","pages":["docs/user-guides/x.md"]}]'
+image_section=$(render_image_section "$IMAGE_SECTION_BUDGET")
+image_only_body=$(build_comment_body 0)
+if printf '%s' "$image_only_body" | grep -qF '#### Changed images' &&
+	! printf '%s' "$image_only_body" | grep -qF 'Check off each page' &&
+	printf '%s' "$image_only_body" | grep -qF '<!-- docs-preview -->' &&
+	[ "$(recover_old_state "$image_only_body")" = '{}' ]; then
+	echo "PASS: build_comment_body (image-only PR: image section, no checklist, empty state)"
+else
+	echo "FAIL: build_comment_body image-only ->"
+	printf '%s\n' "$image_only_body"
+	failures=$((failures + 1))
+fi
+
+# build_comment_body with both changed pages and changed images: the
+# checklist and the image section both render. A page that is both changed
+# (checklist) and an image referrer (image section) appears in both, and
+# the image sub-link (no checkbox glyph) never pollutes carried-over
+# checkbox state.
+final_rows='[{"filename":"docs/a.md","sha":"s1","checked":true},{"filename":"docs/b.md","sha":"s2","checked":false}]'
+total_pages=2
+image_section_json='[{"image":"docs/images/a.png","pages":["docs/a.md"]}]'
+image_section=$(render_image_section "$IMAGE_SECTION_BUDGET")
+both_body=$(build_comment_body 2)
+# shellcheck disable=SC2016 # backtick-quoted paths are literal Markdown.
+if printf '%s' "$both_body" | grep -qF 'Check off each page' &&
+	printf '%s' "$both_body" | grep -qF -- '- [x] [`docs/a.md`]' &&
+	printf '%s' "$both_body" | grep -qF '#### Changed images' &&
+	printf '%s' "$both_body" | grep -qF -- '  - [`docs/a.md`](https://coder.com/docs/@branch/a)'; then
+	echo "PASS: build_comment_body (pages and images both render)"
+else
+	echo "FAIL: build_comment_body pages+images ->"
+	printf '%s\n' "$both_body"
+	failures=$((failures + 1))
+fi
+if [ "$(recover_old_checked "$both_body" | jq -cS .)" = '{"docs/a.md":true,"docs/b.md":false}' ]; then
+	echo "PASS: build_comment_body (image sub-links excluded from checkbox state)"
+else
+	echo "FAIL: image sub-links polluted checkbox state -> $(recover_old_checked "$both_body")"
 	failures=$((failures + 1))
 fi
 
