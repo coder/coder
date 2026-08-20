@@ -37,7 +37,7 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({
 	canUpdatePermissions,
 }) => {
 	return (
-		<header className="flex flex-shrink-0 min-w-0 items-center gap-2 p-3 border-solid border-border border-0 border-b">
+		<header className="flex flex-shrink-0 items-center gap-2 p-3 border-solid border-border border-0 border-b">
 			<TooltipProvider>
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -62,7 +62,7 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({
 				</div>
 			)}
 
-			<div className="ml-auto gap-2 flex items-center flex-wrap justify-end">
+			<div className="ml-auto gap-2 flex items-center">
 				<TaskStartupWarningButton
 					lifecycleState={task.workspace_agent_lifecycle}
 				/>

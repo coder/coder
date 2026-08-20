@@ -76,7 +76,7 @@ const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
 	return (
 		<div className="flex items-stretch h-full">
 			<TasksSidebar />
-			<div className="flex flex-col h-full flex-1 min-w-0">{children}</div>
+			<div className="flex flex-col h-full flex-1">{children}</div>
 		</div>
 	);
 };
