@@ -17,7 +17,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
-	"github.com/coder/coder/v2/coderd/mcpssrf"
+	"github.com/coder/safedial"
 )
 
 // loopbackMCPServer permits local httptest token endpoints through
@@ -25,10 +25,10 @@ import (
 func loopbackMCPServer(db database.Store) *Server {
 	return &Server{
 		db: db,
-		mcpHTTPClient: mcpssrf.NewHTTPClient(nil, []netip.Prefix{
+		mcpHTTPClient: safedial.NewHTTPClient(nil, safedial.WithAllowedPrefixes(
 			netip.MustParsePrefix("127.0.0.0/8"),
 			netip.MustParsePrefix("::1/128"),
-		}),
+		)),
 	}
 }
 

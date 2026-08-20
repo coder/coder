@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/mcpssrf"
+	"github.com/coder/safedial"
 )
 
 func TestHTTPClientWithHeadersRejectsCrossOriginRedirect(t *testing.T) {
@@ -26,10 +26,10 @@ func TestHTTPClientWithHeadersRejectsCrossOriginRedirect(t *testing.T) {
 	}))
 	defer source.Close()
 
-	base := mcpssrf.NewHTTPClient(source.Client(), []netip.Prefix{
+	base := safedial.NewHTTPClient(source.Client(), safedial.WithAllowedPrefixes(
 		netip.MustParsePrefix("127.0.0.0/8"),
 		netip.MustParsePrefix("::1/128"),
-	})
+	))
 	client := httpClientWithHeaders(base, map[string]string{"Authorization": "Bearer secret"})
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, source.URL, nil)
 	require.NoError(t, err)
@@ -60,4 +60,28 @@ func TestHTTPClientWithHeadersGuardsClientWithoutTransport(t *testing.T) {
 	}
 	require.Error(t, err)
 	require.Zero(t, hits.Load())
+}
+
+// TestMCPTransportTimeouts guards the transport hardening: MCP
+// traffic must never ride a transport without dial and
+// response-header bounds, or a black-holed server holds
+// connections until the enclosing context expires.
+func TestMCPTransportTimeouts(t *testing.T) {
+	t.Parallel()
+
+	client := NewHTTPClient(nil)
+	tr, ok := client.Transport.(*http.Transport)
+	require.True(t, ok)
+	require.NotNil(t, tr.DialContext)
+	require.Equal(t, responseHeaderTimeout, tr.ResponseHeaderTimeout)
+	// The response-header bound must not undercut the tool-call
+	// budget, or slow JSON-response tools within budget would be
+	// killed at the HTTP layer.
+	require.GreaterOrEqual(t, responseHeaderTimeout, toolCallTimeout)
+
+	// Clients are built per call with private transports, so closed
+	// test servers cannot leave stale pooled connections behind for
+	// later clients that reuse the same address.
+	other := NewHTTPClient(nil)
+	require.NotSame(t, client.Transport, other.Transport)
 }

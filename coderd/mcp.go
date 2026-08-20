@@ -26,12 +26,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/mcpssrf"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/safedial"
 )
 
 // mcpProtocolVersion is copied from the official SDK, which does not export
@@ -1245,7 +1245,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	oauth2Config.Scopes = scopes
 
 	exchangeClient := *api.mcpHTTPClient
-	exchangeClient.CheckRedirect = mcpssrf.CheckSameOriginRedirect
+	exchangeClient.CheckRedirect = safedial.CheckSameOriginRedirect
 	if exchangeClient.Timeout == 0 {
 		exchangeClient.Timeout = 30 * time.Second
 	}

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"net/netip"
 
-	"github.com/coder/coder/v2/coderd/mcpssrf"
+	"github.com/coder/safedial"
 )
 
 var testLoopbackPrefixes = []netip.Prefix{
@@ -13,5 +13,5 @@ var testLoopbackPrefixes = []netip.Prefix{
 }
 
 func testMCPHTTPClient(base *http.Client) *http.Client {
-	return mcpssrf.NewHTTPClient(base, testLoopbackPrefixes)
+	return safedial.NewHTTPClient(base, safedial.WithAllowedPrefixes(testLoopbackPrefixes...))
 }

@@ -2,7 +2,7 @@ package mcpclient
 
 import (
 	"context"
-	"net/http"
+	"net/netip"
 	"time"
 
 	"charm.land/fantasy"
@@ -10,6 +10,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/safedial"
 )
 
 // ConvertCallResultForTest exposes convertCallResult for external
@@ -23,13 +24,18 @@ func ConnectAllForTest(
 	ctx context.Context,
 	logger slog.Logger,
 	configs []database.MCPServerConfig,
-	httpClient *http.Client,
 	timeout time.Duration,
 	reaperDone func(),
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
+	// Connect-budget tests serve from loopback, which the guard
+	// blocks by default, so allow it explicitly.
+	httpClient := NewHTTPClient(nil, safedial.WithAllowedPrefixes(
+		netip.MustParsePrefix("127.0.0.0/8"),
+		netip.MustParsePrefix("::1/128"),
+	))
 	return connectAllWithHooks(
-		ctx, logger, configs, nil, uuid.Nil, nil, nil,
-		httpClient, timeout, connectHooks{reaperDone: reaperDone},
+		ctx, logger, configs, nil, uuid.Nil, nil, nil, httpClient,
+		timeout, connectHooks{reaperDone: reaperDone},
 	)
 }
 

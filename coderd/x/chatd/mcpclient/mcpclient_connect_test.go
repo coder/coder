@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/safedial"
 )
 
 // blackHoleListener accepts TCP connections and never responds,
@@ -70,6 +72,15 @@ func (b *blackHoleListener) url() string {
 // still be discovered. Without external budget enforcement the SDK
 // blocks several times past the context deadline (observed: 12s
 // for a 2s deadline) because its transport detaches the context.
+// loopbackHTTPClient returns a guarded MCP client that allows
+// loopback, where every test server in this file listens.
+func loopbackHTTPClient() *http.Client {
+	return mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(
+		netip.MustParsePrefix("127.0.0.0/8"),
+		netip.MustParsePrefix("::1/128"),
+	))
+}
+
 func TestConnectAll_BlackHoledServerBudget(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -87,7 +98,6 @@ func TestConnectAll_BlackHoledServerBudget(t *testing.T) {
 			makeConfig("blackhole", bh.url()),
 			makeConfig("healthy", healthy.URL),
 		},
-		testMCPHTTPClient(nil),
 		timeout,
 		func() { reaperDone <- struct{}{} },
 	)
@@ -143,7 +153,7 @@ func TestConnectAll_SlowServerStillConnects(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	cfg := makeConfig("slow", ts.URL)
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient())
 	t.Cleanup(cleanup)
 
 	require.Equal(t, []string{"slow__echo"}, toolNames(tools))
@@ -177,7 +187,6 @@ func TestConnectAll_LateServerReaped(t *testing.T) {
 	start := time.Now()
 	tools, summaries, cleanup := mcpclient.ConnectAllForTest(ctx, logger,
 		[]database.MCPServerConfig{makeConfig("late", ts.URL)},
-		testMCPHTTPClient(nil),
 		timeout,
 		func() { reaperDone <- struct{}{} },
 	)
@@ -238,7 +247,7 @@ func TestConnectAll_CleanupPromptWhenServerWedges(t *testing.T) {
 	t.Cleanup(release)
 
 	cfg := makeConfig("wedge", ts.URL)
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient())
 	require.Equal(t, []string{"wedge__echo"}, toolNames(tools))
 
 	start := time.Now()
@@ -292,7 +301,7 @@ func TestConnectAll_NoToolsWedgedCloseWithinBudget(t *testing.T) {
 
 	cfg := makeConfig("notools", ts.URL)
 	start := time.Now()
-	tools, summaries, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
+	tools, summaries, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient())
 	elapsed := time.Since(start)
 	t.Cleanup(cleanup)
 
