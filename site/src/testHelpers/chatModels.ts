@@ -49,6 +49,7 @@ export const MockGPT5ModelPrice: AIModelPrice = {
 	output_price: 10000000,
 	cache_read_price: 125000,
 	cache_write_price: null,
+	source: "default",
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
 };

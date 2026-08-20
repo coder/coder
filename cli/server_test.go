@@ -397,6 +397,18 @@ func TestServer(t *testing.T) {
 			createUserPostRestart                 bool
 		}
 
+		waitAuthMethods := func(t *testing.T, ctx context.Context, client *codersdk.Client) codersdk.AuthMethods {
+			t.Helper()
+
+			var authMethods codersdk.AuthMethods
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				var err error
+				authMethods, err = client.AuthMethods(ctx)
+				return err == nil
+			}, testutil.IntervalFast, "failed to get auth methods")
+			return authMethods
+		}
+
 		runGitHubProviderTest := func(t *testing.T, tc testCase) {
 			t.Parallel()
 
@@ -451,9 +463,7 @@ func TestServer(t *testing.T) {
 			}
 
 			client := codersdk.New(accessURL)
-
-			authMethods, err := client.AuthMethods(ctx)
-			require.NoError(t, err)
+			authMethods := waitAuthMethods(t, ctx, client)
 			require.Equal(t, tc.expectGithubEnabled, authMethods.Github.Enabled)
 			require.Equal(t, tc.expectGithubDefaultProviderConfigured, authMethods.Github.DefaultProviderConfigured)
 
@@ -476,8 +486,7 @@ func TestServer(t *testing.T) {
 			client = codersdk.New(accessURL)
 
 			ctx = testutil.Context(t, testutil.WaitLong)
-			authMethods, err = client.AuthMethods(ctx)
-			require.NoError(t, err)
+			authMethods = waitAuthMethods(t, ctx, client)
 			require.Equal(t, tc.expectGithubEnabled, authMethods.Github.Enabled)
 			require.Equal(t, tc.expectGithubDefaultProviderConfigured, authMethods.Github.DefaultProviderConfigured)
 		}

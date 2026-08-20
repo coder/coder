@@ -369,9 +369,15 @@ export interface AIModelPrice {
 	readonly output_price: number | null;
 	readonly cache_read_price: number | null;
 	readonly cache_write_price: number | null;
+	readonly source: AIModelPriceSource;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
+
+// From codersdk/aimodelprices.go
+export type AIModelPriceSource = "custom" | "default";
+
+export const AIModelPriceSources: AIModelPriceSource[] = ["custom", "default"];
 
 // From codersdk/aimodelprices.go
 /**
@@ -2910,6 +2916,7 @@ export interface ChatModelGoogleSafetySetting {
  */
 export interface ChatModelGoogleThinkingConfig {
 	readonly thinking_budget?: number;
+	readonly thinking_level?: string;
 	readonly include_thoughts?: boolean;
 }
 

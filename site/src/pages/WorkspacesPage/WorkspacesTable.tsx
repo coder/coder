@@ -1,12 +1,12 @@
 import {
 	BanIcon,
 	CircleAlertIcon,
-	CloudIcon,
 	EllipsisVerticalIcon,
 	ExternalLinkIcon,
 	FileIcon,
 	PlayIcon,
 	RefreshCcwIcon,
+	RotateCcwIcon,
 	SquareTerminalIcon,
 	StarIcon,
 } from "lucide-react";
@@ -515,7 +515,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 							isLoading={workspaceUpdate.isUpdating}
 							label="Update and start workspace"
 						>
-							<CloudIcon />
+							<RotateCcwIcon />
 						</PrimaryAction>
 						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>
@@ -541,7 +541,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 							isLoading={workspaceUpdate.isUpdating}
 							label="Update and restart workspace"
 						>
-							<CloudIcon />
+							<RotateCcwIcon />
 						</PrimaryAction>
 						<WorkspaceUpdateDialogs {...workspaceUpdate.dialogProps} />
 					</>

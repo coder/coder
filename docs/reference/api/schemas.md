@@ -1149,22 +1149,38 @@ title: Schemas
   "model": "string",
   "output_price": 0,
   "provider": "string",
+  "source": "default",
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name                | Type    | Required | Restrictions | Description |
-|---------------------|---------|----------|--------------|-------------|
-| `cache_read_price`  | integer | false    |              |             |
-| `cache_write_price` | integer | false    |              |             |
-| `created_at`        | string  | false    |              |             |
-| `input_price`       | integer | false    |              |             |
-| `model`             | string  | false    |              |             |
-| `output_price`      | integer | false    |              |             |
-| `provider`          | string  | false    |              |             |
-| `updated_at`        | string  | false    |              |             |
+| Name                | Type                                                       | Required | Restrictions | Description |
+|---------------------|------------------------------------------------------------|----------|--------------|-------------|
+| `cache_read_price`  | integer                                                    | false    |              |             |
+| `cache_write_price` | integer                                                    | false    |              |             |
+| `created_at`        | string                                                     | false    |              |             |
+| `input_price`       | integer                                                    | false    |              |             |
+| `model`             | string                                                     | false    |              |             |
+| `output_price`      | integer                                                    | false    |              |             |
+| `provider`          | string                                                     | false    |              |             |
+| `source`            | [codersdk.AIModelPriceSource](#codersdkaimodelpricesource) | false    |              |             |
+| `updated_at`        | string                                                     | false    |              |             |
+
+## codersdk.AIModelPriceSource
+
+```json
+"default"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)            |
+|---------------------|
+| `custom`, `default` |
 
 ## codersdk.AIModelPriceUpsert
 

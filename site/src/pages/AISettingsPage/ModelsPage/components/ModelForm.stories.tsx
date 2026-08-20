@@ -22,6 +22,7 @@ import {
 	MockAnthropicProviderState,
 	MockAzureProviderState,
 	MockDisabledProviderState,
+	MockGoogleProviderState,
 	MockOpenAIProviderState,
 	mockClaude,
 	mockGPT5,
@@ -445,6 +446,43 @@ export const ReasoningEffortValidationError: Story = {
 	},
 };
 
+// thinking_level and thinking_budget are mutually exclusive on Google
+// models: setting either one disables the other until it is cleared.
+export const GoogleThinkingLevelBudgetMutualExclusion: Story = {
+	args: {
+		providerStates: [MockGoogleProviderState],
+		selectedProviderState: MockGoogleProviderState,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /provider configuration/i }),
+		);
+		const budget = canvas.getByLabelText(/thinking config thinking budget/i);
+		const level = canvas.getByRole("combobox", {
+			name: /thinking config thinking level/i,
+		});
+		await expect(budget).toBeEnabled();
+		await expect(level).toBeEnabled();
+
+		await userEvent.click(level);
+		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
+		await expect(budget).toBeDisabled();
+
+		await userEvent.click(level);
+		await userEvent.click(
+			await screen.findByRole("option", { name: "Default" }),
+		);
+		await expect(budget).toBeEnabled();
+
+		await userEvent.type(budget, "2048");
+		await expect(level).toBeDisabled();
+
+		await userEvent.clear(budget);
+		await expect(level).toBeEnabled();
+	},
+};
+
 // The catalog fallback covers an entitled deployment with no matching price
 // book row. Values come from the baked-in catalog and must not be submitted.
 export const CostEstimateFieldsAreImmutable: Story = {
@@ -465,6 +503,19 @@ export const CostEstimateFieldsAreImmutable: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(
 			canvas.getByRole("button", { name: /cost estimate/i }),
+		);
+		await expect(
+			canvas.getByText(/model prices are managed by AI Gateway/i),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("link", {
+				name: /learn how to configure model prices/i,
+			}),
+		).toHaveAttribute(
+			"href",
+			expect.stringContaining(
+				"/ai-coder/ai-gateway/cost-controls#configure-model-prices",
+			),
 		);
 
 		const expectedValues: [RegExp, string][] = [

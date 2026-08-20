@@ -82,6 +82,22 @@ export const MockAnthropicProviderState: ProviderState = {
 	modelConfigs: [mockClaude],
 };
 
+const MockGoogleProviderConfig: ChatProviderConfig = {
+	...MockOpenAIProviderConfig,
+	id: "prov-google",
+	provider: "google",
+	display_name: "Google",
+};
+
+export const MockGoogleProviderState: ProviderState = {
+	...MockOpenAIProviderState,
+	key: "prov-google",
+	provider: "google",
+	label: "Google",
+	providerConfig: MockGoogleProviderConfig,
+	modelConfigs: [],
+};
+
 const MockBedrockProviderConfig: ChatProviderConfig = {
 	...MockOpenAIProviderConfig,
 	id: "prov-bedrock",

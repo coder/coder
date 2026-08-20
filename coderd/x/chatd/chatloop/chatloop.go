@@ -215,8 +215,9 @@ type GenerateAssistantOptions struct {
 	Clock                quartz.Clock
 
 	ContextLimitFallback int64
-	ModelConfig          codersdk.ChatModelCallConfig
-	ProviderOptions      fantasy.ProviderOptions
+	// CallTemplate is copied before GenerateAssistant attaches the prompt and
+	// tools.
+	CallTemplate fantasy.Call
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	// OnModelStreamStart runs immediately before the provider stream is
@@ -311,9 +312,9 @@ type GenerateCompactionOptions struct {
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID
 
-	// ProviderOptions carry summary-model call options such as an
-	// override's reasoning effort.
-	ProviderOptions fantasy.ProviderOptions
+	// SummaryCall is copied before GenerateCompaction attaches the summary
+	// prompt.
+	SummaryCall fantasy.Call
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 
@@ -405,17 +406,9 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
 	opts.Metrics.StepsTotal.WithLabelValues(provider, modelName).Inc()
 
-	call := fantasy.Call{
-		Prompt:           prepared,
-		Tools:            buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools),
-		MaxOutputTokens:  opts.ModelConfig.MaxOutputTokens,
-		Temperature:      opts.ModelConfig.Temperature,
-		TopP:             opts.ModelConfig.TopP,
-		TopK:             opts.ModelConfig.TopK,
-		PresencePenalty:  opts.ModelConfig.PresencePenalty,
-		FrequencyPenalty: opts.ModelConfig.FrequencyPenalty,
-		ProviderOptions:  opts.ProviderOptions,
-	}
+	call := opts.CallTemplate
+	call.Prompt = prepared
+	call.Tools = buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
 
 	stepStart := opts.Clock.Now()
 	if opts.OnModelStreamStart != nil {
@@ -1628,9 +1621,16 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 			continue
 		}
 
+		// Substitute an empty object for nil properties so that a tool
+		// with no parameters never serializes "properties" to null,
+		// which OpenAI rejects.
+		properties := info.Parameters
+		if properties == nil {
+			properties = map[string]any{}
+		}
 		inputSchema := map[string]any{
 			"type":       "object",
-			"properties": info.Parameters,
+			"properties": properties,
 		}
 		// Only include "required" when non-empty so that a nil slice
 		// never serializes to null, which OpenAI rejects.

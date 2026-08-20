@@ -96,7 +96,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -224,7 +224,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, workspaces)
+	data, err := api.workspaceData(ctx, workspaces, allWorkspaceRelated())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -313,7 +313,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -1570,7 +1570,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -2148,7 +2148,7 @@ func (api *API) watchWorkspace(
 			return
 		}
 
-		data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+		data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
 		if err != nil {
 			_ = sendEvent(codersdk.ServerSentEvent{
 				Type: codersdk.ServerSentEventTypeError,
@@ -2687,7 +2687,7 @@ func (api *API) allowWorkspaceSharing(ctx context.Context, rw http.ResponseWrite
 // does not have the correct perms to read a given template, the template will
 // not be returned.
 // So the caller must check the templates & users exist before using them.
-func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspace) (workspaceData, error) {
+func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspace, cfg workspaceRelated) (workspaceData, error) {
 	workspaceIDs := make([]uuid.UUID, 0, len(workspaces))
 	templateIDs := make([]uuid.UUID, 0, len(workspaces))
 	for _, workspace := range workspaces {
@@ -2701,41 +2701,50 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		appStatuses []database.WorkspaceAppStatus
 		eg          errgroup.Group
 	)
-	eg.Go(func() (err error) {
-		templates, err = api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
-			IDs: templateIDs,
+	if cfg.Template {
+		eg.Go(func() (err error) {
+			templates, err = api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+				IDs: templateIDs,
+			})
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get templates: %w", err)
+			}
+			return nil
 		})
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get templates: %w", err)
-		}
-		return nil
-	})
-	eg.Go(func() (err error) {
-		// This query must be run as system restricted to be efficient.
-		// nolint:gocritic
-		builds, err = api.Database.GetLatestWorkspaceBuildsByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get workspace builds: %w", err)
-		}
-		return nil
-	})
-	eg.Go(func() (err error) {
-		// This query must be run as system restricted to be efficient.
-		// nolint:gocritic
-		appStatuses, err = api.Database.GetLatestWorkspaceAppStatusesByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get workspace app statuses: %w", err)
-		}
-		return nil
-	})
+	}
+	if cfg.LatestBuild != nil {
+		eg.Go(func() (err error) {
+			// This query must be run as system restricted to be efficient.
+			// nolint:gocritic
+			builds, err = api.Database.GetLatestWorkspaceBuildsByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get workspace builds: %w", err)
+			}
+			return nil
+		})
+	}
+	if cfg.LatestBuild.appStatuses() {
+		eg.Go(func() (err error) {
+			// This query must be run as system restricted to be efficient.
+			// nolint:gocritic
+			appStatuses, err = api.Database.GetLatestWorkspaceAppStatusesByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get workspace app statuses: %w", err)
+			}
+			return nil
+		})
+	}
 	err := eg.Wait()
 	if err != nil {
 		return workspaceData{}, err
 	}
 
-	data, err := api.workspaceBuildsData(ctx, builds)
-	if err != nil {
-		return workspaceData{}, xerrors.Errorf("get workspace builds data: %w", err)
+	var data workspaceBuildsData
+	if cfg.LatestBuild != nil {
+		data, err = api.workspaceBuildsData(ctx, builds, *cfg.LatestBuild)
+		if err != nil {
+			return workspaceData{}, xerrors.Errorf("get workspace builds data: %w", err)
+		}
 	}
 
 	apiBuilds, err := api.convertWorkspaceBuilds(
