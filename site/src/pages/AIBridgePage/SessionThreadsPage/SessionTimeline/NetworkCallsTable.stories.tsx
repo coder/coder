@@ -110,6 +110,9 @@ export const EmptyListWithSummaryTotal: Story = {
 		await expect(
 			canvas.queryByText(/Showing the first/),
 		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText(/matches within the first/),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -125,5 +128,68 @@ export const Truncated: Story = {
 		await expect(
 			canvas.getByText(/Showing the first 4 of 150 network calls\./),
 		).toBeInTheDocument();
+	},
+};
+
+export const SearchTruncated: Story = {
+	args: {
+		summary: { total: 150, blocked: 2 },
+		calls: [MockAIBridgeSessionNetworkCalls[0]],
+		search: { loaded: 4, query: "npmjs.org" },
+	},
+	play: async ({ canvas }) => {
+		await canvas.findByText("1 match");
+		await expect(
+			canvas.getByText(/1 match within the first 4 of 150 network calls\./),
+		).toBeInTheDocument();
+	},
+};
+
+// The panel must render on zero matches so the truncation caveat is not lost.
+export const SearchTruncatedNoMatches: Story = {
+	args: {
+		summary: { total: 150, blocked: 2 },
+		calls: [],
+		search: { loaded: 4, query: "npmjs.org" },
+	},
+	play: async ({ canvas }) => {
+		await expect(
+			canvas.getByText("No network calls match your search."),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByText(/0 matches within the first 4 of 150 network calls\./),
+		).toBeInTheDocument();
+	},
+};
+
+// A blocked row among the matches reports the match-scoped blocked count.
+export const SearchBlockedMatches: Story = {
+	args: {
+		summary: { total: 4, blocked: 2 },
+		calls: [MockAIBridgeSessionNetworkCalls[1]],
+		search: { loaded: 4, query: "npmjs.org" },
+	},
+	play: async ({ canvas }) => {
+		await canvas.findByText("1 match");
+		await expect(
+			canvas.getByText((_content, element) => {
+				return element?.textContent === "Blocked matches: 1";
+			}),
+		).toBeInTheDocument();
+	},
+};
+
+// The matched substring in the URL renders bold in the primary color.
+export const SearchHighlightsMatch: Story = {
+	args: {
+		summary: { total: 4, blocked: 2 },
+		calls: [MockAIBridgeSessionNetworkCalls[1]],
+		search: { loaded: 4, query: "npmjs.org" },
+	},
+	play: async ({ canvas, canvasElement }) => {
+		await canvas.findByText("1 match");
+		const bold = canvasElement.querySelector("strong");
+		await expect(bold?.textContent).toBe("npmjs.org");
+		await expect(bold).toHaveClass("text-content-primary", "font-semibold");
 	},
 };
