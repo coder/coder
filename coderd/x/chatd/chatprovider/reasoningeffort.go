@@ -228,8 +228,10 @@ var googleThinkingLevelsAscending = []fantasygoogle.ThinkingLevel{
 // but 3.7 dropped MINIMAL, and image models accept only HIGH (plus MINIMAL
 // for flash). Versionless "-latest" aliases track the newest release of their
 // family, which has been Gemini 3+ since the aliases were introduced.
-// Non-Gemini and unrecognized model IDs return nil so reasoning effort
-// degrades to a no-op instead of a rejected request.
+// Only the Pro and Flash chat families qualify; specialized variants such
+// as live, TTS, and audio models reject thinking_level or generateContent
+// entirely (verified live), so unrecognized name tokens fail closed and
+// keep the previous request shape, matching googleSupportsThinkingBudget.
 func googleSupportedThinkingLevels(modelID string) []fantasygoogle.ThinkingLevel {
 	normalized := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(modelID)), "models/")
 	rest, ok := strings.CutPrefix(normalized, "gemini-")
@@ -247,9 +249,29 @@ func googleSupportedThinkingLevels(modelID string) []fantasygoogle.ThinkingLevel
 		return nil
 	}
 
-	isPro := slices.Contains(segments, "pro")
-	isFlash := slices.Contains(segments, "flash")
-	isImage := slices.Contains(segments, "image")
+	family := segments
+	if hasVersion {
+		family = segments[1:]
+	}
+	isPro, isFlash, isImage := false, false, false
+	for _, segment := range family {
+		switch segment {
+		case "pro":
+			isPro = true
+		case "flash":
+			isFlash = true
+		case "image":
+			isImage = true
+		case "lite", "preview", "exp", "latest":
+		default:
+			if _, err := strconv.Atoi(segment); err != nil {
+				return nil
+			}
+		}
+	}
+	if !isPro && !isFlash {
+		return nil
+	}
 
 	switch {
 	case isImage && isFlash:
@@ -274,22 +296,15 @@ func googleSupportedThinkingLevels(modelID string) []fantasygoogle.ThinkingLevel
 			}
 		}
 		return slices.Clone(googleThinkingLevelsAscending)
-	case isPro && hasVersion && major == 3 && minor == 0:
+	case hasVersion && major == 3 && minor == 0:
 		return []fantasygoogle.ThinkingLevel{
 			fantasygoogle.ThinkingLevelLow,
-			fantasygoogle.ThinkingLevelHigh,
-		}
-	case isPro:
-		return []fantasygoogle.ThinkingLevel{
-			fantasygoogle.ThinkingLevelLow,
-			fantasygoogle.ThinkingLevelMedium,
 			fantasygoogle.ThinkingLevelHigh,
 		}
 	default:
-		// Unknown Gemini 3+ variant: LOW and HIGH are the intersection of
-		// every documented non-image model's supported set.
 		return []fantasygoogle.ThinkingLevel{
 			fantasygoogle.ThinkingLevelLow,
+			fantasygoogle.ThinkingLevelMedium,
 			fantasygoogle.ThinkingLevelHigh,
 		}
 	}

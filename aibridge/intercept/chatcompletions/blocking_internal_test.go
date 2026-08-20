@@ -47,5 +47,6 @@ func TestBlockingMarshalCompletionPreservesGoogleExtraContent(t *testing.T) {
 
 		require.False(t, gjson.GetBytes(out, "choices.0.message.extra_content").Exists())
 		require.Equal(t, "bridge-id", gjson.GetBytes(out, "id").String())
+		require.Equal(t, int64(7), gjson.GetBytes(out, "usage.completion_tokens").Int())
 	})
 }

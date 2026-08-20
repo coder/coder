@@ -120,6 +120,11 @@ func TestRewriteGoogleCompatThinkingConfig_NonThinkingModelsUntouched(t *testing
 		"gemini-2.5-flash-preview-tts",
 		"gemini-2.5-flash-native-audio-preview-09-2025",
 		"gemini-2.5-computer-use-preview-10-2025",
+		// Specialized Gemini 3 variants likewise reject thinking_level or
+		// do not serve generateContent at all.
+		"gemini-3.1-flash-live-preview",
+		"gemini-3.1-flash-tts-preview",
+		"gemini-omni-flash-preview",
 	} {
 		t.Run(modelID, func(t *testing.T) {
 			t.Parallel()

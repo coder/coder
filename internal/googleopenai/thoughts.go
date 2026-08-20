@@ -3,6 +3,7 @@ package googleopenai
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -44,7 +45,7 @@ func RewriteThoughtResponse(resp *http.Response) {
 		if err != nil || closeErr != nil {
 			// The client re-reads the replaced body, so surface read
 			// failures there instead of swallowing them here.
-			resp.Body = io.NopCloser(&errorReader{err: firstError(err, closeErr)})
+			resp.Body = io.NopCloser(&errorReader{err: errors.Join(err, closeErr)})
 			return
 		}
 		rewritten := RewriteThoughtCompletion(body)
@@ -57,15 +58,6 @@ func RewriteThoughtResponse(resp *http.Response) {
 type errorReader struct{ err error }
 
 func (r *errorReader) Read([]byte) (int, error) { return 0, r.err }
-
-func firstError(errs ...error) error {
-	for _, err := range errs {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 // RewriteThoughtCompletion rewrites a non-streaming chat completion,
 // splitting <thought>-marked message content into reasoning_content and

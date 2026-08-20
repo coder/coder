@@ -329,7 +329,12 @@ func TestGoogleSupportedThinkingLevels(t *testing.T) {
 		{modelID: "gemini-pro-latest", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
 		{modelID: "gemini-3-pro-image-preview", want: []fantasygoogle.ThinkingLevel{high}},
 		{modelID: "gemini-3.1-flash-image", want: []fantasygoogle.ThinkingLevel{minimal, high}},
-		{modelID: "gemini-3-ultra", want: []fantasygoogle.ThinkingLevel{low, high}},
+		// Specialized variants reject thinking_level or generateContent
+		// outright, and unknown families fail closed with them.
+		{modelID: "gemini-3.1-flash-live-preview", want: nil},
+		{modelID: "gemini-3.1-flash-tts-preview", want: nil},
+		{modelID: "gemini-omni-flash-preview", want: nil},
+		{modelID: "gemini-3-ultra", want: nil},
 		{modelID: "gemini-2.5-flash", want: nil},
 		{modelID: "gemini-2.0-flash", want: nil},
 		{modelID: "gemini-1.5-flash-latest", want: nil},
