@@ -123,11 +123,10 @@ export const RuntimeHoursBannerForMember: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			await canvas.findByText(
-				/used 100 of the 100 Coder Agent runtime hours .* Contact your deployment administrator/,
-			),
-		).toBeVisible();
+		const banner = await canvas.findByRole("alert");
+		await expect(banner).toHaveTextContent(
+			/used 100 of the 100 Coder Agent runtime hours .* Contact your deployment administrator/,
+		);
 	},
 };
 
@@ -148,9 +147,10 @@ export const RuntimeHoursWarningForAdmin: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			await canvas.findByText(/used 100 of the 100 Coder Agent runtime hours/),
-		).toBeVisible();
+		const banner = await canvas.findByRole("status");
+		await expect(banner).toHaveTextContent(
+			/used 100 of the 100 Coder Agent runtime hours/,
+		);
 		await expect(
 			canvas.queryByText(/Contact your deployment administrator/),
 		).not.toBeInTheDocument();
