@@ -402,7 +402,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			<div>
 				<Button variant="subtle" onClick={onCancel} className="-ml-3">
 					<ArrowLeftIcon />
-					<span>Back to workspaces</span>
+					<span>Go back</span>
 				</Button>
 			</div>
 			<div className="flex flex-col gap-6 w-full max-w-screen-md mx-auto pb-96">

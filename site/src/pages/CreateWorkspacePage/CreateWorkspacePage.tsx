@@ -466,7 +466,7 @@ const CreateWorkspacePage: FC = () => {
 						creatingWorkspace={createWorkspaceMutation.isPending}
 						sendMessage={sendMessage}
 						onCancel={() => {
-							navigate("/workspaces");
+							navigate(-1);
 						}}
 						onSubmit={async (request, owner) => {
 							let workspaceRequest = request;
