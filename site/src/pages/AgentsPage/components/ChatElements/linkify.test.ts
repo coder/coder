@@ -29,12 +29,12 @@ describe("splitTextForLinks", () => {
 		]);
 	});
 
-	it("keeps ports, paths, and query strings", () => {
+	it("keeps ports, paths, query strings, and fragments", () => {
 		expect(
-			splitTextForLinks("see https://localhost:8080/api/v2?q=1&x=2 now"),
+			splitTextForLinks("see https://localhost:8080/api/v2?q=1&x=2#frag now"),
 		).toEqual([
 			{ kind: "text", value: "see " },
-			{ kind: "url", value: "https://localhost:8080/api/v2?q=1&x=2" },
+			{ kind: "url", value: "https://localhost:8080/api/v2?q=1&x=2#frag" },
 			{ kind: "text", value: " now" },
 		]);
 	});
@@ -69,20 +69,30 @@ describe("splitTextForLinks", () => {
 		]);
 	});
 
-	it("excludes a closing parenthesis that is not part of the URL", () => {
+	it("excludes unmatched closing wrappers from the URL", () => {
 		expect(splitTextForLinks("(listening on http://localhost:3000)")).toEqual([
 			{ kind: "text", value: "(listening on " },
 			{ kind: "url", value: "http://localhost:3000" },
 			{ kind: "text", value: ")" },
 		]);
+		expect(splitTextForLinks("Open [http://localhost:3000] now")).toEqual([
+			{ kind: "text", value: "Open [" },
+			{ kind: "url", value: "http://localhost:3000" },
+			{ kind: "text", value: "] now" },
+		]);
 	});
 
-	it("keeps a balanced closing parenthesis inside the URL", () => {
+	it("keeps balanced closing pairs inside the URL", () => {
 		expect(
 			splitTextForLinks("docs at https://example.com/wiki/Foo_(bar)"),
 		).toEqual([
 			{ kind: "text", value: "docs at " },
 			{ kind: "url", value: "https://example.com/wiki/Foo_(bar)" },
+		]);
+		expect(splitTextForLinks("dev http://[::1]:8080/x up")).toEqual([
+			{ kind: "text", value: "dev " },
+			{ kind: "url", value: "http://[::1]:8080/x" },
+			{ kind: "text", value: " up" },
 		]);
 	});
 
@@ -122,7 +132,13 @@ describe("splitTextForLinks", () => {
 		]);
 	});
 
-	it("linkifies angle-bracket autolinks and keeps the brackets as text", () => {
+	it("does not linkify a scheme glued to a preceding word", () => {
+		expect(splitTextForLinks("myhttp://thing is custom")).toEqual([
+			{ kind: "text", value: "myhttp://thing is custom" },
+		]);
+	});
+
+	it("linkifies angle-bracket-wrapped URLs and keeps the brackets as text", () => {
 		expect(splitTextForLinks("see <https://coder.com/docs> now")).toEqual([
 			{ kind: "text", value: "see <" },
 			{ kind: "url", value: "https://coder.com/docs" },
@@ -130,203 +146,74 @@ describe("splitTextForLinks", () => {
 		]);
 	});
 
-	it("keeps non-http angle-bracket autolinks as text", () => {
-		expect(splitTextForLinks("<mailto:x@y.com> and <ftp://host>")).toEqual([
-			{ kind: "text", value: "<mailto:x@y.com> and <ftp://host>" },
-		]);
-	});
+	// Prompts are plain text, not markdown: URLs become links uniformly,
+	// with no special-casing of markdown syntax around them.
 
-	it("keeps markdown link syntax as literal text", () => {
+	it("linkifies the destination inside markdown link syntax", () => {
 		expect(
 			splitTextForLinks("read [policy](http://localhost:3000/policy) first"),
 		).toEqual([
-			{
-				kind: "text",
-				value: "read [policy](http://localhost:3000/policy) first",
-			},
+			{ kind: "text", value: "read [policy](" },
+			{ kind: "url", value: "http://localhost:3000/policy" },
+			{ kind: "text", value: ") first" },
 		]);
 	});
 
-	it("does not apply markdown block formatting to the surrounding text", () => {
-		expect(splitTextForLinks("# fix this http://localhost:3000/x")).toEqual([
-			{ kind: "text", value: "# fix this " },
-			{ kind: "url", value: "http://localhost:3000/x" },
-		]);
-	});
-
-	// These cases intentionally follow GFM autolink behavior without
-	// custom recovery.
-
-	it("does not linkify a bracket-wrapped URL", () => {
-		expect(splitTextForLinks("Open [http://localhost:3000] now")).toEqual([
-			{ kind: "text", value: "Open [http://localhost:3000] now" },
-		]);
-	});
-
-	it("does not linkify inside a four-space-indented line", () => {
-		expect(splitTextForLinks("    http://localhost:3000/pasted")).toEqual([
-			{ kind: "text", value: "    http://localhost:3000/pasted" },
-		]);
-	});
-
-	it("does not detect URLs with IPv6 literal hosts", () => {
-		expect(splitTextForLinks("[http://[::1]:8080/]")).toEqual([
-			{ kind: "text", value: "[http://[::1]:8080/]" },
-		]);
-	});
-
-	it("does not linkify URLs adjacent to ANSI escape sequences", () => {
-		expect(
-			splitTextForLinks("\u001b[32mhttp://localhost:3000/\u001b[39m done"),
-		).toEqual([
-			{
-				kind: "text",
-				value: "\u001b[32mhttp://localhost:3000/\u001b[39m done",
-			},
-		]);
-	});
-
-	it("keeps ASCII control characters inside the URL", () => {
-		expect(splitTextForLinks("http://localhost:3000/a\u0007bell")).toEqual([
-			{ kind: "url", value: "http://localhost:3000/a\u0007bell" },
-		]);
-	});
-
-	it("treats a trailing entity reference as punctuation", () => {
-		expect(splitTextForLinks("https://coder.com/a&amp; b")).toEqual([
-			{ kind: "url", value: "https://coder.com/a" },
-			{ kind: "text", value: "&amp; b" },
-		]);
-		expect(splitTextForLinks("https://coder.com/a&b=1 c")).toEqual([
-			{ kind: "url", value: "https://coder.com/a&b=1" },
-			{ kind: "text", value: " c" },
-		]);
-	});
-
-	it("rejects underscores in the last two domain segments", () => {
-		expect(splitTextForLinks("see http://snake_case.com now")).toEqual([
-			{ kind: "text", value: "see http://snake_case.com now" },
-		]);
-		expect(splitTextForLinks("see http://a_b.example.com/x now")).toEqual([
-			{ kind: "text", value: "see " },
-			{ kind: "url", value: "http://a_b.example.com/x" },
-			{ kind: "text", value: " now" },
-		]);
-	});
-
-	it("suppresses autolinks after an unmatched bracket only within the paragraph", () => {
-		expect(splitTextForLinks("Open [ http://localhost:3000 now")).toEqual([
-			{ kind: "text", value: "Open [ http://localhost:3000 now" },
-		]);
-		expect(splitTextForLinks("Open [\n\nhttp://localhost:3000 now")).toEqual([
-			{ kind: "text", value: "Open [\n\n" },
-			{ kind: "url", value: "http://localhost:3000" },
-			{ kind: "text", value: " now" },
-		]);
-	});
-
-	it("stops the URL at an angle bracket", () => {
-		expect(splitTextForLinks("http://localhost:3000/a<b")).toEqual([
-			{ kind: "url", value: "http://localhost:3000/a" },
-			{ kind: "text", value: "<b" },
-		]);
-	});
-
-	it("keeps URLs inside inline code spans literal", () => {
+	it("linkifies URLs wrapped in backticks and keeps the backticks as text", () => {
 		expect(splitTextForLinks("`http://localhost:3000`")).toEqual([
-			{ kind: "text", value: "`http://localhost:3000`" },
-		]);
-		expect(splitTextForLinks("run `http://localhost:3000/api` now")).toEqual([
-			{ kind: "text", value: "run `http://localhost:3000/api` now" },
-		]);
-		expect(splitTextForLinks("``http://localhost:3000``")).toEqual([
-			{ kind: "text", value: "``http://localhost:3000``" },
-		]);
-	});
-
-	it("keeps a code span crossing a single line ending literal", () => {
-		expect(splitTextForLinks("`start\nhttp://localhost:3000\nend`")).toEqual([
-			{ kind: "text", value: "`start\nhttp://localhost:3000\nend`" },
-		]);
-	});
-
-	it("linkifies after an unmatched backtick or a closed code span", () => {
-		expect(splitTextForLinks("` http://localhost:3000")).toEqual([
-			{ kind: "text", value: "` " },
+			{ kind: "text", value: "`" },
 			{ kind: "url", value: "http://localhost:3000" },
+			{ kind: "text", value: "`" },
 		]);
-		expect(splitTextForLinks("`cmd` http://localhost:3000")).toEqual([
-			{ kind: "text", value: "`cmd` " },
+	});
+
+	it("linkifies URLs inside code fences and indented lines", () => {
+		expect(splitTextForLinks("```\nhttp://localhost:3000\n```")).toEqual([
+			{ kind: "text", value: "```\n" },
 			{ kind: "url", value: "http://localhost:3000" },
+			{ kind: "text", value: "\n```" },
 		]);
-		expect(splitTextForLinks("`\n\nhttp://localhost:3000")).toEqual([
-			{ kind: "text", value: "`\n\n" },
+		expect(splitTextForLinks("    http://localhost:3000/pasted")).toEqual([
+			{ kind: "text", value: "    " },
+			{ kind: "url", value: "http://localhost:3000/pasted" },
+		]);
+	});
+
+	it("linkifies URLs inside blockquoted fenced code", () => {
+		expect(splitTextForLinks("> ~~~\n> http://localhost:3000\n> ~~~")).toEqual([
+			{ kind: "text", value: "> ~~~\n> " },
 			{ kind: "url", value: "http://localhost:3000" },
+			{ kind: "text", value: "\n> ~~~" },
 		]);
 	});
 
-	it("ignores bracket syntax inside a code span", () => {
-		expect(splitTextForLinks("`[` see http://localhost:3000")).toEqual([
-			{ kind: "text", value: "`[` see " },
-			{ kind: "url", value: "http://localhost:3000" },
+	it("ends URLs at quotes and ASCII control characters", () => {
+		expect(splitTextForLinks('served "http://localhost:3000/a" fine')).toEqual([
+			{ kind: "text", value: 'served "' },
+			{ kind: "url", value: "http://localhost:3000/a" },
+			{ kind: "text", value: '" fine' },
+		]);
+		expect(splitTextForLinks("http://localhost:3000/a\u0007bell")).toEqual([
+			{ kind: "url", value: "http://localhost:3000/a" },
+			{ kind: "text", value: "\u0007bell" },
 		]);
 	});
 
-	it("keeps a backtick inside a URL path", () => {
-		expect(splitTextForLinks("http://localhost:3000/a`b now")).toEqual([
-			{ kind: "url", value: "http://localhost:3000/a`b" },
-			{ kind: "text", value: " now" },
+	it("does not linkify a URL with its host trimmed away", () => {
+		expect(splitTextForLinks("weird http://. case")).toEqual([
+			{ kind: "text", value: "weird http://. case" },
 		]);
 	});
 
-	it("does not treat an escaped bracket as a pending link label", () => {
-		expect(splitTextForLinks("\\[ http://localhost:3000")).toEqual([
-			{ kind: "text", value: "\\[ " },
-			{ kind: "url", value: "http://localhost:3000" },
-		]);
-	});
-
-	it("keeps URLs inside fenced code blocks literal", () => {
-		const backtickFence = "```\nline\n\nhttp://localhost:3000\n```";
-		expect(splitTextForLinks(backtickFence)).toEqual([
-			{ kind: "text", value: backtickFence },
-		]);
-		const tildeFence = "~~~\nhttp://localhost:3000\n~~~";
-		expect(splitTextForLinks(tildeFence)).toEqual([
-			{ kind: "text", value: tildeFence },
-		]);
-	});
-
-	it("keeps URLs inside an unclosed fence literal", () => {
-		expect(splitTextForLinks("```\nhttp://localhost:3000")).toEqual([
-			{ kind: "text", value: "```\nhttp://localhost:3000" },
-		]);
-	});
-
-	it("linkifies after a closed fence", () => {
-		expect(splitTextForLinks("```\nx\n```\nhttp://localhost:3000")).toEqual([
-			{ kind: "text", value: "```\nx\n```\n" },
-			{ kind: "url", value: "http://localhost:3000" },
-		]);
-	});
-
-	it("does not treat a backtick run with a backtick info string as a fence", () => {
-		expect(splitTextForLinks("```a`\nhttp://localhost:3000")).toEqual([
-			{ kind: "text", value: "```a`\n" },
-			{ kind: "url", value: "http://localhost:3000" },
-		]);
-	});
-
-	it("stays linear on long trailing punctuation runs", () => {
-		const url = `http://localhost:3000/${".".repeat(10000)}`;
+	it("stays fast on long inputs", () => {
+		const urls = Array.from(
+			{ length: 10000 },
+			(_, i) => `http://localhost:${3000 + (i % 100)}/x`,
+		).join(" ");
+		const dots = `http://localhost:3000/${".".repeat(10000)}x`;
 		const start = performance.now();
-		expect(splitTextForLinks(`${url}x`)).toEqual([
-			{ kind: "url", value: `${url}x` },
-		]);
-		expect(splitTextForLinks(url)).toEqual([
-			{ kind: "url", value: "http://localhost:3000/" },
-			{ kind: "text", value: ".".repeat(10000) },
-		]);
+		expect(splitTextForLinks(urls)).toHaveLength(19999);
+		expect(splitTextForLinks(dots)).toEqual([{ kind: "url", value: dots }]);
 		expect(performance.now() - start).toBeLessThan(1000);
 	});
 });
