@@ -3,6 +3,7 @@ package chatloop
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"iter"
 	"runtime"
@@ -1561,4 +1562,94 @@ func TestExecuteSingleTool_AllowsDeferredDirectCall(t *testing.T) {
 	text, ok := result.Result.(fantasy.ToolResultOutputContentText)
 	require.True(t, ok)
 	require.Equal(t, "ok", text.Text)
+}
+
+// fullSchemaTestTool models a tool that reports its complete input
+// schema alongside a flattened Info() view.
+type fullSchemaTestTool struct {
+	fantasy.AgentTool
+	schema map[string]any
+}
+
+func (fullSchemaTestTool) Info() fantasy.ToolInfo {
+	return fantasy.ToolInfo{
+		Name:        "full_schema_tool",
+		Description: "keeps schemas whole",
+		Parameters:  map[string]any{"fallback": map[string]any{"type": "string"}},
+	}
+}
+
+func (t fullSchemaTestTool) FullInputSchema() map[string]any { return t.schema }
+
+func (fullSchemaTestTool) ProviderOptions() fantasy.ProviderOptions { return nil }
+
+// TestBuildToolDefinitionsFullSchema verifies that a tool exposing a
+// full input schema reaches the wire whole, with "required" coerced
+// from the []any shape JSON unmarshaling produces to []string so
+// provider drivers that assert []string do not drop it.
+func TestBuildToolDefinitionsFullSchema(t *testing.T) {
+	t.Parallel()
+
+	source := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"filter": map[string]any{"$ref": "#/$defs/Filter"},
+		},
+		"required":             []any{"filter"},
+		"additionalProperties": false,
+		"$defs": map[string]any{
+			"Filter": map[string]any{"type": "string"},
+		},
+	}
+	defs := buildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+	require.Len(t, defs, 1)
+	ft, ok := defs[0].(fantasy.FunctionTool)
+	require.True(t, ok)
+	require.Equal(t, []string{"filter"}, ft.InputSchema["required"])
+	raw, err := json.Marshal(ft.InputSchema)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"type": "object",
+		"properties": {"filter": {"$ref": "#/$defs/Filter"}},
+		"required": ["filter"],
+		"additionalProperties": false,
+		"$defs": {"Filter": {"type": "string"}}
+	}`, string(raw))
+	// The tool's own schema map is not mutated by the coercion.
+	require.Equal(t, []any{"filter"}, source["required"])
+}
+
+// TestBuildToolDefinitionsFullSchemaNormalization verifies the
+// defensive guards on the full-schema path: a plain object root gets
+// "type" defaulted and a non-nil properties object, and an empty
+// "required" is dropped so it never serializes to null.
+func TestBuildToolDefinitionsFullSchemaNormalization(t *testing.T) {
+	t.Parallel()
+
+	source := map[string]any{
+		"description": "no explicit type",
+		"required":    []any{},
+	}
+	defs := buildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+	require.Len(t, defs, 1)
+	ft, ok := defs[0].(fantasy.FunctionTool)
+	require.True(t, ok)
+	raw, err := json.Marshal(ft.InputSchema)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"type":"object","properties":{},"description":"no explicit type"}`, string(raw))
+}
+
+// TestBuildToolDefinitionsFullSchemaNilFallsBack verifies that a tool
+// whose FullInputSchema returns nil produces the same reconstruction
+// from Info() as tools without one.
+func TestBuildToolDefinitionsFullSchemaNilFallsBack(t *testing.T) {
+	t.Parallel()
+
+	defs := buildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: nil}}, nil, nil)
+	require.Len(t, defs, 1)
+	ft, ok := defs[0].(fantasy.FunctionTool)
+	require.True(t, ok)
+	raw, err := json.Marshal(ft.InputSchema)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"type":"object","properties":{"fallback":{"type":"string"}}}`, string(raw))
 }

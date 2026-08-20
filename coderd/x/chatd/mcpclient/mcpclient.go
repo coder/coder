@@ -593,6 +593,7 @@ type mcpToolWrapper struct {
 	prefixedName    string
 	originalName    string
 	description     string
+	inputSchema     map[string]any
 	parameters      map[string]any
 	required        []string
 	modelIntent     bool
@@ -615,12 +616,13 @@ func newMCPTool(
 	session *mcp.ClientSession,
 	modelIntent bool,
 ) *mcpToolWrapper {
-	properties, required := splitInputSchema(tool.InputSchema)
+	inputSchema, properties, required := splitInputSchema(tool.InputSchema)
 	return &mcpToolWrapper{
 		configID:     configID,
 		prefixedName: truncateToolName(aidmcp.SanitizeToolName(serverSlug) + toolNameSep + aidmcp.SanitizeToolName(tool.Name)),
 		originalName: tool.Name,
 		description:  tool.Description,
+		inputSchema:  inputSchema,
 		parameters:   properties,
 		required:     required,
 		modelIntent:  modelIntent,
@@ -628,16 +630,18 @@ func newMCPTool(
 	}
 }
 
-func splitInputSchema(schema any) (map[string]any, []string) {
+// splitInputSchema returns the tool's full input schema map plus the
+// derived properties/required pair that fantasy.ToolInfo carries. The
+// full map is nil when the server sent no object schema.
+func splitInputSchema(schema any) (full map[string]any, properties map[string]any, required []string) {
 	m, _ := schema.(map[string]any)
-	properties, _ := m["properties"].(map[string]any)
+	properties, _ = m["properties"].(map[string]any)
 	if properties == nil {
 		// A tool with no parameters has no "properties" object. A nil
 		// map serializes to JSON null, which some providers reject as
 		// an invalid schema, so normalize to an empty object.
 		properties = map[string]any{}
 	}
-	var required []string
 	if rawRequired, ok := m["required"].([]any); ok {
 		for _, r := range rawRequired {
 			if str, ok := r.(string); ok {
@@ -645,7 +649,7 @@ func splitInputSchema(schema any) (map[string]any, []string) {
 			}
 		}
 	}
-	return properties, required
+	return m, properties, required
 }
 
 func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
@@ -668,17 +672,7 @@ func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
 	// "model_intent" so the LLM provides a human-readable
 	// description of each tool call.
 	wrapped := map[string]any{
-		"model_intent": map[string]any{
-			"type": "string",
-			"description": "A short, natural-language, present-participle " +
-				"phrase describing why you are calling this tool. " +
-				"This is shown to the user as a status label while " +
-				"the tool runs. Use plain English with no underscores " +
-				"or technical jargon. Keep it under 100 characters. " +
-				"Good examples: \"Reading the authentication module\", " +
-				"\"Searching for configuration files\", " +
-				"\"Creating a new workspace\".",
-		},
+		"model_intent": modelIntentPropertySchema(),
 		"properties": map[string]any{
 			"type":       "object",
 			"properties": t.parameters,
@@ -692,6 +686,57 @@ func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
 		Required:    []string{"model_intent", "properties"},
 		Parallel:    true,
 	}
+}
+
+func modelIntentPropertySchema() map[string]any {
+	return map[string]any{
+		"type": "string",
+		"description": "A short, natural-language, present-participle " +
+			"phrase describing why you are calling this tool. " +
+			"This is shown to the user as a status label while " +
+			"the tool runs. Use plain English with no underscores " +
+			"or technical jargon. Keep it under 100 characters. " +
+			"Good examples: \"Reading the authentication module\", " +
+			"\"Searching for configuration files\", " +
+			"\"Creating a new workspace\".",
+	}
+}
+
+// FullInputSchema returns the tool's complete input schema, preserving
+// keys such as $defs, additionalProperties, and combinators that
+// Info() cannot carry. It returns nil when the server sent no object
+// schema, in which case callers reconstruct a schema from Info().
+func (t *mcpToolWrapper) FullInputSchema() map[string]any {
+	if t.inputSchema == nil {
+		return nil
+	}
+	if !t.modelIntent {
+		return t.inputSchema
+	}
+
+	// Nest the original schema under "properties" alongside
+	// "model_intent", mirroring Info(). "$defs" is hoisted to the
+	// wrapped root because "#/$defs/..." JSON pointers resolve from
+	// the document root and would dangle one level down.
+	inner := make(map[string]any, len(t.inputSchema))
+	for key, value := range t.inputSchema {
+		if key == "$defs" {
+			continue
+		}
+		inner[key] = value
+	}
+	wrapped := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"model_intent": modelIntentPropertySchema(),
+			"properties":   inner,
+		},
+		"required": []string{"model_intent", "properties"},
+	}
+	if defs, ok := t.inputSchema["$defs"]; ok {
+		wrapped["$defs"] = defs
+	}
+	return wrapped
 }
 
 func (t *mcpToolWrapper) Run(
