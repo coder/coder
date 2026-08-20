@@ -269,6 +269,16 @@ func TestRegoQueries(t *testing.T) {
 			VariableConverter: regosql.DefaultVariableConverter(),
 		},
 		{
+			Name: "MCPServerConfigACLAllow",
+			Queries: []string{
+				`"read" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+				`"read" in input.object.acl_group_list["96c55a0e-73b4-44fc-abac-70d53c35c04c"]`,
+			},
+			ExpectedSQL: "((mcp_server_configs.user_acl#>array['d5389ccc-57a4-4b13-8c3f-31747bcdc9f1', 'permissions'] ? 'read')" +
+				" OR (mcp_server_configs.group_acl#>array['96c55a0e-73b4-44fc-abac-70d53c35c04c', 'permissions'] ? 'read'))",
+			VariableConverter: regosql.MCPServerConfigConverter(),
+		},
+		{
 			Name: "TemplateOwner",
 			Queries: []string{
 				`neq(input.object.org_owner, "");

@@ -6,7 +6,6 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"sync"
 
 	"golang.org/x/xerrors"
 
@@ -51,7 +50,10 @@ func SeedFromBytes(ctx context.Context, db database.Store, data []byte) error {
 	if len(rows) == 0 {
 		return xerrors.New("price seed is empty")
 	}
-	return db.UpsertAIModelPrices(ctx, data)
+	return db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+		Seed:   data,
+		Source: database.AIModelPriceSourceDefault,
+	})
 }
 
 func parseSeed(data []byte) ([]seedRow, error) {
@@ -60,33 +62,4 @@ func parseSeed(data []byte) ([]seedRow, error) {
 		return nil, err
 	}
 	return rows, nil
-}
-
-// modelKey identifies a priced model.
-type modelKey struct {
-	provider string
-	model    string
-}
-
-// defaultPricedModels indexes the embedded price book by provider and model.
-// Built on first use, since a deployment that never sets a price never needs
-// it.
-var defaultPricedModels = sync.OnceValue(func() map[modelKey]struct{} {
-	rows, err := parseSeed(seedJSON)
-	if err != nil {
-		panic(xerrors.Errorf("parse embedded price seed: %w", err))
-	}
-	index := make(map[modelKey]struct{}, len(rows))
-	for _, row := range rows {
-		index[modelKey{provider: row.Provider, model: row.Model}] = struct{}{}
-	}
-	return index
-})
-
-// IsDefaultPriced reports whether the embedded price book already carries a
-// price for the model. Coder owns those prices and re-applies them on every
-// startup, so an operator price set for one would not survive a restart.
-func IsDefaultPriced(provider, model string) bool {
-	_, ok := defaultPricedModels()[modelKey{provider: provider, model: model}]
-	return ok
 }

@@ -26,32 +26,17 @@ type Story = StoryObj<typeof UsersTable>;
 
 export const Example: Story = {
 	args: {
-		users: [
-			{ ...MockUserOwner, has_ai_seat: false },
-			{ ...MockUserMember, has_ai_seat: false },
-		],
+		users: [MockUserOwner, MockUserMember],
 		canEditUsers: false,
 		groupsByUserId: mockGroupsByUserId,
-	},
-};
-
-export const ExampleWithAISeatColumn: Story = {
-	args: {
-		users: [
-			{ ...MockUserOwner, has_ai_seat: true },
-			{ ...MockUserMember, has_ai_seat: false },
-		],
-		canEditUsers: false,
-		groupsByUserId: mockGroupsByUserId,
-		showAISeatColumn: true,
 	},
 };
 
 export const Editable: Story = {
 	args: {
 		users: [
-			{ ...MockUserOwner, has_ai_seat: false },
-			{ ...MockUserMember, has_ai_seat: false },
+			MockUserOwner,
+			MockUserMember,
 			{
 				...MockUserOwner,
 				username: "John Doe",
@@ -63,7 +48,6 @@ export const Editable: Story = {
 					MockAuditorRole,
 				],
 				status: "dormant",
-				has_ai_seat: false,
 			},
 			{
 				...MockUserOwner,
@@ -71,7 +55,6 @@ export const Editable: Story = {
 				email: "roger.moore@coder.com",
 				roles: [],
 				status: "suspended",
-				has_ai_seat: false,
 			},
 			{
 				...MockUserOwner,
@@ -80,55 +63,11 @@ export const Editable: Story = {
 				roles: [],
 				status: "active",
 				login_type: "oidc",
-				has_ai_seat: false,
 			},
 		],
 		canEditUsers: true,
 		canViewActivity: true,
 		groupsByUserId: mockGroupsByUserId,
-	},
-};
-
-export const EditableWithAISeatColumn: Story = {
-	args: {
-		users: [
-			{ ...MockUserOwner, has_ai_seat: true },
-			{ ...MockUserMember, has_ai_seat: false },
-			{
-				...MockUserOwner,
-				username: "John Doe",
-				email: "john.doe@coder.com",
-				roles: [
-					MockUserAdminRole,
-					MockTemplateAdminRole,
-					MockMemberRole,
-					MockAuditorRole,
-				],
-				status: "dormant",
-				has_ai_seat: false,
-			},
-			{
-				...MockUserOwner,
-				username: "Roger Moore",
-				email: "roger.moore@coder.com",
-				roles: [],
-				status: "suspended",
-				has_ai_seat: false,
-			},
-			{
-				...MockUserOwner,
-				username: "OIDC User",
-				email: "oidc.user@coder.com",
-				roles: [],
-				status: "active",
-				login_type: "oidc",
-				has_ai_seat: false,
-			},
-		],
-		canEditUsers: true,
-		canViewActivity: true,
-		groupsByUserId: mockGroupsByUserId,
-		showAISeatColumn: true,
 	},
 };
 

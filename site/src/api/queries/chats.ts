@@ -548,6 +548,10 @@ export const mergeWatchedChatSummary = (
 		isContextDirtyEvent && watchedChat.context
 			? { ...cachedChat.context, ...watchedChat.context }
 			: cachedChat.context;
+	const nextQueuedForCapacity =
+		isStatusEvent && nextStatus !== "running"
+			? false
+			: (cachedChat.queued_for_capacity ?? false);
 	const nextWorkspaceId = isFreshEnough
 		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
 		: cachedChat.workspace_id;
@@ -594,7 +598,8 @@ export const mergeWatchedChatSummary = (
 		nextSummary === cachedChat.summary &&
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at &&
-		nextContext === cachedChat.context
+		nextContext === cachedChat.context &&
+		nextQueuedForCapacity === (cachedChat.queued_for_capacity ?? false)
 	) {
 		return cachedChat;
 	}
@@ -612,6 +617,7 @@ export const mergeWatchedChatSummary = (
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
 		context: nextContext,
+		queued_for_capacity: nextQueuedForCapacity,
 	};
 };
 
@@ -1148,6 +1154,18 @@ export const chat = (chatId: string) => ({
 	queryKey: chatEntityKey(chatId),
 	queryFn: () => API.experimental.getChat(chatId),
 });
+
+export const getOpenChatPollInterval = (
+	data: TypesGen.Chat | undefined,
+): number | false =>
+	data?.status === "running" && !data.archived ? 5_000 : false;
+
+export const openChat = (chatId: string) =>
+	queryOptions({
+		...chat(chatId),
+		refetchInterval: ({ state }) => getOpenChatPollInterval(state.data),
+		refetchIntervalInBackground: false,
+	});
 
 export const chatACLKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "acl"] as const;
@@ -2308,21 +2326,35 @@ export const updateChatModelOverride = (
 
 // ── MCP Server Configs ───────────────────────────────────────
 
-export const mcpServersKey = ["mcp", "servers"] as const;
+const mcpServersKey = ["mcp", "servers"] as const;
+export const mcpServerConfigsKey = (organization: string) =>
+	[...mcpServersKey, organization] as const;
 
-export const mcpServerConfigs = () => ({
-	queryKey: mcpServersKey,
+export const mcpServerConfigs = (organization: string) => ({
+	queryKey: mcpServerConfigsKey(organization),
 	queryFn: (): Promise<TypesGen.MCPServerConfig[]> =>
-		API.experimental.getMCPServerConfigs(),
+		API.experimental.getMCPServerConfigs(organization),
+});
+
+export const mcpServerConfigKey = (organization: string, id: string) =>
+	[...mcpServerConfigsKey(organization), "detail", id] as const;
+
+export const mcpServerConfig = (organization: string, id: string) => ({
+	queryKey: mcpServerConfigKey(organization, id),
+	queryFn: (): Promise<TypesGen.MCPServerConfig> =>
+		API.experimental.getMCPServerConfig(organization, id),
 });
 
 const invalidateMCPServerConfigQueries = async (queryClient: QueryClient) => {
 	await queryClient.invalidateQueries({ queryKey: mcpServersKey });
 };
 
-export const createMCPServerConfig = (queryClient: QueryClient) => ({
+export const createMCPServerConfig = (
+	queryClient: QueryClient,
+	organization: string,
+) => ({
 	mutationFn: (req: TypesGen.CreateMCPServerConfigRequest) =>
-		API.experimental.createMCPServerConfig(req),
+		API.experimental.createMCPServerConfig(organization, req),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
 	},
@@ -2333,16 +2365,23 @@ type UpdateMCPServerConfigMutationArgs = {
 	req: TypesGen.UpdateMCPServerConfigRequest;
 };
 
-export const updateMCPServerConfig = (queryClient: QueryClient) => ({
+export const updateMCPServerConfig = (
+	queryClient: QueryClient,
+	organization: string,
+) => ({
 	mutationFn: ({ id, req }: UpdateMCPServerConfigMutationArgs) =>
-		API.experimental.updateMCPServerConfig(id, req),
+		API.experimental.updateMCPServerConfig(organization, id, req),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
 	},
 });
 
-export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
-	mutationFn: (id: string) => API.experimental.deleteMCPServerConfig(id),
+export const deleteMCPServerConfig = (
+	queryClient: QueryClient,
+	organization: string,
+) => ({
+	mutationFn: (id: string) =>
+		API.experimental.deleteMCPServerConfig(organization, id),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
 	},

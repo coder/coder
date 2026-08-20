@@ -489,7 +489,7 @@ version = "337309bfb9524f38466a5090e310040fc7af0203"
 backend = "go:github.com/coder/sqlc/cmd/sqlc"
 
 [[tools."go:github.com/coder/whichtests"]]
-version = "ec33bab1ec04cd86beb7a61a069db4463dba63f5"
+version = "377b8dbf1cccae3b04b48bc8cfc2410813491414"
 backend = "go:github.com/coder/whichtests"
 
 [[tools."go:github.com/golang-migrate/migrate/v4/cmd/migrate"]]

@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
@@ -10924,8 +10925,8 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.Len(t, rows, 3)
 
 		// The same bucket under a different id is not an idempotent
-		// re-insert but a duplicate that would double any aggregate summing
-		// runtime_ms; the unique partial index
+		// re-insert but a duplicate that would double the SUM in
+		// GetTotalUsageHBAgentRuntimeV1; the unique partial index
 		// idx_usage_events_agent_runtime rejects it loudly instead of the
 		// (id) arbiter silently dropping it.
 		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
@@ -10987,6 +10988,87 @@ func TestUsageEventsTrigger(t *testing.T) {
 		rows := getDailyRows(ctx, sqlDB)
 		require.Len(t, rows, 0)
 	})
+}
+
+func TestGetTotalUsageHBAgentRuntimeV1(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+
+	// hb_agent_runtime_v1 events are one row per hourly bucket, created_at
+	// set to the bucket start.
+	hour := func(d, h int) time.Time {
+		return time.Date(2025, 1, d, h, 0, 0, 0, time.UTC)
+	}
+	// The event type and payload are built from the producer's types rather
+	// than hand-written literals, so a rename in usagetypes fails this test
+	// instead of leaving the query silently summing a key nothing writes.
+	insert := func(id string, runtimeMs int64, createdAt time.Time) {
+		t.Helper()
+		event := usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs}
+		eventData, err := json.Marshal(event.Fields())
+		require.NoError(t, err)
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        id,
+			EventType: string(event.EventType()),
+			EventData: eventData,
+			CreatedAt: createdAt,
+		})
+		require.NoError(t, err)
+	}
+	total := func(start, end time.Time) int64 {
+		t.Helper()
+		got, err := db.GetTotalUsageHBAgentRuntimeV1(ctx, database.GetTotalUsageHBAgentRuntimeV1Params{
+			StartTime: start,
+			EndTime:   end,
+		})
+		require.NoError(t, err)
+		return got
+	}
+
+	// No events at all sums to zero rather than NULL.
+	require.EqualValues(t, 0, total(hour(1, 0), hour(5, 0)))
+
+	insert("rt-d1h0", 1000, hour(1, 0))
+	insert("rt-d1h12", 500, hour(1, 12))
+	insert("rt-d1h18", 0, hour(1, 18))
+	insert("rt-d2h0", 250, hour(2, 0))
+	insert("rt-d4h0", 7, hour(4, 0))
+
+	// A multi-day range sums every bucket it covers.
+	require.EqualValues(t, 1757, total(hour(1, 0), hour(5, 0)))
+
+	// The start bound is inclusive and the end bound is exclusive: a bucket
+	// starting exactly at the end timestamp belongs to the next period.
+	require.EqualValues(t, 1500, total(hour(1, 0), hour(2, 0)))
+	require.EqualValues(t, 1750, total(hour(1, 0), hour(2, 1)))
+	require.EqualValues(t, 250, total(hour(2, 0), hour(4, 0)))
+	require.EqualValues(t, 0, total(hour(3, 0), hour(4, 0)))
+
+	// Bounds are exact timestamps rather than whole days: a period starting
+	// mid-day excludes that day's earlier buckets.
+	require.EqualValues(t, 757, total(hour(1, 12), hour(5, 0)))
+
+	// A non-UTC timestamp addresses the same instant. Sydney is UTC+11 in
+	// January, so 23:00 on Jan 1 in Sydney is 12:00 on Jan 1 in UTC.
+	locSydney, err := time.LoadLocation("Australia/Sydney")
+	require.NoError(t, err)
+	require.EqualValues(t, 750, total(
+		time.Date(2025, 1, 1, 23, 0, 0, 0, locSydney),
+		time.Date(2025, 1, 2, 12, 0, 0, 0, locSydney),
+	))
+
+	// Other event types are never mixed in, even when they carry a
+	// runtime_ms key: without the event_type filter this would add 9999.
+	err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		ID:        "seats-1",
+		EventType: "hb_ai_seats_v1",
+		EventData: []byte(`{"count": 1, "runtime_ms": 9999}`),
+		CreatedAt: hour(1, 0),
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1757, total(hour(1, 0), hour(5, 0)))
 }
 
 func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
@@ -18977,6 +19059,85 @@ func TestOAuth2ProviderScopeNotEmpty(t *testing.T) {
 	})
 }
 
+func TestGetAIModelPriceByProviderModel(t *testing.T) {
+	t.Parallel()
+
+	const defaultSeed = `[{"provider":"anthropic","model":"model-a","input_price":1,"output_price":2,"cache_read_price":3,"cache_write_price":4}]`
+	const customSeed = `[{"provider":"anthropic","model":"model-a","input_price":5,"output_price":6,"cache_read_price":0,"cache_write_price":null}]`
+
+	defaultPrices := database.AIModelPrice{
+		InputPrice:      sql.NullInt64{Int64: 1, Valid: true},
+		OutputPrice:     sql.NullInt64{Int64: 2, Valid: true},
+		CacheReadPrice:  sql.NullInt64{Int64: 3, Valid: true},
+		CacheWritePrice: sql.NullInt64{Int64: 4, Valid: true},
+	}
+	customPrices := database.AIModelPrice{
+		InputPrice:      sql.NullInt64{Int64: 5, Valid: true},
+		OutputPrice:     sql.NullInt64{Int64: 6, Valid: true},
+		CacheReadPrice:  sql.NullInt64{Int64: 0, Valid: true},
+		CacheWritePrice: sql.NullInt64{},
+	}
+
+	tests := []struct {
+		name       string
+		seeds      []database.UpsertAIModelPricesParams
+		want       database.AIModelPrice
+		wantSource database.AIModelPriceSource
+	}{
+		{
+			name:       "DefaultOnly",
+			seeds:      []database.UpsertAIModelPricesParams{{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault}},
+			want:       defaultPrices,
+			wantSource: database.AIModelPriceSourceDefault,
+		},
+		{
+			name:       "CustomOnly",
+			seeds:      []database.UpsertAIModelPricesParams{{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom}},
+			want:       customPrices,
+			wantSource: database.AIModelPriceSourceCustom,
+		},
+		{
+			name: "CustomWinsOverDefault",
+			seeds: []database.UpsertAIModelPricesParams{
+				{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault},
+				{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom},
+			},
+			want:       customPrices,
+			wantSource: database.AIModelPriceSourceCustom,
+		},
+		{
+			name: "CustomWinsWhateverTheWriteOrder",
+			seeds: []database.UpsertAIModelPricesParams{
+				{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom},
+				{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault},
+			},
+			want:       customPrices,
+			wantSource: database.AIModelPriceSourceCustom,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			db, _ := dbtestutil.NewDB(t)
+			for _, seed := range tt.seeds {
+				require.NoError(t, db.UpsertAIModelPrices(ctx, seed))
+			}
+
+			got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+				Provider: "anthropic", Model: "model-a",
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.wantSource, got.Source)
+			require.Equal(t, tt.want.InputPrice, got.InputPrice)
+			require.Equal(t, tt.want.OutputPrice, got.OutputPrice)
+			require.Equal(t, tt.want.CacheReadPrice, got.CacheReadPrice)
+			require.Equal(t, tt.want.CacheWritePrice, got.CacheWritePrice)
+		})
+	}
+}
+
 func TestGetAIModelPrices(t *testing.T) {
 	t.Parallel()
 
@@ -18988,15 +19149,21 @@ func TestGetAIModelPrices(t *testing.T) {
 		{"provider":"openai","model":"model-a","input_price":3,"output_price":null,"cache_read_price":null,"cache_write_price":null}
 	]`
 
+	// A custom price for anthropic/model-a, which the seed above also covers.
+	const customSeed = `[{"provider":"anthropic","model":"model-a","input_price":9,"output_price":null,"cache_read_price":null,"cache_write_price":null}]`
+
 	tests := []struct {
-		name   string
-		params database.GetAIModelPricesParams
-		want   []string
+		name       string
+		customSeed string
+		params     database.GetAIModelPricesParams
+		want       []string
+		wantPrices []int64
 	}{
 		{
-			name:   "NoFilterReturnsEveryPrice",
-			params: database.GetAIModelPricesParams{},
-			want:   []string{"anthropic/model-a", "anthropic/model-b", "openai/model-a"},
+			name:       "NoFilterReturnsEveryPrice",
+			params:     database.GetAIModelPricesParams{},
+			want:       []string{"anthropic/model-a", "anthropic/model-b", "openai/model-a"},
+			wantPrices: []int64{1, 2, 3},
 		},
 		{
 			name:   "ByProvider",
@@ -19023,6 +19190,51 @@ func TestGetAIModelPrices(t *testing.T) {
 			params: database.GetAIModelPricesParams{Provider: "openai", Model: "model-b"},
 			want:   nil,
 		},
+		{
+			// The anthropic/model-a is reported once, at the custom one.
+			name:       "ResolvesToTheCustomPrice",
+			customSeed: customSeed,
+			params:     database.GetAIModelPricesParams{},
+			want:       []string{"anthropic/model-a", "anthropic/model-b", "openai/model-a"},
+			wantPrices: []int64{9, 2, 3},
+		},
+		{
+			// anthropic/model-a reports the price book's row, which the
+			// unfiltered listing hides.
+			name:       "BySourceDefault",
+			customSeed: customSeed,
+			params:     database.GetAIModelPricesParams{Source: string(database.AIModelPriceSourceDefault)},
+			want:       []string{"anthropic/model-a", "anthropic/model-b", "openai/model-a"},
+			wantPrices: []int64{1, 2, 3},
+		},
+		{
+			name:       "BySourceCustom",
+			customSeed: customSeed,
+			params:     database.GetAIModelPricesParams{Source: string(database.AIModelPriceSourceCustom)},
+			want:       []string{"anthropic/model-a"},
+			wantPrices: []int64{9},
+		},
+		{
+			// anthropic/model-a reports twice, custom ahead of the price book.
+			name:       "BySourceAll",
+			customSeed: customSeed,
+			params: database.GetAIModelPricesParams{
+				Provider: "anthropic",
+				Model:    "model-a",
+				Source:   string(codersdk.AIModelPriceSourceFilterAll),
+			},
+			want:       []string{"anthropic/model-a", "anthropic/model-a"},
+			wantPrices: []int64{9, 1},
+		},
+		{
+			name:       "BySourceAndProvider",
+			customSeed: customSeed,
+			params: database.GetAIModelPricesParams{
+				Provider: "openai",
+				Source:   string(database.AIModelPriceSourceCustom),
+			},
+			want: nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -19030,7 +19242,10 @@ func TestGetAIModelPrices(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
 			db, _ := dbtestutil.NewDB(t)
-			require.NoError(t, db.UpsertAIModelPrices(ctx, []byte(seed)))
+			require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: []byte(seed), Source: database.AIModelPriceSourceDefault}))
+			if tt.customSeed != "" {
+				require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: []byte(tt.customSeed), Source: database.AIModelPriceSourceCustom}))
+			}
 
 			prices, err := db.GetAIModelPrices(ctx, tt.params)
 			require.NoError(t, err)
@@ -19044,6 +19259,14 @@ func TestGetAIModelPrices(t *testing.T) {
 				return
 			}
 			require.Equal(t, tt.want, got)
+
+			if tt.wantPrices != nil {
+				gotPrices := make([]int64, 0, len(prices))
+				for _, price := range prices {
+					gotPrices = append(gotPrices, price.InputPrice.Int64)
+				}
+				require.Equal(t, tt.wantPrices, gotPrices)
+			}
 		})
 	}
 }
