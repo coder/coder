@@ -466,6 +466,19 @@ export const CostEstimateFieldsAreImmutable: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /cost estimate/i }),
 		);
+		await expect(
+			canvas.getByText(/model prices are managed by AI Gateway/i),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("link", {
+				name: /learn how to configure model prices/i,
+			}),
+		).toHaveAttribute(
+			"href",
+			expect.stringContaining(
+				"/ai-coder/ai-gateway/cost-controls#configure-model-prices",
+			),
+		);
 
 		const expectedValues: [RegExp, string][] = [
 			[/^input$/i, "3"],
