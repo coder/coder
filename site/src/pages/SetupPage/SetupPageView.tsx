@@ -11,7 +11,6 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { FormField } from "#/components/FormField/FormField";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { PasswordField } from "#/components/PasswordField/PasswordField";
-import { PREMIUM_PRICING_LINK } from "#/components/Paywall/Paywall";
 import { SelectItem } from "#/components/Select/Select";
 import { SelectField } from "#/components/SelectField/SelectField";
 import { Spinner } from "#/components/Spinner/Spinner";
