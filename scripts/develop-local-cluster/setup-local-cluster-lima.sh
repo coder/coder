@@ -129,21 +129,31 @@ install_mise() {
 	rm -rf "${tmp}"
 }
 
-configure_shell_path() {
+configure_shell_environment() {
+	local env_file="${HOME}/.config/coder/develop-local-cluster.env"
 	local file
-	local marker="# Coder local cluster development tools"
+	local marker="# Coder local cluster environment"
+
+	mkdir -p "$(dirname "${env_file}")"
+	cat >"${env_file}" <<EOF
+export PATH="\${HOME}/.local/bin:\${HOME}/.local/share/mise/shims:\${PATH}"
+export CODER_DEV_CLUSTER_NAME=$(printf '%q' "${CODER_DEV_CLUSTER_NAME}")
+EOF
+	printf 'configured: local cluster environment in %s\n' "${env_file}"
 
 	for file in "${HOME}/.profile" "${HOME}/.bashrc"; do
 		if grep -Fqx "${marker}" "${file}" 2>/dev/null; then
-			printf 'already configured: developer tool PATH in %s\n' "${file}"
+			printf 'already configured: local cluster environment loader in %s\n' "${file}"
 			continue
 		fi
 
-		log "Configuring developer tool PATH in ${file}"
+		log "Configuring local cluster environment loader in ${file}"
 		cat >>"${file}" <<'EOF'
 
-# Coder local cluster development tools
-export PATH="${HOME}/.local/bin:${HOME}/.local/share/mise/shims:${PATH}"
+# Coder local cluster environment
+if [ -f "$HOME/.config/coder/develop-local-cluster.env" ]; then
+	. "$HOME/.config/coder/develop-local-cluster.env"
+fi
 EOF
 	done
 }
@@ -513,7 +523,7 @@ main() {
 	install_base_packages
 	arch="$(machine_arch)"
 	install_mise
-	configure_shell_path
+	configure_shell_environment
 	install_kubectl "${arch}"
 	install_k9s "${arch}"
 	check_docker
@@ -558,7 +568,8 @@ main() {
 
 	log "Local cluster is ready"
 	cluster_command info
-	printf 'Load developer tools in the current shell with: export PATH=%q\n' "${HOME}/.local/bin:${HOME}/.local/share/mise/shims:${PATH}"
+	printf 'Load the cluster environment in the current shell with:\n'
+	printf '  source %q\n' "${HOME}/.config/coder/develop-local-cluster.env"
 	printf 'Open k9s with: k9s --context %s\n' "${context}"
 	printf 'Remove everything with: cd %q && ./scripts/develop-local-cluster.sh --cluster-name %q down\n' \
 		"${CODER_REPO_DIR}" "${CODER_DEV_CLUSTER_NAME}"

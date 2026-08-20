@@ -62,7 +62,7 @@ The bootstrap script:
 
 1. Installs missing base packages such as Git, Make, OpenSSL, jq, zstd, and vim.
 2. Installs checksum-pinned mise, kubectl, and k9s.
-3. Adds `~/.local/bin` and the mise shims directory to `PATH` in `~/.profile` and `~/.bashrc` for future login and interactive shells.
+3. Writes the tool paths and selected cluster name to `~/.config/coder/develop-local-cluster.env`, then loads it from `~/.profile` and `~/.bashrc` for future login and interactive shells.
 4. Uses mise to install the repository-pinned Go, Node.js, pnpm, Helm, kind, Terraform, Protocol Buffers, and SQL generation tools, then marks committed generated files as fresh so a new clone does not regenerate them during the first build.
 5. Clones or updates Coder in `~/src/coder` and checks out `pawel/develop-local-cluster` by default.
 6. Runs `develop-local-cluster.sh` to deploy PostgreSQL and Coder.
@@ -72,11 +72,11 @@ The bootstrap script:
 The script cannot modify the environment of the shell that launched it. After the first run, either start a new shell or load both directly installed and mise-managed tools in the current shell:
 
 ```console
-export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+source "$HOME/.config/coder/develop-local-cluster.env"
 cd "$HOME/src/coder"
 ```
 
-The working directory matters for mise-managed tools because the pinned versions are selected from the repository's `mise.toml`.
+The working directory matters for mise-managed tools because the pinned versions are selected from the repository's `mise.toml`. The cluster name matters because the bootstrap uses `coder-local`, while direct use of `develop-local-cluster.sh` defaults to a worktree-specific `coder-dev-<hash>` name.
 
 Common bootstrap overrides:
 
