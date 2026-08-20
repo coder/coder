@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,7 +18,10 @@ import (
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
+	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
 	"github.com/coder/coder/v2/aibridge/intercept/messages"
+	"github.com/coder/coder/v2/aibridge/intercept/responses"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -34,6 +38,15 @@ type Anthropic struct {
 }
 
 const routeMessages = "/v1/messages" // https://docs.anthropic.com/en/api/messages
+
+// Bedrock Mantle OpenAI protocol routes. The Anthropic provider bridges these
+// only when bedrock is configured with the mantle protocol; plain anthropic
+// providers return ErrUnknownRoute for them, preserving existing behavior.
+// Throwaway per AIGOV-532.
+const (
+	routeBedrockChatCompletions = "/v1/chat/completions"
+	routeBedrockResponses       = "/v1/responses"
+)
 
 var anthropicOpenErrorResponse = func() []byte {
 	return []byte(`{"type":"error","error":{"type":"overloaded_error","message":"circuit breaker is open"}}`)
@@ -105,7 +118,14 @@ func (p *Anthropic) RoutePrefix() string {
 	return fmt.Sprintf("/%s", p.Name())
 }
 
-func (*Anthropic) BridgedRoutes() []string {
+func (p *Anthropic) BridgedRoutes() []string {
+	// Bedrock mantle bridges OpenAI routes in addition to the native
+	// Anthropic Messages route. Plain anthropic providers (bedrock == nil)
+	// or non-mantle protocols bridge only Messages.
+	// Throwaway per AIGOV-532.
+	if p.bedrock != nil && p.bedrock.Cfg.ResolvedProtocol() == config.BedrockProtocolMantle {
+		return []string{routeMessages, routeBedrockChatCompletions, routeBedrockResponses}
+	}
 	return []string{routeMessages}
 }
 
@@ -124,11 +144,17 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 	defer tracing.EndSpanErr(span, &outErr)
 
 	path := strings.TrimPrefix(r.URL.Path, p.RoutePrefix())
-	if path != routeMessages {
+	switch path {
+	case routeBedrockChatCompletions:
+		return p.createChatCompletionsInterceptor(id, r, tracer, span)
+	case routeBedrockResponses:
+		return p.createResponsesInterceptor(id, r, tracer, span)
+	case routeMessages:
+		// Existing Anthropic Messages path, handled below.
+	default:
 		span.SetStatus(codes.Error, "unknown route: "+r.URL.Path)
 		return nil, ErrUnknownRoute
 	}
-
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, xerrors.Errorf("read body: %w", err)
@@ -249,4 +275,91 @@ func categorizeAnthropicError(err error) *recorder.ErrorType {
 		t = recorder.ErrorTypeOverloaded
 	}
 	return &t
+}
+
+// createChatCompletionsInterceptor builds a chatcompletions interceptor wired
+// to the Bedrock mantle runtime. It mirrors the OpenAI provider's dispatch:
+// decode ChatCompletionNewParamsWrapper from r.Body, then pick streaming vs
+// blocking. The bedrock runtime carries the SigV4 signing middleware.
+// Throwaway per AIGOV-532.
+func (p *Anthropic) createChatCompletionsInterceptor(id uuid.UUID, r *http.Request, tracer trace.Tracer, span trace.Span) (intercept.Interceptor, error) {
+	var req chatcompletions.ChatCompletionNewParamsWrapper
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, xerrors.Errorf("unmarshal request body: %w", err)
+	}
+
+	cfg := p.bedrockInterceptConfig()
+	cred, err := p.resolveCredential(r)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return nil, xerrors.Errorf("resolve credential: %w", err)
+	}
+
+	var interceptor intercept.Interceptor
+	if req.Stream {
+		interceptor = chatcompletions.NewStreamingInterceptor(id, &req, cfg, cred, p.mantleConfig(), r.Header, tracer)
+	} else {
+		interceptor = chatcompletions.NewBlockingInterceptor(id, &req, cfg, cred, p.mantleConfig(), r.Header, tracer)
+	}
+	span.SetAttributes(interceptor.TraceAttributes(r)...)
+	return interceptor, nil
+}
+
+// createResponsesInterceptor builds a responses interceptor wired to the
+// Bedrock mantle runtime. It mirrors the OpenAI provider's dispatch: read r.Body
+// then parse via responses.NewRequestPayload, then pick streaming vs blocking.
+// Throwaway per AIGOV-532.
+func (p *Anthropic) createResponsesInterceptor(id uuid.UUID, r *http.Request, tracer trace.Tracer, span trace.Span) (intercept.Interceptor, error) {
+	payload, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil, xerrors.Errorf("read body: %w", err)
+	}
+	reqPayload, err := responses.NewRequestPayload(payload)
+	if err != nil {
+		return nil, xerrors.Errorf("unmarshal request body: %w", err)
+	}
+
+	cfg := p.bedrockInterceptConfig()
+	cred, err := p.resolveCredential(r)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return nil, xerrors.Errorf("resolve credential: %w", err)
+	}
+
+	var interceptor intercept.Interceptor
+	if reqPayload.Stream() {
+		interceptor = responses.NewStreamingInterceptor(id, reqPayload, cfg, cred, p.mantleConfig(), r.Header, tracer)
+	} else {
+		interceptor = responses.NewBlockingInterceptor(id, reqPayload, cfg, cred, p.mantleConfig(), r.Header, tracer)
+	}
+	span.SetAttributes(interceptor.TraceAttributes(r)...)
+	return interceptor, nil
+}
+
+// mantleConfig narrows the provider's full Bedrock runtime to the fields the
+// OpenAI-shaped interceptors use. Returns nil when bedrock is not configured.
+// Throwaway per AIGOV-532.
+func (p *Anthropic) mantleConfig() *bedrocksig.MantleConfig {
+	if p.bedrock == nil {
+		return nil
+	}
+	return &bedrocksig.MantleConfig{
+		BaseURL: p.bedrock.Cfg.BaseURL,
+		Region:  p.bedrock.Cfg.Region,
+		Creds:   p.bedrock.Creds,
+	}
+}
+
+// bedrockInterceptConfig builds the per-request intercept.Config for Bedrock
+// mantle OpenAI routes. The effective upstream base URL is resolved per-model
+// inside the interceptor via bedrocksig.BaseURLForModel, so cfg.BaseURL is the
+// provider's base (unused for signing but kept for recording/dump).
+// Throwaway per AIGOV-532.
+func (p *Anthropic) bedrockInterceptConfig() intercept.Config {
+	return intercept.Config{
+		ProviderName:     p.Name(),
+		BaseURL:          p.bedrock.Cfg.BaseURL,
+		APIDumpDir:       p.cfg.APIDumpDir,
+		SendActorHeaders: p.cfg.SendActorHeaders,
+	}
 }

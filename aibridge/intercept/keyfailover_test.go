@@ -130,9 +130,9 @@ var interceptorCases = []interceptorCase{
 
 			id, tracer := uuid.New(), otel.Tracer("keyfailover")
 			if streaming {
-				return chatcompletions.NewStreamingInterceptor(id, &req, cfg, cred, http.Header{}, tracer)
+				return chatcompletions.NewStreamingInterceptor(id, &req, cfg, cred, nil, http.Header{}, tracer)
 			}
-			return chatcompletions.NewBlockingInterceptor(id, &req, cfg, cred, http.Header{}, tracer)
+			return chatcompletions.NewBlockingInterceptor(id, &req, cfg, cred, nil, http.Header{}, tracer)
 		},
 	},
 	{
@@ -170,9 +170,9 @@ var interceptorCases = []interceptorCase{
 
 			id, tracer := uuid.New(), otel.Tracer("keyfailover")
 			if streaming {
-				return responses.NewStreamingInterceptor(id, payload, cfg, cred, http.Header{}, tracer)
+				return responses.NewStreamingInterceptor(id, payload, cfg, cred, nil, http.Header{}, tracer)
 			}
-			return responses.NewBlockingInterceptor(id, payload, cfg, cred, http.Header{}, tracer)
+			return responses.NewBlockingInterceptor(id, payload, cfg, cred, nil, http.Header{}, tracer)
 		},
 	},
 }

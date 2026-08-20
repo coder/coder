@@ -59,7 +59,7 @@ func TestStreamProcessorUsage(t *testing.T) {
 			t.Parallel()
 
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-			interceptor := NewStreamingInterceptor(uuid.New(), nil, intercept.Config{}, nil, nil, otel.Tracer("test"))
+			interceptor := NewStreamingInterceptor(uuid.New(), nil, intercept.Config{}, nil, nil, nil, otel.Tracer("test"))
 			processor := newStreamProcessor(t.Context(), logger, nil)
 
 			var relayed []byte
@@ -160,7 +160,7 @@ func TestStreamingInterception_RelaysUpstreamErrorToClient(t *testing.T) {
 			httpReq := httptest.NewRequest(http.MethodPost, "/chat/completions", nil)
 
 			tracer := otel.Tracer("test")
-			interceptor := NewStreamingInterceptor(uuid.New(), req, cfg, cred, httpReq.Header, tracer)
+			interceptor := NewStreamingInterceptor(uuid.New(), req, cfg, cred, nil, httpReq.Header, tracer)
 
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 			interceptor.Setup(logger, &testutil.MockRecorder{}, nil)

@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -31,6 +32,7 @@ func NewBlockingInterceptor(
 	reqPayload RequestPayload,
 	cfg intercept.Config,
 	cred intercept.Credential,
+	bedrock *bedrocksig.MantleConfig,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingResponsesInterceptor {
@@ -40,6 +42,7 @@ func NewBlockingInterceptor(
 			reqPayload:    reqPayload,
 			cfg:           cfg,
 			cred:          cred,
+			bedrock:       bedrock,
 			clientHeaders: clientHeaders,
 			tracer:        tracer,
 		},
