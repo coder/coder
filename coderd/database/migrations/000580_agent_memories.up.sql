@@ -72,35 +72,53 @@ BEFORE INSERT ON user_memories
 FOR EACH ROW
 EXECUTE PROCEDURE enforce_user_memories_per_user_limit();
 
--- Enforces the per-root-chat memory cap at the schema level.
+-- Requires a root chat and enforces its memory cap at the schema level.
 CREATE FUNCTION enforce_chat_memories_per_root_chat_limit() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
+    chat_parent_id uuid;
+    referenced_root_chat_id uuid;
     memory_count int;
     memory_limit constant int := 100;
+    check_limit boolean;
 BEGIN
     -- Serialize memory-cap checks per root chat so concurrent inserts cannot
     -- all observe the same pre-insert count and exceed the hard limit.
-    PERFORM 1
+    SELECT parent_chat_id, root_chat_id
+    INTO chat_parent_id, referenced_root_chat_id
     FROM chats
     WHERE id = NEW.root_chat_id
     FOR UPDATE;
 
-    SELECT count(*) INTO memory_count
-    FROM chat_memories
-    WHERE root_chat_id = NEW.root_chat_id;
-    IF memory_count >= memory_limit THEN
-        RAISE EXCEPTION 'chat has reached the memory limit'
+    IF FOUND AND (chat_parent_id IS NOT NULL OR referenced_root_chat_id IS NOT NULL) THEN
+        RAISE EXCEPTION 'chat memory must reference a root chat'
             USING ERRCODE = 'check_violation',
-                  CONSTRAINT = 'chat_memories_per_root_chat_limit';
+                  CONSTRAINT = 'chat_memory_root_chat_required';
+    END IF;
+
+    IF TG_OP = 'INSERT' THEN
+        check_limit := true;
+    ELSE
+        check_limit := NEW.root_chat_id IS DISTINCT FROM OLD.root_chat_id;
+    END IF;
+
+    IF check_limit THEN
+        SELECT count(*) INTO memory_count
+        FROM chat_memories
+        WHERE root_chat_id = NEW.root_chat_id;
+        IF memory_count >= memory_limit THEN
+            RAISE EXCEPTION 'chat has reached the memory limit'
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'chat_memories_per_root_chat_limit';
+        END IF;
     END IF;
     RETURN NEW;
 END;
 $$;
 
 CREATE TRIGGER trigger_chat_memories_per_root_chat_limit
-BEFORE INSERT ON chat_memories
+BEFORE INSERT OR UPDATE OF root_chat_id ON chat_memories
 FOR EACH ROW
 EXECUTE PROCEDURE enforce_chat_memories_per_root_chat_limit();
 

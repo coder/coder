@@ -1039,23 +1039,41 @@ CREATE FUNCTION enforce_chat_memories_per_root_chat_limit() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
+    chat_parent_id uuid;
+    referenced_root_chat_id uuid;
     memory_count int;
     memory_limit constant int := 100;
+    check_limit boolean;
 BEGIN
     -- Serialize memory-cap checks per root chat so concurrent inserts cannot
     -- all observe the same pre-insert count and exceed the hard limit.
-    PERFORM 1
+    SELECT parent_chat_id, root_chat_id
+    INTO chat_parent_id, referenced_root_chat_id
     FROM chats
     WHERE id = NEW.root_chat_id
     FOR UPDATE;
 
-    SELECT count(*) INTO memory_count
-    FROM chat_memories
-    WHERE root_chat_id = NEW.root_chat_id;
-    IF memory_count >= memory_limit THEN
-        RAISE EXCEPTION 'chat has reached the memory limit'
+    IF FOUND AND (chat_parent_id IS NOT NULL OR referenced_root_chat_id IS NOT NULL) THEN
+        RAISE EXCEPTION 'chat memory must reference a root chat'
             USING ERRCODE = 'check_violation',
-                  CONSTRAINT = 'chat_memories_per_root_chat_limit';
+                  CONSTRAINT = 'chat_memory_root_chat_required';
+    END IF;
+
+    IF TG_OP = 'INSERT' THEN
+        check_limit := true;
+    ELSE
+        check_limit := NEW.root_chat_id IS DISTINCT FROM OLD.root_chat_id;
+    END IF;
+
+    IF check_limit THEN
+        SELECT count(*) INTO memory_count
+        FROM chat_memories
+        WHERE root_chat_id = NEW.root_chat_id;
+        IF memory_count >= memory_limit THEN
+            RAISE EXCEPTION 'chat has reached the memory limit'
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'chat_memories_per_root_chat_limit';
+        END IF;
     END IF;
     RETURN NEW;
 END;
@@ -5263,7 +5281,7 @@ CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER IN
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
-CREATE TRIGGER trigger_chat_memories_per_root_chat_limit BEFORE INSERT ON chat_memories FOR EACH ROW EXECUTE FUNCTION enforce_chat_memories_per_root_chat_limit();
+CREATE TRIGGER trigger_chat_memories_per_root_chat_limit BEFORE INSERT OR UPDATE OF root_chat_id ON chat_memories FOR EACH ROW EXECUTE FUNCTION enforce_chat_memories_per_root_chat_limit();
 
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 

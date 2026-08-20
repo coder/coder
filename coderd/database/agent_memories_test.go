@@ -354,6 +354,25 @@ func TestChatMemories(t *testing.T) {
 		}
 	})
 
+	t.Run("SubagentChatRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		root := insertTestChat(t, db)
+		child := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    root.OrganizationID,
+			OwnerID:           root.OwnerID,
+			LastModelConfigID: root.LastModelConfigID,
+			ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+		})
+
+		_, err := insertMemory(ctx, child.ID, "rejected.md")
+		require.Error(t, err)
+		var pqErr *pq.Error
+		require.ErrorAs(t, err, &pqErr)
+		require.Equal(t, "chat_memory_root_chat_required", pqErr.Constraint)
+	})
+
 	t.Run("DuplicatePathRejected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
