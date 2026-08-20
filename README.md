@@ -50,7 +50,7 @@
 
 ## Quickstart
 
-Install Coder with the [install script](https://github.com/coder/coder/blob/main/install.sh) on Linux and macOS, or the latest `..._installer.exe` from GitHub Releases on Windows:
+Install Coder with the [install script](https://github.com/coder/coder/blob/main/install.sh) on Linux and macOS, or grab the latest binary or installer from [GitHub Releases](https://github.com/coder/coder/releases/latest) on Windows:
 
 ```shell
 curl -L https://coder.com/install.sh | sh
