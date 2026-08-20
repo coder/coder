@@ -294,7 +294,7 @@ Before using Podman, please review the following documentation:
    ```
 
    The `codercom/example-podman` image is built and maintained in
-   [`coder/images`](https://github.com/coder/images/tree/main/images/podman).
+   [`coder/images`](https://github.com/coder/images).
 
    > On Kubernetes 1.30+, the
    > `container.apparmor.security.beta.kubernetes.io/<container>` annotation is
