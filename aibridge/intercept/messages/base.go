@@ -365,7 +365,7 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 	out = append(out, option.WithBaseURL(cfg.BaseURL))
 	// Appended last so it runs innermost (right before the HTTP send) and signs
 	// the request after all other headers are set.
-	//nolint:bodyclose // signing middleware hands the response to the transport, which closes the body.
+	//nolint:bodyclose // bedrocksig.SignMiddleware reads and closes the request body in order to sign it.
 	out = append(out, option.WithMiddleware(bedrocksig.SignMiddleware(i.bedrock.Creds, cfg.Region)))
 
 	return out, nil

@@ -1,7 +1,6 @@
 // Package bedrocksig holds the shared AWS SigV4 signing helpers for Bedrock
-// Mantle. It depends only on stdlib and the AWS SDK so it can be imported from
-// either the anthropic-go or openai-go interceptor packages without pulling in
-// the other SDK.
+// Mantle. It avoids depending on either the anthropic-go or openai-go
+// interceptors so that either package can import it.
 package bedrocksig
 
 import (
