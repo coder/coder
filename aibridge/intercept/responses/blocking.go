@@ -36,7 +36,7 @@ func NewBlockingInterceptor(
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingResponsesInterceptor {
-	return newBlockingInterceptor(id, reqPayload, cfg, cred, nil, clientHeaders, tracer)
+	return buildBlockingInterceptor(id, reqPayload, cfg, cred, nil, clientHeaders, tracer)
 }
 
 func NewBedrockBlockingInterceptor(
@@ -48,10 +48,10 @@ func NewBedrockBlockingInterceptor(
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingResponsesInterceptor {
-	return newBlockingInterceptor(id, reqPayload, cfg, cred, bedrock, clientHeaders, tracer)
+	return buildBlockingInterceptor(id, reqPayload, cfg, cred, bedrock, clientHeaders, tracer)
 }
 
-func newBlockingInterceptor(
+func buildBlockingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
 	cfg intercept.Config,
