@@ -59,6 +59,9 @@ const isAdvisoryMessage = (message: string): boolean =>
 	message.startsWith(aiGovernanceNearLimitWarningPrefix) ||
 	message.startsWith(agentRuntimeSoftLimitWarningPrefix);
 
+const isOperationalWarning = (message: string): boolean =>
+	message === LicenseUsagePublishingFailingWarningText;
+
 const aiGovernanceOverLimitMessage = (
 	feature: ReturnType<
 		typeof useDashboard
@@ -155,7 +158,7 @@ const messageLink = (message: string): LicenseBannerLink | undefined => {
 	if (message.startsWith(agentRuntimeSoftLimitWarningPrefix)) {
 		return undefined;
 	}
-	if (message === LicenseUsagePublishingFailingWarningText) {
+	if (isOperationalWarning(message)) {
 		return undefined;
 	}
 	return {
@@ -183,7 +186,10 @@ const toBannerMessage = (
 	}
 	return {
 		message,
-		variant: isAdvisoryMessage(message) ? "warning" : "warningProminent",
+		variant:
+			isAdvisoryMessage(message) || isOperationalWarning(message)
+				? "warning"
+				: "warningProminent",
 		link: messageLink(message),
 	};
 };

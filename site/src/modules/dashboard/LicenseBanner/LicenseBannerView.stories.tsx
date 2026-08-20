@@ -408,13 +408,20 @@ export const AgentRuntimeHoursClaimsIgnored: Story = {
 export const UsagePublishingFailing: Story = {
 	render: () =>
 		renderLicenseBanner({
-			warnings: [LicenseUsagePublishingFailingWarningText],
+			warnings: [
+				LicenseUsagePublishingFailingWarningText,
+				LicenseAgentRuntimeHoursClaimsIgnoredWarningText,
+			],
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("status")).toHaveTextContent(
 			LicenseUsagePublishingFailingWarningText,
 		);
+		await expect(canvas.getByText("License notices")).toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Your license limits have been reached"),
+		).not.toBeInTheDocument();
 		await expect(
 			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
 		).not.toBeInTheDocument();
