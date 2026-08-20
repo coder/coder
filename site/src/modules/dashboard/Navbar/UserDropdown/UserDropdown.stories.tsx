@@ -420,4 +420,18 @@ export const InstallCoderDesktopHiddenOniPadOS: Story = {
 	},
 };
 
+export const CodernautsDisabled: Story = {
+	args: {
+		codernautsEnabled: false,
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("hides the Codernauts link", async () => {
+			await openDropdown(canvasElement);
+			expect(
+				screen.queryByRole("menuitem", { name: "Codernauts" }),
+			).not.toBeInTheDocument();
+		});
+	},
+};
+
 export { Example as UserDropdown };

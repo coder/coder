@@ -47,6 +47,7 @@ export const Navbar: React.FC = () => {
 			user={me}
 			buildInfo={buildInfoQuery.data}
 			supportLinks={Array.from(uniqueLinks.values())}
+			codernautsEnabled={appearance.codernauts_enabled}
 			onSignOut={signOut}
 			adminPermissions={{
 				canViewDeployment,

@@ -3495,6 +3495,7 @@ export const MockAppearanceConfig: TypesGen.AppearanceConfig = {
 	},
 	announcement_banners: [],
 	docs_url: "https://coder.com/docs/@main/",
+	codernauts_enabled: true,
 };
 
 export const MockWorkspaceBuildParameter1: TypesGen.WorkspaceBuildParameter = {
