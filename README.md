@@ -101,7 +101,7 @@ Browse the [documentation](https://coder.com/docs) or visit a specific section b
 
 For community support, showcasing what you built, and feedback on in-progress features, join our [Discord](https://discord.gg/coder) or [GitHub Discussions](https://github.com/coder/coder/discussions).
 
-Need dedicated support? Our Premium license includes it. See [coder.com/pricing](https://coder.com/pricing) for plans.
+Dedicated support is included in Coder Premium. See [coder.com/pricing](https://coder.com/pricing).
 
 ## Integrations
 
