@@ -22,16 +22,12 @@ import {
 // directory's index.md rather than a sibling page, so the route and the
 // directory do not both try to own the same URL.
 export function buildDirRoutes(allMd) {
-	const dirRoutes = new Set();
-	for (const rel of allMd) {
-		const parts = rel.split("/");
-		parts.pop();
-		const dirSlugs = parts.map(slugSegment);
-		for (let i = 1; i <= dirSlugs.length; i++) {
-			dirRoutes.add(dirSlugs.slice(0, i).join("/"));
-		}
-	}
-	return dirRoutes;
+	return new Set(
+		allMd.flatMap((rel) => {
+			const dirSlugs = rel.split("/").slice(0, -1).map(slugSegment);
+			return dirSlugs.map((_, i) => dirSlugs.slice(0, i + 1).join("/"));
+		}),
+	);
 }
 
 // Map a docs-relative markdown path to its output file (`outRel`) and `route`.
@@ -69,10 +65,9 @@ export function buildFileMap(allMd, dirRoutes) {
 		if (sources) sources.push(rel);
 		else byOut.set(mapped.outRel, [rel]);
 	}
-	const collisions = [];
-	for (const [outRel, sources] of byOut) {
-		if (sources.length > 1) collisions.push({ outRel, sources });
-	}
+	const collisions = [...byOut]
+		.filter(([, sources]) => sources.length > 1)
+		.map(([outRel, sources]) => ({ outRel, sources }));
 	return { fileMap, collisions };
 }
 
@@ -144,13 +139,12 @@ export function findUnbackedManifestRoutes(
 	manifestPathByRoute,
 	backedRoutes,
 ) {
-	const missing = [];
-	for (const route of routeOrder.keys()) {
-		if (!backedRoutes.has(route)) {
-			missing.push({ route, path: manifestPathByRoute.get(route) ?? null });
-		}
-	}
-	return missing;
+	return [...routeOrder.keys()]
+		.filter((route) => !backedRoutes.has(route))
+		.map((route) => ({
+			route,
+			path: manifestPathByRoute.get(route) ?? null,
+		}));
 }
 
 // Build the directory model (the files and subdirectories under each directory
@@ -185,11 +179,9 @@ export function buildDirModel(outRels) {
 // by the earliest-ordered page it contains. Infinity when nothing under it is
 // ordered.
 function minOrderUnder(route, routeOrder) {
-	let best = Number.POSITIVE_INFINITY;
-	for (const [r, o] of routeOrder) {
-		if (r === route || r.startsWith(`${route}/`)) best = Math.min(best, o);
-	}
-	return best;
+	return [...routeOrder]
+		.filter(([r]) => r === route || r.startsWith(`${route}/`))
+		.reduce((best, [, o]) => Math.min(best, o), Number.POSITIVE_INFINITY);
 }
 
 // Sort key for a meta.json entry, as a tuple compared left to right:
@@ -218,21 +210,15 @@ export function buildMeta(
 	const metas = [];
 	for (const [dir, model] of dirModel) {
 		const childOrder = childOrderByDir.get(dir) || [];
-		const items = [];
-		for (const name of model.subdirs) {
-			items.push({
-				name,
-				route: dir === "" ? name : `${dir}/${name}`,
-				isDir: true,
-			});
-		}
-		for (const name of model.files) {
-			items.push({
-				name,
-				route: dir === "" ? name : `${dir}/${name}`,
-				isDir: false,
-			});
-		}
+		const toItem = (isDir) => (name) => ({
+			name,
+			route: dir === "" ? name : `${dir}/${name}`,
+			isDir,
+		});
+		const items = [
+			...[...model.subdirs].map(toItem(true)),
+			...[...model.files].map(toItem(false)),
+		];
 		items.sort((a, b) => {
 			const ka = sortKey(a, childOrder, routeOrder);
 			const kb = sortKey(b, childOrder, routeOrder);
