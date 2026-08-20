@@ -100,9 +100,63 @@ func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T
 	require.JSONEq(t, `{"stdout":"/tmp"}`, string(toolParts[0].Result))
 }
 
-// A step with no model invocation (a local tool execution batch) must
-// persist runtime_ms NULL: its wall time is not billable.
-func TestBuildCommitStepMessages_ZeroRuntimeLeavesRuntimeNull(t *testing.T) {
+func TestBuildCommitStepMessages_BatchRuntimeLandsOnFirstToolRow(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		step: stepData{
+			Content: []fantasy.Content{
+				fantasy.ToolResultContent{
+					ToolCallID: "call-1",
+					ToolName:   "read_file",
+					Result:     fantasy.ToolResultOutputContentText{Text: `{"data":"fast"}`},
+				},
+				fantasy.ToolResultContent{
+					ToolCallID: "call-2",
+					ToolName:   "execute",
+					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"/tmp"}`},
+				},
+			},
+			BatchRuntime: 10 * time.Second,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 2)
+	require.Equal(t, sql.NullInt64{Int64: 10000, Valid: true}, got.Messages[0].RuntimeMs)
+	require.False(t, got.Messages[1].RuntimeMs.Valid)
+}
+
+func TestBuildCommitStepMessages_BatchAttachmentAssistantRowStaysNull(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		step: stepData{
+			Content: []fantasy.Content{
+				fantasy.ToolResultContent{
+					ToolCallID:     "call-1",
+					ToolName:       "attach_file",
+					Result:         fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
+					ClientMetadata: `{"attachments":[{"file_id":"` + uuid.NewString() + `","media_type":"image/png","name":"shot.png"}]}`,
+				},
+			},
+			BatchRuntime: 3 * time.Second,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 2)
+	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[0].Role)
+	require.False(t, got.Messages[0].RuntimeMs.Valid)
+	require.Equal(t, database.ChatMessageRoleTool, got.Messages[1].Role)
+	require.Equal(t, sql.NullInt64{Int64: 3000, Valid: true}, got.Messages[1].RuntimeMs)
+}
+
+func TestBuildCommitStepMessages_ZeroBatchRuntimeLeavesRuntimeNull(t *testing.T) {
 	t.Parallel()
 
 	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{

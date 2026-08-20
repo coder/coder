@@ -61,7 +61,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		messages = append(messages, assistantMessage(input.modelConfigID, contentVersion, assistantContent, input.step))
 	}
 
-	for _, toolResult := range toolResults {
+	for i, toolResult := range toolResults {
 		part := chatprompt.PartFromContentWithLogger(context.Background(), input.logger, toolResult)
 		applyToolMetadata(&part, input.toolNameToConfigID)
 		if part.ToolCallID != "" && input.step.ToolResultCreatedAt != nil {
@@ -73,7 +73,12 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		if err != nil {
 			return stepMessagesForCommit{}, xerrors.Errorf("marshal tool result: %w", err)
 		}
-		messages = append(messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, content))
+		msg := baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, content)
+		// Usage sums runtime_ms across rows, so store the batch once.
+		if i == 0 {
+			msg.RuntimeMs = nullInt64IfNonZero(input.step.BatchRuntime.Milliseconds())
+		}
+		messages = append(messages, msg)
 	}
 
 	return stepMessagesForCommit{
@@ -631,13 +636,8 @@ type partialMessageConversionState struct {
 	toolResults     map[string]*partialToolResult
 	toolResultOrder []string
 	answered        map[string]bool
-	// modelStreamedAssistant records whether any assistant part came
-	// from the model stream itself (text, reasoning, tool calls,
-	// sources). Tool execution also publishes assistant-role file
-	// parts for attachments; those alone must not attract the
-	// attempt's runtime, because tool batches are not billable. The
-	// buffer episode only carries a runtime when a provider stream
-	// was opened, so this is a second gate rather than the only one.
+	// modelStreamedAssistant distinguishes streamed content from tool
+	// attachment parts, which must not carry model runtime.
 	modelStreamedAssistant bool
 }
 
