@@ -70,11 +70,11 @@ func (r *RootCmd) editOrganization(orgContext *OrganizationContext) *serpent.Com
 		Long: FormatExamples(
 			Example{
 				Description: "Replace the roles every member of the organization holds",
-				Command:     "coder organizations edit --default-org-member-roles organization-workspace-access,organization-template-admin",
+				Command:     "coder organizations edit --org <organization> --default-org-member-roles organization-workspace-access,organization-template-admin",
 			},
 			Example{
 				Description: "Grant members no roles at all",
-				Command:     `coder organizations edit --default-org-member-roles ""`,
+				Command:     `coder organizations edit --org <organization> --default-org-member-roles ""`,
 			},
 		),
 		Middleware: serpent.Chain(

@@ -7,12 +7,14 @@ USAGE:
 
     - Replace the roles every member of the organization holds:
   
-       $ coder organizations edit --default-org-member-roles
+       $ coder organizations edit --org <organization>
+  --default-org-member-roles
   organization-workspace-access,organization-template-admin
   
     - Grant members no roles at all:
   
-       $ coder organizations edit --default-org-member-roles ""
+       $ coder organizations edit --org <organization>
+  --default-org-member-roles ""
 
 OPTIONS:
   -O, --org string, $CODER_ORGANIZATION

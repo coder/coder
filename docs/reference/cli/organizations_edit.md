@@ -19,11 +19,11 @@ coder organizations edit [flags]
 ```console
   - Replace the roles every member of the organization holds:
 
-     $ coder organizations edit --default-org-member-roles organization-workspace-access,organization-template-admin
+     $ coder organizations edit --org <organization> --default-org-member-roles organization-workspace-access,organization-template-admin
 
   - Grant members no roles at all:
 
-     $ coder organizations edit --default-org-member-roles ""
+     $ coder organizations edit --org <organization> --default-org-member-roles ""
 ```
 
 ## Options
