@@ -1537,3 +1537,81 @@ func TestBuildToolDefinitionsFullSchemaNilFallsBack(t *testing.T) {
 	require.NoError(t, err)
 	require.JSONEq(t, `{"type":"object","properties":{"fallback":{"type":"string"}}}`, string(raw))
 }
+
+// TestBuildToolDefinitionsFullSchemaBannedRootKeywords verifies that
+// schema keywords OpenAI rejects at the top level of a tool schema are
+// stripped from the root, with an object root enforced, dangling
+// "required" entries filtered, and every other key (nested
+// combinators, $defs, additionalProperties, description) preserved.
+func TestBuildToolDefinitionsFullSchemaBannedRootKeywords(t *testing.T) {
+	t.Parallel()
+
+	source := map[string]any{
+		"$ref":  "#/$defs/Root",
+		"oneOf": []any{map[string]any{"required": []any{"kept"}}},
+		"anyOf": []any{map[string]any{"required": []any{"lost"}}},
+		"allOf": []any{map[string]any{"properties": map[string]any{"lost": map[string]any{"type": "string"}}}},
+		"enum":  []any{"a", "b"},
+		"const": "a",
+		"not":   map[string]any{"type": "string"},
+		"properties": map[string]any{
+			"kept": map[string]any{
+				"oneOf": []any{
+					map[string]any{"$ref": "#/$defs/Kept"},
+					map[string]any{"type": "integer"},
+				},
+			},
+		},
+		"required":             []any{"kept", "lost"},
+		"$defs":                map[string]any{"Kept": map[string]any{"type": "string"}},
+		"additionalProperties": false,
+		"description":          "root description",
+	}
+	defs := buildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+	require.Len(t, defs, 1)
+	ft, ok := defs[0].(fantasy.FunctionTool)
+	require.True(t, ok)
+	raw, err := json.Marshal(ft.InputSchema)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"type": "object",
+		"properties": {
+			"kept": {"oneOf": [{"$ref": "#/$defs/Kept"}, {"type": "integer"}]}
+		},
+		"required": ["kept"],
+		"$defs": {"Kept": {"type": "string"}},
+		"additionalProperties": false,
+		"description": "root description"
+	}`, string(raw))
+	// The tool's own schema map keeps its top-level keys.
+	require.Contains(t, source, "oneOf")
+	require.Contains(t, source, "$ref")
+	require.Equal(t, []any{"kept", "lost"}, source["required"])
+}
+
+// TestBuildToolDefinitionsFullSchemaRootTypeArray verifies that a root
+// type array, which schema.Normalize rewrites into a root "anyOf",
+// still reaches the wire as a plain object root instead of the
+// top-level combinator OpenAI rejects.
+func TestBuildToolDefinitionsFullSchemaRootTypeArray(t *testing.T) {
+	t.Parallel()
+
+	source := map[string]any{
+		"type": []any{"object", "null"},
+		"properties": map[string]any{
+			"name": map[string]any{"type": "string"},
+		},
+		"required": []any{"name"},
+	}
+	defs := buildToolDefinitions([]fantasy.AgentTool{fullSchemaTestTool{schema: source}}, nil, nil)
+	require.Len(t, defs, 1)
+	ft, ok := defs[0].(fantasy.FunctionTool)
+	require.True(t, ok)
+	raw, err := json.Marshal(ft.InputSchema)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"type": "object",
+		"properties": {"name": {"type": "string"}},
+		"required": ["name"]
+	}`, string(raw))
+}

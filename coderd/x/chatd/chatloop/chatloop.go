@@ -1649,6 +1649,7 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 			}
 		}
 		schema.Normalize(inputSchema)
+		enforceObjectRoot(inputSchema)
 		prepared = append(prepared, fantasy.FunctionTool{
 			Name:            info.Name,
 			Description:     info.Description,
@@ -1662,9 +1663,9 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 	return prepared
 }
 
-// fullInputSchema returns a defensively normalized copy of the tool's
-// full input schema, or nil when the tool does not provide one and the
-// caller must reconstruct a schema from Info().
+// fullInputSchema returns a copy of the tool's full input schema, or
+// nil when the tool does not provide one and the caller must
+// reconstruct a schema from Info().
 func fullInputSchema(tool fantasy.AgentTool) map[string]any {
 	provider, ok := tool.(fullSchemaTool)
 	if !ok {
@@ -1690,18 +1691,6 @@ func fullInputSchema(tool fantasy.AgentTool) map[string]any {
 			delete(inputSchema, "required")
 		}
 	}
-	// MCP requires object roots, so a missing "type" on a root without
-	// combinators is an omission rather than intent.
-	if _, ok := inputSchema["type"]; !ok && !hasCombinatorRoot(inputSchema) {
-		inputSchema["type"] = "object"
-	}
-	if inputSchema["type"] == "object" {
-		if properties, _ := inputSchema["properties"].(map[string]any); properties == nil {
-			// A nil map serializes "properties" to null, which some
-			// providers reject as an invalid schema.
-			inputSchema["properties"] = map[string]any{}
-		}
-	}
 	return inputSchema
 }
 
@@ -1725,13 +1714,55 @@ func coerceRequiredStrings(raw any) []string {
 	}
 }
 
-func hasCombinatorRoot(inputSchema map[string]any) bool {
-	for _, key := range []string{"$ref", "anyOf", "oneOf", "allOf"} {
+// bannedRootKeys are schema keywords providers reject at the root of a
+// tool input schema. OpenAI fails the whole request with 400 "schema
+// must have type 'object' and not have 'oneOf'/'anyOf'/'allOf'/'enum'/
+// 'const'/'not' at the top level", which would stall every turn of a
+// chat carrying such a tool. "$ref" is included because it defines the
+// root shape elsewhere and would dangle once an object root is forced.
+var bannedRootKeys = [...]string{"$ref", "anyOf", "oneOf", "allOf", "enum", "const", "not"}
+
+// enforceObjectRoot forces a tool input schema into the plain object
+// root shape MCP mandates and every provider accepts: banned root
+// keywords are dropped, "type" becomes "object" (schema.Normalize can
+// rewrite a root type array into a root "anyOf", so this must run
+// after it), and "properties" is materialized so it never serializes
+// to null. Nested combinators, $defs, additionalProperties, and root
+// descriptions all survive, so spec-compliant schemas pass unchanged.
+func enforceObjectRoot(inputSchema map[string]any) {
+	stripped := false
+	for _, key := range bannedRootKeys {
 		if _, ok := inputSchema[key]; ok {
-			return true
+			delete(inputSchema, key)
+			stripped = true
 		}
 	}
-	return false
+	if inputSchema["type"] != "object" {
+		inputSchema["type"] = "object"
+	}
+	properties, _ := inputSchema["properties"].(map[string]any)
+	if properties == nil {
+		properties = map[string]any{}
+		inputSchema["properties"] = properties
+	}
+	if !stripped {
+		return
+	}
+	// Required entries whose property schemas lived inside a dropped
+	// keyword (e.g. an allOf branch) would dangle; filter them out.
+	if required, ok := inputSchema["required"].([]string); ok {
+		filtered := make([]string, 0, len(required))
+		for _, name := range required {
+			if _, ok := properties[name]; ok {
+				filtered = append(filtered, name)
+			}
+		}
+		if len(filtered) > 0 {
+			inputSchema["required"] = filtered
+		} else {
+			delete(inputSchema, "required")
+		}
+	}
 }
 
 func shouldApplyAnthropicPromptCaching(model fantasy.LanguageModel) bool {
