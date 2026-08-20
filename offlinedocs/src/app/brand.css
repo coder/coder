@@ -157,14 +157,14 @@ samp {
 	margin-block: 1.5rem;
 	border-radius: 8px;
 	border: 1px solid var(--color-fd-border);
-	background-image: url("/brand/screenshot-bg-light.png");
+	background-image: url("/brand/screenshot-bg-light.webp");
 	background-size: cover;
 	background-position: center;
 	background-repeat: no-repeat;
 }
 
 .dark .doc-image-frame {
-	background-image: url("/brand/screenshot-bg-dark.png");
+	background-image: url("/brand/screenshot-bg-dark.webp");
 }
 
 /*
