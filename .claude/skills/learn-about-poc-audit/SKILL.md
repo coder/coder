@@ -191,7 +191,10 @@ the disagreement from the record.
 
 ## 6. Keep the record as you go
 
-One file per session, `poc_audit_feedback/YYYY-MM-DD-<name>.md`. Append after
+One file per session, `poc_audit_feedback/YYYY-MM-DDTHHMM-<name>.md`, the
+timestamp in UTC from `date -u +%Y-%m-%dT%H%M`. Minute granularity is enough,
+since a session takes longer than a minute, and UTC keeps the filenames
+sorting correctly when participants are in different places. Append after
 each exchange rather than writing at the end, so a session that ends abruptly
 still leaves everything it covered.
 
