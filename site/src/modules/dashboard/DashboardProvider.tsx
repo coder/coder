@@ -50,12 +50,15 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const organizationsQuery = useQuery(organizations(metadata.organizations));
 
+	// A query error is fatal only before that query has produced data.
+	// Entitlements poll in the background, so a transient refetch failure
+	// must keep rendering the cached dashboard instead of replacing it.
 	const error =
-		entitlementsQuery.error ||
-		appearanceQuery.error ||
-		experimentsQuery.error ||
-		buildInfoQuery.error ||
-		organizationsQuery.error;
+		(!entitlementsQuery.data && entitlementsQuery.error) ||
+		(!appearanceQuery.data && appearanceQuery.error) ||
+		(!experimentsQuery.data && experimentsQuery.error) ||
+		(!buildInfoQuery.data && buildInfoQuery.error) ||
+		(!organizationsQuery.data && organizationsQuery.error);
 
 	if (error) {
 		return <ErrorAlert error={error} />;
