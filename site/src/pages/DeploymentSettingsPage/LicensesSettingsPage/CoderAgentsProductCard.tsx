@@ -62,7 +62,7 @@ const CardContainer: FC<{
 const totalAgentHoursTooltip =
 	"Total agent runtime hours used out of the hours included in this license.";
 const concurrentAgentsTooltip =
-	"Number of Coder Agents that can run at the same time.";
+	"The number of simultaneous active agents working deployment-wide.";
 const concurrentAgentsHardLimitTooltip = `${concurrentAgentsTooltip} You've reached your limit: concurrent agents are now capped at ${maxConcurrentChatsOverHardLimit} (down from unlimited).`;
 
 // The value is already floored to tenths, so no rounding happens here.

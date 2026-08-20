@@ -65,7 +65,7 @@ export const TooltipInteractions: Story = {
 			);
 			await waitFor(async () => {
 				await expect(screen.getByRole("tooltip")).toHaveTextContent(
-					"Number of Coder Agents that can run at the same time.",
+					"The number of simultaneous active agents working deployment-wide.",
 				);
 			});
 		});
@@ -154,7 +154,7 @@ export const HardLimitExceeded: Story = {
 		);
 		await waitFor(async () => {
 			await expect(screen.getByRole("tooltip")).toHaveTextContent(
-				"Number of Coder Agents that can run at the same time. You've reached your limit: concurrent agents are now capped at 5 (down from unlimited).",
+				"The number of simultaneous active agents working deployment-wide. You've reached your limit: concurrent agents are now capped at 5 (down from unlimited).",
 			);
 		});
 	},
