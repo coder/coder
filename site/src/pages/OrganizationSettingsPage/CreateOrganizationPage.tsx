@@ -12,7 +12,10 @@ const CreateOrganizationPage: FC = () => {
 	return (
 		<RequirePermission isFeatureVisible={permissions.createOrganization}>
 			<title>{pageTitle("New Organization")}</title>
-			<CreateOrganizationPageView isEntitled={feats.multiple_organizations} />
+			<CreateOrganizationPageView
+				isEntitled={feats.multiple_organizations}
+				permissions={permissions}
+			/>
 		</RequirePermission>
 	);
 };

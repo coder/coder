@@ -11,6 +11,7 @@ import type { CreateOrganizationRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { FormField } from "#/components/FormField/FormField";
+import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
@@ -20,9 +21,8 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
-import { IconPickerField } from "#/pages/AISettingsPage/MCPServersPage/components/IconPickerField";
+import type { Permissions } from "#/modules/permissions";
 import { cn } from "#/utils/cn";
-import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -44,11 +44,12 @@ const validationSchema = Yup.object({
 
 interface CreateOrganizationPageViewProps {
 	isEntitled: boolean;
+	permissions: Permissions;
 }
 
 export const CreateOrganizationPageView: FC<
 	CreateOrganizationPageViewProps
-> = ({ isEntitled }) => {
+> = ({ isEntitled, permissions }) => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const createOrganizationMutation = useMutation(
@@ -113,7 +114,7 @@ export const CreateOrganizationPageView: FC<
 						<PaywallPremium
 							message="Organizations"
 							description="Isolate members, templates, and provisioners for a team or project within a single Coder deployment."
-							documentationLink={docs("/admin/users/organizations")}
+							canViewPremium={permissions.viewAllLicenses}
 						/>
 					) : (
 						<div className="border border-solid p-6 rounded-lg">
@@ -141,7 +142,8 @@ export const CreateOrganizationPageView: FC<
 										/>
 										<FormField
 											field={getFieldHelpers("display_name", {
-												helperText: "Friendly name. Defaults to the slug if blank.",
+												helperText:
+													"Friendly name. Defaults to the slug if blank.",
 											})}
 											label="Display name"
 											className="w-full"
@@ -166,7 +168,7 @@ export const CreateOrganizationPageView: FC<
 											}
 											className={cn(
 												"resize-none",
-											descriptionField.error && "border-border-destructive",
+												descriptionField.error && "border-border-destructive",
 											)}
 										/>
 										{descriptionField.error ? (
@@ -187,29 +189,15 @@ export const CreateOrganizationPageView: FC<
 											)
 										)}
 									</div>
-									<div className="flex flex-col gap-2">
-										<Label htmlFor={iconField.id}>Icon</Label>
-										<IconPickerField
-											id={iconField.id}
-											value={form.values.icon ?? ""}
-											disabled={form.isSubmitting}
-											onChange={(value) => {
-												void form.setFieldValue("icon", value);
-												void form.setFieldTouched("icon", true);
-											}}
-										/>
-										{iconField.error ? (
-											<span className="text-xs text-content-destructive">
-												{iconField.helperText}
-											</span>
-										) : (
-											iconField.helperText && (
-												<span className="text-xs text-content-secondary">
-													{iconField.helperText}
-												</span>
-											)
-										)}
-									</div>
+									<IconField
+										{...iconField}
+										disabled={form.isSubmitting}
+										onChange={onChangeTrimmed(form)}
+										onPickEmoji={(value) => {
+											void form.setFieldValue("icon", value);
+											void form.setFieldTouched("icon", true);
+										}}
+									/>
 								</fieldset>
 								<div className="flex justify-end gap-4">
 									<Button asChild variant="outline">

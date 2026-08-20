@@ -10,7 +10,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { PaywallSmall } from "#/components/Paywall/PaywallSmall";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Table,
@@ -25,7 +25,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
-import { docs } from "#/utils/docs";
+import type { Permissions } from "#/modules/permissions";
 import { DefaultRolesDialog } from "./DefaultRolesDialog";
 import { PermissionPillsList } from "./PermissionPillsList";
 
@@ -39,6 +39,7 @@ interface CustomRolesPageViewProps {
 	canDeleteOrgRole: boolean;
 	canEditDefaultRoles: boolean;
 	isCustomRolesEnabled: boolean;
+	permissions: Permissions;
 	defaultRolesEntitled?: boolean;
 	availableOrgRoles?: AssignableRoles[];
 	onUpdateDefaultRoles?: (roles: string[]) => Promise<void>;
@@ -55,6 +56,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	canDeleteOrgRole,
 	canEditDefaultRoles,
 	isCustomRolesEnabled,
+	permissions,
 	defaultRolesEntitled,
 	availableOrgRoles,
 	onUpdateDefaultRoles,
@@ -63,10 +65,10 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	return (
 		<div className="flex flex-col gap-8">
 			{!isCustomRolesEnabled && (
-				<PaywallPremium
+				<PaywallSmall
 					message="Custom Roles"
 					description="Create custom roles to grant users a tailored set of granular permissions."
-					documentationLink={docs("/admin/users/groups-roles")}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}
 			{onUpdateDefaultRoles && (

@@ -58,6 +58,16 @@ const (
 	ToolNameGetTaskStatus               = "coder_get_task_status"
 	ToolNameSendTaskInput               = "coder_send_task_input"
 	ToolNameGetTaskLogs                 = "coder_get_task_logs"
+	ToolNameCreateChat                  = "coder_create_chat"
+	ToolNameGetChat                     = "coder_get_chat"
+	ToolNameDownloadChatFile            = "coder_download_chat_file"
+	ToolNameAwaitChat                   = "coder_await_chat"
+	ToolNameListChats                   = "coder_list_chats"
+	ToolNameGetChatMessages             = "coder_get_chat_messages"
+	ToolNameSendChatMessage             = "coder_send_chat_message"
+	ToolNameInterruptChat               = "coder_interrupt_chat"
+	ToolNameArchiveChat                 = "coder_archive_chat"
+	ToolNameListChatModelConfigs        = "coder_list_chat_model_configs"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -338,6 +348,16 @@ var All = []GenericTool{
 	GetTaskStatus.Generic(),
 	SendTaskInput.Generic(),
 	GetTaskLogs.Generic(),
+	CreateChat.Generic(),
+	GetChat.Generic(),
+	DownloadChatFile.Generic(),
+	AwaitChat.Generic(),
+	ListChats.Generic(),
+	GetChatMessages.Generic(),
+	SendChatMessage.Generic(),
+	InterruptChat.Generic(),
+	ArchiveChat.Generic(),
+	ListChatModelConfigs.Generic(),
 }
 
 type ReportTaskArgs struct {
@@ -618,10 +638,22 @@ var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
 	},
 }
 
+func minimalTemplate(template codersdk.Template) MinimalTemplate {
+	return MinimalTemplate{
+		DisplayName:     template.DisplayName,
+		ID:              template.ID.String(),
+		Name:            template.Name,
+		Description:     template.Description,
+		ActiveVersionID: template.ActiveVersionID,
+		ActiveUserCount: template.ActiveUserCount,
+		AgentsAllowed:   template.AgentsAllowed,
+	}
+}
+
 var ListTemplates = Tool[NoArgs, []MinimalTemplate]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameListTemplates,
-		Description: "Lists templates for the authenticated user.",
+		Description: "Lists templates for the authenticated user. agents_allowed indicates whether Coder Agents (chats) may create workspaces from the template.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{},
 			Required:   []string{},
@@ -635,14 +667,7 @@ var ListTemplates = Tool[NoArgs, []MinimalTemplate]{
 		}
 		minimalTemplates := make([]MinimalTemplate, len(templates))
 		for i, template := range templates {
-			minimalTemplates[i] = MinimalTemplate{
-				DisplayName:     template.DisplayName,
-				ID:              template.ID.String(),
-				Name:            template.Name,
-				Description:     template.Description,
-				ActiveVersionID: template.ActiveVersionID,
-				ActiveUserCount: template.ActiveUserCount,
-			}
+			minimalTemplates[i] = minimalTemplate(template)
 		}
 		return minimalTemplates, nil
 	},
@@ -772,15 +797,8 @@ When selecting a preset: if a preset is marked default and the user has not spec
 			return TemplateDetail{}, xerrors.Errorf("get template presets: %w", err)
 		}
 		detail := TemplateDetail{
-			MinimalTemplate: MinimalTemplate{
-				DisplayName:     template.DisplayName,
-				ID:              template.ID.String(),
-				Name:            template.Name,
-				Description:     template.Description,
-				ActiveVersionID: template.ActiveVersionID,
-				ActiveUserCount: template.ActiveUserCount,
-			},
-			Parameters: parameters,
+			MinimalTemplate: minimalTemplate(template),
+			Parameters:      parameters,
 		}
 		for _, p := range presets {
 			detail.Presets = append(detail.Presets, toPresetView(p))
@@ -1721,6 +1739,7 @@ type MinimalTemplate struct {
 	Description     string    `json:"description"`
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	ActiveUserCount int       `json:"active_user_count"`
+	AgentsAllowed   bool      `json:"agents_allowed"`
 }
 
 type WorkspaceLSArgs struct {

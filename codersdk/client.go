@@ -519,6 +519,23 @@ const htmlResponseHelper = "Ensure the Coder URL is correct and that any reverse
 // API endpoints never serve HTML. The caller remains responsible for
 // closing the response body.
 func ReadBodyAsJSON(res *http.Response, v any) error {
+	return decodeBodyAsJSON(res, v, nil)
+}
+
+// ReadBodyAsJSONUseNumber behaves like ReadBodyAsJSON but decodes JSON
+// numbers into json.Number instead of float64, preserving integer
+// precision for callers that re-serialize or type-assert numeric
+// claims, such as license JWT claims.
+func ReadBodyAsJSONUseNumber(res *http.Response, v any) error {
+	return decodeBodyAsJSON(res, v, func(dec *json.Decoder) {
+		dec.UseNumber()
+	})
+}
+
+// decodeBodyAsJSON decodes the response body as JSON into v. When
+// configure is non-nil it is called with the decoder before decoding,
+// allowing callers to set options such as UseNumber.
+func decodeBodyAsJSON(res *http.Response, v any, configure func(*json.Decoder)) error {
 	if res == nil || res.Body == nil {
 		return xerrors.New("no response body to decode")
 	}
@@ -530,7 +547,11 @@ func ReadBodyAsJSON(res *http.Response, v any) error {
 
 	body := &responseBodyReader{Reader: res.Body}
 	prefix := &bodyPrefixWriter{}
-	err := json.NewDecoder(io.TeeReader(body, prefix)).Decode(v)
+	dec := json.NewDecoder(io.TeeReader(body, prefix))
+	if configure != nil {
+		configure(dec)
+	}
+	err := dec.Decode(v)
 	switch {
 	case err == nil:
 		return nil

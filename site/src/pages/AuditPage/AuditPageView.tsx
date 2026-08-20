@@ -15,7 +15,7 @@ import { Table, TableBody } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
-import { docs } from "#/utils/docs";
+import type { Permissions } from "#/modules/permissions";
 import { AuditFilter } from "./AuditFilter";
 import { AuditHelpPopover } from "./AuditHelpPopover";
 import { AuditLogRow } from "./AuditLogRow/AuditLogRow";
@@ -28,6 +28,7 @@ interface AuditPageViewProps {
 	filterProps: ComponentProps<typeof AuditFilter>;
 	auditsQuery: PaginationResult;
 	showOrgDetails: boolean;
+	permissions: Permissions;
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
@@ -38,6 +39,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 	filterProps,
 	auditsQuery: paginationResult,
 	showOrgDetails,
+	permissions,
 }) => {
 	const isLoading =
 		(auditLogs === undefined || paginationResult.totalRecords === undefined) &&
@@ -82,8 +84,8 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 			) : (
 				<PaywallPremium
 					message="Audit logs"
-					description="Audit logs allow you to monitor user operations on your deployment. You need a Premium license to use this feature."
-					documentationLink={docs("/admin/security/audit-logs")}
+					description="Audit logs allow you to monitor user operations on your deployment."
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}
 		</Margins>

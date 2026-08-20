@@ -1,5 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { meAISpendKey } from "#/api/queries/users";
 import type { FeatureName, UserAISpendStatus } from "#/api/typesGenerated";
 import { MockBuildInfo, MockUserOwner } from "#/testHelpers/entities";
@@ -18,7 +25,7 @@ const mockAISpend: UserAISpendStatus = {
 	period_end: "2026-07-01T00:00:00Z",
 };
 
-const spendPeriodLabel = "Estimated AI spend: June 1 - July 1, 2026";
+const spendPeriodLabel = "Approximate AI spend June 1 - July 1, 2026";
 
 const aiCostControl: { features: FeatureName[] } = {
 	features: ["aibridge"],
@@ -52,6 +59,21 @@ const openDropdown = async (canvasElement: HTMLElement) => {
 	);
 };
 
+// Overrides platform detection so the Coder Desktop gating can be exercised in
+// a story. Returns a cleanup that restores the spied getters.
+const mockPlatform = (platform: string, maxTouchPoints = 0) => {
+	const platformSpy = spyOn(navigator, "platform", "get").mockReturnValue(
+		platform,
+	);
+	const touchSpy = spyOn(navigator, "maxTouchPoints", "get").mockReturnValue(
+		maxTouchPoints,
+	);
+	return () => {
+		platformSpy.mockRestore();
+		touchSpy.mockRestore();
+	};
+};
+
 const Example: Story = {
 	parameters: {
 		queries: [{ key: meAISpendKey, data: mockAISpend }],
@@ -71,10 +93,10 @@ export const WithAISpend: Story = {
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows AI spend", async () => {
-			const menu = await openDropdown(canvasElement);
+			await openDropdown(canvasElement);
 			await waitFor(() => {
 				expect(document.body).toHaveTextContent("$819 / $1,200 USD");
-				expect(menu.getByText(spendPeriodLabel)).toBeVisible();
+				expect(document.body).toHaveTextContent(spendPeriodLabel);
 			});
 			expect(
 				screen.getByRole("progressbar", { name: "AI spend usage" }),
@@ -95,10 +117,10 @@ export const AISpendWarning: Story = {
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows the warning marker near the limit", async () => {
-			const menu = await openDropdown(canvasElement);
+			await openDropdown(canvasElement);
 			await waitFor(() => {
 				expect(document.body).toHaveTextContent("$1,080 / $1,200 USD");
-				expect(menu.getByText(spendPeriodLabel)).toBeVisible();
+				expect(document.body).toHaveTextContent(spendPeriodLabel);
 			});
 			expect(
 				screen.getByRole("progressbar", { name: "AI spend usage" }),
@@ -142,10 +164,10 @@ export const AISpendExceeded: Story = {
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows the exceeded marker at the limit", async () => {
-			const menu = await openDropdown(canvasElement);
+			await openDropdown(canvasElement);
 			await waitFor(() => {
 				expect(document.body).toHaveTextContent("$1,500 / $1,200 USD");
-				expect(menu.getByText(spendPeriodLabel)).toBeVisible();
+				expect(document.body).toHaveTextContent(spendPeriodLabel);
 			});
 			expect(
 				screen.getByRole("progressbar", { name: "AI spend usage" }),
@@ -163,10 +185,10 @@ export const AISpendUnlimited: Story = {
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows unlimited spend without a bar", async () => {
-			const menu = await openDropdown(canvasElement);
+			await openDropdown(canvasElement);
 			await waitFor(() => {
 				expect(document.body).toHaveTextContent("$819 / Unlimited USD");
-				expect(menu.getByText(spendPeriodLabel)).toBeVisible();
+				expect(document.body).toHaveTextContent(spendPeriodLabel);
 			});
 			expect(
 				screen.queryByRole("progressbar", { name: "AI spend usage" }),
@@ -225,7 +247,8 @@ export const AISpendZeroLimit: Story = {
 	},
 };
 
-// Dropdown closed to isolate the avatar border, which reflects spend severity.
+// Dropdown closed to isolate the avatar and its severity badge, which
+// indicates AI spend limit severity.
 
 export const AvatarBorderDisabled: Story = {
 	parameters: {
@@ -237,6 +260,14 @@ export const AvatarBorderNormal: Story = {
 	parameters: {
 		...aiCostControl,
 		queries: [{ key: meAISpendKey, data: mockAISpend }],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("shows no severity indicator for normal spend", async () => {
+			const canvas = within(canvasElement);
+			expect(
+				canvas.getByRole("button", { name: "User menu" }),
+			).toBeInTheDocument();
+		});
 	},
 };
 
@@ -250,6 +281,14 @@ export const AvatarBorderWarning: Story = {
 			},
 		],
 	},
+	play: async ({ canvasElement, step }) => {
+		await step("labels the trigger with the warning state", async () => {
+			const canvas = within(canvasElement);
+			await canvas.findByRole("button", {
+				name: "User menu. AI spend is nearing its limit",
+			});
+		});
+	},
 };
 
 export const AvatarBorderExceeded: Story = {
@@ -261,6 +300,14 @@ export const AvatarBorderExceeded: Story = {
 				data: { ...mockAISpend, current_spend_micros: 1_500_000_000 },
 			},
 		],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("labels the trigger with the exceeded state", async () => {
+			const canvas = within(canvasElement);
+			await canvas.findByRole("button", {
+				name: "User menu. AI spend limit exceeded",
+			});
+		});
 	},
 };
 
@@ -274,7 +321,7 @@ export const AISpendHiddenOnInvalidData: Story = {
 	play: async ({ canvasElement, step }) => {
 		await step("hides AI spend on invalid data", async () => {
 			await openDropdown(canvasElement);
-			expect(screen.queryByText(spendPeriodLabel)).not.toBeInTheDocument();
+			expect(document.body).not.toHaveTextContent(spendPeriodLabel);
 		});
 	},
 };
@@ -295,7 +342,80 @@ export const AISpendHiddenOnNegativeLimit: Story = {
 	play: async ({ canvasElement, step }) => {
 		await step("hides AI spend on a negative limit", async () => {
 			await openDropdown(canvasElement);
-			expect(screen.queryByText(spendPeriodLabel)).not.toBeInTheDocument();
+			expect(document.body).not.toHaveTextContent(spendPeriodLabel);
+		});
+	},
+};
+
+export const InstallCoderDesktopMacOS: Story = {
+	parameters: {
+		queries: [{ key: meAISpendKey, data: mockAISpend }],
+	},
+	beforeEach: () => mockPlatform("MacIntel"),
+	play: async ({ canvasElement, step }) => {
+		await step(
+			"links Install Coder Desktop to the docs alongside Install CLI",
+			async () => {
+				const menu = await openDropdown(canvasElement);
+				expect(
+					menu.getByRole("menuitem", { name: "Install Coder Desktop" }),
+				).toHaveAttribute("href", "https://coder.com/docs/user-guides/desktop");
+				expect(
+					menu.getByRole("menuitem", { name: "Install CLI" }),
+				).toBeInTheDocument();
+			},
+		);
+	},
+};
+
+export const InstallCoderDesktopWindows: Story = {
+	parameters: {
+		queries: [{ key: meAISpendKey, data: mockAISpend }],
+	},
+	beforeEach: () => mockPlatform("Win32"),
+	play: async ({ canvasElement, step }) => {
+		await step("shows Install Coder Desktop on Windows", async () => {
+			const menu = await openDropdown(canvasElement);
+			expect(
+				menu.getByRole("menuitem", { name: "Install Coder Desktop" }),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const InstallCoderDesktopHiddenOnLinux: Story = {
+	parameters: {
+		queries: [{ key: meAISpendKey, data: mockAISpend }],
+	},
+	beforeEach: () => mockPlatform("Linux x86_64"),
+	play: async ({ canvasElement, step }) => {
+		await step(
+			"hides Install Coder Desktop but keeps Install CLI",
+			async () => {
+				const menu = await openDropdown(canvasElement);
+				expect(
+					menu.queryByRole("menuitem", { name: "Install Coder Desktop" }),
+				).not.toBeInTheDocument();
+				expect(
+					menu.getByRole("menuitem", { name: "Install CLI" }),
+				).toBeInTheDocument();
+			},
+		);
+	},
+};
+
+export const InstallCoderDesktopHiddenOniPadOS: Story = {
+	parameters: {
+		queries: [{ key: meAISpendKey, data: mockAISpend }],
+	},
+	// iPadOS 13+ reports "MacIntel" but exposes a touchscreen.
+	beforeEach: () => mockPlatform("MacIntel", 5),
+	play: async ({ canvasElement, step }) => {
+		await step("hides Install Coder Desktop on iPadOS", async () => {
+			const menu = await openDropdown(canvasElement);
+			expect(
+				menu.queryByRole("menuitem", { name: "Install Coder Desktop" }),
+			).not.toBeInTheDocument();
 		});
 	},
 };

@@ -377,6 +377,24 @@ func Group(row database.GetGroupsRow, members []database.GroupMember, totalMembe
 	}
 }
 
+// PaginatedGroup converts a group row into the slim summary returned by the
+// paginated groups endpoint, which omits the member roster and carries only
+// the total member count.
+func PaginatedGroup(row database.GetGroupsRow, totalMemberCount int) codersdk.PaginatedGroup {
+	return codersdk.PaginatedGroup{
+		ID:                      row.Group.ID,
+		Name:                    row.Group.Name,
+		DisplayName:             row.Group.DisplayName,
+		OrganizationID:          row.Group.OrganizationID,
+		AvatarURL:               row.Group.AvatarURL,
+		TotalMemberCount:        totalMemberCount,
+		QuotaAllowance:          int(row.Group.QuotaAllowance),
+		Source:                  codersdk.GroupSource(row.Group.Source),
+		OrganizationName:        row.OrganizationName,
+		OrganizationDisplayName: row.OrganizationDisplayName,
+	}
+}
+
 func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterInsightsRow) ([]codersdk.TemplateParameterUsage, error) {
 	// Use a stable sort, similarly to how we would sort in the query, note that
 	// we don't sort in the query because order varies depending on the table
@@ -1707,6 +1725,27 @@ func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error
 	return filtered, nil
 }
 
+func AIModelPrices(dbPrices []database.AIModelPrice) []codersdk.AIModelPrice {
+	out := make([]codersdk.AIModelPrice, 0, len(dbPrices))
+	for _, dbPrice := range dbPrices {
+		out = append(out, AIModelPrice(dbPrice))
+	}
+	return out
+}
+
+func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
+	return codersdk.AIModelPrice{
+		Provider:        dbPrice.Provider,
+		Model:           dbPrice.Model,
+		InputPrice:      nullInt64Ptr(dbPrice.InputPrice),
+		OutputPrice:     nullInt64Ptr(dbPrice.OutputPrice),
+		CacheReadPrice:  nullInt64Ptr(dbPrice.CacheReadPrice),
+		CacheWritePrice: nullInt64Ptr(dbPrice.CacheWritePrice),
+		CreatedAt:       dbPrice.CreatedAt,
+		UpdatedAt:       dbPrice.UpdatedAt,
+	}
+}
+
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
 	if !v.Valid {
 		return nil
@@ -1864,6 +1903,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 				OrganizationID: row.OrganizationID,
 				Name:           row.Name,
 				MimeType:       row.Mimetype,
+				SizeBytes:      row.SizeBytes,
 				CreatedAt:      row.CreatedAt,
 			})
 		}

@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -189,13 +190,14 @@ type Server struct {
 	configCacheUnsubscribe         func()
 	providerCacheUnsubscribe       func()
 
-	usageTracker      *workspacestats.UsageTracker
-	clock             quartz.Clock
-	metrics           *chatloop.Metrics
-	chatWorker        *chatWorker
-	messagePartBuffer *messagepartbuffer.Buffer
-	streamSyncPoller  *streamSyncPoller
-	recordingSem      chan struct{}
+	usageTracker         *workspacestats.UsageTracker
+	clock                quartz.Clock
+	metrics              *chatloop.Metrics
+	chatWorker           *chatWorker
+	messagePartBuffer    *messagepartbuffer.Buffer
+	streamSyncPoller     *streamSyncPoller
+	recordingSem         chan struct{}
+	agentCapacityLimiter AgentCapacityLimiter
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
@@ -1202,6 +1204,46 @@ type PromoteQueuedResult struct {
 	PromotedMessage database.ChatMessage
 }
 
+// forcedMCPServerConfigsForOwner filters enabled Force On configs
+// through the chat owner's ACL so availability cannot widen access.
+func forcedMCPServerConfigsForOwner(ctx context.Context, store database.Store, organizationID, ownerID uuid.UUID) ([]database.MCPServerConfig, error) {
+	owner, _, err := httpmw.UserRBACSubject(ctx, store, ownerID, rbac.ScopeAll)
+	if err != nil {
+		return nil, xerrors.Errorf("load chat owner authorization: %w", err)
+	}
+	forced, err := store.GetForcedMCPServerConfigsByOrganization(dbauthz.As(ctx, owner), organizationID)
+	if err != nil {
+		return nil, xerrors.Errorf("get forced MCP server configs: %w", err)
+	}
+	return forced, nil
+}
+
+// enforceForcedMCPServerIDs appends owner-readable Force On config IDs
+// missing from ids so callers cannot exclude such servers by stripping
+// IDs from a request (Cure53 CDM-02-010).
+func enforceForcedMCPServerIDs(ctx context.Context, store database.Store, organizationID, ownerID uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
+	forced, err := forcedMCPServerConfigsForOwner(ctx, store, organizationID, ownerID)
+	if err != nil {
+		// Fail closed: proceeding without the forced set would
+		// silently bypass a security policy.
+		return nil, err
+	}
+	merged := slices.Clone(ids)
+	if merged == nil {
+		merged = []uuid.UUID{}
+	}
+	seen := make(map[uuid.UUID]struct{}, len(merged))
+	for _, id := range merged {
+		seen[id] = struct{}{}
+	}
+	for _, cfg := range forced {
+		if _, ok := seen[cfg.ID]; !ok {
+			merged = append(merged, cfg.ID)
+		}
+	}
+	return merged, nil
+}
+
 // CreateChat creates a chat with its initial history through
 // chatstate.CreateChat. The new chat starts in `running` status per
 // the chat execution state model. Ownership hints wake chat workers.
@@ -1224,6 +1266,14 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if opts.MCPServerIDs == nil {
 		opts.MCPServerIDs = []uuid.UUID{}
 	}
+	// Force On MCP servers are enforced server-side so a caller
+	// cannot exclude them by stripping IDs from the request
+	// (Cure53 CDM-02-010).
+	enforcedMCPServerIDs, err := enforceForcedMCPServerIDs(ctx, p.db, opts.OrganizationID, opts.OwnerID, opts.MCPServerIDs)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	opts.MCPServerIDs = enforcedMCPServerIDs
 	if opts.Labels == nil {
 		opts.Labels = database.StringMap{}
 	}
@@ -1279,7 +1329,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 	}
 
-	userPrompt := SanitizePromptText(opts.SystemPrompt)
+	userPrompt := codersdk.SanitizePromptText(opts.SystemPrompt)
 	workspaceAwareness := workspaceDetachedAwareness
 	if opts.WorkspaceID.Valid {
 		workspaceAwareness = workspaceAttachedAwareness
@@ -1340,6 +1390,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		},
 		ClientType:      opts.ClientType,
 		InitialMessages: initialMessages,
+		FileIDs:         chatprompt.FileIDs(contentParts),
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -1473,9 +1524,16 @@ func (p *Server) SendMessage(
 					slog.F("chat_id", opts.ChatID),
 				)
 			} else {
+				// Force On MCP servers are enforced server-side so a
+				// caller cannot remove them by tampering with the
+				// update (Cure53 CDM-02-010).
+				enforcedIDs, enforceErr := enforceForcedMCPServerIDs(ctx, store, lockedChat.OrganizationID, lockedChat.OwnerID, *requestedMCPServerIDs)
+				if enforceErr != nil {
+					return enforceErr
+				}
 				lockedChat, err = store.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
 					ID:           opts.ChatID,
-					MCPServerIDs: *requestedMCPServerIDs,
+					MCPServerIDs: enforcedIDs,
 				})
 				if err != nil {
 					return xerrors.Errorf("update chat mcp server ids: %w", err)
@@ -1512,6 +1570,11 @@ func (p *Server) SendMessage(
 		// previous queue head into history; report those inserts so
 		// clients can update their caches.
 		result.InsertedMessages = sendResult.InsertedMessages
+
+		// File-link errors must roll back the message.
+		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
+			return err
+		}
 		// Capture the post-transition chat inside the same
 		// transaction so the returned chat and the watch event
 		// reflect the snapshot bump and status change produced by
@@ -1821,6 +1884,9 @@ func (p *Server) EditMessage(
 		inserted = append(inserted, editResult.SuffixMessages...)
 		result.InsertedMessages = inserted
 		result.DeletedMessageIDs = editResult.DeletedMessageIDs
+		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
+			return err
+		}
 		// Capture the post-edit chat inside the same transaction so
 		// the returned chat and the debug-cleanup cutoff use the
 		// snapshot bump and updated_at stamped by the transition.
@@ -2234,16 +2300,16 @@ func (p *Server) InterruptChat(
 
 // CompactChat records a manual compaction request through the
 // chatstate.RequestCompaction transition and wakes workers. The chat
-// must be idle (waiting); the worker then generates and commits the
-// compaction summary through the normal generation loop, bypassing
-// the usage threshold, and the chat returns to waiting with no
-// assistant follow-up unless a post_compact hook commits a
-// user-visible message, which leaves the history incomplete and
-// resumes generation.
+// must be idle (waiting) or errored; the request clears any stored
+// error. The worker then generates and commits the compaction summary
+// through the normal generation loop, bypassing the usage threshold,
+// and the chat returns to waiting with no assistant follow-up unless
+// queued messages remain or a post_compact hook commits a
+// user-visible message.
 //
 // Returns the post-transition chat and an error so callers can map
 // state conflicts deliberately: archived chats return ErrChatArchived,
-// non-idle chats return a chatstate.ErrTransitionNotAllowed wrapper,
+// generating chats return a chatstate.ErrTransitionNotAllowed wrapper,
 // and chats with no compactable conversation return
 // ErrNothingToCompact.
 func (p *Server) CompactChat(
@@ -2993,8 +3059,9 @@ type Config struct {
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
+	PrometheusRegistry             prometheus.Registerer
 
-	PrometheusRegistry prometheus.Registerer
+	AgentCapacityUnlock AgentCapacityUnlock
 
 	// OIDCTokenSource resolves the calling user's OIDC access
 	// token for MCP servers configured with auth_type=user_oidc.
@@ -3127,6 +3194,15 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	p.streamPartsDialer = streamPartsDialerForServer(workerID, localStreamPartsDialer, cfg.StreamPartsDialer)
 	p.streamSyncPoller = newStreamSyncPoller(ctx, cfg.Database, clk, cfg.Logger.Named("chatstream"))
 	p.streamSyncPoller.Start()
+	agentCapacityLimiter := newAgentCapacityLimiter(
+		cfg.AgentCapacityUnlock,
+		int32(inFlightChatStaleAfter.Seconds()),
+	)
+	var agentCapacityMetrics *capacityMetrics
+	if cfg.PrometheusRegistry != nil {
+		agentCapacityMetrics = newCapacityMetrics(cfg.PrometheusRegistry)
+	}
+	p.agentCapacityLimiter = agentCapacityLimiter
 	chatWorker, err := newChatWorker(p, chatWorkerOptions{
 		WorkerID:              workerID,
 		Store:                 cfg.Database,
@@ -3134,6 +3210,8 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		Logger:                cfg.Logger.Named("chatworker"),
 		Clock:                 clk,
 		MessagePartBuffer:     p.messagePartBuffer,
+		AgentCapacityLimiter:  agentCapacityLimiter,
+		CapacityMetrics:       agentCapacityMetrics,
 		AcquisitionInterval:   pendingChatAcquireInterval,
 		AcquisitionBatchSize:  maxChatsPerAcquire,
 		HeartbeatInterval:     chatHeartbeatInterval,
@@ -3248,9 +3326,6 @@ func chatWatchEventSDKChat(chat database.Chat, diffStatus *codersdk.ChatDiffStat
 // publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
 // pubsub so that all replicas can push updates to watching clients.
 func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *codersdk.ChatDiffStatus) {
-	if p.pubsub == nil {
-		return
-	}
 	event := codersdk.ChatWatchEvent{
 		Kind: kind,
 		Chat: chatWatchEventSDKChat(chat, diffStatus),
@@ -3270,6 +3345,27 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWa
 			slog.Error(err),
 		)
 	}
+}
+
+// ChatQueuedForCapacity reports whether the chat is waiting for a
+// concurrent-agent capacity slot. Uncapped deployments always return false.
+func (p *Server) ChatQueuedForCapacity(ctx context.Context, chat database.Chat) (bool, error) {
+	limits, capped := p.agentCapacityLimiter.Limits()
+	if !capped {
+		return false, nil
+	}
+	if chat.Archived || chat.Status != database.ChatStatusRunning {
+		return false, nil
+	}
+	// The pool count spans other users' chats, which the requester cannot
+	// read directly.
+	//nolint:gocritic // Capacity accounting is chatd-internal state.
+	return p.db.GetChatQueuedForCapacity(dbauthz.AsChatd(ctx), database.GetChatQueuedForCapacityParams{
+		ChatID:           chat.ID,
+		StaleSeconds:     int32(p.inFlightChatStaleAfter.Seconds()),
+		RootCapacity:     limits.Root,
+		SubagentCapacity: limits.Subagent,
+	})
 }
 
 // PublishDiffStatusChange broadcasts a diff_status_change event for
@@ -4336,7 +4432,7 @@ func (p *Server) resolveDeploymentSystemPrompt(ctx context.Context) string {
 		return DefaultSystemPrompt
 	}
 
-	sanitizedCustom := SanitizePromptText(config.ChatSystemPrompt)
+	sanitizedCustom := codersdk.SanitizePromptText(config.ChatSystemPrompt)
 	if sanitizedCustom == "" && strings.TrimSpace(config.ChatSystemPrompt) != "" {
 		p.logger.Warn(ctx, "custom system prompt became empty after sanitization, omitting custom portion")
 	}
@@ -5142,10 +5238,10 @@ func (p *Server) refreshMCPTokenIfNeeded(
 		expiry = sql.NullTime{Time: result.Expiry, Valid: true}
 	}
 
-	//nolint:gocritic // Chatd needs system-level write access to
-	// persist the refreshed OAuth2 token for the user.
+	// The chatd subject has no personal-write access; persist the
+	// refresh as a subject scoped to this token's owner.
 	updated, err := p.db.UpdateMCPServerUserTokenFromRefresh(
-		dbauthz.AsSystemRestricted(ctx),
+		dbauthz.AsChatdTokenOwner(ctx, tok.UserID),
 		database.UpdateMCPServerUserTokenFromRefreshParams{
 			ID:                tok.ID,
 			UpdatedAt:         tok.UpdatedAt,
@@ -5160,9 +5256,8 @@ func (p *Server) refreshMCPTokenIfNeeded(
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			// A disconnect or re-authentication can win the optimistic update.
-			//nolint:gocritic // Reading the winning token requires system access.
 			current, readErr := p.db.GetMCPServerUserToken(
-				dbauthz.AsSystemRestricted(ctx),
+				ctx,
 				database.GetMCPServerUserTokenParams{
 					MCPServerConfigID: tok.MCPServerConfigID,
 					UserID:            tok.UserID,
@@ -5219,10 +5314,10 @@ func (p *Server) markMCPTokenRefreshFailure(
 		slog.Error(refreshErr),
 	)
 
-	//nolint:gocritic // Chatd needs system-level write access to
-	// persist the refresh failure for the user.
+	// The chatd subject has no personal-write access; persist the
+	// failure as a subject scoped to this token's owner.
 	marked, err := p.db.MarkMCPServerUserTokenRefreshFailure(
-		dbauthz.AsSystemRestricted(ctx),
+		dbauthz.AsChatdTokenOwner(ctx, tok.UserID),
 		database.MarkMCPServerUserTokenRefreshFailureParams{
 			ID:                        tok.ID,
 			UpdatedAt:                 tok.UpdatedAt,
@@ -5237,10 +5332,8 @@ func (p *Server) markMCPTokenRefreshFailure(
 		// Optimistic lock miss: a concurrent request refreshed or
 		// replaced the token after we read it, so our failure is
 		// stale. Use the winner's row instead.
-		//nolint:gocritic // Chatd needs system-level read access to
-		// load the concurrently updated token.
 		current, readErr := p.db.GetMCPServerUserToken(
-			dbauthz.AsSystemRestricted(ctx),
+			ctx,
 			database.GetMCPServerUserTokenParams{
 				MCPServerConfigID: tok.MCPServerConfigID,
 				UserID:            tok.UserID,

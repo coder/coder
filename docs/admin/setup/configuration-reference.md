@@ -503,15 +503,6 @@ The upgrade message to display to users when a client/server mismatch is detecte
 - CLI flag: [`--cli-upgrade-message`](../../reference/cli/server.md#--cli-upgrade-message)
 - YAML key: `client.cliUpgradeMessage`
 
-### Hide AI tasks
-
-Hide AI tasks from the dashboard.
-
-- Environment variable: `CODER_HIDE_AI_TASKS`
-- CLI flag: [`--hide-ai-tasks`](../../reference/cli/server.md#--hide-ai-tasks)
-- YAML key: `client.hideAITasks`
-- Default value: `false`
-
 ### SSH config options
 
 These SSH config options will override the default SSH config options. Provide options in "key=value" or "key value" format separated by commas. Using this incorrectly can break SSH to your deployment, use cautiously. The following options are not allowed: Host, Match, Include, ProxyCommand, ProxyJump, LocalCommand, PermitLocalCommand, RemoteCommand, KnownHostsCommand, PKCS11Provider, SecurityKeyProvider, SmartcardDevice, XAuthLocation. Option values must not contain newline, carriage return, or NUL characters.
@@ -1592,6 +1583,14 @@ OIDC claim field to use as the name.
 - CLI flag: [`--oidc-name-field`](../../reference/cli/server.md#--oidc-name-field)
 - YAML key: `oidc.nameField`
 - Default value: `name`
+
+### Redirect URL
+
+Optional override of the default redirect url which uses the deployment's access url. Useful in situations where a deployment has more than 1 domain. Using this setting can also break OIDC, so use with caution.
+
+- Environment variable: `CODER_OIDC_REDIRECT_URL`
+- CLI flag: [`--oidc-redirect-url`](../../reference/cli/server.md#--oidc-redirect-url)
+- YAML key: `oidc.oidc-redirect-url`
 
 ### Regex group filter
 

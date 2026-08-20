@@ -43,6 +43,27 @@ Set it with a value that helps you identify the provider.
 For example, if you use `CODER_EXTERNAL_AUTH_0_ID="primary-github"` for your GitHub provider,
 configure your callback URL as `https://example.com/external-auth/primary-github/callback`.
 
+By default, the redirect URL is built from the access URL Coder is configured
+with. You can override the base URL with:
+
+```dotenv
+CODER_EXTERNAL_AUTH_0_REDIRECT_URL=https://my.tld
+```
+
+This would change the callback in the above example to
+`https://my.tld/external-auth/primary-github/callback` (any path component on
+the redirect URL is ignored).
+
+Using this setting can break OAuth, so use with caution. The override is
+intended to be used when the access URL is internal and either:
+
+- Users access Coder via some other URL that proxies to the internal one.
+- The redirect URL redirects to the internal access URL (this can be used to
+  work around providers that require public domains for the callback).
+
+Ultimately, the user must end up on the same domain they were on when the
+authentication flow was initiated.
+
 ### Add an authentication button to the workspace template
 
 Add the following code to any template to add a button to the workspace setup page which will allow you to authenticate with your provider:
@@ -355,6 +376,11 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
    ```
 
 ## Multiple External Providers (Premium)
+
+> [!NOTE]
+> Configuring more than one external authentication provider requires a
+> [Premium license](https://coder.com/pricing#compare-plans).
+> For more details, [contact your account team](https://coder.com/contact).
 
 Below is an example configuration with multiple providers:
 

@@ -6,7 +6,7 @@ workspaces and for background task execution.
 ## Agents in the IDE
 
 Coder [integrates with IDEs](../user-guides/workspace-access/index.md) such as
-Cursor, Windsurf, and Zed that include built-in coding agents to work alongside
+Cursor, Devin Desktop, and Zed that include built-in coding agents to work alongside
 developers. Additionally, template admins can
 [pre-install extensions](https://registry.coder.com/modules/coder/vscode-web)
 for agents such as GitHub Copilot.
@@ -48,8 +48,5 @@ Coder deployment. It includes:
 - [Agent Firewall](./agent-firewall/index.md) for process-level network and
   command policies that restrict what agents can reach and do inside a
   workspace.
-- Expanded Agent Workspace Build allowances for teams running AI-driven
-  background work at scale.
-
 [Learn more about AI Governance](./ai-governance.md) for use cases, entitlements,
 and how to enable it in your deployment.

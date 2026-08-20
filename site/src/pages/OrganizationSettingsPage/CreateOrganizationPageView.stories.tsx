@@ -2,7 +2,11 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
-import { MockOrganization, mockApiError } from "#/testHelpers/entities";
+import {
+	MockOrganization,
+	MockPermissions,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { withToaster } from "#/testHelpers/storybook";
 import { CreateOrganizationPageView } from "./CreateOrganizationPageView";
 
@@ -12,6 +16,7 @@ const meta: Meta<typeof CreateOrganizationPageView> = {
 	decorators: [withToaster],
 	args: {
 		isEntitled: true,
+		permissions: MockPermissions,
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -34,7 +39,6 @@ export const Example: Story = {
 		await expect(
 			canvas.getByRole("heading", { name: "New Organization" }),
 		).toBeVisible();
-		await expect(canvas.getByText("OR")).toBeVisible();
 		await expect(
 			canvas.getByRole("form", { name: "Organization settings form" }),
 		).toBeVisible();
@@ -53,6 +57,28 @@ export const NotEntitled: Story = {
 		await expect(
 			canvas.queryByRole("form", { name: "Organization settings form" }),
 		).not.toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: "Learn more about premium" }),
+		).toBeVisible();
+		const cta = canvas.getByRole("link", { name: "Start trial for free" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+	},
+};
+
+export const NotEntitledWithoutLicenseAccess: Story = {
+	args: {
+		isEntitled: false,
+		permissions: { ...MockPermissions, viewAllLicenses: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Start trial for free" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -66,12 +92,13 @@ export const WithError: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
-		await user.type(canvas.getByLabelText("Slug"), "new-org");
+		await user.type(canvas.getByLabelText(/slug/i), "new-org");
 		await user.click(
 			canvas.getByRole("button", { name: "Create organization" }),
 		);
 
-		await expect(canvas.findByText("Oh no!")).resolves.toBeVisible();
+		const alert = await canvas.findByRole("alert");
+		await expect(within(alert).getByText("Oh no!")).toBeVisible();
 	},
 };
 
@@ -93,7 +120,7 @@ export const InvalidName: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
-		await user.type(canvas.getByLabelText("Slug"), "new-org");
+		await user.type(canvas.getByLabelText(/slug/i), "new-org");
 		await user.type(canvas.getByLabelText("Display name"), "Bad Name");
 		await user.click(
 			canvas.getByRole("button", { name: "Create organization" }),
@@ -119,13 +146,13 @@ export const CreatesOrganization: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		const user = userEvent.setup();
 
-		await user.type(canvas.getByLabelText("Slug"), "new-org");
+		await user.type(canvas.getByLabelText(/slug/i), "new-org");
 		await user.click(
 			canvas.getByRole("button", { name: "Create organization" }),
 		);
 
 		await expect(
 			body.findByText('Organization "new-org" created successfully.'),
-		).resolves.toBeVisible();
+		).resolves.toBeInTheDocument();
 	},
 };

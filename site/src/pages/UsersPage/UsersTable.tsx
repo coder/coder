@@ -30,10 +30,8 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
-import { AISeatCell } from "#/modules/users/AISeatCell";
 import { UserGroupsCell } from "#/modules/users/UserGroupsCell";
 import {
-	AiAddonHelpPopover,
 	GroupsHelpPopover,
 	RolesHelpPopover,
 } from "#/modules/users/UserHelpPopovers";
@@ -47,7 +45,6 @@ export type UsersTableProps = {
 	isLoading: boolean;
 	users: readonly TypesGen.User[] | undefined;
 	groupsByUserId: GroupsByUserId | undefined;
-	showAISeatColumn?: boolean;
 
 	// Actions
 	onEditUserRoles: (user: TypesGen.User) => void;
@@ -70,8 +67,6 @@ export type UsersTableProps = {
 };
 
 export const UsersTable: React.FC<UsersTableProps> = (props) => {
-	const { showAISeatColumn } = props;
-
 	return (
 		<Table data-testid="users-table">
 			<TableHeader>
@@ -89,14 +84,6 @@ export const UsersTable: React.FC<UsersTableProps> = (props) => {
 							<GroupsHelpPopover />
 						</div>
 					</TableHead>
-					{showAISeatColumn && (
-						<TableHead className="w-1/6">
-							<div className="flex flex-row gap-2 items-center">
-								<span>AI add-on</span>
-								<AiAddonHelpPopover />
-							</div>
-						</TableHead>
-					)}
 					<TableHead className="w-1/6">Status</TableHead>
 				</TableRow>
 			</TableHeader>
@@ -112,7 +99,6 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 	isLoading,
 	users,
 	groupsByUserId,
-	showAISeatColumn,
 
 	onEditUserRoles,
 	isUpdatingUserRoles,
@@ -127,12 +113,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 	oidcRoleSyncEnabled,
 }) => {
 	if (isLoading) {
-		return (
-			<UsersTableSkeleton
-				showAISeatColumn={showAISeatColumn}
-				canEditUsers={canEditUsers}
-			/>
-		);
+		return <UsersTableSkeleton canEditUsers={canEditUsers} />;
 	}
 
 	if (!users || users.length === 0) {
@@ -156,8 +137,6 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 					<UserRoleCell roles={user.roles} />
 
 					<UserGroupsCell userGroups={groupsByUserId?.get(user.id)} />
-
-					{showAISeatColumn && <AISeatCell hasAISeat={user.has_ai_seat} />}
 
 					<TableCell
 						className={cn(
@@ -261,12 +240,10 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 };
 
 type UsersTableSkeletonProps = {
-	showAISeatColumn?: boolean;
 	canEditUsers: boolean;
 };
 
 const UsersTableSkeleton: React.FC<UsersTableSkeletonProps> = ({
-	showAISeatColumn,
 	canEditUsers,
 }) => {
 	return (
@@ -283,12 +260,6 @@ const UsersTableSkeleton: React.FC<UsersTableSkeletonProps> = ({
 				<TableCell>
 					<Skeleton variant="text" width="25%" />
 				</TableCell>
-
-				{showAISeatColumn && (
-					<TableCell>
-						<Skeleton variant="text" width="25%" />
-					</TableCell>
-				)}
 
 				<TableCell>
 					<Skeleton variant="text" width="25%" />

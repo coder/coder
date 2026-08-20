@@ -28,13 +28,13 @@ It reads as a misspelling of the product name.
 
 **Do**:
 
-> Coder runs `coder login` to authenticate against the Coder server.
+> Run `coder login` to authenticate against the Coder server.
 >
 > Open the AI Gateway integration page to configure model providers.
 
 **Don't**:
 
-> coder runs coder login to authenticate against the coder server.
+> Run coder login to authenticate against the coder server.
 >
 > Open the ai gateway integration page to configure model providers.
 
@@ -80,7 +80,8 @@ The Coder docs follow the same conventions.
 `envbuilder` is the implementation tool Coder uses to build dev containers.
 It isn't itself the concept, so it stays in backticks as a tool name.
 
-> [!NOTE] The Coder feature that integrates the open standard with Coder workspaces is named `Dev Containers` in product context.
+> [!NOTE]
+> The Coder feature that integrates the open standard with Coder workspaces is named `Dev Containers` in product context.
 > The capitalization there comes from the [Coder product and feature names](#coder-product-and-feature-names) rule for Coder features, not from the underlying concept.
 
 | Do                                  | Don't                                                |
@@ -109,6 +110,32 @@ It isn't itself the concept, so it stays in backticks as a tool name.
 
 *Enforced by `Coder.DevContainer` (planned).*
 
+## One term per concept
+
+Pick one name for each thing, then use that name every time the thing appears.
+Synonyms read as new concepts.
+A page that alternates between "workspace," "environment," and "dev box" makes the reader ask whether the three terms differ.
+
+The [glossary](../../reference/glossary.md) is the registry of canonical names.
+When a concept has a glossary entry, use the entry's term.
+
+The same rule covers repeated instructions inside one page.
+Word the same action the same way each time it occurs, so the reader recognizes it as the same action.
+
+**Do**:
+
+> Create the workspace from the template.
+> When the workspace starts, the agent runs the startup script.
+
+**Don't**:
+
+> Create the workspace from the template.
+> When the environment starts, the agent runs the init script.
+
+*Adapted from ASD-STE100 Issue 9, rules 1.11 and 9.4.
+Documentation-only.
+No Vale rule.*
+
 ## Phrasal verbs and their noun forms
 
 English uses two spellings for many product actions: two words when the term is a verb (`set up`, `log in`), and one word (or hyphenated) when the term is a noun (`setup`, `login`).
@@ -125,7 +152,7 @@ Treat them consistently across the docs.
 | start up         | startup                       |
 | shut down        | shutdown                      |
 
-`Quickstart` is one word, always, even though it derives from "quick start".
+`Quickstart` is one word, always, even though it derives from "quick start."
 
 **Do**:
 
@@ -150,6 +177,30 @@ Treat them consistently across the docs.
 
 *Enforced by `Coder.PhrasalVerbs` (planned).*
 
+## Whose for people, not things
+
+"Whose" is the possessive of "who", so it implies the antecedent is a person.
+When the antecedent is an inanimate object or an abstract concept, prefer "with", "where", or "that has".
+
+**Do**:
+
+> A chat with pruned gateway records reports no cost.
+>
+> A template that has conflicting variables fails validation.
+>
+> A region where every proxy is unhealthy drops workspace connections.
+
+**Don't**:
+
+> A chat whose gateway records have been pruned reports no cost.
+>
+> A template whose variables conflict fails validation.
+>
+> A region whose proxies are all unhealthy drops workspace connections.
+
+*Documentation-only.
+No Vale rule.*
+
 ## Refer to, check out, visit, not see
 
 When the prose points the reader at another page, section, or external resource, choose the verb that matches the register:
@@ -167,7 +218,7 @@ The plain-language alternatives carry register information that "see" doesn't, a
 
 The same reservation covers "see" used to mean "understand" or "find out".
 In a list of outcomes, "learn why the build fails" or "find out why the build fails" names what the reader gains.
-"See why the build fails" borrows the observational sense of "see" for a comprehension outcome, so prefer "learn" or "find out".
+"See why the build fails" borrows the observational sense of "see" for a comprehension outcome, so prefer "learn" or "find out."
 
 **Do**:
 
@@ -194,7 +245,7 @@ In a list of outcomes, "learn why the build fails" or "find out why the build fa
 ## Learn more, not Next steps
 
 End-of-page navigation that points the reader at related material uses the heading **Learn more**, not **Next steps**.
-Two rationales apply:
+The heading choice rests on 2 rationales:
 
 - **Sequencing**: "Next steps" implies the reader must follow a specific sequence.
   "Learn more" frames the section as optional related reading, which matches the Diátaxis distinction between a tutorial (sequenced) and a how-to or reference (independent).
@@ -220,10 +271,10 @@ Two rationales apply:
 - [Set workspace autostart](./autostart.md)
 ```
 
-### Sequenced tutorials: What's next?
+### The What's next? section in sequenced tutorials
 
 A tutorial in an ordered series may add a **What's next?** section that points to the single next tutorial in that series.
-Place it above **Learn more**, and write it as a short sentence with the link.
+Place it before **Learn more** and write it as a short sentence with the link.
 
 **What's next?** is distinct from **Learn more**: it carries the reader along a defined sequence, while **Learn more** stays optional.
 It also avoids the "steps" mobility metaphor, so the ban on **Next steps** still holds.
@@ -240,7 +291,8 @@ Now that you added a language, [install your own command-line tools](./install-c
 - [Parameters](../../admin/templates/extending-templates/parameters.md) in the Coder documentation
 ```
 
-*Enforced by `Coder.LearnMore` (planned). The planned rule flags Next steps, not What's next?.*
+*Enforced by `Coder.LearnMore` (planned).
+The planned rule flags **Next steps** only.*
 
 ## Tutorial, not walkthrough
 
@@ -265,7 +317,7 @@ Use "select" for actions on UI elements, regardless of input device.
 Touch devices tap, keyboard users press Enter, and assistive-technology users activate.
 "Select" covers every case and matches the Microsoft style guide convention.
 
-Reserve "click" for code or configuration that literally fires on a click event, like a `onClick` handler or a DOM `click` event.
+Reserve "click" for code or configuration that literally fires on a click event, like an `onClick` handler or a DOM `click` event.
 
 **Do**:
 
@@ -283,11 +335,11 @@ Reserve "click" for code or configuration that literally fires on a click event,
 
 ## Don't assume simplicity or difficulty
 
-Words that minimize the difficulty of an action ("simply", "just", "easy", "easily", "obviously", "of course", "clearly") assume the reader's experience matches the author's.
+Words that minimize the difficulty of an action ("simply," "just," "easy," "easily," "obviously," "of course," "clearly") assume the reader's experience matches the author's.
 If something is "obvious" to the author and not to the reader, the reader may feel the document is confusing or condescending.
 Cut the simplicity-assuming word or restructure the sentence.
 
-The reverse pattern, exaggerating difficulty ("complex", "intricate", "non-trivial"), is also banned.
+The reverse pattern, exaggerating difficulty ("complex," "intricate," "non-trivial"), is also banned.
 Both patterns predict the reader's reaction instead of describing the work.
 
 **Do**:
@@ -305,10 +357,10 @@ Both patterns predict the reader's reaction instead of describing the work.
 
 ## Avoid weasel words
 
-Vague attributions ("many believe", "some say", "experts agree", "studies show", "it is widely accepted that", "most people") let the prose claim something without naming a source.
+Vague attributions ("many believe," "some say," "experts agree," "studies show," "it is widely accepted that," "most people") let the prose claim something without naming a source.
 Either name the source or remove the claim.
 
-Vague qualifiers ("often", "usually", "sometimes", "in most cases") tell the reader the statement is sometimes false but don't say when.
+Vague qualifiers ("often," "usually," "sometimes," "in most cases") tell the reader the statement is sometimes false but don't say when.
 Replace with the specific condition, or remove the qualifier and accept the statement as a default.
 
 **Do**:
@@ -403,7 +455,7 @@ The published page stays the same for everyone.
 *Documentation-only.
 Planned Vale rule `Coder.InternalReferences`.*
 
-## Related
+## Learn more
 
 - [Style guide landing page](./README.md)
 - [Voice and tone](./voice-and-tone.md)

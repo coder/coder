@@ -124,17 +124,18 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 // @Success 201 {array} codersdk.UserSecret
 // @Failure 400 {object} codersdk.Response
 // @Failure 409 {object} codersdk.Response
-// @Failure 413 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response "Request body exceeds 8 MiB"
 // @Router /api/v2/users/{user}/secrets/batch [post]
 func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	// Cap body size before reading; worst-case JSON escaping can inflate
-	// a max-size file several-fold, so 8x gives comfortable headroom.
-	r.Body = http.MaxBytesReader(rw, r.Body, 8*codersdk.MaxSecretsFileBytes)
+	// Worst-case JSON escaping can inflate a max-size file several-fold, so 8x
+	// gives comfortable headroom. This exceeds
+	// httpapi.DefaultMaxRequestBodyBytes, so it must be passed to ReadLimit
+	// rather than wrapping r.Body here.
 	var req codersdk.ImportUserSecretsRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, 8*codersdk.MaxSecretsFileBytes, &req) {
 		return
 	}
 

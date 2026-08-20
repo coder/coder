@@ -328,6 +328,15 @@ func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider, m
 func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerConfig) database.MCPServerConfig {
 	t.Helper()
 
+	// New configs belong to the default organization, matching the
+	// org-less shape they had before configs became org-scoped.
+	organizationID := seed.OrganizationID
+	if organizationID == uuid.Nil {
+		defaultOrg, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		organizationID = defaultOrg.ID
+	}
+
 	// CreatedBy and UpdatedBy are user FKs, so default fixtures create a user.
 	createdBy := seed.CreatedBy.UUID
 	if createdBy == uuid.Nil {
@@ -338,7 +347,20 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		updatedBy = createdBy
 	}
 
+	groupACL := seed.GroupACL
+	if groupACL == nil {
+		groupACL = database.ChatACL{
+			organizationID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		}
+	}
+	userACL := seed.UserACL
+	if userACL == nil {
+		userACL = database.ChatACL{}
+	}
+
 	cfg, err := db.InsertMCPServerConfig(genCtx, database.InsertMCPServerConfigParams{
+		ID:                      takeFirst(seed.ID, uuid.New()),
+		OrganizationID:          organizationID,
 		DisplayName:             takeFirst(seed.DisplayName, "Test MCP Server"),
 		Slug:                    takeFirst(seed.Slug, testutil.GetRandomName(t)),
 		Description:             seed.Description,
@@ -365,6 +387,8 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		ModelIntent:             seed.ModelIntent,
 		AllowInPlanMode:         seed.AllowInPlanMode,
 		ForwardCoderHeaders:     seed.ForwardCoderHeaders,
+		GroupACL:                groupACL,
+		UserACL:                 userACL,
 		CreatedBy:               createdBy,
 		UpdatedBy:               updatedBy,
 	})
@@ -1733,7 +1757,7 @@ func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2Prov
 		Icon:                    takeFirst(seed.Icon, ""),
 		CallbackURL:             takeFirst(seed.CallbackURL, "http://localhost"),
 		RedirectUris:            takeFirstSlice(seed.RedirectUris, []string{}),
-		ClientType:              takeFirst(seed.ClientType, sql.NullString{String: "confidential", Valid: true}),
+		ClientType:              takeFirst(seed.ClientType, "confidential"),
 		DynamicallyRegistered:   takeFirst(seed.DynamicallyRegistered, sql.NullBool{Bool: false, Valid: true}),
 		ClientIDIssuedAt:        takeFirst(seed.ClientIDIssuedAt, sql.NullTime{}),
 		ClientSecretExpiresAt:   takeFirst(seed.ClientSecretExpiresAt, sql.NullTime{}),
@@ -1784,6 +1808,7 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 		CodeChallengeMethod: seed.CodeChallengeMethod,
 		StateHash:           seed.StateHash,
 		RedirectUri:         seed.RedirectUri,
+		Scope:               takeFirst(seed.Scope, string(database.ApiKeyScopeCoderAll)),
 	})
 	require.NoError(t, err, "insert oauth2 app code")
 	return code
@@ -1805,6 +1830,7 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 		APIKeyID:    takeFirst(seed.APIKeyID, uuid.New().String()),
 		UserID:      takeFirst(seed.UserID, uuid.New()),
 		Audience:    seed.Audience,
+		Scope:       takeFirst(seed.Scope, string(database.ApiKeyScopeCoderAll)),
 	})
 	require.NoError(t, err, "insert oauth2 app token")
 	return token
@@ -2226,6 +2252,8 @@ func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
 	case database.CryptoKeyFeatureOIDCConvert:
 		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
+		return generateCryptoKey(64)
+	case database.CryptoKeyFeatureChatFilesToken:
 		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureNATSCA:
 		return generateCACryptoKeySecret()

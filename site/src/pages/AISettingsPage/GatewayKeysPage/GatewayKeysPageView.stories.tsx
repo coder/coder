@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { MockAIGatewayKeys, mockApiError } from "#/testHelpers/entities";
+import {
+	MockAIGatewayKeys,
+	MockPermissions,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { GatewayKeysPageView } from "./GatewayKeysPageView";
 
 const meta: Meta<typeof GatewayKeysPageView> = {
@@ -13,6 +17,7 @@ const meta: Meta<typeof GatewayKeysPageView> = {
 		isLoading: false,
 		error: null,
 		showPaywall: false,
+		permissions: MockPermissions,
 		onCreateKey: fn(),
 		onDeleteKey: fn(),
 	},
@@ -70,6 +75,29 @@ export const Paywall: Story = {
 	args: {
 		showPaywall: true,
 		keys: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const cta = canvas.getByRole("link", { name: "Start trial for free" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+	},
+};
+
+export const PaywallWithoutLicenseAccess: Story = {
+	args: {
+		...Paywall.args,
+		permissions: { ...MockPermissions, viewAllLicenses: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Start trial for free" }),
+		).not.toBeInTheDocument();
 	},
 };
 

@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { PlusIcon, RotateCwIcon } from "lucide-react";
 import type { FC } from "react";
 import Confetti from "react-confetti";
@@ -20,11 +19,13 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useWindowSize } from "#/hooks/useWindowSize";
+import { useTheme } from "#/theme/context";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
 import { ManagedAgentsConsumption } from "./ManagedAgentsConsumption";
 import { SeatUsageBarCard } from "./SeatUsageBarCard";
+import { TotalAgentHoursCard } from "./TotalAgentHoursCard";
 
 type Props = {
 	showConfetti: boolean;
@@ -40,6 +41,7 @@ type Props = {
 	activeUsers: UserStatusChangeCount[] | undefined;
 	managedAgentFeature?: Feature;
 	aiGovernanceUserFeature?: Feature;
+	agentRuntimeHoursFeature?: Feature;
 };
 
 const LicensesSettingsPageView: FC<Props> = ({
@@ -56,6 +58,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 	activeUsers,
 	managedAgentFeature,
 	aiGovernanceUserFeature,
+	agentRuntimeHoursFeature,
 }) => {
 	const theme = useTheme();
 	const { width, height } = useWindowSize();
@@ -124,6 +127,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 									userLimitActual={userLimitActual}
 									userLimitLimit={userLimitLimit}
 									aiGovernanceUserFeature={aiGovernanceUserFeature}
+									agentRuntimeHoursFeature={agentRuntimeHoursFeature}
 									isRemoving={isRemovingLicense}
 									onRemove={removeLicense}
 								/>
@@ -188,6 +192,8 @@ const LicensesSettingsPageView: FC<Props> = ({
 								licenses={licenses}
 							/>
 						</div>
+
+						<TotalAgentHoursCard feature={agentRuntimeHoursFeature} />
 
 						<ManagedAgentsConsumption
 							managedAgentFeature={managedAgentFeature}

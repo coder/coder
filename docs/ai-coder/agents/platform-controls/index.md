@@ -63,10 +63,10 @@ plan sections, approval checkpoints, or review workflows.
 
 This setting is available under **AI Settings** > **Coder Agents** > **Instructions**. Developers do not edit it directly.
 
-The same value is exposed over the experimental chat configuration API:
+The same value is exposed over the chat configuration API:
 
-- `GET /api/experimental/chats/config/plan-mode-instructions`
-- `PUT /api/experimental/chats/config/plan-mode-instructions`
+- `GET /api/v2/chats/config/plan-mode-instructions`
+- `PUT /api/v2/chats/config/plan-mode-instructions`
 
 ### Template routing
 
@@ -79,14 +79,12 @@ Python backend services in the payments repo" — platform teams can guide the
 agent toward the correct infrastructure without requiring developers to
 understand template selection at all.
 
-Administrators can also restrict which templates are available to agents
-using the template allowlist at **Agents** > **Settings** >
-**Manage Agents** > **Templates**. When the allowlist is configured, the
-agent can only see and provision workspaces from the selected templates.
-When the allowlist is empty, all templates are available. This is separate
-from what developers see when manually creating workspaces, so you can apply
-stricter policies to agent-created workspaces without affecting the manual
-workspace experience.
+Administrators can also restrict which templates are available to agents at **Agents** > **Settings** > **Manage Agents** > **Templates**.
+Use the switch for each template in the list.
+The same control is available on each individual template's settings page as **Allow Coder Agents to create workspaces using this template**.
+Templates allow agents by default.
+When you disable the control, the agent cannot read the template or provision workspaces from it.
+This is separate from what developers observe when manually creating workspaces, so you can apply stricter policies to agent-created workspaces without affecting the manual workspace experience.
 
 See [Template Optimization](./template-optimization.md) for best practices on writing
 discoverable descriptions, restricting template visibility, configuring network
@@ -113,6 +111,22 @@ This setting is available under **Agents** > **Settings** >
 **Manage Agents** > **Lifecycle**. The maximum configurable value is 30
 days. When disabled, workspaces follow their template's autostop rules (or
 none, if the template does not define any).
+
+### Concurrent agents
+
+Community licenses support up to 5 concurrently active agents.
+Coder doesn't limit how long those agents can run or how many tasks they complete over time.
+Additional agents queue until an agent session becomes available.
+With concurrent agents, individuals and small teams can experiment with Coder Agents at no cost.
+
+Queued agents show a banner in the chat and start automatically when capacity frees.
+Subtasks delegated by an agent don't count toward this limit.
+Those subtasks run in a separate pool of up to 10 concurrent subtasks.
+
+Premium deployments can purchase Agent Hours with their Premium license.
+Agent Hours are shared across the deployment, and agents can run concurrently unless the Agent Hours hard limit is reached.
+If the Agent Hours allocation is exhausted without a configured hard limit, Coder warns about usage but does not impose a concurrency limit.
+When the Agent Hours hard limit is reached, additional agents queue under the concurrency limit.
 
 ### Spend management
 
