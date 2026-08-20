@@ -315,7 +315,10 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 		fixture := newChatOperationalSettingsAuditFixture(t)
 		err := fixture.client.UpdateChatRetentionDays(fixture.ctx, codersdk.UpdateChatRetentionDaysRequest{RetentionDays: -1})
 		require.Error(t, err)
-		require.Empty(t, fixture.auditLogs(t))
+
+		log := fixture.onlyAuditLog(t)
+		require.EqualValues(t, 400, log.StatusCode)
+		require.JSONEq(t, "{}", string(log.Diff))
 	})
 
 	t.Run("MalformedRawValueRepair", func(t *testing.T) {
