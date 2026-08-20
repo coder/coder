@@ -167,13 +167,17 @@ describe("DEFAULT_QUICK_PRESETS", () => {
 		return preset.range(now);
 	};
 
-	it("resolves last_15m and last_1h relative to now", () => {
+	it("resolves last_15m, last_1h, and last_24h relative to now", () => {
 		expect(rangeFor("last_15m")).toEqual({
 			start: new Date(2026, 3, 16, 10, 15, 0),
 			end: now,
 		});
 		expect(rangeFor("last_1h")).toEqual({
 			start: new Date(2026, 3, 16, 9, 30, 0),
+			end: now,
+		});
+		expect(rangeFor("last_24h")).toEqual({
+			start: new Date(2026, 3, 15, 10, 30, 0),
 			end: now,
 		});
 	});

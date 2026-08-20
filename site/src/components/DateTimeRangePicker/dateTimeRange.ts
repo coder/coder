@@ -31,6 +31,14 @@ export const DEFAULT_QUICK_PRESETS: QuickPreset[] = [
 		}),
 	},
 	{
+		id: "last_24h",
+		label: "Last 24 hours",
+		range: (now) => ({
+			start: dayjs(now).subtract(24, "hour").toDate(),
+			end: now,
+		}),
+	},
+	{
 		id: "today",
 		label: "Today",
 		range: (now) => ({ start: dayjs(now).startOf("day").toDate(), end: now }),

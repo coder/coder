@@ -86,6 +86,9 @@ export const OpenShowsOnlyQuickPicks: Story = {
 			quickPicks.getByRole("radio", { name: "Last hour" }),
 		).toBeInTheDocument();
 		expect(
+			quickPicks.getByRole("radio", { name: "Last 24 hours" }),
+		).toBeInTheDocument();
+		expect(
 			quickPicks.getByRole("radio", { name: "Today" }),
 		).toBeInTheDocument();
 		expect(
