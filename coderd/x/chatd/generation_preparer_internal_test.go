@@ -45,6 +45,19 @@ func textMessage(t *testing.T, id int64, role database.ChatMessageRole, parts ..
 	}
 }
 
+func TestGenerationCleanup(t *testing.T) {
+	t.Parallel()
+
+	var calls []string
+	cleanup := generationCleanup(
+		func() { calls = append(calls, "base") },
+		func() { calls = append(calls, "shared") },
+		func() { calls = append(calls, "private") },
+	)
+	cleanup()
+	require.Equal(t, []string{"private", "shared", "base"}, calls)
+}
+
 func TestLatestAssistantText(t *testing.T) {
 	t.Parallel()
 

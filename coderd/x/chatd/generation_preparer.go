@@ -67,6 +67,21 @@ func (server *Server) effectiveMCPServerConfigs(
 	return configs, nil
 }
 
+func generationCleanup(cleanup, mcpCleanup, privateMCPCleanup func()) func() {
+	if cleanup == nil {
+		panic("chatd: generationCleanup called with nil base cleanup")
+	}
+	return func() {
+		if privateMCPCleanup != nil {
+			privateMCPCleanup()
+		}
+		if mcpCleanup != nil {
+			mcpCleanup()
+		}
+		cleanup()
+	}
+}
+
 func (server *Server) prepareGeneration(
 	ctx context.Context,
 	input generationPrepareInput,
@@ -396,25 +411,11 @@ func (server *Server) prepareGeneration(
 			return nil
 		})
 	}
-	if err := g2.Wait(); err != nil {
+	err = g2.Wait()
+	cleanup = generationCleanup(cleanup, mcpCleanup, privateMCPCleanup)
+	if err != nil {
 		cleanup()
 		return generationPrepared{}, err
-	}
-
-	if mcpCleanup != nil {
-		previousCleanup := cleanup
-		cleanup = func() {
-			mcpCleanup()
-			previousCleanup()
-		}
-	}
-
-	if privateMCPCleanup != nil {
-		previousCleanup := cleanup
-		cleanup = func() {
-			privateMCPCleanup()
-			previousCleanup()
-		}
 	}
 
 	prompt, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(model.Provider(), prompt)
