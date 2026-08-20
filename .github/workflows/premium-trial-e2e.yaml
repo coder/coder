@@ -1,0 +1,122 @@
+# This exercises the real premium trial signup flow against v2-licensor.coder.com
+# This depends on a live external production service; it runs nightly (plus manual dispatch)
+# to avoid load on and false leads through that service.
+name: premium-trial-e2e
+on:
+  schedule:
+    # Nightly at an off-peak minute, distinct from nightly-gauntlet's 4AM run.
+    - cron: "17 5 * * *"
+  pull_request:
+    paths:
+      - site/e2e/tests/deployment/premiumTrial.spec.ts
+
+permissions:
+  contents: read
+
+jobs:
+  test-e2e-premium-trial:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go node pnpm"
+
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
+
+      # Assume that the checked-in versions are up-to-date
+      - run: make gen/mark-fresh
+        name: make gen
+
+      - run: pnpm build
+        env:
+          NODE_OPTIONS: ${{ github.repository_owner == 'coder' && '--max_old_space_size=8192' || '' }}
+        working-directory: site
+
+      - name: Download Go modules
+        run: ./.github/scripts/retry.sh -- go mod download
+
+      - run: make site/e2e/bin/coder
+        name: make coder
+
+      - run: pnpm playwright:install
+        working-directory: site
+
+      - run: pnpm playwright:test --forbid-only --workers 1 tests/deployment/premiumTrial.spec.ts
+        env:
+          DEBUG: pw:api
+          CODER_E2E_ENABLE_TRIAL_SIGNUP_TEST: "1"
+        working-directory: site
+
+      - name: Upload Playwright failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-artifacts-premium-trial-e2e-${{ github.sha }}
+          path: |
+            ./site/test-results/**
+            ./site/playwright-report/**
+          retention-days: 7
+
+      - name: Upload debug log
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coderd-debug-logs-premium-trial-e2e-${{ github.sha }}
+          path: ./site/e2e/test-results/debug.log
+          retention-days: 7
+
+  notify-slack-on-failure:
+    needs:
+      - test-e2e-premium-trial
+    runs-on: ubuntu-latest
+    if: failure()
+
+    steps:
+      - name: Send Slack notification
+        run: |
+          ESCAPED_PROMPT=$(printf "%s" "<@U09LQ75AHKR> $BLINK_CI_FAILURE_PROMPT" | jq -Rsa .)
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "❌ Premium trial e2e failed",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*View failure:* <'"${RUN_URL}"'|Click here>"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": '"$ESCAPED_PROMPT"'
+                }
+              }
+            ]
+          }' "${SLACK_WEBHOOK}"
+        env:
+          SLACK_WEBHOOK: ${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}
+          RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BLINK_CI_FAILURE_PROMPT: ${{ vars.BLINK_CI_FAILURE_PROMPT }}

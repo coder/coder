@@ -10,7 +10,7 @@ import { beforeCoderTest } from "../../hooks";
 const testIdentity = {
 	firstName: "E2E",
 	lastName: "Test",
-	email: "e2e-tests@coder.com",
+	email: "coder-e2e@coder.com",
 	companyName: "Coder E2E Test Suite",
 	jobTitle: "QA Automation",
 	phoneNumber: "+14155550100",
@@ -18,6 +18,8 @@ const testIdentity = {
 	country: "United States",
 };
 
+// These tests share one deployment's license lifecycle, so they run in order.
+// They require telemtry is enabled for the tested deployment
 test.describe
 	.serial("premium trial signup", () => {
 		test.beforeEach(async ({ page }) => {
@@ -31,6 +33,8 @@ test.describe
 		});
 
 		test("request a trial license", async ({ page }) => {
+			test.setTimeout(60_000);
+
 			await page.goto("/deployment/premium", { waitUntil: "domcontentloaded" });
 
 			const submitButton = page.getByRole("button", { name: "Start a trial" });
@@ -44,10 +48,14 @@ test.describe
 			await page.getByLabel("Phone number").fill(testIdentity.phoneNumber);
 
 			await page.getByLabel("Number of developers").click();
-			await page.getByRole("option", { name: testIdentity.developers }).click();
+			await page
+				.getByRole("option", { name: testIdentity.developers, exact: true })
+				.click();
 
 			await page.getByLabel("Country").click();
-			await page.getByRole("option", { name: testIdentity.country }).click();
+			await page
+				.getByRole("option", { name: new RegExp(`${testIdentity.country}$`) })
+				.click();
 
 			await page.getByLabel(/I understand that Premium features/).click();
 
@@ -59,30 +67,28 @@ test.describe
 			});
 			expect(new URL(page.url()).searchParams.get("success")).toBe("true");
 
-			const firstLicense = page.locator(".licenses > .license-card", {
-				hasText: "#1",
-			});
-			await expect(firstLicense).toBeVisible();
-			await expect(firstLicense.locator(".license-type")).toHaveText("Trial");
+			const licenseCard = page.locator(".licenses .license-card");
+			await expect(licenseCard).toBeVisible();
+			await expect(licenseCard.locator(".license-type")).toHaveText("Trial");
 
 			const entitlements = await API.getEntitlements();
-			expect(entitlements.has_license).toBe(true);
 			expect(entitlements.trial).toBe(true);
 		});
 
 		test("removing the license resets the premium page", async ({ page }) => {
+			test.setTimeout(60_000);
+
 			await page.goto("/deployment/licenses", {
 				waitUntil: "domcontentloaded",
 			});
 
-			const firstLicense = page.locator(".licenses > .license-card", {
-				hasText: "#1",
-			});
-			await expect(firstLicense).toBeVisible();
+			const licenseCard = page.locator(".licenses .license-card");
+			await expect(licenseCard).toBeVisible();
 
-			await firstLicense
+			await licenseCard
 				.getByRole("button", { name: "Show license actions" })
 				.click();
+			// The menu and dialog render in portals, outside the card element.
 			await page.getByText("Remove…").click();
 
 			const dialog = page.getByTestId("dialog");

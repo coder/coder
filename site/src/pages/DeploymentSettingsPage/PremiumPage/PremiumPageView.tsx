@@ -10,7 +10,7 @@ import { LicenseActivePanel } from "./LicenseActivePanel";
 import { TrialActivePanel } from "./TrialActivePanel";
 import { TrialRequestForm } from "./TrialRequestForm";
 
-interface PremiumPageViewProps {
+type PremiumPageViewProps = {
 	hasLicense: boolean;
 	isTrial: boolean;
 	/** Whether the viewer may request a trial for this deployment. */

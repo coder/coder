@@ -6,6 +6,7 @@ import {
 	coderPort,
 	e2eFakeExperiment1,
 	e2eFakeExperiment2,
+	enableTrialSignupTest,
 	gitAuth,
 	requireTerraformTests,
 } from "./constants";
@@ -88,7 +89,7 @@ export default defineConfig({
 			`--access-url=http://localhost:${coderPort}`,
 			`--http-address=0.0.0.0:${coderPort}`,
 			"--ephemeral",
-			"--telemetry=false",
+			`--telemetry=${enableTrialSignupTest}`,
 			"--dangerous-disable-rate-limits",
 			"--provisioner-daemons 10",
 			// TODO: Enable some terraform provisioners
@@ -106,6 +107,7 @@ export default defineConfig({
 			...process.env,
 			// Otherwise, the runner fails on Mac with: could not determine kind of name for C.uuid_string_t
 			CGO_ENABLED: "0",
+			CODER_TELEMETRY_URL: "http://127.0.0.1:1",
 
 			// This is the test provider for git auth with devices!
 			CODER_GITAUTH_0_ID: gitAuth.deviceProvider,

@@ -14,8 +14,8 @@ export const LicenseActivePanel: FC = () => {
 			</h1>
 
 			<p className="m-0 px-8 text-sm text-content-primary">
-				This deployment already has a license.
-				Review your entitlements on the Licenses page.
+				This deployment already has a license. Review your entitlements on the
+				Licenses page.
 			</p>
 
 			<Button asChild className="w-full">
