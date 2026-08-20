@@ -185,6 +185,7 @@ export function FilterCombobox({
 						showSearchSection={typeahead.showSearchResults}
 						typeaheadLoading={typeahead.loading}
 						typeaheadError={typeahead.error}
+						typeaheadErrorLabel={typeahead.errorLabel}
 						onSelectCategory={actions.selectCategory}
 						onSelectSuggestion={actions.selectValueSuggestion}
 						onSelectSearchResult={actions.selectSearchResult}
@@ -208,7 +209,6 @@ export function FilterCombobox({
 
 const OPTION_ITEM_CLASS = "gap-2 px-2 py-2.5";
 
-// Prefer an explicit icon, then a workspace/user avatar, else no leading glyph.
 function resultIcon(result: SearchResult) {
 	if (result.startIcon) {
 		return <span aria-hidden>{result.startIcon}</span>;
@@ -237,6 +237,7 @@ type TypeaheadListProps = Readonly<{
 	showSearchSection: boolean;
 	typeaheadLoading: boolean;
 	typeaheadError: boolean;
+	typeaheadErrorLabel: string;
 	onSelectCategory: (categoryKey: string) => void;
 	onSelectSuggestion: (token: string) => void;
 	onSelectSearchResult: (result: SearchResult) => void;
@@ -251,6 +252,7 @@ function TypeaheadList({
 	showSearchSection,
 	typeaheadLoading,
 	typeaheadError,
+	typeaheadErrorLabel,
 	onSelectCategory,
 	onSelectSuggestion,
 	onSelectSearchResult,
@@ -347,7 +349,7 @@ function TypeaheadList({
 				)}
 				{typeaheadError && !typeaheadLoading && (
 					<div className="flex flex-col items-center gap-2 px-2 py-2.5 text-center text-sm text-content-secondary">
-						<span>Couldn&rsquo;t load suggestions.</span>
+						<span>{typeaheadErrorLabel}</span>
 						<Button size="sm" variant="outline" onClick={onRetry}>
 							Retry
 						</Button>
@@ -404,7 +406,11 @@ function CategoryOptionsList({
 
 	return (
 		<>
-			<FilterComboboxEmpty>No filters found.</FilterComboboxEmpty>
+			<FilterComboboxEmpty>
+				{activeCategory
+					? `No ${activeCategory.label} matches`
+					: "No filters found."}
+			</FilterComboboxEmpty>
 			<FilterComboboxList className="p-3">
 				{activeCategoryKey !== null && (
 					<FilterComboboxGroup>

@@ -1,4 +1,5 @@
 import { MoonIcon, RefreshCwOffIcon, Share2Icon } from "lucide-react";
+import type { ReactNode } from "react";
 import type { QueryClient } from "react-query";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import { templates } from "#/api/queries/templates";
@@ -114,10 +115,48 @@ export const getOwnerFilterOptions = async (
 	];
 };
 
-type AttributeOption = FilterOption & {
+type AttributeDefinition = {
+	label: string;
+	value: string;
+	icon: ReactNode;
 	/** Hidden when the deployment lacks the entitlement gating this attribute. */
-	entitled: boolean;
+	requiresDormantEntitlement: boolean;
 };
+
+const attributeIcon = (icon: ReactNode): ReactNode => (
+	<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
+		{icon}
+	</span>
+);
+
+const ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
+	{
+		label: "Outdated",
+		value: "outdated",
+		icon: <RefreshCwOffIcon className="size-icon-sm" />,
+		requiresDormantEntitlement: false,
+	},
+	{
+		label: "Dormant",
+		value: "dormant",
+		icon: <MoonIcon className="size-icon-sm" />,
+		requiresDormantEntitlement: true,
+	},
+	{
+		label: "Shared",
+		value: "shared",
+		icon: <Share2Icon className="size-icon-sm" />,
+		requiresDormantEntitlement: false,
+	},
+];
+
+/**
+ * Query keys the Attributes category owns, derived from its option definitions
+ * so a new attribute cannot commit a chip token the parser silently drops.
+ */
+export const ATTRIBUTE_CHIP_KEYS: readonly string[] = ATTRIBUTE_DEFINITIONS.map(
+	(attribute) => attribute.value,
+);
 
 /**
  * Boolean workspace attributes exposed as a single "Attributes" category. Each
@@ -129,54 +168,27 @@ export const getAttributeFilterOptions = async (
 	options: Readonly<{ canFilterDormant: boolean }>,
 ): Promise<FilterOption[]> => {
 	const normalized = query.trim().toLowerCase();
-	const attributes: AttributeOption[] = [
-		{
-			label: "Outdated",
-			value: "outdated",
-			token: "outdated:true",
-			startIcon: (
-				<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
-					<RefreshCwOffIcon className="size-icon-sm" />
-				</span>
-			),
-			entitled: true,
-		},
-		{
-			label: "Dormant",
-			value: "dormant",
-			token: "dormant:true",
-			startIcon: (
-				<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
-					<MoonIcon className="size-icon-sm" />
-				</span>
-			),
-			entitled: options.canFilterDormant,
-		},
-		{
-			label: "Shared",
-			value: "shared",
-			token: "shared:true",
-			startIcon: (
-				<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
-					<Share2Icon className="size-icon-sm" />
-				</span>
-			),
-			entitled: true,
-		},
-	];
 
-	return attributes
-		.filter((attribute) => attribute.entitled)
+	return ATTRIBUTE_DEFINITIONS.filter(
+		(attribute) =>
+			!attribute.requiresDormantEntitlement || options.canFilterDormant,
+	)
 		.filter(
 			(attribute) =>
 				normalized.length === 0 ||
 				attribute.label.toLowerCase().includes(normalized) ||
 				attribute.value.toLowerCase().includes(normalized),
 		)
-		.map(({ entitled: _entitled, ...option }) => option);
+		.map((attribute) => ({
+			label: attribute.label,
+			value: attribute.value,
+			token: `${attribute.value}:true`,
+			startIcon: attributeIcon(attribute.icon),
+		}));
 };
 
 export const getOrganizationFilterOptions = async (
+	query: string,
 	queryClient: QueryClient,
 ): Promise<FilterOption[]> => {
 	// Reuse the shared `permittedOrganizations` query, which fetches the org list
@@ -193,7 +205,8 @@ export const getOrganizationFilterOptions = async (
 		}),
 	);
 
-	return permitted.map((organization) => ({
+	const normalized = query.trim().toLowerCase();
+	const mapped = permitted.map((organization) => ({
 		label: organization.display_name || organization.name,
 		value: organization.name,
 		startIcon: (
@@ -205,4 +218,13 @@ export const getOrganizationFilterOptions = async (
 			/>
 		),
 	}));
+
+	if (normalized.length === 0) {
+		return mapped;
+	}
+	return mapped.filter(
+		(option) =>
+			option.label.toLowerCase().includes(normalized) ||
+			option.value.toLowerCase().includes(normalized),
+	);
 };

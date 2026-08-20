@@ -87,6 +87,17 @@ describe("filterQuery", () => {
 		expect(parseChipToken("unknown:x", CHIP_KEYS)).toBeNull();
 	});
 
+	it("parses chip tokens case-insensitively", () => {
+		expect(parseChipToken("Owner:alice", CHIP_KEYS)).toEqual({
+			key: "owner",
+			value: "alice",
+		});
+		expect(queryToChips("Owner:me STATUS:running", CHIP_KEYS)).toEqual([
+			"owner:me",
+			"status:running",
+		]);
+	});
+
 	it("keeps one value per category, first position and last value win", () => {
 		// A repeated category keeps its first-seen position but takes the
 		// latest value provided for it.
@@ -117,6 +128,20 @@ describe("filterQuery", () => {
 			freeText: "",
 		});
 		expect(parseTypedCategoryPrefix("nope:", categories)).toBeNull();
+	});
+
+	it("resolves the last key: fragment when an earlier one is not a category", () => {
+		// `has-agent:connected` is a backend-only filter, not a category, so the
+		// scan must fall through to the trailing `owner:` prefix.
+		expect(
+			parseTypedCategoryPrefix("has-agent:connected owner:al", [
+				{ key: "owner", label: "Owner" },
+			]),
+		).toEqual({
+			categoryKey: "owner",
+			query: "al",
+			freeText: "has-agent:connected",
+		});
 	});
 
 	it("matches a category typed after free-text name search", () => {

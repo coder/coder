@@ -7,7 +7,6 @@ import {
 	type ReactNode,
 	type RefObject,
 	useContext,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -25,7 +24,7 @@ import { cn } from "#/utils/cn";
 // `FilterCombobox*` and kept single-consumer to avoid shadowing the unrelated
 // `components/Combobox` single-select primitives. They overlap cosmetically
 // with `components/Command`; a future consolidation into a variant-driven
-// `Command*` layer could remove the duplication (CRF-43).
+// `Command*` layer could remove the duplication.
 
 const FilterComboboxAnchorContext =
 	createContext<RefObject<HTMLDivElement | null> | null>(null);
@@ -103,10 +102,12 @@ export function FilterComboboxRoot({
 	const onDismissRef = useRef(onDismiss);
 	onDismissRef.current = onDismiss;
 
-	const state = useMemo<FilterComboboxStateValue>(
-		() => ({ value, inputValue, onInputValueChange, onRemoveValue }),
-		[value, inputValue, onInputValueChange, onRemoveValue],
-	);
+	const state: FilterComboboxStateValue = {
+		value,
+		inputValue,
+		onInputValueChange,
+		onRemoveValue,
+	};
 
 	return (
 		<FilterComboboxAnchorContext value={anchorRef}>

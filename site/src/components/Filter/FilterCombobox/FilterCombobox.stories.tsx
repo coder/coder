@@ -325,7 +325,7 @@ export const LiveResourcePreviews: Story = {
 			searchResultsLabel="Workspaces"
 			getSearchResults={async (query) => {
 				await new Promise((resolve) => {
-					window.setTimeout(resolve, 400);
+					window.setTimeout(resolve, 50);
 				});
 				if (!query.toLowerCase().includes("dev")) {
 					return [];
@@ -544,7 +544,7 @@ export const DismissOnOutsideClick: Story = {
 // A failed category lookup surfaces a Retry that refetches the options.
 export const CategoryOptionsErrorRetry: Story = {
 	render: () => {
-		let attempts = 0;
+		let thrown = false;
 		return (
 			<FilterComboboxHarness
 				initialQuery=""
@@ -554,8 +554,8 @@ export const CategoryOptionsErrorRetry: Story = {
 						label: "Status",
 						icon: <CircleDotIcon />,
 						getOptions: async (query) => {
-							attempts += 1;
-							if (attempts === 1) {
+							if (!thrown) {
+								thrown = true;
 								throw new Error("boom");
 							}
 							return filterOptions(statusOptions, query);
@@ -573,8 +573,15 @@ export const CategoryOptionsErrorRetry: Story = {
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "status:");
-		const retry = await body.findByRole("button", { name: /retry/i });
-		await userEvent.click(retry);
+		await expect(
+			await body.findByText(/Couldn.t load Status options/, {
+				ignore: '[role="status"], script, style',
+			}),
+		).toBeVisible();
+		await expect(body.getByRole("status")).toHaveTextContent(
+			/Couldn.t load Status options/,
+		);
+		await userEvent.click(body.getByRole("button", { name: /retry/i }));
 		await waitFor(() => expect(body.getByText("Running")).toBeVisible());
 	},
 };
@@ -582,7 +589,7 @@ export const CategoryOptionsErrorRetry: Story = {
 // A failed suggestion lookup surfaces a Retry that refetches the typeahead.
 export const TypeaheadErrorRetry: Story = {
 	render: () => {
-		let attempts = 0;
+		let thrown = false;
 		return (
 			<FilterComboboxHarness
 				initialQuery=""
@@ -592,8 +599,8 @@ export const TypeaheadErrorRetry: Story = {
 						label: "Owner",
 						icon: <UserIcon />,
 						getOptions: async (query) => {
-							attempts += 1;
-							if (attempts === 1) {
+							if (query === "alice" && !thrown) {
+								thrown = true;
 								throw new Error("boom");
 							}
 							return filterOptions([{ label: "alice", value: "alice" }], query);
@@ -611,10 +618,118 @@ export const TypeaheadErrorRetry: Story = {
 		});
 		await userEvent.click(input);
 		await userEvent.type(input, "alice");
-		const retry = await body.findByRole("button", { name: /retry/i });
-		await userEvent.click(retry);
+		await expect(
+			await body.findByText(/Couldn.t load suggestions/, {
+				ignore: '[role="status"], script, style',
+			}),
+		).toBeVisible();
+		await expect(body.getByRole("status")).toHaveTextContent(
+			/Couldn.t load suggestions/,
+		);
+		await userEvent.click(body.getByRole("button", { name: /retry/i }));
 		await waitFor(() =>
 			expect(body.getByRole("option", { name: /alice/i })).toBeVisible(),
 		);
+	},
+};
+
+// A failed workspace-preview lookup names the preview source, not suggestions,
+// while the loaded suggestion rows stay visible.
+export const PreviewErrorNamesPreview: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			searchResultsLabel="Jump to workspace"
+			categories={[
+				{
+					key: "owner",
+					label: "Owner",
+					icon: <UserIcon />,
+					getOptions: async (query) =>
+						filterOptions([{ label: "alice", value: "alice" }], query),
+				},
+			]}
+			getSearchResults={async () => {
+				throw new Error("boom");
+			}}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "alice");
+		await expect(
+			await body.findByText(/Couldn.t load workspace previews/, {
+				ignore: '[role="status"], script, style',
+			}),
+		).toBeVisible();
+		await expect(body.getByRole("option", { name: /alice/i })).toBeVisible();
+	},
+};
+
+// A category whose options resolve empty announces a category-aware empty state
+// rather than the browsing "No filters found." copy.
+export const CategoryEmptyState: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				{
+					key: "template",
+					label: "Template",
+					icon: <LayoutGridIcon />,
+					getOptions: async () => [],
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = bodyOf(canvasElement);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "template:");
+		await expect(
+			await body.findByText("No Template matches", {
+				ignore: '[role="status"], script, style',
+			}),
+		).toBeVisible();
+		await expect(body.getByRole("status")).toHaveTextContent(
+			"No Template matches",
+		);
+	},
+};
+
+// Typing a full chip token (a chip-only key like `outdated`, completed with a
+// space) promotes it to a chip and clears the input; a half-typed token stays
+// in the input instead of committing early.
+export const TypingChipTokenCommitsChip: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={categoriesWithAttributes}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		// A partial value must not commit a chip yet.
+		await userEvent.type(input, "outdated:t");
+		await expect(canvas.queryByText("outdated:t")).not.toBeInTheDocument();
+		// Completing the token with a space promotes it and clears the input.
+		await userEvent.type(input, "rue ");
+		await waitFor(() =>
+			expect(canvas.getByText("outdated:true")).toBeVisible(),
+		);
+		await expect(input).toHaveValue("");
 	},
 };

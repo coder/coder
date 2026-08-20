@@ -11,15 +11,13 @@ export const chipToken = (key: string, value: string) => `${key}:${value}`;
 const dedupeInOrder = (
 	pairs: Iterable<{ key: string; value: string }>,
 ): string[] => {
-	const order: string[] = [];
+	// Map keeps first-seen insertion order and updating a key does not move it,
+	// which is exactly "first-seen position, last-seen value".
 	const byKey = new Map<string, string>();
 	for (const { key, value } of pairs) {
-		if (!byKey.has(key)) {
-			order.push(key);
-		}
 		byKey.set(key, value);
 	}
-	return order.map((key) => chipToken(key, byKey.get(key) as string));
+	return [...byKey].map(([key, value]) => chipToken(key, value));
 };
 
 export const parseChipToken = (

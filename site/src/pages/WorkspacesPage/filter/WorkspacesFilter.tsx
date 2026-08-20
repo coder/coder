@@ -23,6 +23,7 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
+	ATTRIBUTE_CHIP_KEYS,
 	getAttributeFilterOptions,
 	getOrganizationFilterOptions,
 	getOwnerFilterOptions,
@@ -43,6 +44,10 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 }) => {
 	const { showOrganizations, entitlements } = useDashboard();
 	const { permissions, user: me } = useAuthenticated();
+	// TODO(DEVEX-421 follow-up): `viewDeploymentConfig` gates Owner on the wrong
+	// capability. Listing users (which the Owner options need) is not the same as
+	// reading the deployment config. Carried over from the legacy page; replace
+	// with a list-users capability check.
 	const canFilterByUser = permissions.viewDeploymentConfig;
 	const canFilterDormant =
 		entitlements.features.advanced_template_scheduling.enabled;
@@ -69,7 +74,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				icon: <SlidersHorizontalIcon />,
 				// Boolean workspace filters live under their own keys, so the
 				// category owns them for chip parsing.
-				chipKeys: ["outdated", "dormant", "shared"],
+				chipKeys: ATTRIBUTE_CHIP_KEYS,
 				getOptions: (query) =>
 					getAttributeFilterOptions(query, { canFilterDormant }),
 			},
@@ -80,7 +85,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				key: "organization",
 				label: "Organization",
 				icon: <Building2Icon />,
-				getOptions: () => getOrganizationFilterOptions(queryClient),
+				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
 			});
 		}
 
@@ -148,7 +153,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				errorId="workspaces-filter-error"
 				getSearchResults={getSearchResults}
 				onSearchResultSelect={onSearchResultSelect}
-				searchResultsLabel="Workspaces"
+				searchResultsLabel="Jump to workspace"
 			/>
 			{showValidationError && (
 				<span

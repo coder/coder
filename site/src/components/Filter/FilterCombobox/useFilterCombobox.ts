@@ -30,8 +30,7 @@ const filterComboboxOptionsKey = (categoryKey: string, query: string) =>
 /**
  * The popup has three mutually exclusive modes. `closed` hides it; `browsing`
  * lists categories plus free-text typeahead suggestions; `category` narrows to
- * one category's options. `open` and `isBrowsing` are derived from `mode` so
- * the previously mirrored booleans and refs can no longer drift apart.
+ * one category's options. `open` and `isBrowsing` are derived from `mode`.
  */
 type Mode = "closed" | "browsing" | "category";
 
@@ -159,7 +158,7 @@ export const useFilterCombobox = ({
 	categoriesRef.current = categories;
 	const getSearchResultsRef = useRef(getSearchResults);
 	getSearchResultsRef.current = getSearchResults;
-	const hasSearchResults = Boolean(getSearchResults);
+	const hasSearchResultsLoader = Boolean(getSearchResults);
 
 	const { debounced: debouncedOnChange, cancelDebounce } = useDebouncedFunction(
 		(query: string) => {
@@ -325,7 +324,7 @@ export const useFilterCombobox = ({
 			return loader(debouncedTypeaheadQuery);
 		},
 		enabled:
-			hasSearchResults &&
+			hasSearchResultsLoader &&
 			debouncedTypeaheadQuery.length > 0 &&
 			activeCategoryKey === null &&
 			isBrowsing,
@@ -333,12 +332,14 @@ export const useFilterCombobox = ({
 
 	const searchResults = searchResultsQuery.data ?? [];
 	const searchResultsLoading =
-		(hasSearchResults && typeaheadQueryPending) ||
+		(hasSearchResultsLoader && typeaheadQueryPending) ||
 		(searchResultsQuery.isFetching && !searchResultsQuery.isError);
-	const typeaheadError =
+	const previewError =
 		activeCategoryKey === null &&
 		isBrowsing &&
-		(suggestionsError || (hasSearchResults && searchResultsQuery.isError));
+		hasSearchResultsLoader &&
+		searchResultsQuery.isError;
+	const typeaheadError = suggestionsError || previewError;
 
 	const typeaheadActive = activeCategoryKey === null && isBrowsing;
 	const hasTypeaheadQuery = typeaheadActive && inputValue.trim().length > 0;
@@ -348,7 +349,9 @@ export const useFilterCombobox = ({
 	const typeaheadLoading =
 		hasTypeaheadQuery &&
 		((valueSuggestionsLoading && valueSuggestions.length === 0) ||
-			(hasSearchResults && searchResultsLoading && searchResults.length === 0));
+			(hasSearchResultsLoader &&
+				searchResultsLoading &&
+				searchResults.length === 0));
 
 	const typeaheadEmpty =
 		hasTypeaheadQuery &&
@@ -358,6 +361,24 @@ export const useFilterCombobox = ({
 		valueSuggestions.length === 0 &&
 		searchResults.length === 0;
 
+	// Name the failing source so the copy points at the right endpoint instead
+	// of blaming suggestions for a preview outage.
+	const typeaheadErrorLabel =
+		suggestionsError && previewError
+			? "Couldn't load results."
+			: previewError
+				? "Couldn't load workspace previews."
+				: suggestionsError
+					? "Couldn't load suggestions."
+					: "";
+
+	const activeOptionsEmpty =
+		activeCategoryKey !== null &&
+		!activeOptionsLoading &&
+		!activeOptionsError &&
+		activeOptions !== undefined &&
+		activeOptions.length === 0;
+
 	// Announce a live-region message for each terminal state so screen readers
 	// hear loading, failures, and empty results rather than silence.
 	let statusMessage = "";
@@ -366,11 +387,13 @@ export const useFilterCombobox = ({
 			? `Loading ${activeCategory.label} options`
 			: activeOptionsError
 				? `Couldn't load ${activeCategory.label} options`
-				: `Filtering by ${activeCategory.label}`;
+				: activeOptionsEmpty
+					? `No ${activeCategory.label} matches`
+					: `Filtering by ${activeCategory.label}`;
 	} else if (typeaheadLoading) {
 		statusMessage = "Loading suggestions";
 	} else if (typeaheadError) {
-		statusMessage = "Couldn't load suggestions";
+		statusMessage = typeaheadErrorLabel;
 	} else if (typeaheadEmpty) {
 		statusMessage = "No filters found";
 	}
@@ -440,15 +463,21 @@ export const useFilterCombobox = ({
 	const handleInputValueChange = (nextValue: string) => {
 		const typedCategory = parseTypedCategoryPrefix(nextValue, categories);
 		if (typedCategory) {
+			// Promote any chip tokens sitting in the prefix's free text (e.g. a
+			// pasted `owner:me template:docker`) instead of re-emitting them as
+			// free text, which would duplicate the token on the next commit.
+			const priorChips = queryToChips(typedCategory.freeText, chipKeys);
+			const mergedChips = dedupeChips([...chipValues, ...priorChips], chipKeys);
+			const cleanedFreeText = extractFreeText(typedCategory.freeText, chipKeys);
 			emitQuery(
-				composeFilterQuery(chipValues, chipKeys, typedCategory.freeText),
+				composeFilterQuery(mergedChips, chipKeys, cleanedFreeText),
 				true,
 			);
 			dispatch({
 				type: "enterCategory",
 				categoryKey: typedCategory.categoryKey,
 				query: typedCategory.query,
-				committedFreeText: typedCategory.freeText,
+				committedFreeText: cleanedFreeText,
 			});
 			return;
 		}
@@ -458,15 +487,32 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		// Typing a recognized chip token directly (not via the category menu)
-		// promotes it to a chip and keeps only the residual free text in the
-		// input, so the token never lingers as both a chip and stale text.
-		const typedChips = queryToChips(nextValue, chipKeys);
-		if (typedChips.length > 0) {
-			const mergedChips = dedupeChips([...chipValues, ...typedChips], chipKeys);
-			const freeText = extractFreeText(nextValue, chipKeys);
-			emitQuery(composeFilterQuery(mergedChips, chipKeys, freeText), true);
-			dispatch({ type: "typeFreeText", value: freeText });
+		// Promote chip tokens the user has finished (a trailing space marks the
+		// last token complete). A chip-shaped token still being typed stays in the
+		// input and is withheld from the emitted query so it does not commit a
+		// half-typed chip such as `dormant:t`.
+		const endsWithSpace = /\s$/.test(nextValue);
+		const fragments = nextValue.split(/\s+/).filter(Boolean);
+		const inProgress = endsWithSpace ? "" : (fragments.pop() ?? "");
+		const settledText = fragments.join(" ");
+		const settledChips = queryToChips(settledText, chipKeys);
+		const inProgressIsPartialChip =
+			inProgress.length > 0 && queryToChips(inProgress, chipKeys).length > 0;
+
+		if (settledChips.length > 0 || inProgressIsPartialChip) {
+			const mergedChips = dedupeChips(
+				[...chipValues, ...settledChips],
+				chipKeys,
+			);
+			const settledFreeText = extractFreeText(settledText, chipKeys);
+			const inputFreeText = inProgressIsPartialChip
+				? [settledFreeText, inProgress].filter(Boolean).join(" ")
+				: settledFreeText;
+			emitQuery(
+				composeFilterQuery(mergedChips, chipKeys, settledFreeText),
+				true,
+			);
+			dispatch({ type: "typeFreeText", value: inputFreeText });
 			return;
 		}
 
@@ -490,7 +536,7 @@ export const useFilterCombobox = ({
 		const isBackspaceOrDelete =
 			event.key === "Backspace" || event.key === "Delete";
 
-		if (isBackspaceOrDelete && inputValue === "" && activeCategory) {
+		if (isBackspaceOrDelete && inputValue === "" && mode === "category") {
 			event.preventDefault();
 			dispatch({ type: "close", input: "restore" });
 			return;
@@ -499,7 +545,7 @@ export const useFilterCombobox = ({
 		if (
 			isBackspaceOrDelete &&
 			inputValue === "" &&
-			!activeCategory &&
+			mode !== "category" &&
 			chipValues.length > 0
 		) {
 			event.preventDefault();
@@ -556,6 +602,7 @@ export const useFilterCombobox = ({
 			active: typeaheadActive,
 			loading: typeaheadLoading,
 			error: typeaheadError,
+			errorLabel: typeaheadErrorLabel,
 			showSearchResults,
 		},
 		actions: {
