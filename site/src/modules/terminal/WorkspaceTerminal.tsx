@@ -52,6 +52,11 @@ type WorkspaceTerminalProps = {
 	onError?: (error: Error) => void;
 	onContentReady?: () => void;
 	reconnectionToken: string;
+	/**
+	 * The session ID correlates all logs, requests, and telemetry for this
+	 * terminal session. Unlike the reconnection token, it is not persisted in
+	 * the URL: a new page load (including a reload) is a new session.
+	 */
 	sessionId: string;
 	baseUrl?: string;
 	terminalFontFamily?: string;
