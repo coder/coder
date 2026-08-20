@@ -172,10 +172,10 @@ install_k9s() {
 	log "Installing k9s ${version}"
 	tmp="$(mktemp -d)"
 	curl --fail --location --output "${tmp}/${archive}" "https://github.com/derailed/k9s/releases/download/${version}/${archive}"
-	curl --fail --location --output "${tmp}/checksums.txt" "https://github.com/derailed/k9s/releases/download/${version}/checksums.txt"
+	curl --fail --location --output "${tmp}/checksums.sha256" "https://github.com/derailed/k9s/releases/download/${version}/checksums.sha256"
 	(
 		cd "${tmp}"
-		grep "  ${archive}$" checksums.txt | sha256sum --check --status
+		grep "  ${archive}$" checksums.sha256 | sha256sum --check --status
 		tar -xzf "${archive}" k9s
 	)
 	install -Dm755 "${tmp}/k9s" "${HOME}/.local/bin/k9s"
