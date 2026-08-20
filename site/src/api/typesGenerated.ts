@@ -3913,6 +3913,12 @@ export interface CreateChatRequest {
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
 	/**
+	 * PrivateMCPServerConfigs declares private stateless MCP servers that
+	 * chatd connects to and executes directly for this chat. The configs are
+	 * never returned by chat APIs or inherited by child chats.
+	 */
+	readonly private_mcp_server_configs?: readonly PrivateMCPServerConfig[];
+	/**
 	 * UnsafeDynamicTools declares client-executed tools that the
 	 * LLM can invoke. This API is highly experimental and highly
 	 * subject to change.
@@ -6104,6 +6110,20 @@ export const MaxChatFileIDs = 50;
  */
 export const MaxChatFileSizeBytes = 10485760;
 
+// From codersdk/mcp.go
+/**
+ * MaxPrivateMCPServerConfigBytes is the aggregate byte limit for all
+ * private MCP server configuration attached to one chat.
+ */
+export const MaxPrivateMCPServerConfigBytes = 24576;
+
+// From codersdk/mcp.go
+/**
+ * MaxPrivateMCPServerConfigs is the maximum number of private MCP
+ * servers that may be attached to one chat.
+ */
+export const MaxPrivateMCPServerConfigs = 5;
+
 // From codersdk/usersecretsimport.go
 /**
  * MaxSecretsFileBytes bounds the raw size of a secrets file before parsing.
@@ -7423,6 +7443,40 @@ export interface PreviewParameterValidation {
 	readonly validation_min: number | null;
 	readonly validation_max: number | null;
 	readonly validation_monotonic: string | null;
+}
+
+// From codersdk/mcp.go
+/**
+ * PrivateMCPServerConfig configures one private stateless streamable HTTP MCP
+ * server for a chat. Name is exposed to the model as the tool namespace. URL,
+ * Headers, and filter values remain server-side and are omitted from chat API
+ * responses and model prompts.
+ *
+ * This experimental POC stores the configuration unencrypted for the lifetime
+ * of the chat. Do not use it for credentials that require encrypted-at-rest
+ * storage.
+ */
+export interface PrivateMCPServerConfig {
+	/**
+	 * Name is a public namespace prefixed to every discovered tool name.
+	 */
+	readonly name: string;
+	/**
+	 * URL is the private stateless streamable HTTP MCP endpoint.
+	 */
+	readonly url: string;
+	/**
+	 * Headers are attached to every MCP request and never returned by chat APIs.
+	 */
+	readonly headers?: Record<string, string>;
+	/**
+	 * ToolAllowList permits only these exact remote tool names when non-empty.
+	 */
+	readonly tool_allow_list?: readonly string[];
+	/**
+	 * ToolDenyList rejects these exact remote tool names when the allow list is empty.
+	 */
+	readonly tool_deny_list?: readonly string[];
 }
 
 // From codersdk/deployment.go

@@ -50,6 +50,36 @@ func (c *Client) MCPServerOAuth2DisconnectWithResponse(ctx context.Context, id u
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
+const (
+	// MaxPrivateMCPServerConfigs is the maximum number of private MCP
+	// servers that may be attached to one chat.
+	MaxPrivateMCPServerConfigs = 5
+	// MaxPrivateMCPServerConfigBytes is the aggregate byte limit for all
+	// private MCP server configuration attached to one chat.
+	MaxPrivateMCPServerConfigBytes = 24 * 1024
+)
+
+// PrivateMCPServerConfig configures one private stateless streamable HTTP MCP
+// server for a chat. Name is exposed to the model as the tool namespace. URL,
+// Headers, and filter values remain server-side and are omitted from chat API
+// responses and model prompts.
+//
+// This experimental POC stores the configuration unencrypted for the lifetime
+// of the chat. Do not use it for credentials that require encrypted-at-rest
+// storage.
+type PrivateMCPServerConfig struct {
+	// Name is a public namespace prefixed to every discovered tool name.
+	Name string `json:"name" validate:"required"`
+	// URL is the private stateless streamable HTTP MCP endpoint.
+	URL string `json:"url" validate:"required,url"`
+	// Headers are attached to every MCP request and never returned by chat APIs.
+	Headers map[string]string `json:"headers,omitempty"`
+	// ToolAllowList permits only these exact remote tool names when non-empty.
+	ToolAllowList []string `json:"tool_allow_list,omitempty"`
+	// ToolDenyList rejects these exact remote tool names when the allow list is empty.
+	ToolDenyList []string `json:"tool_deny_list,omitempty"`
+}
+
 // MCPServerConfig represents an admin-configured MCP server.
 type MCPServerConfig struct {
 	ID             uuid.UUID `json:"id" format:"uuid"`

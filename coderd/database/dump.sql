@@ -2074,6 +2074,13 @@ CREATE TABLE chat_model_configs (
     CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0))
 );
 
+CREATE TABLE chat_private_mcp_server_configs (
+    chat_id uuid NOT NULL,
+    configs jsonb NOT NULL
+);
+
+COMMENT ON TABLE chat_private_mcp_server_configs IS 'POC-only chat-scoped private stateless MCP server configuration. Stored unencrypted and omitted from API responses and model prompts.';
+
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
     INCREMENT BY 1
@@ -4383,6 +4390,9 @@ ALTER TABLE ONLY chat_messages
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_private_mcp_server_configs
+    ADD CONSTRAINT chat_private_mcp_server_configs_pkey PRIMARY KEY (chat_id);
+
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
 
@@ -5250,6 +5260,9 @@ ALTER TABLE ONLY chat_model_configs
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
+
+ALTER TABLE ONLY chat_private_mcp_server_configs
+    ADD CONSTRAINT chat_private_mcp_server_configs_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

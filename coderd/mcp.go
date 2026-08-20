@@ -370,7 +370,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			// advertises), so all discovery traffic goes through an
 			// SSRF-guarded client that refuses private/internal
 			// destinations (CDM-02-002).
-			httpClient := newMCPDiscoveryHTTPClient(api.HTTPClient, api.MCPOAuth2DiscoveryAllowedIPRanges)
+			httpClient := newMCPSSRFHTTPClient(api.HTTPClient, api.MCPOAuth2DiscoveryAllowedIPRanges)
 			result, err := discoverAndRegisterMCPOAuth2(ctx, httpClient, strings.TrimSpace(req.URL), callbackURL)
 			if err != nil {
 				api.Logger.Warn(ctx, "mcp oauth2 auto-discovery failed",

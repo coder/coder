@@ -3468,6 +3468,46 @@ func TestCreateChildSubagentChat_InheritsMCPServerIDs(t *testing.T) {
 		"child chat must inherit MCP server IDs from parent")
 }
 
+func TestCreateChildSubagentChat_DoesNotInheritPrivateMCPServerConfigs(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	privateConfigs, err := json.Marshal([]codersdk.PrivateMCPServerConfig{{
+		Name:    "private",
+		URL:     "https://mcp.example.com",
+		Headers: map[string]string{"Authorization": "Bearer private-canary"},
+	}})
+	require.NoError(t, err)
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:          org.ID,
+		OwnerID:                 user.ID,
+		Title:                   "parent-with-private-mcp",
+		ModelConfigID:           model.ID,
+		PrivateMCPServerConfigs: privateConfigs,
+		InitialUserContent:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+	_, err = db.GetChatPrivateMCPServerConfigsByChatID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	child, err := server.createChildSubagentChatWithOptions(
+		ctx,
+		parentChat,
+		"do some work",
+		"child-private-mcp",
+		childSubagentChatOptions{},
+	)
+	require.NoError(t, err)
+	_, err = db.GetChatPrivateMCPServerConfigsByChatID(ctx, child.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
 func TestCreateChildSubagentChat_NoMCPServersStaysEmpty(t *testing.T) {
 	t.Parallel()
 

@@ -4940,6 +4940,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "plan_mode": "plan",
+  "private_mcp_server_configs": [
+    {
+      "headers": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "name": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "url": "string"
+    }
+  ],
   "reasoning_effort": "string",
   "system_prompt": "string",
   "unsafe_dynamic_tools": [
@@ -4957,20 +4973,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                |
-|------------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                            |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                            |
-| `labels`               | object                                                    | false    |              |                                                                                                                                            |
-| » `[any property]`     | string                                                    | false    |              |                                                                                                                                            |
-| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                            |
-| `model_config_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `organization_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                            |
-| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                            |
-| `system_prompt`        | string                                                    | false    |              |                                                                                                                                            |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change. |
-| `workspace_id`         | string                                                    | false    |              |                                                                                                                                            |
+| Name                         | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                            |
+|------------------------------|-----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`                | [codersdk.ChatClientType](#codersdkchatclienttype)                          | false    |              |                                                                                                                                                                                                        |
+| `content`                    | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                                                                                                                        |
+| `labels`                     | object                                                                      | false    |              |                                                                                                                                                                                                        |
+| » `[any property]`           | string                                                                      | false    |              |                                                                                                                                                                                                        |
+| `mcp_server_ids`             | array of string                                                             | false    |              |                                                                                                                                                                                                        |
+| `model_config_id`            | string                                                                      | false    |              |                                                                                                                                                                                                        |
+| `organization_id`            | string                                                                      | false    |              |                                                                                                                                                                                                        |
+| `plan_mode`                  | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              |                                                                                                                                                                                                        |
+| `private_mcp_server_configs` | array of [codersdk.PrivateMCPServerConfig](#codersdkprivatemcpserverconfig) | false    |              | Private mcp server configs declares private stateless MCP servers that chatd connects to and executes directly for this chat. The configs are never returned by chat APIs or inherited by child chats. |
+| `reasoning_effort`           | string                                                                      | false    |              |                                                                                                                                                                                                        |
+| `system_prompt`              | string                                                                      | false    |              |                                                                                                                                                                                                        |
+| `unsafe_dynamic_tools`       | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                                             |
+| `workspace_id`               | string                                                                      | false    |              |                                                                                                                                                                                                        |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -10791,6 +10808,36 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `validation_min`       | integer | false    |              |                                         |
 | `validation_monotonic` | string  | false    |              |                                         |
 | `validation_regex`     | string  | false    |              | All validation attributes are optional. |
+
+## codersdk.PrivateMCPServerConfig
+
+```json
+{
+  "headers": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "name": "string",
+  "tool_allow_list": [
+    "string"
+  ],
+  "tool_deny_list": [
+    "string"
+  ],
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name               | Type            | Required | Restrictions | Description                                                                        |
+|--------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------|
+| `headers`          | object          | false    |              | Headers are attached to every MCP request and never returned by chat APIs.         |
+| » `[any property]` | string          | false    |              |                                                                                    |
+| `name`             | string          | true     |              | Name is a public namespace prefixed to every discovered tool name.                 |
+| `tool_allow_list`  | array of string | false    |              | Tool allow list permits only these exact remote tool names when non-empty.         |
+| `tool_deny_list`   | array of string | false    |              | Tool deny list rejects these exact remote tool names when the allow list is empty. |
+| `url`              | string          | true     |              | URL is the private stateless streamable HTTP MCP endpoint.                         |
 
 ## codersdk.PrometheusConfig
 

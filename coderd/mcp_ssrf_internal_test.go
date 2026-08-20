@@ -123,10 +123,10 @@ func TestMCPDiscoveryHTTPClientSSRF(t *testing.T) {
 		}))
 		t.Cleanup(mcpServer.Close)
 
-		client := newMCPDiscoveryHTTPClient(nil, nil)
+		client := newMCPSSRFHTTPClient(nil, nil)
 		_, err := discoverAndRegisterMCPOAuth2(ctx, client, mcpServer.URL+"/v1/mcp", "https://coder.example.com/callback")
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "not permitted for MCP OAuth2 discovery")
+		require.Contains(t, err.Error(), "not permitted for MCP requests")
 		require.EqualValues(t, 0, hits.Load(), "loopback MCP server must never be contacted")
 	})
 
@@ -146,7 +146,7 @@ func TestMCPDiscoveryHTTPClientSSRF(t *testing.T) {
 		_, port, err := net.SplitHostPort(strings.TrimPrefix(srv.URL, "http://"))
 		require.NoError(t, err)
 
-		client := newMCPDiscoveryHTTPClient(nil, nil)
+		client := newMCPSSRFHTTPClient(nil, nil)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost:"+port+"/", nil)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
@@ -154,7 +154,7 @@ func TestMCPDiscoveryHTTPClientSSRF(t *testing.T) {
 			_ = resp.Body.Close()
 		}
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "not permitted for MCP OAuth2 discovery")
+		require.Contains(t, err.Error(), "not permitted for MCP requests")
 		require.EqualValues(t, 0, hits.Load(), "server behind loopback-resolving hostname must never be contacted")
 	})
 
@@ -172,7 +172,7 @@ func TestMCPDiscoveryHTTPClientSSRF(t *testing.T) {
 		}))
 		t.Cleanup(attacker.Close)
 
-		client := newMCPDiscoveryHTTPClient(nil, allowOnly127001)
+		client := newMCPSSRFHTTPClient(nil, allowOnly127001)
 		_, err := discoverAndRegisterMCPOAuth2(ctx, client, attacker.URL+"/v1/mcp", "https://coder.example.com/callback")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "blocked")
@@ -210,7 +210,7 @@ func TestMCPDiscoveryHTTPClientSSRF(t *testing.T) {
 		}))
 		t.Cleanup(attacker.Close)
 
-		client := newMCPDiscoveryHTTPClient(nil, allowOnly127001)
+		client := newMCPSSRFHTTPClient(nil, allowOnly127001)
 		_, err := discoverAndRegisterMCPOAuth2(ctx, client, attacker.URL, "https://coder.example.com/callback")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "blocked")
@@ -228,7 +228,7 @@ func TestMCPDiscoveryHTTPClientSSRF(t *testing.T) {
 		}))
 		t.Cleanup(attacker.Close)
 
-		client := newMCPDiscoveryHTTPClient(nil, allowOnly127001)
+		client := newMCPSSRFHTTPClient(nil, allowOnly127001)
 		_, err := discoverAndRegisterMCPOAuth2(ctx, client, attacker.URL+"/v1/mcp", "https://coder.example.com/callback")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "blocked")
@@ -264,7 +264,7 @@ func TestMCPDiscoveryHTTPClientSSRF(t *testing.T) {
 		}))
 		t.Cleanup(server.Close)
 
-		client := newMCPDiscoveryHTTPClient(nil, allowOnly127001)
+		client := newMCPSSRFHTTPClient(nil, allowOnly127001)
 		result, err := discoverAndRegisterMCPOAuth2(ctx, client, server.URL, "https://coder.example.com/callback")
 		require.NoError(t, err)
 		require.Equal(t, "test-client", result.clientID)

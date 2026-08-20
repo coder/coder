@@ -182,6 +182,7 @@ type Server struct {
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
+	privateMCPHTTPClient           *http.Client
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -1124,6 +1125,7 @@ type CreateOptions struct {
 	MCPServerIDs            []uuid.UUID
 	Labels                  database.StringMap
 	DynamicTools            json.RawMessage
+	PrivateMCPServerConfigs json.RawMessage
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1387,6 +1389,10 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		DynamicTools: pqtype.NullRawMessage{
 			RawMessage: opts.DynamicTools,
 			Valid:      len(opts.DynamicTools) > 0,
+		},
+		PrivateMCPServerConfigs: pqtype.NullRawMessage{
+			RawMessage: opts.PrivateMCPServerConfigs,
+			Valid:      len(opts.PrivateMCPServerConfigs) > 0,
 		},
 		ClientType:      opts.ClientType,
 		InitialMessages: initialMessages,
@@ -3063,6 +3069,11 @@ type Config struct {
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
+	// PrivateMCPHTTPClient is the SSRF-guarded client used for private
+	// chat-scoped MCP server connections. It must be non-nil when private MCP
+	// configurations can enter through the API.
+	PrivateMCPHTTPClient *http.Client
+
 	// OIDCTokenSource resolves the calling user's OIDC access
 	// token for MCP servers configured with auth_type=user_oidc.
 	// May be nil if the deployment has no OIDC provider; servers
@@ -3149,6 +3160,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
 		oidcTokenSource:                cfg.OIDCTokenSource,
+		privateMCPHTTPClient:           cfg.PrivateMCPHTTPClient,
 		debugSvcFactory: func() *chatdebug.Service {
 			debugSvc := chatdebug.NewService(
 				cfg.Database,

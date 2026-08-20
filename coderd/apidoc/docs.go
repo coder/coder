@@ -19269,6 +19269,13 @@ const docTemplate = `{
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
                 },
+                "private_mcp_server_configs": {
+                    "description": "PrivateMCPServerConfigs declares private stateless MCP servers that\nchatd connects to and executes directly for this chat. The configs are\nnever returned by chat APIs or inherited by child chats.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.PrivateMCPServerConfig"
+                    }
+                },
                 "reasoning_effort": {
                     "type": "string"
                 },
@@ -23782,6 +23789,44 @@ const docTemplate = `{
                 },
                 "validation_regex": {
                     "description": "All validation attributes are optional.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.PrivateMCPServerConfig": {
+            "type": "object",
+            "required": [
+                "name",
+                "url"
+            ],
+            "properties": {
+                "headers": {
+                    "description": "Headers are attached to every MCP request and never returned by chat APIs.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "description": "Name is a public namespace prefixed to every discovered tool name.",
+                    "type": "string"
+                },
+                "tool_allow_list": {
+                    "description": "ToolAllowList permits only these exact remote tool names when non-empty.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tool_deny_list": {
+                    "description": "ToolDenyList rejects these exact remote tool names when the allow list is empty.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "url": {
+                    "description": "URL is the private stateless streamable HTTP MCP endpoint.",
                     "type": "string"
                 }
             }

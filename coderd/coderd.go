@@ -262,12 +262,11 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
-	// MCPOAuth2DiscoveryAllowedIPRanges exempts IP ranges from the
-	// SSRF guard applied to MCP OAuth2 metadata discovery and dynamic
-	// client registration, which refuse private/internal destinations
-	// by default. This is a seam for tests, which serve their mock MCP
-	// servers on loopback; there is intentionally no user-facing
-	// configuration for it.
+	// MCPOAuth2DiscoveryAllowedIPRanges exempts IP ranges from the SSRF
+	// guard applied to MCP OAuth2 discovery and private chat-scoped MCP
+	// connections, which refuse private or internal destinations by default.
+	// This is a seam for tests that serve mock MCP servers on loopback; there
+	// is intentionally no user-facing configuration for it.
 	MCPOAuth2DiscoveryAllowedIPRanges []netip.Prefix
 	// ChatStreamPartsDialer dials remote chat stream parts.
 	// Set by enterprise for HA deployments. Nil uses chatd's local
@@ -956,6 +955,7 @@ func New(options *Options) *API {
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
+				PrivateMCPHTTPClient:           newMCPSSRFHTTPClient(options.HTTPClient, options.MCPOAuth2DiscoveryAllowedIPRanges),
 				OIDCTokenSource:                oidcMCPSrc,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,

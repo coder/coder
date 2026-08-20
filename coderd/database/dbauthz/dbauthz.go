@@ -3551,6 +3551,16 @@ func (q *querier) GetChatPlanModeInstructions(ctx context.Context) (string, erro
 	return q.db.GetChatPlanModeInstructions(ctx)
 }
 
+func (q *querier) GetChatPrivateMCPServerConfigsByChatID(ctx context.Context, chatID uuid.UUID) (json.RawMessage, error) {
+	// Private MCP configs contain credentials and are consumed only by chatd.
+	// Requiring deployment-config read prevents ordinary chat readers from
+	// accessing the raw server-side payload through this query.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatPrivateMCPServerConfigsByChatID(ctx, chatID)
+}
+
 func (q *querier) GetChatQueuedForCapacity(ctx context.Context, arg database.GetChatQueuedForCapacityParams) (bool, error) {
 	// The pool-fullness derivation counts other users' chats, so require
 	// deployment-wide chat read rather than per-chat authorization.
@@ -6111,6 +6121,17 @@ func (q *querier) InsertChatModelConfig(ctx context.Context, arg database.Insert
 		return database.ChatModelConfig{}, err
 	}
 	return q.db.InsertChatModelConfig(ctx, arg)
+}
+
+func (q *querier) InsertChatPrivateMCPServerConfigs(ctx context.Context, arg database.InsertChatPrivateMCPServerConfigsParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.InsertChatPrivateMCPServerConfigs(ctx, arg)
 }
 
 func (q *querier) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {

@@ -854,6 +854,8 @@ The generation goroutine supports:
 - turn limit after a user message (the LLM shouldn't be able to spin forever in loop)
 - and other things
 
+> TODO(chatd): Document the private chat-scoped MCP proof of concept before promotion. Cover API-only creation, unencrypted server-side persistence, SSRF-guarded direct execution, credential redaction, chat-lifetime behavior across queues, retries, edits, and compaction, and explicit child-chat non-inheritance.
+
 ##### Reasoning effort
 
 Model configs may carry a `reasoning_effort` config (`{default, max}`) inside `chat_model_configs.options`. Users select a per-turn effort when sending or editing a message; the value is stored on `chat_messages.reasoning_effort` and on `chat_queued_messages.reasoning_effort` for queued messages. Queued messages carry the value through promotion, and `chats.last_reasoning_effort` tracks the most recent message that set one, mirroring `last_model_config_id`.
