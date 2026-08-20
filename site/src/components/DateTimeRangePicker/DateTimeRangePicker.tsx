@@ -9,7 +9,7 @@
  */
 
 import { CalendarIcon, CheckIcon, ChevronDownIcon } from "lucide-react";
-import { type FC, type KeyboardEvent, useId, useState } from "react";
+import { type FC, type KeyboardEvent, useEffect, useId, useState } from "react";
 import type { DateRange as DayPickerDateRange } from "react-day-picker";
 import { Button, type ButtonProps } from "#/components/Button/Button";
 import { Calendar } from "#/components/Calendar/Calendar";
@@ -49,6 +49,10 @@ interface DateTimeRangePickerProps {
 
 const INVALID_TIME_MESSAGE = "Enter a valid time, e.g. 09:30:00";
 const RANGE_ORDER_MESSAGE = "End must be after start";
+// How long the floating error stays visible before fading, mirroring
+// toast behavior. The invalid field styling and disabled Apply remain
+// until the input is corrected.
+const ERROR_DISMISS_TIMEOUT_MS = 5_000;
 
 interface TimeFieldsState {
 	from: string;
@@ -175,6 +179,25 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	// stable; inline errors would grow the panel and shift the layout.
 	const errorMessage = fromTimeError ?? toTimeError ?? rangeError;
 
+	// Toast-style dismissal: each message hides after a timeout but is
+	// remembered so it does not reappear until the error actually changes.
+	const [dismissedMessage, setDismissedMessage] = useState<string | null>(null);
+	useEffect(() => {
+		if (errorMessage === null) {
+			setDismissedMessage(null);
+			return;
+		}
+		const timer = window.setTimeout(
+			() => setDismissedMessage(errorMessage),
+			ERROR_DISMISS_TIMEOUT_MS,
+		);
+		return () => window.clearTimeout(timer);
+	}, [errorMessage]);
+	const visibleError =
+		errorMessage !== null && errorMessage !== dismissedMessage
+			? errorMessage
+			: null;
+
 	const apply = () => {
 		if (draftStart && draftEnd) {
 			onChange({ start: draftStart, end: draftEnd });
@@ -253,13 +276,13 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 									endMonth={currentTime}
 									today={currentTime}
 								/>
-								{errorMessage !== null && (
+								{visibleError !== null && (
 									<div
 										id={errorId}
 										role="alert"
 										className="pointer-events-none absolute inset-x-3 bottom-3 rounded-md border border-solid border-border-destructive bg-surface-primary px-3 py-2 text-sm text-content-destructive shadow-md"
 									>
-										{errorMessage}
+										{visibleError}
 									</div>
 								)}
 							</div>
@@ -272,7 +295,11 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 									time={timeFields.from}
 									meridiem={timeFields.fromMeridiem}
 									invalid={fromTimeError !== null}
-									describedBy={fromTimeError !== null ? errorId : undefined}
+									describedBy={
+										fromTimeError !== null && visibleError === fromTimeError
+											? errorId
+											: undefined
+									}
 									onTimeChange={(time) =>
 										setTimeFields((fields) => ({ ...fields, from: time }))
 									}
@@ -296,7 +323,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 									meridiem={timeFields.toMeridiem}
 									invalid={toTimeError !== null}
 									describedBy={
-										toTimeError !== null && fromTimeError === null
+										toTimeError !== null && visibleError === toTimeError
 											? errorId
 											: undefined
 									}

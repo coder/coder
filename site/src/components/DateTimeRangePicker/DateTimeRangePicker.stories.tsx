@@ -269,6 +269,17 @@ export const InvalidTimeDisablesApply: Story = {
 			"Enter a valid time, e.g. 09:30:00",
 		);
 
+		// The message dismisses itself like a toast, while the invalid
+		// styling and disabled Apply persist until the input is fixed.
+		await waitFor(
+			() => {
+				expect(screen.queryByRole("alert")).toBeNull();
+			},
+			{ timeout: 7_000 },
+		);
+		expect(fromInput).toHaveAttribute("aria-invalid", "true");
+		expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+
 		// Fixing the time re-enables Apply.
 		await userEvent.clear(fromInput);
 		await userEvent.type(fromInput, "09:15:00");
