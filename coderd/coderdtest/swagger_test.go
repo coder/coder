@@ -20,7 +20,13 @@ func TestEndpointsDocumented(t *testing.T) {
 	require.NoError(t, err, "can't parse swagger comments")
 	require.NotEmpty(t, swaggerComments, "swagger comments must be present")
 
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	// Coder Tasks has no swagger annotations because it is withdrawn from the
+	// product, so verify against a deployment where its routes are not
+	// registered.
+	values := coderdtest.DeploymentValues(t)
+	values.EnableAITasks = false
+
+	_, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{DeploymentValues: values})
 	coderdtest.VerifySwaggerDefinitions(t, api.APIHandler, swaggerComments, coderdtest.WithSwaggerRoutePrefix("/api/v2"))
 }
 

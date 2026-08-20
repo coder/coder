@@ -20,8 +20,9 @@ const { mockSessionId } = vi.hoisted(() => ({
 	mockSessionId: "0123456789abcdef0123456789abcdef",
 }));
 
-vi.mock("uuid", () => ({
-	v4: () => "terminal-page-test-reconnect-token",
+vi.mock("#/utils/random", () => ({
+	generateUUID: () => "terminal-page-test-reconnect-token",
+	generateConnectionSessionId: () => mockSessionId,
 }));
 vi.stubGlobal("jest", vi);
 await import("jest-canvas-mock");
