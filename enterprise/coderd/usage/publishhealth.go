@@ -7,10 +7,11 @@ import (
 
 // PublishHealth tracks publisher outcomes observed by this process.
 type PublishHealth struct {
-	mu               sync.RWMutex
-	epoch            uint64
-	lastPublishedAt  time.Time
-	failureStartedAt time.Time
+	mu                      sync.RWMutex
+	epoch                   uint64
+	lastPublishedAt         time.Time
+	failureStartedAt        time.Time
+	postPublishUpdateFailed bool
 }
 
 // PublishHealthSnapshot is a point-in-time copy of publisher health.
@@ -39,8 +40,24 @@ func (h *PublishHealth) recordCycleFailure(epoch uint64, now time.Time) {
 func (h *PublishHealth) recordCycleHealthy(epoch uint64) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.epoch == epoch {
+	if h.epoch == epoch && !h.postPublishUpdateFailed {
 		h.failureStartedAt = time.Time{}
+	}
+}
+
+func (h *PublishHealth) recordCyclePostPublishUpdateFailure(epoch uint64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.epoch == epoch {
+		h.postPublishUpdateFailed = true
+	}
+}
+
+func (h *PublishHealth) recordCyclePostPublishUpdateSuccess(epoch uint64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.epoch == epoch {
+		h.postPublishUpdateFailed = false
 	}
 }
 
@@ -66,6 +83,7 @@ func (h *PublishHealth) RecordHealthy() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.failureStartedAt = time.Time{}
+	h.postPublishUpdateFailed = false
 }
 
 // RecordPublished records a successfully persisted publish.
@@ -82,6 +100,7 @@ func (h *PublishHealth) Reset() {
 	h.epoch++
 	h.lastPublishedAt = time.Time{}
 	h.failureStartedAt = time.Time{}
+	h.postPublishUpdateFailed = false
 }
 
 // Snapshot returns a copy of the current publisher health.

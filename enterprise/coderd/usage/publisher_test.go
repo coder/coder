@@ -826,7 +826,9 @@ func TestPublisherPostPublishUpdateError(t *testing.T) {
 	clock.Set(now)
 
 	deploymentID, licenseJWT := configureMockDeployment(t, db)
+	var publishCalls int
 	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), licenseJWT, func(req usagetypes.TallymanV1IngestRequest) any {
+		publishCalls++
 		return tallymanAcceptAllHandler(req)
 	}))
 	publishHealth := &usage.PublishHealth{}
@@ -852,17 +854,54 @@ func TestPublisherPostPublishUpdateError(t *testing.T) {
 		EventType: string(usagetypes.UsageEventTypeDCManagedAgentsV1),
 		EventData: []byte(jsoninate(t, usagetypes.DCManagedAgentsV1{Count: 1})),
 	}}
+	recoveryEvents := []database.UsageEvent{{
+		ID:        uuid.NewString(),
+		EventType: string(usagetypes.UsageEventTypeDCManagedAgentsV1),
+		EventData: []byte(jsoninate(t, usagetypes.DCManagedAgentsV1{Count: 2})),
+	}}
+	db.EXPECT().GetUnexpiredLicenses(gomock.Any()).Return([]database.License{{
+		ID:         1,
+		UploadedAt: dbtime.Now(),
+		JWT:        licenseJWT,
+		Exp:        dbtime.Now().Add(48 * time.Hour),
+		UUID:       uuid.New(),
+	}}, nil).Times(2)
 	db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), gomock.Any()).Return(events, nil)
 	db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), gomock.Any()).Return(assert.AnError)
+	db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), gomock.Any()).Return(nil, nil)
+	db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), gomock.Any()).Return(recoveryEvents, nil)
+	db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), gomock.Any()).Return(nil)
 
 	tickerResetTrap := clock.Trap().TickerReset()
 	defer tickerResetTrap.Close()
 	clock.Advance(tickerCall.Duration)
+	tickerResetCall := tickerResetTrap.MustWait(ctx)
+	tickerResetCall.MustRelease(ctx)
+
+	failureStartedAt := now.Add(tickerCall.Duration)
+	snapshot := publishHealth.Snapshot()
+	require.Equal(t, failureStartedAt, snapshot.FailureStartedAt)
+	require.True(t, snapshot.LastPublishedAt.IsZero())
+	require.Equal(t, 1, publishCalls)
+
+	// Claimed events remain unavailable until their one-hour claim expires, so
+	// an empty cycle cannot confirm recovery from the failed database update.
+	clock.Advance(tickerResetCall.Duration)
+	tickerResetCall = tickerResetTrap.MustWait(ctx)
+	tickerResetCall.MustRelease(ctx)
+
+	snapshot = publishHealth.Snapshot()
+	require.Equal(t, failureStartedAt, snapshot.FailureStartedAt)
+	require.True(t, snapshot.LastPublishedAt.IsZero())
+	require.Equal(t, 1, publishCalls)
+
+	clock.Advance(tickerResetCall.Duration)
 	tickerResetTrap.MustWait(ctx).MustRelease(ctx)
 
-	snapshot := publishHealth.Snapshot()
-	require.Equal(t, now.Add(tickerCall.Duration), snapshot.FailureStartedAt)
-	require.True(t, snapshot.LastPublishedAt.IsZero())
+	snapshot = publishHealth.Snapshot()
+	require.True(t, snapshot.FailureStartedAt.IsZero())
+	require.Equal(t, clock.Now(), snapshot.LastPublishedAt)
+	require.Equal(t, 2, publishCalls)
 }
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)

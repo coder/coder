@@ -72,7 +72,9 @@ request.
 
 Coder shows an administrator warning after publishing fails continuously for
 24 hours. The warning clears after the next publishing cycle that completes
-without an error. A cycle with no events to publish is successful.
+without an error. A cycle with no events to publish is successful unless the
+previous failure prevented Coder from saving publish results. In that case, a
+later cycle must save results successfully to clear the warning.
 
 The status is process-local and best effort. Its timestamps reset when coderd
 restarts and can differ between replicas in a high availability deployment. If
