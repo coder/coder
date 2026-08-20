@@ -27,6 +27,9 @@ function actually exercises the interaction. Jest/RTL tests are for pure logic
   not only the happy path.
 - Assert both sides of an invariant: the item that changed and a neighboring
   item that must not change.
+- When a component depends on the current time or date, accept it as a prop or
+  via context instead of reading `new Date()` or `Date.now()` internally, so
+  stories render deterministically without mocking globals.
 
 **Incorrect (interaction test in Jest/RTL):**
 
@@ -61,6 +64,8 @@ export const SelectModel: Story = {
 - Use generated types from `api/typesGenerated.ts` for all API data. Never
   re-declare a type that the backend already generates.
 - If a component requires a prop to function, make the prop required.
+- Avoid `@ts-ignore` and `biome-ignore` suppression comments. Seek a
+  better-typed alternative first, and document why when one is unavoidable.
 
 **Incorrect:**
 
@@ -121,6 +126,9 @@ Every view that renders server data must handle this matrix:
 - When a mutation partially fails, the UI must reflect what succeeded and what
   did not (see FE7 for cache invalidation).
 - Render a visible fallback ("Untitled", "N/A") for nullable display data.
+- Never use `key={String(booleanState)}` to force a remount. When the boolean
+  flips, React synchronously unmounts and remounts the subtree, discarding its
+  state and killing exit animations.
 
 ## FE6: Accessibility is behavior, not decoration
 
@@ -133,6 +141,9 @@ Every view that renders server data must handle this matrix:
 - Preserve focus position across dialogs and route transitions.
 - When visually hiding an interactive element, also remove it from the tab
   order and accessibility tree, or conditionally render it out of the DOM.
+- Generate IDs for form elements, labels, and ARIA attributes with
+  `React.useId()`. Hard-coded string IDs collide when a component renders more
+  than once on a page.
 
 ## FE7: React Query discipline
 
