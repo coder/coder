@@ -18,6 +18,17 @@ func anthropicCfg(url string, key string) config.Anthropic {
 	}
 }
 
+// bedrockAnthropicCfg is anthropicCfg with the name pinned to "anthropic" so
+// the Bedrock provider's route prefix stays /anthropic, matching the request
+// paths used by the bedrock integration tests (e.g. pathAnthropicMessages).
+// The old Anthropic-based bedrock provider defaulted the empty name to
+// "anthropic"; the standalone Bedrock provider defaults to "bedrock".
+func bedrockAnthropicCfg(url string, key string) config.Anthropic {
+	cfg := anthropicCfg(url, key)
+	cfg.Name = config.ProviderAnthropic
+	return cfg
+}
+
 func anthropicCfgWithAPIDump(url string, key string, dumpDir string) config.Anthropic {
 	cfg := anthropicCfg(url, key)
 	cfg.APIDumpDir = dumpDir
