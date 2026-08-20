@@ -97,6 +97,7 @@ Browse the [documentation](https://coder.com/docs) or visit a specific section b
 - [**Workspaces**](https://coder.com/docs/user-guides/workspace-management): Workspaces contain the IDEs, dependencies, and configuration information needed for software development
 - [**Templates**](https://coder.com/docs/admin/templates): Templates are written in Terraform and describe the infrastructure for workspaces
 - [**Coder Agents**](https://coder.com/docs/ai-coder/agents): Delegate coding work to AI agents running on your self-hosted infrastructure
+- [**AI Gateway**](https://coder.com/docs/ai-coder/ai-gateway): Centralize authentication, auditing, and MCP administration for AI tooling
 - [**Administration**](https://coder.com/docs/admin): Learn how to operate Coder
 - [**Premium**](https://coder.com/pricing#compare-plans): Learn about paid features built for large teams
 - [**IDEs**](https://coder.com/docs/user-guides/workspace-access): Connect your existing editor to a workspace
