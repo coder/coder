@@ -115,6 +115,7 @@ New integrations are always in progress. Open an issue to request one. Contribut
 ### Official
 
 - [**Coder Registry**](https://registry.coder.com): Templates, modules, and integrations for common development environments
+- [**Coding Agents**](https://registry.coder.com/modules?search=tag%3Aagent): Run agents like Claude Code, Codex, and OpenCode isolated in Coder workspaces
 - [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote): Open any Coder workspace in VS Code with a single click
 - [**JetBrains Toolbox Plugin**](https://plugins.jetbrains.com/plugin/26968-coder): Open any Coder workspace from JetBrains Toolbox with a single click
 - [**Dev Containers**](https://coder.com/docs/user-guides/devcontainers): Build development environments using `devcontainer.json` on Docker, Kubernetes, and OpenShift
