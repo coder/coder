@@ -410,6 +410,7 @@ export const parseMessagesWithMergedTools = (
 			}
 		}
 	}
+
 	return rawParsed;
 };
 

@@ -86,10 +86,8 @@ type ExecuteResult struct {
 	Note                string                          `json:"note,omitempty"`
 	BackgroundProcessID string                          `json:"background_process_id,omitempty"`
 	Command             string                          `json:"command,omitempty"`
-
-	Running bool `json:"running,omitempty"`
-
-	Backgrounded bool `json:"backgrounded,omitempty"`
+	Running             bool                            `json:"running,omitempty"`
+	Backgrounded        bool                            `json:"backgrounded,omitempty"`
 }
 
 // ExecuteOptions configures the execute tool.
