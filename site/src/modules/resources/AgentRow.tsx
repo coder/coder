@@ -685,7 +685,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 																	<span className="sr-only">More log tabs</span>
 																</button>
 															</DropdownMenuTrigger>
-															<DropdownMenuContent align="end">
+															<DropdownMenuContent
+																align="end"
+																className="max-h-56 overflow-y-auto"
+															>
 																<DropdownMenuRadioGroup
 																	value={selectedLogTab}
 																	onValueChange={handleSelectedLogTabChange}

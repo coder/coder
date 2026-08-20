@@ -1391,8 +1391,9 @@ type ChatModelAnthropicProviderOptions struct {
 
 // ChatModelGoogleThinkingConfig configures Google thinking behavior.
 type ChatModelGoogleThinkingConfig struct {
-	ThinkingBudget  *int64 `json:"thinking_budget,omitempty" description:"Maximum number of tokens the model may use for thinking"`
-	IncludeThoughts *bool  `json:"include_thoughts,omitempty" description:"Whether to include thinking content in the response"`
+	ThinkingBudget  *int64  `json:"thinking_budget,omitempty" description:"Maximum number of tokens the model may use for thinking (cannot be used with thinking_level)" conflicts_with:"thinking_config.thinking_level"`
+	ThinkingLevel   *string `json:"thinking_level,omitempty" description:"Thinking level for Gemini 3+ models, used when the user has not selected a reasoning effort (cannot be used with thinking_budget)" enum:"minimal,low,medium,high" conflicts_with:"thinking_config.thinking_budget"`
+	IncludeThoughts *bool   `json:"include_thoughts,omitempty" description:"Whether to include thinking content in the response"`
 }
 
 // ChatModelGoogleSafetySetting configures Google safety filtering.

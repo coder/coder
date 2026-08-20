@@ -405,6 +405,207 @@ func TestProviderOptionsForCall_AnthropicThinkingDisplay(t *testing.T) {
 	require.Equal(t, fantasyanthropic.ThinkingDisplaySummarized, *anthropicOptions.ThinkingDisplay)
 }
 
+func TestGoogleThinkingLevelFromChat(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input *string
+		want  *fantasygoogle.ThinkingLevel
+	}{
+		{
+			name:  "Minimal",
+			input: ptr.Ref(" MINIMAL "),
+			want:  ptr.Ref(fantasygoogle.ThinkingLevelMinimal),
+		},
+		{
+			name:  "Low",
+			input: ptr.Ref("low"),
+			want:  ptr.Ref(fantasygoogle.ThinkingLevelLow),
+		},
+		{
+			name:  "Medium",
+			input: ptr.Ref("Medium"),
+			want:  ptr.Ref(fantasygoogle.ThinkingLevelMedium),
+		},
+		{
+			name:  "High",
+			input: ptr.Ref("high"),
+			want:  ptr.Ref(fantasygoogle.ThinkingLevelHigh),
+		},
+		{
+			name:  "InvalidReturnsNil",
+			input: ptr.Ref("ultra"),
+		},
+		{
+			name:  "EmptyReturnsNil",
+			input: ptr.Ref(" "),
+		},
+		{
+			name:  "NilInputReturnsNil",
+			input: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := chatprovider.GoogleThinkingLevelFromChat(tt.input)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestProviderOptionsForCall_GoogleThinkingConfig(t *testing.T) {
+	t.Parallel()
+
+	googleModel := chatprovider.NewModel(&chattest.FakeModel{
+		ProviderName: fantasygoogle.Name,
+		ModelName:    "gemini-3.7-flash",
+	}, nil)
+
+	t.Run("PinnedLevelWithoutEffortConfig", func(t *testing.T) {
+		t.Parallel()
+
+		providerOptions := chatprovider.ProviderOptionsForCall(googleModel, codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Google: &codersdk.ChatModelGoogleProviderOptions{
+					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
+						ThinkingLevel: ptr.Ref(" MEDIUM "),
+					},
+				},
+			},
+		}, nil)
+
+		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, googleOptions.ThinkingConfig)
+		require.NotNil(t, googleOptions.ThinkingConfig.ThinkingLevel)
+		require.Equal(t, fantasygoogle.ThinkingLevelMedium, *googleOptions.ThinkingConfig.ThinkingLevel)
+	})
+
+	t.Run("PinnedLevelDroppedForGemini25", func(t *testing.T) {
+		t.Parallel()
+
+		gemini25 := chatprovider.NewModel(&chattest.FakeModel{
+			ProviderName: fantasygoogle.Name,
+			ModelName:    "gemini-2.5-flash",
+		}, nil)
+
+		providerOptions := chatprovider.ProviderOptionsForCall(gemini25, codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Google: &codersdk.ChatModelGoogleProviderOptions{
+					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
+						ThinkingLevel:   ptr.Ref("medium"),
+						IncludeThoughts: ptr.Ref(true),
+					},
+				},
+			},
+		}, nil)
+
+		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, googleOptions.ThinkingConfig)
+		require.Nil(t, googleOptions.ThinkingConfig.ThinkingLevel)
+		require.True(t, *googleOptions.ThinkingConfig.IncludeThoughts)
+	})
+
+	t.Run("PinnedLevelClampedForGemini3Pro", func(t *testing.T) {
+		t.Parallel()
+
+		gemini3Pro := chatprovider.NewModel(&chattest.FakeModel{
+			ProviderName: fantasygoogle.Name,
+			ModelName:    "gemini-3-pro-preview",
+		}, nil)
+
+		providerOptions := chatprovider.ProviderOptionsForCall(gemini3Pro, codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Google: &codersdk.ChatModelGoogleProviderOptions{
+					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
+						ThinkingLevel: ptr.Ref("minimal"),
+					},
+				},
+			},
+		}, nil)
+
+		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, googleOptions.ThinkingConfig)
+		require.NotNil(t, googleOptions.ThinkingConfig.ThinkingLevel)
+		require.Equal(t, fantasygoogle.ThinkingLevelLow, *googleOptions.ThinkingConfig.ThinkingLevel)
+	})
+
+	t.Run("EffortClampedForGemini3Pro", func(t *testing.T) {
+		t.Parallel()
+
+		gemini3Pro := chatprovider.NewModel(&chattest.FakeModel{
+			ProviderName: fantasygoogle.Name,
+			ModelName:    "gemini-3-pro-preview",
+		}, nil)
+
+		providerOptions := chatprovider.ProviderOptionsForCall(gemini3Pro, codersdk.ChatModelCallConfig{
+			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+				Default: ptr.Ref(codersdk.ChatModelReasoningEffortMedium),
+				Max:     ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+			},
+		}, ptr.Ref(codersdk.ChatModelReasoningEffortMedium))
+
+		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, googleOptions.ThinkingConfig)
+		require.NotNil(t, googleOptions.ThinkingConfig.ThinkingLevel)
+		require.Equal(t, fantasygoogle.ThinkingLevelHigh, *googleOptions.ThinkingConfig.ThinkingLevel)
+	})
+
+	t.Run("EffortOverridesPinnedLevel", func(t *testing.T) {
+		t.Parallel()
+
+		providerOptions := chatprovider.ProviderOptionsForCall(googleModel, codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Google: &codersdk.ChatModelGoogleProviderOptions{
+					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
+						ThinkingLevel: ptr.Ref("medium"),
+					},
+				},
+			},
+			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+				Default: ptr.Ref(codersdk.ChatModelReasoningEffortMedium),
+				Max:     ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+			},
+		}, ptr.Ref(codersdk.ChatModelReasoningEffortHigh))
+
+		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, googleOptions.ThinkingConfig)
+		require.NotNil(t, googleOptions.ThinkingConfig.ThinkingLevel)
+		require.Equal(t, fantasygoogle.ThinkingLevelHigh, *googleOptions.ThinkingConfig.ThinkingLevel)
+	})
+
+	t.Run("ConfiguredBudgetSuppressesEffortLevel", func(t *testing.T) {
+		t.Parallel()
+
+		providerOptions := chatprovider.ProviderOptionsForCall(googleModel, codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Google: &codersdk.ChatModelGoogleProviderOptions{
+					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
+						ThinkingBudget: ptr.Ref(int64(2048)),
+					},
+				},
+			},
+			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+				Default: ptr.Ref(codersdk.ChatModelReasoningEffortMedium),
+				Max:     ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+			},
+		}, nil)
+
+		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, googleOptions.ThinkingConfig)
+		require.Equal(t, int64(2048), *googleOptions.ThinkingConfig.ThinkingBudget)
+		require.Nil(t, googleOptions.ThinkingConfig.ThinkingLevel)
+	})
+}
+
 func TestResolveUserProviderKeys_UnavailableReason(t *testing.T) {
 	t.Parallel()
 
