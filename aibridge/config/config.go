@@ -12,6 +12,7 @@ const (
 	ProviderAnthropic = "anthropic"
 	ProviderOpenAI    = "openai"
 	ProviderCopilot   = "copilot"
+	ProviderBedrock   = "bedrock"
 )
 
 // Anthropic carries configuration for an Anthropic provider.
