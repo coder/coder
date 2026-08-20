@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -13,6 +12,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -145,17 +145,16 @@ func TestCompactionOverride_SetUsable(t *testing.T) {
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
 	providerID := uuid.New()
 	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
-	effort := "low"
 	options, err := json.Marshal(codersdk.ChatModelCallConfig{
 		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-			Default: &effort,
-			Max:     &effort,
+			Default: ptr.Ref("low"),
+			Max:     ptr.Ref("high"),
 		},
 	})
 	require.NoError(t, err)
 	overrideConfig.Options = options
 
-	db.EXPECT().GetChatCompactionModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
+	db.EXPECT().GetChatCompactionModelOverride(gomock.Any()).Return(overrideConfig.ID.String()+":high", nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
@@ -168,11 +167,16 @@ func TestCompactionOverride_SetUsable(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resolved)
 	require.Equal(t, overrideConfig.ID, resolved.Config.ID)
+	// The override effort travels as spec data instead of being pinned
+	// into the config's options.
+	require.Equal(t, ptr.Ref("high"), resolved.ReasoningEffort)
+	require.Equal(t, options, []byte(resolved.Config.Options))
 
 	override, err := server.resolveModelCall(ctx, modelCallSpec{
 		purpose:          "compaction",
 		chat:             chat,
 		explicitConfig:   &resolved.Config,
+		requestedEffort:  resolved.ReasoningEffort,
 		chatdScopedRoute: true,
 		buildOptions:     modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	})
@@ -185,12 +189,5 @@ func TestCompactionOverride_SetUsable(t *testing.T) {
 	// still-over-limit metrics land on the same series.
 	require.Equal(t, override.resolvedProvider, resolved.ResolvedProvider)
 	require.Equal(t, override.resolvedModel, resolved.ResolvedModel)
-	switch opts := override.providerOptions[fantasyopenai.Name].(type) {
-	case *fantasyopenai.ResponsesProviderOptions:
-		require.Equal(t, fantasyopenai.ReasoningEffort(effort), *opts.ReasoningEffort)
-	case *fantasyopenai.ProviderOptions:
-		require.Equal(t, fantasyopenai.ReasoningEffort(effort), *opts.ReasoningEffort)
-	default:
-		t.Fatalf("unexpected openai provider options type %T", opts)
-	}
+	requireOpenAIReasoningEffort(t, override.providerOptions, "high")
 }

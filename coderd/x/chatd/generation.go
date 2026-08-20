@@ -963,6 +963,7 @@ func (s *taskStarter) generateCompaction(
 			purpose:          "compaction",
 			chat:             prepared.Chat,
 			explicitConfig:   &override.Config,
+			requestedEffort:  override.ReasoningEffort,
 			chatdScopedRoute: true,
 			buildOptions:     prepared.ModelBuildOptions,
 		})

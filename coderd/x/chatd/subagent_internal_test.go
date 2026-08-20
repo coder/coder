@@ -1440,50 +1440,6 @@ func TestResolveConfiguredModelOverride_AcceptsAmbientCredentialsProvider(
 	))
 }
 
-func TestWithResolvedReasoningEffort(t *testing.T) {
-	t.Parallel()
-
-	baseOptions, err := json.Marshal(codersdk.ChatModelCallConfig{
-		MaxOutputTokens: ptr.Ref(int64(123)),
-		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-			Default: ptr.Ref(codersdk.ChatModelReasoningEffortLow),
-			Max:     ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
-		},
-	})
-	require.NoError(t, err)
-
-	t.Run("NilEffortReturnsOriginalConfig", func(t *testing.T) {
-		t.Parallel()
-		modelConfig := database.ChatModelConfig{Options: baseOptions}
-		require.Equal(t, modelConfig, withResolvedReasoningEffort(modelConfig, nil))
-	})
-
-	t.Run("InvalidJSONReturnsOriginalConfig", func(t *testing.T) {
-		t.Parallel()
-		modelConfig := database.ChatModelConfig{Options: []byte(`{`)}
-		require.Equal(t, modelConfig, withResolvedReasoningEffort(modelConfig, ptr.Ref(codersdk.ChatModelReasoningEffortHigh)))
-	})
-
-	t.Run("NoReasoningConfigReturnsOriginalConfig", func(t *testing.T) {
-		t.Parallel()
-		modelConfig := database.ChatModelConfig{Options: []byte(`{"max_output_tokens":123}`)}
-		require.Equal(t, modelConfig, withResolvedReasoningEffort(modelConfig, ptr.Ref(codersdk.ChatModelReasoningEffortHigh)))
-	})
-
-	t.Run("ClampsRequestedEffortAndPreservesOtherOptions", func(t *testing.T) {
-		t.Parallel()
-		modelConfig := database.ChatModelConfig{Options: baseOptions}
-
-		got := withResolvedReasoningEffort(modelConfig, ptr.Ref(codersdk.ChatModelReasoningEffortXHigh))
-
-		var callConfig codersdk.ChatModelCallConfig
-		require.NoError(t, json.Unmarshal(got.Options, &callConfig))
-		require.Equal(t, ptr.Ref(int64(123)), callConfig.MaxOutputTokens)
-		require.Equal(t, ptr.Ref(codersdk.ChatModelReasoningEffortHigh), callConfig.ReasoningEffort.Default)
-		require.Equal(t, ptr.Ref(codersdk.ChatModelReasoningEffortHigh), callConfig.ReasoningEffort.Max)
-	})
-}
-
 func TestCreateChildSubagentChat_StoresReasoningEffortOverride(t *testing.T) {
 	t.Parallel()
 

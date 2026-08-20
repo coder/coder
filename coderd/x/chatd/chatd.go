@@ -244,16 +244,20 @@ func isAdvisorGuidanceMessage(msg fantasy.Message) bool {
 	return strings.TrimSpace(text.Text) == strings.TrimSpace(chatadvisor.ParentGuidanceBlock)
 }
 
+// resolveAdvisorModelOverride resolves the configured advisor override
+// model. ok is false when no override is configured or the override is
+// unavailable, in which case the advisor uses the chat model. An error is
+// a hard failure: the override has a linked provider and failed to build.
 func (p *Server) resolveAdvisorModelOverride(
 	ctx context.Context,
 	chat database.Chat,
 	advisorCfg codersdk.AdvisorConfig,
-	fallback resolvedModelCall,
+	maxOutputTokens int64,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
-) (resolvedModelCall, error) {
+) (resolvedModelCall, bool, error) {
 	if advisorCfg.ModelConfigID == uuid.Nil {
-		return fallback, nil
+		return resolvedModelCall{}, false, nil
 	}
 
 	// Re-read the override instead of using the cache so disabled models
@@ -269,7 +273,7 @@ func (p *Server) resolveAdvisorModelOverride(
 				"advisor model config is disabled or unavailable, continuing with chat model",
 				slog.F("model_config_id", advisorCfg.ModelConfigID),
 			)
-			return fallback, nil
+			return resolvedModelCall{}, false, nil
 		}
 		logger.Warn(
 			ctx,
@@ -277,21 +281,23 @@ func (p *Server) resolveAdvisorModelOverride(
 			slog.F("model_config_id", advisorCfg.ModelConfigID),
 			slog.Error(err),
 		)
-		return fallback, nil
+		return resolvedModelCall{}, false, nil
 	}
 
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
-		purpose:        "advisor",
-		chat:           chat,
-		explicitConfig: &overrideConfig,
-		buildOptions:   modelOpts,
+		purpose:         "advisor",
+		chat:            chat,
+		explicitConfig:  &overrideConfig,
+		requestedEffort: advisorCfg.ReasoningEffort,
+		maxOutputTokens: ptr.Ref(maxOutputTokens),
+		buildOptions:    modelOpts,
 	})
 	if err != nil {
 		// Malformed options always fall back; route and client errors are
 		// hard failures only when the config has a linked provider.
 		var parseErr modelCallConfigParseError
 		if overrideConfig.AIProviderID.Valid && !xerrors.As(err, &parseErr) {
-			return resolvedModelCall{}, xerrors.Errorf("resolve advisor override model: %w", err)
+			return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
 		}
 		logger.Warn(
 			ctx,
@@ -299,45 +305,19 @@ func (p *Server) resolveAdvisorModelOverride(
 			slog.F("model_config_id", advisorCfg.ModelConfigID),
 			slog.Error(err),
 		)
-		return fallback, nil
+		return resolvedModelCall{}, false, nil
 	}
 
-	if advisorCfg.ReasoningEffort != nil {
-		resolvedEffort := chatprovider.ResolveReasoningEffort(
-			advisorCfg.ReasoningEffort,
-			resolved.callConfig.ReasoningEffort,
-		)
-		if resolvedEffort != nil {
-			resolved.callConfig.ReasoningEffort = &codersdk.ChatModelReasoningEffortConfig{
-				Default: resolvedEffort,
-				Max:     resolvedEffort,
-			}
-		}
-	}
-
-	return resolved, nil
+	return resolved, true, nil
 }
 
 func (p *Server) newAdvisorRuntime(
 	ctx context.Context,
 	chat database.Chat,
 	advisorCfg codersdk.AdvisorConfig,
-	fallback resolvedModelCall,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (*chatadvisor.Runtime, error) {
-	advisor, err := p.resolveAdvisorModelOverride(
-		ctx,
-		chat,
-		advisorCfg,
-		fallback,
-		modelOpts,
-		logger,
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	maxUsesPerRun := advisorCfg.MaxUsesPerRun
 	switch {
 	case maxUsesPerRun == 0:
@@ -360,10 +340,37 @@ func (p *Server) newAdvisorRuntime(
 		maxOutputTokens = defaultAdvisorMaxOutputTokens
 	}
 
-	advisor.callConfig.MaxOutputTokens = ptr.Ref(maxOutputTokens)
-	// The override resolver pins an explicit advisor effort into the model
-	// config. Fallback models keep their configured default effort.
-	advisor.providerOptions = advisor.deriveProviderOptions(advisor.callConfig, nil)
+	advisor, ok, err := p.resolveAdvisorModelOverride(
+		ctx,
+		chat,
+		advisorCfg,
+		maxOutputTokens,
+		modelOpts,
+		logger,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		// Without a usable override the advisor runs on the chat model,
+		// resolved with the advisor's output cap and the config's default
+		// reasoning effort. The configured advisor effort applies only to
+		// the override model it was tuned for.
+		advisor, err = p.resolveModelCall(ctx, modelCallSpec{
+			purpose:         "advisor",
+			chat:            chat,
+			maxOutputTokens: ptr.Ref(maxOutputTokens),
+			buildOptions:    modelOpts,
+		})
+		if err != nil {
+			logger.Warn(
+				ctx,
+				"failed to resolve advisor chat model, continuing without advisor",
+				slog.Error(err),
+			)
+			return nil, nil //nolint:nilnil // Nil runtime with nil error means advisor is skipped for this turn.
+		}
+	}
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
 		Model:           advisor.model.LanguageModel(),

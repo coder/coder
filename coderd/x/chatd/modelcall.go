@@ -31,8 +31,12 @@ type modelCallSpec struct {
 	chat           database.Chat
 	explicitConfig *database.ChatModelConfig
 	fixedModel     *fixedModelCall
-	// requestedEffort overrides the config's default reasoning effort.
+	// requestedEffort overrides the config's default reasoning effort,
+	// clamped to the config's max.
 	requestedEffort *string
+	// maxOutputTokens overrides the config's output-token cap and the
+	// package default.
+	maxOutputTokens *int64
 	// chatdScopedRoute resolves the route with chatd scope. Deployment-wide
 	// override models must route for user-owned chats regardless of the
 	// caller's actor.
@@ -107,7 +111,10 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	} else {
 		out.callConfig = clientCallConfig
 	}
-	if out.callConfig.MaxOutputTokens == nil {
+	switch {
+	case spec.maxOutputTokens != nil:
+		out.callConfig.MaxOutputTokens = spec.maxOutputTokens
+	case out.callConfig.MaxOutputTokens == nil:
 		out.callConfig.MaxOutputTokens = ptr.Ref(defaultChatMaxOutputTokens)
 	}
 
@@ -162,7 +169,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	}
 	out.model = model
 
-	out.providerOptions = out.deriveProviderOptions(out.callConfig, spec.requestedEffort)
+	out.providerOptions = chatprovider.ProviderOptionsForCall(out.model, out.callConfig, spec.requestedEffort)
 
 	p.logger.Debug(ctx, "resolved model call",
 		slog.F("purpose", spec.purpose),
@@ -196,12 +203,6 @@ func compactionSummaryCall(resolved resolvedModelCall) fantasy.Call {
 	call.ToolChoice = &toolChoiceNone
 	call.MaxOutputTokens = nil
 	return call
-}
-
-// deriveProviderOptions is the only production ProviderOptionsForCall call
-// site; callers that mutate the call config after resolution re-derive here.
-func (r resolvedModelCall) deriveProviderOptions(callConfig codersdk.ChatModelCallConfig, requestedEffort *string) fantasy.ProviderOptions {
-	return chatprovider.ProviderOptionsForCall(r.model, callConfig, requestedEffort)
 }
 
 func (r resolvedModelCall) newObjectCall(schemaName, schemaDescription string, maxOutputTokens int64) fantasy.ObjectCall {

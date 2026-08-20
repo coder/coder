@@ -86,12 +86,11 @@ func (p *Server) resolveTitleGenerationModelOverride(
 	if !overrideSet {
 		return resolvedModelCall{}, false, nil
 	}
-	modelConfig = withResolvedReasoningEffort(modelConfig, overrideEffort)
-
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
 		purpose:          "title",
 		chat:             chat,
 		explicitConfig:   &modelConfig,
+		requestedEffort:  overrideEffort,
 		chatdScopedRoute: true,
 		buildOptions:     modelOpts,
 	})

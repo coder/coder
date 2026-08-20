@@ -34,7 +34,10 @@ func readCompactionModelOverride(
 // the model client so metrics recorded before the client exists
 // (still-over-limit) attribute to the same model as the compact action's.
 type resolvedCompactionOverride struct {
-	Config           database.ChatModelConfig
+	Config database.ChatModelConfig
+	// ReasoningEffort is the override's requested effort, passed to the
+	// model-call resolver when the compact action builds the client.
+	ReasoningEffort  *string
 	ResolvedProvider string
 	ResolvedModel    string
 }
@@ -82,7 +85,8 @@ func (p *Server) resolveCompactionOverrideConfig(
 		)
 	}
 	return &resolvedCompactionOverride{
-		Config:           withResolvedReasoningEffort(modelConfig, overrideEffort),
+		Config:           modelConfig,
+		ReasoningEffort:  overrideEffort,
 		ResolvedProvider: resolvedProvider,
 		ResolvedModel:    resolvedModel,
 	}, nil

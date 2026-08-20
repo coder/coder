@@ -47,6 +47,20 @@ func requireOpenAIUserOption(t *testing.T, options fantasy.ProviderOptions, user
 	}
 }
 
+func requireOpenAIReasoningEffort(t *testing.T, options fantasy.ProviderOptions, effort string) {
+	t.Helper()
+	switch opts := options[fantasyopenai.Name].(type) {
+	case *fantasyopenai.ResponsesProviderOptions:
+		require.NotNil(t, opts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffort(effort), *opts.ReasoningEffort)
+	case *fantasyopenai.ProviderOptions:
+		require.NotNil(t, opts.ReasoningEffort)
+		require.Equal(t, fantasyopenai.ReasoningEffort(effort), *opts.ReasoningEffort)
+	default:
+		t.Fatalf("unexpected openai provider options type %T", opts)
+	}
+}
+
 func TestResolveModelCallDerivesProviderOptions(t *testing.T) {
 	t.Parallel()
 
