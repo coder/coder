@@ -10,6 +10,11 @@ import {
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
@@ -63,20 +68,19 @@ const IdpOrgSyncPage: FC = () => {
 		<>
 			<title>{pageTitle("Organization IdP Sync")}</title>
 
-			<div className="flex flex-col gap-12">
-				<header className="flex flex-row items-baseline justify-between">
-					<div className="flex flex-col gap-2">
-						<h1 className="text-3xl m-0">Organization IdP Sync</h1>
-						<p className="flex flex-row gap-1 text-sm text-content-secondary font-medium m-0">
-							Automatically assign users to an organization based on their IdP
-							claims.
-							<Link href={docs("/admin/users/idp-sync#organization-sync")}>
-								View docs
-							</Link>
-						</p>
-					</div>
-					<ExportPolicyButton syncSettings={settingsQuery.data} />
-				</header>
+			<div>
+				<SettingsHeader
+					actions={<ExportPolicyButton syncSettings={settingsQuery.data} />}
+				>
+					<SettingsHeaderTitle>Organization IdP Sync</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Automatically assign users to an organization based on their IdP
+						claims.{" "}
+						<Link href={docs("/admin/users/idp-sync#organization-sync")}>
+							View docs
+						</Link>
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 				{!isIdpSyncEnabled ? (
 					<PaywallPremium
 						message="IdP Organization Sync"
