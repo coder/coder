@@ -447,6 +447,8 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				require.Len(t, recordedTokens, 1)
 				recordedTokens[0].InterceptionID = tc.expectTokenUsage.InterceptionID // ignore interception id
 				recordedTokens[0].CreatedAt = tc.expectTokenUsage.CreatedAt           // ignore time
+				require.Equal(t, "default", recordedTokens[0].Metadata["service_tier"])
+				tc.expectTokenUsage.Metadata = recorder.Metadata{"service_tier": "default"}
 				require.Equal(t, tc.expectTokenUsage, recordedTokens[0])
 			} else {
 				require.Empty(t, recordedTokens)
@@ -989,11 +991,13 @@ func TestResponsesInjectedTool(t *testing.T) {
 			for i := range tokenUsages {
 				tokenUsages[i].InterceptionID = "" // ignore interception ID and time creation when comparing
 				tokenUsages[i].CreatedAt = time.Time{}
+				require.Equal(t, "default", tokenUsages[i].Metadata["service_tier"])
 			}
 
 			// Match by content, not position, AsyncRecorder may flake.
 			// See https://github.com/coder/internal/issues/1544.
 			for _, expected := range tc.expectTokenUsages {
+				expected.Metadata = recorder.Metadata{"service_tier": "default"}
 				require.Contains(t, tokenUsages, &expected)
 			}
 

@@ -376,13 +376,15 @@ func TestRecordTokenUsage(t *testing.T) {
 		{
 			name: "with_all_token_details",
 			response: &oairesponses.Response{
-				ID: "resp_full",
+				ID:          "resp_full",
+				ServiceTier: oairesponses.ResponseServiceTierPriority,
 				Usage: oairesponses.ResponseUsage{
-					InputTokens:  10,
+					InputTokens:  15,
 					OutputTokens: 20,
-					TotalTokens:  30,
+					TotalTokens:  35,
 					InputTokensDetails: oairesponses.ResponseUsageInputTokensDetails{
-						CachedTokens: 5,
+						CachedTokens:     5,
+						CacheWriteTokens: 3,
 					},
 					OutputTokensDetails: oairesponses.ResponseUsageOutputTokensDetails{
 						ReasoningTokens: 5,
@@ -390,22 +392,26 @@ func TestRecordTokenUsage(t *testing.T) {
 				},
 			},
 			expected: &recorder.TokenUsageRecord{
-				InterceptionID:       id.String(),
-				MsgID:                "resp_full",
-				Input:                5, // 10 input - 5 cached
-				Output:               20,
-				CacheReadInputTokens: 5,
+				InterceptionID:        id.String(),
+				MsgID:                 "resp_full",
+				Input:                 7, // 15 input - 5 cache read - 3 cache write
+				Output:                20,
+				CacheReadInputTokens:  5,
+				CacheWriteInputTokens: 3,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 5,
-					"total_tokens":     30,
+					"total_tokens":     35,
+				},
+				Metadata: recorder.Metadata{
+					"service_tier": "priority",
 				},
 			},
 		},
 		{
-			// Upstream violates the invariant that InputTokens includes
-			// CachedTokens. Input must clamp to 0 so it never panics a
+			// Upstream violates the invariant that InputTokens includes cache
+			// read and write tokens. Input must clamp to 0 so it never panics a
 			// Prometheus counter when used as an increment.
-			name: "cached_tokens_exceed_input_tokens_clamps_to_zero",
+			name: "cache_tokens_exceed_input_tokens_clamps_to_zero",
 			response: &oairesponses.Response{
 				ID: "resp_clamp",
 				Usage: oairesponses.ResponseUsage{
@@ -413,16 +419,18 @@ func TestRecordTokenUsage(t *testing.T) {
 					OutputTokens: 20,
 					TotalTokens:  30,
 					InputTokensDetails: oairesponses.ResponseUsageInputTokensDetails{
-						CachedTokens: 40,
+						CachedTokens:     8,
+						CacheWriteTokens: 4,
 					},
 				},
 			},
 			expected: &recorder.TokenUsageRecord{
-				InterceptionID:       id.String(),
-				MsgID:                "resp_clamp",
-				Input:                0, // max(0, 10 input - 40 cached)
-				Output:               20,
-				CacheReadInputTokens: 40,
+				InterceptionID:        id.String(),
+				MsgID:                 "resp_clamp",
+				Input:                 0, // max(0, 10 input - 8 cache read - 4 cache write)
+				Output:                20,
+				CacheReadInputTokens:  8,
+				CacheWriteInputTokens: 4,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     30,

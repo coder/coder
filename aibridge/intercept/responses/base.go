@@ -328,19 +328,33 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 	usage := response.Usage
 
 	// Keeping logic consistent with chat completions
-	// Input *includes* the cached tokens, so we subtract them here to reflect actual input token usage.
-	inputNonCacheTokens := max(0, usage.InputTokens-usage.InputTokensDetails.CachedTokens)
+	// Input includes cache read and cache write tokens, so subtract both here to
+	// reflect actual uncached input token usage.
+	inputNonCacheTokens := max(0,
+		usage.InputTokens-
+			usage.InputTokensDetails.CachedTokens-
+			usage.InputTokensDetails.CacheWriteTokens,
+	)
+
+	var metadata recorder.Metadata
+	if response.ServiceTier != "" {
+		metadata = recorder.Metadata{
+			"service_tier": string(response.ServiceTier),
+		}
+	}
 
 	if err := i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
-		InterceptionID:       i.ID().String(),
-		MsgID:                response.ID,
-		Input:                inputNonCacheTokens,
-		Output:               usage.OutputTokens,
-		CacheReadInputTokens: usage.InputTokensDetails.CachedTokens,
+		InterceptionID:        i.ID().String(),
+		MsgID:                 response.ID,
+		Input:                 inputNonCacheTokens,
+		Output:                usage.OutputTokens,
+		CacheReadInputTokens:  usage.InputTokensDetails.CachedTokens,
+		CacheWriteInputTokens: usage.InputTokensDetails.CacheWriteTokens,
 		ExtraTokenTypes: map[string]int64{
 			"output_reasoning": usage.OutputTokensDetails.ReasoningTokens,
 			"total_tokens":     usage.TotalTokens,
 		},
+		Metadata: metadata,
 	}); err != nil {
 		i.logger.Warn(ctx, "failed to record token usage", slog.Error(err))
 	}
