@@ -362,6 +362,14 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									<DropdownMenuContent
 										align="end"
 										className="[&_[role=menuitem]]:text-[13px]"
+										// The dropdown is portaled to the body, but React
+										// portals bubble events through the React tree, so a
+										// right-click inside the menu would still reach the
+										// row's context-menu trigger and open a duplicate menu.
+										onContextMenu={(e) => {
+											e.preventDefault();
+											e.stopPropagation();
+										}}
 									>
 										<ChatActionsMenuItems
 											{...sharedMenuItemProps}
