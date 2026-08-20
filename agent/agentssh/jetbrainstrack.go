@@ -73,14 +73,14 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, reportConne
 }
 
 func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request, error) {
-	disconnected := w.reportConnection(uuid.New(), codersdk.AppNameJetBrains, w.originAddr)
+	disconnected := w.reportConnection(uuid.New(), string(codersdk.AppFamilyJetBrains), w.originAddr)
 
 	c, r, err := w.NewChannel.Accept()
 	if err != nil {
 		disconnected(1, err.Error())
 		return c, r, err
 	}
-	endSession := w.startSession(codersdk.AppNameJetBrains)
+	endSession := w.startSession(string(codersdk.AppFamilyJetBrains))
 	// nolint: gocritic // JetBrains is a proper noun and should be capitalized
 	w.logger.Debug(context.Background(), "JetBrains watcher accepted channel")
 

@@ -9,6 +9,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// Duplicated from the package so the limit stays unexported.
+const maxAppNameLength = 64
+
 func TestNormalizeAppName(t *testing.T) {
 	t.Parallel()
 
@@ -29,10 +32,10 @@ func TestNormalizeAppName(t *testing.T) {
 		{"Empty", "", "unknown"},
 		{"OnlyNullBytes", "\x00\x00", "unknown"},
 		{"OnlyWhitespace", "   ", "unknown"},
-		{"TruncatesToMaxRunes", strings.Repeat("a", codersdk.MaxAppNameLength+10), strings.Repeat("a", codersdk.MaxAppNameLength)},
-		{"TruncatesMultibyteSafely", strings.Repeat("あ", codersdk.MaxAppNameLength+1), strings.Repeat("あ", codersdk.MaxAppNameLength)},
+		{"TruncatesToMaxRunes", strings.Repeat("a", maxAppNameLength+10), strings.Repeat("a", maxAppNameLength)},
+		{"TruncatesMultibyteSafely", strings.Repeat("あ", maxAppNameLength+1), strings.Repeat("あ", maxAppNameLength)},
 		// Padding is trimmed before truncating, so it does not spend the budget.
-		{"TrimsPaddingBeforeTruncating", "  " + strings.Repeat("a", codersdk.MaxAppNameLength) + "  ", strings.Repeat("a", codersdk.MaxAppNameLength)},
+		{"TrimsPaddingBeforeTruncating", "  " + strings.Repeat("a", maxAppNameLength) + "  ", strings.Repeat("a", maxAppNameLength)},
 		{"TrimsWhitespaceLeftByTruncation", strings.Repeat("a", 60) + "     tail", strings.Repeat("a", 60)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -49,10 +52,10 @@ func TestUsageAppNamesAreNormalized(t *testing.T) {
 	t.Parallel()
 
 	for sdkName, want := range map[codersdk.UsageAppName]string{
-		codersdk.UsageAppNameVscode:          codersdk.AppNameVSCode,
-		codersdk.UsageAppNameJetbrains:       codersdk.AppNameJetBrains,
-		codersdk.UsageAppNameReconnectingPty: codersdk.AppNameReconnectingPTY,
-		codersdk.UsageAppNameSSH:             codersdk.AppNameSSH,
+		codersdk.UsageAppNameVscode:          "vscode",
+		codersdk.UsageAppNameJetbrains:       "jetbrains",
+		codersdk.UsageAppNameReconnectingPty: "reconnecting_pty",
+		codersdk.UsageAppNameSSH:             "ssh",
 	} {
 		require.Equal(t, want, codersdk.NormalizeAppName(string(sdkName)))
 	}
@@ -64,15 +67,15 @@ func TestAppNameFamily(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		input string
-		want  string
+		want  codersdk.AppFamilyName
 	}{
-		{"VSCode", "vscode", codersdk.AppNameVSCode},
-		{"VSCodeFork", "cursor", codersdk.AppNameVSCode},
-		{"VSCodeInsidersHyphenated", "vscode-insiders", codersdk.AppNameVSCode},
-		{"CaseInsensitive", "JetBrains", codersdk.AppNameJetBrains},
-		{"SSHClientJoinsSSHFamily", "zed", codersdk.AppNameSSH},
-		{"Alias", "reconnecting-pty", codersdk.AppNameReconnectingPTY},
-		{"Unknown", "SomeFutureIDE", codersdk.AppNameUnknown},
+		{"VSCode", "vscode", codersdk.AppFamilyVSCode},
+		{"VSCodeFork", "cursor", codersdk.AppFamilyVSCode},
+		{"VSCodeInsidersHyphenated", "vscode-insiders", codersdk.AppFamilyVSCode},
+		{"CaseInsensitive", "JetBrains", codersdk.AppFamilyJetBrains},
+		{"SSHClientJoinsSSHFamily", "zed", codersdk.AppFamilySSH},
+		{"Alias", "reconnecting-pty", codersdk.AppFamilyReconnectingPTY},
+		{"Unknown", "SomeFutureIDE", codersdk.AppFamilyUnknown},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

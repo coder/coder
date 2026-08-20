@@ -71,7 +71,7 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 	}
 }
 
-func magicTypeMetricLabel(magicType string) string {
-	// Family, not raw type, so cardinality stays bounded.
-	return codersdk.AppNameFamily(magicType)
+func appNameMetricLabel(appName string) string {
+	// Family, not raw name, so cardinality stays bounded.
+	return string(codersdk.AppNameFamily(appName))
 }

@@ -314,8 +314,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 }
 
 // startSession counts a session until the returned function is called.
-func (s *Server) startSession(magicType string) (endSession func()) {
-	key := codersdk.NormalizeAppName(magicType)
+func (s *Server) startSession(appName string) (endSession func()) {
+	key := codersdk.NormalizeAppName(appName)
 	s.sessionCountsMu.Lock()
 	defer s.sessionCountsMu.Unlock()
 	s.sessionCounts[key]++
@@ -329,32 +329,32 @@ func (s *Server) startSession(magicType string) (endSession func()) {
 	}
 }
 
-// SessionCounts returns active sessions per app name, omitting names at
-// zero. Never nil, so callers can merge in other session sources.
+// SessionCounts returns active sessions per app name, omitting zeroes. Never
+// nil, so callers can merge in other sources.
 func (s *Server) SessionCounts() map[string]int64 {
 	s.sessionCountsMu.Lock()
 	defer s.sessionCountsMu.Unlock()
 	return maps.Clone(s.sessionCounts)
 }
 
-func extractMagicSessionType(env []string) (magicType, rawType string, filteredEnv []string) {
+func extractAppName(env []string) (appName, rawAppName string, filteredEnv []string) {
 	for _, kv := range env {
 		if !strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable) {
 			continue
 		}
 
-		rawType = strings.TrimPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
+		rawAppName = strings.TrimPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
 		// Keep going, we'll use the last instance of the env.
 	}
 
-	if rawType == "" {
-		magicType = codersdk.AppNameSSH
+	if rawAppName == "" {
+		appName = string(codersdk.AppFamilySSH)
 	} else {
 		// Normalize, don't classify: unknown names flow through.
-		magicType = codersdk.NormalizeAppName(rawType)
+		appName = codersdk.NormalizeAppName(rawAppName)
 	}
 
-	return magicType, rawType, slices.DeleteFunc(env, func(kv string) bool {
+	return appName, rawAppName, slices.DeleteFunc(env, func(kv string) bool {
 		return strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
 	})
 }
@@ -417,12 +417,12 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	logger.Info(ctx, "handling ssh session")
 
 	env := session.Environ()
-	magicType, magicTypeRaw, env := extractMagicSessionType(env)
-	magicTypeFamily := codersdk.AppNameFamily(magicType)
-	if magicTypeFamily == codersdk.AppNameUnknown {
+	appName, rawAppName, env := extractAppName(env)
+	family := codersdk.AppNameFamily(appName)
+	if family == codersdk.AppFamilyUnknown {
 		logger.Debug(ctx, "unrecognized ssh session type",
-			slog.F("magic_type", magicType),
-			slog.F("raw_type", magicTypeRaw),
+			slog.F("app_name", appName),
+			slog.F("raw_app_name", rawAppName),
 		)
 	}
 
@@ -438,7 +438,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	if !s.trackSession(session, true) {
 		reason := "unable to accept new session, server is closing"
 		// Report connection attempt even if we couldn't accept it.
-		disconnected := s.config.ReportConnection(id, magicType, remoteAddrString)
+		disconnected := s.config.ReportConnection(id, appName, remoteAddrString)
 		defer disconnected(1, reason)
 
 		logger.Info(ctx, reason)
@@ -450,12 +450,12 @@ func (s *Server) sessionHandler(session ssh.Session) {
 
 	reportSession := true
 
-	if magicTypeFamily == codersdk.AppNameJetBrains {
+	if family == codersdk.AppFamilyJetBrains {
 		// Do nothing here because JetBrains launches hundreds of ssh sessions.
 		// We instead track JetBrains in the single persistent tcp forwarding channel.
 		reportSession = false
 	} else {
-		endSession := s.startSession(magicType)
+		endSession := s.startSession(appName)
 		defer endSession()
 	}
 
@@ -467,7 +467,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		scr := &sessionCloseTracker{Session: session}
 		session = scr
 
-		disconnected := s.config.ReportConnection(id, magicType, remoteAddrString)
+		disconnected := s.config.ReportConnection(id, appName, remoteAddrString)
 		defer func() {
 			logger.Info(ctx, "ssh session closed",
 				codersdk.ConnectionDirectionAgentToClient.SlogField(),
@@ -532,7 +532,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		env = append(env, fmt.Sprintf("DISPLAY=localhost:%d.%d", display, x11.ScreenNumber))
 	}
 
-	err := s.sessionStart(logger, session, env, magicType, container, containerUser)
+	err := s.sessionStart(logger, session, env, appName, container, containerUser)
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
 		code := exitError.ExitCode()
@@ -606,10 +606,10 @@ func (s *Server) fileTransferBlocked(session ssh.Session) bool {
 	return false
 }
 
-func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []string, magicType, container, containerUser string) (retErr error) {
+func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []string, appName, container, containerUser string) (retErr error) {
 	ctx := session.Context()
 
-	magicTypeLabel := magicTypeMetricLabel(magicType)
+	appLabel := appNameMetricLabel(appName)
 	sshPty, windowSize, isPty := session.Pty()
 	ptyLabel := "no"
 	if isPty {
@@ -621,20 +621,20 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 	if s.config.ExperimentalContainers && container != "" {
 		ei, err = agentcontainers.EnvInfo(ctx, s.Execer, container, containerUser)
 		if err != nil {
-			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "container_env_info").Add(1)
+			s.metrics.sessionErrors.WithLabelValues(appLabel, ptyLabel, "container_env_info").Add(1)
 			return err
 		}
 	}
 	cmd, err := s.CreateCommand(ctx, session.RawCommand(), env, ei)
 	if err != nil {
-		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "create_command").Add(1)
+		s.metrics.sessionErrors.WithLabelValues(appLabel, ptyLabel, "create_command").Add(1)
 		return err
 	}
 
 	if ssh.AgentRequested(session) {
 		l, err := ssh.NewAgentListener()
 		if err != nil {
-			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "listener").Add(1)
+			s.metrics.sessionErrors.WithLabelValues(appLabel, ptyLabel, "listener").Add(1)
 			return xerrors.Errorf("new agent listener: %w", err)
 		}
 		defer l.Close()
@@ -643,13 +643,13 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 	}
 
 	if isPty {
-		return s.startPTYSession(logger, session, magicTypeLabel, cmd, sshPty, windowSize)
+		return s.startPTYSession(logger, session, appLabel, cmd, sshPty, windowSize)
 	}
-	return s.startNonPTYSession(logger, session, magicTypeLabel, cmd.AsExec())
+	return s.startNonPTYSession(logger, session, appLabel, cmd.AsExec())
 }
 
-func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, magicTypeLabel string, cmd *exec.Cmd) error {
-	s.metrics.sessionsTotal.WithLabelValues(magicTypeLabel, "no").Add(1)
+func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, appLabel string, cmd *exec.Cmd) error {
+	s.metrics.sessionsTotal.WithLabelValues(appLabel, "no").Add(1)
 
 	// Create a process group and send SIGHUP to child processes,
 	// otherwise context cancellation will not propagate properly
@@ -668,19 +668,19 @@ func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, mag
 	// use StdinPipe. It's unknown what causes this.
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "no", "stdin_pipe").Add(1)
+		s.metrics.sessionErrors.WithLabelValues(appLabel, "no", "stdin_pipe").Add(1)
 		return xerrors.Errorf("create stdin pipe: %w", err)
 	}
 	go func() {
 		_, err := io.Copy(stdinPipe, session)
 		if err != nil {
-			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "no", "stdin_io_copy").Add(1)
+			s.metrics.sessionErrors.WithLabelValues(appLabel, "no", "stdin_io_copy").Add(1)
 		}
 		_ = stdinPipe.Close()
 	}()
 	err = cmd.Start()
 	if err != nil {
-		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "no", "start_command").Add(1)
+		s.metrics.sessionErrors.WithLabelValues(appLabel, "no", "start_command").Add(1)
 		return xerrors.Errorf("start: %w", err)
 	}
 
@@ -701,7 +701,7 @@ func (s *Server) startNonPTYSession(logger slog.Logger, session ssh.Session, mag
 	}()
 	go func() {
 		for sig := range sigs {
-			handleSignal(logger, sig, cmd.Process, s.metrics, magicTypeLabel)
+			handleSignal(logger, sig, cmd.Process, s.metrics, appLabel)
 		}
 	}()
 	return cmd.Wait()
@@ -717,8 +717,8 @@ type ptySession interface {
 	Signals(chan<- ssh.Signal)
 }
 
-func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTypeLabel string, cmd *pty.Cmd, sshPty ssh.Pty, windowSize <-chan ssh.Window) (retErr error) {
-	s.metrics.sessionsTotal.WithLabelValues(magicTypeLabel, "yes").Add(1)
+func (s *Server) startPTYSession(logger slog.Logger, session ptySession, appLabel string, cmd *pty.Cmd, sshPty ssh.Pty, windowSize <-chan ssh.Window) (retErr error) {
+	s.metrics.sessionsTotal.WithLabelValues(appLabel, "yes").Add(1)
 
 	ctx := session.Context()
 	// Disable minimal PTY emulation set by gliderlabs/ssh (NL-to-CRNL).
@@ -732,7 +732,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 				err := showAnnouncementBanner(session, banner)
 				if err != nil {
 					logger.Error(ctx, "agent failed to show announcement banner", slog.Error(err))
-					s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "announcement_banner").Add(1)
+					s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "announcement_banner").Add(1)
 					break
 				}
 			}
@@ -743,7 +743,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 		err := showMOTD(s.fs, session, s.config.MOTDFile())
 		if err != nil {
 			logger.Error(ctx, "agent failed to show MOTD", slog.Error(err))
-			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "motd").Add(1)
+			s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "motd").Add(1)
 		}
 	}
 
@@ -755,14 +755,14 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 		pty.WithLogger(slog.Stdlib(ctx, logger, slog.LevelInfo)),
 	))
 	if err != nil {
-		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "start_command").Add(1)
+		s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "start_command").Add(1)
 		return xerrors.Errorf("start command: %w", err)
 	}
 	defer func() {
 		closeErr := ptty.Close()
 		if closeErr != nil {
 			logger.Warn(ctx, "failed to close tty", slog.Error(closeErr))
-			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "close").Add(1)
+			s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "close").Add(1)
 			if retErr == nil {
 				retErr = closeErr
 			}
@@ -786,7 +786,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 					sigs = nil
 					continue
 				}
-				handleSignal(logger, sig, process, s.metrics, magicTypeLabel)
+				handleSignal(logger, sig, process, s.metrics, appLabel)
 			case win, ok := <-windowSize:
 				if !ok {
 					windowSize = nil
@@ -797,7 +797,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 				// If the pty is closed, then command has exited, no need to log.
 				if resizeErr != nil && !errors.Is(resizeErr, pty.ErrClosed) {
 					logger.Warn(ctx, "failed to resize tty", slog.Error(resizeErr))
-					s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "resize").Add(1)
+					s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "resize").Add(1)
 				}
 			}
 		}
@@ -806,7 +806,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	go func() {
 		_, err := io.Copy(ptty.InputWriter(), session)
 		if err != nil {
-			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "input_io_copy").Add(1)
+			s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "input_io_copy").Add(1)
 		}
 	}()
 
@@ -821,7 +821,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	n, err := io.Copy(session, ptty.OutputReader())
 	logger.Debug(ctx, "copy output done", slog.F("bytes", n), slog.Error(err))
 	if err != nil {
-		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "output_io_copy").Add(1)
+		s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "output_io_copy").Add(1)
 		return xerrors.Errorf("copy error: %w", err)
 	}
 	// We've gotten all the output, but we need to wait for the process to
@@ -833,7 +833,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	// and not something to be concerned about.  But, if it's something else, we should log it.
 	if err != nil && !xerrors.As(err, &exitErr) {
 		logger.Warn(ctx, "process wait exited with error", slog.Error(err))
-		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "wait").Add(1)
+		s.metrics.sessionErrors.WithLabelValues(appLabel, "yes", "wait").Add(1)
 	}
 	if err != nil {
 		return xerrors.Errorf("process wait: %w", err)
@@ -841,7 +841,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	return nil
 }
 
-func handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signal(os.Signal) error }, metrics *sshServerMetrics, magicTypeLabel string) {
+func handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signal(os.Signal) error }, metrics *sshServerMetrics, appLabel string) {
 	ctx := context.Background()
 	sig := osSignalFrom(ssig)
 	logger = logger.With(slog.F("ssh_signal", ssig), slog.F("signal", sig.String()))
@@ -849,7 +849,7 @@ func handleSignal(logger slog.Logger, ssig ssh.Signal, signaler interface{ Signa
 	err := signaler.Signal(sig)
 	if err != nil {
 		logger.Warn(ctx, "signaling the process failed", slog.Error(err))
-		metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "signal").Add(1)
+		metrics.sessionErrors.WithLabelValues(appLabel, "yes", "signal").Add(1)
 	}
 }
 

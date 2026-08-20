@@ -6,74 +6,70 @@ import (
 	utilstrings "github.com/coder/coder/v2/coderd/util/strings"
 )
 
-// Server-side vocabulary, not part of the HTTP API.
-// @typescript-ignore MaxAppNameLength, MaxSessionCountEntries, AppNameVSCode, AppNameJetBrains, AppNameSSH, AppNameReconnectingPTY, AppNameUnknown
+// maxAppNameLength caps an app name in runes.
+const maxAppNameLength = 64
 
-// MaxAppNameLength is the maximum app name length in runes.
-const MaxAppNameLength = 64
+// AppFamilyName is the bounded set of names that arbitrary app names group
+// into, for callers that need a fixed value such as a metric label or the
+// Connection_Type enum. Server-side only, not part of the HTTP API.
+//
+// @typescript-ignore AppFamilyName
+type AppFamilyName string
 
-// MaxSessionCountEntries bounds distinct app names per stats report.
-// Overflow aggregates under AppNameUnknown.
-const MaxSessionCountEntries = 64
-
-// Normalized app names for Coder's built-in session types.
 const (
-	AppNameVSCode          = "vscode"
-	AppNameJetBrains       = "jetbrains"
-	AppNameSSH             = "ssh"
-	AppNameReconnectingPTY = "reconnecting_pty"
-	AppNameUnknown         = "unknown"
+	AppFamilyVSCode          AppFamilyName = "vscode"
+	AppFamilyJetBrains       AppFamilyName = "jetbrains"
+	AppFamilySSH             AppFamilyName = "ssh"
+	AppFamilyReconnectingPTY AppFamilyName = "reconnecting_pty"
+	AppFamilyUnknown         AppFamilyName = "unknown"
 )
 
-// appNameFamilies groups app names for callers that need a bounded value,
-// such as a metric label or the Connection_Type enum. It is never used for
-// storage, so a missing alias only costs an AppNameUnknown label. Keys are
-// the IDs Coder's registry modules use.
-var appNameFamilies = map[string]string{
-	AppNameVSCode:     AppNameVSCode,
-	"vscode_insiders": AppNameVSCode,
-	"vscode_web":      AppNameVSCode,
-	"code_server":     AppNameVSCode,
-	"cursor":          AppNameVSCode,
-	"windsurf":        AppNameVSCode,
-	"positron":        AppNameVSCode,
-	"vscodium":        AppNameVSCode,
-	"codium":          AppNameVSCode,
-	"antigravity":     AppNameVSCode,
-	"trae":            AppNameVSCode,
-	"kiro":            AppNameVSCode,
-	"devin":           AppNameVSCode,
+// appNameFamilies never gates storage, so a missing alias only costs an
+// AppFamilyUnknown label. Keys are the IDs Coder's registry modules use.
+var appNameFamilies = map[string]AppFamilyName{
+	"vscode":          AppFamilyVSCode,
+	"vscode_insiders": AppFamilyVSCode,
+	"vscode_web":      AppFamilyVSCode,
+	"code_server":     AppFamilyVSCode,
+	"cursor":          AppFamilyVSCode,
+	"windsurf":        AppFamilyVSCode,
+	"positron":        AppFamilyVSCode,
+	"vscodium":        AppFamilyVSCode,
+	"codium":          AppFamilyVSCode,
+	"antigravity":     AppFamilyVSCode,
+	"trae":            AppFamilyVSCode,
+	"kiro":            AppFamilyVSCode,
+	"devin":           AppFamilyVSCode,
 
-	AppNameJetBrains: AppNameJetBrains,
+	"jetbrains": AppFamilyJetBrains,
 	// Zed has no Connection_Type or session count field of its own, so it
 	// rolls up under SSH. The raw name still reaches storage.
-	"zed":                  AppNameSSH,
-	AppNameSSH:             AppNameSSH,
-	AppNameReconnectingPTY: AppNameReconnectingPTY,
+	"zed":              AppFamilySSH,
+	"ssh":              AppFamilySSH,
+	"reconnecting_pty": AppFamilyReconnectingPTY,
 }
 
 // AppNameFamily normalizes an app name and returns its family, or
-// AppNameUnknown.
-func AppNameFamily(appName string) string {
+// AppFamilyUnknown.
+func AppNameFamily(appName string) AppFamilyName {
 	if family, ok := appNameFamilies[NormalizeAppName(appName)]; ok {
 		return family
 	}
-	return AppNameUnknown
+	return AppFamilyUnknown
 }
 
 // NormalizeAppName prepares a client-supplied app name for storage and
-// lookup. It strips the null bytes Postgres TEXT rejects, trims, truncates to
-// MaxAppNameLength runes, lowercases, and folds hyphens to underscores. An
-// empty name becomes AppNameUnknown; callers resolve an unset session type to
-// AppNameSSH before calling this.
+// lookup: it strips the null bytes Postgres TEXT rejects, trims, truncates,
+// lowercases, and folds hyphens to underscores. Empty becomes
+// AppFamilyUnknown.
 func NormalizeAppName(appName string) string {
 	appName = strings.ReplaceAll(appName, "\x00", "")
 	// Trim before truncating so padding does not spend the budget, and after
 	// in case the cut lands in whitespace.
 	appName = strings.TrimSpace(appName)
-	appName = strings.TrimSpace(utilstrings.Truncate(appName, MaxAppNameLength))
+	appName = strings.TrimSpace(utilstrings.Truncate(appName, maxAppNameLength))
 	if appName == "" {
-		return AppNameUnknown
+		return string(AppFamilyUnknown)
 	}
 	return strings.ReplaceAll(strings.ToLower(appName), "-", "_")
 }
