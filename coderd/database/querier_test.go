@@ -19059,6 +19059,85 @@ func TestOAuth2ProviderScopeNotEmpty(t *testing.T) {
 	})
 }
 
+func TestGetAIModelPriceByProviderModel(t *testing.T) {
+	t.Parallel()
+
+	const defaultSeed = `[{"provider":"anthropic","model":"model-a","input_price":1,"output_price":2,"cache_read_price":3,"cache_write_price":4}]`
+	const customSeed = `[{"provider":"anthropic","model":"model-a","input_price":5,"output_price":6,"cache_read_price":0,"cache_write_price":null}]`
+
+	defaultPrices := database.AIModelPrice{
+		InputPrice:      sql.NullInt64{Int64: 1, Valid: true},
+		OutputPrice:     sql.NullInt64{Int64: 2, Valid: true},
+		CacheReadPrice:  sql.NullInt64{Int64: 3, Valid: true},
+		CacheWritePrice: sql.NullInt64{Int64: 4, Valid: true},
+	}
+	customPrices := database.AIModelPrice{
+		InputPrice:      sql.NullInt64{Int64: 5, Valid: true},
+		OutputPrice:     sql.NullInt64{Int64: 6, Valid: true},
+		CacheReadPrice:  sql.NullInt64{Int64: 0, Valid: true},
+		CacheWritePrice: sql.NullInt64{},
+	}
+
+	tests := []struct {
+		name       string
+		seeds      []database.UpsertAIModelPricesParams
+		want       database.AIModelPrice
+		wantSource database.AIModelPriceSource
+	}{
+		{
+			name:       "DefaultOnly",
+			seeds:      []database.UpsertAIModelPricesParams{{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault}},
+			want:       defaultPrices,
+			wantSource: database.AIModelPriceSourceDefault,
+		},
+		{
+			name:       "CustomOnly",
+			seeds:      []database.UpsertAIModelPricesParams{{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom}},
+			want:       customPrices,
+			wantSource: database.AIModelPriceSourceCustom,
+		},
+		{
+			name: "CustomWinsOverDefault",
+			seeds: []database.UpsertAIModelPricesParams{
+				{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault},
+				{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom},
+			},
+			want:       customPrices,
+			wantSource: database.AIModelPriceSourceCustom,
+		},
+		{
+			name: "CustomWinsWhateverTheWriteOrder",
+			seeds: []database.UpsertAIModelPricesParams{
+				{Seed: []byte(customSeed), Source: database.AIModelPriceSourceCustom},
+				{Seed: []byte(defaultSeed), Source: database.AIModelPriceSourceDefault},
+			},
+			want:       customPrices,
+			wantSource: database.AIModelPriceSourceCustom,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			db, _ := dbtestutil.NewDB(t)
+			for _, seed := range tt.seeds {
+				require.NoError(t, db.UpsertAIModelPrices(ctx, seed))
+			}
+
+			got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+				Provider: "anthropic", Model: "model-a",
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.wantSource, got.Source)
+			require.Equal(t, tt.want.InputPrice, got.InputPrice)
+			require.Equal(t, tt.want.OutputPrice, got.OutputPrice)
+			require.Equal(t, tt.want.CacheReadPrice, got.CacheReadPrice)
+			require.Equal(t, tt.want.CacheWritePrice, got.CacheWritePrice)
+		})
+	}
+}
+
 func TestGetAIModelPrices(t *testing.T) {
 	t.Parallel()
 
@@ -19070,15 +19149,21 @@ func TestGetAIModelPrices(t *testing.T) {
 		{"provider":"openai","model":"model-a","input_price":3,"output_price":null,"cache_read_price":null,"cache_write_price":null}
 	]`
 
+	// A custom price for anthropic/model-a, which the seed above also covers.
+	const customSeed = `[{"provider":"anthropic","model":"model-a","input_price":9,"output_price":null,"cache_read_price":null,"cache_write_price":null}]`
+
 	tests := []struct {
-		name   string
-		params database.GetAIModelPricesParams
-		want   []string
+		name       string
+		customSeed string
+		params     database.GetAIModelPricesParams
+		want       []string
+		wantPrices []int64
 	}{
 		{
-			name:   "NoFilterReturnsEveryPrice",
-			params: database.GetAIModelPricesParams{},
-			want:   []string{"anthropic/model-a", "anthropic/model-b", "openai/model-a"},
+			name:       "NoFilterReturnsEveryPrice",
+			params:     database.GetAIModelPricesParams{},
+			want:       []string{"anthropic/model-a", "anthropic/model-b", "openai/model-a"},
+			wantPrices: []int64{1, 2, 3},
 		},
 		{
 			name:   "ByProvider",
@@ -19105,6 +19190,14 @@ func TestGetAIModelPrices(t *testing.T) {
 			params: database.GetAIModelPricesParams{Provider: "openai", Model: "model-b"},
 			want:   nil,
 		},
+		{
+			// The anthropic/model-a is reported once, at the custom one.
+			name:       "ResolvesToTheCustomPrice",
+			customSeed: customSeed,
+			params:     database.GetAIModelPricesParams{},
+			want:       []string{"anthropic/model-a", "anthropic/model-b", "openai/model-a"},
+			wantPrices: []int64{9, 2, 3},
+		},
 	}
 
 	for _, tt := range tests {
@@ -19112,7 +19205,10 @@ func TestGetAIModelPrices(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
 			db, _ := dbtestutil.NewDB(t)
-			require.NoError(t, db.UpsertAIModelPrices(ctx, []byte(seed)))
+			require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: []byte(seed), Source: database.AIModelPriceSourceDefault}))
+			if tt.customSeed != "" {
+				require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: []byte(tt.customSeed), Source: database.AIModelPriceSourceCustom}))
+			}
 
 			prices, err := db.GetAIModelPrices(ctx, tt.params)
 			require.NoError(t, err)
@@ -19126,6 +19222,14 @@ func TestGetAIModelPrices(t *testing.T) {
 				return
 			}
 			require.Equal(t, tt.want, got)
+
+			if tt.wantPrices != nil {
+				gotPrices := make([]int64, 0, len(prices))
+				for _, price := range prices {
+					gotPrices = append(gotPrices, price.InputPrice.Int64)
+				}
+				require.Equal(t, tt.wantPrices, gotPrices)
+			}
 		})
 	}
 }

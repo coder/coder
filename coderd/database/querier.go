@@ -6,7 +6,6 @@ package database
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -324,7 +323,11 @@ type sqlcQuerier interface {
 	// returning the matched key. The lookup is an exact match on a unique index,
 	// so a returned row is itself proof the secret is valid.
 	GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (AIGatewayKey, error)
+	// Returns the price in effect for the model, preferring a custom price over
+	// the price book.
 	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error)
+	// Returns the price in effect for each model, preferring a custom price over
+	// the price book.
 	GetAIModelPrices(ctx context.Context, arg GetAIModelPricesParams) ([]AIModelPrice, error)
 	GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	// Lock the provider row until the model-config write completes. The
@@ -1616,13 +1619,14 @@ type sqlcQuerier interface {
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 	UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]WorkspaceTable, error)
 	UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg UpdateWorkspacesTTLByTemplateIDParams) error
-	// Upsert a batch of (provider, model) rows from a JSON array. Each element
-	// must have provider, model, and the four price fields; null prices are
-	// written as SQL NULL.
-	// A conflicting row is only rewritten when a price differs, so updated_at
-	// records when a price last changed. Prices are nullable and a NULL on
-	// either side counts as a difference.
-	UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error
+	// Upsert a batch of model prices from a JSON array, all recorded under the
+	// given source. Each element must have provider, model, and the four price
+	// fields, and null prices are written as SQL NULL.
+	// Each source keeps its own row, so the price book and a custom price never
+	// overwrite each other. A conflicting row is only rewritten when a price
+	// differs, so updated_at records when a price last changed. Prices are
+	// nullable and a NULL on either side counts as a difference.
+	UpsertAIModelPrices(ctx context.Context, arg UpsertAIModelPricesParams) error
 	// Returns true if a new rows was inserted, false otherwise.
 	UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) (bool, error)
 	UpsertAnnouncementBanners(ctx context.Context, value string) error

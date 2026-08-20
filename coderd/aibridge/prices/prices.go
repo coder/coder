@@ -51,7 +51,10 @@ func SeedFromBytes(ctx context.Context, db database.Store, data []byte) error {
 	if len(rows) == 0 {
 		return xerrors.New("price seed is empty")
 	}
-	return db.UpsertAIModelPrices(ctx, data)
+	return db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+		Seed:   data,
+		Source: database.AIModelPriceSourceDefault,
+	})
 }
 
 func parseSeed(data []byte) ([]seedRow, error) {

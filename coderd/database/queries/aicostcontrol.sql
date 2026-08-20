@@ -1,12 +1,13 @@
 -- name: UpsertAIModelPrices :exec
--- Upsert a batch of (provider, model) rows from a JSON array. Each element
--- must have provider, model, and the four price fields; null prices are
--- written as SQL NULL.
--- A conflicting row is only rewritten when a price differs, so updated_at
--- records when a price last changed. Prices are nullable and a NULL on
--- either side counts as a difference.
+-- Upsert a batch of model prices from a JSON array, all recorded under the
+-- given source. Each element must have provider, model, and the four price
+-- fields, and null prices are written as SQL NULL.
+-- Each source keeps its own row, so the price book and a custom price never
+-- overwrite each other. A conflicting row is only rewritten when a price
+-- differs, so updated_at records when a price last changed. Prices are
+-- nullable and a NULL on either side counts as a difference.
 INSERT INTO ai_model_prices (
-	provider, model, input_price, output_price, cache_read_price, cache_write_price
+	provider, model, input_price, output_price, cache_read_price, cache_write_price, source
 )
 SELECT
 	elem->>'provider',
@@ -14,9 +15,10 @@ SELECT
 	(elem->>'input_price')::bigint,
 	(elem->>'output_price')::bigint,
 	(elem->>'cache_read_price')::bigint,
-	(elem->>'cache_write_price')::bigint
+	(elem->>'cache_write_price')::bigint,
+	@source::ai_model_price_source
 FROM jsonb_array_elements(@seed::jsonb) AS elem
-ON CONFLICT (provider, model) DO UPDATE SET
+ON CONFLICT (provider, model, source) DO UPDATE SET
 	input_price       = EXCLUDED.input_price,
 	output_price      = EXCLUDED.output_price,
 	cache_read_price  = EXCLUDED.cache_read_price,
@@ -35,12 +37,18 @@ WHERE (
 );
 
 -- name: GetAIModelPriceByProviderModel :one
+-- Returns the price in effect for the model, preferring a custom price over
+-- the price book.
 SELECT *
 FROM ai_model_prices
-WHERE provider = @provider AND model = @model;
+WHERE provider = @provider AND model = @model
+ORDER BY CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
+LIMIT 1;
 
 -- name: GetAIModelPrices :many
-SELECT *
+-- Returns the price in effect for each model, preferring a custom price over
+-- the price book.
+SELECT DISTINCT ON (provider, model) *
 FROM ai_model_prices
     -- Filter by provider
 WHERE CASE
@@ -54,7 +62,7 @@ WHERE CASE
             model = @model
         ELSE true
     END
-ORDER BY provider, model;
+ORDER BY provider ASC, model ASC, CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC;
 
 -- name: GetGroupAIBudget :one
 SELECT *

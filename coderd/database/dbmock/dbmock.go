@@ -11,7 +11,6 @@ package dbmock
 
 import (
 	context "context"
-	json "encoding/json"
 	reflect "reflect"
 	time "time"
 
@@ -11716,17 +11715,17 @@ func (mr *MockStoreMockRecorder) UpdateWorkspacesTTLByTemplateID(ctx, arg any) *
 }
 
 // UpsertAIModelPrices mocks base method.
-func (m *MockStore) UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error {
+func (m *MockStore) UpsertAIModelPrices(ctx context.Context, arg database.UpsertAIModelPricesParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertAIModelPrices", ctx, seed)
+	ret := m.ctrl.Call(m, "UpsertAIModelPrices", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpsertAIModelPrices indicates an expected call of UpsertAIModelPrices.
-func (mr *MockStoreMockRecorder) UpsertAIModelPrices(ctx, seed any) *gomock.Call {
+func (mr *MockStoreMockRecorder) UpsertAIModelPrices(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAIModelPrices", reflect.TypeOf((*MockStore)(nil).UpsertAIModelPrices), ctx, seed)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAIModelPrices", reflect.TypeOf((*MockStore)(nil).UpsertAIModelPrices), ctx, arg)
 }
 
 // UpsertAISeatState mocks base method.

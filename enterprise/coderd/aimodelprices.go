@@ -123,7 +123,10 @@ func (api *API) upsertAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	err = api.Database.UpsertAIModelPrices(ctx, seed)
+	err = api.Database.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+		Seed:   seed,
+		Source: database.AIModelPriceSourceCustom,
+	})
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return
