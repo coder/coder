@@ -563,7 +563,6 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 		bridge, err := aibridge.NewRequestBridge(t.Context(), providers, nil, nil, logger, nil, otel.Tracer("test"))
 		require.NoError(t, err)
 
-		// Both providers are routable by name.
 		for _, name := range []string{"first", "second"} {
 			req := httptest.NewRequest(http.MethodPost, "/"+name+"/v1/models", strings.NewReader(`{}`))
 			req.Header.Set("Content-Type", "application/json")
