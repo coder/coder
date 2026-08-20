@@ -453,6 +453,7 @@ func (a *agent) init() {
 		LogDir:      a.logDir,
 		DataDirBase: a.scriptDataDir,
 		Logger:      a.logger,
+		Clock:       a.clock,
 		SSHServer:   sshSrv,
 		Filesystem:  a.filesystem,
 		GetScriptLogger: func(logSourceID uuid.UUID) agentscripts.ScriptLogger {
