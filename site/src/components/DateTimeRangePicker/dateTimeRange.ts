@@ -9,6 +9,7 @@ export interface QuickPreset {
 export interface DateTimeRangeValue {
 	start: Date;
 	end: Date;
+	/** Display metadata only; never sent to the API. */
 	preset?: string;
 }
 
