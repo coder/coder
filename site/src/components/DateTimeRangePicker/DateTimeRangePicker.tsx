@@ -127,7 +127,8 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 		const radios = Array.from(
 			event.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]'),
 		);
-		const current = radios.findIndex((radio) => radio === event.target);
+		const current =
+			event.target instanceof HTMLElement ? radios.indexOf(event.target) : -1;
 		if (current === -1) {
 			return;
 		}
@@ -200,8 +201,6 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 				<div className="flex">
 					{/* Quick picks. This list is the entire dropdown until the
 					    user expands the custom range panel. */}
-					{/* biome-ignore lint/a11y/useSemanticElements: native radio
-					    inputs cannot host the check-icon rows this design needs. */}
 					<div
 						role="radiogroup"
 						aria-label="Time range"
@@ -328,7 +327,6 @@ const QuickPickButton: FC<QuickPickButtonProps> = ({
 	tabIndex,
 	onClick,
 }) => (
-	// biome-ignore lint/a11y/useSemanticElements: see radiogroup note above.
 	<button
 		type="button"
 		role="radio"
