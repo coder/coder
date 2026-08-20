@@ -19776,6 +19776,8 @@ const docTemplate = `{
                 },
                 "phone_number": {
                     "type": "string",
+                    "maxLength": 20,
+                    "minLength": 7,
                     "example": "+14155552671"
                 }
             }
