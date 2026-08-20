@@ -20,9 +20,11 @@ export const CanViewLicenses: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(
-			canvas.getByRole("heading", { name: /Coder Premium/ }),
+			canvas.getByRole("heading", { name: /Get access with a Coder trial/ }),
 		).toBeVisible();
-		await expect(canvas.getByText("Start a 30-day trial today.")).toBeVisible();
+		await expect(
+			canvas.getByText("Start an unlimited 30-day trial today"),
+		).toBeVisible();
 
 		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toBeVisible();

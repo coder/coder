@@ -14,7 +14,7 @@ import {
 	PREMIUM_PAGE_PATH,
 } from "./Paywall";
 
-const DEFAULT_HERO_SUBTITLE = "Start a 30-day trial today.";
+const DEFAULT_HERO_SUBTITLE = "Start an unlimited 30-day trial today";
 
 const PaywallPremiumHeader: FC<React.ComponentProps<"div">> = ({
 	children,
