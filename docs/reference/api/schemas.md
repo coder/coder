@@ -1546,7 +1546,7 @@ None
   "exit_code": 0,
   "stage": "init",
   "started_at": "2019-08-24T14:15:22Z",
-  "status": "string",
+  "status": "ok",
   "workspace_agent_id": "string",
   "workspace_agent_name": "string"
 }
@@ -1554,16 +1554,16 @@ None
 
 ### Properties
 
-| Name                   | Type                                         | Required | Restrictions | Description |
-|------------------------|----------------------------------------------|----------|--------------|-------------|
-| `display_name`         | string                                       | false    |              |             |
-| `ended_at`             | string                                       | false    |              |             |
-| `exit_code`            | integer                                      | false    |              |             |
-| `stage`                | [codersdk.TimingStage](#codersdktimingstage) | false    |              |             |
-| `started_at`           | string                                       | false    |              |             |
-| `status`               | string                                       | false    |              |             |
-| `workspace_agent_id`   | string                                       | false    |              |             |
-| `workspace_agent_name` | string                                       | false    |              |             |
+| Name                   | Type                                                                       | Required | Restrictions | Description |
+|------------------------|----------------------------------------------------------------------------|----------|--------------|-------------|
+| `display_name`         | string                                                                     | false    |              |             |
+| `ended_at`             | string                                                                     | false    |              |             |
+| `exit_code`            | integer                                                                    | false    |              |             |
+| `stage`                | [codersdk.TimingStage](#codersdktimingstage)                               | false    |              |             |
+| `started_at`           | string                                                                     | false    |              |             |
+| `status`               | [codersdk.WorkspaceAgentScriptStatus](#codersdkworkspaceagentscriptstatus) | false    |              |             |
+| `workspace_agent_id`   | string                                                                     | false    |              |             |
+| `workspace_agent_name` | string                                                                     | false    |              |             |
 
 ## codersdk.AgentSubsystem
 
@@ -16502,9 +16502,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 #### Enumerated Values
 
-| Value(s)                                             |
-|------------------------------------------------------|
-| `exit_failure`, `ok`, `pipes_left_open`, `timed_out` |
+| Value(s)                                                        |
+|-----------------------------------------------------------------|
+| `exit_failure`, `ok`, `pipes_left_open`, `skipped`, `timed_out` |
 
 ## codersdk.WorkspaceAgentStartupScriptBehavior
 
@@ -17003,7 +17003,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "exit_code": 0,
       "stage": "init",
       "started_at": "2019-08-24T14:15:22Z",
-      "status": "string",
+      "status": "ok",
       "workspace_agent_id": "string",
       "workspace_agent_name": "string"
     }

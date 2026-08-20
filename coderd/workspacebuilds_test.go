@@ -2199,7 +2199,17 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		scripts := dbgen.WorkspaceAgentScripts(t, db, 5, database.WorkspaceAgentScript{
 			WorkspaceAgentID: agent.ID,
 		})
-		agentScriptTimings := dbgen.WorkspaceAgentScriptTimings(t, db, scripts)
+		agentScriptTimings := make([]database.WorkspaceAgentScriptTiming, len(scripts))
+		for i, script := range scripts {
+			timing := database.WorkspaceAgentScriptTiming{ScriptID: script.ID}
+			if i == 0 {
+				skippedAt := dbtime.Now()
+				timing.StartedAt = skippedAt
+				timing.EndedAt = skippedAt
+				timing.Status = database.WorkspaceAgentScriptTimingStatusSkipped
+			}
+			agentScriptTimings[i] = dbgen.WorkspaceAgentScriptTiming(t, db, timing)
+		}
 
 		// When: fetching timings for the build
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -2219,7 +2229,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 			timingRes := res.AgentScriptTimings[i]
 			genTiming := agentScriptTimings[i]
 			require.Equal(t, genTiming.ExitCode, timingRes.ExitCode)
-			require.Equal(t, string(genTiming.Status), timingRes.Status)
+			require.Equal(t, codersdk.WorkspaceAgentScriptStatus(genTiming.Status), timingRes.Status)
 			require.Equal(t, string(genTiming.Stage), string(timingRes.Stage))
 			require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
 			require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())

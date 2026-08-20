@@ -1048,7 +1048,7 @@ Status Code **200**
 | `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
 | `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
 | `requirement`             | `completion`, `success`                                                                                                      |
-| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `timed_out`, `timeout`                   |
+| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `skipped`, `timed_out`, `timeout`        |
 | `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
 | `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
 
@@ -1400,7 +1400,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/tim
       "exit_code": 0,
       "stage": "init",
       "started_at": "2019-08-24T14:15:22Z",
-      "status": "string",
+      "status": "ok",
       "workspace_agent_id": "string",
       "workspace_agent_name": "string"
     }
@@ -1887,22 +1887,22 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                     | Value(s)                                                                                                                                                                                                                                   |
-|------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                                                                                                                                                                                        |
-| `workspace_build_transition` | `delete`, `start`, `stop`                                                                                                                                                                                                                  |
-| `status`                     | `canceled`, `canceling`, `connected`, `connecting`, `deleted`, `deleting`, `disconnected`, `exit_failure`, `failed`, `ok`, `pending`, `pipes_left_open`, `running`, `starting`, `stopped`, `stopping`, `succeeded`, `timed_out`, `timeout` |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`                                                                                                                                                                   |
-| `reason`                     | `autostart`, `autostop`, `initiator`                                                                                                                                                                                                       |
-| `health`                     | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                                                                                                                         |
-| `open_in`                    | `slim-window`, `tab`                                                                                                                                                                                                                       |
-| `sharing_level`              | `authenticated`, `organization`, `owner`, `public`                                                                                                                                                                                         |
-| `state`                      | `complete`, `failure`, `idle`, `working`                                                                                                                                                                                                   |
-| `lifecycle_state`            | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting`                                                                                                               |
-| `requirement`                | `completion`, `success`                                                                                                                                                                                                                    |
-| `startup_script_behavior`    | `blocking`, `non-blocking`                                                                                                                                                                                                                 |
-| `workspace_transition`       | `delete`, `start`, `stop`                                                                                                                                                                                                                  |
-| `transition`                 | `delete`, `start`, `stop`                                                                                                                                                                                                                  |
+| Property                     | Value(s)                                                                                                                                                                                                                                              |
+|------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                                                                                                                                                                                                   |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                                                                                                                                                                                             |
+| `status`                     | `canceled`, `canceling`, `connected`, `connecting`, `deleted`, `deleting`, `disconnected`, `exit_failure`, `failed`, `ok`, `pending`, `pipes_left_open`, `running`, `skipped`, `starting`, `stopped`, `stopping`, `succeeded`, `timed_out`, `timeout` |
+| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`                                                                                                                                                                              |
+| `reason`                     | `autostart`, `autostop`, `initiator`                                                                                                                                                                                                                  |
+| `health`                     | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                                                                                                                                    |
+| `open_in`                    | `slim-window`, `tab`                                                                                                                                                                                                                                  |
+| `sharing_level`              | `authenticated`, `organization`, `owner`, `public`                                                                                                                                                                                                    |
+| `state`                      | `complete`, `failure`, `idle`, `working`                                                                                                                                                                                                              |
+| `lifecycle_state`            | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting`                                                                                                                          |
+| `requirement`                | `completion`, `success`                                                                                                                                                                                                                               |
+| `startup_script_behavior`    | `blocking`, `non-blocking`                                                                                                                                                                                                                            |
+| `workspace_transition`       | `delete`, `start`, `stop`                                                                                                                                                                                                                             |
+| `transition`                 | `delete`, `start`, `stop`                                                                                                                                                                                                                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

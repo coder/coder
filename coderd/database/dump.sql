@@ -685,10 +685,11 @@ CREATE TYPE workspace_agent_script_timing_status AS ENUM (
     'ok',
     'exit_failure',
     'timed_out',
-    'pipes_left_open'
+    'pipes_left_open',
+    'skipped'
 );
 
-COMMENT ON TYPE workspace_agent_script_timing_status IS 'What the exit status of the script is.';
+COMMENT ON TYPE workspace_agent_script_timing_status IS 'The terminal outcome of a script execution.';
 
 CREATE TYPE workspace_agent_subsystem AS ENUM (
     'envbuilder',

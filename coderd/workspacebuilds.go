@@ -1549,7 +1549,7 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 			EndedAt:            t.EndedAt,
 			ExitCode:           t.ExitCode,
 			Stage:              codersdk.TimingStage(t.Stage),
-			Status:             string(t.Status),
+			Status:             codersdk.WorkspaceAgentScriptStatus(t.Status),
 			DisplayName:        t.DisplayName,
 			WorkspaceAgentID:   t.WorkspaceAgentID.String(),
 			WorkspaceAgentName: t.WorkspaceAgentName,

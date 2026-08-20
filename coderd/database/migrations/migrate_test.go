@@ -3045,3 +3045,41 @@ func TestMigration000571WorkspaceAgentScriptOrder(t *testing.T) {
 		{name: "resource_address", dataType: "text", nullable: "NO", defaultValue: "''::text"},
 	}, columns)
 }
+
+func TestMigration000572WorkspaceAgentScriptTimingSkipped(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion uint = 572
+
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.Equal(t, migrationVersion, version)
+
+	var values pq.StringArray
+	err = sqlDB.QueryRow(`
+		SELECT enum_range(NULL::workspace_agent_script_timing_status)::text[]
+	`).Scan(&values)
+	require.NoError(t, err)
+	require.Equal(t, pq.StringArray{
+		"ok",
+		"exit_failure",
+		"timed_out",
+		"pipes_left_open",
+		"skipped",
+	}, values)
+}

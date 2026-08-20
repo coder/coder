@@ -321,6 +321,7 @@ message Timing {
         EXIT_FAILURE = 1;
         TIMED_OUT = 2;
         PIPES_LEFT_OPEN = 3;
+        SKIPPED = 4;
     }
     Status status = 6;
 }
