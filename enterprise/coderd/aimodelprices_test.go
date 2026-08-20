@@ -392,11 +392,74 @@ func TestListAIModelPrices(t *testing.T) {
 		require.Equal(t, int64(6_250_000), *seeded[0].CacheWritePrice)
 	})
 
+	t.Run("RejectsAnUnknownSource", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: an entitled deployment.
+		ownerClient, _ := setupAIModelPricesTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When: the prices are listed with a source outside the enum.
+		//nolint:gocritic // Reading AI model prices is owner-only.
+		_, err := codersdk.NewExperimentalClient(ownerClient).ListAIModelPrices(ctx,
+			codersdk.AIModelPricesFilter{Source: "seeded"})
+
+		// Then: a 400 comes back naming the field.
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Equal(t, "Invalid AI model price source.", sdkErr.Message)
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "source", sdkErr.Validations[0].Field)
+	})
+
+	t.Run("BySourceAllReportsEveryRow", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: anthropic/claude-opus-5 priced by the seeded book and then
+		// overridden, so it carries a row under each source.
+		ownerClient, _ := setupAIModelPricesTest(t)
+		exp := codersdk.NewExperimentalClient(ownerClient)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		filter := codersdk.AIModelPricesFilter{Provider: "anthropic", Model: "claude-opus-5"}
+
+		// The book's row is captured rather than hardcoded, so the assertion
+		// survives a price book update.
+		//nolint:gocritic // Managing AI model prices is owner-only.
+		seeded, err := exp.ListAIModelPrices(ctx, filter)
+		require.NoError(t, err)
+		require.Len(t, seeded, 1)
+
+		require.NoError(t, exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+			Prices: []codersdk.AIModelPriceUpsert{
+				newAIModelPrice("anthropic", "claude-opus-5", 100),
+			},
+		}))
+
+		// When: the model is listed under every source.
+		filter.Source = codersdk.AIModelPriceSourceFilterAll
+		prices, err := exp.ListAIModelPrices(ctx, filter)
+		require.NoError(t, err)
+
+		// Then: both rows come back, the custom price ahead of the book's. The
+		// request set an input price only, so the other three are null.
+		require.Len(t, prices, 2)
+		require.Equal(t, codersdk.AIModelPriceSourceCustom, prices[0].Source)
+		require.Equal(t, int64(100), *prices[0].InputPrice)
+		require.Nil(t, prices[0].OutputPrice)
+		require.Nil(t, prices[0].CacheReadPrice)
+		require.Nil(t, prices[0].CacheWritePrice)
+		require.Equal(t, seeded[0], prices[1])
+	})
+
 	t.Run("Filters", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: two anthropic models, and an openai model sharing a name with
-		// one of them.
+		// Given: two anthropic models, an openai model sharing a name with one
+		// of them, and claude-opus-5, which the price book also carries. The
+		// endpoint records every price it writes as custom, so only
+		// claude-opus-5 holds a default price too.
 		ownerClient, _ := setupAIModelPricesTest(t)
 		exp := codersdk.NewExperimentalClient(ownerClient)
 		setupCtx := testutil.Context(t, testutil.WaitLong)
@@ -407,6 +470,7 @@ func TestListAIModelPrices(t *testing.T) {
 				newAIModelPrice("anthropic", "model-a", 1),
 				newAIModelPrice("anthropic", "model-b", 2),
 				{Provider: "openai", Model: "model-a", InputPrice: ptr.Ref(int64(3))},
+				newAIModelPrice("anthropic", "claude-opus-5", 4),
 			},
 		}))
 
@@ -439,6 +503,35 @@ func TestListAIModelPrices(t *testing.T) {
 				name:   "UnknownProviderMatchesNothing",
 				filter: codersdk.AIModelPricesFilter{Provider: "unknown-provider"},
 				want:   nil,
+			},
+			{
+				// The override is skipped, leaving the price book's row.
+				name: "BySourceDefault",
+				filter: codersdk.AIModelPricesFilter{
+					Model:  "claude-opus-5",
+					Source: codersdk.AIModelPriceSourceFilterDefault,
+				},
+				want: []string{"anthropic/claude-opus-5"},
+			},
+			{
+				// The price book does not carry model-a, so filtering to it
+				// leaves nothing.
+				name: "BySourceDefaultMatchesNothing",
+				filter: codersdk.AIModelPricesFilter{
+					Model:  "model-a",
+					Source: codersdk.AIModelPriceSourceFilterDefault,
+				},
+				want: nil,
+			},
+			{
+				// These are the only prices set through the endpoint. The rest
+				// of the table is the seeded price book.
+				name:   "BySourceCustom",
+				filter: codersdk.AIModelPricesFilter{Source: codersdk.AIModelPriceSourceFilterCustom},
+				want: []string{
+					"anthropic/claude-opus-5", "anthropic/model-a",
+					"anthropic/model-b", "openai/model-a",
+				},
 			},
 		}
 

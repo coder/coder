@@ -189,14 +189,28 @@ snapshot that ships with every Coder release, so no configuration is required.
 Spend accumulates only from the moment v2.36 is deployed. Upgrading mid-month
 therefore produces a partial first period.
 
-To see which models are priced in the release version you run, consult the
-price book for your Coder version:
+To see the prices this deployment uses, list them. The `source` column reports
+whether each is a default price or a custom price set on this deployment:
+
+```sh
+coder exp ai-model-prices list
+```
+
+A custom price takes precedence over its default, so it is the one listed. To
+see the default for such a model, filter to it:
+
+```sh
+coder exp ai-model-prices list --source default
+```
+
+Default prices come from the price book that ships with each Coder release. To
+see the price book for a release:
 
 ```text
 https://github.com/coder/coder/blob/release/<VERSION>/coderd/aibridge/prices/data/prices.json
 ```
 
-Replace `<VERSION>` with your Coder minor version, for example `2.36`.
+Replace `<VERSION>` with a Coder minor version, for example `2.36`.
 
 To use your own price for any of these models, see
 [Set model prices](#set-model-prices).
@@ -205,10 +219,9 @@ To use your own price for any of these models, see
 > Spend is an approximation. It can differ from what the provider bills, and
 > some usage does not count toward it at all:
 >
-> - Prices default to the price book's list prices. A custom price brings spend
->   closer to the rates a deployment actually pays, though billing rules that
->   are not a per-token rate, such as committed-use discounts, cannot be
->   represented.
+> - Default prices are list prices. A custom price brings spend closer to the
+>   rates a deployment actually pays, though billing rules that are not a
+>   per-token rate, such as committed-use discounts, cannot be represented.
 > - A model with no price adds nothing to spend. Its token usage is still
 >   recorded, but it never counts toward a limit, so a user who calls only
 >   unpriced models is effectively unlimited. Setting a price for the model
@@ -229,10 +242,24 @@ Premium license, and the `ai_model_price:update` permission. Run
 `coder exp ai-model-prices --help` for the full reference.
 
 List the prices this deployment holds, optionally narrowed to one provider or
-model:
+model. The `source` column reports whether a price is a default price
+(`default`) or one set on this deployment (`custom`):
 
 ```sh
 coder exp ai-model-prices list --provider anthropic
+```
+
+List only the prices you have set:
+
+```sh
+coder exp ai-model-prices list --source custom
+```
+
+A listing reports one price per model, so an overridden model's default is not
+shown. To see every price a model holds, both at once:
+
+```sh
+coder exp ai-model-prices list --source all
 ```
 
 Price a single model. Prices are micro-units per million tokens, so `3000000`
@@ -256,8 +283,8 @@ coder exp ai-model-prices update prices.json
 >
 > - Prices are not retroactive. Usage recorded before you set a price stays
 >   unpriced, so past spend does not change.
-> - A price you set takes precedence over the price book and stays in effect
->   across upgrades, so it does not pick up price book updates.
+> - A price you set takes precedence over the default and stays in effect
+>   across upgrades, so it does not pick up later price books.
 > - This command is experimental and can change without notice.
 
 ## Monitor spend

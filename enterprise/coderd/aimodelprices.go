@@ -19,6 +19,13 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// aiModelPriceSources lists the accepted source filters.
+var aiModelPriceSources = []string{
+	string(codersdk.AIModelPriceSourceFilterDefault),
+	string(codersdk.AIModelPriceSourceFilterCustom),
+	string(codersdk.AIModelPriceSourceFilterAll),
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary List AI model prices
@@ -28,15 +35,30 @@ import (
 // @Tags Enterprise
 // @Param provider query string false "Only return prices for this provider"
 // @Param model query string false "Only return prices for this model"
+// @Param source query string false "Only return prices from this source, or all to return every price a model holds" Enums(default,custom,all)
 // @Success 200 {array} codersdk.AIModelPrice
 // @Router /api/experimental/ai/model-prices [get]
 // @x-apidocgen {"skip": true}
 func (api *API) listAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// An absent source leaves the listing unfiltered.
+	source := r.URL.Query().Get("source")
+	if source != "" && !slices.Contains(aiModelPriceSources, source) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid AI model price source.",
+			Validations: []codersdk.ValidationError{{
+				Field:  "source",
+				Detail: fmt.Sprintf("Source %q is not supported. Supported sources: %s.", source, strings.Join(aiModelPriceSources, ", ")),
+			}},
+		})
+		return
+	}
+
 	dbPrices, err := api.Database.GetAIModelPrices(ctx, database.GetAIModelPricesParams{
 		Provider: r.URL.Query().Get("provider"),
 		Model:    r.URL.Query().Get("model"),
+		Source:   source,
 	})
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)

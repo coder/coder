@@ -69,6 +69,7 @@ type aiModelPriceRow struct {
 	OutputPrice     string `json:"-" table:"output price"`
 	CacheReadPrice  string `json:"-" table:"cache read price"`
 	CacheWritePrice string `json:"-" table:"cache write price"`
+	Source          string `json:"-" table:"source"`
 	CreatedAt       string `json:"-" table:"created at"`
 	UpdatedAt       string `json:"-" table:"updated at"`
 }
@@ -77,9 +78,10 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 	var (
 		provider  string
 		model     string
+		source    string
 		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat([]aiModelPriceRow{}, []string{
-				"provider", "model", "input price", "output price", "cache read price", "cache write price",
+				"provider", "model", "input price", "output price", "cache read price", "cache write price", "source",
 			}),
 			cliui.JSONFormat(),
 		)
@@ -88,8 +90,9 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "list",
 		Short: "List AI Governance model prices",
-		Long: "Lists every model priced for this deployment. Prices are shown in " +
-			"dollars per million tokens. Narrow the output with --provider or --model.",
+		Long: "Lists the price in effect for each model on this deployment, in " +
+			"dollars per million tokens. Narrow the output with --provider, --model " +
+			"or --source.",
 		Middleware: serpent.Chain(serpent.RequireNArgs(0)),
 		Options: serpent.OptionSet{
 			{
@@ -102,6 +105,17 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 				Description: "Only show this model.",
 				Value:       serpent.StringOf(&model),
 			},
+			{
+				Flag: "source",
+				Description: "Only show prices from this source, or \"all\" to show every " +
+					"price a model holds. A model carrying both a price book price and a " +
+					"custom one appears under either source, and twice under \"all\".",
+				Value: serpent.EnumOf(&source,
+					string(codersdk.AIModelPriceSourceFilterDefault),
+					string(codersdk.AIModelPriceSourceFilterCustom),
+					string(codersdk.AIModelPriceSourceFilterAll),
+				),
+			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -113,6 +127,7 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 			prices, err := codersdk.NewExperimentalClient(client).ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{
 				Provider: provider,
 				Model:    model,
+				Source:   codersdk.AIModelPriceSourceFilter(source),
 			})
 			if err != nil {
 				return xerrors.Errorf("list model prices: %w", err)
@@ -128,6 +143,7 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 					OutputPrice:     formatMicros(price.OutputPrice),
 					CacheReadPrice:  formatMicros(price.CacheReadPrice),
 					CacheWritePrice: formatMicros(price.CacheWritePrice),
+					Source:          string(price.Source),
 					CreatedAt:       humanize.Time(price.CreatedAt),
 					UpdatedAt:       humanize.Time(price.UpdatedAt),
 				})
