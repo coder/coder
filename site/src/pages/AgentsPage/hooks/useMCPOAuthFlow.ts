@@ -13,7 +13,6 @@ type UseMCPOAuthFlowOptions = {
 };
 
 type MCPOAuthFlow = {
-	// Server whose OAuth consent popup is open.
 	connectingServerId: string | null;
 	connect: (serverId: string) => void;
 };
@@ -51,7 +50,6 @@ export const useMCPOAuthFlow = ({
 		},
 	);
 
-	// Listen for OAuth2 completion postMessage from popup.
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
 			if (event.origin !== location.origin) return;
