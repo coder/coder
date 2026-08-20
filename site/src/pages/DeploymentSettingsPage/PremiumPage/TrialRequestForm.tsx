@@ -185,8 +185,8 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 				/>
 				<div>
 					<label htmlFor={acknowledgementId} className="cursor-pointer">
-						I understand that Premium features increase database load, and that
-						Coder recommends an external PostgreSQL database for production
+						I understand that Coder trial features increase database load, and
+						that Coder recommends an external PostgreSQL database for production
 						deployments.
 					</label>{" "}
 					<a

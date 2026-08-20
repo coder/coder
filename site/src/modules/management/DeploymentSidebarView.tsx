@@ -100,7 +100,9 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 					</SidebarNavItem>
 				)}
 				{!hidePremiumTab && (
-					<SidebarNavItem href={PREMIUM_PAGE_PATH}>Premium</SidebarNavItem>
+					<SidebarNavItem href={PREMIUM_PAGE_PATH}>
+						Trial Upgrade
+					</SidebarNavItem>
 				)}
 			</div>
 		</BaseSidebar>

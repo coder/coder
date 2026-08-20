@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { createTrialLicense, licenses } from "#/api/queries/licenses";
 import { Link } from "#/components/Link/Link";
-import { PREMIUM_PRICING_LINK } from "#/components/Paywall/Paywall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -44,7 +43,7 @@ const PremiumPage: FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Premium trial")}</title>
+			<title>{pageTitle("Start a Coder trial")}</title>
 
 			<SettingsHeader
 				actions={
@@ -53,19 +52,19 @@ const PremiumPage: FC = () => {
 					</SettingsHeaderDocsLink>
 				}
 			>
-				<SettingsHeaderTitle>Premium trial</SettingsHeaderTitle>
+				<SettingsHeaderTitle>Start a Coder trial</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					For enterprises ready to achieve world-class security, scalability,
 					and developer experience.
 				</SettingsHeaderDescription>
 				<Link
-					href={PREMIUM_PRICING_LINK}
+					href="https://coder.com/pricing#compare"
 					target="_blank"
 					rel="noreferrer"
 					size="sm"
 					className="w-fit"
 				>
-					Learn more about premium
+					Learn more
 				</Link>
 			</SettingsHeader>
 

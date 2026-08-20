@@ -22,7 +22,7 @@ export const TrialActivePanel: FC<TrialActivePanelProps> = ({
 			) : null}
 
 			<p className="m-0 px-8 text-sm text-content-primary">
-				Contact our sales team to extend your trial or upgrade to Coder Premium.
+				Contact our sales team to extend your trial.
 			</p>
 
 			<Button asChild className="w-full">
