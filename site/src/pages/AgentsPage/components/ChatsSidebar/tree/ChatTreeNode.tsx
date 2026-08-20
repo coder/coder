@@ -339,6 +339,15 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												isActiveChat && "opacity-100",
 											)}
 											aria-label={`Open actions for ${chat.title}`}
+											// The kebab already opens its own dropdown;
+											// suppress the row-level right-click context
+											// menu here so a right-click on the kebab
+											// doesn't show a duplicate menu next to the
+											// dropdown.
+											onContextMenu={(e) => {
+												e.preventDefault();
+												e.stopPropagation();
+											}}
 										>
 											<EllipsisVerticalIcon className="size-3.5" />
 										</Button>
