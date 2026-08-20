@@ -66,4 +66,6 @@ extend-exclude = [
 	"aibridge/fixtures/**",
 	# go-vcr cassettes contain real API responses with 3rd-party content
 	"coderd/externalauth/gitprovider/testdata/**",
+	# feedback session records quote participants verbatim, typos included
+	"poc_audit_feedback/**",
 ]
