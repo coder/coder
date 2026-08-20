@@ -213,7 +213,7 @@ https://github.com/coder/coder/blob/release/<VERSION>/coderd/aibridge/prices/dat
 Replace `<VERSION>` with a Coder minor version, for example `2.36`.
 
 To use your own price for any of these models, see
-[Set model prices](#set-model-prices).
+[Configure model prices](#configure-model-prices).
 
 > [!IMPORTANT]
 > Spend is an approximation. It can differ from what the provider bills, and
@@ -234,12 +234,14 @@ value means spend is under-counted. Because the price book ships with the
 release, a newly launched model is unpriced until you upgrade Coder or set a
 price for it yourself.
 
-### Set model prices
+### Configure model prices
 
 Use the experimental `coder exp ai-model-prices` command to set model prices
 for your deployment. It requires AI Governance, which is included with a
-Premium license, and the `ai_model_price:update` permission. Run
-`coder exp ai-model-prices --help` for the full reference.
+Premium license, and the Owner
+[role](../../admin/users/groups-roles.md) or a custom role granting
+`ai_model_price:update`. Run `coder exp ai-model-prices --help` for the full
+reference.
 
 List the prices this deployment holds, optionally narrowed to one provider or
 model. The `source` column reports whether a price is a default price
@@ -285,6 +287,10 @@ coder exp ai-model-prices update prices.json
 >   unpriced, so past spend does not change.
 > - A price you set takes precedence over the default and stays in effect
 >   across upgrades, so it does not pick up later price books.
+> - A price is keyed by provider type and model, so every configured provider
+>   of that type shares it.
+> - `openai-compat` providers cannot be priced. They pass through to any
+>   upstream vendor, so a single price would be wrong for most of them.
 > - This command is experimental and can change without notice.
 
 ## Monitor spend

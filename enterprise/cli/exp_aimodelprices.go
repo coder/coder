@@ -47,6 +47,8 @@ Coder's price book:
       "cache_write_price": null
     }
   ]
+  * A price is keyed by provider type and model, so every configured
+    provider of that type shares it.
   * Prices are micro-units per million tokens, so 3000000 is $3.00 per
     million tokens.
   * A 'null' price is unknown and adds no cost. An explicit 0 declares the
@@ -97,7 +99,7 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 		Options: serpent.OptionSet{
 			{
 				Flag:        "provider",
-				Description: "Only show models for this provider.",
+				Description: "Only show models for this provider type.",
 				Value:       serpent.StringOf(&provider),
 			},
 			{
@@ -202,9 +204,10 @@ func (r *RootCmd) aiModelPricesUpdate() *serpent.Command {
 		Middleware: serpent.Chain(serpent.RequireRangeArgs(0, 1)),
 		Options: serpent.OptionSet{
 			{
-				Flag:        "provider",
-				Description: "Provider of the model to price.",
-				Value:       serpent.StringOf(&provider),
+				Flag: "provider",
+				Description: "Provider type of the model to price. Every configured " +
+					"provider of that type shares the price.",
+				Value: serpent.StringOf(&provider),
 			},
 			{
 				Flag:        "model",
