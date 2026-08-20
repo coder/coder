@@ -77,6 +77,7 @@ export const WriteFileTool: React.FC<{
 								: "max-h-64"
 						}
 						viewportTabIndex={0}
+						viewportAriaLabel={`Diff of ${path}`}
 						scrollBarClassName="w-1.5"
 					>
 						<FileDiff

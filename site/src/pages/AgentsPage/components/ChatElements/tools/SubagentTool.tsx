@@ -280,6 +280,7 @@ export const SubagentTool: React.FC<{
 						className="mt-1.5 rounded-md border border-solid border-border-default"
 						viewportClassName="max-h-64"
 						viewportTabIndex={0}
+						viewportAriaLabel="Subagent prompt"
 						scrollBarClassName="w-1.5"
 					>
 						<div className="px-3 py-2">
@@ -293,6 +294,7 @@ export const SubagentTool: React.FC<{
 						className="mt-1.5 rounded-md border border-solid border-border-default"
 						viewportClassName="max-h-64"
 						viewportTabIndex={0}
+						viewportAriaLabel="Subagent response"
 						scrollBarClassName="w-1.5"
 					>
 						<div className="px-3 py-2">
@@ -306,6 +308,7 @@ export const SubagentTool: React.FC<{
 						className="mt-1.5 rounded-md border border-solid border-border-default"
 						viewportClassName="max-h-64"
 						viewportTabIndex={0}
+						viewportAriaLabel="Subagent report"
 						scrollBarClassName="w-1.5"
 					>
 						<div className="px-3 py-2">

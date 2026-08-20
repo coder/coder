@@ -183,6 +183,7 @@ const ShellTranscriptBody: React.FC<{
 			className="col-start-1 col-span-2 mt-2 rounded-xl bg-surface-secondary/60 text-2xs"
 			viewportClassName="max-h-64"
 			viewportTabIndex={0}
+			viewportAriaLabel="Command output"
 			scrollBarClassName="w-1.5"
 		>
 			<div className="px-3 py-2.5">
