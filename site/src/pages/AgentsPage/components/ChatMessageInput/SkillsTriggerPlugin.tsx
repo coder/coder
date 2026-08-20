@@ -31,6 +31,7 @@ type DismissedSkillsTrigger = Pick<
 type SkillsTriggerPluginProps = {
 	open: boolean;
 	skills: readonly SkillMenuItem[];
+	skillsLoading: boolean;
 	selectedIndex: number;
 	onSelectedIndexChange: (index: number) => void;
 	onTriggerChange: (trigger: ActiveSkillsTrigger | null) => void;
@@ -145,6 +146,7 @@ const activeTriggerFromSelection = (): Omit<
 export const SkillsTriggerPlugin = ({
 	open,
 	skills,
+	skillsLoading,
 	selectedIndex,
 	onSelectedIndexChange,
 	onTriggerChange,
@@ -228,6 +230,12 @@ export const SkillsTriggerPlugin = ({
 		}
 		const skill = selectedIndex >= 0 ? skills[selectedIndex] : undefined;
 		if (!skill) {
+			// A still-loading source may yet produce matches, so keep
+			// consuming Enter until every source resolves.
+			if (skillsLoading) {
+				event?.preventDefault();
+				return true;
+			}
 			// Nothing is selectable (e.g. the trailing token is a filesystem
 			// path, not a skill): dismiss the menu and let the same keypress
 			// fall through to the submit handler.
@@ -248,6 +256,12 @@ export const SkillsTriggerPlugin = ({
 		}
 		const skill = selectedIndex >= 0 ? skills[selectedIndex] : undefined;
 		if (!skill) {
+			// A still-loading source may yet produce matches, so keep
+			// consuming Enter until every source resolves.
+			if (skillsLoading) {
+				event?.preventDefault();
+				return true;
+			}
 			return false;
 		}
 		event?.preventDefault();

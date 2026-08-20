@@ -319,6 +319,25 @@ export const EmptyPersonalKeepsMenuOpenWhileWorkspaceSkillsUnknown: Story = {
 	},
 };
 
+// While a skill source is still loading, a zero-match Enter must keep
+// the menu open instead of submitting a token that may become a skill
+// trigger once results arrive.
+export const EnterWhileSkillsLoadingDoesNotSubmit: Story = {
+	args: {
+		personalSkillsOverride: [],
+		hasWorkspace: true,
+		onEnter: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const editor = await typeInEditor(canvasElement, "/rev");
+		expect(await findVisibleText("Loading workspace skills...")).toBeDefined();
+		await userEvent.keyboard("{Enter}");
+		expect(args.onEnter).not.toHaveBeenCalled();
+		expect(await findVisibleText("Loading workspace skills...")).toBeDefined();
+		expect(editor.textContent).toBe("/rev");
+	},
+};
+
 export const QualifiedPersonalQueryMatchesBareTrigger: Story = {
 	args: {
 		hasWorkspace: true,

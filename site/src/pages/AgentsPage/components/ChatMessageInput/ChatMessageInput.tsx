@@ -980,6 +980,12 @@ const ChatMessageInput = ({
 				<SkillsTriggerPlugin
 					open={skillsMenuOpen}
 					skills={allFilteredSkills}
+					skillsLoading={
+						(personalSkillsQueryEnabled &&
+							skillsQuery.isFetching &&
+							skillsQuery.data === undefined) ||
+						!workspaceSkillsKnown
+					}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onTriggerChange={handleSkillsTriggerChange}
