@@ -1,6 +1,6 @@
 ---
 name: poc-audit
-description: Design corpus for the audit, entity lifecycle, entity identity, and workspace_agent credential proof of concept in poc_audit/. Load before answering any question about auditability, journals versus logs, whether the existing audit_logs table can serve a need, what "actor", "sandbox", "AI agent", or workspace_agent mean in this work, entity identity and attribution, or the security findings on agent credentials. Nothing in the corpus is implemented; the documents record positions, not current behaviour. For a guided first pass with feedback captured, use the learn-about-poc-audit skill instead.
+description: Design corpus for the audit, entity lifecycle, entity identity, and workspace_agent credential proof of concept in poc_audit/. Load before answering any question about auditability, journals versus logs, whether the existing audit_logs table can serve a need, what "actor", "sandbox", "AI agent", or workspace_agent mean in this work, entity identity and attribution, or the security findings on agent credentials. The documents record positions rather than current behaviour, including where code for a position now exists. For a guided first pass with feedback captured, use the learn-about-poc-audit skill instead.
 ---
 
 # poc_audit router
@@ -12,9 +12,12 @@ the author; this skill does neither.
 
 ## Three things to get right before answering
 
-**Nothing in `poc_audit/` is implemented.** The documents record positions,
-findings, and plans. They do not describe the behaviour of the running
-system, and must never be presented as current behaviour.
+**The documents record positions, not behaviour.** They are not a description
+of the running system and must never be presented as one, and that holds
+whether or not code for a position exists yet. Some of what they propose has
+been built and some has not; `work_breakdown.md` records which. Findings
+sections are different in kind, stating verifiable facts about the existing
+codebase, and are marked as such.
 
 **"Audit" never means the existing `audit_logs` table.** They are independent
 systems that happen to share a word. Where the existing mechanism is meant,

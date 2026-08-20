@@ -20,8 +20,10 @@ with two or three plain sentences covering:
 
 - **What these documents are.** Design work for a proof of concept covering
   audit, entity lifecycle, entity identity, and credentials for
-  `workspace_agent` entities. They record positions and findings. None of it
-  is built, so nothing in them describes how the system behaves today.
+  `workspace_agent` entities. They record positions and findings, so none of
+  them describes how the system behaves today. Some of what they propose has
+  been built and some has not, and being built would not make a document a
+  description of the system either.
 - **What is about to happen.** You will read all of them, which takes a
   moment, then answer their questions, asking after each answer how it landed.
   It ends whenever they want it to.

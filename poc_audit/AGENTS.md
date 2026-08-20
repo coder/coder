@@ -12,9 +12,12 @@
 Design work for a proof of concept covering entity lifecycles, entity
 identity, and audit.
 
-**Nothing here is implemented.** These documents record positions, findings,
-and plans. They do not describe the behaviour of the running system, and
-should not be read as if they did.
+**These documents record positions, not behaviour.** They do not describe how
+the running system works and should not be read as if they did, and that holds
+whether or not code for a position exists yet. Some of what they propose has
+been built and some has not; `work_breakdown.md` records which. Findings
+sections are different in kind, stating verifiable facts about the existing
+codebase, and are marked as such.
 
 ## How to read these documents
 
