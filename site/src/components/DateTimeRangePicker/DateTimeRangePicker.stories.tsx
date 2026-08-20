@@ -142,10 +142,15 @@ export const CustomRangeExpanded: Story = {
 		// Apply stays disabled until a full date range is selected.
 		expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
 
-		// Future dates cannot be selected.
+		// Future dates cannot be selected, and the calendar cannot page
+		// past the current month.
 		expect(
 			screen.getByRole("button", { name: /April 17th, 2026/ }),
 		).toBeDisabled();
+		expect(screen.getByRole("button", { name: /next month/i })).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
 	},
 };
 

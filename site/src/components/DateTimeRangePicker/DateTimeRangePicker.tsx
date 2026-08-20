@@ -250,6 +250,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 										value.preset === undefined ? value.start : currentTime
 									}
 									disabled={{ after: currentTime }}
+									endMonth={currentTime}
 									today={currentTime}
 								/>
 								{errorMessage !== null && (
