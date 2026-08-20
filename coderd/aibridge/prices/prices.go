@@ -39,4 +39,3 @@ func SeedFromBytes(ctx context.Context, db database.Store, data []byte) error {
 		Source: database.AIModelPriceSourceDefault,
 	})
 }
-
