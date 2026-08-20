@@ -328,9 +328,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									aria-label="Shared chat"
 								/>
 							)}
-							{/* The actions trigger overlays the same box as the
-							    archiving spinner, so keep them mutually exclusive to
-							    avoid the two icons rendering on top of each other. */}
 							{hasMenuActions && !isArchivingThisChat && (
 								<DropdownMenu>
 									<DropdownMenuTrigger asChild>
