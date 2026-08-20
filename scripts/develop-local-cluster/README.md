@@ -31,6 +31,13 @@ limactl start \
   template:docker-rootful
 ```
 
+Start the VM if it is stopped, then open a shell in it:
+
+```console
+limactl start coder-dev
+limactl shell coder-dev
+```
+
 Run the bootstrap script inside the VM. Supply the license using a file when possible:
 
 ```console
