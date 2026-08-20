@@ -4,19 +4,11 @@
 
 The command is for local development only. It does not run in CI.
 
-## Prerequisites
+## Setup options
 
-- Docker must be running.
-- `kubectl`, Helm, Go, Make, and Git must be available.
-- Install the repository's pinned tools, including kind:
+Use the Lima bootstrap script for a fresh macOS development environment. If your machine already has the required tools and a Coder checkout, run `develop-local-cluster.sh` directly.
 
-  ```console
-  mise install
-  ```
-
-The command supports Docker servers running on `amd64` or `arm64`.
-
-## Bootstrap a Lima VM
+## Automated setup in a Lima VM
 
 Use `setup-local-cluster-lima.sh` to prepare a fresh, apt-based Lima VM and deploy the complete local environment. The script expects rootful Docker, installs missing development tools, clones Coder into the guest's writable `~/src/coder` directory, creates the cluster, and adds a license. mTLS between AI Gateway and Coder is optional and disabled by default.
 
@@ -31,7 +23,7 @@ limactl start \
   template:docker-rootful
 ```
 
-Start the VM if it is stopped, then open a shell in it:
+Start the VM and open a shell in it:
 
 ```console
 limactl start coder-dev
@@ -94,9 +86,21 @@ The mTLS validation uses a temporary loopback-only port-forward and removes it w
 
 If a fresh bootstrap fails after creating the cluster, the script removes the new cluster and its local resources. It does not delete a cluster that existed before the script started.
 
-## Quick start
+## Run develop-local-cluster directly
 
-Create the cluster:
+Use `develop-local-cluster.sh` when Docker, the required development tools, and the Coder repository are already available on your machine. The command supports Docker servers running on `amd64` or `arm64`.
+
+### Prerequisites
+
+- Docker must be running.
+- `kubectl`, Helm, Go, Make, and Git must be available.
+- Install the repository's pinned tools, including kind:
+
+  ```console
+  mise install
+  ```
+
+### Create the cluster
 
 ```console
 ./scripts/develop-local-cluster.sh up
