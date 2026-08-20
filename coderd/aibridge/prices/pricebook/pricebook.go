@@ -10,7 +10,8 @@ import (
 // fields preserve the distinction between a missing price and an explicit zero.
 //
 // NOTE: the batch SQL upsert extracts these fields from the raw JSON by name,
-// so the tags here and that query must stay in sync.
+// so the tags here and that query must stay in sync. TestSeedFromBytes/
+// RowTagsMatchSQLColumns in the parent package guards that.
 type Row struct {
 	Provider        string `json:"provider"`
 	Model           string `json:"model"`
