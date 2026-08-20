@@ -125,7 +125,6 @@ New integrations are always in progress. Open an issue to request one. Contribut
 
 - [**Community Templates**](https://registry.coder.com/templates): Community-contributed workspace templates in the Coder Registry
 - [**Community Modules**](https://registry.coder.com/modules): Community-contributed modules to extend Coder templates
-- [**Provision Coder with Terraform**](https://github.com/ElliotG/coder-oss-tf): Provision Coder on Google GKE, Azure AKS, AWS EKS, DigitalOcean DOKS, IBMCloud K8s, OVHCloud K8s, and Scaleway K8s Kapsule with Terraform
 - [**Coder Template GitHub Action**](https://github.com/marketplace/actions/update-coder-template): A GitHub Action that updates Coder templates
 - [**Discord**](https://cdr.co/discord-5hw2sjadGU): Chat with the community and provide feedback on in-progress features
 
