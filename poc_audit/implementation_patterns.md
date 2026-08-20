@@ -166,6 +166,59 @@ journal per entity means the journal is about a single kind, and the table's
 name already says which. Nothing is standing in for a key into a union, so the
 rule does not reach it and there is no exception to remember.
 
+### An optional at most one attribute is denormalized onto its ledger row
+
+An attribute a row may or may not have, and can have only once, is a nullable
+column on the ledger rather than a row in a table of its own.
+
+Two shapes work with a journal and a ledger and there is no third. In the
+**normalized** form the attribute is a separate table whose rows carry a foreign
+key to the ledger row they qualify, and a ledger row with no such row simply
+lacks the attribute. In the **denormalized** form the attribute is a nullable
+column on the ledger row itself.
+
+**The denormalized form is chosen, for efficiency.** It removes a join from
+every read that wants the attribute and an index from every write that sets one,
+and buys nothing back that this system needs.
+
+It gains an integrity property rather than losing one, which is not what
+denormalizing usually does. A column holds at most one value, so at most one
+such attribute per row is enforced structurally. The normalized form would need
+a uniqueness constraint on the foreign key to say as much, and would be correct
+only for as long as somebody maintained it.
+
+#### What a null in that column means
+
+**A null means the attribute is absent, and that reading is not a convention.**
+It follows from the two forms being defined as equivalent. The null stands
+exactly where the normalized form would have had no row, and the absence of a
+row is unambiguous in a way a null is not.
+
+This matters because null in SQL carries several readings, absent and unknown
+and inapplicable among them, and picking one by fiat leaves a reader to take it
+on trust. Here the meaning is fixed by appeal to the implementation this one
+replaces, which is a thing a reader can check rather than a thing they must
+accept.
+
+#### When the normalized form would be right instead
+
+If more than one party could independently limit the same thing, at most one
+stops being true and a single column can no longer hold what is needed. Two
+consequences would follow together. The normalized form would be required, and
+those limits should be rolled into the entity's own state machine as transitions
+rather than made an entity with a lifecycle of its own. An expiration is a fact
+about a credential, not a thing with a life.
+
+#### The first application, and what it does not settle
+
+A credential's expiration is the first of these, and this decision settles the
+shape of its schema and nothing else. Whether an expiry is recorded in the entry
+that issues the credential or arrives later as its own transition, whether it is
+enforced by a scheduler or evaluated when a credential is presented, and whether
+"expiration" names a minimum time of reliance or a maximum time of validity, are
+all open. Authorization raises the same questions and is to take the same
+answers.
+
 ### A ledger row names the entry that last posted to it
 
 Bookkeeping cross references its two books in both directions. The journal's
