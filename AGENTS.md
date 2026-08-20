@@ -80,6 +80,14 @@ instructions focused on guardrails that agents should see immediately.
   [Database Development Patterns](.claude/docs/DATABASE.md). Modify
   `coderd/database/queries/*.sql`, run `make gen`, update
   `enterprise/audit/table.go` for audit errors, then run `make gen` again.
+- **Audit logging**: Treat required audit capture as part of mutation
+  correctness. A successful mutation without its required audit event is a
+  correctness bug, not graceful degradation. Never add a fallback or retry
+  path that performs the mutation when old-state capture, audit locking, or
+  the audited transaction fails. Keep old-state capture and the mutation in
+  the same transaction when an accurate diff requires it; return an error
+  without mutating if that transaction cannot complete. Test these failure
+  paths.
 - **LSP navigation**: Use LSP tools first. See
   [Modern Go](.claude/docs/GO.md) for Go LSP and
   [Frontend Development Guidelines](site/AGENTS.md) for TypeScript LSP.

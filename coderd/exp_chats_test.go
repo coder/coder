@@ -204,9 +204,8 @@ func findUserMessage(t testing.TB, messages []database.ChatMessage) database.Cha
 
 // failNextChatSystemPromptStore lets a test force single chat system prompt
 // queries to fail. One-shot flags disarm when the forced failure fires, and
-// armed counters fail every matching read until the armed count reaches zero,
-// so failures swallowed by best-effort audit captures do not leak into later
-// reads. Flags and counters are shared across InTx wrappers.
+// armed counters fail every matching read until the armed count reaches zero.
+// Flags and counters are shared across InTx wrappers.
 type failNextChatSystemPromptStore struct {
 	database.Store
 
@@ -341,6 +340,60 @@ func (s *failNextAcquireLockStore) AcquireLock(ctx context.Context, id int64) er
 		return context.DeadlineExceeded
 	}
 	return s.Store.AcquireLock(ctx, id)
+}
+
+// failNextChatInstructionTransactionStore lets a test force transaction setup
+// to fail before the callback runs.
+type failNextChatInstructionTransactionStore struct {
+	database.Store
+
+	failNextTransaction *atomic.Bool
+}
+
+func newFailNextChatInstructionTransactionStore(store database.Store) *failNextChatInstructionTransactionStore {
+	return &failNextChatInstructionTransactionStore{
+		Store:               store,
+		failNextTransaction: &atomic.Bool{},
+	}
+}
+
+func (s *failNextChatInstructionTransactionStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	if s.failNextTransaction.CompareAndSwap(true, false) {
+		return stderrors.New("forced chat instruction transaction failure")
+	}
+	return s.Store.InTx(function, txOpts)
+}
+
+// failNextGetChatPlanModeInstructionsStore lets a test force the plan-mode
+// instructions baseline read to fail once. Failure state is shared across InTx
+// wrappers.
+type failNextGetChatPlanModeInstructionsStore struct {
+	database.Store
+
+	failNextGetChatPlanModeInstructions *atomic.Bool
+}
+
+func newFailNextGetChatPlanModeInstructionsStore(store database.Store) *failNextGetChatPlanModeInstructionsStore {
+	return &failNextGetChatPlanModeInstructionsStore{
+		Store:                               store,
+		failNextGetChatPlanModeInstructions: &atomic.Bool{},
+	}
+}
+
+func (s *failNextGetChatPlanModeInstructionsStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&failNextGetChatPlanModeInstructionsStore{
+			Store:                               tx,
+			failNextGetChatPlanModeInstructions: s.failNextGetChatPlanModeInstructions,
+		})
+	}, txOpts)
+}
+
+func (s *failNextGetChatPlanModeInstructionsStore) GetChatPlanModeInstructions(ctx context.Context) (string, error) {
+	if s.failNextGetChatPlanModeInstructions.CompareAndSwap(true, false) {
+		return "", stderrors.New("forced plan mode instructions read failure")
+	}
+	return s.Store.GetChatPlanModeInstructions(ctx)
 }
 
 // failNextUpsertChatPlanModeInstructionsStore lets a test force the plan-mode
@@ -13386,11 +13439,78 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		require.Empty(t, mAudit.AuditLogs())
 	})
 
-	// The advisory lock only exists for audit change detection, so a lock
-	// wait that times out must not fail a write that succeeded before the
-	// audit wiring existed: the handler falls back to the unaudited write
-	// path and emits no entry.
-	t.Run("AuditLockFailureFallsBackWithoutEntry", func(t *testing.T) {
+	// A baseline read failure rejects the write and records the failed attempt.
+	t.Run("AuditOldCaptureFailureRejectsWrite", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextChatSystemPromptStore(rawDB)
+		mAudit := audit.NewMock()
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		store.failNextGetChatSystemPromptConfig.Store(true)
+		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "Must not be stored.",
+		})
+		requireSDKError(t, err, http.StatusInternalServerError)
+
+		resp, err := client.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Empty(t, resp.SystemPrompt)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusInternalServerError, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
+	})
+
+	// A transaction setup failure rejects the write and records the failed attempt.
+	t.Run("AuditTransactionFailureRejectsWrite", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextChatInstructionTransactionStore(rawDB)
+		mAudit := audit.NewMock()
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		store.failNextTransaction.Store(true)
+		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "Must not be stored.",
+		})
+		requireSDKError(t, err, http.StatusInternalServerError)
+
+		resp, err := client.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Empty(t, resp.SystemPrompt)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusInternalServerError, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
+	})
+
+	// A lock failure rejects the write and records the failed attempt.
+	t.Run("AuditLockFailureRejectsWrite", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		rawDB, pubsub := dbtestutil.NewDB(t)
@@ -13410,25 +13530,18 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 		store.failNextAcquireLock.Store(true)
 		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-			SystemPrompt: "Prompt written despite lock timeout.",
+			SystemPrompt: "Must not be stored.",
 		})
-		require.NoError(t, err)
-		require.Empty(t, mAudit.AuditLogs())
+		requireSDKError(t, err, http.StatusInternalServerError)
 
 		resp, err := client.GetChatSystemPrompt(ctx)
 		require.NoError(t, err)
-		require.Equal(t, "Prompt written despite lock timeout.", resp.SystemPrompt)
+		require.Empty(t, resp.SystemPrompt)
 
-		// The next PUT reacquires the lock normally and audits the change
-		// against the fallback-written value.
-		mAudit.ResetLogs()
-		err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-			SystemPrompt: "Prompt written after lock recovery.",
-		})
-		require.NoError(t, err)
 		logs := mAudit.AuditLogs()
 		require.Len(t, logs, 1)
-		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+		require.EqualValues(t, http.StatusInternalServerError, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
 	})
 
 	// The derived New must match the getter's computed effective state on
@@ -13857,9 +13970,8 @@ func TestChatPlanModeInstructions(t *testing.T) {
 			PlanModeInstructions: "Never stored.",
 		})
 		sdkErr := requireSDKError(t, err, http.StatusInternalServerError)
-		// The response detail must be the raw write error, byte-identical
-		// to the pre-transaction endpoint, not the InTx wrapper.
-		require.Equal(t, "forced plan mode instructions upsert failure", sdkErr.Detail)
+		// The transaction error retains the underlying write failure.
+		require.Contains(t, sdkErr.Detail, "forced plan mode instructions upsert failure")
 		// The failed request records the attempt with an empty diff.
 		logs := mAudit.AuditLogs()
 		require.Len(t, logs, 1)
@@ -13877,10 +13989,8 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		require.Empty(t, mAudit.AuditLogs())
 	})
 
-	// A lock wait that times out falls back to the unaudited write path:
-	// the write succeeds, and because no baseline was captured, no entry
-	// is emitted (not even an empty-diff success entry).
-	t.Run("AuditLockFailureFallsBackWithoutEntry", func(t *testing.T) {
+	// A lock failure rejects the write and records the failed attempt.
+	t.Run("AuditLockFailureRejectsWrite", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		rawDB, pubsub := dbtestutil.NewDB(t)
@@ -13900,25 +14010,88 @@ func TestChatPlanModeInstructions(t *testing.T) {
 
 		store.failNextAcquireLock.Store(true)
 		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-			PlanModeInstructions: "Written despite lock timeout.",
+			PlanModeInstructions: "Must not be stored.",
 		})
-		require.NoError(t, err)
-		require.Empty(t, mAudit.AuditLogs())
+		requireSDKError(t, err, http.StatusInternalServerError)
 
 		resp, err := client.GetChatPlanModeInstructions(ctx)
 		require.NoError(t, err)
-		require.Equal(t, "Written despite lock timeout.", resp.PlanModeInstructions)
+		require.Empty(t, resp.PlanModeInstructions)
 
-		// The next PUT reacquires the lock normally and audits the change
-		// against the fallback-written value.
-		mAudit.ResetLogs()
-		err = client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-			PlanModeInstructions: "Written after lock recovery.",
-		})
-		require.NoError(t, err)
 		logs := mAudit.AuditLogs()
 		require.Len(t, logs, 1)
-		require.EqualValues(t, http.StatusNoContent, logs[0].StatusCode)
+		require.EqualValues(t, http.StatusInternalServerError, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
+	})
+
+	// A baseline read failure rejects the write and records the failed attempt.
+	t.Run("AuditOldCaptureFailureRejectsWrite", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextGetChatPlanModeInstructionsStore(rawDB)
+		mAudit := audit.NewMock()
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		store.failNextGetChatPlanModeInstructions.Store(true)
+		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: "Must not be stored.",
+		})
+		requireSDKError(t, err, http.StatusInternalServerError)
+
+		resp, err := client.GetChatPlanModeInstructions(ctx)
+		require.NoError(t, err)
+		require.Empty(t, resp.PlanModeInstructions)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusInternalServerError, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
+	})
+
+	// A transaction setup failure rejects the write and records the failed attempt.
+	t.Run("AuditTransactionFailureRejectsWrite", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		store := newFailNextChatInstructionTransactionStore(rawDB)
+		mAudit := audit.NewMock()
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database:         store,
+			Pubsub:           pubsub,
+			DeploymentValues: coderdtest.DeploymentValues(t),
+			Auditor:          mAudit,
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		// Discard the login entry emitted by user creation.
+		mAudit.ResetLogs()
+
+		store.failNextTransaction.Store(true)
+		err := client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+			PlanModeInstructions: "Must not be stored.",
+		})
+		requireSDKError(t, err, http.StatusInternalServerError)
+
+		resp, err := client.GetChatPlanModeInstructions(ctx)
+		require.NoError(t, err)
+		require.Empty(t, resp.PlanModeInstructions)
+
+		logs := mAudit.AuditLogs()
+		require.Len(t, logs, 1)
+		require.EqualValues(t, http.StatusInternalServerError, logs[0].StatusCode)
+		require.JSONEq(t, "{}", string(logs[0].Diff))
 	})
 
 	// Two concurrent identical PUTs both succeed, but the per-setting lock
