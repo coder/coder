@@ -73,9 +73,11 @@ export const HeadlineAndBullets: Story = {
 	},
 };
 
-// Summaries generated before the structured format are plain prose. They must
-// still render, since there is no backfill.
-export const LegacyProseSummary: Story = {
+// A summary can be a bare headline with no bullets: summaries generated before
+// the structured format are plain prose and there is no backfill, subagent
+// summaries are extracted from the agent's report rather than generated, and a
+// trivial chat is allowed to omit bullets instead of padding them.
+export const HeadlineOnlySummary: Story = {
 	args: {
 		summary:
 			"Investigated the flaky CI job, traced it to a race in the cache layer, and added a regression test.",

@@ -971,6 +971,7 @@ func generateManualTitle(
 const chatSummaryGenerationPrompt = "You summarize an AI coding chat for a quick-reference popover. " +
 	"Populate the headline field with one sentence naming what the conversation is about and its outcome. " +
 	"Populate the bullets field with 2 to 4 short bullets covering what was done or attempted, each a single line. " +
+	"Leave the bullets field empty when the headline already covers the whole chat, rather than padding it with filler. " +
 	"Write about the conversation in the third person. " +
 	"Preserve specific identifiers such as PR numbers, repo names, file paths, function names, and error messages, " +
 	"wrapping them in backticks. " +
@@ -991,13 +992,15 @@ const (
 	summaryHeadlineMaxRunes     = 200
 	summaryHeadlineMaxSentences = 2
 	summaryBulletMaxRunes       = 160
-	summaryMinBullets           = 2
-	summaryMaxBullets           = 4
+	// Only an upper bound. A trivial chat is fully described by its headline,
+	// and requiring bullets there would either pad the summary with filler or
+	// reject it outright, leaving the panel empty.
+	summaryMaxBullets = 4
 )
 
 type generatedChatSummary struct {
 	Headline string   `json:"headline" description:"One sentence naming what the chat is about and its outcome"`
-	Bullets  []string `json:"bullets" description:"2-4 short bullets, each one line, covering what was done or attempted"`
+	Bullets  []string `json:"bullets" description:"2-4 short bullets, each one line, covering what was done or attempted; empty when the headline already covers the whole chat"`
 }
 
 // renderChatSummaryTranscript renders chat history as plain text for summary
@@ -1097,9 +1100,10 @@ func boundTranscriptHeadTail(lines []string, maxRunes int) string {
 }
 
 // generateChatSummary generates a whole-chat summary from a transcript as a
-// one-sentence headline plus 2-4 bullets, serialized to markdown by
-// formatChatSummaryMarkdown. A blank or invalid result returns an error so
-// callers preserve any existing summary rather than clearing it.
+// one-sentence headline plus up to 4 bullets, serialized to markdown by
+// formatChatSummaryMarkdown. Bullets are omitted for chats the headline
+// already covers. A blank or invalid result returns an error so callers
+// preserve any existing summary rather than clearing it.
 func generateChatSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,
@@ -1132,7 +1136,7 @@ func generateChatSummary(
 		result, genErr = object.Generate[generatedChatSummary](retryCtx, model, fantasy.ObjectCall{
 			Prompt:            prompt,
 			SchemaName:        "chat_summary",
-			SchemaDescription: "Summarize the whole chat as a one-sentence headline plus 2-4 short bullets.",
+			SchemaDescription: "Summarize the whole chat as a one-sentence headline plus up to 4 short bullets.",
 			MaxOutputTokens:   &maxOutputTokens,
 		})
 		return genErr
@@ -1217,10 +1221,10 @@ func validateGeneratedChatSummary(summary generatedChatSummary) error {
 	if countSentenceTerminators(summary.Headline) > summaryHeadlineMaxSentences {
 		return xerrors.Errorf("generated chat summary headline exceeded %d sentences", summaryHeadlineMaxSentences)
 	}
-	if len(summary.Bullets) < summaryMinBullets || len(summary.Bullets) > summaryMaxBullets {
+	if len(summary.Bullets) > summaryMaxBullets {
 		return xerrors.Errorf(
-			"generated chat summary had %d bullets, want %d to %d",
-			len(summary.Bullets), summaryMinBullets, summaryMaxBullets,
+			"generated chat summary had %d bullets, want at most %d",
+			len(summary.Bullets), summaryMaxBullets,
 		)
 	}
 	for _, bullet := range summary.Bullets {

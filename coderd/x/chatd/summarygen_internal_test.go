@@ -258,14 +258,15 @@ func TestValidateGeneratedChatSummary(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "TooFewBullets",
+			// A chat can be small enough that one bullet is all there is to say.
+			name:    "SingleBullet",
 			summary: generatedChatSummary{Headline: "Fixed it.", Bullets: []string{"Only one"}},
-			wantErr: true,
 		},
 		{
+			// A trivial chat is fully described by its headline. Rejecting this
+			// would leave the panel empty rather than showing the short summary.
 			name:    "NoBullets",
-			summary: generatedChatSummary{Headline: "Fixed it."},
-			wantErr: true,
+			summary: generatedChatSummary{Headline: "Fixed a typo in `README.md`."},
 		},
 		{
 			name: "TooManyBullets",
