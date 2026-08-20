@@ -8,11 +8,6 @@ interface DiffStyleToggleProps {
 	onChange: (style: DiffStyle) => void;
 }
 
-/**
- * Segmented control that toggles between unified and split diff layouts.
- * Rendered inside the Git panel sub-header on both the remote and local
- * views so the control follows the diff it configures.
- */
 export const DiffStyleToggle: FC<DiffStyleToggleProps> = ({
 	value,
 	onChange,
