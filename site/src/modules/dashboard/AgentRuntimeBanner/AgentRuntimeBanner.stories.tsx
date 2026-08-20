@@ -73,14 +73,12 @@ export const AtAllocation: Story = {
 		}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// LicenseBannerView renders role="alert" only for the error (red)
-		// variant, so this query also pins the banner's severity.
+		// role="alert" is rendered only for the error (red) variant.
 		const banner = canvas.getByRole("alert");
 		await expect(banner).toHaveTextContent(
 			"Your deployment has used 100 of the 100 Coder Agent runtime hours included in the current license term. Contact your deployment administrator.",
 		);
-		// Non-dismissible, and members cannot fix the limit, so there is no
-		// dismiss affordance and no sales link.
+		// No dismiss affordance and no sales link.
 		await expect(canvas.queryByRole("button")).not.toBeInTheDocument();
 		await expect(canvas.queryByRole("link")).not.toBeInTheDocument();
 	},
@@ -106,8 +104,7 @@ export const AtHardLimit: Story = {
 	},
 };
 
-// A zero allocation reports the feature disabled rather than exhausted;
-// see appendAgentRuntimeHoursWarning in enterprise/coderd/license.
+// A zero allocation means the feature is disabled, not exhausted.
 export const ZeroAllocation: Story = {
 	render: () =>
 		renderAgentRuntimeBanner({
@@ -121,8 +118,7 @@ export const ZeroAllocation: Story = {
 	},
 };
 
-// When the usage measurement fails, actual is absent and members see
-// nothing; admins get the measurement diagnostic through LicenseBanner.
+// actual is absent when the usage measurement fails.
 export const MeasurementUnavailable: Story = {
 	render: () =>
 		renderAgentRuntimeBanner({
@@ -148,8 +144,7 @@ export const NotEntitled: Story = {
 	},
 };
 
-// CODAGT-860 acceptance: once a new license raises the allocation above
-// current usage, the refetched entitlements stop deriving a message.
+// A new license that raises the allocation above usage clears the banner.
 export const ClearedAfterAllocationRaised: Story = {
 	render: () =>
 		renderAgentRuntimeBanner({

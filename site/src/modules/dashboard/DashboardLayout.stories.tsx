@@ -130,8 +130,8 @@ export const RuntimeHoursBannerForMember: Story = {
 	},
 };
 
-// Admins keep the richer LicenseBanner warning for the same threshold, and
-// the member banner stays unmounted so the message never doubles up.
+// Admins get the LicenseBanner warning without the member banner doubling
+// up the message.
 export const RuntimeHoursWarningForAdmin: Story = {
 	parameters: {
 		features: [{ name: "agent_runtime_hours", actual: 100, limit: 100 }],

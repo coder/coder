@@ -29,9 +29,7 @@ describe(agentRuntimeBannerMessage.name, () => {
 		).toBeNull();
 	});
 
-	// Mirrors the non-positive-allocation short-circuit in the backend's
-	// appendAgentRuntimeHoursWarning: a zero allocation disables the
-	// feature rather than exhausting it.
+	// A zero allocation means the feature is disabled, not exhausted.
 	it("returns nothing for a zero allocation", () => {
 		expect(
 			agentRuntimeBannerMessage(entitledFeature({ actual: 50, limit: 0 })),

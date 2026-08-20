@@ -38,10 +38,8 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { permissions } = useAuthenticated();
 	const entitlementsQuery = useQuery({
 		...entitlements(metadata.entitlements),
-		// Entitlements now carry usage-driven warnings (agent runtime hours),
-		// and the embedded-metadata cache path disables every other refetch,
-		// so without polling a long-lived session would never show or clear
-		// the runtime hours banners.
+		// cachedQuery disables all refetches when embedded metadata seeds the
+		// cache, so poll to keep usage-driven warnings current.
 		refetchInterval: 5 * 60 * 1000,
 		refetchIntervalInBackground: false,
 	});
@@ -50,9 +48,8 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const organizationsQuery = useQuery(organizations(metadata.organizations));
 
-	// A query error is fatal only before that query has produced data.
-	// Entitlements poll in the background, so a transient refetch failure
-	// must keep rendering the cached dashboard instead of replacing it.
+	// Entitlements poll, so a transient refetch error must not replace a
+	// rendered dashboard; an error is fatal only without cached data.
 	const error =
 		(!entitlementsQuery.data && entitlementsQuery.error) ||
 		(!appearanceQuery.data && appearanceQuery.error) ||
