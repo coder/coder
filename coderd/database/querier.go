@@ -895,6 +895,15 @@ type sqlcQuerier interface {
 	// rollup and accept day-granularity bounds.
 	GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
+	// Returns the models used since the given time that hold no price, most used
+	// first. Prices are keyed by the configured provider type, so interceptions
+	// are resolved to their provider the same way cost recording resolves them:
+	// by provider name, which is unique among live providers. An interception
+	// whose provider has since been deleted cannot be resolved to a type and is
+	// excluded, matching the unknown-provider path in cost recording.
+	// openai-compat providers pass through to any upstream vendor and cannot be
+	// priced, so their models are never reported as unpriced.
+	GetUnpricedAIModelsSince(ctx context.Context, since time.Time) ([]GetUnpricedAIModelsSinceRow, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAIProviderKey, error)
 	// GetUserAIProviderKeys is used by dbcrypt key rotation. Request paths should use
