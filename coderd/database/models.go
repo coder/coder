@@ -89,6 +89,64 @@ func AllAIBridgeInterceptionErrorTypeValues() []AIBridgeInterceptionErrorType {
 	}
 }
 
+type AIModelPriceSource string
+
+const (
+	AIModelPriceSourceDefault AIModelPriceSource = "default"
+	AIModelPriceSourceCustom  AIModelPriceSource = "custom"
+)
+
+func (e *AIModelPriceSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIModelPriceSource(s)
+	case string:
+		*e = AIModelPriceSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIModelPriceSource: %T", src)
+	}
+	return nil
+}
+
+type NullAIModelPriceSource struct {
+	AIModelPriceSource AIModelPriceSource `json:"ai_model_price_source"`
+	Valid              bool               `json:"valid"` // Valid is true if AIModelPriceSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIModelPriceSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIModelPriceSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIModelPriceSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIModelPriceSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIModelPriceSource), nil
+}
+
+func (e AIModelPriceSource) Valid() bool {
+	switch e {
+	case AIModelPriceSourceDefault,
+		AIModelPriceSourceCustom:
+		return true
+	}
+	return false
+}
+
+func AllAIModelPriceSourceValues() []AIModelPriceSource {
+	return []AIModelPriceSource{
+		AIModelPriceSourceDefault,
+		AIModelPriceSourceCustom,
+	}
+}
+
 type AIProviderType string
 
 const (
@@ -465,6 +523,12 @@ const (
 	ApiKeyScopeWorkspaceBuildOrchestrationDelete   APIKeyScope = "workspace_build_orchestration:delete"
 	ApiKeyScopeWorkspaceBuildOrchestrationRead     APIKeyScope = "workspace_build_orchestration:read"
 	ApiKeyScopeWorkspaceBuildOrchestrationUpdate   APIKeyScope = "workspace_build_orchestration:update"
+	ApiKeyScopeMcpServerConfig                     APIKeyScope = "mcp_server_config:*"
+	ApiKeyScopeMcpServerConfigCreate               APIKeyScope = "mcp_server_config:create"
+	ApiKeyScopeMcpServerConfigRead                 APIKeyScope = "mcp_server_config:read"
+	ApiKeyScopeMcpServerConfigUpdate               APIKeyScope = "mcp_server_config:update"
+	ApiKeyScopeMcpServerConfigDelete               APIKeyScope = "mcp_server_config:delete"
+	ApiKeyScopeMcpServerConfigShare                APIKeyScope = "mcp_server_config:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -739,7 +803,13 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
-		ApiKeyScopeWorkspaceBuildOrchestrationUpdate:
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeMcpServerConfig,
+		ApiKeyScopeMcpServerConfigCreate,
+		ApiKeyScopeMcpServerConfigRead,
+		ApiKeyScopeMcpServerConfigUpdate,
+		ApiKeyScopeMcpServerConfigDelete,
+		ApiKeyScopeMcpServerConfigShare:
 		return true
 	}
 	return false
@@ -983,6 +1053,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
 		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeMcpServerConfig,
+		ApiKeyScopeMcpServerConfigCreate,
+		ApiKeyScopeMcpServerConfigRead,
+		ApiKeyScopeMcpServerConfigUpdate,
+		ApiKeyScopeMcpServerConfigDelete,
+		ApiKeyScopeMcpServerConfigShare,
 	}
 }
 
@@ -2043,6 +2119,7 @@ const (
 	CryptoKeyFeatureOIDCConvert         CryptoKeyFeature = "oidc_convert"
 	CryptoKeyFeatureTailnetResume       CryptoKeyFeature = "tailnet_resume"
 	CryptoKeyFeatureNATSCA              CryptoKeyFeature = "nats_ca"
+	CryptoKeyFeatureChatFilesToken      CryptoKeyFeature = "chat_files_token"
 )
 
 func (e *CryptoKeyFeature) Scan(src interface{}) error {
@@ -2086,7 +2163,8 @@ func (e CryptoKeyFeature) Valid() bool {
 		CryptoKeyFeatureWorkspaceAppsAPIKey,
 		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume,
-		CryptoKeyFeatureNATSCA:
+		CryptoKeyFeatureNATSCA,
+		CryptoKeyFeatureChatFilesToken:
 		return true
 	}
 	return false
@@ -2099,6 +2177,7 @@ func AllCryptoKeyFeatureValues() []CryptoKeyFeature {
 		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume,
 		CryptoKeyFeatureNATSCA,
+		CryptoKeyFeatureChatFilesToken,
 	}
 }
 
@@ -3532,6 +3611,8 @@ const (
 	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
 	ResourceTypeUserAIBudgetOverride        ResourceType = "user_ai_budget_override"
 	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
+	ResourceTypeChatInstructionSettings     ResourceType = "chat_instruction_settings"
+	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3606,7 +3687,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
 		ResourceTypeUserAIBudgetOverride,
-		ResourceTypeOauth2ProviderSettings:
+		ResourceTypeOauth2ProviderSettings,
+		ResourceTypeChatInstructionSettings,
+		ResourceTypeMCPServerConfig:
 		return true
 	}
 	return false
@@ -3650,6 +3733,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAIGatewayKey,
 		ResourceTypeUserAIBudgetOverride,
 		ResourceTypeOauth2ProviderSettings,
+		ResourceTypeChatInstructionSettings,
+		ResourceTypeMCPServerConfig,
 	}
 }
 
@@ -4800,6 +4885,8 @@ type AIModelPrice struct {
 	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
 	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+	// Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.
+	Source AIModelPriceSource `db:"source" json:"source"`
 }
 
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.
@@ -5316,6 +5403,8 @@ type ExternalAuthLink struct {
 	OAuthExtra             pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
 	// This error means the refresh token is invalid. Cached so we can avoid calling the external provider again for the same error.
 	OauthRefreshFailureReason string `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
+	// Indicates a replica is refreshing the token; prevents concurrent refreshes.
+	RefreshLeaseExpiresAt sql.NullTime `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
 }
 
 type File struct {
@@ -5449,6 +5538,9 @@ type MCPServerConfig struct {
 	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
 	OAuth2RevocationURL     string         `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
+	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
+	GroupACL                ChatACL        `db:"group_acl" json:"group_acl"`
+	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
 }
 
 type MCPServerUserToken struct {

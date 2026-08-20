@@ -139,7 +139,7 @@ func TestGetChatCostFallsBackToParentChat(t *testing.T) {
 	require.Equal(t, int64(125), cost.TotalCostMicros)
 }
 
-func TestEnrichMissingChatAgentIDs(t *testing.T) {
+func TestEnrichChatAgentIDs(t *testing.T) {
 	t.Parallel()
 	newAPI := func(t *testing.T) (*API, *dbmock.MockStore) {
 		t.Helper()
@@ -149,9 +149,12 @@ func TestEnrichMissingChatAgentIDs(t *testing.T) {
 	}
 	workspaceID, otherWorkspaceID := uuid.New(), uuid.New()
 	rootAgentID, otherAgentID := uuid.New(), uuid.New()
+	latestBuildID, otherLatestBuildID := uuid.New(), uuid.New()
+	latestBuildIDs := map[uuid.UUID]uuid.UUID{workspaceID: latestBuildID, otherWorkspaceID: otherLatestBuildID}
 	row := func(workspaceID, id uuid.UUID, parentID uuid.NullUUID, name string) database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow {
 		return database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{
 			WorkspaceID: workspaceID,
+			BuildID:     latestBuildIDs[workspaceID],
 			WorkspaceAgent: database.WorkspaceAgent{
 				ID:       id,
 				ParentID: parentID,
@@ -169,29 +172,78 @@ func TestEnrichMissingChatAgentIDs(t *testing.T) {
 			}, nil
 		}).Times(1)
 		chats := []codersdk.Chat{{WorkspaceID: &workspaceID, Children: []codersdk.Chat{{WorkspaceID: &workspaceID}}}, {WorkspaceID: &otherWorkspaceID}}
-		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		api.enrichChatsWithMissingAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
 		require.Equal(t, rootAgentID, *chats[0].AgentID)
 		require.Equal(t, rootAgentID, *chats[0].Children[0].AgentID)
 		require.Equal(t, otherAgentID, *chats[1].AgentID)
+		require.Equal(t, latestBuildID, *chats[0].BuildID)
+		require.Equal(t, latestBuildID, *chats[0].Children[0].BuildID)
+		require.Equal(t, otherLatestBuildID, *chats[1].BuildID)
 	})
 	t.Run("query error", func(t *testing.T) {
 		t.Parallel()
 		api, mDB := newAPI(t)
 		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("boom"))
 		chats := []codersdk.Chat{{WorkspaceID: &workspaceID}, {WorkspaceID: &otherWorkspaceID}}
-		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		api.enrichChatsWithMissingAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
 		require.Nil(t, chats[0].AgentID)
 		require.Nil(t, chats[1].AgentID)
 	})
-	t.Run("selection error and skips bound or unbound", func(t *testing.T) {
+	t.Run("selection error keeps persisted values", func(t *testing.T) {
 		t.Parallel()
 		api, mDB := newAPI(t)
 		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), []uuid.UUID{workspaceID}).Return([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{row(workspaceID, uuid.New(), uuid.NullUUID{UUID: rootAgentID, Valid: true}, "sub")}, nil)
 		bound := otherAgentID
-		chats := []codersdk.Chat{{}, {WorkspaceID: &workspaceID}, {WorkspaceID: &workspaceID, AgentID: &bound}}
-		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		boundBuildID := uuid.New()
+		chats := []codersdk.Chat{{}, {WorkspaceID: &workspaceID}, {WorkspaceID: &workspaceID, AgentID: &bound, BuildID: &boundBuildID}}
+		api.repairChatAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
 		require.Nil(t, chats[1].AgentID)
+		require.Nil(t, chats[1].BuildID)
 		require.Equal(t, bound, *chats[2].AgentID)
+		require.Equal(t, boundBuildID, *chats[2].BuildID)
+	})
+	t.Run("repairs stale and keeps valid bindings", func(t *testing.T) {
+		t.Parallel()
+		api, mDB := newAPI(t)
+		secondRootAgentID := uuid.New()
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), []uuid.UUID{workspaceID}).Return([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{
+			row(workspaceID, rootAgentID, uuid.NullUUID{}, "a"),
+			row(workspaceID, secondRootAgentID, uuid.NullUUID{}, "b"),
+		}, nil)
+		stale, valid := uuid.New(), secondRootAgentID
+		staleBuildID, validBuildID := uuid.New(), uuid.New()
+		chats := []codersdk.Chat{
+			{WorkspaceID: &workspaceID, AgentID: &stale, BuildID: &staleBuildID},
+			{WorkspaceID: &workspaceID, AgentID: &valid, BuildID: &validBuildID},
+		}
+		api.repairChatAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		require.Equal(t, rootAgentID, *chats[0].AgentID)
+		require.Equal(t, secondRootAgentID, *chats[1].AgentID)
+		require.Equal(t, latestBuildID, *chats[0].BuildID)
+		require.Equal(t, validBuildID, *chats[1].BuildID)
+	})
+	t.Run("list mode skips bound chats entirely", func(t *testing.T) {
+		t.Parallel()
+		api, mDB := newAPI(t)
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), []uuid.UUID{workspaceID}).Return([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{
+			row(workspaceID, rootAgentID, uuid.NullUUID{}, "root"),
+		}, nil).Times(1)
+		stale := uuid.New()
+		chats := []codersdk.Chat{
+			{WorkspaceID: &workspaceID},
+			{WorkspaceID: &otherWorkspaceID, AgentID: &stale},
+		}
+		api.enrichChatsWithMissingAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		require.Equal(t, rootAgentID, *chats[0].AgentID)
+		require.Equal(t, stale, *chats[1].AgentID)
+	})
+	t.Run("no bound workspaces skips the query", func(t *testing.T) {
+		t.Parallel()
+		api, _ := newAPI(t)
+		chats := []codersdk.Chat{{AgentID: &rootAgentID}, {}}
+		api.repairChatAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		require.Equal(t, rootAgentID, *chats[0].AgentID)
+		require.Nil(t, chats[1].AgentID)
 	})
 }
 
@@ -220,6 +272,53 @@ func TestValidateChatModelProviderOptions_AnthropicThinkingDisplay(t *testing.T)
 			err := validateChatModelProviderOptions(&codersdk.ChatModelProviderOptions{
 				Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
 					ThinkingDisplay: &display,
+				},
+			})
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateChatModelProviderOptions_GoogleThinkingLevel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		level   *string
+		budget  *int64
+		wantErr string
+	}{
+		{name: "Minimal", level: ptr.Ref("minimal")},
+		{name: "High", level: ptr.Ref(" HIGH ")},
+		{name: "Empty", level: ptr.Ref(" ")},
+		{name: "NilLevelWithBudget", budget: ptr.Ref(int64(2048))},
+		{name: "EmptyLevelWithBudget", level: ptr.Ref(""), budget: ptr.Ref(int64(2048))},
+		{
+			name:    "Invalid",
+			level:   ptr.Ref("ultra"),
+			wantErr: "provider_options.google.thinking_config.thinking_level must be one of minimal, low, medium, high",
+		},
+		{
+			name:    "LevelWithBudget",
+			level:   ptr.Ref("high"),
+			budget:  ptr.Ref(int64(2048)),
+			wantErr: "provider_options.google.thinking_config.thinking_level cannot be combined with thinking_budget",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateChatModelProviderOptions(&codersdk.ChatModelProviderOptions{
+				Google: &codersdk.ChatModelGoogleProviderOptions{
+					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
+						ThinkingLevel:  tt.level,
+						ThinkingBudget: tt.budget,
+					},
 				},
 			})
 			if tt.wantErr != "" {

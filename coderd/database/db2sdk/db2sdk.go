@@ -1741,6 +1741,7 @@ func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
 		OutputPrice:     nullInt64Ptr(dbPrice.OutputPrice),
 		CacheReadPrice:  nullInt64Ptr(dbPrice.CacheReadPrice),
 		CacheWritePrice: nullInt64Ptr(dbPrice.CacheWritePrice),
+		Source:          codersdk.AIModelPriceSource(dbPrice.Source),
 		CreatedAt:       dbPrice.CreatedAt,
 		UpdatedAt:       dbPrice.UpdatedAt,
 	}
@@ -1903,6 +1904,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 				OrganizationID: row.OrganizationID,
 				Name:           row.Name,
 				MimeType:       row.Mimetype,
+				SizeBytes:      row.SizeBytes,
 				CreatedAt:      row.CreatedAt,
 			})
 		}
