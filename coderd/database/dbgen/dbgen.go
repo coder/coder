@@ -1175,7 +1175,10 @@ func GroupMember(t testing.TB, db database.Store, member database.GroupMemberTab
 	require.NotEqual(t, member.GroupID, uuid.Nil, "A group id is required to use 'dbgen.GroupMember', use 'dbgen.Group'.")
 
 	//nolint:gosimple
-	err := db.InsertGroupMember(genCtx, database.InsertGroupMemberParams(member))
+	err := db.InsertGroupMember(genCtx, database.InsertGroupMemberParams{
+		UserID:  member.UserID,
+		GroupID: member.GroupID,
+	})
 	require.NoError(t, err, "insert group member")
 
 	user, err := db.GetUserByID(genCtx, member.UserID)

@@ -757,7 +757,7 @@ GO_LINT_CONCURRENCY := $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/de
 GO_LINT_MEMLIMIT ?= 8GiB
 
 lint/go:
-	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" mise exec go:github.com/golangci/golangci-lint/v2/cmd/golangci-lint -- golangci-lint run --concurrency="$(GO_LINT_CONCURRENCY)"
+	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --concurrency="$(GO_LINT_CONCURRENCY)"
 	paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
 	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
