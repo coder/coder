@@ -46,6 +46,12 @@ export const ObservabilitySettingsPageView: FC<
 					<PaywallPremium
 						message="Audit Logging"
 						description="Monitor user operations across your deployment."
+						features={[
+							"Track user actions across deployment",
+							"Observe developer and agent activity",
+							"Configurable audit log retention period",
+							"Support compliance and security reviews",
+						]}
 						canViewPremium={canViewPremium}
 					/>
 				)}

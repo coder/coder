@@ -100,6 +100,12 @@ export const OrganizationProvisionersPageView: FC<
 				<PaywallPremium
 					message="Provisioners"
 					description="Provisioners run your Terraform to create templates and workspaces."
+					features={[
+						"Run build jobs in isolation",
+						"Isolate cloud APIs from Coder",
+						"Keep secrets off the Coder host",
+						"Reduce server load and queue times",
+					]}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (

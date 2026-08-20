@@ -58,6 +58,12 @@ export const AppearanceSettingsPageView: FC<
 				<PaywallPremium
 					message="Appearance"
 					description="Customize branding and announcement banners for your deployment."
+					features={[
+						"Custom application name and logo",
+						"Site-wide announcement banners for updates",
+						"Custom branded OIDC sign-in button",
+						"Custom support links in dropdown",
+					]}
 					canViewPremium={canViewPremium}
 				/>
 			) : (
