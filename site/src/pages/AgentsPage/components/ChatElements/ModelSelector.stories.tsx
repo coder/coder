@@ -194,15 +194,16 @@ export const Disabled: Story = {
 	},
 };
 
-// Form-style call sites (settings pages) stretch the trigger with
-// w-full + justify-between; the provider icon and label must stay
-// adjacent instead of the label floating to the center.
+// Form-style call sites (settings pages) stretch the trigger wider than
+// its content (w-full below the md breakpoint, fixed widths like
+// md:w-[18rem] above it) and pass justify-between; the provider icon and
+// label must stay adjacent instead of the label floating to the center.
 export const FormFieldTriggerKeepsIconAndLabelAdjacent: Story = {
 	args: {
 		options: allModels,
 		value: "anthropic/claude-sonnet-4",
 		className:
-			"h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm",
+			"h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-sm md:w-[18rem]",
 	},
 	decorators: [
 		(Story) => (
