@@ -7,12 +7,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/coder/coder/v2/internal/googleopenai"
+	"github.com/coder/coder/v2/coderd/x/googleopenai"
 )
 
 // OpenAI-compatible providers share an API shape but differ in the exact JSON
-// they accept. These patches adjust Fantasy's serialized request body at the
-// transport boundary so higher-level generation code can stay provider agnostic.
+// they accept and emit. These patches adjust Fantasy's serialized request body
+// and, for Gemini endpoints, the response body at the transport boundary so
+// higher-level generation code can stay provider agnostic.
 
 func withOpenAICompatRequestPatches(
 	client *http.Client,
@@ -64,7 +65,11 @@ func (t *openAICompatRequestPatchTransport) RoundTrip(req *http.Request) (*http.
 		return io.NopCloser(bytes.NewReader(patched)), nil
 	}
 
-	return base.RoundTrip(patchedReq)
+	resp, err := base.RoundTrip(patchedReq)
+	if err == nil && googleopenai.ShouldPatchOpenAICompatRequest(t.BaseURL, t.ModelID) {
+		googleopenai.RewriteThoughtResponse(resp)
+	}
+	return resp, err
 }
 
 func (t *openAICompatRequestPatchTransport) base() http.RoundTripper {
@@ -90,6 +95,7 @@ func patchOpenAICompatChatCompletionsBody(body []byte, baseURL string, modelID s
 	changed := rewriteOpenAICompatSingleToolChoice(payload)
 	if googleopenai.ShouldPatchOpenAICompatRequest(baseURL, modelID) {
 		changed = googleopenai.AddThoughtSignaturesToLatestTurn(payload) || changed
+		changed = rewriteGoogleCompatThinkingConfig(payload) || changed
 	}
 	if !changed {
 		return body

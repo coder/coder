@@ -1,7 +1,7 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
@@ -168,6 +168,51 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 		expect(canvas.getByText("Creating workspace…")).toBeInTheDocument();
 		expect(canvas.queryByText("Created workspace")).toBeNull();
 		expect(canvas.getByText("Loading build logs…")).toBeInTheDocument();
+	},
+};
+
+// Matches the fixed terminal error path.
+const errorClearsStreamStore = createChatStore();
+export const ErrorClearsStreamingTool: Story = {
+	render: () => {
+		errorClearsStreamStore.resetTransientState();
+		errorClearsStreamStore.replaceMessages([
+			buildMessage(1, "user", [{ type: "text", text: "Create a workspace" }]),
+		]);
+		errorClearsStreamStore.setChatStatus("running");
+		errorClearsStreamStore.applyMessagePart({
+			type: "tool-call",
+			tool_call_id: "create-workspace-call",
+			tool_name: "create_workspace",
+			args: { name: "dev" },
+		});
+
+		return (
+			<ChatWorkspaceContext value={{ workspaceId: "workspace-1" }}>
+				<StoryChatPageTimeline store={errorClearsStreamStore} />
+			</ChatWorkspaceContext>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Creating workspace…")).toBeInTheDocument();
+
+		errorClearsStreamStore.batch(() => {
+			errorClearsStreamStore.applyServerChatStatus("error");
+			errorClearsStreamStore.setStreamError({
+				kind: "generic",
+				message: "The chat session ended unexpectedly.",
+			});
+			errorClearsStreamStore.clearStreamState();
+		});
+
+		await waitFor(() => {
+			expect(canvas.queryByText("Creating workspace…")).toBeNull();
+		});
+		expect(canvas.getByText("Request failed")).toBeInTheDocument();
+		expect(
+			canvas.getByText("The chat session ended unexpectedly."),
+		).toBeInTheDocument();
 	},
 };
 

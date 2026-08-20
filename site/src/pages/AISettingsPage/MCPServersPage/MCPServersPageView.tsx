@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { getOrganizationLabel } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -19,29 +20,63 @@ import {
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { MCPServerRow } from "./components/MCPServerRow";
+import { OrganizationPicker } from "./components/OrganizationPicker";
+import { addMCPServerPath, updateMCPServerPath } from "./organizationParam";
 
 interface MCPServersPageViewProps {
 	isLoading: boolean;
 	error: unknown;
 	servers: readonly TypesGen.MCPServerConfig[];
+	organizations: readonly TypesGen.Organization[];
+	organization: TypesGen.Organization;
+	addOrganization?: TypesGen.Organization;
+	addOrganizations: readonly TypesGen.Organization[];
+	canOpenServer: boolean;
+	onSelectOrganization: (organization: TypesGen.Organization) => void;
 }
 
 const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 	isLoading,
 	error,
 	servers,
+	organizations,
+	organization,
+	addOrganization,
+	addOrganizations,
+	canOpenServer,
+	onSelectOrganization,
 }) => {
 	const navigate = useNavigate();
-	const goToAddServer = () => void navigate("/ai/settings/mcp-servers/add");
+	// Disambiguate against every organization sharing the page context:
+	// other creation targets and the currently selected organization.
+	const addButtonLabel =
+		addOrganization && addOrganization.id !== organization.id
+			? `Add server to ${getOrganizationLabel(addOrganization, [
+					...addOrganizations,
+					organization,
+				])}`
+			: undefined;
+	const goToAddServer = () => {
+		if (addOrganization) {
+			void navigate(addMCPServerPath(addOrganization));
+		}
+	};
 
 	return (
 		<div>
 			<SettingsHeader
 				actions={
-					<Button variant="outline" onClick={goToAddServer}>
-						<PlusIcon />
-						<span>Add server</span>
-					</Button>
+					addOrganization && (
+						<Button
+							variant="outline"
+							onClick={goToAddServer}
+							aria-label={addButtonLabel}
+							title={addButtonLabel}
+						>
+							<PlusIcon />
+							<span>Add server</span>
+						</Button>
+					)
 				}
 			>
 				<SettingsHeaderTitle>MCP servers</SettingsHeaderTitle>
@@ -50,6 +85,13 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 					Agents.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
+			<OrganizationPicker
+				id="mcp-servers-organization"
+				className="mb-4"
+				organizations={organizations}
+				organization={organization}
+				onChange={onSelectOrganization}
+			/>
 			{Boolean(error) && (
 				<div className="mb-4">
 					<ErrorAlert error={error} />
@@ -75,10 +117,17 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 							message="No MCP servers configured"
 							description="Add a server to give agents access to external tools."
 							cta={
-								<Button variant="outline" onClick={goToAddServer}>
-									<PlusIcon />
-									<span>Add server</span>
-								</Button>
+								addOrganization ? (
+									<Button
+										variant="outline"
+										onClick={goToAddServer}
+										aria-label={addButtonLabel}
+										title={addButtonLabel}
+									>
+										<PlusIcon />
+										<span>Add server</span>
+									</Button>
+								) : undefined
 							}
 						/>
 					) : (
@@ -86,8 +135,13 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 							<MCPServerRow
 								key={server.id}
 								server={server}
-								onClick={() =>
-									void navigate(`/ai/settings/mcp-servers/${server.id}`)
+								onClick={
+									canOpenServer
+										? () =>
+												void navigate(
+													updateMCPServerPath(server.id, organization),
+												)
+										: undefined
 								}
 							/>
 						))

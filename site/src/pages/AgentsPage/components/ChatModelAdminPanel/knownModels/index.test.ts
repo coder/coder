@@ -126,29 +126,38 @@ describe("findKnownModelByExactAlias", () => {
 
 describe("formatPricePerMillionTokens", () => {
 	it("formats whole-dollar prices", () => {
-		expect(formatPricePerMillionTokens(10)).toBe("$10");
+		expect(formatPricePerMillionTokens(10)).toStrictEqual({
+			belowThreshold: false,
+			value: "10",
+		});
 	});
 
 	it("formats fractional prices without dropping precision", () => {
-		expect(formatPricePerMillionTokens(1.25)).toBe("$1.25");
-		expect(formatPricePerMillionTokens(0.1)).toBe("$0.10");
-		expect(formatPricePerMillionTokens(0.3)).toBe("$0.30");
+		expect(formatPricePerMillionTokens(1.25).value).toBe("1.25");
+		expect(formatPricePerMillionTokens(0.1).value).toBe("0.10");
+		expect(formatPricePerMillionTokens(0.3).value).toBe("0.30");
 	});
 
 	it("keeps sub-cent prices visible", () => {
-		expect(formatPricePerMillionTokens(0.075)).toBe("$0.075");
-		expect(formatPricePerMillionTokens(0.003625)).toBe("$0.0036");
-		expect(formatPricePerMillionTokens(0.125)).toBe("$0.125");
+		expect(formatPricePerMillionTokens(0.075).value).toBe("0.075");
+		expect(formatPricePerMillionTokens(0.003625).value).toBe("0.0036");
+		expect(formatPricePerMillionTokens(0.125).value).toBe("0.125");
 	});
 
-	it("shows a threshold for positive prices below four decimals", () => {
-		expect(formatPricePerMillionTokens(0.000001)).toBe("<$0.0001");
-		expect(formatPricePerMillionTokens(0.000049)).toBe("<$0.0001");
-		expect(formatPricePerMillionTokens(0.0001)).toBe("$0.0001");
+	it("flags positive prices below four decimals as a threshold", () => {
+		expect(formatPricePerMillionTokens(0.000001)).toStrictEqual({
+			belowThreshold: true,
+			value: "0.0001",
+		});
+		expect(formatPricePerMillionTokens(0.000049).belowThreshold).toBe(true);
+		expect(formatPricePerMillionTokens(0.0001)).toStrictEqual({
+			belowThreshold: false,
+			value: "0.0001",
+		});
 	});
 
 	it("formats zero", () => {
-		expect(formatPricePerMillionTokens(0)).toBe("$0");
+		expect(formatPricePerMillionTokens(0).value).toBe("0");
 	});
 
 	it("rejects non-finite values", () => {

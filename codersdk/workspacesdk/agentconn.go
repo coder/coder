@@ -943,6 +943,7 @@ type ProcessOutputResponse struct {
 	Truncated *ProcessTruncation `json:"truncated,omitempty"`
 	Running   bool               `json:"running"`
 	ExitCode  *int               `json:"exit_code,omitempty"`
+	Command   string             `json:"command,omitempty"`
 }
 
 // ProcessOutputOptions configures blocking behavior for

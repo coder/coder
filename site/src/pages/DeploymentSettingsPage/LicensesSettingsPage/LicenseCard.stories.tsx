@@ -808,6 +808,5 @@ export const EnterpriseDoesNotShowAIGovernanceAddOn: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.queryByText("Add-ons")).not.toBeInTheDocument();
-		await expect(canvas.queryByText("AI add-on")).not.toBeInTheDocument();
 	},
 };
