@@ -339,6 +339,22 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												isActiveChat && "opacity-100",
 											)}
 											aria-label={`Open actions for ${chat.title}`}
+											onContextMenuCapture={(e) => {
+												e.preventDefault();
+												e.stopPropagation();
+											}}
+											onMouseDownCapture={(e) => {
+												if (e.button === 2) {
+													e.preventDefault();
+													e.stopPropagation();
+												}
+											}}
+											onPointerDownCapture={(e) => {
+												if (e.button === 2) {
+													e.preventDefault();
+													e.stopPropagation();
+												}
+											}}
 										>
 											<EllipsisVerticalIcon className="size-3.5" />
 										</Button>
@@ -346,6 +362,14 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									<DropdownMenuContent
 										align="end"
 										className="[&_[role=menuitem]]:text-[13px]"
+										// The dropdown is portaled to the body, but React
+										// portals bubble events through the React tree, so a
+										// right-click inside the menu would still reach the
+										// row's context-menu trigger and open a duplicate menu.
+										onContextMenu={(e) => {
+											e.preventDefault();
+											e.stopPropagation();
+										}}
 									>
 										<ChatActionsMenuItems
 											{...sharedMenuItemProps}
