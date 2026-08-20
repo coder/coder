@@ -19,7 +19,7 @@ const testIdentity = {
 };
 
 // These tests share one deployment's license lifecycle, so they run in order.
-// They require telemtry is enabled for the tested deployment
+// They require telemetry enabled for the tested deployment
 test.describe
 	.serial("premium trial signup", () => {
 		test.beforeEach(async ({ page }) => {
