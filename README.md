@@ -26,6 +26,7 @@
 [![discord](https://img.shields.io/discord/747933592273027093?label=discord)](https://cdr.co/discord-Y6fMxGdNRg)
 [![release](https://img.shields.io/github/v/release/coder/coder)](https://github.com/coder/coder/releases/latest)
 [![godoc](https://pkg.go.dev/badge/github.com/coder/coder.svg)](https://pkg.go.dev/github.com/coder/coder)
+[![Go Report Card](https://goreportcard.com/badge/github.com/coder/coder/v2)](https://goreportcard.com/report/github.com/coder/coder/v2)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9511/badge)](https://www.bestpractices.dev/projects/9511)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/coder/coder/badge)](https://scorecard.dev/viewer/?uri=github.com%2Fcoder%2Fcoder)
 [![license](https://img.shields.io/github/license/coder/coder)](./LICENSE)
@@ -115,6 +116,7 @@ New integrations are always in progress. Open an issue to request one. Contribut
 
 - [**Coder Registry**](https://registry.coder.com): Templates, modules, and integrations for common development environments
 - [**Coding Agents**](https://registry.coder.com/modules?search=tag%3Aagent): Run agents like Claude Code, Codex, and OpenCode isolated in Coder workspaces
+- [**Terraform Provider**](https://github.com/coder/terraform-provider-coderd): Declaratively manage your Coder deployment configuration as code
 - [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote): Open any Coder workspace in VS Code with a single click
 - [**JetBrains Toolbox Plugin**](https://plugins.jetbrains.com/plugin/26968-coder): Open any Coder workspace from JetBrains Toolbox with a single click
 - [**Dev Containers**](https://coder.com/docs/user-guides/devcontainers): Build development environments using `devcontainer.json` on Docker, Kubernetes, and OpenShift
