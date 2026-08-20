@@ -405,6 +405,16 @@ var (
 		Type: "user",
 	}
 
+	// ResourceUserMemory
+	// Valid Actions
+	//  - "ActionCreate" :: create a user memory
+	//  - "ActionDelete" :: delete a user memory
+	//  - "ActionRead" :: read user memory metadata and content
+	//  - "ActionUpdate" :: update user memory metadata and content
+	ResourceUserMemory = Object{
+		Type: "user_memory",
+	}
+
 	// ResourceUserSecret
 	// Valid Actions
 	//  - "ActionCreate" :: create a user secret
@@ -552,6 +562,7 @@ func AllResources() []Objecter {
 		ResourceTemplate,
 		ResourceUsageEvent,
 		ResourceUser,
+		ResourceUserMemory,
 		ResourceUserSecret,
 		ResourceUserSkill,
 		ResourceWebpushSubscription,

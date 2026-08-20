@@ -38,6 +38,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"MCPServerConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"UserMemory":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatInstructionSettings":       {codersdk.AuditActionWrite},
 }
 
@@ -546,6 +547,14 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"content":     ActionTrack,
 		"created_at":  ActionIgnore,
 		"updated_at":  ActionIgnore,
+	},
+	&database.UserMemory{}: {
+		"id":         ActionTrack,
+		"user_id":    ActionTrack,
+		"path":       ActionTrack,
+		"content":    ActionTrack,
+		"created_at": ActionIgnore,
+		"updated_at": ActionIgnore,
 	},
 	&database.UserSecret{}: {
 		"id":          ActionTrack,

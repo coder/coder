@@ -148,6 +148,16 @@ func (q *querier) authorizeContext(ctx context.Context, action policy.Action, ob
 	return nil
 }
 
+// authorizeChatMemoryUpdate authorizes chat memory mutations by requiring
+// update permission on the root chat that owns the memory rows.
+func (q *querier) authorizeChatMemoryUpdate(ctx context.Context, rootChatID uuid.UUID) error {
+	chat, err := q.db.GetChatByID(ctx, rootChatID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, policy.ActionUpdate, chat)
+}
+
 // authorizeWorkspaceByAgentID authorizes an action against the workspace
 // that owns the given agent.
 //
@@ -2217,6 +2227,21 @@ func (q *querier) DeleteChatDebugDataByChatID(ctx context.Context, arg database.
 	return q.db.DeleteChatDebugDataByChatID(ctx, arg)
 }
 
+func (q *querier) DeleteChatMemoriesByRootChatIDAndPathPrefix(ctx context.Context, arg database.DeleteChatMemoriesByRootChatIDAndPathPrefixParams) ([]database.ChatMemory, error) {
+	// Chat memories are owned by the root chat; mutations require update on it.
+	if err := q.authorizeChatMemoryUpdate(ctx, arg.RootChatID); err != nil {
+		return nil, err
+	}
+	return q.db.DeleteChatMemoriesByRootChatIDAndPathPrefix(ctx, arg)
+}
+
+func (q *querier) DeleteChatMemoryByRootChatIDAndPath(ctx context.Context, arg database.DeleteChatMemoryByRootChatIDAndPathParams) (database.ChatMemory, error) {
+	if err := q.authorizeChatMemoryUpdate(ctx, arg.RootChatID); err != nil {
+		return database.ChatMemory{}, err
+	}
+	return q.db.DeleteChatMemoryByRootChatIDAndPath(ctx, arg)
+}
+
 func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
@@ -2637,6 +2662,22 @@ func (q *querier) DeleteUserChatCompactionThreshold(ctx context.Context, arg dat
 		return err
 	}
 	return q.db.DeleteUserChatCompactionThreshold(ctx, arg)
+}
+
+func (q *querier) DeleteUserMemoriesByUserIDAndPathPrefix(ctx context.Context, arg database.DeleteUserMemoriesByUserIDAndPathPrefixParams) ([]database.UserMemory, error) {
+	obj := rbac.ResourceUserMemory.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionDelete, obj); err != nil {
+		return nil, err
+	}
+	return q.db.DeleteUserMemoriesByUserIDAndPathPrefix(ctx, arg)
+}
+
+func (q *querier) DeleteUserMemoryByUserIDAndPath(ctx context.Context, arg database.DeleteUserMemoryByUserIDAndPathParams) (database.UserMemory, error) {
+	obj := rbac.ResourceUserMemory.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionDelete, obj); err != nil {
+		return database.UserMemory{}, err
+	}
+	return q.db.DeleteUserMemoryByUserIDAndPath(ctx, arg)
 }
 
 func (q *querier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg database.DeleteUserSecretByUserIDAndNameParams) (database.UserSecret, error) {
@@ -3446,6 +3487,26 @@ func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, 
 		return false, ErrNoActor
 	}
 	return q.db.GetChatIncludeDefaultSystemPrompt(ctx)
+}
+
+func (q *querier) GetChatMemoryByID(ctx context.Context, id uuid.UUID) (database.ChatMemory, error) {
+	memory, err := q.db.GetChatMemoryByID(ctx, id)
+	if err != nil {
+		return database.ChatMemory{}, err
+	}
+	// Authorize read on the root chat that owns the memory.
+	if _, err := q.GetChatByID(ctx, memory.RootChatID); err != nil {
+		return database.ChatMemory{}, err
+	}
+	return memory, nil
+}
+
+func (q *querier) GetChatMemoryByRootChatIDAndPath(ctx context.Context, arg database.GetChatMemoryByRootChatIDAndPathParams) (database.ChatMemory, error) {
+	// Authorize read on the root chat that owns the memory.
+	if _, err := q.GetChatByID(ctx, arg.RootChatID); err != nil {
+		return database.ChatMemory{}, err
+	}
+	return q.db.GetChatMemoryByRootChatIDAndPath(ctx, arg)
 }
 
 func (q *querier) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
@@ -5248,6 +5309,18 @@ func (q *querier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([
 	return q.db.GetUserLinksByUserID(ctx, userID)
 }
 
+func (q *querier) GetUserMemoryByID(ctx context.Context, id uuid.UUID) (database.UserMemory, error) {
+	return fetch(q.log, q.auth, q.db.GetUserMemoryByID)(ctx, id)
+}
+
+func (q *querier) GetUserMemoryByUserIDAndPath(ctx context.Context, arg database.GetUserMemoryByUserIDAndPathParams) (database.UserMemory, error) {
+	obj := rbac.ResourceUserMemory.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+		return database.UserMemory{}, err
+	}
+	return q.db.GetUserMemoryByUserIDAndPath(ctx, arg)
+}
+
 func (q *querier) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]database.NotificationPreference, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationPreference.WithOwner(userID.String())); err != nil {
 		return nil, err
@@ -6095,6 +6168,13 @@ func (q *querier) InsertChatFile(ctx context.Context, arg database.InsertChatFil
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChatFile)(ctx, arg)
 }
 
+func (q *querier) InsertChatMemory(ctx context.Context, arg database.InsertChatMemoryParams) (database.ChatMemory, error) {
+	if err := q.authorizeChatMemoryUpdate(ctx, arg.RootChatID); err != nil {
+		return database.ChatMemory{}, err
+	}
+	return q.db.InsertChatMemory(ctx, arg)
+}
+
 func (q *querier) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.InsertChatMessagesRow, error) {
 	// Authorize create on the parent chat (using update permission).
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
@@ -6498,6 +6578,14 @@ func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLin
 	return q.db.InsertUserLink(ctx, arg)
 }
 
+func (q *querier) InsertUserMemory(ctx context.Context, arg database.InsertUserMemoryParams) (database.UserMemory, error) {
+	obj := rbac.ResourceUserMemory.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionCreate, obj); err != nil {
+		return database.UserMemory{}, err
+	}
+	return q.db.InsertUserMemory(ctx, arg)
+}
+
 func (q *querier) InsertUserSkill(ctx context.Context, arg database.InsertUserSkillParams) (database.UserSkill, error) {
 	obj := rbac.ResourceUserSkill.WithOwner(arg.UserID.String())
 	if err := q.authorizeContext(ctx, policy.ActionCreate, obj); err != nil {
@@ -6886,6 +6974,22 @@ func (q *querier) ListChatContextResourcesByChatID(ctx context.Context, chatID u
 	return q.db.ListChatContextResourcesByChatID(ctx, chatID)
 }
 
+func (q *querier) ListChatMemoriesByRootChatID(ctx context.Context, rootChatID uuid.UUID) ([]database.ListChatMemoriesByRootChatIDRow, error) {
+	// Authorize read on the root chat that owns the memories.
+	if _, err := q.GetChatByID(ctx, rootChatID); err != nil {
+		return nil, err
+	}
+	return q.db.ListChatMemoriesByRootChatID(ctx, rootChatID)
+}
+
+func (q *querier) ListChatMemoriesByRootChatIDAndPathPrefix(ctx context.Context, arg database.ListChatMemoriesByRootChatIDAndPathPrefixParams) ([]database.ListChatMemoriesByRootChatIDAndPathPrefixRow, error) {
+	// Authorize read on the root chat that owns the memories.
+	if _, err := q.GetChatByID(ctx, arg.RootChatID); err != nil {
+		return nil, err
+	}
+	return q.db.ListChatMemoriesByRootChatIDAndPathPrefix(ctx, arg)
+}
+
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListProvisionerKeysByOrganization)(ctx, organizationID)
 }
@@ -6926,6 +7030,22 @@ func (q *querier) ListUserChatPersonalModelOverrides(ctx context.Context, userID
 		return nil, err
 	}
 	return q.db.ListUserChatPersonalModelOverrides(ctx, userID)
+}
+
+func (q *querier) ListUserMemoriesByUserID(ctx context.Context, userID uuid.UUID) ([]database.ListUserMemoriesByUserIDRow, error) {
+	obj := rbac.ResourceUserMemory.WithOwner(userID.String())
+	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+		return nil, err
+	}
+	return q.db.ListUserMemoriesByUserID(ctx, userID)
+}
+
+func (q *querier) ListUserMemoriesByUserIDAndPathPrefix(ctx context.Context, arg database.ListUserMemoriesByUserIDAndPathPrefixParams) ([]database.ListUserMemoriesByUserIDAndPathPrefixRow, error) {
+	obj := rbac.ResourceUserMemory.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+		return nil, err
+	}
+	return q.db.ListUserMemoriesByUserIDAndPathPrefix(ctx, arg)
 }
 
 func (q *querier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.ListUserSecretsRow, error) {
@@ -7123,6 +7243,21 @@ func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveU
 		return nil, err
 	}
 	return q.db.RemoveUserFromGroups(ctx, arg)
+}
+
+func (q *querier) RenameChatMemoryByRootChatIDAndPath(ctx context.Context, arg database.RenameChatMemoryByRootChatIDAndPathParams) (database.ChatMemory, error) {
+	if err := q.authorizeChatMemoryUpdate(ctx, arg.RootChatID); err != nil {
+		return database.ChatMemory{}, err
+	}
+	return q.db.RenameChatMemoryByRootChatIDAndPath(ctx, arg)
+}
+
+func (q *querier) RenameUserMemoryByUserIDAndPath(ctx context.Context, arg database.RenameUserMemoryByUserIDAndPathParams) (database.UserMemory, error) {
+	obj := rbac.ResourceUserMemory.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+		return database.UserMemory{}, err
+	}
+	return q.db.RenameUserMemoryByUserIDAndPath(ctx, arg)
 }
 
 func (q *querier) ReorderChatQueuedMessageToFront(ctx context.Context, arg database.ReorderChatQueuedMessageToFrontParams) (int64, error) {
@@ -7487,6 +7622,13 @@ func (q *querier) UpdateChatMCPServerIDs(ctx context.Context, arg database.Updat
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatMCPServerIDs(ctx, arg)
+}
+
+func (q *querier) UpdateChatMemoryByRootChatIDAndPath(ctx context.Context, arg database.UpdateChatMemoryByRootChatIDAndPathParams) (database.ChatMemory, error) {
+	if err := q.authorizeChatMemoryUpdate(ctx, arg.RootChatID); err != nil {
+		return database.ChatMemory{}, err
+	}
+	return q.db.UpdateChatMemoryByRootChatIDAndPath(ctx, arg)
 }
 
 func (q *querier) UpdateChatModelConfig(ctx context.Context, arg database.UpdateChatModelConfigParams) (database.ChatModelConfig, error) {
@@ -8335,6 +8477,14 @@ func (q *querier) UpdateUserLoginType(ctx context.Context, arg database.UpdateUs
 		return database.User{}, err
 	}
 	return q.db.UpdateUserLoginType(ctx, arg)
+}
+
+func (q *querier) UpdateUserMemoryByUserIDAndPath(ctx context.Context, arg database.UpdateUserMemoryByUserIDAndPathParams) (database.UserMemory, error) {
+	obj := rbac.ResourceUserMemory.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+		return database.UserMemory{}, err
+	}
+	return q.db.UpdateUserMemoryByUserIDAndPath(ctx, arg)
 }
 
 func (q *querier) UpdateUserNotificationPreferences(ctx context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {

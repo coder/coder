@@ -47,6 +47,7 @@ const (
 	ResourceTemplate                      RBACResource = "template"
 	ResourceUsageEvent                    RBACResource = "usage_event"
 	ResourceUser                          RBACResource = "user"
+	ResourceUserMemory                    RBACResource = "user_memory"
 	ResourceUserSecret                    RBACResource = "user_secret"
 	ResourceUserSkill                     RBACResource = "user_skill"
 	ResourceWebpushSubscription           RBACResource = "webpush_subscription"
@@ -127,6 +128,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceTemplate:                      {ActionCreate, ActionDelete, ActionRead, ActionUpdate, ActionUse, ActionViewInsights},
 	ResourceUsageEvent:                    {ActionCreate, ActionRead, ActionUpdate},
 	ResourceUser:                          {ActionCreate, ActionDelete, ActionRead, ActionReadPersonal, ActionUpdate, ActionUpdatePersonal},
+	ResourceUserMemory:                    {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceUserSecret:                    {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceUserSkill:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceWebpushSubscription:           {ActionCreate, ActionDelete, ActionRead},

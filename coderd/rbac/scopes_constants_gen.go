@@ -142,6 +142,10 @@ const (
 	ScopeUserReadPersonal                    ScopeName = "user:read_personal"
 	ScopeUserUpdate                          ScopeName = "user:update"
 	ScopeUserUpdatePersonal                  ScopeName = "user:update_personal"
+	ScopeUserMemoryCreate                    ScopeName = "user_memory:create"
+	ScopeUserMemoryDelete                    ScopeName = "user_memory:delete"
+	ScopeUserMemoryRead                      ScopeName = "user_memory:read"
+	ScopeUserMemoryUpdate                    ScopeName = "user_memory:update"
 	ScopeUserSecretCreate                    ScopeName = "user_secret:create"
 	ScopeUserSecretDelete                    ScopeName = "user_secret:delete"
 	ScopeUserSecretRead                      ScopeName = "user_secret:read"
@@ -335,6 +339,10 @@ func (e ScopeName) Valid() bool {
 		ScopeUserReadPersonal,
 		ScopeUserUpdate,
 		ScopeUserUpdatePersonal,
+		ScopeUserMemoryCreate,
+		ScopeUserMemoryDelete,
+		ScopeUserMemoryRead,
+		ScopeUserMemoryUpdate,
 		ScopeUserSecretCreate,
 		ScopeUserSecretDelete,
 		ScopeUserSecretRead,
@@ -529,6 +537,10 @@ func AllScopeNameValues() []ScopeName {
 		ScopeUserReadPersonal,
 		ScopeUserUpdate,
 		ScopeUserUpdatePersonal,
+		ScopeUserMemoryCreate,
+		ScopeUserMemoryDelete,
+		ScopeUserMemoryRead,
+		ScopeUserMemoryUpdate,
 		ScopeUserSecretCreate,
 		ScopeUserSecretDelete,
 		ScopeUserSecretRead,
