@@ -4,8 +4,8 @@ import {
 	Badges,
 	DisabledBadge,
 	EnabledBadge,
-	PremiumBadge,
 } from "#/components/Badges/Badges";
+import { PaywallSmall } from "#/components/Paywall/PaywallSmall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -61,7 +61,10 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 					}
 				>
 					<SettingsHeaderTitle level="h2" hierarchy="secondary">
-						Browser-Only Connections
+						Browser-Only Connections{" "}
+						<Badges>
+							{featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
+						</Badges>
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Block all workspace access via SSH, port forward, and other
@@ -71,8 +74,15 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 
 				<Badges>
 					{featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
-					<PremiumBadge />
 				</Badges>
+				{!featureBrowserOnlyEnabled ? (
+					<PaywallSmall
+						message="Browser-Only Connections"
+						description="Block all workspace access via SSH, port forward, and other
+						non-browser connections."
+						canViewPremium
+					/>
+				) : null}
 			</div>
 
 			{tlsOptions.length > 0 && (

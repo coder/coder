@@ -50,7 +50,7 @@ export const PremiumPageView: FC<PremiumPageViewProps> = ({
 			<div className="grid grid-cols-1 lg:grid-cols-2 min-h-[640px]">
 				<div className="relative isolate overflow-hidden hidden lg:flex flex-col p-12 bg-surface-secondary">
 					<Supergraphic className="bg-[position:20%_20%] bg-[length:110%_125%] -scale-x-100" />
-					<h2 className="self-end m-0 pt-24 max-w-md text-3xl font-semibold text-content-primary text-balance">
+					<h2 className="self-start m-0 pt-24 max-w-md text-3xl font-semibold text-content-primary text-balance">
 						{TRIAL_OFFER_TITLE}
 					</h2>
 					<p className="self-start m-0 max-w-sm pt-6 text-sm text-content-primary">

@@ -124,7 +124,10 @@ export const PaywallDocumentationLink: FC<React.ComponentProps<"a">> = ({
 			href={href}
 			target="_blank"
 			rel="noreferrer"
-			className={cn("text-content-link font-medium mr-4", className)}
+			className={cn(
+				"inline-flex items-center gap-1 text-content-link font-medium mr-4",
+				className,
+			)}
 			{...props}
 		>
 			{children} <ExternalLinkIcon className="size-icon-xs" />
