@@ -356,15 +356,18 @@ func (server *Server) prepareGeneration(
 				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
 			}
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
+			connectable, skipped := server.mcpNegativeCache.Filter(ctx, logger, mcpConnectConfigs)
 			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAll(
 				ctx,
 				logger,
-				mcpConnectConfigs,
+				connectable,
 				mcpTokens,
 				chat.OwnerID,
 				server.oidcTokenSource,
 				chatprovider.CoderHeaders(chat),
 			)
+			server.mcpNegativeCache.Record(connectable, mcpSummaries)
+			mcpSummaries = append(mcpSummaries, skipped...)
 			return nil
 		})
 	}

@@ -189,6 +189,7 @@ type Server struct {
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
+	mcpNegativeCache               *mcpclient.NegativeCache
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -3161,6 +3162,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
 		oidcTokenSource:                cfg.OIDCTokenSource,
+		mcpNegativeCache:               mcpclient.NewNegativeCache(clk),
 		debugSvcFactory: func() *chatdebug.Service {
 			debugSvc := chatdebug.NewService(
 				cfg.Database,
