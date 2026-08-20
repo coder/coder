@@ -339,10 +339,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												isActiveChat && "opacity-100",
 											)}
 											aria-label={`Open actions for ${chat.title}`}
-											// The kebab already opens its own dropdown;
-											// swallow right-click events on it so the
-											// row-level context menu doesn't also open on
-											// top of the dropdown.
 											onContextMenuCapture={(e) => {
 												e.preventDefault();
 												e.stopPropagation();
