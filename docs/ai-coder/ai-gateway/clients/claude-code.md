@@ -55,36 +55,14 @@ Template admins can pre-configure Claude Code for a seamless experience. Admins 
 ```tf
 module "claude-code" {
   source            = "registry.coder.com/coder/claude-code/coder"
-  version           = "4.7.3"
+  version           = "~> 5.2"
   agent_id          = coder_agent.main.id
-  workdir           = "/path/to/project"  # Set to your project directory
+  workdir           = "/path/to/project" # Set to your project directory
   enable_ai_gateway = true
 }
 ```
 
-### Coder Tasks
-
-[Coder Tasks](../../tasks.md) provides a framework for agents to complete background development operations autonomously. Claude Code can be configured in your Tasks automatically:
-
-```tf
-resource "coder_ai_task" "task" {
-  count  = data.coder_workspace.me.start_count
-  app_id = module.claude-code.task_app_id
-}
-
-data "coder_task" "me" {}
-
-module "claude-code" {
-  source            = "registry.coder.com/coder/claude-code/coder"
-  version           = "4.7.3"
-  agent_id          = coder_agent.main.id
-  workdir           = "/path/to/project"  # Set to your project directory
-  ai_prompt         = data.coder_task.me.prompt
-
-  # Route through AI Gateway
-  enable_ai_gateway = true
-}
-```
+Visit the [Claude Code module on the Coder Registry](https://registry.coder.com/modules/coder/claude-code) for the full list of inputs and outputs.
 
 ## VS Code Extension
 

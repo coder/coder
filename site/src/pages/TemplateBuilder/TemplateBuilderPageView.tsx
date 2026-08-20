@@ -4,6 +4,8 @@ import {
 	useCallback,
 	useEffect,
 	useReducer,
+	useRef,
+	useState,
 } from "react";
 
 import { useQuery } from "react-query";
@@ -104,6 +106,16 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	const currentIndex = nearestVisible(clampedIndex, state);
 	const currentStep = WIZARD_STEPS[currentIndex];
 
+	// The highest sidebar group the user has reached. It never shrinks on
+	// backward navigation, so completed steps stay green and clickable in the
+	// SelectionSummary sidebar like a browser back-stack.
+	const [maxReachedGroup, setMaxReachedGroup] = useState<1 | 2 | 3>(
+		currentStep.group,
+	);
+	if (currentStep.group > maxReachedGroup) {
+		setMaxReachedGroup(currentStep.group);
+	}
+
 	// Rewrite the URL whenever it disagrees with the resolved step.
 	useEffect(() => {
 		if (searchParams.get("step") === currentStep.id) {
@@ -160,6 +172,22 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 		navigateToStep(nextIndex);
 	};
 
+	// Sidebar step labels and the base-template row call this to jump to a
+	// specific wizard step. Skipped steps resolve to the nearest visible one
+	// (so jumping to base-parameters lands on base-infra when the base has no
+	// parameters).
+	const navigateToStepId = (stepId: StepId) => {
+		const target = WIZARD_STEPS.findIndex((s) => s.id === stepId);
+		if (target < 0) {
+			return;
+		}
+		if (currentStep.id === "customizations" && stepId !== "customizations") {
+			dispatch({ type: "RESET_CUSTOMIZATIONS" });
+			onClearCreateError?.();
+		}
+		navigateToStep(nearestVisible(target, state));
+	};
+
 	const handleProvisionerStatusChange = useCallback(
 		(value: boolean | undefined) => {
 			dispatch({ type: "SET_HAS_PROVISIONERS", value });
@@ -178,6 +206,69 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			meta: state.selectedModules.filter((m) => m.id !== moduleId),
 		});
 	};
+
+	// Maps module id -> its config section node, populated by
+	// ModuleSettingsStep via callback refs. Used to scroll a module into
+	// view without relying on DOM ids.
+	const moduleRefs = useRef(new Map<string, HTMLDivElement>());
+
+	const registerModuleRef = useCallback(
+		(moduleId: string, node: HTMLDivElement | null) => {
+			if (node) {
+				moduleRefs.current.set(moduleId, node);
+			} else {
+				moduleRefs.current.delete(moduleId);
+			}
+		},
+		[],
+	);
+
+	// Holds the module a sidebar click wants to scroll to, so the scroll can
+	// happen after the module-settings step has rendered.
+	const pendingModuleScrollRef = useRef<string | null>(null);
+
+	const scrollModuleIntoView = (moduleId: string) => {
+		moduleRefs.current.get(moduleId)?.scrollIntoView({ behavior: "smooth" });
+	};
+
+	// Sidebar module rows call this to jump to a module's configuration.
+	const navigateToModule = (moduleId: string) => {
+		const settingsIndex = WIZARD_STEPS.findIndex(
+			(s) => s.id === "module-settings",
+		);
+		const settingsVisible =
+			settingsIndex >= 0 && !WIZARD_STEPS[settingsIndex].shouldSkip(state);
+
+		// If module-settings is skipped (no configurable vars) there is no
+		// card to scroll to, so the click is a no-op.
+		if (!settingsVisible) {
+			return;
+		}
+
+		if (currentStep.id === "module-settings") {
+			scrollModuleIntoView(moduleId);
+			return;
+		}
+		// Remember the target and scroll once the step has rendered.
+		pendingModuleScrollRef.current = moduleId;
+		navigateToStep(settingsIndex);
+	};
+
+	// Runs after the scroll-reset effect above (declared earlier, so it fires
+	// first). Scrolls the requested module into view once module-settings
+	// has rendered.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: run on step change
+	useEffect(() => {
+		if (currentStep.id !== "module-settings") {
+			return;
+		}
+		const moduleId = pendingModuleScrollRef.current;
+		if (!moduleId) {
+			return;
+		}
+		pendingModuleScrollRef.current = null;
+		requestAnimationFrame(() => scrollModuleIntoView(moduleId));
+	}, [currentStep.id]);
 
 	if (isCreating) {
 		return <BuildingTemplateLoader />;
@@ -213,6 +304,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 							createError,
 							handleProvisionerStatusChange,
 							handleDeselectModule,
+							registerModuleRef,
 						)}
 					</div>
 
@@ -237,6 +329,9 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 				<div className="w-64 shrink-0 hidden md:block sticky top-[72px] self-start">
 					<SelectionSummary
 						currentStep={currentStep.group}
+						maxReachedStep={maxReachedGroup}
+						onNavigateStep={navigateToStepId}
+						onNavigateModule={navigateToModule}
 						selectedTemplate={
 							state.selectedBase
 								? {
@@ -265,6 +360,7 @@ function renderStepContent(
 	createError: Error | null,
 	onProvisionerStatusChange: (value: boolean | undefined) => void,
 	onRemoveModule: (moduleId: string) => void,
+	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void,
 ): ReactNode {
 	switch (stepId) {
 		case "base-infra":
@@ -311,6 +407,7 @@ function renderStepContent(
 						})
 					}
 					onRemoveModule={onRemoveModule}
+					registerModuleRef={registerModuleRef}
 				/>
 			);
 		case "customizations":

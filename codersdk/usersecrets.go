@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -66,7 +65,7 @@ func (c *Client) CreateUserSecret(ctx context.Context, user string, req CreateUs
 		return UserSecret{}, ReadBodyAsError(res)
 	}
 	var secret UserSecret
-	return secret, json.NewDecoder(res.Body).Decode(&secret)
+	return secret, ReadBodyAsJSON(res, &secret)
 }
 
 func (c *Client) UserSecrets(ctx context.Context, user string) ([]UserSecret, error) {
@@ -79,7 +78,7 @@ func (c *Client) UserSecrets(ctx context.Context, user string) ([]UserSecret, er
 		return nil, ReadBodyAsError(res)
 	}
 	var secrets []UserSecret
-	return secrets, json.NewDecoder(res.Body).Decode(&secrets)
+	return secrets, ReadBodyAsJSON(res, &secrets)
 }
 
 // ImportUserSecretsRequest is the payload for the bulk secret import
@@ -103,7 +102,7 @@ func (c *Client) ImportUserSecrets(ctx context.Context, user string, req ImportU
 		return nil, ReadBodyAsError(res)
 	}
 	var secrets []UserSecret
-	return secrets, json.NewDecoder(res.Body).Decode(&secrets)
+	return secrets, ReadBodyAsJSON(res, &secrets)
 }
 
 func (c *Client) UserSecretByName(ctx context.Context, user string, name string) (UserSecret, error) {
@@ -116,7 +115,7 @@ func (c *Client) UserSecretByName(ctx context.Context, user string, name string)
 		return UserSecret{}, ReadBodyAsError(res)
 	}
 	var secret UserSecret
-	return secret, json.NewDecoder(res.Body).Decode(&secret)
+	return secret, ReadBodyAsJSON(res, &secret)
 }
 
 func (c *Client) UpdateUserSecret(ctx context.Context, user string, name string, req UpdateUserSecretRequest) (UserSecret, error) {
@@ -129,7 +128,7 @@ func (c *Client) UpdateUserSecret(ctx context.Context, user string, name string,
 		return UserSecret{}, ReadBodyAsError(res)
 	}
 	var secret UserSecret
-	return secret, json.NewDecoder(res.Body).Decode(&secret)
+	return secret, ReadBodyAsJSON(res, &secret)
 }
 
 func (c *Client) DeleteUserSecret(ctx context.Context, user string, name string) error {

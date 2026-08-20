@@ -1,12 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { LicenseAIGovernance90PercentWarningText } from "#/api/typesGenerated";
-import { chromatic } from "#/testHelpers/chromatic";
 import { AIGovernanceSeatBannerView } from "./AIGovernanceSeatBannerView";
 
 const meta: Meta<typeof AIGovernanceSeatBannerView> = {
 	title: "modules/dashboard/AIGovernanceSeatBannerView",
-	parameters: { chromatic },
 	component: AIGovernanceSeatBannerView,
 };
 

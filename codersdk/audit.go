@@ -44,17 +44,19 @@ const (
 	ResourceTypeWorkspaceAgent ResourceType = "workspace_agent"
 	// Deprecated: Workspace App connections are now included in the
 	// connection log.
-	ResourceTypeWorkspaceApp         ResourceType = "workspace_app"
-	ResourceTypeTask                 ResourceType = "task"
-	ResourceTypeAISeat               ResourceType = "ai_seat"
-	ResourceTypeAIProvider           ResourceType = "ai_provider"
-	ResourceTypeAIProviderKey        ResourceType = "ai_provider_key"
-	ResourceTypeAIGatewayKey         ResourceType = "ai_gateway_key"
-	ResourceTypeGroupAIBudget        ResourceType = "group_ai_budget"
-	ResourceTypeUserAIBudgetOverride ResourceType = "user_ai_budget_override"
-	ResourceTypeChat                 ResourceType = "chat"
-	ResourceTypeUserSecret           ResourceType = "user_secret"
-	ResourceTypeUserSkill            ResourceType = "user_skill"
+	ResourceTypeWorkspaceApp            ResourceType = "workspace_app"
+	ResourceTypeTask                    ResourceType = "task"
+	ResourceTypeAISeat                  ResourceType = "ai_seat"
+	ResourceTypeAIProvider              ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey           ResourceType = "ai_provider_key"
+	ResourceTypeAIGatewayKey            ResourceType = "ai_gateway_key"
+	ResourceTypeGroupAIBudget           ResourceType = "group_ai_budget"
+	ResourceTypeUserAIBudgetOverride    ResourceType = "user_ai_budget_override"
+	ResourceTypeChat                    ResourceType = "chat"
+	ResourceTypeMCPServerConfig         ResourceType = "mcp_server_config"
+	ResourceTypeUserSecret              ResourceType = "user_secret"
+	ResourceTypeUserSkill               ResourceType = "user_skill"
+	ResourceTypeChatInstructionSettings ResourceType = "chat_instruction_settings"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -129,10 +131,14 @@ func (r ResourceType) FriendlyString() string {
 		return "user ai budget override"
 	case ResourceTypeChat:
 		return "chat"
+	case ResourceTypeMCPServerConfig:
+		return "mcp server config"
 	case ResourceTypeUserSecret:
 		return "user secret"
 	case ResourceTypeUserSkill:
 		return "user skill"
+	case ResourceTypeChatInstructionSettings:
+		return "chat instruction settings"
 	default:
 		return "unknown"
 	}
@@ -274,7 +280,7 @@ func (c *Client) AuditLogs(ctx context.Context, req AuditLogsRequest) (AuditLogR
 	}
 
 	var logRes AuditLogResponse
-	err = json.NewDecoder(res.Body).Decode(&logRes)
+	err = ReadBodyAsJSON(res, &logRes)
 	if err != nil {
 		return AuditLogResponse{}, err
 	}

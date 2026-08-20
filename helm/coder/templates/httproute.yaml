@@ -1,5 +1,11 @@
-{{- if and .Values.coder.httproute.enable .Values.coder.httproute.httpsRedirect.enable (empty .Values.coder.httproute.httpsRedirect.parentRefs) -}}
+{{- if and .Values.coder.httproute.enable .Values.coder.httproute.httpsRedirect.enable -}}
+{{- if empty .Values.coder.httproute.httpsRedirect.parentRefs -}}
 {{- fail "coder.httproute.httpsRedirect.parentRefs is required when coder.httproute.httpsRedirect.enable=true" -}}
+{{- end -}}
+{{- $httpsRedirectStatusCode := toString .Values.coder.httproute.httpsRedirect.statusCode -}}
+{{- if not (regexMatch "^(301|302|303|307|308)$" $httpsRedirectStatusCode) -}}
+{{- fail "coder.httproute.httpsRedirect.statusCode must be one of 301, 302, 303, 307, or 308." -}}
+{{- end -}}
 {{- end -}}
 
 {{- if .Values.coder.httproute.enable }}
@@ -29,6 +35,7 @@ spec:
     - {{ . | quote }}
     {{- end }}
   {{- if .Values.coder.httproute.httpsRedirect.enable }}
+{{- $httpsRedirectStatusCode := toString .Values.coder.httproute.httpsRedirect.statusCode }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -48,7 +55,7 @@ spec:
     - filters:
       - requestRedirect:
           scheme: https
-          statusCode: 308
+          statusCode: {{ $httpsRedirectStatusCode }}
         type: RequestRedirect
       matches:
       - path:

@@ -15,6 +15,7 @@ import { organizationRoles } from "#/api/queries/roles";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -23,6 +24,7 @@ import { pageTitle } from "#/utils/page";
 import IdpSyncPageView from "./IdpSyncPageView";
 
 const IdpSyncPage: FC = () => {
+	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 	// IdP sync does not have its own entitlement and is based on templace_rbac
 	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
@@ -130,8 +132,8 @@ const IdpSyncPage: FC = () => {
 				{!isIdpSyncEnabled ? (
 					<PaywallPremium
 						message="IdP Sync"
-						description="Configure group and role mappings to manage permissions outside of Coder. You need a Premium license to use this feature."
-						documentationLink={docs("/admin/users/idp-sync")}
+						description="Configure group and role mappings to manage permissions outside of Coder."
+						canViewPremium={permissions.viewAllLicenses}
 					/>
 				) : (
 					<IdpSyncPageView

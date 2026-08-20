@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
@@ -326,6 +327,7 @@ func TestGenerateCompaction_ForceBypassesThresholdGates(t *testing.T) {
 			opts := tc.opts
 			opts.Model = newModel(&calls)
 			opts.Messages = messages
+			opts.Clock = quartz.NewMock(t)
 			result, err := GenerateCompaction(context.Background(), opts)
 			require.NoError(t, err)
 			require.Empty(t, result.SummaryReport)
@@ -365,8 +367,21 @@ func TestGenerateCompaction_DefaultSourceAutomatic(t *testing.T) {
 		ThresholdPercent: 70,
 		ContextLimit:     100,
 		StepUsage:        fantasy.Usage{InputTokens: 90},
+		Clock:            quartz.NewMock(t),
 	})
 	require.NoError(t, err)
 	require.Equal(t, "auto summary", result.SummaryReport)
 	require.Equal(t, CompactionSourceAutomatic, result.Source)
+}
+
+// TestGenerateCompaction_RequiresClock verifies a nil clock is
+// rejected instead of silently falling back to a real clock; tests
+// must supply their own.
+func TestGenerateCompaction_RequiresClock(t *testing.T) {
+	t.Parallel()
+
+	_, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
+		Model: &chattest.FakeModel{ProviderName: "fake", ModelName: "fake-model"},
+	})
+	require.ErrorContains(t, err, "clock is required")
 }

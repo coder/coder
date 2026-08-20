@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
 import {
 	Table,
@@ -8,6 +7,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { docs } from "#/utils/docs";
 
 interface IdpMappingTableProps {
@@ -37,23 +37,19 @@ export const IdpMappingTable: FC<IdpMappingTableProps> = ({
 				</TableHeader>
 				<TableBody>
 					{rowCount === 0 ? (
-						<TableRow>
-							<TableCell colSpan={999}>
-								<EmptyState
-									message={`No ${type.toLocaleLowerCase()} mappings`}
-									isCompact
-									cta={
-										<Link
-											href={docs(
-												`/admin/users/idp-sync#${type.toLocaleLowerCase()}-sync`,
-											)}
-										>
-											How to setup IdP {type.toLocaleLowerCase()} sync
-										</Link>
-									}
-								/>
-							</TableCell>
-						</TableRow>
+						<TableEmpty
+							message={`No ${type.toLocaleLowerCase()} mappings`}
+							isCompact
+							cta={
+								<Link
+									href={docs(
+										`/admin/users/idp-sync#${type.toLocaleLowerCase()}-sync`,
+									)}
+								>
+									How to setup IdP {type.toLocaleLowerCase()} sync
+								</Link>
+							}
+						/>
 					) : (
 						children
 					)}

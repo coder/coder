@@ -168,7 +168,8 @@ INSERT INTO oauth2_provider_app_codes (
     code_challenge,
     code_challenge_method,
     state_hash,
-    redirect_uri
+    redirect_uri,
+    scope
 ) VALUES(
     $1,
     $2,
@@ -181,7 +182,8 @@ INSERT INTO oauth2_provider_app_codes (
     $9,
     $10,
     $11,
-    $12
+    $12,
+    $13
 ) RETURNING *;
 
 -- name: DeleteOAuth2ProviderAppCodeByID :exec
@@ -197,10 +199,12 @@ INSERT INTO oauth2_provider_app_tokens (
     expires_at,
     hash_prefix,
     refresh_hash,
+    app_id,
     app_secret_id,
     api_key_id,
     user_id,
-    audience
+    audience,
+    scope
 ) VALUES(
     $1,
     $2,
@@ -210,7 +214,9 @@ INSERT INTO oauth2_provider_app_tokens (
     $6,
     $7,
     $8,
-    $9
+    $9,
+    $10,
+    $11
 ) RETURNING *;
 
 -- name: GetOAuth2ProviderAppTokenByPrefix :one
@@ -220,27 +226,28 @@ SELECT * FROM oauth2_provider_app_tokens WHERE hash_prefix = $1;
 SELECT * FROM oauth2_provider_app_tokens WHERE api_key_id = $1;
 
 -- name: GetOAuth2ProviderAppsByUserID :many
+-- Joins directly on oauth2_provider_app_tokens.app_id rather than through
+-- app_secret_id, since app_secret_id is NULL for public (secretless) clients
+-- and would silently exclude their tokens from this listing.
 SELECT
   COUNT(DISTINCT oauth2_provider_app_tokens.id) as token_count,
   sqlc.embed(oauth2_provider_apps)
 FROM oauth2_provider_app_tokens
-  INNER JOIN oauth2_provider_app_secrets
-    ON oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
   INNER JOIN oauth2_provider_apps
-    ON oauth2_provider_apps.id = oauth2_provider_app_secrets.app_id
+    ON oauth2_provider_apps.id = oauth2_provider_app_tokens.app_id
 WHERE
   oauth2_provider_app_tokens.user_id = $1
 GROUP BY
   oauth2_provider_apps.id;
 
 -- name: DeleteOAuth2ProviderAppTokensByAppAndUserID :exec
+-- Filters directly on app_id rather than joining through app_secret_id,
+-- since app_secret_id is NULL for public (secretless) clients and would
+-- silently exclude their tokens from this delete.
 DELETE FROM
   oauth2_provider_app_tokens
-USING
-  oauth2_provider_app_secrets
 WHERE
-  oauth2_provider_app_secrets.id = oauth2_provider_app_tokens.app_secret_id
-  AND oauth2_provider_app_secrets.app_id = $1
+  oauth2_provider_app_tokens.app_id = $1
   AND oauth2_provider_app_tokens.user_id = $2;
 
 -- RFC 7591/7592 Dynamic Client Registration queries

@@ -44,6 +44,24 @@ func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
+func TestConvertTemplateAgentsAllowed(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name    string
+		allowed bool
+	}{
+		{name: "Allowed", allowed: true},
+		{name: "Disallowed", allowed: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := telemetry.ConvertTemplate(database.Template{AgentsAllowed: tt.allowed})
+			require.Equal(t, tt.allowed, got.AgentsAllowed)
+		})
+	}
+}
+
 func TestTelemetry(t *testing.T) {
 	t.Parallel()
 	t.Run("Snapshot", func(t *testing.T) {
@@ -1719,7 +1737,6 @@ func TestChatsTelemetry(t *testing.T) {
 		TotalTokens:         sql.NullInt64{Int64: 100, Valid: true},
 		CacheCreationTokens: sql.NullInt64{Int64: 50, Valid: true},
 		ContextLimit:        sql.NullInt64{Int64: 200000, Valid: true},
-		TotalCostMicros:     sql.NullInt64{Int64: 1000, Valid: true},
 	})
 	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:             rootChat.ID,
@@ -1732,7 +1749,6 @@ func TestChatsTelemetry(t *testing.T) {
 		ReasoningTokens:    sql.NullInt64{Int64: 10, Valid: true},
 		CacheReadTokens:    sql.NullInt64{Int64: 25, Valid: true},
 		ContextLimit:       sql.NullInt64{Int64: 200000, Valid: true},
-		TotalCostMicros:    sql.NullInt64{Int64: 2000, Valid: true},
 		RuntimeMs:          sql.NullInt64{Int64: 500, Valid: true},
 		ProviderResponseID: sql.NullString{String: "resp-1", Valid: true},
 	})
@@ -1746,7 +1762,6 @@ func TestChatsTelemetry(t *testing.T) {
 		TotalTokens:         sql.NullInt64{Int64: 150, Valid: true},
 		CacheCreationTokens: sql.NullInt64{Int64: 30, Valid: true},
 		ContextLimit:        sql.NullInt64{Int64: 200000, Valid: true},
-		TotalCostMicros:     sql.NullInt64{Int64: 1500, Valid: true},
 	})
 	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:             rootChat.ID,
@@ -1759,7 +1774,6 @@ func TestChatsTelemetry(t *testing.T) {
 		ReasoningTokens:    sql.NullInt64{Int64: 20, Valid: true},
 		CacheReadTokens:    sql.NullInt64{Int64: 40, Valid: true},
 		ContextLimit:       sql.NullInt64{Int64: 200000, Valid: true},
-		TotalCostMicros:    sql.NullInt64{Int64: 3000, Valid: true},
 		RuntimeMs:          sql.NullInt64{Int64: 800, Valid: true},
 		ProviderResponseID: sql.NullString{String: "resp-2", Valid: true},
 	})
@@ -1783,7 +1797,6 @@ func TestChatsTelemetry(t *testing.T) {
 		TotalTokens:         sql.NullInt64{Int64: 500, Valid: true},
 		CacheCreationTokens: sql.NullInt64{Int64: 100, Valid: true},
 		ContextLimit:        sql.NullInt64{Int64: 128000, Valid: true},
-		TotalCostMicros:     sql.NullInt64{Int64: 5000, Valid: true},
 	})
 	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:             childChat.ID,
@@ -1797,7 +1810,6 @@ func TestChatsTelemetry(t *testing.T) {
 		CacheReadTokens:    sql.NullInt64{Int64: 75, Valid: true},
 		ContextLimit:       sql.NullInt64{Int64: 128000, Valid: true},
 		Compressed:         true,
-		TotalCostMicros:    sql.NullInt64{Int64: 8000, Valid: true},
 		RuntimeMs:          sql.NullInt64{Int64: 1200, Valid: true},
 		ProviderResponseID: sql.NullString{String: "resp-3", Valid: true},
 	})
@@ -1817,7 +1829,6 @@ func TestChatsTelemetry(t *testing.T) {
 		CacheCreationTokens: sql.NullInt64{Int64: 999999, Valid: true},
 		CacheReadTokens:     sql.NullInt64{Int64: 999999, Valid: true},
 		ContextLimit:        sql.NullInt64{Int64: 200000, Valid: true},
-		TotalCostMicros:     sql.NullInt64{Int64: 999999, Valid: true},
 		RuntimeMs:           sql.NullInt64{Int64: 999999, Valid: true},
 	})
 	err = db.SoftDeleteChatMessageByID(ctx, poisonMsg.ID)
@@ -1893,7 +1904,6 @@ func TestChatsTelemetry(t *testing.T) {
 	assert.Equal(t, int64(30), rootSummary.TotalReasoningTokens)     // 0+10+0+20+0
 	assert.Equal(t, int64(80), rootSummary.TotalCacheCreationTokens) // 50+0+30+0+0
 	assert.Equal(t, int64(65), rootSummary.TotalCacheReadTokens)     // 0+25+0+40+0
-	assert.Equal(t, int64(7500), rootSummary.TotalCostMicros)        // 1000+2000+1500+3000+0
 	assert.Equal(t, int64(1400), rootSummary.TotalRuntimeMs)         // 0+500+0+800+100
 	assert.Equal(t, int64(1), rootSummary.DistinctModelCount)
 	assert.Equal(t, int64(0), rootSummary.CompressedMessageCount)
@@ -1911,7 +1921,6 @@ func TestChatsTelemetry(t *testing.T) {
 	assert.Equal(t, int64(0), childSummary.SystemMessageCount)
 	assert.Equal(t, int64(100), childSummary.TotalCacheCreationTokens) // 100+0
 	assert.Equal(t, int64(75), childSummary.TotalCacheReadTokens)      // 0+75
-	assert.Equal(t, int64(13000), childSummary.TotalCostMicros)        // 5000+8000
 	assert.Equal(t, int64(1200), childSummary.TotalRuntimeMs)          // 0+1200
 	assert.Equal(t, int64(1), childSummary.DistinctModelCount)
 	assert.Equal(t, int64(1), childSummary.CompressedMessageCount)

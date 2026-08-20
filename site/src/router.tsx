@@ -6,7 +6,6 @@ import {
 	Outlet,
 	Route,
 	ScrollRestoration,
-	useLocation,
 	useParams,
 } from "react-router";
 import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBoundary";
@@ -14,6 +13,7 @@ import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { useAuthenticated } from "./hooks/useAuthenticated";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { aiTasksEnabled } from "./modules/tasks/useAITasksEnabled";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import ConnectionLogPage from "./pages/ConnectionLogPage/ConnectionLogPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
@@ -32,7 +32,7 @@ import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
 // - Pages that use heavy dependencies like charts or time libraries
-const NotFoundPage = lazy(() => import("./pages/404Page/404Page"));
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage/NotFoundPage"));
 const DeploymentSettingsLayout = lazy(
 	() => import("./modules/management/DeploymentSettingsLayout"),
 );
@@ -389,12 +389,6 @@ const AgentSettingsPersonalSkillsPage = lazy(
 const AgentSettingsAPIKeysPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAPIKeysPage"),
 );
-const AISettingsSpendPage = lazy(
-	() => import("./pages/AISettingsPage/SpendPage/SpendPage"),
-);
-const AgentAnalyticsPage = lazy(
-	() => import("./pages/AgentsPage/AgentAnalyticsPage"),
-);
 
 import {
 	AgentChatPageSkeleton,
@@ -471,7 +465,7 @@ const AISettingsUpdateMCPServerPage = lazy(
 		),
 );
 
-const AISettingsIndexRedirect = () => {
+export const AISettingsIndexRedirect = () => {
 	const { permissions } = useAuthenticated();
 
 	if (permissions.viewAnyAIProvider) {
@@ -484,6 +478,18 @@ const AISettingsIndexRedirect = () => {
 
 	if (permissions.editDeploymentConfig) {
 		return <Navigate to="/ai/settings/models" replace />;
+	}
+
+	if (
+		permissions.viewAnyMCPServerConfigs ||
+		permissions.updateAnyMCPServerConfig ||
+		permissions.deleteAnyMCPServerConfig
+	) {
+		return <Navigate to="/ai/settings/mcp-servers" replace />;
+	}
+
+	if (permissions.createAnyMCPServerConfig) {
+		return <Navigate to="/ai/settings/mcp-servers/add" replace />;
 	}
 
 	return <Navigate to="/ai/settings/providers" replace />;
@@ -548,12 +554,6 @@ const groupsRouter = () => {
 	);
 };
 
-/** Redirect that preserves the current query string. */
-const NavigateWithSearch = ({ to }: { to: string }) => {
-	const location = useLocation();
-	return <Navigate to={{ pathname: to, search: location.search }} replace />;
-};
-
 /** Redirect /aibridge/sessions/:sessionId to /ai-gateway/sessions/:sessionId. */
 const RedirectAIBridgeSession = () => {
 	const { sessionId } = useParams() as { sessionId: string };
@@ -612,7 +612,7 @@ export const router = createBrowserRouter(
 
 					<Route path="/connectionlog" element={<ConnectionLogPage />} />
 
-					<Route path="/tasks" element={<TasksPage />} />
+					{aiTasksEnabled() && <Route path="/tasks" element={<TasksPage />} />}
 
 					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
 						<Route path="new" element={<CreateOrganizationPage />} />
@@ -768,7 +768,6 @@ export const router = createBrowserRouter(
 						/>
 						<Route index element={<AISettingsIndexRedirect />} />
 						<Route path="models" element={<AISettingsModelsPage />} />
-						<Route path="spend" element={<AISettingsSpendPage />} />
 						<Route
 							path="instructions"
 							element={<AISettingsInstructionsPage />}
@@ -842,7 +841,9 @@ export const router = createBrowserRouter(
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/coder-cup" element={<CoderCupPage />} />
 				<Route path="/icons" element={<IconsPage />} />
-				<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
+				{aiTasksEnabled() && (
+					<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
+				)}
 				<Route
 					path="/agents"
 					element={
@@ -905,23 +906,10 @@ export const router = createBrowserRouter(
 							element={<Navigate to="/ai/settings/mcp-servers" replace />}
 						/>
 						<Route
-							path="spend"
-							element={<NavigateWithSearch to="/ai/settings/spend" />}
-						/>
-						<Route
-							path="limits"
-							element={<NavigateWithSearch to="/ai/settings/spend" />}
-						/>
-						<Route
-							path="usage"
-							element={<NavigateWithSearch to="/ai/settings/spend" />}
-						/>
-						<Route
 							path="templates"
 							element={<Navigate to="/ai/settings/templates" replace />}
 						/>
 					</Route>
-					<Route path="analytics" element={<AgentAnalyticsPage />} />
 					<Route
 						path=":agentId"
 						element={

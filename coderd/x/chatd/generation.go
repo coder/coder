@@ -14,13 +14,16 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -38,13 +41,14 @@ type generationPrepared struct {
 	Chat     database.Chat
 	Messages []database.ChatMessage
 
-	Model             fantasy.LanguageModel
-	Prompt            []fantasy.Message
-	Tools             []fantasy.AgentTool
-	ActiveTools       []string
-	ProviderTools     []chatloop.ProviderTool
-	ModelRoute        aiGatewayModelRoute
-	ModelBuildOptions modelBuildOptions
+	Model              chatprovider.Model
+	Prompt             []fantasy.Message
+	Tools              []fantasy.AgentTool
+	ActiveTools        []string
+	AllowInactiveTools map[string]bool
+	ProviderTools      []chatloop.ProviderTool
+	ModelRoute         aiGatewayModelRoute
+	ModelBuildOptions  modelBuildOptions
 
 	// ResolvedProvider is the configured provider identity used to label
 	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
@@ -399,7 +403,7 @@ func (s *taskStarter) startGenerationSession(
 	// Re-arm the claim until its response is applied so a replacement task
 	// can replay session_start effects.
 	defer func() { complete(completed) }()
-	response, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(chat, input.hookTurnID()), chathooks.Message{Source: chathooks.SessionStartSource(messages)}, agenthooks.EventSessionStart)
+	response, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(chat, input.hookTurnID()), chathooks.Message{Source: chathooks.SessionStartSource(messages)}, agenthooks.EventSessionStart, dispatch.CapacityClassGeneration)
 	if err != nil {
 		return sessionStartResult{}, true, chathooks.GenerationDispatchError(agenthooks.EventSessionStart, err)
 	}
@@ -722,7 +726,7 @@ func (s *taskStarter) generateAssistant(
 	defer attempt.closeEpisode()
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
 	outcome, err := chatloop.GenerateAssistant(runCtx, chatloop.GenerateAssistantOptions{
-		Model:                prepared.Model,
+		Model:                prepared.Model.LanguageModel(),
 		ErrorProvider:        prepared.ResolvedProvider,
 		Messages:             prepared.Prompt,
 		Tools:                prepared.Tools,
@@ -732,6 +736,7 @@ func (s *taskStarter) generateAssistant(
 		ModelConfig:          prepared.ModelConfig,
 		ProviderOptions:      prepared.ProviderOptions,
 		PublishMessagePart:   attempt.publish,
+		OnModelStreamStart:   attempt.startModelInvocation,
 		Logger:               s.opts.Logger,
 		Clock:                s.opts.Clock,
 		Metrics:              s.server.metrics,
@@ -748,12 +753,12 @@ func (s *taskStarter) generateAssistant(
 	}
 	outcome.Step.Content = chathooks.ApplyAdmittedToolCalls(outcome.Step.Content, preflight)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
-		modelConfigID:      prepared.ModelConfigID,
-		modelCallConfig:    prepared.ModelConfig,
-		step:               stepDataFromPersisted(outcome.Step),
-		toolNameToConfigID: prepared.ToolNameToConfigID,
-		logger:             s.opts.Logger,
-		contentVersion:     chatprompt.CurrentContentVersion,
+		modelConfigID:          prepared.ModelConfigID,
+		step:                   stepDataFromPersisted(outcome.Step),
+		toolNameToConfigID:     prepared.ToolNameToConfigID,
+		logger:                 s.opts.Logger,
+		contentVersion:         chatprompt.CurrentContentVersion,
+		hookRewrittenToolCalls: preflight.Overrides,
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
@@ -778,20 +783,46 @@ func (s *taskStarter) admitStepToolCalls(
 	if len(toolCalls) == 0 || exclusiveBatchRejected(toolCalls, prepared.ExclusiveToolNames) {
 		return chathooks.PreToolUseExecutionResult{}, nil
 	}
+	// An admission error discards the whole batch before it can be
+	// committed, so its find_tools calls would otherwise never reach
+	// the executeLocalTools counter; count them at each error exit.
+	countBatch := func() {
+		if !prepared.BuiltinToolNames[chattool.FindToolsName] {
+			return
+		}
+		for _, toolCall := range toolCalls {
+			if toolCall.ToolName == chattool.FindToolsName {
+				s.server.metrics.FindToolsCallsTotal.Inc()
+			}
+		}
+	}
 	// Check the full batch first: a call removed below still occupies its ID
 	// in the step, so filtering before this would hide the collision.
 	if err := chathooks.RejectDuplicateToolUseIDs(toolCalls); err != nil {
+		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
 	unambiguous, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
 	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), unambiguous)
 	if err != nil {
+		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
 	if err := validateOverriddenToolInputs(prepared, preflight); err != nil {
+		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
 	preflight.Denied = append(preflight.Denied, ambiguous...)
+	// Calls denied at admission persist synthetic results with the
+	// assistant step, so they never surface as unresolved calls where
+	// executeLocalTools counts find_tools invocations; count them here.
+	if prepared.BuiltinToolNames[chattool.FindToolsName] {
+		for _, result := range preflight.Denied {
+			if result.ToolName == chattool.FindToolsName {
+				s.server.metrics.FindToolsCallsTotal.Inc()
+			}
+		}
+	}
 	return preflight, nil
 }
 
@@ -807,6 +838,17 @@ func (s *taskStarter) executeLocalTools(
 	if !exclusiveBatchRejected(decision.localToolCalls, prepared.ExclusiveToolNames) {
 		allowed, denied = partitionAmbiguousToolCalls(prepared, decision.localToolCalls)
 	}
+	// find_tools calls are counted here, at the single point every
+	// model-emitted call passes through, because rejections upstream of
+	// the tool (partition denials, hook denials, exclusive-policy
+	// batches) never reach its handler or OnCall.
+	if prepared.BuiltinToolNames[chattool.FindToolsName] {
+		for _, toolCall := range decision.localToolCalls {
+			if toolCall.ToolName == chattool.FindToolsName {
+				s.server.metrics.FindToolsCallsTotal.Inc()
+			}
+		}
+	}
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
 		return xerrors.Errorf("beginGenerationAttempt: %w", err)
@@ -814,9 +856,9 @@ func (s *taskStarter) executeLocalTools(
 	defer attempt.closeEpisode()
 	provider := ""
 	modelName := ""
-	if prepared.Model != nil {
+	if prepared.Model.Valid() {
 		provider = prepared.Model.Provider()
-		modelName = prepared.Model.Model()
+		modelName = prepared.Model.ModelID()
 	}
 	var outcome chatloop.ToolExecutionOutcome
 	var spawnDispatchErr error
@@ -824,8 +866,10 @@ func (s *taskStarter) executeLocalTools(
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
 			Tools:              prepared.Tools,
 			ActiveTools:        prepared.ActiveTools,
+			AllowInactiveTools: prepared.AllowInactiveTools,
 			ProviderTools:      prepared.ProviderTools,
 			ToolCalls:          allowed,
+			ObservedToolCalls:  decision.localToolCalls,
 			ExclusiveToolNames: prepared.ExclusiveToolNames,
 			BuiltinToolNames:   prepared.BuiltinToolNames,
 			ModelProvider:      provider,
@@ -855,7 +899,6 @@ func (s *taskStarter) executeLocalTools(
 	chathooks.RestoreToolCallOrder(outcome.Step.Content, decision.localToolCalls)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
-		modelCallConfig:    prepared.ModelConfig,
 		step:               stepDataFromPersisted(outcome.Step),
 		toolNameToConfigID: prepared.ToolNameToConfigID,
 		logger:             s.opts.Logger,
@@ -925,7 +968,7 @@ func (s *taskStarter) generateCompaction(
 			slog.F("chat_id", prepared.Chat.ID),
 			slog.F("owner_id", prepared.Chat.OwnerID),
 		)
-		compactionOpts.Model = overrideModel.model
+		compactionOpts.Model = overrideModel.model.LanguageModel()
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
 		compactionOpts.ModelConfigID = overrideModel.modelConfig.ID
@@ -939,14 +982,16 @@ func (s *taskStarter) generateCompaction(
 			overrideModel.modelConfig,
 		)
 	}
-	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact)
+	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact, dispatch.CapacityClassGeneration)
 	if err != nil {
 		return chathooks.GenerationDispatchError(agenthooks.EventPreCompact, err)
 	}
 	compactionOpts.SummaryHint = preResult.GetModelContext()
 	compactionOpts.PublishMessagePart = attempt.publish
+	compactionOpts.OnModelStreamStart = attempt.startModelInvocation
 	compactionOpts.Source = source
 	compactionOpts.Force = source == chatloop.CompactionSourceManual
+	compactionOpts.Clock = s.opts.Clock
 	// Attach the turn debug run so the compaction call records a child
 	// debug run; without it startCompactionDebugRun finds no parent and
 	// skips debug instrumentation entirely.
@@ -986,7 +1031,7 @@ func (s *taskStarter) generateCompaction(
 	// Hook effects and fail-closed errors must commit atomically with
 	// compaction; a separate commit races the runner and can be dropped
 	// on crash.
-	postResult, postDispatchErr := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPostCompact)
+	postResult, postDispatchErr := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPostCompact, dispatch.CapacityClassGeneration)
 	var postCommitErr error
 	if postDispatchErr != nil {
 		postCommitErr = chathooks.GenerationDispatchError(agenthooks.EventPostCompact, postDispatchErr)
@@ -1038,6 +1083,11 @@ type generationAttempt struct {
 	number int64
 	// publish streams a message part into the attempt's buffer episode.
 	publish func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+	// startModelInvocation marks the start of the attempt's billable
+	// model invocation window on the buffer episode, so an interrupt
+	// can bill the window the step would have reported. It is always
+	// non-nil when beginGenerationAttempt succeeds.
+	startModelInvocation func()
 	// closeEpisode closes the attempt's buffer episode. It is always
 	// non-nil when beginGenerationAttempt succeeds.
 	closeEpisode func()
@@ -1080,6 +1130,9 @@ func (s *taskStarter) beginGenerationAttempt(
 		number: attempt,
 		publish: func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 			_ = s.opts.MessagePartBuffer.AddPart(key, role, part)
+		},
+		startModelInvocation: func() {
+			_ = s.opts.MessagePartBuffer.StartModelInvocation(key)
 		},
 		closeEpisode: func() {
 			_ = s.opts.MessagePartBuffer.CloseEpisode(key)
@@ -1348,7 +1401,7 @@ func (s *taskStarter) finishGenerationTurn(
 	if err != nil {
 		return normalizeTaskTransitionError(err, "load stop hook state")
 	}
-	response, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventStop)
+	response, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventStop, dispatch.CapacityClassGeneration)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, chathooks.GenerationDispatchError(agenthooks.EventStop, err), fence)
 	}

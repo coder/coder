@@ -751,6 +751,7 @@ const notionMCPConnected = buildMCPServer({
 });
 
 const mcpDefaults = {
+	chatOrganizationId: "org-1",
 	onMCPSelectionChange: fn(),
 	onMCPAuthComplete: fn(),
 };
@@ -772,6 +773,20 @@ export const WithMCPNeedingAuth: Story = {
 		...mcpDefaults,
 		mcpServers: [sentryMCP, githubMCP],
 		selectedMCPServerIds: [sentryMCP.id, githubMCP.id],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(null);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(body.getByRole("button", { name: "Auth" }));
+		expect(window.open).toHaveBeenCalledWith(
+			"/api/experimental/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
+			"_blank",
+			"width=900,height=600",
+		);
 	},
 };
 
@@ -976,6 +991,8 @@ export const PlanningIndicator: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 	},
 	play: async ({ canvasElement }) => {
@@ -1224,7 +1241,7 @@ export const UncheckSelectedWorkspaceFromPicker: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [375] },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1316,7 +1333,7 @@ export const OverflowBadges: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
-		chromatic: { viewports: [414] },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1395,7 +1412,7 @@ export const LongWorkspaceNameMobile: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [375] },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

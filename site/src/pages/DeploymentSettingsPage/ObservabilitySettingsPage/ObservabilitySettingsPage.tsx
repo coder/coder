@@ -1,6 +1,6 @@
 import type { FC } from "react";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { useDeploymentConfig } from "#/modules/management/DeploymentConfigProvider";
 import { pageTitle } from "#/utils/page";
 import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
@@ -8,7 +8,7 @@ import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 const ObservabilitySettingsPage: FC = () => {
 	const { deploymentConfig } = useDeploymentConfig();
 	const { entitlements } = useDashboard();
-	const { multiple_organizations: hasPremiumLicense } = useFeatureVisibility();
+	const { permissions } = useAuthenticated();
 
 	return (
 		<>
@@ -17,7 +17,7 @@ const ObservabilitySettingsPage: FC = () => {
 			<ObservabilitySettingsPageView
 				options={deploymentConfig.options}
 				featureAuditLogEnabled={entitlements.features.audit_log.enabled}
-				isPremium={hasPremiumLicense}
+				canViewPremium={permissions.viewAllLicenses}
 			/>
 		</>
 	);

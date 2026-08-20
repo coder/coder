@@ -38,6 +38,10 @@ After seeding, manage providers through the dashboard or API. A provider
 that has been edited or removed there is not recreated or overwritten
 from the environment on the next restart.
 
+Seeding is a `coderd` operation. A [standalone Gateway](./standalone.md)
+ignores the deprecated provider variables and fetches provider
+configuration from `coderd`.
+
 ## Provider types
 
 AI Gateway speaks two upstream API formats: the **OpenAI** format
@@ -277,7 +281,7 @@ an API key.
 ## Provider lifecycle
 
 Every provider carries an explicit status, surfaced through the
-[`provider_info`](./monitoring.md#provider-metrics) metric and the API:
+[`provider_info`](./monitoring.md#prometheus-metrics) metric and the API:
 
 | Status     | Meaning                                                                       | Effect on requests                               |
 |------------|-------------------------------------------------------------------------------|--------------------------------------------------|
@@ -299,11 +303,13 @@ attempt and each successful reload, exposed as Prometheus metrics:
 
 If you run the [external proxy](./ai-gateway-proxy/index.md), it exposes
 the same pair under the `coder_ai_gateway_proxy_` prefix.
+Each [standalone Gateway](./standalone.md) replica reloads providers
+independently.
 
 A growing gap between the attempt and success timestamps means reloads
 are firing but failing to apply. Alert on that gap rather than on a
 single failure, which may resolve on the next change. See
-[Monitoring](./monitoring.md#provider-metrics) for the full metric list
+[Monitoring](./monitoring.md#prometheus-metrics) for the full metric list
 and sample alert queries.
 
 ## Key failover

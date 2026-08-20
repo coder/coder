@@ -11,6 +11,7 @@ import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { pageTitle } from "#/utils/page";
+import { generateUUID } from "#/utils/random";
 import { TemplateBuilderPageView } from "./TemplateBuilderPageView";
 import type {
 	SelectedBaseMeta,
@@ -29,7 +30,7 @@ const TemplateBuilderPage: FC = () => {
 
 	// Stable session ID for the lifetime of this page mount, shared
 	// across wizard_entry and compose_completion telemetry events.
-	const sessionId = useMemo(() => crypto.randomUUID(), []);
+	const sessionId = useMemo(() => generateUUID(), []);
 
 	const builderDisabled = data?.config?.template_builder?.disabled ?? false;
 	const wizardReady =

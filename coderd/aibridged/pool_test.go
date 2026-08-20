@@ -47,7 +47,7 @@ func TestPool(t *testing.T) {
 	t.Cleanup(func() { pool.Shutdown(context.Background()) })
 
 	id, id2, apiKeyID1, apiKeyID2 := uuid.New(), uuid.New(), uuid.New(), uuid.New()
-	clientFn := func() (aibridged.DRPCClient, error) {
+	clientFn := func(context.Context) (aibridged.DRPCClient, error) {
 		return client, nil
 	}
 
@@ -149,7 +149,7 @@ func TestPoolReplaceProvidersClearsCacheAndUsesNewProviders(t *testing.T) {
 		InitiatorID: uuid.New(),
 		APIKeyID:    uuid.New().String(),
 	}
-	clientFn := func() (aibridged.DRPCClient, error) {
+	clientFn := func(context.Context) (aibridged.DRPCClient, error) {
 		return client, nil
 	}
 
@@ -195,7 +195,7 @@ func TestPoolReplaceProvidersDoesNotJoinStaleSingleflight(t *testing.T) {
 		InitiatorID: uuid.New(),
 		APIKeyID:    uuid.New().String(),
 	}
-	clientFn := func() (aibridged.DRPCClient, error) {
+	clientFn := func(context.Context) (aibridged.DRPCClient, error) {
 		return client, nil
 	}
 
@@ -266,7 +266,7 @@ func TestPoolReplaceProvidersAfterShutdownIsNoop(t *testing.T) {
 		SessionKey:  "key",
 		InitiatorID: uuid.New(),
 		APIKeyID:    uuid.New().String(),
-	}, func() (aibridged.DRPCClient, error) {
+	}, func(context.Context) (aibridged.DRPCClient, error) {
 		return nil, context.Canceled
 	}, newMockMCPFactory(nil))
 	require.ErrorContains(t, err, "pool shutting down")
@@ -294,7 +294,7 @@ func TestPool_Expiry(t *testing.T) {
 			InitiatorID: uuid.New(),
 			APIKeyID:    uuid.New().String(),
 		}
-		clientFn := func() (aibridged.DRPCClient, error) {
+		clientFn := func(context.Context) (aibridged.DRPCClient, error) {
 			return client, nil
 		}
 
@@ -384,7 +384,7 @@ func TestPoolShutdownReplaceProviders(t *testing.T) {
 	}, logger, nil, testTracer)
 	require.NoError(t, err)
 
-	clientFn := func() (aibridged.DRPCClient, error) { return client, nil }
+	clientFn := func(context.Context) (aibridged.DRPCClient, error) { return client, nil }
 
 	// Populate the cache so ReplaceProviders' Clear has an entry to evict.
 	_, err = pool.Acquire(ctx, aibridged.Request{

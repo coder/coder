@@ -10,11 +10,13 @@ type ReadFileItem = {
 	status: MergedTool["status"];
 	isError: boolean;
 	errorMessage?: string;
+	hookRewritten: boolean;
 };
 
 const getReadFileItem = (tool: MergedTool): ReadFileItem => ({
 	id: tool.id,
 	status: tool.status,
+	hookRewritten: tool.hookRewritten ?? false,
 	...getReadFileToolData(tool),
 });
 
@@ -46,11 +48,18 @@ export const ReadFilesTool: FC<{
 				expanded={expanded}
 				onExpandedChange={onExpandedChange}
 			>
-				<ToolCall.Header iconName="read_file" label={label} />
+				<ToolCall.PolicyProvider
+					hookRewritten={items.some((item) => item.hookRewritten)}
+				>
+					<ToolCall.Header iconName="read_file" label={label} />
+				</ToolCall.PolicyProvider>
 				<ToolCall.Content>
 					<div className="space-y-1 py-0.5 pl-3">
 						{items.map((item) => (
-							<div key={item.id}>
+							<ToolCall.PolicyProvider
+								key={item.id}
+								hookRewritten={item.hookRewritten}
+							>
 								<ReadFileTool
 									path={item.path}
 									content={item.content}
@@ -70,7 +79,7 @@ export const ReadFilesTool: FC<{
 										});
 									}}
 								/>
-							</div>
+							</ToolCall.PolicyProvider>
 						))}
 					</div>
 				</ToolCall.Content>

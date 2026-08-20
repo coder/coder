@@ -21,7 +21,7 @@ protoc-gen-go = "1.30.0"
 
 # Go development tools.
 "go:github.com/coder/paralleltestctx/cmd/paralleltestctx" = "v0.0.2"
-"go:github.com/coder/whichtests" = "ec33bab1ec04cd86beb7a61a069db4463dba63f5"
+"go:github.com/coder/whichtests" = "377b8dbf1cccae3b04b48bc8cfc2410813491414"
 # Keep golangci-lint on the Go backend while pinned to v1. The upstream
 # precompiled v1 binary is built with an older Go toolchain and cannot lint
 # this module's Go version. Upgrading to v2 should let us use the native
@@ -40,7 +40,15 @@ protoc-gen-go = "1.30.0"
 "go:mvdan.cc/sh/v3/cmd/shfmt" = "v3.12.0"
 
 # Infrastructure, release, and lint CLIs.
-actionlint = "1.7.10"
+# Source build: no release (latest v1.7.12) carries rhysd/actionlint#651, which
+# fixes a shellcheck-integration deadlock that hangs pre-commit hooks. Switch
+# back to a released `actionlint = "1.7.x"` pin once the fix ships.
+# A `[tool_alias]` would keep the short `actionlint` name, but `mise install
+# --locked actionlint` then fails with "No lockfile URL found": go-backend tools
+# record no URL in the lockfile, and aliasing makes `--locked` require one. Keep
+# the full backend key here and at call sites. Consequence: `mise exec
+# actionlint` resolves to the aqua release, so always use the full key.
+"go:github.com/rhysd/actionlint/cmd/actionlint" = "011a6d15e749bb3f2d771eed9c7aa0e7e3e10ee7"
 "aqua:ahmetb/kubectx/kubens" = "0.9.4"
 cosign = "2.4.3"
 # crane is the registry client `mise oci push` shells out to. Sourced

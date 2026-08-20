@@ -1,24 +1,35 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type { TasksFilter } from "#/api/typesGenerated";
-import { chromaticWithTablet } from "#/testHelpers/chromatic";
+import { AuthProvider } from "#/contexts/auth/AuthProvider";
+import { AISettingsIndexRedirect } from "#/router";
 import {
 	MockBuildInfo,
+	MockNoPermissions,
 	MockTasks,
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
-import { withDashboardProvider } from "#/testHelpers/storybook";
+import { pixelWithDesktop, pixelWithTablet } from "#/testHelpers/pixel";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { NavbarView } from "./NavbarView";
 
 const tasksFilter: TasksFilter = {
 	owner: MockUserOwner.username,
 };
 
+const memberTasksFilter: TasksFilter = {
+	owner: MockUserMember.username,
+};
+
 const meta: Meta<typeof NavbarView> = {
 	title: "modules/dashboard/NavbarView",
 	parameters: {
-		chromatic: chromaticWithTablet,
+		pixel: { matrix: pixelWithTablet },
 		layout: "fullscreen",
 		queries: [
 			{
@@ -49,6 +60,7 @@ export default meta;
 type Story = StoryObj<typeof NavbarView>;
 
 export const ForAdmin: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
@@ -58,6 +70,7 @@ export const ForAdmin: Story = {
 };
 
 export const ForAuditor: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	args: {
 		user: MockUserMember,
 		adminPermissions: {
@@ -73,6 +86,7 @@ export const ForAuditor: Story = {
 };
 
 export const ForOrgAdmin: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	args: {
 		user: MockUserMember,
 		adminPermissions: {
@@ -88,7 +102,158 @@ export const ForOrgAdmin: Story = {
 	},
 };
 
+export const ForMCPUpdateOnlyAdmin: Story = {
+	decorators: [withAuthProvider],
+	parameters: {
+		pixel: { matrix: pixelWithDesktop },
+		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
+		user: MockUserMember,
+		permissions: {
+			...MockNoPermissions,
+			updateAnyMCPServerConfig: true,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/" },
+			routing: [
+				{ path: "/", useStoryElement: true },
+				{
+					path: "/ai/settings",
+					// Route elements render outside story decorators, so the
+					// redirect needs its own AuthProvider; it reads the query
+					// data seeded by withAuthProvider.
+					element: (
+						<AuthProvider>
+							<AISettingsIndexRedirect />
+						</AuthProvider>
+					),
+				},
+				{
+					path: "/ai/settings/mcp-servers",
+					element: <h1>MCP servers</h1>,
+				},
+			],
+		}),
+	},
+	args: {
+		user: MockUserMember,
+		adminPermissions: {
+			canViewAISettings: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Admin settings" }),
+		);
+		const body = within(canvasElement.ownerDocument.body);
+		const aiSettingsLink = body.getByRole("menuitem", { name: "AI" });
+		await expect(aiSettingsLink).toHaveAttribute("href", "/ai/settings");
+		await userEvent.click(aiSettingsLink);
+		await expect(
+			await canvas.findByRole("heading", { name: "MCP servers" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const ForMCPDeleteOnlyAdmin: Story = {
+	decorators: [withAuthProvider],
+	parameters: {
+		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
+		user: MockUserMember,
+		permissions: {
+			...MockNoPermissions,
+			deleteAnyMCPServerConfig: true,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/" },
+			routing: [
+				{ path: "/", useStoryElement: true },
+				{
+					path: "/ai/settings",
+					element: (
+						<AuthProvider>
+							<AISettingsIndexRedirect />
+						</AuthProvider>
+					),
+				},
+				{
+					path: "/ai/settings/mcp-servers",
+					element: <h1>MCP servers</h1>,
+				},
+			],
+		}),
+	},
+	args: {
+		user: MockUserMember,
+		adminPermissions: {
+			canViewAISettings: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Admin settings" }),
+		);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(body.getByRole("menuitem", { name: "AI" }));
+		await expect(
+			await canvas.findByRole("heading", { name: "MCP servers" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const ForMCPCreateOnlyAdmin: Story = {
+	decorators: [withAuthProvider],
+	parameters: {
+		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
+		user: MockUserMember,
+		permissions: {
+			...MockNoPermissions,
+			createAnyMCPServerConfig: true,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/" },
+			routing: [
+				{ path: "/", useStoryElement: true },
+				{
+					path: "/ai/settings",
+					// Route elements render outside story decorators, so the
+					// redirect needs its own AuthProvider; it reads the query
+					// data seeded by withAuthProvider.
+					element: (
+						<AuthProvider>
+							<AISettingsIndexRedirect />
+						</AuthProvider>
+					),
+				},
+				{
+					path: "/ai/settings/mcp-servers/add",
+					element: <h1>Add MCP server</h1>,
+				},
+			],
+		}),
+	},
+	args: {
+		user: MockUserMember,
+		adminPermissions: {
+			canViewAISettings: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Admin settings" }),
+		);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(body.getByRole("menuitem", { name: "AI" }));
+		await expect(
+			await canvas.findByRole("heading", { name: "Add MCP server" }),
+		).toBeInTheDocument();
+	},
+};
+
 export const ForSingleOrgOSSAdmin: Story = {
+	parameters: { pixel: { matrix: pixelWithDesktop } },
 	args: {
 		adminPermissions: {
 			canViewDeployment: true,

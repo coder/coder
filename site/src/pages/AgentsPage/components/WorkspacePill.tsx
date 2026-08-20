@@ -39,8 +39,6 @@ import { useIsBelowMdViewport } from "#/hooks/useIsBelowMdViewport";
 import {
 	getTerminalHref,
 	getVSCodeHref,
-	isExternalApp,
-	needsSessionToken,
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
@@ -151,7 +149,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								</span>
 								<ChevronDownIcon
 									className={cn(
-										"hidden size-3 shrink-0 opacity-60 transition-transform md:block",
+										"hidden size-3.5 shrink-0 transition-transform md:block",
 										open && "rotate-180",
 									)}
 								/>
@@ -338,13 +336,10 @@ const AppMenuItem: FC<{
 }> = ({ app, workspace, agent, isRunning }) => {
 	const link = useAppLink(app, { workspace, agent });
 
-	const canClick =
-		!isExternalApp(app) || !needsSessionToken(app) || link.hasToken;
-
 	return (
-		<DropdownMenuItem asChild disabled={!canClick || !isRunning}>
+		<DropdownMenuItem asChild disabled={!isRunning || link.isLoading}>
 			<a
-				href={canClick && isRunning ? link.href : undefined}
+				href={isRunning ? link.href : undefined}
 				onClick={link.onClick}
 				target="_blank"
 				rel="noreferrer"

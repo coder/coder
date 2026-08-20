@@ -4,6 +4,11 @@ Coder server's primary configuration is done via environment variables. For a
 full list of the options, run `coder server --help` or see our
 [CLI documentation](../../reference/cli/server.md).
 
+> [!TIP]
+> Need to look up an exact environment variable, CLI flag, or YAML key for a
+> setting? See the [configuration reference](./configuration-reference.md) for
+> a searchable list of every option.
+
 ## Access URL
 
 `CODER_ACCESS_URL` is required if you are not using the tunnel. Set this to the
@@ -94,12 +99,14 @@ working directory prior to step 1.
    ```yaml
    coder:
      tls:
-         secretName:
+       secretNames:
          - coder-tls
 
      # Alternatively, if you use an Ingress controller to terminate TLS,
      # set the following values:
      ingress:
+       enable: true
+       tls:
          enable: true
          secretName: coder-tls
          wildcardSecretName: coder-tls

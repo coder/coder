@@ -78,18 +78,25 @@ func TestDispatcherRejectsCleartextURL(t *testing.T) {
 	_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitShort), event)
 	require.ErrorContains(t, err, "must use HTTPS")
 
-	require.NoError(t, validateHookURL(""))
-	require.NoError(t, validateHookURL("https://hooks.example.com/coder"))
-	require.NoError(t, validateHookURL("http://localhost:8080/hooks"))
-	require.NoError(t, validateHookURL("http://127.0.0.1:8080/hooks"))
-	require.NoError(t, validateHookURL("http://[::1]:8080/hooks"))
-	require.Error(t, validateHookURL("http://10.0.0.5/hooks"))
-	require.Error(t, validateHookURL("ftp://hooks.example.com/coder"))
-	require.ErrorContains(t, validateHookURL("https:///coder"), "must include a host")
-	require.ErrorContains(t, validateHookURL("https:hooks.example.com"), "must include a host")
-	require.ErrorContains(t, validateHookURL("http:///hooks"), "must include a host")
-	require.ErrorContains(t, validateHookURL("https://hooks.example.com/coder#frag"), "must not contain a fragment")
-	require.ErrorContains(t, validateHookURL("https://user:pass@hooks.example.com/coder"), "must not contain userinfo")
+	require.NoError(t, validateHookURL("", false))
+	require.NoError(t, validateHookURL("https://hooks.example.com/coder", false))
+	require.NoError(t, validateHookURL("http://localhost:8080/hooks", false))
+	require.NoError(t, validateHookURL("http://127.0.0.1:8080/hooks", false))
+	require.NoError(t, validateHookURL("http://[::1]:8080/hooks", false))
+	require.Error(t, validateHookURL("http://10.0.0.5/hooks", false))
+	require.Error(t, validateHookURL("ftp://hooks.example.com/coder", false))
+	require.ErrorContains(t, validateHookURL("https:///coder", false), "must include a host")
+	require.ErrorContains(t, validateHookURL("https:hooks.example.com", false), "must include a host")
+	require.ErrorContains(t, validateHookURL("http:///hooks", false), "must include a host")
+	require.ErrorContains(t, validateHookURL("https://hooks.example.com/coder#frag", false), "must not contain a fragment")
+	require.ErrorContains(t, validateHookURL("https://user:pass@hooks.example.com/coder", false), "must not contain userinfo")
+
+	require.NoError(t, validateHookURL("http://10.0.0.5/hooks", true))
+	require.NoError(t, validateHookURL("http://hooks.example.com/coder", true))
+	require.Error(t, validateHookURL("ftp://hooks.example.com/coder", true))
+	require.ErrorContains(t, validateHookURL("http:///hooks", true), "must include a host")
+	require.ErrorContains(t, validateHookURL("http://hooks.example.com/coder#frag", true), "must not contain a fragment")
+	require.ErrorContains(t, validateHookURL("http://user:pass@hooks.example.com/coder", true), "must not contain userinfo")
 }
 
 func TestDispatcherDeny(t *testing.T) {
@@ -190,19 +197,22 @@ func TestDispatcherTimeoutNoRetry(t *testing.T) {
 
 	event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
 	var requests atomic.Int32
-	release := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	// A real server cannot guarantee the handler runs before the short
+	// dispatch deadline on a loaded machine, so the transport records the
+	// attempt synchronously. The successful response with a body that blocks
+	// until the deadline expires keeps the read-path timeout branch covered.
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		requests.Add(1)
-		w.WriteHeader(http.StatusOK)
-		assert.NoError(t, http.NewResponseController(w).Flush())
-		<-release
-	}))
-	t.Cleanup(server.Close)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       contextBlockedBody{ctx: req.Context()},
+			Request:    req,
+		}, nil
+	})}
 
-	_, _, err := newTestDispatcher(t, server.Client(), server.URL, 50*time.Millisecond).Dispatch(
+	_, _, err := newTestDispatcher(t, client, "https://hooks.example.com/coder", 50*time.Millisecond).Dispatch(
 		testutil.Context(t, testutil.WaitLong), event,
 	)
-	close(release)
 	assertDispatchErrorClass(t, err, ResultTimeout)
 	require.Equal(t, int32(1), requests.Load())
 }
@@ -566,7 +576,7 @@ func TestDispatcherRejectedResponseIsNotObserved(t *testing.T) {
 
 	registry := prometheus.NewRegistry()
 	dispatcher := New(
-		testutil.Logger(t), server.Client(), server.URL, testSecret, time.Second,
+		testutil.Logger(t), server.Client(), server.URL, false, testSecret, time.Second,
 		testDeploymentID, testVersion, registry,
 	)
 	_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
@@ -655,6 +665,7 @@ func newTestDispatcher(
 		testutil.Logger(t),
 		client,
 		hookURL,
+		false,
 		testSecret,
 		timeout,
 		testDeploymentID,
@@ -671,7 +682,8 @@ func newTestEvent(t *testing.T, eventType agenthooks.EventType, data any) Event 
 			ChatID:  uuid.New(),
 			OwnerID: uuid.New(),
 		},
-		Data: data,
+		Data:     data,
+		Capacity: CapacityClassGeneration,
 	}
 }
 
@@ -698,4 +710,121 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+type contextBlockedBody struct{ ctx context.Context }
+
+func (b contextBlockedBody) Read([]byte) (int, error) {
+	<-b.ctx.Done()
+	return 0, b.ctx.Err()
+}
+
+func (contextBlockedBody) Close() error { return nil }
+
+func TestDispatcherCapacityClassRequired(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
+	event.Capacity = CapacityClassUnset
+	dispatcher := newTestDispatcher(t, nil, "https://unused.test", time.Second)
+
+	_, dispatchID, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitShort), event)
+	require.ErrorContains(t, err, "no capacity class")
+	require.Equal(t, uuid.Nil, dispatchID)
+}
+
+func TestDispatcherAdmissionReserve(t *testing.T) {
+	t.Parallel()
+
+	fill := func(t *testing.T, pool chan struct{}, count int) {
+		t.Helper()
+		for range count {
+			pool <- struct{}{}
+		}
+		t.Cleanup(func() {
+			for range count {
+				<-pool
+			}
+		})
+	}
+
+	t.Run("AdmissionReleasesBothPools", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, err := w.Write([]byte(`{}`))
+			assert.NoError(t, err)
+		}))
+		t.Cleanup(server.Close)
+
+		dispatcher := New(
+			testutil.Logger(t), server.Client(), server.URL, false, testSecret, testutil.WaitShort,
+			testDeploymentID, testVersion, prometheus.NewRegistry(),
+		)
+		event := newTestEvent(t, agenthooks.EventUserPromptSubmit, agenthooks.UserPromptSubmitData{Prompt: "hi"})
+		event.Capacity = CapacityClassAdmission
+
+		_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
+		require.NoError(t, err)
+		require.Empty(t, dispatcher.admission)
+		require.Empty(t, dispatcher.semaphore)
+	})
+
+	t.Run("SaturatedAdmissionRefusesAdmission", func(t *testing.T) {
+		t.Parallel()
+
+		dispatcher := newTestDispatcher(t, nil, "https://unused.test", 10*time.Millisecond)
+		fill(t, dispatcher.admission, maxAdmissionDispatches)
+
+		event := newTestEvent(t, agenthooks.EventUserPromptSubmit, agenthooks.UserPromptSubmitData{Prompt: "hi"})
+		event.Capacity = CapacityClassAdmission
+		_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
+		assertDispatchErrorClass(t, err, ResultOverCapacity)
+		require.Empty(t, dispatcher.semaphore, "a refused admission must not hold a shared slot")
+	})
+
+	t.Run("ExpiredDeadlineRefusesFreeSlot", func(t *testing.T) {
+		t.Parallel()
+
+		pool := make(chan struct{}, 1)
+		release, outcome, ok := acquire(testutil.Context(t, testutil.WaitShort), pool, time.Now().Add(-time.Millisecond))
+		require.False(t, ok)
+		require.Nil(t, release)
+		require.Equal(t, ResultOverCapacity, outcome.result)
+		require.Empty(t, pool)
+	})
+
+	t.Run("RefusedSharedAcquireReleasesAdmission", func(t *testing.T) {
+		t.Parallel()
+
+		dispatcher := newTestDispatcher(t, nil, "https://unused.test", 10*time.Millisecond)
+		fill(t, dispatcher.semaphore, maxConcurrentDispatches)
+
+		event := newTestEvent(t, agenthooks.EventUserPromptSubmit, agenthooks.UserPromptSubmitData{Prompt: "hi"})
+		event.Capacity = CapacityClassAdmission
+		_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
+		assertDispatchErrorClass(t, err, ResultOverCapacity)
+		require.Empty(t, dispatcher.admission, "an admission refused by the shared pool must release its gate token")
+	})
+
+	t.Run("SaturatedAdmissionStillServesGeneration", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, err := w.Write([]byte(`{}`))
+			assert.NoError(t, err)
+		}))
+		t.Cleanup(server.Close)
+
+		dispatcher := New(
+			testutil.Logger(t), server.Client(), server.URL, false, testSecret, testutil.WaitShort,
+			testDeploymentID, testVersion, prometheus.NewRegistry(),
+		)
+		fill(t, dispatcher.admission, maxAdmissionDispatches)
+		fill(t, dispatcher.semaphore, maxAdmissionDispatches)
+
+		event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
+		_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
+		require.NoError(t, err)
+	})
 }

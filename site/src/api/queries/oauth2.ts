@@ -5,13 +5,15 @@ import { useFilterParamsKey } from "#/components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import { prepareQuery } from "#/utils/filters";
 
-const oauth2ProviderAppsKey = ["oauth2-provider", "apps"];
+const oauth2ProviderKey = ["oauth2-provider"];
+export const oauth2ProviderAppsKey = oauth2ProviderKey.concat("apps");
 export const oauth2ProviderAppKey = (appId: string) =>
 	oauth2ProviderAppsKey.concat(appId);
 export const oauth2ProviderAppSecretsKey = (appId: string) =>
 	oauth2ProviderAppKey(appId).concat("secrets");
 
 const userAppsKey = (userId: string) => oauth2ProviderAppsKey.concat(userId);
+export const oauth2ProviderSettingsKey = oauth2ProviderKey.concat("settings");
 
 export const getGitHubDevice = () => {
 	return {
@@ -145,6 +147,29 @@ export const revokeApp = (queryClient: QueryClient, userId: string) => {
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({
 				queryKey: userAppsKey(userId),
+			});
+		},
+	};
+};
+
+export const getSettings = () => {
+	return {
+		queryKey: oauth2ProviderSettingsKey,
+		queryFn: () => API.getOAuth2ProviderSettings(),
+	};
+};
+
+export const putSettings = (queryClient: QueryClient) => {
+	return {
+		mutationFn: API.putOAuth2ProviderSettings,
+		// Seed from the response before invalidating. Invalidating resolves
+		// whether or not the refetch succeeds, and a failed refetch keeps the
+		// last successful data, which would render the pre-save value under an
+		// error alert for a save that worked.
+		onSuccess: async (settings: TypesGen.OAuth2ProviderSettings) => {
+			queryClient.setQueryData(oauth2ProviderSettingsKey, settings);
+			await queryClient.invalidateQueries({
+				queryKey: oauth2ProviderSettingsKey,
 			});
 		},
 	};
