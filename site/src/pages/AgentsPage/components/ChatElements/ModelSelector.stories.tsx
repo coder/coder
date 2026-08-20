@@ -67,6 +67,14 @@ const effortModel: ModelSelectorOption = {
 	],
 };
 
+const longNameModel: ModelSelectorOption = {
+	...MockModelSelectorOption,
+	id: "openai/gpt-4o-mini-extended",
+	model: "gpt-4o-mini-extended-ultra-long-context-preview",
+	displayName: "GPT-4o mini Extended Ultra Long Context Preview Edition",
+	contextLimit: 1_000_000,
+};
+
 const meta: Meta<typeof ModelSelector> = {
 	title: "pages/AgentsPage/ChatElements/ModelSelector",
 	component: ModelSelector,
@@ -221,16 +229,8 @@ export const FormFieldTriggerKeepsIconAndLabelAdjacent: Story = {
 // shrinking combined with preflight's img max-width scales the icon down.
 export const FormFieldTriggerTruncatesLongModelName: Story = {
 	args: {
-		options: [
-			{
-				...MockModelSelectorOption,
-				id: "openai/gpt-4o-mini-extended",
-				model: "gpt-4o-mini-extended-ultra-long-context-preview",
-				displayName: "GPT-4o mini Extended Ultra Long Context Preview Edition",
-				contextLimit: 1_000_000,
-			},
-		],
-		value: "openai/gpt-4o-mini-extended",
+		options: [longNameModel],
+		value: longNameModel.id,
 		className:
 			"h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-sm md:w-[18rem]",
 	},
