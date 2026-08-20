@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/aibridge/prices"
 	"github.com/coder/coder/v2/coderd/aibridge/prices/providers"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -159,9 +158,8 @@ type modelKey struct {
 }
 
 // validateAIModelPrices reports every problem with the requested prices: a
-// supported provider, a model Coder's price book does not already cover, all
-// four price keys, non-negative prices with at least one set, and no repeated
-// model.
+// supported provider, a model, all four price keys, non-negative prices with
+// at least one set, and no repeated model.
 func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[string]json.RawMessage) []codersdk.ValidationError {
 	if len(requested) == 0 {
 		return []codersdk.ValidationError{{
@@ -196,17 +194,6 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 				Detail: "Model is required.",
 			})
 		}
-		// The price book is re-applied on every server start, so a price set for
-		// a model it covers would not survive a restart.
-		// TODO(ssncferreira): drop this once custom pricing is supported
-		// (AIGOV-589).
-		if prices.IsDefaultPriced(price.Provider, price.Model) {
-			validations = append(validations, codersdk.ValidationError{
-				Field:  field,
-				Detail: fmt.Sprintf("%s/%s is priced by Coder's default price book. Overriding a default price is not supported.", price.Provider, price.Model),
-			})
-		}
-
 		named := []struct {
 			name  string
 			value *int64

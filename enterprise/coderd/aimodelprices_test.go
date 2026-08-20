@@ -259,6 +259,81 @@ func TestUpsertAIModelPrices(t *testing.T) {
 		require.Equal(t, int64(200), *prices[0].InputPrice)
 	})
 
+	// anthropic/claude-opus-5 is covered by the seeded price book, so these
+	// write over a price Coder ships.
+	t.Run("OverridesAPriceBookModel", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name  string
+			price codersdk.AIModelPriceUpsert
+			want  codersdk.AIModelPrice
+		}{
+			{
+				name: "ReplacesEveryPrice",
+				price: codersdk.AIModelPriceUpsert{
+					Provider: "anthropic", Model: "claude-opus-5",
+					InputPrice:      ptr.Ref(int64(100)),
+					OutputPrice:     ptr.Ref(int64(200)),
+					CacheReadPrice:  ptr.Ref(int64(300)),
+					CacheWritePrice: ptr.Ref(int64(400)),
+				},
+				want: codersdk.AIModelPrice{
+					InputPrice:      ptr.Ref(int64(100)),
+					OutputPrice:     ptr.Ref(int64(200)),
+					CacheReadPrice:  ptr.Ref(int64(300)),
+					CacheWritePrice: ptr.Ref(int64(400)),
+				},
+			},
+			{
+				name:  "StoresNullPricesAsNull",
+				price: newAIModelPrice("anthropic", "claude-opus-5", 100),
+				want: codersdk.AIModelPrice{
+					InputPrice:      ptr.Ref(int64(100)),
+					OutputPrice:     nil,
+					CacheReadPrice:  nil,
+					CacheWritePrice: nil,
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				// Given: a deployment holding the book's price for the model.
+				ownerClient, _ := setupAIModelPricesTest(t)
+				exp := codersdk.NewExperimentalClient(ownerClient)
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				//nolint:gocritic // Managing AI model prices is owner-only.
+				seeded, err := exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{
+					Provider: "anthropic", Model: "claude-opus-5",
+				})
+				require.NoError(t, err)
+				require.Len(t, seeded, 1)
+				require.NotEqual(t, int64(100), *seeded[0].InputPrice)
+
+				// When: it is priced through the endpoint.
+				require.NoError(t, exp.UpsertAIModelPrices(ctx, codersdk.UpsertAIModelPricesRequest{
+					Prices: []codersdk.AIModelPriceUpsert{tt.price},
+				}))
+
+				// Then: the request is the price in effect, and nothing carries
+				// over from the book.
+				prices, err := exp.ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{
+					Provider: "anthropic", Model: "claude-opus-5",
+				})
+				require.NoError(t, err)
+				require.Len(t, prices, 1)
+				require.Equal(t, tt.want.InputPrice, prices[0].InputPrice)
+				require.Equal(t, tt.want.OutputPrice, prices[0].OutputPrice)
+				require.Equal(t, tt.want.CacheReadPrice, prices[0].CacheReadPrice)
+				require.Equal(t, tt.want.CacheWritePrice, prices[0].CacheWritePrice)
+			})
+		}
+	})
+
 	t.Run("StoresAModelNameWithASeparator", func(t *testing.T) {
 		t.Parallel()
 

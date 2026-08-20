@@ -32,8 +32,8 @@ func (r *RootCmd) aiModelPricesCommand() *serpent.Command {
 	}
 }
 
-const modelPricesUpdateDescriptionLong = `Sets prices for models that Coder's price book does not cover. Models the
-price book covers cannot be changed.
+const modelPricesUpdateDescriptionLong = `Sets model prices for this deployment. A price set here takes effect over
+Coder's price book.
 
 The JSON document is an array of model prices, in the same shape as
 Coder's price book:
