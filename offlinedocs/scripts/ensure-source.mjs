@@ -1,18 +1,21 @@
 // Guard against a fumadocs-mdx generation flake.
 //
-// `fumadocs-mdx` regenerates the `.source/` entry files (`server.ts`,
-// `browser.ts`, ...) from `content/docs`. Intermittently, when it regenerates
-// over an existing `.source/` (in CI the `postinstall` run generates a stub
-// first, then `lint`/`build` regenerate after `sync`), it writes an empty
-// `.source/server.ts`. `tsc` then fails with a confusing
+// The `.source/` entry files (`server.ts`, `browser.ts`, ...) are generated
+// from `content/docs` by fumadocs-mdx, both directly (`fumadocs-mdx`) and again
+// through the fumadocs-mdx Next plugin whenever a Next command runs
+// (`next typegen`, `next build`). Intermittently one of those regenerations
+// writes an empty `.source/server.ts`, and `tsc` then fails with a confusing
 // `TS2306: File '.../.source/server.ts' is not a module`, even though nothing
 // in the tracked source changed. `.source/` is a gitignored generated artifact,
 // so the failure is transient and clears on a re-generate.
 //
-// This runs right after `fumadocs-mdx` in the lint pipeline: it verifies the
-// generated entry files are non-empty and re-generates a few times if not, so
-// `tsc` never runs against a half-written `.source/`. In the normal case the
-// files are already populated and this is just a couple of stat calls.
+// Run this LAST in the generate pipeline, after `next typegen` and immediately
+// before `tsc`, so it validates the final `.source/` state (the empty file has
+// been observed coming out of `next typegen`, not just the direct
+// `fumadocs-mdx` run). It verifies the generated entry files are non-empty and
+// re-generates a few times if not, so `tsc` never runs against a half-written
+// `.source/`. In the normal case the files are already populated and this is
+// just a couple of stat calls.
 import { execSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
