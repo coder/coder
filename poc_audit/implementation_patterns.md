@@ -251,6 +251,23 @@ is the book of original entry. `DEFERRABLE INITIALLY DEFERRED` checks at commit
 rather than at statement time, so the entry can still be written first; the
 option is available whenever the decision is taken.
 
+### Whether every journal gets an entity layer read helper
+
+`coderd/entity/read.go` gives the AI agent journal a read that requests one more
+entry than it will accept and returns an error rather than a truncated set. The
+authorization journal has no equivalent, and its one caller reads the database
+directly.
+
+That is not obviously wrong. The AI agent helper exists because a test needed
+one, and building a parallel for a journal nothing yet reads would be building
+for a caller that does not exist. But it leaves two journals in the same package
+handled two different ways, which is a misalignment between one part of the code
+and another rather than between the code and this corpus.
+
+Whichever way it resolves, it needs a decision and probably a line of
+documentation. `LifecycleEntriesBySubject` also wants renaming: it was named
+when there was one lifecycle, and there are now several.
+
 ### Whether transaction time is relied on for grouping
 
 Entries written to different journals in one transaction share a recording

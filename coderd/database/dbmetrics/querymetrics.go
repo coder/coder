@@ -1473,6 +1473,22 @@ func (m queryMetricsStore) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAuthorizationLifecycleJournalEntriesBySubject(ctx context.Context, arg database.GetAuthorizationLifecycleJournalEntriesBySubjectParams) ([]database.AuthorizationLifecycleJournal, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizationLifecycleJournalEntriesBySubject(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAuthorizationLifecycleJournalEntriesBySubject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizationLifecycleJournalEntriesBySubject").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizationLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AuthorizationLifecycleLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizationLifecycleLedgerRowByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAuthorizationLifecycleLedgerRowByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizationLifecycleLedgerRowByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAuthorizationUserRoles(ctx, userID)
@@ -4209,6 +4225,30 @@ func (m queryMetricsStore) InsertAuditLog(ctx context.Context, arg database.Inse
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertAuthorizationLifecycleJournalFirstLine(ctx context.Context, arg database.InsertAuthorizationLifecycleJournalFirstLineParams) (database.AuthorizationLifecycleJournal, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAuthorizationLifecycleJournalFirstLine(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAuthorizationLifecycleJournalFirstLine").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAuthorizationLifecycleJournalFirstLine").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertAuthorizationLifecycleJournalSubsequentLine(ctx context.Context, arg database.InsertAuthorizationLifecycleJournalSubsequentLineParams) (database.AuthorizationLifecycleJournal, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAuthorizationLifecycleJournalSubsequentLine(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAuthorizationLifecycleJournalSubsequentLine").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAuthorizationLifecycleJournalSubsequentLine").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertAuthorizationLifecycleLedgerRow(ctx context.Context, arg database.InsertAuthorizationLifecycleLedgerRowParams) (database.AuthorizationLifecycleLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAuthorizationLifecycleLedgerRow(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAuthorizationLifecycleLedgerRow").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAuthorizationLifecycleLedgerRow").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertBoundaryLogs(ctx context.Context, arg database.InsertBoundaryLogsParams) ([]database.BoundaryLog, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertBoundaryLogs(ctx, arg)
@@ -5062,6 +5102,14 @@ func (m queryMetricsStore) MarkMCPServerUserTokenRefreshFailure(ctx context.Cont
 	r0, r1 := m.s.MarkMCPServerUserTokenRefreshFailure(ctx, arg)
 	m.queryLatencies.WithLabelValues("MarkMCPServerUserTokenRefreshFailure").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "MarkMCPServerUserTokenRefreshFailure").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) NextAuthorizationLifecycleJournalEntryID(ctx context.Context) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.NextAuthorizationLifecycleJournalEntryID(ctx)
+	m.queryLatencies.WithLabelValues("NextAuthorizationLifecycleJournalEntryID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "NextAuthorizationLifecycleJournalEntryID").Inc()
 	return r0, r1
 }
 

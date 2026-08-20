@@ -5542,6 +5542,256 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const getAuthorizationLifecycleJournalEntriesBySubject = `-- name: GetAuthorizationLifecycleJournalEntriesBySubject :many
+SELECT
+	entry_id, line, recording_date, effective_date, actor_type, actor, event, subject
+FROM
+	authorization_lifecycle_journal
+WHERE
+	subject = $1
+ORDER BY
+	entry_id,
+	line
+LIMIT
+	$2
+`
+
+type GetAuthorizationLifecycleJournalEntriesBySubjectParams struct {
+	Subject uuid.UUID `db:"subject" json:"subject"`
+	Limit   int32     `db:"limit" json:"limit"`
+}
+
+// Entries about one authorization, ordered as they were made. Bounded for the
+// same reason as the AI agent journal: a lifecycle is a state machine without
+// cycles, so one subject's entries are bounded by the sequences it allows.
+// Callers pass one more than they will accept, so receiving it tells them the
+// set was larger.
+func (q *sqlQuerier) GetAuthorizationLifecycleJournalEntriesBySubject(ctx context.Context, arg GetAuthorizationLifecycleJournalEntriesBySubjectParams) ([]AuthorizationLifecycleJournal, error) {
+	rows, err := q.db.QueryContext(ctx, getAuthorizationLifecycleJournalEntriesBySubject, arg.Subject, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AuthorizationLifecycleJournal
+	for rows.Next() {
+		var i AuthorizationLifecycleJournal
+		if err := rows.Scan(
+			&i.EntryID,
+			&i.Line,
+			&i.RecordingDate,
+			&i.EffectiveDate,
+			&i.ActorType,
+			&i.Actor,
+			&i.Event,
+			&i.Subject,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAuthorizationLifecycleLedgerRowByID = `-- name: GetAuthorizationLifecycleLedgerRowByID :one
+SELECT
+	id, principal_type, principal_id, agent_type, agent_id, scope, state, posting_reference
+FROM
+	authorization_lifecycle_ledger
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) GetAuthorizationLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (AuthorizationLifecycleLedger, error) {
+	row := q.db.QueryRowContext(ctx, getAuthorizationLifecycleLedgerRowByID, id)
+	var i AuthorizationLifecycleLedger
+	err := row.Scan(
+		&i.ID,
+		&i.PrincipalType,
+		&i.PrincipalID,
+		&i.AgentType,
+		&i.AgentID,
+		&i.Scope,
+		&i.State,
+		&i.PostingReference,
+	)
+	return i, err
+}
+
+const insertAuthorizationLifecycleJournalFirstLine = `-- name: InsertAuthorizationLifecycleJournalFirstLine :one
+INSERT INTO
+	authorization_lifecycle_journal (
+		entry_id,
+		line,
+		effective_date,
+		actor_type,
+		actor,
+		event,
+		subject
+	)
+VALUES
+	($1, 0, $2, $3, $4, $5, $6) RETURNING entry_id, line, recording_date, effective_date, actor_type, actor, event, subject
+`
+
+type InsertAuthorizationLifecycleJournalFirstLineParams struct {
+	EntryID       int64          `db:"entry_id" json:"entry_id"`
+	EffectiveDate sql.NullTime   `db:"effective_date" json:"effective_date"`
+	ActorType     sql.NullString `db:"actor_type" json:"actor_type"`
+	Actor         uuid.NullUUID  `db:"actor" json:"actor"`
+	Event         string         `db:"event" json:"event"`
+	Subject       uuid.UUID      `db:"subject" json:"subject"`
+}
+
+// Line 0 carries the entry level values. recording_date is absent from this
+// statement on purpose: the column default supplies it, so no caller can
+// supply, override, or backdate it.
+func (q *sqlQuerier) InsertAuthorizationLifecycleJournalFirstLine(ctx context.Context, arg InsertAuthorizationLifecycleJournalFirstLineParams) (AuthorizationLifecycleJournal, error) {
+	row := q.db.QueryRowContext(ctx, insertAuthorizationLifecycleJournalFirstLine,
+		arg.EntryID,
+		arg.EffectiveDate,
+		arg.ActorType,
+		arg.Actor,
+		arg.Event,
+		arg.Subject,
+	)
+	var i AuthorizationLifecycleJournal
+	err := row.Scan(
+		&i.EntryID,
+		&i.Line,
+		&i.RecordingDate,
+		&i.EffectiveDate,
+		&i.ActorType,
+		&i.Actor,
+		&i.Event,
+		&i.Subject,
+	)
+	return i, err
+}
+
+const insertAuthorizationLifecycleJournalSubsequentLine = `-- name: InsertAuthorizationLifecycleJournalSubsequentLine :one
+INSERT INTO
+	authorization_lifecycle_journal (
+		entry_id,
+		line,
+		recording_date,
+		effective_date,
+		actor_type,
+		actor,
+		event,
+		subject
+	)
+VALUES
+	($1, $2, NULL, NULL, NULL, NULL, $3, $4) RETURNING entry_id, line, recording_date, effective_date, actor_type, actor, event, subject
+`
+
+type InsertAuthorizationLifecycleJournalSubsequentLineParams struct {
+	EntryID int64     `db:"entry_id" json:"entry_id"`
+	Line    int16     `db:"line" json:"line"`
+	Event   string    `db:"event" json:"event"`
+	Subject uuid.UUID `db:"subject" json:"subject"`
+}
+
+// NOT LIVE CODE. Nothing calls this. It is here to show what a line after the
+// first looks like, since the proof of concept writes no multiline entry:
+// revoke and grant, the case that needs one, is out of scope. It deserves a
+// unit test of its own and does not have one, so treat it as documentation
+// rather than as a tested path. In production this would rot; this is not
+// production.
+//
+// A line after the first. Every entry level column is written as a literal
+// null rather than as a parameter, for the same reason line 0 omits the
+// recording date: what a caller cannot name, a caller cannot get wrong.
+func (q *sqlQuerier) InsertAuthorizationLifecycleJournalSubsequentLine(ctx context.Context, arg InsertAuthorizationLifecycleJournalSubsequentLineParams) (AuthorizationLifecycleJournal, error) {
+	row := q.db.QueryRowContext(ctx, insertAuthorizationLifecycleJournalSubsequentLine,
+		arg.EntryID,
+		arg.Line,
+		arg.Event,
+		arg.Subject,
+	)
+	var i AuthorizationLifecycleJournal
+	err := row.Scan(
+		&i.EntryID,
+		&i.Line,
+		&i.RecordingDate,
+		&i.EffectiveDate,
+		&i.ActorType,
+		&i.Actor,
+		&i.Event,
+		&i.Subject,
+	)
+	return i, err
+}
+
+const insertAuthorizationLifecycleLedgerRow = `-- name: InsertAuthorizationLifecycleLedgerRow :one
+INSERT INTO
+	authorization_lifecycle_ledger (
+		id,
+		principal_type,
+		principal_id,
+		agent_type,
+		agent_id,
+		scope,
+		state,
+		posting_reference
+	)
+VALUES
+	($1, $2, $3, $4, $5, '', $6, $7) RETURNING id, principal_type, principal_id, agent_type, agent_id, scope, state, posting_reference
+`
+
+type InsertAuthorizationLifecycleLedgerRowParams struct {
+	ID               uuid.UUID `db:"id" json:"id"`
+	PrincipalType    string    `db:"principal_type" json:"principal_type"`
+	PrincipalID      uuid.UUID `db:"principal_id" json:"principal_id"`
+	AgentType        string    `db:"agent_type" json:"agent_type"`
+	AgentID          uuid.UUID `db:"agent_id" json:"agent_id"`
+	State            string    `db:"state" json:"state"`
+	PostingReference int64     `db:"posting_reference" json:"posting_reference"`
+}
+
+func (q *sqlQuerier) InsertAuthorizationLifecycleLedgerRow(ctx context.Context, arg InsertAuthorizationLifecycleLedgerRowParams) (AuthorizationLifecycleLedger, error) {
+	row := q.db.QueryRowContext(ctx, insertAuthorizationLifecycleLedgerRow,
+		arg.ID,
+		arg.PrincipalType,
+		arg.PrincipalID,
+		arg.AgentType,
+		arg.AgentID,
+		arg.State,
+		arg.PostingReference,
+	)
+	var i AuthorizationLifecycleLedger
+	err := row.Scan(
+		&i.ID,
+		&i.PrincipalType,
+		&i.PrincipalID,
+		&i.AgentType,
+		&i.AgentID,
+		&i.Scope,
+		&i.State,
+		&i.PostingReference,
+	)
+	return i, err
+}
+
+const nextAuthorizationLifecycleJournalEntryID = `-- name: NextAuthorizationLifecycleJournalEntryID :one
+SELECT
+	nextval('authorization_lifecycle_journal_entry_seq')::bigint
+`
+
+// One call per entry, whose value every line of that entry then carries. A
+// column default cannot serve, allocating per row where the lines of an entry
+// must agree.
+func (q *sqlQuerier) NextAuthorizationLifecycleJournalEntryID(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, nextAuthorizationLifecycleJournalEntryID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const deleteOldBoundaryLogs = `-- name: DeleteOldBoundaryLogs :execrows
 WITH old_logs AS (
     SELECT id

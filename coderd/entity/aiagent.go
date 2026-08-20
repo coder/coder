@@ -25,7 +25,11 @@ type CreateAIAgentParams struct {
 // NewAIAgent is what creating an AI agent produced. The credential is here
 // because this is the only time anything hands it out.
 type NewAIAgent struct {
-	ID         uuid.UUID
+	ID uuid.UUID
+
+	// AuthorizationID identifies the grant made to this AI agent at creation.
+	AuthorizationID uuid.UUID
+
 	Credential string
 }
 
@@ -40,9 +44,15 @@ type NewAIAgent struct {
 // the effect are both rows in one transaction, the ordering problem that
 // reconciliation exists to resolve does not arise.
 //
+// Creation and the grant of authorization are two events and take two entries,
+// in two journals, because they are two different things happening to two
+// different entities. Both are written in this transaction, so nothing is left
+// to reconcile between them.
+//
 // Issuing the credential is not journaled. Credential lifecycle is out of
 // scope for the proof of concept, which reproduces P7 in
-// poc_audit/security_findings.md on purpose and for now.
+// poc_audit/security_findings.md on purpose and for now, and there is no
+// credential journal to write to yet.
 //
 // store may be a transaction handle. Given one, this joins it and commits
 // nothing itself, so that creation can be made atomic with work that is not
@@ -59,7 +69,25 @@ func CreateAIAgent(ctx context.Context, store database.Store, params CreateAIAge
 
 	created := NewAIAgent{ID: uuid.New()}
 	err := store.InTx(func(tx database.Store) error {
-		_, err := tx.InsertEntityAIAgent(ctx, database.InsertEntityAIAgentParams{
+		// The order here is the order of dependency, not of necessity. Inside
+		// one transaction nothing observes it, but source that reads in the
+		// wrong order invites the reader to infer the wrong dependencies.
+		//
+		// The entry comes before the row it accounts for: the journal is the
+		// book of original entry and the row is derived from it. Writing the
+		// row first would read as the objection this work makes against
+		// trigger-written journals, that an entry is subordinate to some prior
+		// write.
+		_, err := AppendEntry(ctx, tx, Entry{
+			Event:   EventCreated,
+			Subject: Ref{Type: TypeAIAgent, ID: created.ID},
+			Actor:   params.Actor,
+		})
+		if err != nil {
+			return xerrors.Errorf("append creation entry: %w", err)
+		}
+
+		_, err = tx.InsertEntityAIAgent(ctx, database.InsertEntityAIAgentParams{
 			ID:      created.ID,
 			OwnerID: params.OwnerID,
 		})
@@ -67,18 +95,37 @@ func CreateAIAgent(ctx context.Context, store database.Store, params CreateAIAge
 			return xerrors.Errorf("insert AI agent: %w", err)
 		}
 
+		// The grant comes after the agent exists, because an entity that does
+		// not exist cannot be party to an agency relation.
+		//
+		// The actor here is the owner, not params.Actor. A grant is an act of
+		// the principal and of nobody else, and a workspace_agent relaying the
+		// request confers nothing, holding no authority to confer.
+		//
+		// Nothing is asserted without warrant by recording the owner. Ordering
+		// an AI agent into existence is itself the grant: the order confers
+		// authority on the agent about to exist, and nothing further is
+		// required of the principal. It cannot be perfected at that moment,
+		// there being no identity yet to confer authority on, and an AI agent
+		// is not identified until it has been embodied. This entry, written
+		// after embodiment, is what perfects it. The interval is required by
+		// the model rather than papered over by it. See "How the authorization
+		// machine is read" in poc_audit/entity_model.md.
+		created.AuthorizationID, err = GrantUniversalAuthorization(ctx, tx, GrantParams{
+			Principal: Ref{Type: TypeUser, ID: params.OwnerID},
+			Agent:     Ref{Type: TypeAIAgent, ID: created.ID},
+		})
+		if err != nil {
+			return xerrors.Errorf("grant authorization: %w", err)
+		}
+
+		// The credential comes last. It is a means of exercising authority, so
+		// it follows the authority it lets its holder exercise, just as that
+		// authority follows the party it was conferred on. A credential issued
+		// before either would evidence something that did not yet exist.
 		created.Credential, err = IssueCredential(ctx, tx, Ref{Type: TypeAIAgent, ID: created.ID})
 		if err != nil {
 			return xerrors.Errorf("issue credential: %w", err)
-		}
-
-		_, err = AppendEntry(ctx, tx, Entry{
-			Event:   EventCreated,
-			Subject: Ref{Type: TypeAIAgent, ID: created.ID},
-			Actor:   params.Actor,
-		})
-		if err != nil {
-			return xerrors.Errorf("append creation entry: %w", err)
 		}
 		return nil
 	}, nil)

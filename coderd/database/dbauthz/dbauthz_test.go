@@ -517,6 +517,63 @@ func (s *MethodTestSuite) TestAIAgents() {
 	}))
 }
 
+// TestAuthorizationLifecycle covers the authorization journal and ledger, the
+// first pair built to the patterns in poc_audit/implementation_patterns.md.
+func (s *MethodTestSuite) TestAuthorizationLifecycle() {
+	s.Run("NextAuthorizationLifecycleJournalEntryID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().NextAuthorizationLifecycleJournalEntryID(gomock.Any()).Return(int64(1), nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("InsertAuthorizationLifecycleJournalFirstLine", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertAuthorizationLifecycleJournalFirstLineParams{
+			EntryID:       1,
+			EffectiveDate: sql.NullTime{Time: dbtime.Now(), Valid: true},
+			ActorType:     sql.NullString{String: "user", Valid: true},
+			Actor:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			Event:         "grant",
+			Subject:       uuid.New(),
+		}
+		dbm.EXPECT().InsertAuthorizationLifecycleJournalFirstLine(gomock.Any(), arg).Return(database.AuthorizationLifecycleJournal{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("InsertAuthorizationLifecycleJournalSubsequentLine", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertAuthorizationLifecycleJournalSubsequentLineParams{
+			EntryID: 1,
+			Line:    1,
+			Event:   "revoke",
+			Subject: uuid.New(),
+		}
+		dbm.EXPECT().InsertAuthorizationLifecycleJournalSubsequentLine(gomock.Any(), arg).Return(database.AuthorizationLifecycleJournal{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("InsertAuthorizationLifecycleLedgerRow", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertAuthorizationLifecycleLedgerRowParams{
+			ID:               uuid.New(),
+			PrincipalType:    "user",
+			PrincipalID:      uuid.New(),
+			AgentType:        "ai_agent",
+			AgentID:          uuid.New(),
+			State:            "active",
+			PostingReference: 1,
+		}
+		dbm.EXPECT().InsertAuthorizationLifecycleLedgerRow(gomock.Any(), arg).Return(database.AuthorizationLifecycleLedger{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetAuthorizationLifecycleLedgerRowByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().GetAuthorizationLifecycleLedgerRowByID(gomock.Any(), id).Return(database.AuthorizationLifecycleLedger{}, nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetAuthorizationLifecycleJournalEntriesBySubject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetAuthorizationLifecycleJournalEntriesBySubjectParams{
+			Subject: uuid.New(),
+			Limit:   10,
+		}
+		dbm.EXPECT().GetAuthorizationLifecycleJournalEntriesBySubject(gomock.Any(), arg).Return([]database.AuthorizationLifecycleJournal{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+}
+
 // TestEntityJournal covers the journal described in coderd/entity/DIRECTORY.md.
 // It is a separate mechanism from the audit logs tested below, and shares no
 // code with them.

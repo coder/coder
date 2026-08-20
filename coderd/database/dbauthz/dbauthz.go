@@ -3157,6 +3157,20 @@ func (q *querier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.
 	return q.db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, authToken)
 }
 
+func (q *querier) GetAuthorizationLifecycleJournalEntriesBySubject(ctx context.Context, arg database.GetAuthorizationLifecycleJournalEntriesBySubjectParams) ([]database.AuthorizationLifecycleJournal, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetAuthorizationLifecycleJournalEntriesBySubject(ctx, arg)
+}
+
+func (q *querier) GetAuthorizationLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AuthorizationLifecycleLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.AuthorizationLifecycleLedger{}, err
+	}
+	return q.db.GetAuthorizationLifecycleLedgerRowByID(ctx, id)
+}
+
 func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.GetAuthorizationUserRolesRow{}, err
@@ -6130,6 +6144,27 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertAuditLog)(ctx, arg)
 }
 
+func (q *querier) InsertAuthorizationLifecycleJournalFirstLine(ctx context.Context, arg database.InsertAuthorizationLifecycleJournalFirstLineParams) (database.AuthorizationLifecycleJournal, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.AuthorizationLifecycleJournal{}, err
+	}
+	return q.db.InsertAuthorizationLifecycleJournalFirstLine(ctx, arg)
+}
+
+func (q *querier) InsertAuthorizationLifecycleJournalSubsequentLine(ctx context.Context, arg database.InsertAuthorizationLifecycleJournalSubsequentLineParams) (database.AuthorizationLifecycleJournal, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.AuthorizationLifecycleJournal{}, err
+	}
+	return q.db.InsertAuthorizationLifecycleJournalSubsequentLine(ctx, arg)
+}
+
+func (q *querier) InsertAuthorizationLifecycleLedgerRow(ctx context.Context, arg database.InsertAuthorizationLifecycleLedgerRowParams) (database.AuthorizationLifecycleLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.AuthorizationLifecycleLedger{}, err
+	}
+	return q.db.InsertAuthorizationLifecycleLedgerRow(ctx, arg)
+}
+
 func (q *querier) InsertBoundaryLogs(ctx context.Context, arg database.InsertBoundaryLogsParams) ([]database.BoundaryLog, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate,
 		rbac.ResourceBoundaryLog.WithOwner(arg.OwnerID.String())); err != nil {
@@ -7151,6 +7186,16 @@ func (q *querier) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg 
 		return database.MCPServerUserToken{}, err
 	}
 	return q.db.MarkMCPServerUserTokenRefreshFailure(ctx, arg)
+}
+
+// NextAuthorizationLifecycleJournalEntryID is guarded by ResourceSystem for the same
+// reason as the rest of this family: writing to a journal is the control
+// plane's act, not that of anything holding a workspace-scoped credential.
+func (q *querier) NextAuthorizationLifecycleJournalEntryID(ctx context.Context) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.NextAuthorizationLifecycleJournalEntryID(ctx)
 }
 
 func (q *querier) OIDCClaimFieldValues(ctx context.Context, args database.OIDCClaimFieldValuesParams) ([]string, error) {

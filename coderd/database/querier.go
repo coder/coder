@@ -415,6 +415,13 @@ type sqlcQuerier interface {
 	// the STOP build is executing, allowing shutdown scripts to authenticate (see
 	// issue #19467).
 	GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error)
+	// Entries about one authorization, ordered as they were made. Bounded for the
+	// same reason as the AI agent journal: a lifecycle is a state machine without
+	// cycles, so one subject's entries are bounded by the sequences it allows.
+	// Callers pass one more than they will accept, so receiving it tells them the
+	// set was larger.
+	GetAuthorizationLifecycleJournalEntriesBySubject(ctx context.Context, arg GetAuthorizationLifecycleJournalEntriesBySubjectParams) ([]AuthorizationLifecycleJournal, error)
+	GetAuthorizationLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (AuthorizationLifecycleLedger, error)
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	// Must stay semantically in sync with GetActiveUsersAuthorizationRoles
@@ -1132,6 +1139,22 @@ type sqlcQuerier interface {
 	// every member of the org.
 	InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
+	// Line 0 carries the entry level values. recording_date is absent from this
+	// statement on purpose: the column default supplies it, so no caller can
+	// supply, override, or backdate it.
+	InsertAuthorizationLifecycleJournalFirstLine(ctx context.Context, arg InsertAuthorizationLifecycleJournalFirstLineParams) (AuthorizationLifecycleJournal, error)
+	// NOT LIVE CODE. Nothing calls this. It is here to show what a line after the
+	// first looks like, since the proof of concept writes no multiline entry:
+	// revoke and grant, the case that needs one, is out of scope. It deserves a
+	// unit test of its own and does not have one, so treat it as documentation
+	// rather than as a tested path. In production this would rot; this is not
+	// production.
+	//
+	// A line after the first. Every entry level column is written as a literal
+	// null rather than as a parameter, for the same reason line 0 omits the
+	// recording date: what a caller cannot name, a caller cannot get wrong.
+	InsertAuthorizationLifecycleJournalSubsequentLine(ctx context.Context, arg InsertAuthorizationLifecycleJournalSubsequentLineParams) (AuthorizationLifecycleJournal, error)
+	InsertAuthorizationLifecycleLedgerRow(ctx context.Context, arg InsertAuthorizationLifecycleLedgerRowParams) (AuthorizationLifecycleLedger, error)
 	InsertBoundaryLogs(ctx context.Context, arg InsertBoundaryLogsParams) ([]BoundaryLog, error)
 	InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error)
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
@@ -1346,6 +1369,10 @@ type sqlcQuerier interface {
 	// request refreshed or replaced the token since it was read, this
 	// update matches zero rows and returns sql.ErrNoRows.
 	MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg MarkMCPServerUserTokenRefreshFailureParams) (MCPServerUserToken, error)
+	// One call per entry, whose value every line of that entry then carries. A
+	// column default cannot serve, allocating per row where the lines of an entry
+	// must agree.
+	NextAuthorizationLifecycleJournalEntryID(ctx context.Context) (int64, error)
 	OIDCClaimFieldValues(ctx context.Context, arg OIDCClaimFieldValuesParams) ([]string, error)
 	// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
 	// This query is used to generate the list of available sync fields for idp sync settings.

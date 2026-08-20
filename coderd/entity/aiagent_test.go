@@ -62,6 +62,51 @@ func TestCreateAIAgent(t *testing.T) {
 	// transaction when given one, so that creation can be made atomic with
 	// work that is not creation. The observable consequence is that the entry
 	// rolls back with the caller, which is what this checks.
+	t.Run("GrantsAuthorizationToTheOwner", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		owner := dbgen.User(t, db, database.User{})
+		relay := entity.Ref{Type: entity.TypeWorkspaceAgent, ID: uuid.New()}
+
+		created, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
+			OwnerID: owner.ID,
+			Actor:   relay,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, created.AuthorizationID, "creation should grant authorization")
+
+		row, err := db.GetAuthorizationLifecycleLedgerRowByID(ctx, created.AuthorizationID)
+		require.NoError(t, err, "the grant should have posted to the ledger")
+		require.Equal(t, string(entity.TypeUser), row.PrincipalType)
+		require.Equal(t, owner.ID, row.PrincipalID, "the principal is the owner, not the relaying agent")
+		require.Equal(t, string(entity.TypeAIAgent), row.AgentType)
+		require.Equal(t, created.ID, row.AgentID, "the agent is the AI agent just created")
+		require.Equal(t, entity.UniversalScope, row.Scope, "the proof of concept grants universally")
+		require.Equal(t, entity.StateActive, row.State)
+
+		entries, err := db.GetAuthorizationLifecycleJournalEntriesBySubject(ctx, database.GetAuthorizationLifecycleJournalEntriesBySubjectParams{
+			Subject: created.AuthorizationID,
+			Limit:   10,
+		})
+		require.NoError(t, err)
+		require.Len(t, entries, 1, "a grant is one entry of one line")
+
+		got := entries[0]
+		require.EqualValues(t, 0, got.Line, "the only line of an entry is line zero")
+		require.Equal(t, string(entity.EventGrant), got.Event)
+		require.Equal(t, created.AuthorizationID, got.Subject, "the entry names the authorization")
+		require.Equal(t, string(entity.TypeUser), got.ActorType.String,
+			"a grant is an act of the principal, so the actor is the owner")
+		require.Equal(t, owner.ID, got.Actor.UUID)
+		require.True(t, got.RecordingDate.Valid, "line zero carries the recording date")
+		require.True(t, got.EffectiveDate.Valid, "line zero carries the effective date")
+		require.Equal(t, got.EntryID, row.PostingReference,
+			"the ledger row should name the entry that posted to it")
+	})
+
 	t.Run("JoinsTheCallersTransaction", func(t *testing.T) {
 		t.Parallel()
 

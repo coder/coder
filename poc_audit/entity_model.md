@@ -243,6 +243,13 @@ about institutional facts by analogy with material entities, which is the mode
 of thought that comes naturally. The analogy is a working convenience and not a
 claim that the two are the same kind of thing.
 
+**Every machine states how it is embodied and how it is read**, in the section
+defining it. A machine says which transitions are legal. It does not say what in
+the world corresponds to one, where the transition arises, or where it is
+perfected. A reader left to infer that will infer something plausible, and the
+next reader will infer something else plausible. Writing the interpretation down
+lets consistency be checked at the start rather than discovered as drift later.
+
 ### Commanded and observed transitions
 
 Every transition in a lifecycle state machine is of one of two kinds, and the
@@ -350,6 +357,25 @@ which means an identity that has been retired is never reused. And `dormant`
 is absent from the machine while present in the enum, so any code that switches
 exhaustively over the enum must handle a state that cannot occur.
 
+#### How the AI agent machine is read
+
+`create` arises when a principal orders an AI agent into existence, and is
+perfected by the entry written once the agent has been embodied. It is not
+perfected at the moment of the order, because an AI agent is not identified
+until it has been embodied and there is nothing yet to record the creation of.
+The actor is the delegating principal. A `workspace_agent` carrying the request
+to the control plane is a relay and not a party to the act.
+
+`finish` arises when the embodying process returns of its own accord. Nobody
+decides it, so the actor is whoever noticed, and the entry may be written long
+after the fact.
+
+`kill` arises when a party ends the process deliberately, whether the owner
+commanding it or a provisioner draining a host.
+
+`suspend` and `resume` are reserved with `dormant` and have no interpretation
+yet, since nothing reconstitutes an AI agent.
+
 ### The authorization lifecycle
 
 An authorization is the agency relation itself, brought into being by a grant.
@@ -411,6 +437,33 @@ the same grounds this machine does: a party ceasing to exist, and a principal
 withdrawing what it granted. The state name is consonant with settled usage
 rather than coined here, which is the whole of the reason for mentioning it.
 
+#### How the authorization machine is read
+
+`grant` arises when a principal orders an AI agent into existence. That order is
+performative: ordering one confers authority on the agent about to exist, and
+nothing further is required of the principal for the conferral to be complete on
+their side. It cannot be perfected at that moment, because there is no identity
+yet to confer authority on, and an AI agent is not identified until embodied.
+The entry written after embodiment is what perfects it.
+
+**The interval between the order and the entry is required by the model rather
+than tolerated by it.** A grant arises in a mind or a point of execution and is
+perfected by a recording; here the recording waits on the embodiment rule, and
+the wait is a consequence of two positions the corpus already holds rather than
+an imprecision in either.
+
+The actor is the principal, in the interface gesture and in the entry alike. A
+`workspace_agent` relaying the request confers nothing, holding no authority to
+confer.
+
+`revoke` arises when the principal withdraws what it granted. Nothing offers
+that yet.
+
+`lapse` arises when a party ceases to exist, which in practice means an AI agent
+reaching `retired`. It is observed, so the actor is whoever noticed.
+
+`disqualify` is reserved and has no interpretation yet.
+
 #### An AI agent is not competent to renounce
 
 The law carries one ground this machine does not. **Renunciation** is the agent
@@ -448,6 +501,29 @@ be a party. That is what `disqualify` records, and it is why the two are
 separate transitions rather than one. Ceasing to exist and losing standing are
 different facts about a party, discovered by different means and usually at
 different times, and an entry conflating them would answer neither question.
+
+**A grant may name an agent that does not exist, and nothing prevents it.**
+The rule above is a precondition, not a constraint. No foreign key backs it: a
+grant is ordinarily made in the same transaction that creates the agent, so
+there is no prior perfected record of the agent to point at, and a key would
+demand the ledger row before the entry accounting for it. Passing the agent as
+an argument encourages a caller to have one; it does not oblige them to have a
+real one.
+
+The gap is a consequence of keeping the two lifecycles in separate modules,
+which is worth more than closing it here would be. **So it is handed to
+reconciliation rather than to a check**, and this is the first place in this
+work where a gap has been deliberately left open with a specific reconciliation
+named as the answer to it. It will not be the last, and each one should be
+recorded this way: not as a technical shortfall, but as work for the party that
+reconciles.
+
+The reconciliation is simple. Read new entries in the authorization journal,
+take the agent named by each grant, and look for a creation entry for that agent
+in the AI agent journal. A grant with no such creation is a phantom: authority
+conferred on a party that never came to exist. The check needs no state beyond
+the two journals, and it can run as far behind as it likes, since neither
+journal forgets.
 
 **Dormancy is not nonexistence.** A dormant identity exists, so an authorization
 naming it survives the move to `dormant` untouched. That bears on the successor

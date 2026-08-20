@@ -2595,6 +2595,36 @@ func (mr *MockStoreMockRecorder) GetAuthenticatedWorkspaceAgentAndBuildByAuthTok
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthenticatedWorkspaceAgentAndBuildByAuthToken", reflect.TypeOf((*MockStore)(nil).GetAuthenticatedWorkspaceAgentAndBuildByAuthToken), ctx, authToken)
 }
 
+// GetAuthorizationLifecycleJournalEntriesBySubject mocks base method.
+func (m *MockStore) GetAuthorizationLifecycleJournalEntriesBySubject(ctx context.Context, arg database.GetAuthorizationLifecycleJournalEntriesBySubjectParams) ([]database.AuthorizationLifecycleJournal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAuthorizationLifecycleJournalEntriesBySubject", ctx, arg)
+	ret0, _ := ret[0].([]database.AuthorizationLifecycleJournal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAuthorizationLifecycleJournalEntriesBySubject indicates an expected call of GetAuthorizationLifecycleJournalEntriesBySubject.
+func (mr *MockStoreMockRecorder) GetAuthorizationLifecycleJournalEntriesBySubject(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizationLifecycleJournalEntriesBySubject", reflect.TypeOf((*MockStore)(nil).GetAuthorizationLifecycleJournalEntriesBySubject), ctx, arg)
+}
+
+// GetAuthorizationLifecycleLedgerRowByID mocks base method.
+func (m *MockStore) GetAuthorizationLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AuthorizationLifecycleLedger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAuthorizationLifecycleLedgerRowByID", ctx, id)
+	ret0, _ := ret[0].(database.AuthorizationLifecycleLedger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAuthorizationLifecycleLedgerRowByID indicates an expected call of GetAuthorizationLifecycleLedgerRowByID.
+func (mr *MockStoreMockRecorder) GetAuthorizationLifecycleLedgerRowByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizationLifecycleLedgerRowByID", reflect.TypeOf((*MockStore)(nil).GetAuthorizationLifecycleLedgerRowByID), ctx, id)
+}
+
 // GetAuthorizationUserRoles mocks base method.
 func (m *MockStore) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
 	m.ctrl.T.Helper()
@@ -7888,6 +7918,51 @@ func (mr *MockStoreMockRecorder) InsertAuditLog(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAuditLog", reflect.TypeOf((*MockStore)(nil).InsertAuditLog), ctx, arg)
 }
 
+// InsertAuthorizationLifecycleJournalFirstLine mocks base method.
+func (m *MockStore) InsertAuthorizationLifecycleJournalFirstLine(ctx context.Context, arg database.InsertAuthorizationLifecycleJournalFirstLineParams) (database.AuthorizationLifecycleJournal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAuthorizationLifecycleJournalFirstLine", ctx, arg)
+	ret0, _ := ret[0].(database.AuthorizationLifecycleJournal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAuthorizationLifecycleJournalFirstLine indicates an expected call of InsertAuthorizationLifecycleJournalFirstLine.
+func (mr *MockStoreMockRecorder) InsertAuthorizationLifecycleJournalFirstLine(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAuthorizationLifecycleJournalFirstLine", reflect.TypeOf((*MockStore)(nil).InsertAuthorizationLifecycleJournalFirstLine), ctx, arg)
+}
+
+// InsertAuthorizationLifecycleJournalSubsequentLine mocks base method.
+func (m *MockStore) InsertAuthorizationLifecycleJournalSubsequentLine(ctx context.Context, arg database.InsertAuthorizationLifecycleJournalSubsequentLineParams) (database.AuthorizationLifecycleJournal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAuthorizationLifecycleJournalSubsequentLine", ctx, arg)
+	ret0, _ := ret[0].(database.AuthorizationLifecycleJournal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAuthorizationLifecycleJournalSubsequentLine indicates an expected call of InsertAuthorizationLifecycleJournalSubsequentLine.
+func (mr *MockStoreMockRecorder) InsertAuthorizationLifecycleJournalSubsequentLine(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAuthorizationLifecycleJournalSubsequentLine", reflect.TypeOf((*MockStore)(nil).InsertAuthorizationLifecycleJournalSubsequentLine), ctx, arg)
+}
+
+// InsertAuthorizationLifecycleLedgerRow mocks base method.
+func (m *MockStore) InsertAuthorizationLifecycleLedgerRow(ctx context.Context, arg database.InsertAuthorizationLifecycleLedgerRowParams) (database.AuthorizationLifecycleLedger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAuthorizationLifecycleLedgerRow", ctx, arg)
+	ret0, _ := ret[0].(database.AuthorizationLifecycleLedger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAuthorizationLifecycleLedgerRow indicates an expected call of InsertAuthorizationLifecycleLedgerRow.
+func (mr *MockStoreMockRecorder) InsertAuthorizationLifecycleLedgerRow(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAuthorizationLifecycleLedgerRow", reflect.TypeOf((*MockStore)(nil).InsertAuthorizationLifecycleLedgerRow), ctx, arg)
+}
+
 // InsertBoundaryLogs mocks base method.
 func (m *MockStore) InsertBoundaryLogs(ctx context.Context, arg database.InsertBoundaryLogsParams) ([]database.BoundaryLog, error) {
 	m.ctrl.T.Helper()
@@ -9535,6 +9610,21 @@ func (m *MockStore) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, ar
 func (mr *MockStoreMockRecorder) MarkMCPServerUserTokenRefreshFailure(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkMCPServerUserTokenRefreshFailure", reflect.TypeOf((*MockStore)(nil).MarkMCPServerUserTokenRefreshFailure), ctx, arg)
+}
+
+// NextAuthorizationLifecycleJournalEntryID mocks base method.
+func (m *MockStore) NextAuthorizationLifecycleJournalEntryID(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NextAuthorizationLifecycleJournalEntryID", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NextAuthorizationLifecycleJournalEntryID indicates an expected call of NextAuthorizationLifecycleJournalEntryID.
+func (mr *MockStoreMockRecorder) NextAuthorizationLifecycleJournalEntryID(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NextAuthorizationLifecycleJournalEntryID", reflect.TypeOf((*MockStore)(nil).NextAuthorizationLifecycleJournalEntryID), ctx)
 }
 
 // OIDCClaimFieldValues mocks base method.
