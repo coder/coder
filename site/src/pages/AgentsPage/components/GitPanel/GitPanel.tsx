@@ -208,9 +208,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 	useEffect(() => () => clearTimeout(spinTimerRef.current), []);
 
-	// The switcher dropdown stretches to this element's width.
-	const [panelEl, setPanelEl] = useState<HTMLDivElement | null>(null);
-
 	const handleRefresh = () => {
 		const sent = onRefresh();
 		if (!sent) {
@@ -327,7 +324,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 	};
 
 	return (
-		<div ref={setPanelEl} className="flex h-full flex-col">
+		<div className="flex h-full flex-col">
 			{/* Toolbar */}
 			<div className="flex shrink-0 items-center gap-2 px-3 pt-1.5 pb-1">
 				<div className="min-w-0 flex-1">
@@ -335,7 +332,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 						items={items}
 						activeItem={activeItem}
 						onSelect={handleSelectItem}
-						panelEl={panelEl}
 					/>
 				</div>
 				{/* Controls */}
@@ -439,17 +435,13 @@ interface GitViewSwitcherProps {
 	items: ReadonlyArray<ViewItem>;
 	activeItem?: ViewItem;
 	onSelect: (item: ViewItem) => void;
-	/** Panel element the dropdown stretches to (minus toolbar padding). */
-	panelEl: HTMLDivElement | null;
 }
 
 const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	items,
 	activeItem,
 	onSelect,
-	panelEl,
 }) => {
-	const [menuWidth, setMenuWidth] = useState<number>();
 	if (!activeItem) {
 		return (
 			<div
@@ -512,13 +504,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	);
 
 	return (
-		<DropdownMenu
-			onOpenChange={(open) => {
-				if (open && panelEl) {
-					setMenuWidth(panelEl.clientWidth - 24);
-				}
-			}}
-		>
+		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
@@ -529,12 +515,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 					{triggerContent}
 				</button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent
-				align="start"
-				// Measured per open; the menu dismisses before the panel can resize.
-				style={menuWidth ? { width: menuWidth } : undefined}
-				className="flex flex-col gap-1 p-1"
-			>
+			<DropdownMenuContent align="start" className="flex flex-col gap-1 p-1">
 				{items.map((item) => {
 					const isActive = item.id === activeItem.id;
 					return (
