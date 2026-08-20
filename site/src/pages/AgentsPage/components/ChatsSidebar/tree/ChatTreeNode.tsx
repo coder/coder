@@ -39,9 +39,18 @@ import { getChatDisplayConfig } from "./statusConfig";
 interface ChatTreeNodeProps {
 	readonly chat: Chat;
 	readonly isChildNode: boolean;
+	readonly depth?: number;
 }
 
-export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
+// Horizontal indentation applied per nesting level to a row's content. The row
+// highlight itself stays full width; only the content is indented.
+const CHILD_INDENT_PX = 26;
+
+export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
+	chat,
+	isChildNode,
+	depth = 0,
+}) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
 	const {
@@ -148,12 +157,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		isChildChat: isChildNode,
 	});
 
-	const hoverLayout = isChildNode
-		? "[@media(hover:hover)]:hover:-ml-1 [@media(hover:hover)]:hover:-mr-2 [@media(hover:hover)]:hover:pl-2 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-l-md [@media(hover:hover)]:hover:rounded-r-none"
-		: "[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
-	const activeLayout = isChildNode
-		? "has-[[aria-current=page]]:-ml-1 has-[[aria-current=page]]:-mr-2 has-[[aria-current=page]]:pl-2 has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-l-md has-[[aria-current=page]]:rounded-r-none [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-2"
-		: "has-[[aria-current=page]]:-mx-2 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[11px]";
+	const hoverLayout =
+		"[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
+	const activeLayout =
+		"has-[[aria-current=page]]:-mx-2 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[11px]";
 	const sharedMenuItemProps = {
 		isArchived: chat.archived,
 		isPinned: chat.pin_order > 0,
@@ -196,6 +203,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								"group/icon relative mt-1.5 size-5 shrink-0",
 								hasChildren && "cursor-pointer",
 							)}
+							style={
+								depth > 0 ? { marginLeft: depth * CHILD_INDENT_PX } : undefined
+							}
 						>
 							<div
 								className={cn(
@@ -378,12 +388,17 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			</ContextMenu>
 
 			{hasChildren && isExpanded && (
-				<div className="relative ml-4 flex flex-col pl-2.5">
+				<div className="relative flex flex-col">
 					{childIDs.map((childID) => {
 						const childChat = chatById.get(childID);
 						if (!childChat) return null;
 						return (
-							<ChatTreeNode key={childChat.id} chat={childChat} isChildNode />
+							<ChatTreeNode
+								key={childChat.id}
+								chat={childChat}
+								isChildNode
+								depth={depth + 1}
+							/>
 						);
 					})}
 				</div>
