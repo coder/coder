@@ -43,3 +43,12 @@ Replaces the roles every member of the organization holds. Accepts a comma-separ
 | Type | <code>bool</code> |
 
 Bypass confirmation prompts.
+
+### -O, --org
+
+|             |                                  |
+|-------------|----------------------------------|
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
+
+Select which organization (uuid or name) to use.

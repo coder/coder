@@ -15,6 +15,9 @@ USAGE:
        $ coder organizations edit --default-org-member-roles ""
 
 OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
       --default-org-member-roles string-array
           Replaces the roles every member of the organization holds. Accepts a
           comma-separated list and may be repeated. An empty value removes every

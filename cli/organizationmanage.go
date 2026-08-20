@@ -143,6 +143,7 @@ func (r *RootCmd) editOrganization(orgContext *OrganizationContext) *serpent.Com
 			return nil
 		},
 	}
+	orgContext.AttachOptions(cmd)
 
 	return cmd
 }
