@@ -2,16 +2,13 @@ package chatd
 
 import (
 	"context"
-	"encoding/json"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 const compactionOverrideContext = "compaction"
@@ -32,28 +29,15 @@ func readCompactionModelOverride(
 	return raw, nil
 }
 
-// compactionModelOverride carries the built compaction override model plus
-// the identity metadata debug runs and prompt sanitization need.
-type compactionModelOverride struct {
-	modelConfig      database.ChatModelConfig
-	model            chatprovider.Model
-	resolvedProvider string
-	resolvedModel    string
-	// providerOptions include the override's reasoning effort for the
-	// summary call.
-	providerOptions fantasy.ProviderOptions
-}
-
 // resolvedCompactionOverride is the compaction override resolved at
 // prepare time. The provider/model identity is resolved without building
 // the model client so metrics recorded before the client exists
 // (still-over-limit) attribute to the same model as the compact action's.
 type resolvedCompactionOverride struct {
 	Config database.ChatModelConfig
-	// ResolvedProvider and ResolvedModel match the built client's
-	// identity: ResolveModelWithProviderHint normalizes its hint, so the
-	// normalized provider name here and the route's raw provider type in
-	// buildCompactionOverrideModel yield the same result.
+	// ReasoningEffort is the override's requested effort, passed to the
+	// model-call resolver when the compact action builds the client.
+	ReasoningEffort  *string
 	ResolvedProvider string
 	ResolvedModel    string
 }
@@ -101,81 +85,9 @@ func (p *Server) resolveCompactionOverrideConfig(
 		)
 	}
 	return &resolvedCompactionOverride{
-		Config:           withResolvedReasoningEffort(modelConfig, overrideEffort),
+		Config:           modelConfig,
+		ReasoningEffort:  overrideEffort,
 		ResolvedProvider: resolvedProvider,
 		ResolvedModel:    resolvedModel,
 	}, nil
-}
-
-// buildCompactionOverrideModel resolves the route and constructs the model
-// client for a usable override config. Errors are hard failures: a usable
-// override that cannot be constructed must fail the generation visibly
-// instead of silently compacting with the chat model.
-func (p *Server) buildCompactionOverrideModel(
-	ctx context.Context,
-	chat database.Chat,
-	modelConfig database.ChatModelConfig,
-	modelOpts modelBuildOptions,
-) (compactionModelOverride, error) {
-	//nolint:gocritic // Compaction overrides need chatd-scoped provider reads for user-owned chats.
-	route, err := p.resolveModelRouteForConfig(dbauthz.AsChatd(ctx), chat.OwnerID, modelConfig)
-	if err != nil {
-		return compactionModelOverride{}, xerrors.Errorf(
-			"resolve compaction model override route: %w",
-			err,
-		)
-	}
-	resolvedProvider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(
-		modelConfig.Model,
-		route.ModelProviderHint,
-	)
-	if err != nil {
-		return compactionModelOverride{}, xerrors.Errorf(
-			"resolve compaction model override metadata: %w",
-			err,
-		)
-	}
-	model, _, err := p.newDebugAwareModel(ctx, modelClientRequest{
-		Chat:          chat,
-		ModelName:     modelConfig.Model,
-		UserAgent:     chatprovider.UserAgent(),
-		ExtraHeaders:  chatprovider.CoderHeaders(chat),
-		ConfigOptions: modelConfig.Options,
-	}, route, modelOpts)
-	if err != nil {
-		return compactionModelOverride{}, xerrors.Errorf(
-			"create compaction model override: %w",
-			err,
-		)
-	}
-	providerOptions, err := compactionOverrideProviderOptions(model, modelConfig)
-	if err != nil {
-		return compactionModelOverride{}, err
-	}
-	return compactionModelOverride{
-		modelConfig:      modelConfig,
-		model:            model,
-		resolvedProvider: resolvedProvider,
-		resolvedModel:    resolvedModel,
-		providerOptions:  providerOptions,
-	}, nil
-}
-
-// compactionOverrideProviderOptions converts the override config's call
-// options, including the admin-resolved reasoning effort, into provider
-// options for the summary call.
-func compactionOverrideProviderOptions(
-	model chatprovider.Model,
-	modelConfig database.ChatModelConfig,
-) (fantasy.ProviderOptions, error) {
-	callConfig := codersdk.ChatModelCallConfig{}
-	if len(modelConfig.Options) > 0 {
-		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
-			return nil, xerrors.Errorf(
-				"parse compaction model override call config: %w",
-				err,
-			)
-		}
-	}
-	return chatprovider.ProviderOptionsForCall(model, callConfig, nil), nil
 }

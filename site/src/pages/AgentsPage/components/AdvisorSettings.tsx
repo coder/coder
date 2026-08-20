@@ -398,7 +398,7 @@ const CompactIntegerField: FC<CompactIntegerFieldProps> = ({
 				disabled={disabled}
 				className="min-w-0 w-full border-none bg-transparent p-0 text-sm font-medium leading-6 text-content-placeholder outline-none disabled:cursor-not-allowed [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
 			/>
-			<span className="shrink-0 text-xs font-normal leading-[18px] text-content-placeholder">
+			<span className="shrink-0 text-xs font-normal leading-[18px] text-content-secondary">
 				{label}
 			</span>
 		</label>

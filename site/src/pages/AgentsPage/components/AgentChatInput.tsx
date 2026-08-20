@@ -1190,6 +1190,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					workspaceSkills={workspaceSkills}
 					autoFocus
 					slashCommands={slashCommands}
+					skillsMenuAnchor={composerElement}
 				/>
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip
@@ -1452,7 +1453,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								className="md:shrink"
+								className="md:h-auto md:w-auto md:shrink"
 								dropdownSide="top"
 								dropdownAlign="start"
 								enableMobileFullWidthDropdown
