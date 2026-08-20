@@ -149,14 +149,15 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	});
 
 	// Child rows are indented and never touch the sidebar's left edge, so their
-	// highlight keeps rounded left corners while the right side stays flush.
-	// Top-level rows go fully square (edge to edge).
-	const hoverRounding = isChildNode
-		? "[@media(hover:hover)]:hover:rounded-l-md [@media(hover:hover)]:hover:rounded-r-none"
-		: "[@media(hover:hover)]:hover:rounded-none";
-	const activeRounding = isChildNode
-		? "has-[[aria-current=page]]:rounded-l-md has-[[aria-current=page]]:rounded-r-none"
-		: "has-[[aria-current=page]]:rounded-none";
+	// highlight keeps rounded left corners and a tighter left inset while the
+	// right side stays flush. Top-level rows go fully square, edge to edge.
+	// Left padding compensates the negative margin so text never shifts.
+	const hoverLayout = isChildNode
+		? "[@media(hover:hover)]:hover:-ml-1 [@media(hover:hover)]:hover:-mr-2 [@media(hover:hover)]:hover:pl-2 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-l-md [@media(hover:hover)]:hover:rounded-r-none"
+		: "[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
+	const activeLayout = isChildNode
+		? "has-[[aria-current=page]]:-ml-1 has-[[aria-current=page]]:-mr-2 has-[[aria-current=page]]:pl-[7px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-l-md has-[[aria-current=page]]:rounded-r-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[7px]"
+		: "has-[[aria-current=page]]:-mx-2 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[11px]";
 	const sharedMenuItemProps = {
 		isArchived: chat.archived,
 		isPinned: chat.pin_order > 0,
@@ -189,11 +190,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						className={cn(
 							"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
 							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
-							"[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5",
-							hoverRounding,
 							"has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
-							"has-[[aria-current=page]]:-mx-2 has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:pr-3.5 [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[11px]",
-							activeRounding,
+							hoverLayout,
+							activeLayout,
 						)}
 					>
 						<div
