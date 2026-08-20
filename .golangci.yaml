@@ -47,7 +47,9 @@ linters:
             - github.com/coder/coder/v2/buildinfo
           deny:
             - pkg: github.com/coder/coder/v2
-              desc: aibridge code must not import coder packages outside aibridge; buildinfo is the only exception
+              desc:
+                aibridge code must not import coder packages outside aibridge;
+                buildinfo is the only exception
     dupl:
       threshold: 412
     exhaustruct:
@@ -149,7 +151,7 @@ linters:
         - name: unreachable-code
         - name: unused-parameter
           exclude:
-            - '**/*_test.go'
+            - "**/*_test.go"
         - name: unused-receiver
         - name: var-declaration
         - name: var-naming
