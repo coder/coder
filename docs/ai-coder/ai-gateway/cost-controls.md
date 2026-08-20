@@ -213,7 +213,7 @@ https://github.com/coder/coder/blob/release/<VERSION>/coderd/aibridge/prices/dat
 Replace `<VERSION>` with a Coder minor version, for example `2.36`.
 
 To use your own price for any of these models, see
-[Set model prices](#set-model-prices).
+[Configure model prices](#configure-model-prices).
 
 > [!IMPORTANT]
 > Spend is an approximation. It can differ from what the provider bills, and
@@ -234,7 +234,7 @@ value means spend is under-counted. Because the price book ships with the
 release, a newly launched model is unpriced until you upgrade Coder or set a
 price for it yourself.
 
-### Set model prices
+### Configure model prices
 
 Use the experimental `coder exp ai-model-prices` command to set model prices
 for your deployment. It requires AI Governance, which is included with a
