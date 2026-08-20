@@ -44,6 +44,7 @@ import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { visibleSingletonTabsStorageKeyPrefix } from "./utils/rightPanelTabStorage";
+import type { SingletonRightPanelTabId } from "./utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 
 // ---------------------------------------------------------------------------
@@ -1744,7 +1745,9 @@ const singletonTabsStorageKey = `${visibleSingletonTabsStorageKeyPrefix}${AGENT_
  * Singleton panels start hidden, so a story that needs a visible Browser,
  * Desktop, or Debug tab seeds the per-chat storage entry before mount.
  */
-const seedVisibleSingletonTabs = (tabIds: readonly string[]) => {
+const seedVisibleSingletonTabs = (
+	tabIds: readonly SingletonRightPanelTabId[],
+) => {
 	localStorage.setItem(singletonTabsStorageKey, JSON.stringify(tabIds));
 	return () => {
 		localStorage.removeItem(singletonTabsStorageKey);
@@ -1820,6 +1823,9 @@ export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
 };
 
 export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
+	// Seed the saved choice so the assertion proves the health gate hides
+	// the tab, instead of passing because panels start hidden.
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1840,6 +1846,9 @@ export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
 };
 
 export const NoBrowserTabForAppOnNonBoundAgent: Story = {
+	// Seed the saved choice so the assertion proves the agent-binding gate
+	// hides the tab, instead of passing because panels start hidden.
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -2064,6 +2073,47 @@ export const ReopenedSingletonPanelStaysSingle: Story = {
 		await canvas.findByRole("tab", { name: "Debug" });
 
 		expect(canvas.getAllByRole("tab", { name: "Debug" })).toHaveLength(1);
+	},
+};
+
+/**
+ * An archived chat is read-only, so showing a singleton panel must not write
+ * the per-chat entry. The archive flow clears that entry on purpose, and
+ * persisting here would recreate it for a chat the user cannot change.
+ */
+export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
+	beforeEach: clearVisibleSingletonTabs,
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			isArchived
+			isInputDisabled
+			debugLoggingEnabled
+			workspace={MockWorkspace}
+			workspaceAgent={mockAgentWithBrowserApp}
+			desktopChatId={AGENT_ID}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		);
+
+		// The panel still opens for the current view, so the read-only chat
+		// stays usable.
+		const debugTab = await canvas.findByRole("tab", { name: "Debug" });
+		await waitFor(() => {
+			expect(debugTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBeNull();
 	},
 };
 

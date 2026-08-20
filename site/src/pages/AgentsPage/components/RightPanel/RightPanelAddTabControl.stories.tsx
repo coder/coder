@@ -126,7 +126,6 @@ export const Default: Story = {
 		expect(
 			body.getByRole("menuitemcheckbox", { name: "Debug" }),
 		).toHaveAttribute("aria-checked", "false");
-		// "New Terminal" stays a plain action, so it is not a checkbox toggle.
 		expect(
 			body.queryAllByRole("menuitemcheckbox", { name: "New Terminal" }),
 		).toHaveLength(0);
