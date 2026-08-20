@@ -2574,6 +2574,90 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 	require.Equal(t, wantCost, spend.SpendMicros, "spend micros")
 }
 
+// TestBudgetNotificationAuthorized exercises the budget threshold notification
+// path end-to-end against a real database through the dbauthz layer as
+// subjectAibridged. This catches missing RBAC grants on the aibridged subject
+// and verifies the group and organization labels round-trip from storage.
+func TestBudgetNotificationAuthorized(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+
+	rawDB, _ := dbtestutil.NewDB(t)
+	authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+
+	// Seed prerequisites via the raw (unauthorized) store. The user belongs to a
+	// group with a budget, so the effective group resolves to that group.
+	org := dbgen.Organization(t, rawDB, database.Organization{})
+	user := dbgen.User(t, rawDB, database.User{})
+	dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+	group := dbgen.Group(t, rawDB, database.Group{OrganizationID: org.ID})
+	dbgen.GroupMember(t, rawDB, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
+
+	// The interception below costs 1555 micros, which crosses 85% of this limit
+	// (1530 micros) without reaching the limit itself.
+	_, err := rawDB.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+		GroupID:          group.ID,
+		SpendLimitMicros: 1_800,
+	})
+	require.NoError(t, err, "upsert group AI budget")
+
+	const provider, model = "anthropic", "claude-sonnet-4-6"
+	priceSeed, err := json.Marshal([]map[string]any{{
+		"provider":          provider,
+		"model":             model,
+		"input_price":       3_000_000,
+		"output_price":      6_000_000,
+		"cache_read_price":  300_000,
+		"cache_write_price": 4_000_000,
+	}})
+	require.NoError(t, err)
+	require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{Seed: priceSeed, Source: database.AIModelPriceSourceDefault}), "seed model prices")
+
+	aiProvider := dbgen.AIProvider(t, rawDB, database.AIProvider{
+		Name: "anthropic-eu",
+		Type: database.AIProviderTypeAnthropic,
+	})
+	intc := dbgen.AIBridgeInterception(t, rawDB, database.InsertAIBridgeInterceptionParams{
+		InitiatorID:  user.ID,
+		Provider:     provider,
+		ProviderName: aiProvider.Name,
+		Model:        model,
+	}, nil)
+
+	enq := &notificationstest.FakeEnqueuer{}
+	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+		Store:         authzDB,
+		AISeatTracker: agplaiseats.Noop{},
+		AccessURL:     "/",
+		GatewayCfg:    codersdk.AIBridgeConfig{},
+		Experiments:   requiredExperiments,
+		Enqueuer:      enq,
+		Logger:        logger,
+		Clock:         quartz.NewReal(),
+	})
+	require.NoError(t, err)
+
+	_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+		InterceptionId:        intc.ID.String(),
+		MsgId:                 "msg_budget_authz",
+		InputTokens:           100,
+		OutputTokens:          200,
+		CacheReadInputTokens:  50,
+		CacheWriteInputTokens: 10,
+		CreatedAt:             timestamppb.New(time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)),
+	})
+	require.NoError(t, err, "record token usage")
+
+	// Notification failures are logged rather than returned, so the enqueued
+	// message is the only signal that both lookups were authorized.
+	sent := enq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIBudgetWarningUser))
+	require.Len(t, sent, 1, "expected one budget warning notification")
+	require.Equal(t, group.Name, sent[0].Labels["effective_group_name"])
+	require.Equal(t, org.Name, sent[0].Labels["organization_name"])
+}
+
 // TestRecordTokenUsageModelPriceResolution covers which price an interception
 // snapshots when a model carries a price from the embedded book, a price set
 // through the API, or both.

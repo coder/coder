@@ -137,9 +137,7 @@ func (s *Server) notifyBudgetThresholdCrossings(ctx context.Context, crossings [
 	if err != nil {
 		return xerrors.Errorf("look up group %q: %w", effectiveGroupID, err)
 	}
-	//nolint:gocritic // The AI Gateway daemon actor cannot read organizations,
-	// which the notification's link to the group's members page requires.
-	org, err := s.store.GetOrganizationByID(dbauthz.AsSystemRestricted(ctx), group.OrganizationID)
+	org, err := s.store.GetOrganizationByID(ctx, group.OrganizationID)
 	if err != nil {
 		return xerrors.Errorf("look up organization %q: %w", group.OrganizationID, err)
 	}
