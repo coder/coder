@@ -1,12 +1,8 @@
 /*
- * Pure string transforms used by sync-docs.mjs.
- *
- * These are kept in their own module (with no filesystem or network access and
- * no top-level side effects) so they can be unit-tested without running the
- * sync script. The lone dependency is fumadocs-core's frontmatter helper (a
- * pure YAML parser), used by parseFrontmatter. Environment specifics (the
- * resolved image base, the file->route map, image copying, source-tree links)
- * are injected into the rewrite helpers via a `ctx` object.
+ * Pure string transforms used by sync-docs.mjs: no filesystem or network access
+ * and no top-level side effects, so transform.test.mjs can pin them. See
+ * README.md for the fence-scanner design, the .mdx-forward escapes, and the
+ * frontmatter/title and link-rewrite contracts.
  */
 import { posix } from "node:path";
 import { frontmatter as parseYamlFrontmatter } from "fumadocs-core/content/md/frontmatter";
@@ -54,18 +50,9 @@ export function lastSeg(route) {
 	return i === -1 ? route : route.slice(i + 1);
 }
 
-// Track fenced-code-block state one line at a time so link rewriting, title
-// extraction, and fence normalization all agree on where fences begin and end.
-// `state` is { inFence, marker, markerLen }: the fence character (backtick or
-// tilde) and the length of the run that opened the current block. Following
-// CommonMark, a fence closes only on the same marker, a run at least as long as
-// the opener, and no info string, so a ``` line cannot close a ~~~ block and a
-// short ``` cannot close a longer ````` block.
-//
-// This is the low-level, single-context primitive. Nothing outside this module
-// calls it directly: stepFence wraps it with blockquote awareness, and mapLines
-// and stripHtmlComments (the only two line walkers) both go through stepFence,
-// so every transform observes fences the same way.
+// Track fenced-code state one line at a time. `state` is { inFence, marker,
+// markerLen }. Low-level primitive; stepFence wraps it with blockquote
+// awareness. See README.md ("One fence- and blockquote-aware line scanner").
 function fenceScan(line, state) {
 	const match = /^(\s*)(```+|~~~+)(\s*)([^\s`]*)(.*)$/.exec(line);
 	if (!match) return { match: null, opening: false, next: state };
@@ -93,21 +80,11 @@ function fenceScan(line, state) {
 	return { match, opening: false, next: state };
 }
 
-// Advance blockquote-aware fenced-code state by one line and classify the line.
-// `plain` tracks a top-level fence; `quoted` tracks a fence nested inside a
-// blockquote (`> ```...`), which `fenceScan` alone does not see. Returns the
-// updated `plain`/`quoted` states plus:
-//   fenced:  the line is a fence delimiter or sits inside a fenced block
-//            (plain or blockquoted); prose transforms must skip it
-//   delim:   the line is a fence delimiter (opening or closing)
-//   opening: the delimiter opens a fence (only meaningful when delim is true)
-//   quoted:  the delimiter is a blockquoted one (its `match` was taken against
-//            the line with the `>` prefix stripped, so callers must not rebuild
-//            the line from it)
-//   match:   the fenceScan match for a delimiter line, else null
-// This is the single fence scanner; mapLines and stripHtmlComments are its only
-// callers, so every transform tracks fences (including blockquoted ones) the
-// same way.
+// Advance blockquote-aware fence state by one line and classify it. `plain`
+// tracks a top-level fence, `quoted` a fence nested in a blockquote that
+// fenceScan alone misses. Returns updated plain/quoted plus a classifier
+// { fenced, delim, opening, quotedDelim, match }; a blockquoted delimiter's
+// match omits the `>` prefix, so callers must not rebuild the line from it.
 function stepFence(line, plain, quoted) {
 	if (!plain.inFence) {
 		const quote = /^(\s*>)+\s?/.exec(line);
@@ -140,17 +117,10 @@ function stepFence(line, plain, quoted) {
 }
 
 // Walk the lines of `content` with blockquote-aware fence tracking, calling
-// `fn(line, info)` for every line and using the return value as the
-// replacement. `info` is:
-//   { index, prose, delim, opening, quoted, match }
-//   prose:   outside any fenced block and not a delimiter (safe to transform)
-//   delim:   a fence delimiter line
-//   opening: the delimiter opens a fence
-//   quoted:  the delimiter is blockquoted (its match omits the `>` prefix)
-//   match:   the fenceScan match for a delimiter line, else null
-// Routing every line-level transform through this one walker is what keeps
-// prose passes (link rewriting, brace escaping, autolink and void-element
-// normalization) out of fenced content, including fences nested in blockquotes.
+// `fn(line, info)` and using its return as the replacement. `info` is
+// { index, prose, delim, opening, quoted, match }, where `prose` means outside
+// any fence and safe to transform. The single line walker; routing every
+// transform through it keeps prose passes out of fenced content. See README.md.
 function mapLines(content, fn) {
 	const lines = content.split("\n");
 	let plain = { inFence: false, marker: "", markerLen: 0 };
@@ -192,14 +162,9 @@ export function normalizeFences(content) {
 	});
 }
 
-// Rewrite Coder's `## Step N: Title` procedure headings into Fumadocs' native
-// step form `## Title [step]`, skipping fenced code blocks. Fumadocs'
-// `remarkSteps` detects the trailing ` [step]` marker, strips it, groups
-// consecutive same-depth step headings into a numbered `.fd-steps` structure,
-// and numbers them by position. Baking this into the synced source (rather
-// than a build-time remark plugin) keeps the `.md` files themselves free of
-// the redundant "Step N:" prefix, so the rendered title and its slug become
-// just `Title`. Matches h1..h6 and treats `Step` case-insensitively.
+// Rewrite Coder's `## Step N: Title` headings into Fumadocs' native step form
+// `## Title [step]` (skipping fences), so remarkSteps numbers them and the slug
+// becomes just `Title`. Matches h1..h6, `Step` case-insensitive.
 export function normalizeStepHeadings(content) {
 	const stepHeading = /^(#{1,6})[ \t]+Step[ \t]+\d+:[ \t]*(.*?)[ \t]*$/i;
 	return mapLines(content, (line, info) => {
@@ -209,23 +174,12 @@ export function normalizeStepHeadings(content) {
 	});
 }
 
-// Strip HTML comments (`<!-- ... -->`) outside fenced code blocks, including
-// comments spanning multiple lines. The rendered site shows nothing for an
-// HTML comment either way (rehype-raw keeps it as an invisible comment node in
-// the current `.md` pipeline), so dropping them only tidies the emitted source;
-// it also keeps the corpus valid for a future `.mdx` flip, where an HTML
-// comment is a parse error. The line count is preserved (a line that was only a
-// comment becomes an empty line) so markdown block structure around comment
-// lines, such as paragraph boundaries, is unchanged. A `<!--` inside a fenced
-// code block (including a blockquoted fence) or an inline code span is content,
-// not a comment, and is left untouched. Runs before every other content
-// transform so commented-out markdown never feeds them.
-//
-// Returns `{ content, unclosedCommentLine }`. A comment that opens but never
-// closes would otherwise swallow the rest of the file to end-of-input silently;
-// `unclosedCommentLine` is the 1-based line where such an unterminated comment
-// began (else null) so the caller can fail the sync and name the file instead
-// of shipping a truncated page.
+// Strip HTML comments (`<!-- ... -->`) outside fenced code and inline code,
+// including multi-line ones, preserving line count so block structure is
+// unchanged. Runs before every other transform. Returns
+// `{ content, unclosedCommentLine }`, the 1-based line of a comment that opens
+// but never closes (else null) so the caller can fail the sync and name the
+// file rather than silently swallow the rest. See README.md ("HTML comments").
 export function stripHtmlComments(content) {
 	const lines = content.split("\n");
 	let plain = { inFence: false, marker: "", markerLen: 0 };
@@ -283,13 +237,10 @@ export function stripHtmlComments(content) {
 	};
 }
 
-// Length of the opaque inline-code run at `line[start]` (a backtick run): the
-// whole span when the run is closed by a later run of the same length, or just
-// the run itself when it is unmatched (literal backticks). CommonMark code-span
-// rule; spans crossing line boundaries are not handled (processing is per-line).
-// The corpus does have multi-line inline-code spans, but none that contain
-// `<!--`, so stripHtmlComments never has to reach across a line to keep a
-// comment marker inside inline code opaque.
+// Length of the opaque inline-code run at `line[start]`: the whole span when
+// closed by a later run of the same length, else just the run (literal
+// backticks). CommonMark code-span rule; per-line, so spans crossing line
+// boundaries are not handled (no corpus multi-line span contains `<!--`).
 function inlineCodeSpanLen(line, start) {
 	let n = 0;
 	while (line[start + n] === "`") n++;
@@ -339,16 +290,9 @@ const URL_AUTOLINK = /(?<!\]\(\s*)<(https?:\/\/[^\s<>]+)>/g;
 const EMAIL_AUTOLINK =
 	/(?<!\]\(\s*)<([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})>/g;
 
-// Forward-looking escape for the planned `.mdx` flip; a no-op at render in the
-// current `.md` + rehype-raw pipeline, which the rewrites are chosen to render
-// identically. MDX removes Markdown autolinks (`<https://x>`, `<user@host>`)
-// and treats a stray `<` before anything that cannot start a JSX tag as a parse
-// error. Rewrite autolinks to explicit links (render-identical in .md and .mdx)
-// and backslash-escape stray `<` (a valid escape in both, rendering a literal
-// `<`). A `<` before a letter or `/` is left alone: real HTML tags must stay
-// tags, and placeholder pseudo-tags such as `<your-coder-url>` are fixed
-// upstream instead (browsers drop them even today). Fenced blocks and inline
-// code spans are left untouched.
+// Forward-looking .mdx escape, no-op at render in the current .md pipeline (see
+// README.md). Rewrite autolinks to explicit links and backslash-escape a stray
+// `<`, but leave `<` before a letter or `/` alone so real HTML tags stay tags.
 export function normalizeAngleBrackets(content) {
 	return mapProseLines(content, (line) =>
 		mapOutsideInlineCode(line, (seg) =>
@@ -360,32 +304,19 @@ export function normalizeAngleBrackets(content) {
 	);
 }
 
-// Forward-looking escape for the planned `.mdx` flip; a no-op at render in the
-// current `.md` pipeline, where `{` is literal. Under MDX, `{` starts a JS
-// expression: invalid contents fail the build, and contents that happen to
-// parse as JS (`{session_id}`) are worse, silently evaluated and swallowed at
-// render. Escaping literal braces in prose (`\{` and `\}` are valid escapes in
-// both .md and .mdx, rendering the brace) renders identically today and
-// unblocks that flip. Fenced blocks (including blockquoted fences) and inline
-// code spans are left untouched.
+// Forward-looking .mdx escape, no-op at render in the current .md pipeline where
+// `{` is literal (see README.md). Escape literal braces in prose so a future
+// .mdx flip does not read `{session_id}` as a JS expression.
 export function escapeCurlyBraces(content) {
 	return mapProseLines(content, (line) =>
 		mapOutsideInlineCode(line, (seg) => seg.replace(/(?<!\\)([{}])/g, "\\$1")),
 	);
 }
 
-// Forward-looking normalization for the planned `.mdx` flip; a no-op at render
-// in the current `.md` + rehype-raw pipeline, where a void element is void with
-// or without the trailing slash. MDX/JSX requires void HTML elements to be
-// self-closed: a bare `<br>`, `<img ...>`, or `<source ...>` opens an element
-// that never closes, so the MDX parser errors ("Expected a closing tag for
-// `<br>`"). Rewrite any void element that is not already self-closed to its
-// `<tag ... />` form, leaving tags that already end in `/>` byte-identical and
-// preserving attributes verbatim. The full HTML void-element set is covered so
-// the transform is complete rather than census-driven. Invalid closing forms
-// such as `</br>` are intentionally left alone: those are fixed at the source
-// in coder/coder. Fenced blocks (including blockquoted fences) and inline code
-// spans are left untouched.
+// Forward-looking .mdx normalization, no-op at render in the current .md
+// pipeline (see README.md). Self-close any not-already-closed void element so
+// MDX does not error on a bare `<br>`; `/>` tags are left byte-identical and the
+// full void-element set is covered.
 const VOID_ELEMENTS =
 	"area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr";
 const VOID_TAG = new RegExp(`<(${VOID_ELEMENTS})\\b([^>]*?)\\s*(/?)>`, "gi");
@@ -413,29 +344,12 @@ export class FrontmatterError extends Error {
 	}
 }
 
-// Parse a leading YAML frontmatter block: a `---` line at the very top of the
-// file, its body, and a closing `---`. `make gen` prepends such a block to the
-// API and CLI reference docs, with a `# Code generated ... DO NOT EDIT.` YAML
-// comment and a `title:` (sometimes a `description:`). A body scan that does
-// not skip this block mistakes the comment line for the page's H1 (it matches
-// `# ...`), so the whole REST API and CLI reference would take that comment as
-// their title and leak the original `---` delimiters into the body.
-//
-// The block is parsed with fumadocs-core's frontmatter helper (js-yaml under
-// the hood), so YAML quoting and escapes are decoded properly: a make gen
-// description such as `"... \"ssh workspace.coder\""` yields real inner quotes
-// rather than the literal backslash-quotes a hand-rolled slice would leave in
-// `<meta name="description">` and the search index. Only a block whose YAML
-// body is a mapping counts as frontmatter; a bare scalar or list (for example
-// a `---` thematic rule at the top of a file) is left as ordinary content so
-// real content is never stripped.
-//
-// Returns `{ title, description, endLine }`: the mapping's `title`/`description`
-// values when present as non-empty strings (else null), and `endLine`, the line
-// index just past the closing `---` (0 when there is no frontmatter, so callers
-// treat the whole file as body). A non-string scalar (which the corpus never
-// uses for these keys) is treated as absent so the result is always a plain
-// string or null for every downstream consumer.
+// Parse a leading YAML frontmatter block with the YAML helper (so quoting and
+// escapes decode), counting only a mapping body as frontmatter so a `---`
+// thematic break stays content. Returns `{ title, description, endLine }`:
+// non-empty string values or null, and `endLine`, the first body line (0 when
+// there is no frontmatter). See README.md ("Frontmatter and title") for the
+// make gen H1 collision this avoids.
 export function parseFrontmatter(content) {
 	const none = { title: null, description: null, endLine: 0 };
 	let matter;
@@ -470,17 +384,10 @@ export function parseFrontmatter(content) {
 	};
 }
 
-// Resolve the page title and locate the lines to strip from the emitted body.
-// Precedence mirrors the renderer this replaces: a frontmatter `title`, then
-// the first body H1 outside code fences, then the manifest title, then a
-// title-cased route segment. Returns `{ title, h1Line, frontmatterEnd,
-// description }`: `frontmatterEnd` is the first body line (frontmatter, if any,
-// spans `[0, frontmatterEnd)`), `h1Line` is the index of the body H1 to strip
-// (or -1), both in the original content's line coordinates, and `description`
-// is the frontmatter description (or null). The body H1 is scanned after the
-// frontmatter with fresh fence state, so a make gen file's frontmatter comment
-// is never taken as the title. `manifestMeta` maps a route to
-// `{ title, description }`.
+// Resolve the page title by precedence (frontmatter `title`, first body H1
+// outside fences, manifest title, title-cased route segment) and locate the
+// lines to strip. Returns `{ title, h1Line, frontmatterEnd, description }` in
+// the original line coordinates (h1Line -1 when absent). See README.md.
 export function extractTitle(content, route, manifestMeta = new Map()) {
 	const fm = parseFrontmatter(content);
 	const body =
@@ -509,14 +416,10 @@ export function extractTitle(content, route, manifestMeta = new Map()) {
 	};
 }
 
-// Rewrite a single link/image target relative to `currentRel` (a path relative
-// to the docs/ root). Returns the new target, or null to leave it unchanged.
-// `ctx` supplies the environment:
-//   ctx.imageRemote        remote image base URL, or '' for local-copy mode
-//   ctx.resolveMd(rel)     resolved `.md` path -> route href, or null if unmapped
-//   ctx.copyImage(rel)     copy a local image and return its href, or null
-//   ctx.sourceLink(repoRel) a source-tree target (a repo path outside docs/)
-//                           -> a GitHub URL, or null if unsupported
+// Rewrite a single link/image target relative to `currentRel` (relative to
+// docs/), returning the new target or null to leave it unchanged. The `ctx`
+// object supplies the environment (imageRemote, resolveMd, copyImage,
+// sourceLink). See README.md ("Link rewriting").
 export function rewriteTarget(target, currentRel, ctx) {
 	if (/^(https?:|mailto:|tel:|#|\/\/)/i.test(target)) return null;
 	const [rawPath, anchor] = target.split("#");
