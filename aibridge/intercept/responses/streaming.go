@@ -43,7 +43,7 @@ func NewStreamingInterceptor(
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingResponsesInterceptor {
-	return newStreamingInterceptor(id, reqPayload, cfg, cred, nil, clientHeaders, tracer)
+	return buildStreamingInterceptor(id, reqPayload, cfg, cred, nil, clientHeaders, tracer)
 }
 
 func NewBedrockStreamingInterceptor(
@@ -55,10 +55,10 @@ func NewBedrockStreamingInterceptor(
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingResponsesInterceptor {
-	return newStreamingInterceptor(id, reqPayload, cfg, cred, bedrock, clientHeaders, tracer)
+	return buildStreamingInterceptor(id, reqPayload, cfg, cred, bedrock, clientHeaders, tracer)
 }
 
-func newStreamingInterceptor(
+func buildStreamingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
 	cfg intercept.Config,

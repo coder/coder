@@ -40,7 +40,7 @@ func NewBlockingInterceptor(
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingInterception {
-	return newBlockingInterceptor(id, req, cfg, cred, nil, clientHeaders, tracer)
+	return buildBlockingInterceptor(id, req, cfg, cred, nil, clientHeaders, tracer)
 }
 
 func NewBedrockBlockingInterceptor(
@@ -52,10 +52,10 @@ func NewBedrockBlockingInterceptor(
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingInterception {
-	return newBlockingInterceptor(id, req, cfg, cred, bedrock, clientHeaders, tracer)
+	return buildBlockingInterceptor(id, req, cfg, cred, bedrock, clientHeaders, tracer)
 }
 
-func newBlockingInterceptor(
+func buildBlockingInterceptor(
 	id uuid.UUID,
 	req *ChatCompletionNewParamsWrapper,
 	cfg intercept.Config,
