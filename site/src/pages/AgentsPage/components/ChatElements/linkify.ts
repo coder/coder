@@ -169,64 +169,70 @@ const scanPath = (text: string, start: number): number => {
 	return i;
 };
 
-/**
- * Start offset of the markdown paragraph containing index: just after the
- * closest preceding blank line.
- */
-const paragraphStart = (text: string, index: number): number => {
-	let lineStart = text.lastIndexOf("\n", index - 1) + 1;
-	while (lineStart > 0) {
-		const previousLineStart = text.lastIndexOf("\n", lineStart - 2) + 1;
-		if (/^[ \t\r]*$/.test(text.slice(previousLineStart, lineStart - 1))) {
-			return lineStart;
-		}
-		lineStart = previousLineStart;
-	}
-	return 0;
-};
-
-// GFM does not autolink inside indented code blocks (4+ columns, tab = 4).
-const isCodeIndented = (text: string, index: number): boolean => {
-	const lineStart = text.lastIndexOf("\n", index - 1) + 1;
-	let columns = 0;
-	for (let i = lineStart; i < index; i++) {
-		const ch = text[i];
-		if (ch === " ") {
-			columns += 1;
-		} else if (ch === "\t") {
-			columns += 4 - (columns % 4);
-		} else {
-			break;
-		}
-		if (columns >= 4) {
-			return true;
-		}
-	}
-	return false;
-};
+interface UrlContext {
+	/**
+	 * The line's leading indentation is 4+ columns (tab stop 4): an indented
+	 * code block, where GFM does not autolink.
+	 */
+	codeIndented: boolean;
+	/**
+	 * GFM suppresses autolinks after an unmatched `[` (a pending link label)
+	 * and inside a `[text](url)` destination. Blank lines end the paragraph
+	 * and reset label state.
+	 */
+	inLinkContext: boolean;
+}
 
 /**
- * GFM suppresses autolinks after an unmatched `[` (a pending link label) and
- * inside a `[text](url)` destination.
+ * Incremental scanner for the markdown context GFM consults at each autolink
+ * candidate. advanceTo must be called with non-decreasing indexes; each
+ * character is examined once, keeping linkification linear in prompts whose
+ * paragraphs contain many URLs.
  */
-const isInLinkContext = (text: string, index: number): boolean => {
-	let depth = 0;
+const createContextScanner = (text: string) => {
+	let scanned = 0;
+	let labelDepth = 0;
 	let lastLabelCloseIndex = -1;
-	for (let i = paragraphStart(text, index); i < index; i++) {
-		const ch = text[i];
-		if (ch === "[") {
-			depth += 1;
-		} else if (ch === "]" && depth > 0) {
-			depth -= 1;
-			lastLabelCloseIndex = i;
+	let lineIsBlank = true;
+	let inIndent = true;
+	let indentColumns = 0;
+	return (index: number): UrlContext => {
+		for (; scanned < index; scanned++) {
+			const ch = text[scanned];
+			if (ch === "\n") {
+				if (lineIsBlank) {
+					labelDepth = 0;
+					lastLabelCloseIndex = -1;
+				}
+				lineIsBlank = true;
+				inIndent = true;
+				indentColumns = 0;
+				continue;
+			}
+			if (ch !== " " && ch !== "\t" && ch !== "\r") {
+				lineIsBlank = false;
+			}
+			if (inIndent && (ch === " " || ch === "\t")) {
+				indentColumns += ch === "\t" ? 4 - (indentColumns % 4) : 1;
+			} else {
+				inIndent = false;
+			}
+			if (ch === "[") {
+				labelDepth += 1;
+			} else if (ch === "]" && labelDepth > 0) {
+				labelDepth -= 1;
+				lastLabelCloseIndex = scanned;
+			}
 		}
-	}
-	if (depth > 0) {
-		return true;
-	}
-	return (
-		index >= 2 && text[index - 1] === "(" && lastLabelCloseIndex === index - 2
-	);
+		return {
+			codeIndented: indentColumns >= 4,
+			inLinkContext:
+				labelDepth > 0 ||
+				(index >= 2 &&
+					text[index - 1] === "(" &&
+					lastLabelCloseIndex === index - 2),
+		};
+	};
 };
 
 /**
@@ -238,6 +244,7 @@ const isInLinkContext = (text: string, index: number): boolean => {
  */
 export const splitTextForLinks = (text: string): LinkSegment[] => {
 	const segments: LinkSegment[] = [];
+	const contextAt = createContextScanner(text);
 	let cursor = 0;
 	const pushUrl = (start: number, end: number) => {
 		if (start > cursor) {
@@ -252,7 +259,8 @@ export const splitTextForLinks = (text: string): LinkSegment[] => {
 		if (schemeStart < cursor) {
 			continue;
 		}
-		if (isCodeIndented(text, schemeStart)) {
+		const context = contextAt(schemeStart);
+		if (context.codeIndented) {
 			continue;
 		}
 		// CommonMark angle-bracket autolink: `<https://url>` linkifies the
@@ -278,7 +286,7 @@ export const splitTextForLinks = (text: string): LinkSegment[] => {
 		if (previous !== undefined && isAsciiAlpha(previous)) {
 			continue;
 		}
-		if (isInLinkContext(text, schemeStart)) {
+		if (context.inLinkContext) {
 			continue;
 		}
 		const domainEnd = scanDomain(text, schemeStart + match[0].length);

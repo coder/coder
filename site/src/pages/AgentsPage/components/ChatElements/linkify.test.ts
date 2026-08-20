@@ -214,6 +214,17 @@ describe("splitTextForLinks", () => {
 		]);
 	});
 
+	it("suppresses autolinks after an unmatched bracket only within the paragraph", () => {
+		expect(splitTextForLinks("Open [ http://localhost:3000 now")).toEqual([
+			{ kind: "text", value: "Open [ http://localhost:3000 now" },
+		]);
+		expect(splitTextForLinks("Open [\n\nhttp://localhost:3000 now")).toEqual([
+			{ kind: "text", value: "Open [\n\n" },
+			{ kind: "url", value: "http://localhost:3000" },
+			{ kind: "text", value: " now" },
+		]);
+	});
+
 	it("stops the URL at an angle bracket", () => {
 		expect(splitTextForLinks("http://localhost:3000/a<b")).toEqual([
 			{ kind: "url", value: "http://localhost:3000/a" },
