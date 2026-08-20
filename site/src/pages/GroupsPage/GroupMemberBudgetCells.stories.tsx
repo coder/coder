@@ -23,6 +23,10 @@ const testId = "member-ai-budget-member-1";
 const mockSpend: GroupMemberAISpend = {
 	user_id: "member-1",
 	effective_group_id: group.id,
+	effective_budget: {
+		spend_limit_micros: 7_000_000_000,
+		limit_source: "group",
+	},
 	group_budget: { spend_limit_micros: 7_000_000_000, limit_source: "group" },
 	group_spend_micros: 0,
 };
@@ -79,6 +83,7 @@ export const Unlimited: Story = {
 		spend: {
 			...mockSpend,
 			group_spend_micros: 1_250_000_000,
+			effective_budget: null,
 			group_budget: null,
 			effective_group_id: group.organization_id,
 		},
@@ -96,12 +101,33 @@ export const Unlimited: Story = {
 	},
 };
 
+export const EveryoneBudgetFromAnotherGroup: Story = {
+	args: {
+		spend: {
+			...mockSpend,
+			group_spend_micros: 1_250_000_000,
+			effective_group_id: group.organization_id,
+			group_budget: null,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const cell = await canvas.findByTestId(testId);
+		await expect(cell).toHaveTextContent("$1,250 USD");
+		await expect(cell).toHaveTextContent("Group limit $7,000");
+		await expect(canvas.getByText("Everyone")).toBeInTheDocument();
+		await expect(canvas.queryByText(/Unlimited/)).not.toBeInTheDocument();
+		await expect(canvas.queryByText(/not allocated/)).not.toBeInTheDocument();
+	},
+};
+
 // Only the Everyone group can be an effective group without a budget.
 export const UnlimitedEveryoneGroup: Story = {
 	args: {
 		group: MockEveryoneGroup,
 		spend: {
 			...mockSpend,
+			effective_budget: null,
 			group_budget: null,
 			effective_group_id: MockEveryoneGroup.id,
 		},
@@ -145,6 +171,10 @@ export const EveryoneGroupIndividual: Story = {
 			...mockSpend,
 			group_spend_micros: 1_250_000_000,
 			effective_group_id: MockEveryoneGroup.id,
+			effective_budget: {
+				spend_limit_micros: 9_000_000_000,
+				limit_source: "user_override",
+			},
 			group_budget: {
 				spend_limit_micros: 9_000_000_000,
 				limit_source: "user_override",
@@ -210,6 +240,10 @@ export const Custom: Story = {
 	args: {
 		spend: {
 			...mockSpend,
+			effective_budget: {
+				spend_limit_micros: 9_000_000_000,
+				limit_source: "user_override",
+			},
 			group_spend_micros: 7_175_000_000,
 			group_budget: {
 				spend_limit_micros: 9_000_000_000,

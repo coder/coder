@@ -41,7 +41,7 @@ export const GroupMemberBudgetCells: FC<{
 	const groupName = group.display_name || group.name;
 	// A user override shows as "(individual)" on the governing group's badge.
 	const badgeName = (name: string) =>
-		spend?.group_budget?.limit_source === "user_override"
+		spend?.effective_budget?.limit_source === "user_override"
 			? `${name} (individual)`
 			: name;
 
@@ -55,7 +55,7 @@ export const GroupMemberBudgetCells: FC<{
 			// so it isn't the unallocated fallback.
 			budgetGroup = (
 				<Badge size="sm">
-					{spend?.group_budget
+					{spend?.effective_budget
 						? badgeName("Everyone")
 						: "Everyone (not allocated)"}
 				</Badge>
@@ -122,7 +122,8 @@ export const GroupMemberBudgetCells: FC<{
 			);
 		}
 	} else if (spend) {
-		const limit = spend.group_budget?.spend_limit_micros ?? null;
+		const effectiveBudget = spend.group_budget ?? spend.effective_budget;
+		const limit = effectiveBudget?.spend_limit_micros ?? null;
 		if (limit === null) {
 			// The effective group has no budget, so no limit applies.
 			budget = (
@@ -138,9 +139,7 @@ export const GroupMemberBudgetCells: FC<{
 			);
 		} else {
 			const limitLabel =
-				spend.group_budget?.limit_source === "user_override"
-					? "Custom"
-					: "Group";
+				effectiveBudget?.limit_source === "user_override" ? "Custom" : "Group";
 			budget = (
 				<div className="flex flex-col gap-0.5">
 					<span>

@@ -610,14 +610,17 @@ type sqlcQuerier interface {
 	GetGroupMembers(ctx context.Context, includeSystem bool) ([]GroupMember, error)
 	// Returns each user's AI spend attributed to the queried group, on or after
 	// period_start until NOW. Only current members of the queried group are
-	// returned. spend_limit_micros and limit_source are populated only when the
-	// queried group is the user's effective budget source. The effective group
-	// falls back to the Everyone group, and effective_group_id is null only when
-	// that group belongs to a different organization than the queried group.
+	// returned. effective_spend_limit_micros and effective_limit_source describe
+	// the user's effective budget when its group belongs to the queried group's
+	// organization. group_spend_limit_micros and limit_source are populated only
+	// when the queried group is the user's effective budget source. The
+	// effective group falls back to the Everyone group, and effective_group_id is
+	// null only when that group belongs to a different organization than the
+	// queried group.
 	// The period_start parameter is normalized to its UTC calendar day.
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	// Spend is aggregated for the queried group, not the user's effective group.
-	// A LEFT JOIN leaves spend_limit_micros and limit_source null for users
+	// A LEFT JOIN leaves group_spend_limit_micros and limit_source null for users
 	// whose effective budget source is not the queried group.
 	GetGroupMembersAISpend(ctx context.Context, arg GetGroupMembersAISpendParams) ([]GetGroupMembersAISpendRow, error)
 	GetGroupMembersByGroupID(ctx context.Context, arg GetGroupMembersByGroupIDParams) ([]GroupMember, error)

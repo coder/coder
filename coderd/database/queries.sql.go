@@ -3055,12 +3055,23 @@ applied_budget AS (
 	SELECT user_id, spend_limit_micros, limit_source
 	FROM effective
 	WHERE raw_effective_group_id = $1
+),
+visible_effective_budget AS (
+	-- The effective budget only when its group belongs to the queried group's
+	-- organization.
+	SELECT effective.user_id, effective.spend_limit_micros, effective.limit_source
+	FROM effective
+	JOIN groups ON groups.id = effective.raw_effective_group_id
+	CROSS JOIN queried_group
+	WHERE groups.organization_id = queried_group.organization_id
 )
 SELECT
 	effective.user_id,
 	queried_group.organization_id,
 	effective_group.id AS effective_group_id,
-	applied_budget.spend_limit_micros,
+	visible_effective_budget.spend_limit_micros AS effective_spend_limit_micros,
+	visible_effective_budget.limit_source AS effective_limit_source,
+	applied_budget.spend_limit_micros AS group_spend_limit_micros,
 	applied_budget.limit_source,
 	COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS group_spend_micros
 FROM effective
@@ -3068,6 +3079,8 @@ CROSS JOIN queried_group
 LEFT JOIN groups effective_group
 	ON effective_group.id = effective.raw_effective_group_id
 	AND effective_group.organization_id = queried_group.organization_id
+LEFT JOIN visible_effective_budget
+	ON visible_effective_budget.user_id = effective.user_id
 LEFT JOIN applied_budget ON applied_budget.user_id = effective.user_id
 LEFT JOIN ai_user_daily_spend spend
 	ON spend.user_id = effective.user_id
@@ -3077,6 +3090,8 @@ GROUP BY
 	effective.user_id,
 	queried_group.organization_id,
 	effective_group.id,
+	visible_effective_budget.spend_limit_micros,
+	visible_effective_budget.limit_source,
 	applied_budget.spend_limit_micros,
 	applied_budget.limit_source
 ORDER BY effective.user_id
@@ -3089,24 +3104,29 @@ type GetGroupMembersAISpendParams struct {
 }
 
 type GetGroupMembersAISpendRow struct {
-	UserID           uuid.UUID      `db:"user_id" json:"user_id"`
-	OrganizationID   uuid.UUID      `db:"organization_id" json:"organization_id"`
-	EffectiveGroupID uuid.NullUUID  `db:"effective_group_id" json:"effective_group_id"`
-	SpendLimitMicros sql.NullInt64  `db:"spend_limit_micros" json:"spend_limit_micros"`
-	LimitSource      sql.NullString `db:"limit_source" json:"limit_source"`
-	GroupSpendMicros int64          `db:"group_spend_micros" json:"group_spend_micros"`
+	UserID                    uuid.UUID      `db:"user_id" json:"user_id"`
+	OrganizationID            uuid.UUID      `db:"organization_id" json:"organization_id"`
+	EffectiveGroupID          uuid.NullUUID  `db:"effective_group_id" json:"effective_group_id"`
+	EffectiveSpendLimitMicros sql.NullInt64  `db:"effective_spend_limit_micros" json:"effective_spend_limit_micros"`
+	EffectiveLimitSource      sql.NullString `db:"effective_limit_source" json:"effective_limit_source"`
+	GroupSpendLimitMicros     sql.NullInt64  `db:"group_spend_limit_micros" json:"group_spend_limit_micros"`
+	LimitSource               sql.NullString `db:"limit_source" json:"limit_source"`
+	GroupSpendMicros          int64          `db:"group_spend_micros" json:"group_spend_micros"`
 }
 
 // Returns each user's AI spend attributed to the queried group, on or after
 // period_start until NOW. Only current members of the queried group are
-// returned. spend_limit_micros and limit_source are populated only when the
-// queried group is the user's effective budget source. The effective group
-// falls back to the Everyone group, and effective_group_id is null only when
-// that group belongs to a different organization than the queried group.
+// returned. effective_spend_limit_micros and effective_limit_source describe
+// the user's effective budget when its group belongs to the queried group's
+// organization. group_spend_limit_micros and limit_source are populated only
+// when the queried group is the user's effective budget source. The
+// effective group falls back to the Everyone group, and effective_group_id is
+// null only when that group belongs to a different organization than the
+// queried group.
 // The period_start parameter is normalized to its UTC calendar day.
 // TODO(AIGOV-527): unify effective group resolution in a single place.
 // Spend is aggregated for the queried group, not the user's effective group.
-// A LEFT JOIN leaves spend_limit_micros and limit_source null for users
+// A LEFT JOIN leaves group_spend_limit_micros and limit_source null for users
 // whose effective budget source is not the queried group.
 func (q *sqlQuerier) GetGroupMembersAISpend(ctx context.Context, arg GetGroupMembersAISpendParams) ([]GetGroupMembersAISpendRow, error) {
 	rows, err := q.db.QueryContext(ctx, getGroupMembersAISpend, arg.GroupID, arg.PeriodStart, pq.Array(arg.UserIds))
@@ -3121,7 +3141,9 @@ func (q *sqlQuerier) GetGroupMembersAISpend(ctx context.Context, arg GetGroupMem
 			&i.UserID,
 			&i.OrganizationID,
 			&i.EffectiveGroupID,
-			&i.SpendLimitMicros,
+			&i.EffectiveSpendLimitMicros,
+			&i.EffectiveLimitSource,
+			&i.GroupSpendLimitMicros,
 			&i.LimitSource,
 			&i.GroupSpendMicros,
 		); err != nil {
