@@ -175,11 +175,11 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 			setDismissedMessage(null);
 			return;
 		}
-		const timer = window.setTimeout(
+		const timer = setTimeout(
 			() => setDismissedMessage(errorMessage),
 			ERROR_DISMISS_TIMEOUT_MS,
 		);
-		return () => window.clearTimeout(timer);
+		return () => clearTimeout(timer);
 	}, [errorMessage]);
 	const visibleError =
 		errorMessage !== null && errorMessage !== dismissedMessage
