@@ -24,7 +24,9 @@ export const ObservabilitySettingsPageView: FC<
 		<div className="flex flex-col gap-12">
 			<div>
 				<SettingsHeader
-					actions={<SettingsHeaderDocsLink href={docs("/admin/monitoring")} />}
+					actions={
+						<SettingsHeaderDocsLink href={docs("/admin/security/audit-logs")} />
+					}
 				>
 					<SettingsHeaderTitle>Observability</SettingsHeaderTitle>
 				</SettingsHeader>
@@ -45,7 +47,13 @@ export const ObservabilitySettingsPageView: FC<
 				) : (
 					<PaywallPremium
 						message="Audit Logging"
-						description="Audit logging lets auditors monitor user operations across your deployment. You need a Premium license to use this feature."
+						description="Monitor user operations across your deployment."
+						features={[
+							"Track user actions across deployment",
+							"Observe developer and agent activity",
+							"Configurable audit log retention period",
+							"Support compliance and security reviews",
+						]}
 						canViewPremium={canViewPremium}
 					/>
 				)}
