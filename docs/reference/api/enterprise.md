@@ -1179,6 +1179,10 @@ User IDs that are not members of the group, or that the caller has no read acces
 {
   "members": [
     {
+      "effective_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
       "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
       "group_budget": {
         "limit_source": "user_override",
@@ -2263,6 +2267,10 @@ User IDs that are not members of the group, or that the caller has no read acces
 {
   "members": [
     {
+      "effective_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
       "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
       "group_budget": {
         "limit_source": "user_override",
