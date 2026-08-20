@@ -35,6 +35,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AuditableGroupAIBudget":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AuditableUserAIBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
+	"MCPServerConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatInstructionSettings":       {codersdk.AuditActionWrite},
@@ -501,6 +502,42 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"runner_id":                   ActionIgnore, // Internal ownership identifier.
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
 		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
+	},
+	&database.MCPServerConfig{}: {
+		"id":                          ActionIgnore, // Conveyed by resource_id, not useful in a diff.
+		"display_name":                ActionTrack,
+		"slug":                        ActionTrack,
+		"description":                 ActionTrack,
+		"icon_url":                    ActionTrack,
+		"transport":                   ActionTrack,
+		"url":                         ActionTrack,
+		"auth_type":                   ActionTrack,
+		"oauth2_client_id":            ActionTrack,
+		"oauth2_client_secret":        ActionSecret,
+		"oauth2_client_secret_key_id": ActionIgnore, // dbcrypt bookkeeping.
+		"oauth2_auth_url":             ActionTrack,
+		"oauth2_token_url":            ActionTrack,
+		"oauth2_scopes":               ActionTrack,
+		"api_key_header":              ActionTrack,
+		"api_key_value":               ActionSecret,
+		"api_key_value_key_id":        ActionIgnore, // dbcrypt bookkeeping.
+		"custom_headers":              ActionSecret, // May contain credentials
+		"custom_headers_key_id":       ActionIgnore, // dbcrypt bookkeeping.
+		"tool_allow_list":             ActionTrack,
+		"tool_deny_list":              ActionTrack,
+		"availability":                ActionTrack,
+		"enabled":                     ActionTrack,
+		"created_by":                  ActionTrack,
+		"updated_by":                  ActionTrack,
+		"created_at":                  ActionIgnore,
+		"updated_at":                  ActionIgnore,
+		"model_intent":                ActionTrack,
+		"allow_in_plan_mode":          ActionTrack,
+		"forward_coder_headers":       ActionTrack,
+		"group_acl":                   ActionTrack,
+		"user_acl":                    ActionTrack,
+		"oauth2_revocation_url":       ActionTrack,
+		"organization_id":             ActionIgnore,
 	},
 	&database.UserSkill{}: {
 		"id":          ActionTrack,

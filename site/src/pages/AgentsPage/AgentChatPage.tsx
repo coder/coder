@@ -895,6 +895,7 @@ const AgentChatPage: FC = () => {
 		},
 		refetchIntervalInBackground: false,
 	});
+	const chatOrganizationId = chatQuery.data?.organization_id ?? "";
 	const chatMessagesQuery = useInfiniteQuery({
 		...chatMessagesForInfiniteScroll(agentId ?? ""),
 		enabled: Boolean(agentId),
@@ -922,7 +923,14 @@ const AgentChatPage: FC = () => {
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const preferencesQuery = useQuery(preferenceSettings());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
-	const mcpServersQuery = useQuery(mcpServerConfigs());
+	const mcpServersQuery = useQuery({
+		...mcpServerConfigs(chatOrganizationId),
+		enabled: Boolean(chatOrganizationId),
+	});
+	const isDefaultChatOrganization = organizations.some(
+		(organization) =>
+			organization.id === chatOrganizationId && organization.is_default,
+	);
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
 		workspacesQuery.data?.workspaces ?? [],
@@ -941,7 +949,9 @@ const AgentChatPage: FC = () => {
 
 	const handleMCPSelectionChange = (ids: string[]) => {
 		setSelectedMCPServerIds(ids);
-		saveMCPSelection(ids);
+		if (chatOrganizationId) {
+			saveMCPSelection(chatOrganizationId, ids);
+		}
 	};
 
 	const handleMCPAuthComplete = (_serverId: string) => {
@@ -1096,7 +1106,13 @@ const AgentChatPage: FC = () => {
 			return chatRecord.mcp_server_ids;
 		}
 		// Check for a previously saved selection in localStorage.
-		const saved = getSavedMCPSelection(mcpServers);
+		const saved = chatOrganizationId
+			? getSavedMCPSelection(
+					chatOrganizationId,
+					mcpServers,
+					isDefaultChatOrganization,
+				)
+			: null;
 		if (saved !== null) {
 			return saved;
 		}
@@ -1638,14 +1654,6 @@ const AgentChatPage: FC = () => {
 				"Checking whether /compact is available. Try again in a moment.",
 			);
 			throw new CompactCommandPendingError();
-		}
-
-		// Sends and /compact are an explicit ask to be at the live edge,
-		// even one that appends no visible prompt. History edits scroll
-		// only after the mutation succeeds, so a rejected edit cannot
-		// pull a reader of older history to the live edge.
-		if (editedMessageID === undefined) {
-			scrollToEnd({ behavior: "smooth" });
 		}
 
 		if (isExactCompactSubmission && compactCommandResolution === "available") {

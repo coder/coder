@@ -741,19 +741,19 @@ type DeploymentValues struct {
 	UserQuietHoursSchedule                  UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
 	WebTerminalRenderer                     serpent.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
 	// Deprecated: Use the per-template allow_workspace_renames setting instead.
-	AllowWorkspaceRenames   serpent.Bool          `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
-	Healthcheck             HealthcheckConfig     `json:"healthcheck,omitempty" typescript:",notnull"`
-	Retention               RetentionConfig       `json:"retention,omitempty" typescript:",notnull"`
-	CLIUpgradeMessage       serpent.String        `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
-	TermsOfServiceURL       serpent.String        `json:"terms_of_service_url,omitempty" typescript:",notnull"`
-	Notifications           NotificationsConfig   `json:"notifications,omitempty" typescript:",notnull"`
-	AdditionalCSPPolicy     serpent.StringArray   `json:"additional_csp_policy,omitempty" typescript:",notnull"`
-	WorkspaceHostnameSuffix serpent.String        `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
-	Prebuilds               PrebuildsConfig       `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
-	HideAITasks             serpent.Bool          `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
-	AI                      AIConfig              `json:"ai,omitempty"`
-	StatsCollection         StatsCollectionConfig `json:"stats_collection,omitempty" typescript:",notnull"`
-	TemplateBuilder         TemplateBuilderConfig `json:"template_builder,omitempty"`
+	AllowWorkspaceRenames                   serpent.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
+	Healthcheck                             HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
+	Retention                               RetentionConfig                      `json:"retention,omitempty" typescript:",notnull"`
+	CLIUpgradeMessage                       serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
+	TermsOfServiceURL                       serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
+	Notifications                           NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
+	AdditionalCSPPolicy                     serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
+	WorkspaceHostnameSuffix                 serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
+	Prebuilds                               PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
+	EnableAITasks                           serpent.Bool                         `json:"enable_ai_tasks,omitempty" typescript:",notnull"`
+	AI                                      AIConfig                             `json:"ai,omitempty"`
+	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
+	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -4322,14 +4322,17 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      true,
 		},
 		{
-			Name:        "Hide AI Tasks",
-			Description: "Hide AI tasks from the dashboard.",
-			Flag:        "hide-ai-tasks",
-			Env:         "CODER_HIDE_AI_TASKS",
+			Name:        "Enable AI Tasks",
+			Description: "Enable Coder Tasks. When unset, the Tasks routes are not served, the Tasks UI and its URLs are unavailable, the task RBAC permissions are stripped from built-in roles, and the CLI task commands are hidden.",
+			Flag:        "enable-ai-tasks",
+			Env:         "CODER_ENABLE_AI_TASKS",
 			Default:     "false",
-			Value:       &c.HideAITasks,
-			Group:       &deploymentGroupClient,
-			YAML:        "hideAITasks",
+			Value:       &c.EnableAITasks,
+			YAML:        "enableAITasks",
+			// Hidden keeps Tasks out of the generated CLI and configuration
+			// reference documentation while the feature is withdrawn from the
+			// product.
+			Hidden: true,
 		},
 		// Chat Options
 		{
