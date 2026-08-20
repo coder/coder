@@ -358,6 +358,11 @@ func TestConnectInline_RedactsSensitiveValues(t *testing.T) {
 	prop, ok := info.Parameters["token"].(map[string]any)
 	require.True(t, ok, "parameters: %#v", info.Parameters)
 	require.Equal(t, "defaults to [REDACTED] for [REDACTED]", prop["description"])
+	fullSchema, ok := leakyTool.(fullSchemaTool)
+	require.True(t, ok)
+	fullProps, ok := fullSchema.FullInputSchema()["properties"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, prop, fullProps["token"])
 
 	resp, err := leakyTool.Run(ctx, fantasy.ToolCall{ID: "call-1", Input: "{}"})
 	require.NoError(t, err)
