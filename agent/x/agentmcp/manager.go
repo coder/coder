@@ -1027,30 +1027,15 @@ type ToolInfo struct {
 	InputSchema map[string]any
 }
 
-// Only type, properties, and required are exposed through ToolInfo;
-// empty schemas leave InputSchema unset.
+// The schema map is passed through whole so coderd sees every key the
+// server reported ($defs, additionalProperties, combinators, ...);
+// non-object and empty schemas leave InputSchema unset.
 func toolInputSchemaMap(schema any) map[string]any {
 	m, ok := schema.(map[string]any)
-	if !ok {
+	if !ok || len(m) == 0 {
 		return nil
 	}
-	out := map[string]any{}
-	if typ, ok := m["type"].(string); ok && typ != "" {
-		out["type"] = typ
-	}
-	// Preserve an empty "properties" object: dropping it collapses the
-	// schema to nil by the time the tool definition is rebuilt, and a
-	// nil properties serializes to JSON null, which OpenAI rejects.
-	if properties, ok := m["properties"].(map[string]any); ok {
-		out["properties"] = properties
-	}
-	if required, ok := m["required"].([]any); ok && len(required) > 0 {
-		out["required"] = required
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
+	return m
 }
 
 // cloneServerStatuses deep-copies a catalog so callers cannot mutate the

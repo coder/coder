@@ -109,11 +109,12 @@ func workspaceMCPToolInfosFromResources(resources []database.ChatContextResource
 			if name == "" {
 				continue
 			}
-			properties, required := splitMCPInputSchema(t.GetInputSchema())
+			full, properties, required := splitMCPInputSchema(t.GetInputSchema())
 			out = append(out, workspacesdk.MCPToolInfo{
 				ServerName:  server,
 				Name:        server + mcpToolNameSeparator + name,
 				Description: t.GetDescription(),
+				InputSchema: full,
 				Schema:      properties,
 				Required:    required,
 			})
@@ -122,14 +123,19 @@ func workspaceMCPToolInfosFromResources(resources []database.ChatContextResource
 	return out
 }
 
-// splitMCPInputSchema splits a pushed JSON Schema object into the properties
-// map and required list the workspace MCP tool wrapper expects. A nil schema,
-// or one missing these keys, yields nil for the absent part.
-func splitMCPInputSchema(schema *structpb.Struct) (properties map[string]any, required []string) {
+// splitMCPInputSchema returns a pushed JSON Schema object whole, plus the
+// derived properties map and required list the workspace MCP tool wrapper
+// expects. Old agents push a schema already reduced to type, properties, and
+// required, which is itself a valid schema, so the full map works for both
+// payload generations. A nil or empty schema yields nil for every part.
+func splitMCPInputSchema(schema *structpb.Struct) (full map[string]any, properties map[string]any, required []string) {
 	if schema == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	m := schema.AsMap()
+	if len(m) == 0 {
+		return nil, nil, nil
+	}
 	if props, ok := m["properties"].(map[string]any); ok {
 		properties = props
 	}
@@ -140,7 +146,7 @@ func splitMCPInputSchema(schema *structpb.Struct) (properties map[string]any, re
 			}
 		}
 	}
-	return properties, required
+	return m, properties, required
 }
 
 // decodeInstructionContent decodes an instruction-file resource body and

@@ -10,6 +10,7 @@ import (
 	"charm.land/fantasy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -153,6 +154,45 @@ func TestWorkspaceMCPTool_InvalidateOn404(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
 	})
+}
+
+// TestWorkspaceMCPTool_FullInputSchema verifies that a tool built from
+// a payload carrying the complete input schema exposes it whole, while
+// a legacy payload with only the flattened pair reports nil so callers
+// reconstruct a schema from Info().
+func TestWorkspaceMCPTool_FullInputSchema(t *testing.T) {
+	t.Parallel()
+
+	// getConn is never dialed: the schema is read from the built tool.
+	getConn := func(context.Context) (workspacesdk.AgentConn, error) {
+		return nil, xerrors.New("not dialed in this test")
+	}
+	full := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"filter": map[string]any{"$ref": "#/$defs/Filter"},
+		},
+		"required":             []any{"filter"},
+		"additionalProperties": false,
+		"$defs":                map[string]any{"Filter": map[string]any{"type": "string"}},
+	}
+
+	tool := chattool.NewWorkspaceMCPTool(workspacesdk.MCPToolInfo{
+		ServerName:  "srv",
+		Name:        "srv__search",
+		InputSchema: full,
+		Schema:      map[string]any{"filter": map[string]any{}},
+		Required:    []string{"filter"},
+	}, getConn, nil)
+	require.Equal(t, full, tool.FullInputSchema())
+
+	legacy := chattool.NewWorkspaceMCPTool(workspacesdk.MCPToolInfo{
+		ServerName: "srv",
+		Name:       "srv__search",
+		Schema:     map[string]any{"filter": map[string]any{}},
+		Required:   []string{"filter"},
+	}, getConn, nil)
+	require.Nil(t, legacy.FullInputSchema())
 }
 
 func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
