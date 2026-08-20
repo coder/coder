@@ -46,7 +46,7 @@ func TestPostChatsPrivateMCPServerConfigsPersistedAndOmitted(t *testing.T) {
 	require.Contains(t, string(persisted), serverURL)
 	require.Contains(t, string(persisted), headerName)
 	require.Contains(t, string(persisted), headerValue)
-	shared, err := db.GetMCPServerConfigs(dbauthz.AsSystemRestricted(ctx))
+	shared, err := db.GetMCPServerConfigsByOrganization(dbauthz.AsSystemRestricted(ctx), user.OrganizationID)
 	require.NoError(t, err)
 	require.Empty(t, shared, "private configs must not create shared MCP registrations")
 
