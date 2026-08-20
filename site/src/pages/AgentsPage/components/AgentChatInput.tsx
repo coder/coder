@@ -17,7 +17,6 @@ import type React from "react";
 import {
 	type FC,
 	useEffect,
-	useEffectEvent,
 	useImperativeHandle,
 	useRef,
 	useState,
@@ -25,7 +24,6 @@ import {
 import { useMutation, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
-import { mcpServerOAuth2ConnectPath } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -63,6 +61,7 @@ import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
@@ -430,13 +429,24 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		"main",
 	);
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
-	const [mcpConnectingId, setMcpConnectingId] = useState<string | null>(null);
-	// Correlates a completion message with the initiating OAuth flow.
-	// Retained after popup close: the callback page posts before closing,
-	// and the close poll can run before the queued message is dispatched.
-	const mcpAuthFlowRef = useRef<{ popup: Window; serverID: string } | null>(
-		null,
-	);
+	// Auto-select the server once its OAuth flow succeeds.
+	const { connectingServerId: mcpConnectingId, connect: connectMCPServer } =
+		useMCPOAuthFlow({
+			organizationId: chatOrganizationId,
+			onAuthComplete: onMCPAuthComplete,
+			onFlowSuccess: (serverID) => {
+				if (
+					onMCPSelectionChange &&
+					selectedMCPServerIds &&
+					mcpServers?.some(
+						(server) => server.id === serverID && server.enabled,
+					) &&
+					!selectedMCPServerIds.includes(serverID)
+				) {
+					onMCPSelectionChange([...selectedMCPServerIds, serverID]);
+				}
+			},
+		});
 	const [mcpDisconnectTarget, setMcpDisconnectTarget] =
 		useState<TypesGen.MCPServerConfig | null>(null);
 	const queryClient = useQueryClient();
@@ -513,65 +523,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		[],
 	);
 
-	const handleMCPAuthComplete = useEffectEvent(
-		(serverID: string, source: MessageEventSource | null) => {
-			onMCPAuthComplete?.(serverID);
-			// Only a message from the initiating popup for the initiating
-			// server may change the selection.
-			const flow = mcpAuthFlowRef.current;
-			if (!flow || source !== flow.popup || serverID !== flow.serverID) {
-				return;
-			}
-			mcpAuthFlowRef.current = null;
-			setMcpConnectingId(null);
-			if (
-				onMCPSelectionChange &&
-				selectedMCPServerIds &&
-				mcpServers?.some(
-					(server) => server.id === serverID && server.enabled,
-				) &&
-				!selectedMCPServerIds.includes(serverID)
-			) {
-				onMCPSelectionChange([...selectedMCPServerIds, serverID]);
-			}
-		},
-	);
-
-	// Listen for OAuth2 completion postMessage from popup.
-	useEffect(() => {
-		const handler = (event: MessageEvent) => {
-			if (event.origin !== location.origin) return;
-			if (
-				event.data?.type === "mcp-oauth2-complete" &&
-				typeof event.data.serverID === "string"
-			) {
-				handleMCPAuthComplete(event.data.serverID, event.source);
-			}
-		};
-		window.addEventListener("message", handler);
-		return () => window.removeEventListener("message", handler);
-	}, []);
-
-	// Clear only the connecting indicator when the popup closes; the flow
-	// ref stays so a completion message posted before close still
-	// correlates.
-	useEffect(() => {
-		if (!mcpConnectingId || !mcpAuthFlowRef.current) return;
-		const interval = setInterval(() => {
-			if (mcpAuthFlowRef.current?.popup.closed) {
-				setMcpConnectingId(null);
-			}
-		}, 500);
-		return () => {
-			clearInterval(interval);
-			const popup = mcpAuthFlowRef.current?.popup;
-			if (popup && !popup.closed) {
-				popup.close();
-				mcpAuthFlowRef.current = null;
-			}
-		};
-	}, [mcpConnectingId]);
-
 	const handleMcpToggle = (serverId: string, checked: boolean) => {
 		if (!onMCPSelectionChange || !selectedMCPServerIds) return;
 		if (checked) {
@@ -581,19 +532,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				selectedMCPServerIds.filter((id) => id !== serverId),
 			);
 		}
-	};
-
-	const handleMcpConnect = (server: TypesGen.MCPServerConfig) => {
-		if (!chatOrganizationId) {
-			return;
-		}
-		setMcpConnectingId(server.id);
-		const connectUrl = mcpServerOAuth2ConnectPath(
-			chatOrganizationId,
-			server.id,
-		);
-		const popup = window.open(connectUrl, "_blank", "width=900,height=600");
-		mcpAuthFlowRef.current = popup ? { popup, serverID: server.id } : null;
 	};
 
 	const handleMcpDisconnectConfirm = () => {
@@ -1424,7 +1362,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 																	variant="outline"
 																	size="sm"
 																	className="h-6 shrink-0 px-2 text-[10px] leading-none"
-																	onClick={() => handleMcpConnect(server)}
+																	onClick={() => connectMCPServer(server.id)}
 																	disabled={
 																		isDisabled || mcpConnectingId !== null
 																	}

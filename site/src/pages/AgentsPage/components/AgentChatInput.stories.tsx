@@ -809,6 +809,9 @@ export const WithMCPNeedingAuth: Story = {
 			"_blank",
 			"width=900,height=600",
 		);
+		// The popup was blocked (window.open returned null), so the flow
+		// must not enter the connecting state that disables Auth buttons.
+		expect(body.getByRole("button", { name: "Auth" })).toBeEnabled();
 	},
 };
 
@@ -824,7 +827,7 @@ export const MCPAutoEnablesAfterOAuthCompletes: Story = {
 	play: async ({ args, canvasElement }) => {
 		await startMCPOAuthFlow(canvasElement);
 		expect(window.open).toHaveBeenCalledWith(
-			`/api/experimental/mcp/servers/${githubMCP.id}/oauth2/connect`,
+			`/api/experimental/organizations/org-1/mcp-servers/${githubMCP.id}/oauth2/connect`,
 			"_blank",
 			"width=900,height=600",
 		);
