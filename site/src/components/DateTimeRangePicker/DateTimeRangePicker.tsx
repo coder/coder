@@ -219,7 +219,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 			</PopoverTrigger>
 			<PopoverContent
 				className="w-auto p-0 overflow-x-hidden overflow-y-auto"
-				align="start"
+				align="end"
 				onOpenAutoFocus={(e) => e.preventDefault()}
 			>
 				<div className="flex">
