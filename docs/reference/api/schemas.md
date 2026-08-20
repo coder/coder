@@ -8788,6 +8788,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "model_intent": true,
   "oauth2_auth_url": "string",
   "oauth2_client_id": "string",
+  "oauth2_iss_required": true,
+  "oauth2_issuer": "string",
   "oauth2_revocation_url": "string",
   "oauth2_scopes": "string",
   "oauth2_token_url": "string",
@@ -8827,6 +8829,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `model_intent`          | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `oauth2_auth_url`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `oauth2_client_id`      | string          | false    |              | Oauth2 client ID fields (only populated for admins).                                                                                                                                                                                                                                                 |
+| `oauth2_iss_required`   | boolean         | false    |              | Oauth2 iss required is true when the authorization server advertised RFC 9207 support, requiring authorization responses to carry a matching iss parameter.                                                                                                                                          |
+| `oauth2_issuer`         | string          | false    |              | Oauth2 issuer is the authorization server issuer identifier recorded during discovery (RFC 8414). Empty for manually configured credentials until connect-time discovery backfills it.                                                                                                               |
 | `oauth2_revocation_url` | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `oauth2_scopes`         | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `oauth2_token_url`      | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
@@ -9377,6 +9381,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "authorization_endpoint": "string",
+  "authorization_response_iss_parameter_supported": true,
   "code_challenge_methods_supported": [
     "S256"
   ],
@@ -9401,18 +9406,19 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                                    | Type                                                                                      | Required | Restrictions | Description |
-|-----------------------------------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `authorization_endpoint`                | string                                                                                    | false    |              |             |
-| `code_challenge_methods_supported`      | array of [codersdk.OAuth2PKCECodeChallengeMethod](#codersdkoauth2pkcecodechallengemethod) | false    |              |             |
-| `grant_types_supported`                 | array of [codersdk.OAuth2ProviderGrantType](#codersdkoauth2providergranttype)             | false    |              |             |
-| `issuer`                                | string                                                                                    | false    |              |             |
-| `registration_endpoint`                 | string                                                                                    | false    |              |             |
-| `response_types_supported`              | array of [codersdk.OAuth2ProviderResponseType](#codersdkoauth2providerresponsetype)       | false    |              |             |
-| `revocation_endpoint`                   | string                                                                                    | false    |              |             |
-| `scopes_supported`                      | array of string                                                                           | false    |              |             |
-| `token_endpoint`                        | string                                                                                    | false    |              |             |
-| `token_endpoint_auth_methods_supported` | array of [codersdk.OAuth2TokenEndpointAuthMethod](#codersdkoauth2tokenendpointauthmethod) | false    |              |             |
+| Name                                             | Type                                                                                      | Required | Restrictions | Description                                                                                                                   |
+|--------------------------------------------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------|
+| `authorization_endpoint`                         | string                                                                                    | false    |              |                                                                                                                               |
+| `authorization_response_iss_parameter_supported` | boolean                                                                                   | false    |              | Authorization response iss parameter supported indicates RFC 9207 support: authorization responses include the iss parameter. |
+| `code_challenge_methods_supported`               | array of [codersdk.OAuth2PKCECodeChallengeMethod](#codersdkoauth2pkcecodechallengemethod) | false    |              |                                                                                                                               |
+| `grant_types_supported`                          | array of [codersdk.OAuth2ProviderGrantType](#codersdkoauth2providergranttype)             | false    |              |                                                                                                                               |
+| `issuer`                                         | string                                                                                    | false    |              |                                                                                                                               |
+| `registration_endpoint`                          | string                                                                                    | false    |              |                                                                                                                               |
+| `response_types_supported`                       | array of [codersdk.OAuth2ProviderResponseType](#codersdkoauth2providerresponsetype)       | false    |              |                                                                                                                               |
+| `revocation_endpoint`                            | string                                                                                    | false    |              |                                                                                                                               |
+| `scopes_supported`                               | array of string                                                                           | false    |              |                                                                                                                               |
+| `token_endpoint`                                 | string                                                                                    | false    |              |                                                                                                                               |
+| `token_endpoint_auth_methods_supported`          | array of [codersdk.OAuth2TokenEndpointAuthMethod](#codersdkoauth2tokenendpointauthmethod) | false    |              |                                                                                                                               |
 
 ## codersdk.OAuth2ClientConfiguration
 

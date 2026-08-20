@@ -2566,12 +2566,18 @@ CREATE TABLE mcp_server_configs (
     organization_id uuid NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    oauth2_issuer text DEFAULT ''::text NOT NULL,
+    oauth2_iss_required boolean DEFAULT false NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text]))),
     CONSTRAINT mcp_server_configs_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
+
+COMMENT ON COLUMN mcp_server_configs.oauth2_issuer IS 'Authorization server issuer identifier (RFC 8414) recorded during OAuth2 discovery. Client credentials are bound to this issuer (MCP 2026-07-28, SEP-2352) and it is compared against the iss authorization response parameter (RFC 9207, SEP-2468). Empty when credentials were configured manually and discovery has not succeeded; rows created before this column existed are backfilled lazily at OAuth2 connect time.';
+
+COMMENT ON COLUMN mcp_server_configs.oauth2_iss_required IS 'True when the authorization server metadata advertised authorization_response_iss_parameter_supported. RFC 9207 then requires authorization responses to carry a matching iss parameter; responses without one are rejected.';
 
 CREATE TABLE mcp_server_user_tokens (
     id uuid DEFAULT gen_random_uuid() NOT NULL,

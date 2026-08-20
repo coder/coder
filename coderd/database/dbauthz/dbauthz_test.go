@@ -1792,6 +1792,18 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateChatLastReadMessageID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
+	s.Run("BackfillMCPServerConfigIssuer", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
+		arg := database.BackfillMCPServerConfigIssuerParams{
+			ID:                config.ID,
+			OAuth2Issuer:      "https://issuer.example.com",
+			OAuth2IssRequired: true,
+			UpdatedAt:         config.UpdatedAt,
+		}
+		dbm.EXPECT().GetMCPServerConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
+		dbm.EXPECT().BackfillMCPServerConfigIssuer(gomock.Any(), arg).Return(config, nil).AnyTimes()
+		check.Args(arg).Asserts(config, policy.ActionUpdate).Returns(config)
+	}))
 	s.Run("UpdateMCPServerConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
 		arg := database.UpdateMCPServerConfigParams{

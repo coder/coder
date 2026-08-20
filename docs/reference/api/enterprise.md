@@ -24,6 +24,7 @@ curl -X GET http://coder-server:8080/.well-known/oauth-authorization-server \
 ```json
 {
   "authorization_endpoint": "string",
+  "authorization_response_iss_parameter_supported": true,
   "code_challenge_methods_supported": [
     "S256"
   ],

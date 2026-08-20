@@ -5541,6 +5541,10 @@ type MCPServerConfig struct {
 	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
 	GroupACL                ChatACL        `db:"group_acl" json:"group_acl"`
 	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
+	// Authorization server issuer identifier (RFC 8414) recorded during OAuth2 discovery. Client credentials are bound to this issuer (MCP 2026-07-28, SEP-2352) and it is compared against the iss authorization response parameter (RFC 9207, SEP-2468). Empty when credentials were configured manually and discovery has not succeeded; rows created before this column existed are backfilled lazily at OAuth2 connect time.
+	OAuth2Issuer string `db:"oauth2_issuer" json:"oauth2_issuer"`
+	// True when the authorization server metadata advertised authorization_response_iss_parameter_supported. RFC 9207 then requires authorization responses to carry a matching iss parameter; responses without one are rejected.
+	OAuth2IssRequired bool `db:"oauth2_iss_required" json:"oauth2_iss_required"`
 }
 
 type MCPServerUserToken struct {

@@ -71,6 +71,15 @@ type MCPServerConfig struct {
 	OAuth2TokenURL      string `json:"oauth2_token_url,omitempty"`
 	OAuth2RevocationURL string `json:"oauth2_revocation_url,omitempty"`
 	OAuth2Scopes        string `json:"oauth2_scopes,omitempty"`
+	// OAuth2Issuer is the authorization server issuer identifier
+	// recorded during discovery (RFC 8414). Empty for manually
+	// configured credentials until connect-time discovery
+	// backfills it.
+	OAuth2Issuer string `json:"oauth2_issuer,omitempty"`
+	// OAuth2IssRequired is true when the authorization server
+	// advertised RFC 9207 support, requiring authorization
+	// responses to carry a matching iss parameter.
+	OAuth2IssRequired bool `json:"oauth2_iss_required,omitempty"`
 
 	// API key fields (only populated for admins).
 	APIKeyHeader string `json:"api_key_header,omitempty"`

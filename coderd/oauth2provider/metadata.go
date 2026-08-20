@@ -37,6 +37,9 @@ func GetAuthorizationServerMetadata(db database.Store, accessURL *url.URL) http.
 			CodeChallengeMethodsSupported:     []codersdk.OAuth2PKCECodeChallengeMethod{codersdk.OAuth2PKCECodeChallengeMethodS256},
 			ScopesSupported:                   rbac.ExternalScopeNames(),
 			TokenEndpointAuthMethodsSupported: []codersdk.OAuth2TokenEndpointAuthMethod{codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic, codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost},
+			// RFC 9207: authorization responses include the iss
+			// parameter (MCP 2026-07-28, SEP-2468).
+			AuthorizationResponseIssParameterSupported: true,
 		}
 		if dcrEnabled {
 			metadata.RegistrationEndpoint = accessURL.JoinPath("/oauth2/register").String() // RFC 7591

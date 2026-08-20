@@ -55,6 +55,12 @@ func TestOAuth2AuthorizationServerMetadata(t *testing.T) {
 	require.Contains(t, authMethods, "client_secret_basic", "should support client_secret_basic token auth")
 	require.Contains(t, authMethods, "client_secret_post", "should support client_secret_post token auth")
 
+	// Verify RFC 9207 iss parameter support is advertised
+	// (MCP 2026-07-28, SEP-2468).
+	issSupported, ok := metadata["authorization_response_iss_parameter_supported"].(bool)
+	require.True(t, ok, "authorization_response_iss_parameter_supported should be a bool")
+	require.True(t, issSupported, "authorization responses should include the iss parameter")
+
 	// Verify endpoints are proper URLs
 	authEndpoint, ok := metadata["authorization_endpoint"].(string)
 	require.True(t, ok, "authorization_endpoint should be a string")

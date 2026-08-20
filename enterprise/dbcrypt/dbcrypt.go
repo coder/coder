@@ -870,6 +870,19 @@ func (db *dbCrypt) UpdateMCPServerConfig(ctx context.Context, params database.Up
 	return cfg, nil
 }
 
+func (db *dbCrypt) BackfillMCPServerConfigIssuer(ctx context.Context, params database.BackfillMCPServerConfigIssuerParams) (database.MCPServerConfig, error) {
+	// The issuer fields are not encrypted, but the returned row
+	// carries the config's encrypted secrets.
+	cfg, err := db.Store.BackfillMCPServerConfigIssuer(ctx, params)
+	if err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	if err := db.decryptMCPServerConfig(&cfg); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	return cfg, nil
+}
+
 func (db *dbCrypt) UpsertMCPServerUserToken(ctx context.Context, params database.UpsertMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
 	if strings.TrimSpace(params.AccessToken) == "" {
 		params.AccessTokenKeyID = sql.NullString{}

@@ -333,6 +333,13 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	configID := uuid.New()
 
+	// Issuer metadata recorded during auto-discovery (SEP-2352,
+	// RFC 9207); stays empty for manual configurations.
+	var (
+		discoveredIssuer      string
+		discoveredIssRequired bool
+	)
+
 	// Validate auth-type-dependent fields.
 	switch req.AuthType {
 	case "oauth2":
@@ -413,6 +420,14 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			req.OAuth2TokenURL = result.tokenURL
 			req.OAuth2RevocationURL = oauth2RevocationURL
 			req.OAuth2Scopes = oauth2Scopes
+			// The registered credentials are bound to the issuer
+			// that minted them (SEP-2352); the OAuth2 callback
+			// validates the iss response parameter against this
+			// value (RFC 9207). Carried in locals because the SDK
+			// request type has no issuer fields; the issuer is
+			// discovery output, not admin input.
+			discoveredIssuer = result.issuer
+			discoveredIssRequired = result.issRequired
 		} else if req.OAuth2ClientID == "" || req.OAuth2AuthURL == "" || req.OAuth2TokenURL == "" {
 			// Partial manual config: all three fields are required together.
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -462,6 +477,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		OAuth2TokenURL:          strings.TrimSpace(req.OAuth2TokenURL),
 		OAuth2RevocationURL:     strings.TrimSpace(req.OAuth2RevocationURL),
 		OAuth2Scopes:            strings.TrimSpace(req.OAuth2Scopes),
+		OAuth2Issuer:            discoveredIssuer,
+		OAuth2IssRequired:       discoveredIssRequired,
 		APIKeyHeader:            strings.TrimSpace(req.APIKeyHeader),
 		APIKeyValue:             strings.TrimSpace(req.APIKeyValue),
 		APIKeyValueKeyID:        sql.NullString{},
@@ -762,6 +779,9 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			oauth2Scopes = strings.TrimSpace(*req.OAuth2Scopes)
 		}
 
+		oauth2Issuer := existing.OAuth2Issuer
+		oauth2IssRequired := existing.OAuth2IssRequired
+
 		apiKeyHeader := existing.APIKeyHeader
 		if req.APIKeyHeader != nil {
 			apiKeyHeader = strings.TrimSpace(*req.APIKeyHeader)
@@ -892,6 +912,19 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// The recorded issuer describes the authorization server
+		// that minted the stored client credentials via dynamic
+		// registration. Changing the client ID or repointing the
+		// endpoints breaks that binding (SEP-2352), so the issuer
+		// and its RFC 9207 requirement flag are cleared; the next
+		// OAuth2 connect re-runs discovery to backfill them.
+		if oauth2ClientID != existing.OAuth2ClientID ||
+			oauth2AuthURL != existing.OAuth2AuthURL ||
+			oauth2TokenURL != existing.OAuth2TokenURL {
+			oauth2Issuer = ""
+			oauth2IssRequired = false
+		}
+
 		updatedConfig, err := tx.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
 			DisplayName:             displayName,
 			Slug:                    slug,
@@ -907,6 +940,8 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			OAuth2TokenURL:          oauth2TokenURL,
 			OAuth2RevocationURL:     oauth2RevocationURL,
 			OAuth2Scopes:            oauth2Scopes,
+			OAuth2Issuer:            oauth2Issuer,
+			OAuth2IssRequired:       oauth2IssRequired,
 			APIKeyHeader:            apiKeyHeader,
 			APIKeyValue:             apiKeyValue,
 			APIKeyValueKeyID:        apiKeyValueKeyID,
@@ -1066,6 +1101,28 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Configs without a recorded issuer predate issuer tracking or
+	// were configured manually. Best-effort discovery backfills the
+	// issuer and its RFC 9207 requirement flag here, immediately
+	// before the authorization flow they protect (SEP-2468). The
+	// discovered metadata is adopted only when its authorization
+	// endpoint matches the stored one, so a manual config pointing
+	// at a different authorization server than the MCP server
+	// advertises is never broken by a mismatched issuer. A conflict
+	// means the config changed during the discovery window; abort
+	// rather than start authorization from the stale row.
+	if config.OAuth2Issuer == "" {
+		var conflict bool
+		config, conflict = api.backfillMCPOAuth2Issuer(ctx, config)
+		if conflict {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "MCP server config was modified concurrently.",
+				Detail:  "The MCP server configuration changed while preparing the OAuth2 flow. Retry the connection.",
+			})
+			return
+		}
+	}
+
 	// Build the authorization URL. The frontend opens this in a popup.
 	// The callback URL is on our server; after the exchange we store
 	// the token and close the popup.
@@ -1109,6 +1166,95 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 	oauth2Config.Scopes = scopes
 	authURL := oauth2Config.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
 	http.Redirect(rw, r, authURL, http.StatusTemporaryRedirect)
+}
+
+// backfillMCPOAuth2Issuer discovers and persists the OAuth2 issuer
+// and its RFC 9207 requirement flag for a config that has none
+// recorded, either because it was created before issuer tracking
+// existed or because it was configured manually. The discovered
+// metadata is adopted only when its authorization endpoint matches
+// the stored one; otherwise the config describes a different
+// authorization server than the MCP server advertises and enforcing
+// the discovered issuer would break working setups. Discovery
+// failures are non-fatal: the caller proceeds with the stored
+// config and iss validation stays disabled, matching the
+// pre-backfill behavior. conflict reports that the config was
+// edited or backfilled concurrently during the discovery window;
+// the caller must abort instead of starting authorization from the
+// stale row.
+func (api *API) backfillMCPOAuth2Issuer(ctx context.Context, config database.MCPServerConfig) (_ database.MCPServerConfig, conflict bool) {
+	// Bound the extra discovery latency added to the interactive
+	// connect flow.
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	parsed, err := url.Parse(config.Url)
+	if err != nil {
+		return config, false
+	}
+	origin := fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host)
+
+	// Discovery targets are attacker-influenced, so traffic goes
+	// through the same SSRF-guarded client as create-time
+	// discovery (CDM-02-002).
+	httpClient := newMCPDiscoveryHTTPClient(api.HTTPClient, api.MCPOAuth2DiscoveryAllowedIPRanges)
+
+	prm, err := discoverProtectedResource(ctx, httpClient, origin, parsed.Path)
+	if err != nil {
+		api.Logger.Debug(ctx, "mcp oauth2 issuer backfill: protected resource discovery failed",
+			slog.F("config_id", config.ID),
+			slog.Error(err),
+		)
+		return config, false
+	}
+	asMeta, err := discoverAuthServerMetadata(ctx, httpClient, prm.AuthorizationServers[0])
+	if err != nil {
+		api.Logger.Debug(ctx, "mcp oauth2 issuer backfill: auth server metadata discovery failed",
+			slog.F("config_id", config.ID),
+			slog.Error(err),
+		)
+		return config, false
+	}
+	if asMeta.AuthorizationEndpoint != config.OAuth2AuthURL {
+		api.Logger.Debug(ctx, "mcp oauth2 issuer backfill: discovered authorization endpoint does not match stored config, skipping",
+			slog.F("config_id", config.ID),
+		)
+		return config, false
+	}
+
+	// The narrow issuer-only update cannot clobber concurrent admin
+	// edits: it writes just the two issuer fields, and its
+	// updated_at optimistic lock makes it a no-op when the config
+	// was edited in any way (even edits that leave the issuer
+	// empty) or already backfilled while discovery was running.
+	//
+	//nolint:gocritic // The issuer fields derive from server-side
+	// discovery of the admin-configured MCP server URL, not from
+	// the connecting user's input.
+	updated, err := api.Database.BackfillMCPServerConfigIssuer(dbauthz.AsSystemRestricted(ctx), database.BackfillMCPServerConfigIssuerParams{
+		ID:                config.ID,
+		OAuth2Issuer:      asMeta.Issuer,
+		OAuth2IssRequired: asMeta.AuthorizationResponseIssParameterSupported,
+		UpdatedAt:         config.UpdatedAt,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		// Lost the race with a concurrent edit or backfill. The
+		// caller aborts the connect so authorization never starts
+		// from the stale row.
+		return config, true
+	}
+	if err != nil {
+		api.Logger.Warn(ctx, "mcp oauth2 issuer backfill: failed to persist discovered issuer",
+			slog.F("config_id", config.ID),
+			slog.Error(err),
+		)
+		return config, false
+	}
+	api.Logger.Info(ctx, "mcp oauth2 issuer backfilled from discovery",
+		slog.F("config_id", config.ID),
+		slog.F("iss_required", updated.OAuth2IssRequired),
+	)
+	return updated, false
 }
 
 // @Summary Handle MCP server OAuth2 callback
@@ -1168,29 +1314,9 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Check if the OAuth2 provider returned an error (e.g., user
-	// denied consent).
-	if oauthError := r.URL.Query().Get("error"); oauthError != "" {
-		desc := r.URL.Query().Get("error_description")
-		if desc == "" {
-			desc = oauthError
-		}
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "OAuth2 provider returned an error.",
-			Detail:  desc,
-		})
-		return
-	}
-
-	code := r.URL.Query().Get("code")
-	if code == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Missing authorization code.",
-		})
-		return
-	}
-
-	// Validate the state parameter for CSRF protection.
+	// Validate the state parameter for CSRF protection. This runs
+	// before the provider-error branch because state binds error
+	// responses to a flow this user actually started.
 	expectedState := ""
 	if cookie, err := r.Cookie("mcp_oauth2_state_" + config.ID.String()); err == nil {
 		expectedState = cookie.Value
@@ -1212,6 +1338,57 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	}))
+
+	// RFC 9207 (MCP 2026-07-28, SEP-2468): validate the iss
+	// authorization response parameter against the issuer recorded
+	// during discovery. This prevents authorization server mix-up
+	// attacks and runs before the provider-error branch because
+	// RFC 9207 applies to both successful and error authorization
+	// responses. Simple string comparison per RFC 9207 §2.4. When
+	// the authorization server advertised
+	// authorization_response_iss_parameter_supported, responses
+	// that omit iss MUST also be rejected; otherwise a stripped
+	// response would bypass the protection. Configs without a
+	// recorded issuer (manual credentials, servers without
+	// discoverable metadata) have nothing to validate against and
+	// skip the check.
+	iss := r.URL.Query().Get("iss")
+	if config.OAuth2IssRequired && iss == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "OAuth2 issuer missing.",
+			Detail:  "The authorization server advertised RFC 9207 support but the authorization response has no iss parameter.",
+		})
+		return
+	}
+	if iss != "" && config.OAuth2Issuer != "" && iss != config.OAuth2Issuer {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "OAuth2 issuer mismatch.",
+			Detail:  "The iss parameter in the authorization response does not match the issuer recorded for this MCP server.",
+		})
+		return
+	}
+
+	// Check if the OAuth2 provider returned an error (e.g., user
+	// denied consent).
+	if oauthError := r.URL.Query().Get("error"); oauthError != "" {
+		desc := r.URL.Query().Get("error_description")
+		if desc == "" {
+			desc = oauthError
+		}
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "OAuth2 provider returned an error.",
+			Detail:  desc,
+		})
+		return
+	}
+
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing authorization code.",
+		})
+		return
+	}
 
 	// Recover the PKCE code_verifier set during the connect step.
 	var exchangeOpts []oauth2.AuthCodeOption
@@ -1610,6 +1787,8 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 		OAuth2TokenURL:      config.OAuth2TokenURL,
 		OAuth2RevocationURL: config.OAuth2RevocationURL,
 		OAuth2Scopes:        config.OAuth2Scopes,
+		OAuth2Issuer:        config.OAuth2Issuer,
+		OAuth2IssRequired:   config.OAuth2IssRequired,
 
 		APIKeyHeader: config.APIKeyHeader,
 		HasAPIKey:    config.APIKeyValue != "",
@@ -1646,6 +1825,8 @@ func convertMCPServerConfigRedacted(config database.MCPServerConfig) codersdk.MC
 	c.OAuth2TokenURL = ""
 	c.OAuth2RevocationURL = ""
 	c.OAuth2Scopes = ""
+	c.OAuth2Issuer = ""
+	c.OAuth2IssRequired = false
 	c.APIKeyHeader = ""
 	return c
 }
@@ -1697,6 +1878,17 @@ type mcpOAuth2Discovery struct {
 	tokenURL      string
 	revocationURL string
 	scopes        string // space-separated
+	// issuer is the authorization server's issuer identifier from
+	// its RFC 8414 metadata. Registered client credentials are
+	// bound to this issuer (SEP-2352) and the OAuth2 callback
+	// compares it against the iss authorization response
+	// parameter (RFC 9207, SEP-2468).
+	issuer string
+	// issRequired records whether the authorization server
+	// advertised authorization_response_iss_parameter_supported.
+	// RFC 9207 §2.4 then requires clients to reject authorization
+	// responses that omit the iss parameter.
+	issRequired bool
 }
 
 // protectedResourceMetadata represents the response from a
@@ -1716,6 +1908,10 @@ type authServerMetadata struct {
 	RegistrationEndpoint  string   `json:"registration_endpoint,omitempty"`
 	RevocationEndpoint    string   `json:"revocation_endpoint,omitempty"`
 	ScopesSupported       []string `json:"scopes_supported,omitempty"`
+	// AuthorizationResponseIssParameterSupported indicates RFC 9207
+	// support; when true, authorization responses missing the iss
+	// parameter must be rejected.
+	AuthorizationResponseIssParameterSupported bool `json:"authorization_response_iss_parameter_supported,omitempty"`
 }
 
 // fetchJSON performs a GET request to the given URL with the
@@ -1873,6 +2069,35 @@ func discoverAuthServerMetadata(
 			)
 			continue
 		}
+		// RFC 8414 §2 requires the issuer field. Accepting metadata
+		// without one would persist an empty issuer, and the
+		// callback's mismatch check treats an empty recorded issuer
+		// as "nothing to validate", so a noncompliant server could
+		// bypass the RFC 9207 mix-up protection entirely.
+		if meta.Issuer == "" {
+			lastErr = xerrors.Errorf(
+				"auth server metadata at %s missing required "+
+					"issuer", u,
+			)
+			continue
+		}
+		// RFC 8414 §3.3 requires the returned issuer to be identical
+		// to the issuer identifier used for discovery, compared as
+		// exact strings; https://as.example/tenant and
+		// https://as.example/tenant/ are distinct identifiers.
+		// Without this check, a path-scoped identifier could fall
+		// back to root-level metadata whose issuer names a different
+		// tenant or authorization server than the resource
+		// advertised, binding registered credentials and callback
+		// validation to the wrong issuer.
+		if meta.Issuer != authServerURL {
+			lastErr = xerrors.Errorf(
+				"auth server metadata at %s has issuer %q that does "+
+					"not match the authorization server identifier %q",
+				u, meta.Issuer, authServerURL,
+			)
+			continue
+		}
 		return &meta, nil
 	}
 
@@ -1895,6 +2120,12 @@ func registerOAuth2Client(
 		"token_endpoint_auth_method": "none",
 		"grant_types":                []string{"authorization_code", "refresh_token"},
 		"response_types":             []string{"code"},
+		// MCP 2026-07-28 (SEP-837) requires clients to declare an
+		// application_type so authorization servers apply the right
+		// OpenID Connect redirect URI rules. Coder is a server-side
+		// web application; the callback is an https URL on the
+		// deployment access URL.
+		"application_type": "web",
 	}
 
 	body, err := json.Marshal(payload)
@@ -2040,6 +2271,8 @@ func discoverAndRegisterMCPOAuth2(ctx context.Context, httpClient *http.Client, 
 		authURL:       asMeta.AuthorizationEndpoint,
 		tokenURL:      asMeta.TokenEndpoint,
 		revocationURL: asMeta.RevocationEndpoint,
+		issuer:        asMeta.Issuer,
+		issRequired:   asMeta.AuthorizationResponseIssParameterSupported,
 		scopes:        scopes,
 	}, nil
 }

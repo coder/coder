@@ -89,6 +89,8 @@ INSERT INTO mcp_server_configs (
     oauth2_token_url,
     oauth2_revocation_url,
     oauth2_scopes,
+    oauth2_issuer,
+    oauth2_iss_required,
     api_key_header,
     api_key_value,
     api_key_value_key_id,
@@ -122,6 +124,8 @@ INSERT INTO mcp_server_configs (
     @oauth2_token_url::text,
     @oauth2_revocation_url::text,
     @oauth2_scopes::text,
+    @oauth2_issuer::text,
+    @oauth2_iss_required::boolean,
     @api_key_header::text,
     @api_key_value::text,
     sqlc.narg('api_key_value_key_id')::text,
@@ -160,6 +164,8 @@ SET
     oauth2_token_url = @oauth2_token_url::text,
     oauth2_revocation_url = @oauth2_revocation_url::text,
     oauth2_scopes = @oauth2_scopes::text,
+    oauth2_issuer = @oauth2_issuer::text,
+    oauth2_iss_required = @oauth2_iss_required::boolean,
     api_key_header = @api_key_header::text,
     api_key_value = @api_key_value::text,
     api_key_value_key_id = sqlc.narg('api_key_value_key_id')::text,
@@ -188,6 +194,26 @@ SET
     updated_at = NOW()
 WHERE
     id = @id::uuid;
+
+-- name: BackfillMCPServerConfigIssuer :one
+-- Persists a discovered OAuth2 issuer for a config that has none
+-- recorded. The updated_at predicate provides optimistic
+-- concurrency against ANY admin edit made while discovery was
+-- running (including edits that leave the issuer empty, such as
+-- disabling the server or changing its URL): the update then
+-- matches zero rows and returns sql.ErrNoRows instead of binding a
+-- stale discovery result to the edited row.
+UPDATE mcp_server_configs
+SET
+    oauth2_issuer = @oauth2_issuer::text,
+    oauth2_iss_required = @oauth2_iss_required::boolean,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+    AND oauth2_issuer = ''
+    AND updated_at = @updated_at::timestamptz
+RETURNING
+    *;
 
 -- name: DeleteMCPServerConfigByID :exec
 DELETE FROM

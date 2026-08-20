@@ -552,6 +552,10 @@ var (
 					rbac.ResourceChat.Type:                        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceAIProvider.Type:                  {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceAIGatewayKey.Type:                {policy.ActionRead, policy.ActionUpdate},
+					// Connect-time OAuth2 issuer backfill runs as system
+					// because the connecting user is not an MCP config
+					// admin (BackfillMCPServerConfigIssuer).
+					rbac.ResourceMCPServerConfig.Type: {policy.ActionUpdate},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -1850,6 +1854,19 @@ func (q *querier) BackfillChatMessagesSearchTsv(ctx context.Context, batchSize i
 		return 0, err
 	}
 	return q.db.BackfillChatMessagesSearchTsv(ctx, batchSize)
+}
+
+func (q *querier) BackfillMCPServerConfigIssuer(ctx context.Context, arg database.BackfillMCPServerConfigIssuerParams) (database.MCPServerConfig, error) {
+	// Same resource/action as UpdateMCPServerConfig: the issuer
+	// fields are part of the MCP server config.
+	config, err := q.db.GetMCPServerConfigByID(ctx, arg.ID)
+	if err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, config); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	return q.db.BackfillMCPServerConfigIssuer(ctx, arg)
 }
 
 func (q *querier) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
