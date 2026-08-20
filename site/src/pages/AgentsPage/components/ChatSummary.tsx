@@ -1,10 +1,4 @@
-import {
-	type FC,
-	type ReactNode,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import type { FC, ReactNode } from "react";
 import { InlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { formatCostMicros } from "#/utils/currency";
@@ -14,13 +8,6 @@ const EMPTY_VALUE = "-";
 
 /** Compact list spacing that keeps markers inside the narrow summary column. */
 const LIST_CLASSES = "my-2 flex flex-col gap-1 pl-5";
-
-/**
- * How long resizing must settle before overflow is remeasured. Dragging the
- * right panel resizes the summary every frame, and the overflow verdict is a
- * boolean that flips at most a couple of times per drag.
- */
-const RESIZE_SETTLE_MS = 100;
 
 interface ChatSummaryProps {
 	summary: string | null;
@@ -108,120 +95,47 @@ interface ChatSummaryBodyProps {
 }
 
 /**
- * Renders the stored summary markdown (a headline paragraph plus an optional
- * bullet list) inside a bounded box, revealing a toggle only when the content
- * actually overflows. `max-height` is used instead of `line-clamp` because
- * `line-clamp` relies on `display: -webkit-box`, which clamps unreliably once
- * the content contains nested block children such as `<ul><li>`.
+ * Renders the stored summary markdown: a headline paragraph plus an optional
+ * bullet list.
  *
- * Overflow is measured on the clamped box but observed on an inner unclamped
- * element, so both panel resizes and in-place summary updates re-evaluate the
- * toggle.
+ * The height is deliberately unbounded. Generated summaries are capped at 600
+ * runes server-side, and the panel around this is already a scroll container,
+ * so clamping would only put a second, worse overflow mechanism in front of
+ * content the reader can already reach by scrolling.
  */
-const ChatSummaryBody: FC<ChatSummaryBodyProps> = ({ summary }) => {
-	const clampRef = useRef<HTMLDivElement>(null);
-	const contentRef = useRef<HTMLDivElement>(null);
-	const [isExpanded, setIsExpanded] = useState(false);
-	const [isOverflowing, setIsOverflowing] = useState(false);
-
-	useLayoutEffect(() => {
-		// Overflow only needs measuring while collapsed. Skipping the expanded
-		// state preserves the verdict computed while collapsed, so the toggle
-		// stays visible; collapsing reruns this effect and remeasures.
-		if (isExpanded) {
-			return;
-		}
-		const clamp = clampRef.current;
-		const content = contentRef.current;
-		if (!clamp || !content) {
-			return;
-		}
-		const measure = () =>
-			setIsOverflowing(clamp.scrollHeight > clamp.clientHeight);
-		measure();
-
-		if (typeof ResizeObserver === "undefined") {
-			return;
-		}
-		// Observe the inner element rather than the clamped one. The clamped box
-		// stops growing at its max height, so a summary that arrives via a cache
-		// update while the box is already pinned there would resize nothing and
-		// stay clipped with no toggle. The inner element is unclamped, so its
-		// height tracks the content and its width tracks the resizable panel.
-		//
-		// Debounce rather than schedule on an animation frame: observer
-		// callbacks are already delivered at most once per frame, so a frame
-		// callback would defer the same work instead of doing less of it.
-		// Settling skips the layout reads entirely while a drag is in flight.
-		let settleTimeout: ReturnType<typeof setTimeout> | undefined;
-		const observer = new ResizeObserver(() => {
-			clearTimeout(settleTimeout);
-			settleTimeout = setTimeout(measure, RESIZE_SETTLE_MS);
-		});
-		observer.observe(content);
-		return () => {
-			clearTimeout(settleTimeout);
-			observer.disconnect();
-		};
-	}, [isExpanded]);
-
-	return (
-		<div className="flex flex-col items-start gap-1">
-			<div
-				ref={clampRef}
-				// Identifiers are preserved verbatim and can exceed the panel width
-				// with no natural break opportunity. Breaking anywhere keeps them
-				// inside the column, which horizontal clipping would otherwise hide
-				// with no way to reveal it.
-				className={`w-full overflow-hidden break-words font-sans text-sm font-normal leading-6 text-content-primary [overflow-wrap:anywhere] ${
-					isExpanded ? "" : "max-h-48"
-				}`}
-			>
-				<div ref={contentRef}>
-					<InlineMarkdown
-						// `ol` is allowed alongside `ul` so a legacy prose summary that
-						// happens to start with "1. " still nests its items in a list;
-						// disallowing it emits `li` elements with no list parent.
-						allowedElements={["ul", "ol", "li"]}
-						components={{
-							// InlineMarkdown renders `p` as a bare fragment, which would
-							// run the headline straight into the bullet list.
-							p: ({ children }) => (
-								<p className="m-0 text-pretty">{children}</p>
-							),
-							ul: ({ children }) => (
-								<ul className={`${LIST_CLASSES} list-disc`}>{children}</ul>
-							),
-							ol: ({ children }) => (
-								<ol className={`${LIST_CLASSES} list-decimal`}>{children}</ol>
-							),
-							li: ({ children }) => (
-								<li className="m-0 text-pretty">{children}</li>
-							),
-							// Render link text without an anchor. Clipping below the
-							// collapsed bound is visual only, so a mounted anchor would
-							// stay reachable by keyboard and screen readers while
-							// invisible. Summaries are generated text, not navigation.
-							a: ({ children }) => <>{children}</>,
-						}}
-					>
-						{summary}
-					</InlineMarkdown>
-				</div>
-			</div>
-
-			{(isOverflowing || isExpanded) && (
-				<button
-					type="button"
-					className="cursor-pointer border-0 bg-transparent p-0 font-sans text-xs font-medium text-content-link transition-colors hover:underline"
-					onClick={() => setIsExpanded((expanded) => !expanded)}
-				>
-					{isExpanded ? "Show less" : "Show more"}
-				</button>
-			)}
-		</div>
-	);
-};
+const ChatSummaryBody: FC<ChatSummaryBodyProps> = ({ summary }) => (
+	<div
+		// Identifiers are preserved verbatim and can exceed the panel width with
+		// no natural break opportunity. Breaking anywhere keeps them inside the
+		// column instead of widening the box past the panel.
+		className="w-full break-words font-sans text-sm font-normal leading-6 text-content-primary [overflow-wrap:anywhere]"
+	>
+		<InlineMarkdown
+			// `ol` is allowed alongside `ul` so a legacy prose summary that
+			// happens to start with "1. " still nests its items in a list;
+			// disallowing it emits `li` elements with no list parent.
+			allowedElements={["ul", "ol", "li"]}
+			components={{
+				// InlineMarkdown renders `p` as a bare fragment, which would run
+				// the headline straight into the bullet list.
+				p: ({ children }) => <p className="m-0 text-pretty">{children}</p>,
+				ul: ({ children }) => (
+					<ul className={`${LIST_CLASSES} list-disc`}>{children}</ul>
+				),
+				ol: ({ children }) => (
+					<ol className={`${LIST_CLASSES} list-decimal`}>{children}</ol>
+				),
+				li: ({ children }) => <li className="m-0 text-pretty">{children}</li>,
+				// Render link text without an anchor. A summary describes the chat
+				// rather than linking out of it, and any URL here is model-authored,
+				// so it is not a navigation target worth mounting.
+				a: ({ children }) => <>{children}</>,
+			}}
+		>
+			{summary}
+		</InlineMarkdown>
+	</div>
+);
 
 interface ChatSummaryRowProps {
 	label: string;

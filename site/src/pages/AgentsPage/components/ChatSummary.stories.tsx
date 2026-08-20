@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 import { ChatSummary } from "./ChatSummary";
 
 const MARKDOWN_SUMMARY = [
@@ -71,11 +70,6 @@ export const HeadlineAndBullets: Story = {
 		// backticks.
 		await expect(canvas.getByText("chatd.go")).toBeInTheDocument();
 		await expect(canvas.queryByText(/`/)).not.toBeInTheDocument();
-
-		// Short content fits the bound, so no toggle is offered.
-		await expect(
-			canvas.queryByRole("button", { name: "Show more" }),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -108,9 +102,8 @@ export const LegacyOrderedList: Story = {
 	},
 };
 
-// Links are rendered as plain text. `overflow-hidden` clips the collapsed
-// content visually only, so a mounted anchor below the bound would still be
-// reachable by keyboard and screen readers while invisible.
+// Links render as plain text. A summary describes the chat rather than linking
+// out of it, and any URL in one is model-authored.
 export const LinksRenderAsPlainText: Story = {
 	args: {
 		summary:
@@ -124,8 +117,8 @@ export const LinksRenderAsPlainText: Story = {
 };
 
 // The generation prompt preserves identifiers and wraps them in backticks, so
-// a single token can be wider than the panel. It has to wrap, because the
-// collapsed bound only reveals its toggle for vertical overflow.
+// a single token can be wider than the panel. It has to wrap, or it widens the
+// box past the column it sits in.
 export const LongIdentifierWraps: Story = {
 	args: {
 		summary:
@@ -152,51 +145,16 @@ export const LongIdentifierWraps: Story = {
 	},
 };
 
-// A cache update can replace the summary in place, without remounting the
-// panel, so the overflow toggle has to re-evaluate on new content.
-export const SummaryReplacedInPlace: Story = {
-	render: (args) => {
-		const [summary, setSummary] = useState(MARKDOWN_SUMMARY);
-		return (
-			<div className="flex flex-col gap-2">
-				<button type="button" onClick={() => setSummary(LONG_SUMMARY)}>
-					Simulate update
-				</button>
-				<ChatSummary {...args} summary={summary} />
-			</div>
-		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.queryByRole("button", { name: "Show more" }),
-		).not.toBeInTheDocument();
-
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Simulate update" }),
-		);
-
-		await waitFor(async () => {
-			await expect(
-				canvas.getByRole("button", { name: "Show more" }),
-			).toBeInTheDocument();
-		});
-	},
-};
-
-export const LongSummaryExpands: Story = {
+// The summary renders at its natural height. Nothing is clipped or hidden
+// behind a disclosure toggle; the surrounding panel scrolls instead.
+export const LongSummary: Story = {
 	args: { summary: LONG_SUMMARY },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const showMore = await canvas.findByRole("button", { name: "Show more" });
-		await userEvent.click(showMore);
-
-		await waitFor(async () => {
-			await expect(
-				canvas.getByRole("button", { name: "Show less" }),
-			).toBeInTheDocument();
-		});
+		const list = canvas.getByRole("list");
+		await expect(within(list).getAllByRole("listitem")).toHaveLength(12);
+		await expect(within(list).getByText(/subsystem number 12/)).toBeVisible();
 	},
 };
 
