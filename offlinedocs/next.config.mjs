@@ -21,11 +21,23 @@ const config = {
 	// offline/airgapped use.
 	//
 	// Only export for production builds (`next build`). Under `output: export`
-	// an optional catch-all route rejects any path that generateStaticParams
-	// did not emit, so `next dev` throws on incidental requests (a stale
-	// /serviceWorker.js, favicon probes, etc.). Leaving dev on the default
-	// server keeps the local workflow normal (clean 404s) while `next build`
-	// still produces the static export.
+	// Next installs an optional catch-all route that rejects any path
+	// generateStaticParams did not prerender. In dev that turns incidental
+	// requests into hard errors instead of clean 404s - most notably a stale
+	// /serviceWorker.js still registered at the dev origin by a prior site (a
+	// local coder server or the old offlinedocs, both of which used :3000),
+	// plus favicon probes and similar. When next dev errors on those, the page
+	// renders but never becomes interactive; the symptom reported in UAT was
+	// "nothing in the UI is clickable" (OS tabs, theme toggle, etc.). Gating
+	// export to production keeps next dev on Next's normal server (clean 404s),
+	// so local dev stays interactive, while next build still produces the full
+	// static export.
+	//
+	// Running the docs anywhere: if a machine shows a dead or unclickable page
+	// from an earlier session, a stale service worker is cached - unregister it
+	// (DevTools > Application > Service workers > Unregister) and hard-reload.
+	// The dev server also runs on :26337 (see the package.json scripts), not
+	// :3000, to stay off that shared origin.
 	output: process.env.NODE_ENV === "production" ? "export" : undefined,
 	// Canonical URLs end in a slash and every route is emitted as
 	// <route>/index.html, which is what a plain static file server expects.
