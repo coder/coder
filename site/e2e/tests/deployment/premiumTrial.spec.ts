@@ -56,7 +56,7 @@ test.describe
 				.getByRole("option", { name: new RegExp(`${testIdentity.country}$`) })
 				.click();
 
-			await page.getByLabel(/I understand that Premium features/).click();
+			await page.getByLabel(/I understand that Coder trial/).click();
 
 			// This is a real submission to the live Coder licensor.
 			await submitButton.click();
