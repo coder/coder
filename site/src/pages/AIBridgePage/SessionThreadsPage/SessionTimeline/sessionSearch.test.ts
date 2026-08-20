@@ -127,6 +127,16 @@ describe("splitMatchSegments", () => {
 			{ text: "plain text", match: false },
 		]);
 	});
+
+	it("aligns the match when lowercasing changes length", () => {
+		// Turkish dotted capital I lowercases to two UTF-16 units, which would
+		// shift the indices of a lowercased haystack relative to the original.
+		expect(splitMatchSegments("İzin list_files", "list")).toEqual([
+			{ text: "İzin ", match: false },
+			{ text: "list", match: true },
+			{ text: "_files", match: false },
+		]);
+	});
 });
 
 describe("matchesNetworkCallSearch", () => {

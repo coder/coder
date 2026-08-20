@@ -92,6 +92,9 @@ interface MatchSegment {
 }
 
 // Splits the text into match and non-match segments for bold rendering.
+// Matches against the original text one window at a time rather than a
+// lowercased copy, because lowercasing can change length (e.g. Turkish
+// dotted capital I) and misalign the slice indices.
 export const splitMatchSegments = (
 	text: string,
 	query: string,
@@ -100,20 +103,20 @@ export const splitMatchSegments = (
 	if (q === "") {
 		return [{ text, match: false }];
 	}
-	const haystack = text.toLowerCase();
 	const segments: MatchSegment[] = [];
 	let cursor = 0;
-	let index = haystack.indexOf(q);
-	while (index !== -1) {
-		if (index > cursor) {
-			segments.push({ text: text.slice(cursor, index), match: false });
+	let i = 0;
+	while (i + q.length <= text.length) {
+		if (text.slice(i, i + q.length).toLowerCase() === q) {
+			if (i > cursor) {
+				segments.push({ text: text.slice(cursor, i), match: false });
+			}
+			segments.push({ text: text.slice(i, i + q.length), match: true });
+			i += q.length;
+			cursor = i;
+		} else {
+			i++;
 		}
-		segments.push({
-			text: text.slice(index, index + q.length),
-			match: true,
-		});
-		cursor = index + q.length;
-		index = haystack.indexOf(q, cursor);
 	}
 	if (cursor < text.length) {
 		segments.push({ text: text.slice(cursor), match: false });
