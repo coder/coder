@@ -1244,6 +1244,57 @@ func (api *API) validateExplicitChatModelConfigAvailable(
 	return status, resp
 }
 
+func validateChatMCPServerIDs(
+	ctx context.Context,
+	db database.Store,
+	organizationID uuid.UUID,
+	ids []uuid.UUID,
+) (normalized []uuid.UUID, invalid []uuid.UUID, err error) {
+	unique := make([]uuid.UUID, 0, len(ids))
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	if len(unique) == 0 {
+		return unique, nil, nil
+	}
+
+	configs, err := db.GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams{
+		OrganizationID: organizationID,
+		IDs:            unique,
+	})
+	if err != nil {
+		return nil, nil, xerrors.Errorf("get enabled MCP server configs for organization: %w", err)
+	}
+
+	valid := make(map[uuid.UUID]struct{}, len(configs))
+	for _, config := range configs {
+		valid[config.ID] = struct{}{}
+	}
+	invalid = make([]uuid.UUID, 0, len(unique)-len(valid))
+	for _, id := range unique {
+		if _, ok := valid[id]; !ok {
+			invalid = append(invalid, id)
+		}
+	}
+	return unique, invalid, nil
+}
+
+func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
+	invalid := make([]string, 0, len(ids))
+	for _, id := range ids {
+		invalid = append(invalid, id.String())
+	}
+	return codersdk.Response{
+		Message: "One or more MCP server IDs are invalid or disabled.",
+		Detail:  fmt.Sprintf("Invalid IDs: %s", strings.Join(invalid, ", ")),
+	}
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Create chat
@@ -1310,15 +1361,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate per-chat system prompt length.
-	const maxSystemPromptLen = 10000
-	if len(req.SystemPrompt) > maxSystemPromptLen {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "System prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("System prompt must be at most %d characters, got %d.", maxSystemPromptLen, len(req.SystemPrompt)),
-		})
-		return
-	}
 	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
@@ -1346,34 +1388,18 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate MCP server IDs exist.
-	if len(req.MCPServerIDs) > 0 {
-		//nolint:gocritic // Need to validate MCP server IDs exist.
-		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), req.MCPServerIDs)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to validate MCP server IDs.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if len(existingConfigs) != len(req.MCPServerIDs) {
-			found := make(map[uuid.UUID]struct{}, len(existingConfigs))
-			for _, c := range existingConfigs {
-				found[c.ID] = struct{}{}
-			}
-			var missing []string
-			for _, id := range req.MCPServerIDs {
-				if _, ok := found[id]; !ok {
-					missing = append(missing, id.String())
-				}
-			}
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "One or more MCP server IDs are invalid.",
-				Detail:  fmt.Sprintf("Invalid IDs: %s", strings.Join(missing, ", ")),
-			})
-			return
-		}
+	normalizedMCPServerIDs, invalidMCPServerIDs, err := validateChatMCPServerIDs(ctx, api.Database, req.OrganizationID, req.MCPServerIDs)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to validate MCP server IDs.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	req.MCPServerIDs = normalizedMCPServerIDs
+	if len(invalidMCPServerIDs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, invalidChatMCPServerIDsResponse(invalidMCPServerIDs))
+		return
 	}
 
 	mcpServerIDs := req.MCPServerIDs
@@ -2744,10 +2770,8 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate MCP server IDs exist.
-	if req.MCPServerIDs != nil && len(*req.MCPServerIDs) > 0 {
-		//nolint:gocritic // Need to validate MCP server IDs exist.
-		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), *req.MCPServerIDs)
+	if req.MCPServerIDs != nil {
+		normalizedMCPServerIDs, invalidMCPServerIDs, err := validateChatMCPServerIDs(ctx, api.Database, chat.OrganizationID, *req.MCPServerIDs)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to validate MCP server IDs.",
@@ -2755,21 +2779,24 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		if len(existingConfigs) != len(*req.MCPServerIDs) {
-			found := make(map[uuid.UUID]struct{}, len(existingConfigs))
-			for _, c := range existingConfigs {
-				found[c.ID] = struct{}{}
+		req.MCPServerIDs = &normalizedMCPServerIDs
+		// IDs already persisted on the chat are exempt: a server that
+		// is disabled or revoked after selection must not block sends.
+		// The generation path skips servers the chat can no longer use,
+		// and keeping the ID preserves the selection if the server is
+		// re-enabled.
+		persisted := make(map[uuid.UUID]struct{}, len(chat.MCPServerIDs))
+		for _, id := range chat.MCPServerIDs {
+			persisted[id] = struct{}{}
+		}
+		newlyInvalid := make([]uuid.UUID, 0, len(invalidMCPServerIDs))
+		for _, id := range invalidMCPServerIDs {
+			if _, ok := persisted[id]; !ok {
+				newlyInvalid = append(newlyInvalid, id)
 			}
-			var missing []string
-			for _, id := range *req.MCPServerIDs {
-				if _, ok := found[id]; !ok {
-					missing = append(missing, id.String())
-				}
-			}
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "One or more MCP server IDs are invalid.",
-				Detail:  fmt.Sprintf("Invalid IDs: %s", strings.Join(missing, ", ")),
-			})
+		}
+		if len(newlyInvalid) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, invalidChatMCPServerIDsResponse(newlyInvalid))
 			return
 		}
 	}
@@ -4583,7 +4610,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
 		return
 	}
-	sanitizedPrompt := chatd.SanitizePromptText(req.SystemPrompt)
+	sanitizedPrompt := codersdk.SanitizePromptText(req.SystemPrompt)
 	// 128 KiB is generous for a system prompt while still
 	// preventing abuse or accidental pastes of large content.
 	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
@@ -4773,7 +4800,7 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	sanitizedInstructions := chatd.SanitizePromptText(req.PlanModeInstructions)
+	sanitizedInstructions := codersdk.SanitizePromptText(req.PlanModeInstructions)
 	if len(sanitizedInstructions) > maxSystemPromptLenBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Plan mode instructions exceed maximum length.",
@@ -5832,7 +5859,7 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	sanitizedPrompt := chatd.SanitizePromptText(params.CustomPrompt)
+	sanitizedPrompt := codersdk.SanitizePromptText(params.CustomPrompt)
 	// Apply the same 128 KiB limit as the deployment system prompt.
 	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -7514,15 +7541,28 @@ func validateChatModelReasoningEffortConfig(modelConfig *codersdk.ChatModelCallC
 }
 
 func validateChatModelProviderOptions(options *codersdk.ChatModelProviderOptions) error {
-	if options == nil || options.Anthropic == nil || options.Anthropic.ThinkingDisplay == nil {
+	if options == nil {
 		return nil
 	}
 
-	if strings.TrimSpace(*options.Anthropic.ThinkingDisplay) == "" ||
-		chatprovider.AnthropicThinkingDisplayFromChat(options.Anthropic.ThinkingDisplay) != nil {
-		return nil
+	if options.Anthropic != nil && options.Anthropic.ThinkingDisplay != nil &&
+		strings.TrimSpace(*options.Anthropic.ThinkingDisplay) != "" &&
+		chatprovider.AnthropicThinkingDisplayFromChat(options.Anthropic.ThinkingDisplay) == nil {
+		return xerrors.Errorf("provider_options.anthropic.thinking_display must be one of summarized, omitted")
 	}
-	return xerrors.Errorf("provider_options.anthropic.thinking_display must be one of summarized, omitted")
+
+	if options.Google != nil && options.Google.ThinkingConfig != nil &&
+		options.Google.ThinkingConfig.ThinkingLevel != nil &&
+		strings.TrimSpace(*options.Google.ThinkingConfig.ThinkingLevel) != "" {
+		if chatprovider.GoogleThinkingLevelFromChat(options.Google.ThinkingConfig.ThinkingLevel) == nil {
+			return xerrors.Errorf("provider_options.google.thinking_config.thinking_level must be one of minimal, low, medium, high")
+		}
+		if options.Google.ThinkingConfig.ThinkingBudget != nil {
+			return xerrors.Errorf("provider_options.google.thinking_config.thinking_level cannot be combined with thinking_budget")
+		}
+	}
+
+	return nil
 }
 
 func unmarshalChatModelCallConfig(

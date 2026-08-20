@@ -520,7 +520,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Post("/", api.postGroupByOrganization)
 			r.Get("/", api.groupsByOrganization)
 			r.Route("/ai/spend", func(r chi.Router) {
-				// AI cost controls are a paid feature (AI Governance add-on).
+				// AI cost controls are a paid feature (AI Governance).
 				r.Use(
 					api.RequireFeatureMW(codersdk.FeatureAIBridge),
 				)
@@ -534,7 +534,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Get("/", api.groupByOrganization)
 				r.Get("/members", api.groupMembersByOrganization)
 				r.Route("/members/ai/spend", func(r chi.Router) {
-					// AI cost controls are a paid feature (AI Governance add-on).
+					// AI cost controls are a paid feature (AI Governance).
 					r.Use(
 						api.RequireFeatureMW(codersdk.FeatureAIBridge),
 					)
@@ -551,7 +551,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.paginatedGroups)
 		})
 		r.Route("/organizations/{organization}/ai/spend", func(r chi.Router) {
-			// AI cost controls are a paid feature (AI Governance add-on).
+			// AI cost controls are a paid feature (AI Governance).
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(api.Database),
@@ -643,21 +643,21 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Delete("/", api.deleteGroup)
 				r.Get("/members", api.groupMembers)
 				r.Route("/members/ai/spend", func(r chi.Router) {
-					// AI cost controls are a paid feature (AI Governance add-on).
+					// AI cost controls are a paid feature (AI Governance).
 					r.Use(
 						api.RequireFeatureMW(codersdk.FeatureAIBridge),
 					)
 					r.Get("/", api.groupMembersAISpend)
 				})
 				r.Route("/ai/spend", func(r chi.Router) {
-					// AI cost controls are a paid feature (AI Governance add-on).
+					// AI cost controls are a paid feature (AI Governance).
 					r.Use(
 						api.RequireFeatureMW(codersdk.FeatureAIBridge),
 					)
 					r.Get("/", api.groupAISpend)
 				})
 				r.Route("/ai/budget", func(r chi.Router) {
-					// AI cost controls are a paid feature (AI Governance add-on).
+					// AI cost controls are a paid feature (AI Governance).
 					r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
 					r.Get("/", api.groupAIBudget)
 					r.Put("/", api.upsertGroupAIBudget)
@@ -704,7 +704,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
 		r.Route("/users/{user}/ai", func(r chi.Router) {
-			// AI cost controls are a paid feature (AI Governance add-on).
+			// AI cost controls are a paid feature (AI Governance).
 			r.Use(
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 				apiKeyMiddleware,

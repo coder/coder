@@ -9,7 +9,6 @@ import {
 } from "react";
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
-import { v4 as uuidv4 } from "uuid";
 import { invalidateChatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
@@ -28,6 +27,7 @@ import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
+import { generateUUID } from "#/utils/random";
 import { findWorkspaceAgent } from "#/utils/workspace";
 import {
 	AgentChatInput,
@@ -167,7 +167,7 @@ interface AgentChatPageViewProps {
 	// Right panel state (owned by the parent so loading and
 	// loaded views share the same layout).
 	showSidebarPanel: boolean;
-	onSetShowSidebarPanel: (next: boolean | ((prev: boolean) => boolean)) => void;
+	onSetShowSidebarPanel: (next: boolean) => void;
 
 	// Sidebar content data.
 	prNumber: number | undefined;
@@ -429,7 +429,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
 	);
-	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
+	// Expansion must never outlive the panel: when narrow-viewport
+	// suppression or an explicit close hides the panel, gate expansion
+	// off (rather than resetting it) so it is restored with the panel.
+	const visualExpanded =
+		showSidebarPanel && (dragVisualExpanded ?? isRightPanelExpanded);
 
 	const [sidebarTabId, setSidebarTabIdState] = useState<string | null>(() =>
 		getPersistedSidebarTabId(agentId),
@@ -592,7 +596,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const createUserRightPanelTabId = (
 		kind: UserRightPanelTab["kind"],
 	): string => {
-		return `${kind}-${uuidv4()}`;
+		return `${kind}-${generateUUID()}`;
 	};
 
 	const handleAddTerminalTab = () => {
@@ -611,7 +615,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			{
 				id: tabId,
 				kind: "terminal",
-				reconnectionToken: uuidv4(),
+				reconnectionToken: generateUUID(),
 			},
 		]);
 		startPendingTab(tabId);
@@ -657,7 +661,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			id: createUserRightPanelTabId("terminal"),
 			kind: "terminal",
 			label: app.display_name ?? app.slug,
-			reconnectionToken: uuidv4(),
+			reconnectionToken: generateUUID(),
 			initialCommand: app.command,
 			sourceAppId: app.id,
 		};
@@ -872,7 +876,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								parentChat={parentChat}
 								panel={{
 									showSidebarPanel,
-									onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
+									onToggleSidebar: () =>
+										onSetShowSidebarPanel(!showSidebarPanel),
 								}}
 								onArchiveAgent={handleArchiveAgentAction}
 								onUnarchiveAgent={handleUnarchiveAgentAction}
@@ -1021,7 +1026,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					</div>
 					<RightPanel
 						isOpen={shouldShowSidebar}
-						isExpanded={isRightPanelExpanded}
+						isExpanded={showSidebarPanel && isRightPanelExpanded}
 						onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 						onClose={() => onSetShowSidebarPanel(false)}
 						onVisualExpandedChange={setDragVisualExpanded}
