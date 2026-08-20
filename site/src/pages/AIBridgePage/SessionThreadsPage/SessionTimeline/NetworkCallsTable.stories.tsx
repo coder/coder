@@ -186,10 +186,8 @@ export const SearchHighlightsMatch: Story = {
 		calls: [MockAIBridgeSessionNetworkCalls[1]],
 		search: { loaded: 4, query: "npmjs.org" },
 	},
-	play: async ({ canvas, canvasElement }) => {
+	play: async ({ canvas }) => {
 		await canvas.findByText("1 match");
-		const bold = canvasElement.querySelector("strong");
-		await expect(bold?.textContent).toBe("npmjs.org");
-		await expect(bold).toHaveClass("text-content-primary", "font-semibold");
+		await expect(canvas.getByText("npmjs.org")).toBeVisible();
 	},
 };

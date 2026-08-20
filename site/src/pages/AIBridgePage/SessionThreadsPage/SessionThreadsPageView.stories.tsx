@@ -30,17 +30,6 @@ const mockSession: AIBridgeSessionThreadsResponse = {
 
 const noop = () => {};
 
-// Highlighted prompts split into <strong>/<span> children, so match the
-// paragraph by its combined text rather than a single text node.
-const promptByText = (root: HTMLElement, text: string) =>
-	Array.from(root.querySelectorAll("p")).find((el) => el.textContent === text);
-
-// Highlighted network URLs also split, so match by combined text.
-const rowByText = (root: HTMLElement, text: string) =>
-	Array.from(root.querySelectorAll("span")).find(
-		(el) => el.textContent === text,
-	);
-
 const meta: Meta<typeof SessionThreadsPageView> = {
 	title: "pages/AIBridgePage/SessionThreadsPageView",
 	component: SessionThreadsPageView,
@@ -74,44 +63,44 @@ export const SearchFiltersEvents: Story = {
 			},
 		],
 	},
-	play: async ({ canvas, canvasElement }) => {
+	play: async ({ canvas }) => {
 		const input = canvas.getByRole("textbox", {
 			name: /search session events/i,
 		});
+		const promptByText = (text: string) =>
+			canvas
+				.getAllByRole("paragraph")
+				.find((element) => element.textContent === text);
 
+		await expect(promptByText("Summarize the project structure")).toBeVisible();
 		await expect(
-			promptByText(canvasElement, "Summarize the project structure"),
-		).toBeTruthy();
-		await expect(
-			promptByText(canvasElement, "Deploy the service to production"),
-		).toBeTruthy();
+			promptByText("Deploy the service to production"),
+		).toBeVisible();
 
 		await userEvent.type(input, "deploy");
 		await waitFor(() => {
-			expect(
-				promptByText(canvasElement, "Deploy the service to production"),
-			).toBeTruthy();
-			expect(
-				promptByText(canvasElement, "Summarize the project structure"),
-			).toBeUndefined();
+			expect(promptByText("Deploy the service to production")).toBeVisible();
+			expect(promptByText("Summarize the project structure")).toBeUndefined();
 		});
 
 		await userEvent.clear(input);
 		await userEvent.type(input, "npmjs.org");
 		await canvas.findByText("1 match");
 		await expect(
-			rowByText(canvasElement, "https://registry.npmjs.org/lodash"),
-		).toBeTruthy();
+			canvas.getByRole("button", {
+				name: /registry\.npmjs\.org\/lodash/i,
+			}),
+		).toBeVisible();
 		await expect(
-			rowByText(canvasElement, "https://api.github.com/repos/coder/coder"),
-		).toBeUndefined();
+			canvas.queryByRole("button", {
+				name: /api\.github\.com\/repos\/coder\/coder/i,
+			}),
+		).not.toBeInTheDocument();
 
 		await userEvent.clear(input);
 		await waitFor(() => {
 			expect(canvas.getByText("Network calls (4)")).toBeInTheDocument();
-			expect(
-				promptByText(canvasElement, "Summarize the project structure"),
-			).toBeTruthy();
+			expect(promptByText("Summarize the project structure")).toBeVisible();
 		});
 	},
 };
@@ -136,7 +125,7 @@ export const SearchMatchCount: Story = {
 			name: /search session events/i,
 		});
 
-		const status = canvas.getByRole("status", { hidden: true });
+		const status = canvas.getByRole("status");
 		await expect(status).not.toBeVisible();
 
 		await userEvent.type(input, "list_directory");
