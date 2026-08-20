@@ -216,6 +216,33 @@ export const FormFieldTriggerKeepsIconAndLabelAdjacent: Story = {
 	],
 };
 
+// A model name longer than the trigger truncates while the provider icon
+// keeps its full size; without shrink-0 on the icon wrapper, flex
+// shrinking combined with preflight's img max-width scales the icon down.
+export const FormFieldTriggerTruncatesLongModelName: Story = {
+	args: {
+		options: [
+			{
+				...MockModelSelectorOption,
+				id: "openai/gpt-4o-mini-extended",
+				model: "gpt-4o-mini-extended-ultra-long-context-preview",
+				displayName: "GPT-4o mini Extended Ultra Long Context Preview Edition",
+				contextLimit: 1_000_000,
+			},
+		],
+		value: "openai/gpt-4o-mini-extended",
+		className:
+			"h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-sm md:w-[18rem]",
+	},
+	decorators: [
+		(Story) => (
+			<div className="w-[30rem]">
+				<Story />
+			</div>
+		),
+	],
+};
+
 // ---------------------------------------------------------------------------
 // Multiple providers (grouped)
 // ---------------------------------------------------------------------------
