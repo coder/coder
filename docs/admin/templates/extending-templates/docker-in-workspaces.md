@@ -278,7 +278,7 @@ Before using Podman, please review the following documentation:
          container {
            name = "dev"
            # Podman: base image with Podman and fuse-overlayfs preinstalled.
-           image = "ghcr.io/coder/podman:ubuntu"
+           image = "codercom/example-podman:ubuntu"
            # ...
            resources {
              limits = {
@@ -292,6 +292,16 @@ Before using Podman, please review the following documentation:
      }
    }
    ```
+
+   The `codercom/example-podman` image is built and maintained in
+   [`coder/images`](https://github.com/coder/images/tree/main/images/podman).
+
+   > On Kubernetes 1.30+, the
+   > `container.apparmor.security.beta.kubernetes.io/<container>` annotation is
+   > deprecated in favor of the `securityContext.appArmorProfile` field. The
+   > annotation still works and remains the most broadly compatible option, so
+   > switch to the field once your cluster and Terraform Kubernetes provider
+   > both support it.
 
    Push the template to your deployment:
 
@@ -340,6 +350,12 @@ spec:
     [settings.kernel]
     sysctl = { "user.max_user_namespaces" = "65536" }
 ```
+
+### Rootless Podman on EKS Auto Mode
+
+The `EC2NodeClass` above applies to self-managed Karpenter nodes. On EKS Auto Mode, the built-in `NodeClass` (`eks.amazonaws.com`) doesn't expose `userData` or kernel sysctls, so `user.max_user_namespaces` stays at `0` with no way to raise it on those nodes. Run Podman workspaces on a separate managed node group instead — the default AL2023 AMIs ship with user namespaces enabled.
+
+> On a brand-new Auto Mode cluster, install the `vpc-cni` and `kube-proxy` add-ons before your managed node group can reach `Ready`.
 
 ## Privileged sidecar container
 
