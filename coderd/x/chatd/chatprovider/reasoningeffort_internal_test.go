@@ -265,10 +265,16 @@ func TestGoogleCompatReasoningEffort(t *testing.T) {
 		// Gemini 3.0 Pro supports only LOW/HIGH.
 		{modelID: "gemini-3-pro-preview", effort: "medium", want: "high", wantOK: true},
 		{modelID: "gemini-3-pro-preview", effort: "minimal", want: "low", wantOK: true},
-		// The Gemini 3 Flash family supports all four levels.
+		// The Gemini 3 Flash family supports all four levels through 3.6.
 		{modelID: "gemini-3-flash-preview", effort: "minimal", want: "minimal", wantOK: true},
 		{modelID: "gemini-3-flash-preview", effort: "medium", want: "medium", wantOK: true},
 		{modelID: "gemini-3-flash-preview", effort: "max", want: "high", wantOK: true},
+		{modelID: "gemini-3.6-flash", effort: "none", want: "minimal", wantOK: true},
+		// Gemini 3.7 Flash dropped MINIMAL, so the lowest efforts clamp
+		// up to low instead of failing the request.
+		{modelID: "gemini-3.7-flash", effort: "none", want: "low", wantOK: true},
+		{modelID: "gemini-3.7-flash", effort: "minimal", want: "low", wantOK: true},
+		{modelID: "gemini-3.7-flash", effort: "medium", want: "medium", wantOK: true},
 		// Pre-Gemini-3 models accept none/low/medium/high; none stays
 		// usable on Flash but clamps to low on Pro, which cannot
 		// disable thinking.
@@ -308,12 +314,15 @@ func TestGoogleSupportedThinkingLevels(t *testing.T) {
 		modelID string
 		want    []fantasygoogle.ThinkingLevel
 	}{
-		{modelID: "gemini-3.7-flash", want: []fantasygoogle.ThinkingLevel{minimal, low, medium, high}},
 		{modelID: "gemini-3-flash-preview", want: []fantasygoogle.ThinkingLevel{minimal, low, medium, high}},
-		{modelID: "models/gemini-3.7-flash", want: []fantasygoogle.ThinkingLevel{minimal, low, medium, high}},
-		{modelID: " Gemini-4-Flash ", want: []fantasygoogle.ThinkingLevel{minimal, low, medium, high}},
-		{modelID: "gemini-flash-latest", want: []fantasygoogle.ThinkingLevel{minimal, low, medium, high}},
-		{modelID: "gemini-flash-lite-latest", want: []fantasygoogle.ThinkingLevel{minimal, low, medium, high}},
+		{modelID: "gemini-3.5-flash", want: []fantasygoogle.ThinkingLevel{minimal, low, medium, high}},
+		{modelID: "gemini-3.5-flash-lite", want: []fantasygoogle.ThinkingLevel{minimal, low, medium, high}},
+		{modelID: "gemini-3.6-flash", want: []fantasygoogle.ThinkingLevel{minimal, low, medium, high}},
+		{modelID: "gemini-3.7-flash", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
+		{modelID: "models/gemini-3.7-flash", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
+		{modelID: " Gemini-4-Flash ", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
+		{modelID: "gemini-flash-latest", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
+		{modelID: "gemini-flash-lite-latest", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
 		{modelID: "gemini-3-pro-preview", want: []fantasygoogle.ThinkingLevel{low, high}},
 		{modelID: "gemini-3.1-pro-preview", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
 		{modelID: "gemini-10.5-pro", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
@@ -343,7 +352,7 @@ func TestClampGoogleThinkingLevel(t *testing.T) {
 
 	gemini3Pro := googleSupportedThinkingLevels("gemini-3-pro-preview")
 	proImage := googleSupportedThinkingLevels("gemini-3-pro-image-preview")
-	flash := googleSupportedThinkingLevels("gemini-3.7-flash")
+	flash := googleSupportedThinkingLevels("gemini-3.6-flash")
 
 	tests := []struct {
 		name      string

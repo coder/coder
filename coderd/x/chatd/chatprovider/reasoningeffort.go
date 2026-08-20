@@ -224,12 +224,12 @@ var googleThinkingLevelsAscending = []fantasygoogle.ThinkingLevel{
 // model accepts in ascending order, or nil when the model does not accept
 // thinking_level at all. Gemini introduced thinking_level in version 3, and
 // each model supports a different subset: Gemini 3 Pro launched with LOW and
-// HIGH, 3.1 Pro added MEDIUM, the Flash family accepts all four, and image
-// models accept only HIGH (plus MINIMAL for flash). Versionless "-latest"
-// aliases track the newest release of their family, which has been Gemini 3+
-// since the aliases were introduced. Non-Gemini and unrecognized model IDs
-// return nil so reasoning effort degrades to a no-op instead of a rejected
-// request.
+// HIGH, 3.1 Pro added MEDIUM, the Flash family accepted all four through 3.6
+// but 3.7 dropped MINIMAL, and image models accept only HIGH (plus MINIMAL
+// for flash). Versionless "-latest" aliases track the newest release of their
+// family, which has been Gemini 3+ since the aliases were introduced.
+// Non-Gemini and unrecognized model IDs return nil so reasoning effort
+// degrades to a no-op instead of a rejected request.
 func googleSupportedThinkingLevels(modelID string) []fantasygoogle.ThinkingLevel {
 	normalized := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(modelID)), "models/")
 	rest, ok := strings.CutPrefix(normalized, "gemini-")
@@ -260,6 +260,19 @@ func googleSupportedThinkingLevels(modelID string) []fantasygoogle.ThinkingLevel
 	case isImage:
 		return []fantasygoogle.ThinkingLevel{fantasygoogle.ThinkingLevelHigh}
 	case isFlash:
+		// Gemini 3.7 Flash rejects MINIMAL with HTTP 400 while 3 through
+		// 3.6 flash and flash-lite models accept it (live-verified
+		// 2026-08-20). Latest aliases and unknown future versions stay
+		// off MINIMAL too: gemini-flash-latest already tracks 3.7 and
+		// rejects it, and clamping up to LOW is accepted everywhere
+		// while an unsupported level fails the whole request.
+		if isLatestAlias || major > 3 || minor >= 7 {
+			return []fantasygoogle.ThinkingLevel{
+				fantasygoogle.ThinkingLevelLow,
+				fantasygoogle.ThinkingLevelMedium,
+				fantasygoogle.ThinkingLevelHigh,
+			}
+		}
 		return slices.Clone(googleThinkingLevelsAscending)
 	case isPro && hasVersion && major == 3 && minor == 0:
 		return []fantasygoogle.ThinkingLevel{
