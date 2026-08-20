@@ -1,15 +1,20 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
 )
 
 // TestBuildBedrockCredentialsValidation covers the input validation that does
@@ -436,4 +441,228 @@ func TestBuildBedrockCredentialsAssumeRoleRegionFromEnv(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "us-west-2", region)
+}
+
+// newTestBedrock is local because white-box tests need the concrete *Bedrock.
+func newTestBedrock(t testing.TB, cfg config.Anthropic, bedrockCfg config.AWSBedrock) *Bedrock {
+	t.Helper()
+	p, err := NewBedrock(context.Background(), cfg, bedrockCfg)
+	require.NoError(t, err)
+	return p
+}
+
+func TestBedrock_TypeAndName(t *testing.T) {
+	t.Parallel()
+
+	p := newTestBedrock(t, config.Anthropic{}, config.AWSBedrock{
+		Region:          "us-west-2",
+		AccessKey:       "test-key",
+		AccessKeySecret: "test-secret",
+		Model:           "m",
+		SmallFastModel:  "s",
+	})
+	assert.Equal(t, config.ProviderBedrock, p.Type())
+	assert.Equal(t, config.ProviderBedrock, p.Name())
+
+	p2 := newTestBedrock(t, config.Anthropic{Name: "bedrock-custom"}, config.AWSBedrock{
+		Region:          "us-west-2",
+		AccessKey:       "test-key",
+		AccessKeySecret: "test-secret",
+		Model:           "m",
+		SmallFastModel:  "s",
+	})
+	assert.Equal(t, "bedrock-custom", p2.Name())
+}
+
+func TestBedrock_KeyPool(t *testing.T) {
+	t.Parallel()
+
+	p := newTestBedrock(t, config.Anthropic{}, config.AWSBedrock{
+		Region:          "us-west-2",
+		AccessKey:       "test-key",
+		AccessKeySecret: "test-secret",
+		Model:           "m",
+		SmallFastModel:  "s",
+	})
+	assert.Nil(t, p.KeyPool(), "Bedrock has no key pool")
+}
+
+func TestBedrock_BridgedRoutes(t *testing.T) {
+	t.Parallel()
+
+	p := newTestBedrock(t, config.Anthropic{}, config.AWSBedrock{
+		Region:          "us-west-2",
+		AccessKey:       "test-key",
+		AccessKeySecret: "test-secret",
+		Model:           "m",
+		SmallFastModel:  "s",
+	})
+	routes := p.BridgedRoutes()
+	assert.ElementsMatch(t, []string{routeMessages, routeBedrockChatCompletions, routeBedrockResponses}, routes)
+}
+
+// NOTE: no t.Parallel() because the subtests use t.Setenv.
+func TestNewBedrock_RegionResolution(t *testing.T) {
+	t.Run("mantle_region_from_env", func(t *testing.T) {
+		t.Setenv("AWS_REGION", "us-west-2")
+
+		p, err := NewBedrock(context.Background(), config.Anthropic{}, config.AWSBedrock{
+			BaseURL:         "https://bedrock-mantle.us-west-2.api.aws/anthropic",
+			Protocol:        config.BedrockProtocolMantle,
+			AccessKey:       "test-key",
+			AccessKeySecret: "test-secret",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, p.runtime)
+		require.Equal(t, "us-west-2", p.runtime.Cfg.Region)
+	})
+
+	t.Run("mantle_no_region_anywhere", func(t *testing.T) {
+		// Clear every source the AWS SDK consults for a region so none
+		// resolves, then confirm construction rejects the mantle provider.
+		t.Setenv("AWS_REGION", "")
+		t.Setenv("AWS_DEFAULT_REGION", "")
+		t.Setenv("AWS_PROFILE", "")
+		t.Setenv("AWS_CONFIG_FILE", "/dev/null")
+		t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
+		t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+
+		_, err := NewBedrock(context.Background(), config.Anthropic{}, config.AWSBedrock{
+			BaseURL:         "https://proxy.internal",
+			Protocol:        config.BedrockProtocolMantle,
+			AccessKey:       "test-key",
+			AccessKeySecret: "test-secret",
+		})
+		require.ErrorContains(t, err, "region required")
+	})
+}
+
+func TestBedrock_CreateInterceptor_Credential(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// bedrockStatic configures static AWS credentials. False means
+		// dynamic mode (AWS default credential chain).
+		bedrockStatic bool
+		setHeaders    map[string]string
+		// wantErr, when set, means CreateInterceptor must fail with it. The
+		// remaining expectations are then ignored.
+		wantErr            error
+		wantCredentialKind intercept.CredentialKind
+		wantCredentialHint string
+	}{
+		{
+			// Bedrock dynamic mode: no static access key, so the hint is the
+			// AWS-credential-chain placeholder.
+			name:               "bedrock_dynamic",
+			bedrockStatic:      false,
+			setHeaders:         map[string]string{},
+			wantCredentialKind: intercept.CredentialKindCentralized,
+			wantCredentialHint: "<aws chain>",
+		},
+		{
+			// Bedrock static mode: the hint masks the access key ID.
+			name:               "bedrock_static",
+			bedrockStatic:      true,
+			setHeaders:         map[string]string{},
+			wantCredentialKind: intercept.CredentialKindCentralized,
+			wantCredentialHint: "AKIA...MPLE",
+		},
+		{
+			name:               "byok_api_key",
+			bedrockStatic:      true,
+			setHeaders:         map[string]string{"X-Api-Key": "user-api-key"},
+			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialHint: "us...ey",
+		},
+		{
+			name:               "byok_bearer_token",
+			bedrockStatic:      true,
+			setHeaders:         map[string]string{"Authorization": "Bearer user-access-token"},
+			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialHint: "us...en",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{"id":"msg-123","type":"message","role":"assistant","content":[{"type":"text","text":"Hello!"}],"model":"claude-opus-4-5","stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":5}}`))
+			}))
+			t.Cleanup(mockUpstream.Close)
+
+			bcfg := config.AWSBedrock{Region: "us-west-2", Model: "m", SmallFastModel: "s", BaseURL: mockUpstream.URL}
+			if tc.bedrockStatic {
+				bcfg.AccessKey = "AKIAIOSFODNN7EXAMPLE"
+				bcfg.AccessKeySecret = "wJalrXUtnFEMI-secret-value"
+			}
+			p := newTestBedrock(t, config.Anthropic{BaseURL: mockUpstream.URL}, bcfg)
+
+			body := `{"model": "claude-opus-4-5", "max_tokens": 1024, "messages": [{"role": "user", "content": "hello"}], "stream": false}`
+			req := httptest.NewRequest(http.MethodPost, routeMessages, bytes.NewBufferString(body))
+			for k, v := range tc.setHeaders {
+				req.Header.Set(k, v)
+			}
+			w := httptest.NewRecorder()
+
+			interceptor, err := p.CreateInterceptor(w, req, testTracer)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				require.Nil(t, interceptor)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, interceptor)
+
+			cred := interceptor.Credential()
+			assert.Equal(t, tc.wantCredentialKind, cred.Kind(), "credential kind mismatch")
+			assert.Equal(t, tc.wantCredentialHint, cred.Hint(), "credential hint mismatch")
+
+			// Bedrock signs via AWS during ProcessRequest (needs real AWS
+			// credentials), covered by the integration tests.
+			interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
+		})
+	}
+}
+
+// TestBedrock_CreateInterceptor_InvokeModelOpenAIRoutes verifies that an
+// invoke-model provider returns ErrUnknownRoute for the OpenAI routes, since
+// they only make sense under the mantle protocol.
+func TestBedrock_CreateInterceptor_InvokeModelOpenAIRoutes(t *testing.T) {
+	t.Parallel()
+
+	mockUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"msg-123","type":"message","role":"assistant","content":[{"type":"text","text":"Hello!"}],"model":"claude-opus-4-5","stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":5}}`))
+	}))
+	t.Cleanup(mockUpstream.Close)
+
+	p := newTestBedrock(t, config.Anthropic{BaseURL: mockUpstream.URL}, config.AWSBedrock{
+		Region:          "us-west-2",
+		AccessKey:       "test-key",
+		AccessKeySecret: "test-secret",
+		Model:           "m",
+		SmallFastModel:  "s",
+		BaseURL:         mockUpstream.URL,
+	})
+	require.Equal(t, config.BedrockProtocolInvokeModel, p.runtime.Cfg.ResolvedProtocol())
+
+	for _, path := range []string{routeBedrockChatCompletions, routeBedrockResponses} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(`{}`))
+			w := httptest.NewRecorder()
+
+			interceptor, err := p.CreateInterceptor(w, req, testTracer)
+			require.ErrorIs(t, err, ErrUnknownRoute)
+			require.Nil(t, interceptor)
+		})
+	}
 }

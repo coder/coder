@@ -22,6 +22,7 @@ import (
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
@@ -42,11 +43,36 @@ func NewStreamingInterceptor(
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingInterception {
+	return newStreamingInterceptor(id, req, cfg, cred, nil, clientHeaders, tracer)
+}
+
+func NewBedrockStreamingInterceptor(
+	id uuid.UUID,
+	req *ChatCompletionNewParamsWrapper,
+	cfg intercept.Config,
+	cred intercept.Credential,
+	bedrock *bedrocksig.MantleConfig,
+	clientHeaders http.Header,
+	tracer trace.Tracer,
+) *StreamingInterception {
+	return newStreamingInterceptor(id, req, cfg, cred, bedrock, clientHeaders, tracer)
+}
+
+func newStreamingInterceptor(
+	id uuid.UUID,
+	req *ChatCompletionNewParamsWrapper,
+	cfg intercept.Config,
+	cred intercept.Credential,
+	bedrock *bedrocksig.MantleConfig,
+	clientHeaders http.Header,
+	tracer trace.Tracer,
+) *StreamingInterception {
 	return &StreamingInterception{interceptionBase: interceptionBase{
 		id:            id,
 		req:           req,
 		cfg:           cfg,
 		cred:          cred,
+		bedrock:       bedrock,
 		clientHeaders: clientHeaders,
 		tracer:        tracer,
 	}}

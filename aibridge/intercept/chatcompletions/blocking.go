@@ -19,6 +19,7 @@ import (
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
@@ -39,11 +40,36 @@ func NewBlockingInterceptor(
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingInterception {
+	return newBlockingInterceptor(id, req, cfg, cred, nil, clientHeaders, tracer)
+}
+
+func NewBedrockBlockingInterceptor(
+	id uuid.UUID,
+	req *ChatCompletionNewParamsWrapper,
+	cfg intercept.Config,
+	cred intercept.Credential,
+	bedrock *bedrocksig.MantleConfig,
+	clientHeaders http.Header,
+	tracer trace.Tracer,
+) *BlockingInterception {
+	return newBlockingInterceptor(id, req, cfg, cred, bedrock, clientHeaders, tracer)
+}
+
+func newBlockingInterceptor(
+	id uuid.UUID,
+	req *ChatCompletionNewParamsWrapper,
+	cfg intercept.Config,
+	cred intercept.Credential,
+	bedrock *bedrocksig.MantleConfig,
+	clientHeaders http.Header,
+	tracer trace.Tracer,
+) *BlockingInterception {
 	return &BlockingInterception{interceptionBase: interceptionBase{
 		id:            id,
 		req:           req,
 		cfg:           cfg,
 		cred:          cred,
+		bedrock:       bedrock,
 		clientHeaders: clientHeaders,
 		tracer:        tracer,
 	}}
