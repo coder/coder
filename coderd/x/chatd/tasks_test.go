@@ -452,8 +452,6 @@ func TestInterruptTask_PartialAssistantWithoutModelInvocationHasNoRuntime(t *tes
 		HistoryVersion:    acquired.HistoryVersion,
 		GenerationAttempt: acquired.GenerationAttempt,
 	}
-	// A local tool execution batch never opens a provider stream, so
-	// its wall time is not billable even though it publishes parts.
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("partial answer")))
 	clock.Advance(1500 * time.Millisecond)
