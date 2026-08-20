@@ -4364,6 +4364,7 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupChat,
 			YAML:        "streamSilenceTimeout",
 			Hidden:      true, // Hidden because most operators should not need to modify this.
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Chat: Hook URL",
