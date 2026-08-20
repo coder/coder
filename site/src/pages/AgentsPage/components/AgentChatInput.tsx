@@ -429,7 +429,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		"main",
 	);
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
-	// Auto-select the server once its OAuth flow succeeds.
 	const { connectingServerId: mcpConnectingId, connect: connectMCPServer } =
 		useMCPOAuthFlow({
 			organizationId: chatOrganizationId,
