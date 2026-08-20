@@ -872,7 +872,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								parentChat={parentChat}
 								panel={{
 									showSidebarPanel,
-									onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
+									onToggleSidebar: () =>
+										onSetShowSidebarPanel(!showSidebarPanel),
 								}}
 								onArchiveAgent={handleArchiveAgentAction}
 								onUnarchiveAgent={handleUnarchiveAgentAction}
