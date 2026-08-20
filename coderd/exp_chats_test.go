@@ -534,6 +534,38 @@ func (s *failNextUpdateChatModelConfigStore) UpdateChatModelConfig(
 	return s.Store.UpdateChatModelConfig(ctx, arg)
 }
 
+type failNextGetChatSiteConfigValueStore struct {
+	database.Store
+
+	failNextGetChatSiteConfigValue *atomic.Bool
+}
+
+func newFailNextGetChatSiteConfigValueStore(store database.Store) *failNextGetChatSiteConfigValueStore {
+	return &failNextGetChatSiteConfigValueStore{
+		Store:                          store,
+		failNextGetChatSiteConfigValue: &atomic.Bool{},
+	}
+}
+
+func (s *failNextGetChatSiteConfigValueStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return function(&failNextGetChatSiteConfigValueStore{
+			Store:                          tx,
+			failNextGetChatSiteConfigValue: s.failNextGetChatSiteConfigValue,
+		})
+	}, txOpts)
+}
+
+func (s *failNextGetChatSiteConfigValueStore) GetChatSiteConfigValue(
+	ctx context.Context,
+	configKey string,
+) (database.GetChatSiteConfigValueRow, error) {
+	if s.failNextGetChatSiteConfigValue.CompareAndSwap(true, false) {
+		return database.GetChatSiteConfigValueRow{}, stderrors.New("forced chat site configuration read failure")
+	}
+	return s.Store.GetChatSiteConfigValue(ctx, configKey)
+}
+
 func insertAssistantMessage(
 	t *testing.T,
 	db database.Store,
@@ -16278,6 +16310,37 @@ func TestChatWorkspaceTTL(t *testing.T) {
 		WorkspaceTTLMillis: 2_595_600_000,
 	})
 	requireSDKError(t, err, http.StatusBadRequest)
+}
+
+func TestChatRetentionDays_GetSiteConfigValueFailureReturns500WithoutWriteOrAudit(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	rawDB, pubsub := dbtestutil.NewDB(t)
+	store := newFailNextGetChatSiteConfigValueStore(rawDB)
+	mAudit := audit.NewMock()
+	adminClient := newChatClient(t, func(opts *coderdtest.Options) {
+		opts.Database = store
+		opts.Pubsub = pubsub
+		opts.Auditor = mAudit
+	})
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+	mAudit.ResetLogs()
+
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	before, err := rawDB.GetChatSiteConfigValue(systemCtx, "agents_chat_retention_days")
+	require.NoError(t, err)
+
+	store.failNextGetChatSiteConfigValue.Store(true)
+	err = adminClient.UpdateChatRetentionDays(ctx, codersdk.UpdateChatRetentionDaysRequest{
+		RetentionDays: 90,
+	})
+	requireSDKError(t, err, http.StatusInternalServerError)
+
+	after, err := rawDB.GetChatSiteConfigValue(systemCtx, "agents_chat_retention_days")
+	require.NoError(t, err)
+	require.Equal(t, before, after)
+	require.Empty(t, mAudit.AuditLogs())
 }
 
 func TestChatRetentionDays(t *testing.T) {

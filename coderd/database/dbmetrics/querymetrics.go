@@ -1784,6 +1784,14 @@ func (m queryMetricsStore) GetChatRetentionDays(ctx context.Context) (int32, err
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatSiteConfigValue(ctx context.Context, configKey string) (database.GetChatSiteConfigValueRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatSiteConfigValue(ctx, configKey)
+	m.queryLatencies.WithLabelValues("GetChatSiteConfigValue").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatSiteConfigValue").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]database.GetChatStreamSyncRowsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatStreamSyncRows(ctx, ids)

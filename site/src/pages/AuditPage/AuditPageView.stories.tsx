@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
+import { type ComponentProps, useState } from "react";
 import { expect, fn, screen, userEvent, within } from "storybook/test";
 import {
 	getDefaultFilterProps,
@@ -57,6 +57,58 @@ export const AuditPage: Story = {
 	parameters: { pixel: { matrix: pixelWithTablet } },
 	args: {
 		auditsQuery: mockSuccessResult,
+	},
+};
+
+const AuditPageWithResourceTypeFilter = (
+	props: ComponentProps<typeof AuditPageView>,
+) => {
+	const [resourceType, setResourceType] = useState<string>();
+	const resourceTypeMenu = useResourceTypeFilterMenu({
+		value: resourceType,
+		onChange: (option) => setResourceType(option?.value),
+	});
+
+	return (
+		<AuditPageView
+			{...props}
+			filterProps={{
+				...props.filterProps,
+				filter: {
+					...props.filterProps.filter,
+					values: {
+						...props.filterProps.filter.values,
+						resource_type: resourceType,
+					},
+				},
+				menus: {
+					...props.filterProps.menus,
+					resourceType: resourceTypeMenu,
+				},
+			}}
+		/>
+	);
+};
+
+export const ChatOperationalSettingsFilter: Story = {
+	args: {
+		auditsQuery: mockSuccessResult,
+	},
+	render: (args) => <AuditPageWithResourceTypeFilter {...args} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const resourceTypeFilter = canvas.getByRole("button", {
+			name: "Select a resource type",
+		});
+		await userEvent.click(resourceTypeFilter);
+
+		const option = await screen.findByRole("option", {
+			name: "Chat Operational Settings",
+		});
+		await userEvent.click(option);
+		await expect(resourceTypeFilter).toHaveTextContent(
+			"Chat Operational Settings",
+		);
 	},
 };
 

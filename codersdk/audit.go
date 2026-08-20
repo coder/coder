@@ -57,6 +57,7 @@ const (
 	ResourceTypeUserSecret              ResourceType = "user_secret"
 	ResourceTypeUserSkill               ResourceType = "user_skill"
 	ResourceTypeChatInstructionSettings ResourceType = "chat_instruction_settings"
+	ResourceTypeChatOperationalSettings ResourceType = "chat_operational_settings"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -139,6 +140,8 @@ func (r ResourceType) FriendlyString() string {
 		return "user skill"
 	case ResourceTypeChatInstructionSettings:
 		return "chat instruction settings"
+	case ResourceTypeChatOperationalSettings:
+		return "chat operational settings"
 	default:
 		return "unknown"
 	}

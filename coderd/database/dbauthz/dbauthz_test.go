@@ -1208,6 +1208,11 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.GetEnabledChatModelConfigsRow{rowA, rowB})
 	}))
 
+	s.Run("GetChatSiteConfigValue", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		row := database.GetChatSiteConfigValueRow{Value: "30", Exists: true}
+		dbm.EXPECT().GetChatSiteConfigValue(gomock.Any(), "agents_chat_retention_days").Return(row, nil).AnyTimes()
+		check.Args("agents_chat_retention_days").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(row)
+	}))
 	s.Run("GetStaleChats", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		threshold := dbtime.Now()
 		chats := []database.Chat{testutil.Fake(s.T(), faker, database.Chat{})}

@@ -25304,6 +25304,36 @@ func (q *sqlQuerier) GetChatRetentionDays(ctx context.Context) (int32, error) {
 	return retention_days, err
 }
 
+const getChatSiteConfigValue = `-- name: GetChatSiteConfigValue :one
+SELECT
+    COALESCE(MAX(site_configs.value), '')::text AS value,
+    COUNT(*) > 0 AS exists
+FROM site_configs
+WHERE site_configs.key = $1
+    AND site_configs.key IN (
+        'agents_chat_retention_days',
+        'agents_chat_debug_retention_days',
+        'agents_chat_auto_archive_days',
+        'agents_workspace_ttl',
+        'agents_computer_use_provider',
+        'agents_chat_debug_logging_allow_users',
+        'agents_chat_personal_model_overrides_enabled'
+    )
+`
+
+type GetChatSiteConfigValueRow struct {
+	Value  string `db:"value" json:"value"`
+	Exists bool   `db:"exists" json:"exists"`
+}
+
+// GetChatSiteConfigValue returns raw text and row presence for an audited chat site configuration.
+func (q *sqlQuerier) GetChatSiteConfigValue(ctx context.Context, configKey string) (GetChatSiteConfigValueRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatSiteConfigValue, configKey)
+	var i GetChatSiteConfigValueRow
+	err := row.Scan(&i.Value, &i.Exists)
+	return i, err
+}
+
 const getChatSystemPrompt = `-- name: GetChatSystemPrompt :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_system_prompt'), '') :: text AS chat_system_prompt
