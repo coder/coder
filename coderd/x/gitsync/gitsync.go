@@ -29,10 +29,16 @@ const (
 )
 
 // ProviderResolver maps a git remote origin to the gitprovider
-// that handles it. Returns nil if no provider matches.
-type ProviderResolver func(ctx context.Context, origin string) gitprovider.Provider
+// that handles it. Returns nil, nil if no provider matches.
+// Returns ErrProviderUnimplemented if the origin matches a
+// provider whose git client is not yet implemented.
+type ProviderResolver func(ctx context.Context, origin string) (gitprovider.Provider, error)
 
 var ErrNoTokenAvailable error = errors.New("no token available")
+
+// ErrProviderUnimplemented indicates that the git provider type configured
+// for a remote origin is not yet implemented.
+var ErrProviderUnimplemented error = errors.New("git provider type is not implemented")
 
 // ErrRateLimitSkipped indicates that a row was skipped because
 // a prior request in the same group hit a rate limit.
@@ -159,7 +165,13 @@ func (r *Refresher) Refresh(
 	// duplicate resolution for rows in the same group.
 	var resolved []resolvedGroup
 	for key, indices := range groups {
-		provider := r.providers(ctx, key.origin)
+		provider, err := r.providers(ctx, key.origin)
+		if err != nil {
+			for _, i := range indices {
+				results[i].Error = err
+			}
+			continue
+		}
 		if provider == nil {
 			err := xerrors.Errorf("no provider for origin %q", key.origin)
 			for _, i := range indices {

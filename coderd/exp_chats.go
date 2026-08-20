@@ -3995,7 +3995,7 @@ func (api *API) resolveChatDiffContents(
 		return result, nil
 	}
 
-	gp := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
+	gp, _ := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
 	if gp == nil {
 		return result, nil
 	}
@@ -4059,7 +4059,7 @@ func (api *API) resolveChatDiffReference(
 	// current open PR. This picks up new PRs after the previous
 	// one was closed.
 	if reference.RepositoryRef != nil && reference.RepositoryRef.Owner != "" {
-		gp := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
+		gp, _ := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
 		if gp != nil {
 			token, err := api.resolveChatGitAccessToken(ctx, chat.OwnerID, reference.RepositoryRef.RemoteOrigin)
 			if token == nil || errors.Is(err, gitsync.ErrNoTokenAvailable) {
@@ -4219,10 +4219,33 @@ func (api *API) resolveExternalAuth(ctx context.Context, origin string) (provide
 
 // resolveGitProvider finds the external auth config matching the
 // given remote origin URL and returns its git provider. Returns
-// nil if no matching git provider is configured.
-func (api *API) resolveGitProvider(ctx context.Context, origin string) gitprovider.Provider {
-	_, gp := api.resolveExternalAuth(ctx, origin)
-	return gp
+// (nil, nil) if no matching git provider is configured, or
+// (nil, gitsync.ErrProviderUnimplemented) if a matching config exists
+// but its git provider type is not yet implemented.
+func (api *API) resolveGitProvider(ctx context.Context, origin string) (gitprovider.Provider, error) {
+	origin = strings.TrimSpace(origin)
+	if origin == "" {
+		return nil, nil
+	}
+	for _, extAuth := range api.ExternalAuthConfigs {
+		if extAuth.Regex == nil || !extAuth.Regex.MatchString(origin) {
+			continue
+		}
+		p, err := extAuth.Git()
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to construct git provider",
+				slog.F("provider_id", extAuth.ID),
+				slog.F("provider_type", extAuth.Type),
+				slog.Error(err),
+			)
+			continue
+		}
+		if p == nil {
+			return nil, gitsync.ErrProviderUnimplemented
+		}
+		return p, nil
+	}
+	return nil, nil
 }
 
 func (api *API) resolveChatGitAccessToken(
