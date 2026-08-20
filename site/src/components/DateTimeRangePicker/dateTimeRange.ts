@@ -52,7 +52,7 @@ export const DEFAULT_QUICK_PRESETS: QuickPreset[] = [
 
 export type Meridiem = "AM" | "PM";
 
-export interface ClockTime {
+interface ClockTime {
 	/** 12-hour clock hours, 1-12. */
 	hours: number;
 	minutes: number;
