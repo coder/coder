@@ -5,6 +5,7 @@ package confine
 import (
 	"context"
 	"errors"
+	"io"
 	"maps"
 	"net/url"
 	"os"
@@ -88,8 +89,12 @@ func newEmbeddedMicroVMConfig(options MicroVMOptions) (embeddedMicroVMConfig, er
 		Name:   options.Name,
 		Policy: evaluator,
 	}
+	stagedBinaryDir, err := stageEmbeddedGuestBinary(options.StateDir, options.Name, binaryPath)
+	if err != nil {
+		return embeddedMicroVMConfig{}, err
+	}
 	mounts := []hostvm.Mount{{
-		Source: filepath.Dir(binaryPath), Target: embeddedCoderGuestDir,
+		Source: stagedBinaryDir, Target: embeddedCoderGuestDir,
 		ReadOnly: true, Nosuid: true, Nodev: true,
 	}}
 	guestCAFile, caBundlePath, err := resolveHostCABundle(options.CABundlePath)
@@ -121,6 +126,55 @@ func newEmbeddedMicroVMConfig(options MicroVMOptions) (embeddedMicroVMConfig, er
 		evaluator: evaluator,
 		recorder:  recorder,
 	}, nil
+}
+
+// stageEmbeddedGuestBinary copies the agent binary into a sandbox-owned,
+// world-traversable directory for the guest binary mount. The binary usually
+// lives in the agent bootstrap's mktemp directory (mode 0700, owned by the
+// host user), which guest processes cannot traverse once agent-exec drops
+// effective capabilities: with CODER_PROC_PRIO_MGMT every wrapped spawn of
+// the agent's own binary resolves and execs it without CAP_DAC_OVERRIDE, so
+// the mounted directory and binary must be readable by everyone.
+func stageEmbeddedGuestBinary(stateDir, name, binaryPath string) (string, error) {
+	dir := filepath.Join(stateDir, name+"-guest-bin")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", xerrors.Errorf("create guest binary staging directory: %w", err)
+	}
+	// MkdirAll does not update permissions on directories that already
+	// exist, and the mode matters more than usual here: an unreadable
+	// staging directory reproduces the exact failure this staging avoids.
+	if err := os.Chmod(dir, 0o755); err != nil {
+		return "", xerrors.Errorf("set guest binary staging directory permissions: %w", err)
+	}
+	staged := filepath.Join(dir, filepath.Base(binaryPath))
+	source, err := os.Open(binaryPath)
+	if err != nil {
+		return "", xerrors.Errorf("open agent binary for staging: %w", err)
+	}
+	defer source.Close()
+	// Write through a temporary file so a crash mid-copy never leaves a
+	// truncated binary at the mounted path, then rename into place.
+	temp, err := os.CreateTemp(dir, filepath.Base(binaryPath)+".tmp*")
+	if err != nil {
+		return "", xerrors.Errorf("create staged agent binary: %w", err)
+	}
+	defer func() {
+		_ = temp.Close()
+		_ = os.Remove(temp.Name())
+	}()
+	if _, err := io.Copy(temp, source); err != nil {
+		return "", xerrors.Errorf("copy agent binary into staging directory: %w", err)
+	}
+	if err := temp.Chmod(0o755); err != nil {
+		return "", xerrors.Errorf("set staged agent binary permissions: %w", err)
+	}
+	if err := temp.Close(); err != nil {
+		return "", xerrors.Errorf("close staged agent binary: %w", err)
+	}
+	if err := os.Rename(temp.Name(), staged); err != nil {
+		return "", xerrors.Errorf("move staged agent binary into place: %w", err)
+	}
+	return dir, nil
 }
 
 func validateMicroVMOptions(options MicroVMOptions) (string, *url.URL, error) {
