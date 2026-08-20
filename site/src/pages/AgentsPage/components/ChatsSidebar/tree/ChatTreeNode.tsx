@@ -42,8 +42,6 @@ interface ChatTreeNodeProps {
 	readonly depth?: number;
 }
 
-// Horizontal indentation applied per nesting level to a row's content. The row
-// highlight itself stays full width; only the content is indented.
 const CHILD_INDENT_PX = 26;
 
 export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
