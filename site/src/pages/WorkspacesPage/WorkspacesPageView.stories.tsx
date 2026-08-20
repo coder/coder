@@ -7,6 +7,7 @@ import {
 	type WorkspaceStatus,
 	WorkspaceStatuses,
 } from "#/api/typesGenerated";
+import type { UseFilterResult } from "#/components/Filter/Filter";
 import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
 import {
@@ -27,7 +28,6 @@ import {
 	withDashboardProvider,
 	withProxyProvider,
 } from "#/testHelpers/storybook";
-import type { WorkspaceFilterState } from "./filter/WorkspacesFilter";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 const createWorkspace = (
@@ -132,14 +132,14 @@ const allWorkspaces = [
 	...Object.values(additionalWorkspaces),
 ];
 
-const defaultFilterProps = getDefaultFilterProps<WorkspaceFilterState>({
+const defaultFilter = getDefaultFilterProps<{ filter: UseFilterResult }>({
 	query: "owner:me",
 	values: {
 		owner: MockUserOwner.username,
 		template: undefined,
 		status: undefined,
 	},
-});
+}).filter;
 
 const mockTemplates = [
 	MockTemplate,
@@ -159,7 +159,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
 	component: WorkspacesPageView,
 	args: {
 		limit: DEFAULT_RECORDS_PER_PAGE,
-		filterState: defaultFilterProps,
+		filter: defaultFilter,
 		checkedWorkspaces: [],
 		templates: mockTemplates,
 		templatesFetchStatus: "success",
@@ -213,10 +213,7 @@ export const CannotCreateWorkspaceWithFilter: Story = {
 		workspaces: [],
 		count: 0,
 		canCreateWorkspace: false,
-		filterState: {
-			...defaultFilterProps,
-			filter: { ...defaultFilterProps.filter, used: true },
-		},
+		filter: { ...defaultFilter, used: true },
 	},
 	// The filter empty state takes priority: an active filter that matched
 	// nothing shows "no results" regardless of create permission, since the
@@ -324,13 +321,10 @@ export const UserHasNoWorkspacesAndNoTemplates: Story = {
 export const NoSearchResults: Story = {
 	args: {
 		workspaces: [],
-		filterState: {
-			...defaultFilterProps,
-			filter: {
-				...defaultFilterProps.filter,
-				query: "searchwithnoresults",
-				used: true,
-			},
+		filter: {
+			...defaultFilter,
+			query: "searchwithnoresults",
+			used: true,
 		},
 		count: 0,
 	},

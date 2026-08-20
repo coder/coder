@@ -26,6 +26,11 @@ import {
 import type { FilterCategory, FilterOption, SearchResult } from "./types";
 import { useFilterCombobox } from "./useFilterCombobox";
 
+/**
+ * Unified workspace filter input: renders committed chips plus a cmdk-driven
+ * popup that browses categories, surfaces cross-category value suggestions, and
+ * (optionally) previews matching resources. State lives in `useFilterCombobox`.
+ */
 type FilterComboboxProps = Readonly<{
 	value: string;
 	onChange: (query: string) => void;
@@ -34,6 +39,8 @@ type FilterComboboxProps = Readonly<{
 	className?: string;
 	/** Marks the input invalid (e.g. the server rejected the filter query). */
 	invalid?: boolean;
+	/** Id of the visible error message, linked from the input when invalid. */
+	errorId?: string;
 	/** Debounced free-text resource previews (e.g. matching workspaces). */
 	getSearchResults?: (query: string) => Promise<SearchResult[]>;
 	onSearchResultSelect?: (result: SearchResult) => void;
@@ -47,6 +54,7 @@ export function FilterCombobox({
 	placeholder = "Search and filter…",
 	className,
 	invalid = false,
+	errorId,
 	getSearchResults,
 	onSearchResultSelect,
 	searchResultsLabel = "Results",
@@ -118,13 +126,20 @@ export function FilterCombobox({
 										className="font-medium"
 										aria-hidden
 									>
-										{activeCategory.key}:
+										{/* A single-key category previews its chip prefix
+										    (e.g. `status:`); a multi-key one (Attributes
+										    commits `outdated:true`, etc.) shows its label. */}
+										{activeCategory.chipKeys &&
+										!activeCategory.chipKeys.includes(activeCategory.key)
+											? activeCategory.label
+											: `${activeCategory.key}:`}
 									</Badge>
 								)}
 								<FilterComboboxChipsInput
 									ref={actions.setInputRef}
 									aria-label={placeholder}
 									aria-invalid={invalid || undefined}
+									aria-errormessage={invalid ? errorId : undefined}
 									placeholder={
 										selected.length > 0 || activeCategory ? "" : placeholder
 									}
@@ -168,7 +183,6 @@ export function FilterCombobox({
 						searchResults={searchResults}
 						searchResultsLabel={searchResultsLabel}
 						showSearchSection={typeahead.showSearchResults}
-						showValueSuggestions={typeahead.showValueSuggestions}
 						typeaheadLoading={typeahead.loading}
 						typeaheadError={typeahead.error}
 						onSelectCategory={actions.selectCategory}
@@ -193,6 +207,21 @@ export function FilterCombobox({
 
 const OPTION_ITEM_CLASS = "gap-2 px-2 py-2.5";
 
+// Prefer an explicit icon, then a workspace/user avatar, else no leading glyph.
+function resultIcon(result: SearchResult) {
+	if (result.startIcon) {
+		return <span aria-hidden>{result.startIcon}</span>;
+	}
+	if (result.imageUrl !== undefined) {
+		return (
+			<span aria-hidden>
+				<Avatar src={result.imageUrl} fallback={result.label} size="md" />
+			</span>
+		);
+	}
+	return null;
+}
+
 type ValueSuggestion = {
 	categoryLabel: string;
 	token: string;
@@ -205,7 +234,6 @@ type TypeaheadListProps = Readonly<{
 	searchResults: readonly SearchResult[];
 	searchResultsLabel: string;
 	showSearchSection: boolean;
-	showValueSuggestions: boolean;
 	typeaheadLoading: boolean;
 	typeaheadError: boolean;
 	onSelectCategory: (categoryKey: string) => void;
@@ -219,24 +247,20 @@ function TypeaheadList({
 	searchResults,
 	searchResultsLabel,
 	showSearchSection,
-	showValueSuggestions,
 	typeaheadLoading,
 	typeaheadError,
 	onSelectCategory,
 	onSelectSuggestion,
 	onSelectSearchResult,
 }: TypeaheadListProps) {
-	const valueSuggestionsByCategory = new Map<string, ValueSuggestion[]>();
-	for (const suggestion of valueSuggestions) {
-		const group =
-			valueSuggestionsByCategory.get(suggestion.categoryLabel) ?? [];
-		group.push(suggestion);
-		valueSuggestionsByCategory.set(suggestion.categoryLabel, group);
-	}
+	const valueSuggestionsByCategory = Map.groupBy(
+		valueSuggestions,
+		(suggestion) => suggestion.categoryLabel,
+	);
 
 	const isEmpty =
 		listedCategories.length === 0 &&
-		!showValueSuggestions &&
+		valueSuggestions.length === 0 &&
 		!showSearchSection &&
 		!typeaheadLoading &&
 		!typeaheadError;
@@ -244,7 +268,7 @@ function TypeaheadList({
 	return (
 		<>
 			{isEmpty && <FilterComboboxEmpty>No filters found.</FilterComboboxEmpty>}
-			<FilterComboboxList className="p-3 data-[empty]:p-3">
+			<FilterComboboxList className="p-3">
 				{listedCategories.map((category) => (
 					<FilterComboboxItem
 						className={OPTION_ITEM_CLASS}
@@ -295,18 +319,7 @@ function TypeaheadList({
 								value={result.value}
 								onSelect={() => onSelectSearchResult(result)}
 							>
-								{(result.startIcon ?? result.imageUrl !== undefined) ? (
-									<span aria-hidden>
-										{result.startIcon ??
-											(result.imageUrl !== undefined ? (
-												<Avatar
-													src={result.imageUrl}
-													fallback={result.label}
-													size="md"
-												/>
-											) : null)}
-									</span>
-								) : null}
+								{resultIcon(result)}
 								<span className="flex min-w-0 flex-col">
 									<span className="truncate text-content-primary">
 										{result.label}
@@ -386,7 +399,7 @@ function CategoryOptionsList({
 	return (
 		<>
 			<FilterComboboxEmpty>No filters found.</FilterComboboxEmpty>
-			<FilterComboboxList className="p-3 data-[empty]:p-3">
+			<FilterComboboxList className="p-3">
 				{activeCategoryKey !== null && (
 					<FilterComboboxGroup>
 						{activeCategory && (

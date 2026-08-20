@@ -198,7 +198,7 @@ const WorkspacesPage: FC = () => {
 				page={pagination.page}
 				limit={pagination.limit}
 				onPageChange={pagination.goToPage}
-				filterState={{ filter }}
+				filter={filter}
 				isRunningBatchAction={batchActions.isProcessing}
 				onBatchDeleteTransition={() => setActiveBatchAction("delete")}
 				onBatchStartTransition={() => batchActions.start(checkedWorkspaces)}

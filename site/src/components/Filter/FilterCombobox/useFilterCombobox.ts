@@ -342,7 +342,6 @@ export const useFilterCombobox = ({
 
 	const typeaheadActive = activeCategoryKey === null && isBrowsing;
 	const hasTypeaheadQuery = typeaheadActive && inputValue.trim().length > 0;
-	const showValueSuggestions = hasTypeaheadQuery && valueSuggestions.length > 0;
 	const showSearchResults = hasTypeaheadQuery && searchResults.length > 0;
 	// Spin only until the first rows of a source arrive; once either source has
 	// resolved rows, render them instead of the spinner.
@@ -532,7 +531,6 @@ export const useFilterCombobox = ({
 			active: typeaheadActive,
 			loading: typeaheadLoading,
 			error: typeaheadError,
-			showValueSuggestions,
 			showSearchResults,
 		},
 		actions: {

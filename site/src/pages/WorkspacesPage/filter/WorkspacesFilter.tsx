@@ -32,11 +32,6 @@ import {
 
 const WORKSPACE_PREVIEW_LIMIT = 5;
 
-export type WorkspaceFilterState = {
-	filter: UseFilterResult;
-	error?: unknown;
-};
-
 type WorkspaceFilterProps = Readonly<{
 	filter: UseFilterResult;
 	error: unknown;
@@ -72,8 +67,8 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				key: "attributes",
 				label: "Attributes",
 				icon: <SlidersHorizontalIcon />,
-				// Groups the boolean workspace filters; each option commits its own
-				// `key:true` chip, so the category owns those keys for parsing.
+				// Boolean workspace filters live under their own keys, so the
+				// category owns them for chip parsing.
 				chipKeys: ["outdated", "dormant", "shared"],
 				getOptions: (query) =>
 					getAttributeFilterOptions(query, { canFilterDormant }),
@@ -150,12 +145,17 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				placeholder="Search and filter workspaces…"
 				className="max-w-lg"
 				invalid={showValidationError}
+				errorId="workspaces-filter-error"
 				getSearchResults={getSearchResults}
 				onSearchResultSelect={onSearchResultSelect}
 				searchResultsLabel="Workspaces"
 			/>
 			{showValidationError && (
-				<span className="text-sm text-content-destructive">
+				<span
+					id="workspaces-filter-error"
+					role="alert"
+					className="text-sm text-content-destructive"
+				>
 					{getValidationErrorMessage(error)}
 				</span>
 			)}
