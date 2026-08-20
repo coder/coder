@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import type { Workspace, WorkspaceBuild } from "#/api/typesGenerated";
+import { clearEntityStorage } from "#/utils/storage/keys";
 
 interface UseBatchActionsOptions {
 	onSuccess: () => Promise<void>;
@@ -65,9 +66,19 @@ export function useBatchActions(
 
 	const deleteAllMutation = useMutation({
 		mutationFn: (workspaces: readonly Workspace[]) => {
-			return Promise.all(workspaces.map((w) => API.deleteWorkspace(w.id)));
+			return Promise.all(
+				workspaces.map(async (w) => {
+					// Clear per-workspace as each delete succeeds so a mixed
+					// batch still cleans up the workspaces that were deleted.
+					const build = await API.deleteWorkspace(w.id);
+					clearEntityStorage("workspace", w.id);
+					return build;
+				}),
+			);
 		},
-		onSuccess,
+		onSuccess: (_builds: WorkspaceBuild[]) => {
+			return onSuccess();
+		},
 		onError: (error) => {
 			toast.error("Failed to delete some workspaces.", {
 				description: getErrorDetail(error),

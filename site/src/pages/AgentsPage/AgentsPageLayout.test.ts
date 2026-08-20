@@ -2,17 +2,15 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	emptyInputDraftStorage,
+	persistedAttachmentsStorage,
+} from "#/utils/storage/keys";
+import {
 	chatCostIdToInvalidate,
 	shouldInvalidateFilteredChatList,
 } from "./AgentsPageLayout";
-import {
-	emptyInputStorageKey,
-	useEmptyStateDraft,
-} from "./components/AgentCreateForm";
-import {
-	persistedAttachmentsStorageKey,
-	useFileAttachments,
-} from "./hooks/useFileAttachments";
+import { useEmptyStateDraft } from "./components/AgentCreateForm";
+import { useFileAttachments } from "./hooks/useFileAttachments";
 
 describe("useEmptyStateDraft", () => {
 	beforeEach(() => {
@@ -22,7 +20,7 @@ describe("useEmptyStateDraft", () => {
 	const renderDraft = () => renderHook(() => useEmptyStateDraft());
 
 	it("reads the initial value from localStorage", () => {
-		localStorage.setItem(emptyInputStorageKey, "saved draft");
+		localStorage.setItem(emptyInputDraftStorage.key, "saved draft");
 
 		const { result, unmount } = renderDraft();
 
@@ -50,13 +48,15 @@ describe("useEmptyStateDraft", () => {
 			);
 		});
 
-		expect(localStorage.getItem(emptyInputStorageKey)).toBe("work in progress");
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBe(
+			"work in progress",
+		);
 		expect(result.current.getCurrentContent()).toBe("work in progress");
 		unmount();
 	});
 
 	it("removes the draft key when handleContentChange receives empty string", () => {
-		localStorage.setItem(emptyInputStorageKey, "old draft");
+		localStorage.setItem(emptyInputDraftStorage.key, "old draft");
 		const { result, unmount } = renderDraft();
 
 		act(() => {
@@ -66,33 +66,35 @@ describe("useEmptyStateDraft", () => {
 			result.current.handleContentChange("", '{"root":{"children":[]}}', false);
 		});
 
-		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBeNull();
 		unmount();
 	});
 
 	it("clears the draft from localStorage when submitDraft is called", () => {
-		localStorage.setItem(emptyInputStorageKey, "draft to clear");
+		localStorage.setItem(emptyInputDraftStorage.key, "draft to clear");
 		const { result, unmount } = renderDraft();
 
-		expect(localStorage.getItem(emptyInputStorageKey)).toBe("draft to clear");
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBe(
+			"draft to clear",
+		);
 
 		act(() => {
 			result.current.submitDraft();
 		});
 
-		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBeNull();
 		unmount();
 	});
 
 	it("does not re-persist the draft after submitDraft is called", () => {
-		localStorage.setItem(emptyInputStorageKey, "fix the bug");
+		localStorage.setItem(emptyInputDraftStorage.key, "fix the bug");
 		const { result, unmount } = renderDraft();
 
 		// Simulate handleSend: submitDraft clears the draft.
 		act(() => {
 			result.current.submitDraft();
 		});
-		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBeNull();
 
 		// Simulate the Lexical ContentChangePlugin firing during
 		// the re-render with the old content. Without the sentRef
@@ -101,7 +103,7 @@ describe("useEmptyStateDraft", () => {
 			result.current.handleContentChange("fix the bug", "fix the bug", false);
 		});
 
-		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBeNull();
 		expect(result.current.getCurrentContent()).toBe("fix the bug");
 		unmount();
 	});
@@ -112,7 +114,7 @@ describe("useEmptyStateDraft", () => {
 		act(() => {
 			result.current.handleContentChange("original", "original", false);
 		});
-		expect(localStorage.getItem(emptyInputStorageKey)).toBe("original");
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBe("original");
 
 		act(() => {
 			result.current.submitDraft();
@@ -125,12 +127,12 @@ describe("useEmptyStateDraft", () => {
 				false,
 			);
 		});
-		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBeNull();
 		unmount();
 	});
 
 	it("returns empty draft when remounting after submitDraft", () => {
-		localStorage.setItem(emptyInputStorageKey, "draft before send");
+		localStorage.setItem(emptyInputDraftStorage.key, "draft before send");
 		const { result, unmount } = renderDraft();
 
 		act(() => {
@@ -141,7 +143,7 @@ describe("useEmptyStateDraft", () => {
 		// Simulate returning to the page.
 		const { result: fresh, unmount: unmountFresh } = renderDraft();
 		expect(fresh.current.initialInputValue).toBe("");
-		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBeNull();
 		unmountFresh();
 	});
 
@@ -151,12 +153,14 @@ describe("useEmptyStateDraft", () => {
 		act(() => {
 			result.current.handleContentChange("attempt one", "attempt one", false);
 		});
-		expect(localStorage.getItem(emptyInputStorageKey)).toBe("attempt one");
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBe(
+			"attempt one",
+		);
 
 		act(() => {
 			result.current.submitDraft();
 		});
-		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBeNull();
 
 		// Simulate error recovery -- re-enable persistence.
 		act(() => {
@@ -166,23 +170,25 @@ describe("useEmptyStateDraft", () => {
 		act(() => {
 			result.current.handleContentChange("attempt two", "attempt two", false);
 		});
-		expect(localStorage.getItem(emptyInputStorageKey)).toBe("attempt two");
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBe(
+			"attempt two",
+		);
 		unmount();
 	});
 
 	it("handles submitDraft being called twice without error", () => {
-		localStorage.setItem(emptyInputStorageKey, "draft");
+		localStorage.setItem(emptyInputDraftStorage.key, "draft");
 		const { result, unmount } = renderDraft();
 
 		act(() => {
 			result.current.submitDraft();
 		});
-		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBeNull();
 
 		act(() => {
 			result.current.submitDraft();
 		});
-		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBeNull();
 		unmount();
 	});
 
@@ -214,7 +220,7 @@ describe("useEmptyStateDraft", () => {
 			result.current.handleContentChange("review this", editorState, true);
 		});
 
-		expect(localStorage.getItem(emptyInputStorageKey)).toBe(editorState);
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBe(editorState);
 		expect(result.current.getCurrentContent()).toBe("review this");
 		unmount();
 	});
@@ -231,7 +237,7 @@ describe("useEmptyStateDraft", () => {
 				type: "root",
 			},
 		});
-		localStorage.setItem(emptyInputStorageKey, editorState);
+		localStorage.setItem(emptyInputDraftStorage.key, editorState);
 
 		const { result, unmount } = renderDraft();
 
@@ -241,7 +247,7 @@ describe("useEmptyStateDraft", () => {
 	});
 
 	it("falls back to plain text for legacy drafts", () => {
-		localStorage.setItem(emptyInputStorageKey, "legacy plain text");
+		localStorage.setItem(emptyInputDraftStorage.key, "legacy plain text");
 
 		const { result, unmount } = renderDraft();
 
@@ -277,19 +283,19 @@ describe("useEmptyStateDraft", () => {
 			result.current.handleContentChange("", editorState, true);
 		});
 
-		expect(localStorage.getItem(emptyInputStorageKey)).toBe(editorState);
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBe(editorState);
 		unmount();
 	});
 
 	it("removes draft for whitespace-only content without file references", () => {
-		localStorage.setItem(emptyInputStorageKey, "old draft");
+		localStorage.setItem(emptyInputDraftStorage.key, "old draft");
 		const { result, unmount } = renderDraft();
 
 		act(() => {
 			result.current.handleContentChange("   ", '{"root":{}}', false);
 		});
 
-		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
+		expect(localStorage.getItem(emptyInputDraftStorage.key)).toBeNull();
 		unmount();
 	});
 });
@@ -326,7 +332,7 @@ describe("useFileAttachments persistence", () => {
 	it("restores uploaded attachments from localStorage on mount", () => {
 		const entry = makePersistedEntry();
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify([entry]),
 		);
 
@@ -351,7 +357,7 @@ describe("useFileAttachments persistence", () => {
 			fileName: "notes.txt",
 		});
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify([entry]),
 		);
 
@@ -379,7 +385,7 @@ describe("useFileAttachments persistence", () => {
 	it("does not restore when persist option is false", () => {
 		const entry = makePersistedEntry();
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify([entry]),
 		);
 
@@ -394,7 +400,7 @@ describe("useFileAttachments persistence", () => {
 	it("does not restore when no options argument is passed", () => {
 		const entry = makePersistedEntry();
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify([entry]),
 		);
 
@@ -407,7 +413,7 @@ describe("useFileAttachments persistence", () => {
 	it("clears persisted attachments on resetAttachments", () => {
 		const entry = makePersistedEntry();
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify([entry]),
 		);
 
@@ -417,7 +423,7 @@ describe("useFileAttachments persistence", () => {
 			result.current.resetAttachments();
 		});
 
-		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBeNull();
+		expect(localStorage.getItem(persistedAttachmentsStorage.key)).toBeNull();
 		expect(result.current.attachments).toHaveLength(0);
 		unmount();
 	});
@@ -428,7 +434,7 @@ describe("useFileAttachments persistence", () => {
 			makePersistedEntry({ fileId: "file-2", fileName: "b.png" }),
 		];
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify(entries),
 		);
 
@@ -443,7 +449,7 @@ describe("useFileAttachments persistence", () => {
 		expect(result.current.attachments[0].name).toBe("b.png");
 
 		const stored = JSON.parse(
-			localStorage.getItem(persistedAttachmentsStorageKey)!,
+			localStorage.getItem(persistedAttachmentsStorage.key) ?? "null",
 		);
 		expect(stored).toHaveLength(1);
 		expect(stored[0].fileId).toBe("file-2");
@@ -451,7 +457,7 @@ describe("useFileAttachments persistence", () => {
 	});
 
 	it("handles corrupt localStorage gracefully", () => {
-		localStorage.setItem(persistedAttachmentsStorageKey, "not-valid-json");
+		localStorage.setItem(persistedAttachmentsStorage.key, "not-valid-json");
 
 		const { result, unmount } = renderFileAttachments();
 
@@ -481,7 +487,7 @@ describe("useFileAttachments persistence", () => {
 		});
 
 		const stored = JSON.parse(
-			localStorage.getItem(persistedAttachmentsStorageKey)!,
+			localStorage.getItem(persistedAttachmentsStorage.key) ?? "null",
 		);
 		expect(stored).toHaveLength(1);
 		expect(stored[0].fileId).toBe("new-file-id");
@@ -508,7 +514,7 @@ describe("useFileAttachments persistence", () => {
 			expect(state?.status).toBe("error");
 		});
 
-		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBeNull();
+		expect(localStorage.getItem(persistedAttachmentsStorage.key)).toBeNull();
 		unmount();
 	});
 
@@ -526,7 +532,7 @@ describe("useFileAttachments persistence", () => {
 			}),
 		];
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify(entries),
 		);
 
@@ -537,7 +543,7 @@ describe("useFileAttachments persistence", () => {
 
 		// localStorage should be pruned to only the matching org.
 		const stored = JSON.parse(
-			localStorage.getItem(persistedAttachmentsStorageKey)!,
+			localStorage.getItem(persistedAttachmentsStorage.key) ?? "null",
 		);
 		expect(stored).toHaveLength(1);
 		expect(stored[0].fileId).toBe("f1");
@@ -553,21 +559,21 @@ describe("useFileAttachments persistence", () => {
 			// No organizationId field -- simulates pre-org-scoping data.
 		};
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify([legacy]),
 		);
 
 		const { result, unmount } = renderFileAttachments();
 
 		expect(result.current.attachments).toHaveLength(0);
-		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBeNull();
+		expect(localStorage.getItem(persistedAttachmentsStorage.key)).toBeNull();
 		unmount();
 	});
 
 	it("skips restoration when organizationId is undefined", () => {
 		const entry = makePersistedEntry();
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify([entry]),
 		);
 
@@ -578,7 +584,9 @@ describe("useFileAttachments persistence", () => {
 		// Should not restore -- org not yet known.
 		expect(result.current.attachments).toHaveLength(0);
 		// Should NOT prune -- org unknown, so leave storage alone.
-		expect(localStorage.getItem(persistedAttachmentsStorageKey)).not.toBeNull();
+		expect(
+			localStorage.getItem(persistedAttachmentsStorage.key),
+		).not.toBeNull();
 		unmount();
 	});
 
@@ -603,7 +611,7 @@ describe("useFileAttachments persistence", () => {
 		});
 
 		const stored = JSON.parse(
-			localStorage.getItem(persistedAttachmentsStorageKey)!,
+			localStorage.getItem(persistedAttachmentsStorage.key) ?? "null",
 		);
 		expect(stored).toHaveLength(1);
 		expect(stored[0].organizationId).toBe("org-1");

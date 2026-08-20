@@ -6,9 +6,9 @@ import {
 	useState,
 } from "react";
 import { cn } from "#/utils/cn";
+import { rightPanelWidthStorage } from "#/utils/storage/keys";
 import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
 
-const STORAGE_KEY = "agents.right-panel-width";
 const MIN_WIDTH = 360;
 const MAX_WIDTH_RATIO = 0.7;
 const DEFAULT_WIDTH = 480;
@@ -40,18 +40,6 @@ function getSideBySideMaxWidth(panel: HTMLElement | null): number {
 		getMaxWidth(),
 		Math.max(MIN_WIDTH, parent.clientWidth - getChatMinWidth(parent)),
 	);
-}
-
-function loadPersistedWidth(): number {
-	const stored = localStorage.getItem(STORAGE_KEY);
-	if (!stored) {
-		return DEFAULT_WIDTH;
-	}
-	const parsed = Number.parseInt(stored, 10);
-	if (Number.isNaN(parsed) || parsed < MIN_WIDTH || parsed > getMaxWidth()) {
-		return DEFAULT_WIDTH;
-	}
-	return parsed;
 }
 
 interface RightPanelProps {
@@ -171,6 +159,11 @@ function useResizableDrag({
 		// own committed expanded state.
 		onVisualExpandedChange?.(null);
 
+		// Persist the committed width once per drag; snap-close resets
+		// it to the default in onSnapCommit instead.
+		if (snap !== "closed") {
+			rightPanelWidthStorage.set(width);
+		}
 		if (snap) {
 			onSnapCommit(snap);
 		}
@@ -204,11 +197,19 @@ export const RightPanel = ({
 	onToggleSidebarCollapsed,
 	children,
 }: RightPanelProps) => {
-	const [width, setWidth] = useState(loadPersistedWidth);
+	const [width, setWidth] = useState(() => {
+		const stored = rightPanelWidthStorage.get();
+		if (stored === null || stored < MIN_WIDTH || stored > getMaxWidth()) {
+			return DEFAULT_WIDTH;
+		}
+		return stored;
+	});
 	const panelRef = useRef<HTMLDivElement>(null);
 
 	// Clamp width when the viewport or parent panel shrinks so the
-	// persisted width matches the rendered side-by-side panel width.
+	// rendered side-by-side panel never overflows. The clamp is not
+	// persisted; the stored width is re-validated against bounds on
+	// the next load.
 	useEffect(() => {
 		const handleResize = () => {
 			setWidth((prev) =>
@@ -233,6 +234,7 @@ export const RightPanel = ({
 			onToggleExpanded();
 		} else if (snap === "closed") {
 			setWidth(DEFAULT_WIDTH);
+			rightPanelWidthStorage.set(DEFAULT_WIDTH);
 			if (isExpanded) {
 				onToggleExpanded();
 			}
@@ -259,10 +261,6 @@ export const RightPanel = ({
 		onToggleSidebarCollapsed,
 		getPanelMaxWidth: () => getSideBySideMaxWidth(panelRef.current),
 	});
-
-	useEffect(() => {
-		localStorage.setItem(STORAGE_KEY, String(width));
-	}, [width]);
 
 	useEffect(() => {
 		if (

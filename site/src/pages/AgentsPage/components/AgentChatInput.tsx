@@ -58,10 +58,11 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useStorage } from "#/hooks/useStorage";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
-import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { chatFullWidthStorage } from "#/utils/storage/keys";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
@@ -407,7 +408,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 }) => {
-	const [chatFullWidth] = useChatFullWidth();
+	const [chatFullWidth] = useStorage(chatFullWidthStorage);
 	const showAgentSetupNotice =
 		aiGatewayDisabled ||
 		(canConfigureAgentSetup
@@ -1089,7 +1090,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		<div
 			className={cn(
 				"mx-auto w-full pb-0 sm:pb-4",
-				chatWidthClass(chatFullWidth),
+				chatFullWidth ? "max-w-full" : "max-w-3xl",
 				isEditingHistoryMessage && "pt-1",
 			)}
 		>

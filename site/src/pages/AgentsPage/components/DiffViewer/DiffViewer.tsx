@@ -23,6 +23,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useTheme } from "#/theme/context";
 import { cn } from "#/utils/cn";
+import { type DiffViewStyle, diffViewStyleStorage } from "#/utils/storage/keys";
 import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";
 import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
@@ -53,8 +54,7 @@ interface DiffViewerProps {
 	onScrollToFileComplete?: () => void;
 }
 
-export type DiffStyle = "unified" | "split";
-const DIFF_STYLE_KEY = "agents.diff-view-style";
+export type DiffStyle = DiffViewStyle;
 
 const DIFF_VIEWER_LINE_HEIGHT = 16.5;
 const DIFF_HEADER_HEIGHT = 32;
@@ -321,15 +321,11 @@ function DiffFileTree({
 }
 
 export function loadDiffStyle(): DiffStyle {
-	const stored = localStorage.getItem(DIFF_STYLE_KEY);
-	if (stored === "split" || stored === "unified") {
-		return stored;
-	}
-	return "unified";
+	return diffViewStyleStorage.get();
 }
 
 export function saveDiffStyle(style: DiffStyle): void {
-	localStorage.setItem(DIFF_STYLE_KEY, style);
+	diffViewStyleStorage.set(style);
 }
 
 // The loading state mirrors the real diff layout: flat, full-width

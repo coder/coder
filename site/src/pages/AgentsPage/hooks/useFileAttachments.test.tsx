@@ -3,10 +3,8 @@ import { type FC, Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { createDeferred } from "#/testHelpers/deferred";
-import {
-	persistedAttachmentsStorageKey,
-	useFileAttachments,
-} from "./useFileAttachments";
+import { persistedAttachmentsStorage } from "#/utils/storage/keys";
+import { useFileAttachments } from "./useFileAttachments";
 
 const persistEntry = (fileId: string, fileName: string, orgId: string) => ({
 	fileId,
@@ -45,13 +43,13 @@ describe("useFileAttachments org scoping", () => {
 
 	it("defers restoration until the org is known", () => {
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify([persistEntry("file-b", "b.txt", "org-b")]),
 		);
 		const { result, rerender } = renderAttachments({ orgId: undefined });
 
 		expect(result.current.attachments).toHaveLength(0);
-		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toContain(
+		expect(localStorage.getItem(persistedAttachmentsStorage.key)).toContain(
 			"file-b",
 		);
 
@@ -61,7 +59,7 @@ describe("useFileAttachments org scoping", () => {
 
 	it("drops another org's attachments when the org changes", async () => {
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
 		);
 		const { result, rerender } = renderAttachments({ orgId: "org-a" });
@@ -71,13 +69,13 @@ describe("useFileAttachments org scoping", () => {
 			expect(uploadedFileIds(result.current)).toStrictEqual([]);
 		});
 		expect(
-			localStorage.getItem(persistedAttachmentsStorageKey) ?? "",
+			localStorage.getItem(persistedAttachmentsStorage.key) ?? "",
 		).not.toContain("file-a");
 	});
 
 	it("never exposes the previous org's file IDs in any render", async () => {
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
 		);
 		// Log the hook output of every render, including the
@@ -107,7 +105,7 @@ describe("useFileAttachments org scoping", () => {
 
 	it("reports adoption only after the post-commit effect", () => {
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
 		);
 		const log: { adopted: boolean; fileIds: string[] }[] = [];
@@ -141,7 +139,7 @@ describe("useFileAttachments org scoping", () => {
 
 		expect(uploadedFileIds(result.current)).toStrictEqual([]);
 		expect(
-			localStorage.getItem(persistedAttachmentsStorageKey) ?? "",
+			localStorage.getItem(persistedAttachmentsStorage.key) ?? "",
 		).not.toContain("file-x");
 	});
 
@@ -167,13 +165,13 @@ describe("useFileAttachments org scoping", () => {
 
 		expect(uploadedFileIds(result.current)).toStrictEqual([]);
 		expect(
-			localStorage.getItem(persistedAttachmentsStorageKey) ?? "",
+			localStorage.getItem(persistedAttachmentsStorage.key) ?? "",
 		).not.toContain("file-x");
 	});
 
 	it("hides attachments when authorization leaves no org", async () => {
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
 		);
 		const { result, rerender } = renderAttachments({ orgId: "org-a" });
@@ -184,7 +182,7 @@ describe("useFileAttachments org scoping", () => {
 		rerender({ orgId: undefined });
 		expect(result.current.attachments).toStrictEqual([]);
 		expect(uploadedFileIds(result.current)).toStrictEqual([]);
-		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toContain(
+		expect(localStorage.getItem(persistedAttachmentsStorage.key)).toContain(
 			"file-a",
 		);
 
@@ -196,7 +194,7 @@ describe("useFileAttachments org scoping", () => {
 
 	it("does not prune storage during a render that never commits", () => {
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsStorage.key,
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
 		);
 		// Suspending after the hook runs simulates a render React abandons before commit.
@@ -209,7 +207,7 @@ describe("useFileAttachments org scoping", () => {
 				<Suspender orgId="org-b" />
 			</Suspense>,
 		);
-		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toContain(
+		expect(localStorage.getItem(persistedAttachmentsStorage.key)).toContain(
 			"file-a",
 		);
 	});

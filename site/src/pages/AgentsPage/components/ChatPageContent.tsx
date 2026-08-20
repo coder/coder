@@ -5,9 +5,10 @@ import type { UrlTransform } from "streamdown";
 import { chatPromptsQuery, refreshChatContext } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
+import { useStorage } from "#/hooks/useStorage";
 import { cn } from "#/utils/cn";
+import { chatFullWidthStorage } from "#/utils/storage/keys";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
-import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
 import { getProviderForModelOption } from "../utils/modelOptions";
@@ -125,7 +126,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	mcpServers,
 	footer,
 }) => {
-	const [chatFullWidth] = useChatFullWidth();
+	const [chatFullWidth] = useStorage(chatFullWidthStorage);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);
@@ -218,7 +219,12 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 			</ChatMessageScroller>
 			{/* The empty state sits outside the scroller content, which holds
 			    transcript rows only. */}
-			<div className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}>
+			<div
+				className={cn(
+					"mx-auto w-full px-4",
+					chatFullWidth ? "max-w-full" : "max-w-3xl",
+				)}
+			>
 				<LiveStreamTailContent
 					isTranscriptEmpty={parsedMessages.length === 0}
 					liveStatus={liveStatus}

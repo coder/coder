@@ -68,6 +68,7 @@ import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
 import { useIsBelowLgViewport } from "#/hooks/useIsBelowLgViewport";
+import { useStorage } from "#/hooks/useStorage";
 import {
 	getDefaultOrganizationName,
 	useDashboard,
@@ -76,6 +77,11 @@ import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
+import {
+	chatDraftInputStorage,
+	lastModelConfigIdStorage,
+	rightPanelOpenStorage,
+} from "#/utils/storage/keys";
 import { getWorkspaceAgents } from "#/utils/workspace";
 import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
@@ -130,9 +136,6 @@ import {
 	resolveChatSlashCommandAvailability,
 } from "./utils/slashCommands";
 
-/** localStorage key controlling whether the right panel is visible. */
-export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
-
 /**
  * Below the `lg` breakpoint, chat and the right panel are mutually
  * exclusive, so a panel left open on a wide window would hide chat as
@@ -156,14 +159,9 @@ export function useRightPanelNarrowSuppression(): {
 	return { suppressed, clearSuppression: () => setSuppressed(false) };
 }
 
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
 class CompactCommandPendingError extends Error {}
-
-/** @internal Exported for testing. */
-export const draftInputStorageKeyPrefix = "agents.draft-input.";
 
 const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
 
@@ -180,9 +178,7 @@ export function getPersistedDraftInputValue(
 	if (!chatID) {
 		return "";
 	}
-	return parseStoredDraft(
-		localStorage.getItem(`${draftInputStorageKeyPrefix}${chatID}`),
-	).text;
+	return parseStoredDraft(chatDraftInputStorage.forId(chatID).get()).text;
 }
 
 /** @internal Exported for testing. */
@@ -537,15 +533,13 @@ export function useConversationEditingState(deps: {
 	inputValueRef: React.RefObject<string>;
 }) {
 	const { chatID, onSend, chatInputRef, inputValueRef } = deps;
-	const draftStorageKey = chatID
-		? `${draftInputStorageKeyPrefix}${chatID}`
-		: null;
+	const draftStorage = chatID ? chatDraftInputStorage.forId(chatID) : null;
 	const [{ editorInitialValue, initialEditorState }, setDraftState] = useState(
 		() => {
-			if (!draftStorageKey) {
+			if (!draftStorage) {
 				return { editorInitialValue: "", initialEditorState: undefined };
 			}
-			const draft = parseStoredDraft(localStorage.getItem(draftStorageKey));
+			const draft = parseStoredDraft(draftStorage.get());
 			return {
 				editorInitialValue: draft.text,
 				initialEditorState: draft.editorState,
@@ -588,8 +582,8 @@ export function useConversationEditingState(deps: {
 			// Read the current serialized editor state from localStorage
 			// (kept up-to-date by handleContentChange) rather than from
 			// the stale initialEditorState React state.
-			const currentEditorState = draftStorageKey
-				? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
+			const currentEditorState = draftStorage
+				? parseStoredDraft(draftStorage.get()).editorState
 				: undefined;
 			setDraftBeforeHistoryEdit({
 				text: inputValueRef.current,
@@ -657,9 +651,7 @@ export function useConversationEditingState(deps: {
 		}
 		inputValueRef.current = "";
 		serializedEditorStateRef.current = undefined;
-		if (draftStorageKey) {
-			localStorage.removeItem(draftStorageKey);
-		}
+		draftStorage?.remove();
 		if (editedMessageID !== undefined) {
 			setDraftBeforeHistoryEdit(null);
 			setEditingFileBlocks([]);
@@ -709,16 +701,12 @@ export function useConversationEditingState(deps: {
 			return;
 		}
 
-		if (draftStorageKey) {
+		if (draftStorage) {
 			const shouldPersist = content.trim() || hasFileReferences;
 			if (shouldPersist) {
-				try {
-					localStorage.setItem(draftStorageKey, serializedEditorState);
-				} catch {
-					// QuotaExceededError, silently discard the draft.
-				}
+				draftStorage.set(serializedEditorState);
 			} else {
-				localStorage.removeItem(draftStorageKey);
+				draftStorage.remove();
 			}
 		}
 	};
@@ -872,18 +860,16 @@ const AgentChatPage: FC = () => {
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
-			? parseStoredDraft(
-					localStorage.getItem(`${draftInputStorageKeyPrefix}${agentId}`),
-				).text
+			? parseStoredDraft(chatDraftInputStorage.forId(agentId).get()).text
 			: "",
 	);
 
 	// Right panel open/closed state is owned here so the loading
 	// skeleton and the loaded view share the same layout, preventing
 	// a horizontal shift when data arrives.
-	const [sidebarPanelPreference, setSidebarPanelPreference] = useState(() => {
-		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
-	});
+	const [sidebarPanelPreference, setSidebarPanelPreference] = useStorage(
+		rightPanelOpenStorage,
+	);
 	const { suppressed: panelSuppressedOnNarrow, clearSuppression } =
 		useRightPanelNarrowSuppression();
 	// Canonical panel visibility: the persisted preference gated by the
@@ -894,7 +880,6 @@ const AgentChatPage: FC = () => {
 	const handleSetShowSidebarPanel = (next: boolean) => {
 		clearSuppression();
 		setSidebarPanelPreference(next);
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(next));
 	};
 
 	const chatQuery = useQuery({
@@ -1762,10 +1747,7 @@ const AgentChatPage: FC = () => {
 			});
 			scrollToEnd({ behavior: "smooth" });
 			if (editSelectedModelConfigID) {
-				localStorage.setItem(
-					lastModelConfigIDStorageKey,
-					editSelectedModelConfigID,
-				);
+				lastModelConfigIdStorage.set(editSelectedModelConfigID);
 			}
 			return;
 		}
@@ -1870,9 +1852,9 @@ const AgentChatPage: FC = () => {
 			}
 		}
 		if (selectedModelConfigID) {
-			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
+			lastModelConfigIdStorage.set(selectedModelConfigID);
 		} else {
-			localStorage.removeItem(lastModelConfigIDStorageKey);
+			lastModelConfigIdStorage.remove();
 		}
 		if (planModeSwitch !== undefined) {
 			setCachedChatPlanMode(

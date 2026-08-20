@@ -1,26 +1,23 @@
 import { type FC, useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { useStorage } from "#/hooks/useStorage";
 import { cn } from "#/utils/cn";
-import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import {
+	chatFullWidthStorage,
+	rightPanelOpenStorage,
+	rightPanelWidthStorage,
+} from "#/utils/storage/keys";
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
 
-/** localStorage keys shared with the agents panel components. */
-const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
-const RIGHT_PANEL_WIDTH_KEY = "agents.right-panel-width";
 const DEFAULT_PANEL_WIDTH = 480;
 const MIN_PANEL_WIDTH = 360;
 
 /** Read persisted right-panel state for use in static skeletons. */
 function getRightPanelState(): { open: boolean; width: number } {
-	const open = localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
-	const stored = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
-	let width = DEFAULT_PANEL_WIDTH;
-	if (stored) {
-		const parsed = Number.parseInt(stored, 10);
-		if (!Number.isNaN(parsed) && parsed >= MIN_PANEL_WIDTH) {
-			width = parsed;
-		}
-	}
+	const open = rightPanelOpenStorage.get();
+	const stored = rightPanelWidthStorage.get();
+	const width =
+		stored !== null && stored >= MIN_PANEL_WIDTH ? stored : DEFAULT_PANEL_WIDTH;
 	return { open, width };
 }
 
@@ -140,7 +137,10 @@ export const RightPanelSkeleton: FC = () => (
 const ChatInputSkeleton: FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
 	<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 		<div
-			className={cn("mx-auto w-full pb-0 sm:pb-4", chatWidthClass(fullWidth))}
+			className={cn(
+				"mx-auto w-full pb-0 sm:pb-4",
+				fullWidth ? "max-w-full" : "max-w-3xl",
+			)}
 		>
 			<div className="rounded-2xl bg-surface-secondary/45 p-1 shadow-sm">
 				<div className="min-h-[60px] sm:min-h-24 px-3 py-2" />
@@ -160,7 +160,7 @@ const ChatInputSkeleton: FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
  */
 export const AgentChatPageSkeleton: FC = () => {
 	const rightPanel = getRightPanelState();
-	const [chatFullWidth] = useChatFullWidth();
+	const [chatFullWidth] = useStorage(chatFullWidthStorage);
 
 	return (
 		<div
@@ -182,7 +182,7 @@ export const AgentChatPageSkeleton: FC = () => {
 						<div
 							className={cn(
 								"mx-auto w-full py-6",
-								chatWidthClass(chatFullWidth),
+								chatFullWidth ? "max-w-full" : "max-w-3xl",
 							)}
 						>
 							<ChatConversationSkeleton />

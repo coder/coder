@@ -1,6 +1,10 @@
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { App } from "./App";
+import {
+	preloadReloadStorage,
+	sweepExpiredStorage,
+} from "./utils/storage/keys";
 
 console.info(`      -#######          +######-      ########+       ##########  ########+.      ###########
    +#####--######    +#####--#####+   ############    ##########  ####+++#####-   ###########
@@ -18,12 +22,14 @@ console.info(`      -#######          +######-      ########+       ##########  
 // silently reload so the browser fetches a fresh index.html with the new
 // chunk names. A sessionStorage guard prevents infinite reload loops.
 window.addEventListener("vite:preloadError", () => {
-	const key = "preload-reload";
-	const last = sessionStorage.getItem(key);
+	const last = preloadReloadStorage.get();
 	const now = Date.now();
-	if (!last || now - Number(last) > 10_000) {
-		sessionStorage.setItem(key, String(now));
-		location.reload();
+	if (last === null || now - last > 10_000) {
+		// Reload only when the guard actually persisted; otherwise a
+		// persistent preload error would reload forever.
+		if (preloadReloadStorage.set(now).ok) {
+			location.reload();
+		}
 	}
 });
 
@@ -36,6 +42,11 @@ if (element === null) {
 if ("serviceWorker" in navigator) {
 	navigator.serviceWorker.register("/serviceWorker.js");
 }
+
+// Sweep before rendering so components never hydrate from values the
+// sweep is about to expire (orphans left by archival/deletion from
+// other clients, and legacy keys).
+sweepExpiredStorage();
 
 const root = createRoot(element);
 root.render(<App />);

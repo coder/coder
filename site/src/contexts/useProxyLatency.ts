@@ -2,6 +2,10 @@ import { useEffect, useReducer, useState } from "react";
 import { API } from "#/api/api";
 import type { Region } from "#/api/typesGenerated";
 import { generateRandomBase64String } from "#/utils/random";
+import {
+	workspaceProxyLatenciesMaxStorage,
+	workspaceProxyLatenciesStorage,
+} from "#/utils/storage/keys";
 
 const proxyIntervalSeconds = 30; // seconds
 
@@ -53,17 +57,10 @@ export const useProxyLatency = (
 	// The loaded latencies will all be from the cache.
 	loaded: boolean;
 } => {
-	// maxStoredLatencies is the maximum number of latencies to store per proxy in local storage.
-	let maxStoredLatencies = 1;
 	// The reason we pull this from local storage is so for development purposes, a user can manually
 	// set a larger number to collect data in their normal usage. This data can later be analyzed to come up
 	// with some better magic numbers.
-	const maxStoredLatenciesVar = localStorage.getItem(
-		"workspace-proxy-latencies-max",
-	);
-	if (maxStoredLatenciesVar) {
-		maxStoredLatencies = Number(maxStoredLatenciesVar);
-	}
+	const maxStoredLatencies = workspaceProxyLatenciesMaxStorage.get() ?? 1;
 
 	const [proxyLatencies, dispatchProxyLatencies] = useReducer(
 		proxyLatenciesReducer,
@@ -259,18 +256,9 @@ export const useProxyLatency = (
 // If a single request is slow, we want to omit that latency check, and go with
 // a more accurate latency check.
 const loadStoredLatencies = (): Record<string, ProxyLatencyReport[]> => {
-	const str = localStorage.getItem("workspace-proxy-latencies");
-	if (!str) {
-		return {};
-	}
-
-	return JSON.parse(str, (key, value) => {
-		// By default json loads dates as strings. We want to convert them back to 'Date's.
-		if (key === "at") {
-			return new Date(value);
-		}
-		return value;
-	});
+	// Clone because callers mutate the result before persisting it, and
+	// the storage layer caches decoded snapshots by reference.
+	return structuredClone(workspaceProxyLatenciesStorage.get() ?? {});
 };
 
 const updateStoredLatencies = (action: ProxyLatencyAction): void => {
@@ -279,7 +267,7 @@ const updateStoredLatencies = (action: ProxyLatencyAction): void => {
 
 	reports.push(action.report);
 	latencies[action.proxyID] = reports;
-	localStorage.setItem("workspace-proxy-latencies", JSON.stringify(latencies));
+	workspaceProxyLatenciesStorage.set(latencies);
 };
 
 // garbageCollectStoredLatencies will remove any latencies that are older then 1 week or latencies of proxies
@@ -297,7 +285,7 @@ const garbageCollectStoredLatencies = (
 		maxStored,
 	);
 
-	localStorage.setItem("workspace-proxy-latencies", JSON.stringify(cleaned));
+	workspaceProxyLatenciesStorage.set(cleaned);
 };
 
 const cleanupLatencies = (

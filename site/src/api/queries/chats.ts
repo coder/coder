@@ -12,6 +12,7 @@ import {
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
+import { clearEntityStorage } from "#/utils/storage/keys";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -1273,6 +1274,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 	onSuccess: (_data: unknown, chatId: string) => {
 		applyChatArchiveStateToCaches(queryClient, chatId, true);
 		removeChatFromChatsByWorkspace(queryClient, chatId);
+		clearEntityStorage("chat", chatId);
 	},
 	onSettled: (_data: unknown, _error: unknown, chatId: string) => {
 		void invalidateChatListQueries(queryClient);
@@ -2281,7 +2283,8 @@ export const updateChatModelConfig = (queryClient: QueryClient) => ({
 export const deleteChatModelConfig = (queryClient: QueryClient) => ({
 	mutationFn: (modelConfigId: string) =>
 		API.experimental.deleteChatModelConfig(modelConfigId),
-	onSuccess: async () => {
+	onSuccess: async (_data: unknown, modelConfigId: string) => {
+		clearEntityStorage("modelConfig", modelConfigId);
 		await invalidateChatConfigurationQueries(queryClient);
 	},
 });

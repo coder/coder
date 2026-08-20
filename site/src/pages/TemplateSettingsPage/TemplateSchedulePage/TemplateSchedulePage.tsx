@@ -36,9 +36,6 @@ const TemplateSchedulePage: FC = () => {
 			toast.success(
 				`Template "${template.name}" schedule updated successfully.`,
 			);
-			// clear browser storage of workspaces impending deletion
-			localStorage.removeItem("dismissedWorkspaceList"); // workspaces page
-			localStorage.removeItem("dismissedWorkspace"); // workspace page
 		},
 	});
 

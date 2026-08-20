@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { sweepExpiredStorage } from "#/utils/storage/keys";
+import { _resetStorageForTesting } from "#/utils/storage/storage";
 import {
 	chatDraftAttachmentStorageKey,
 	clearChatDraftAttachmentRecords,
@@ -142,7 +144,7 @@ describe("chatDraftAttachmentStorage", () => {
 		);
 	});
 
-	it("prunes expired draft records from older chat keys", () => {
+	it("prunes expired draft records via the storage sweep", () => {
 		const oldKey = chatDraftAttachmentStorageKey(organizationId, "old-chat");
 		localStorage.setItem(
 			oldKey,
@@ -162,7 +164,8 @@ describe("chatDraftAttachmentStorage", () => {
 			]),
 		);
 
-		restoreChatDraftAttachments(organizationId, chatId);
+		_resetStorageForTesting();
+		sweepExpiredStorage();
 
 		expect(localStorage.getItem(oldKey)).toBeNull();
 	});
