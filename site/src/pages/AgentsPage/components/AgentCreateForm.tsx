@@ -2,6 +2,7 @@ import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
+import { mcpServerConfigs } from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
@@ -139,8 +140,6 @@ interface AgentCreateFormProps {
 	isModelConfigsLoading: boolean;
 	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
 	isPersonalModelOverridesLoading?: boolean;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	onMCPAuthComplete?: (serverId: string) => void;
 	workspaceCount: number | undefined;
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
@@ -165,8 +164,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isModelConfigsLoading,
 	rootPersonalModelOverride,
 	isPersonalModelOverridesLoading = false,
-	mcpServers,
-	onMCPAuthComplete,
 	workspaceCount: _workspaceCount,
 	workspaceOptions,
 	workspacesError,
@@ -283,6 +280,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	);
 	const [pendingOrgChange, setPendingOrgChange] =
 		useState<TypesGen.Organization | null>(null);
+	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
+		null,
+	);
 	const permittedOrgsQuery = useQuery({
 		...permittedOrganizations({
 			// agents-access grants chat:create only at member scope. "me" is
@@ -332,6 +332,16 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				initialOrg ??
 				null);
 	const organizationId = effectiveOrg?.id ?? "";
+	const mcpServersQuery = useQuery({
+		...mcpServerConfigs(organizationId),
+		enabled: Boolean(organizationId),
+	});
+	const mcpServers = mcpServersQuery.data ?? [];
+	// Sending before the MCP list resolves would silently drop default-on
+	// selections. Gate on missing data, not isSuccess: a failed background
+	// refetch flips isSuccess off while cached data stays usable.
+	const isMCPSelectionUnresolved =
+		Boolean(organizationId) && mcpServersQuery.data === undefined;
 	// Adopt a permitted fallback so later refetches cannot switch the form to a
 	// re-permitted default. The permission guard also avoids a render loop.
 	if (
@@ -354,6 +364,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setLastSettledOrgId(organizationId);
 		if (lastSettledOrgId !== null) {
 			setSelectedWorkspaceId(null);
+			setUserMCPServerIds(null);
 		}
 	}
 	useEffect(() => {
@@ -395,18 +406,19 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		lastUsedModelID,
 	]);
 
-	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
-		null,
-	);
 	const effectiveMCPServerIds = (() => {
 		if (userMCPServerIds !== null) {
 			return userMCPServerIds;
 		}
-		const saved = getSavedMCPSelection(mcpServers ?? []);
+		const saved = getSavedMCPSelection(
+			organizationId,
+			mcpServers,
+			effectiveOrg?.is_default,
+		);
 		if (saved !== null) {
 			return saved;
 		}
-		return getDefaultMCPSelection(mcpServers ?? []);
+		return getDefaultMCPSelection(mcpServers);
 	})();
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
@@ -416,6 +428,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		setSelectedWorkspaceId(value);
 		localStorage.setItem(selectedWorkspaceIdStorageKey, value);
+	};
+
+	const selectOrganization = (organization: TypesGen.Organization) => {
+		setUserMCPServerIds(null);
+		setSelectedOrg(organization);
 	};
 
 	const handleModelChange = (value: string) => {
@@ -565,6 +582,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{permittedOrgsQuery.error != null && (
 						<ErrorAlert error={permittedOrgsQuery.error} />
 					)}
+					{mcpServersQuery.error != null && (
+						<ErrorAlert error={mcpServersQuery.error} />
+					)}
 					{/* The pre-settlement list is the unfiltered dashboard fallback;
 					    selecting from it could destroy existing workspace state. */}
 					{showOrganizations &&
@@ -581,6 +601,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 									}
 									if (orgChanged) {
 										handleWorkspaceChange(null);
+										selectOrganization(newOrg);
+										return;
 									}
 									setSelectedOrg(newOrg);
 								}}
@@ -598,6 +620,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							!organizationAdopted ||
 							workspaceValidationPending ||
 							isPersonalModelOverridesLoading ||
+							isMCPSelectionUnresolved ||
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)
 						}
@@ -624,12 +647,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						previewUrls={previewUrls}
 						textContents={textContents}
 						mcpServers={mcpServers}
+						chatOrganizationId={organizationId}
 						selectedMCPServerIds={effectiveMCPServerIds}
 						onMCPSelectionChange={(ids) => {
 							setUserMCPServerIds(ids);
-							saveMCPSelection(ids);
+							saveMCPSelection(organizationId, ids);
 						}}
-						onMCPAuthComplete={onMCPAuthComplete}
+						onMCPAuthComplete={() => void mcpServersQuery.refetch()}
 						workspaceOptions={filteredWorkspaces}
 						selectedWorkspaceId={effectiveWorkspaceId}
 						// Do not persist a workspace until its organization is authorized.
@@ -671,7 +695,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					}
 					resetAttachments();
 					handleWorkspaceChange(null);
-					setSelectedOrg(pendingOrgChange);
+					selectOrganization(pendingOrgChange);
 				}}
 				onClose={() => setPendingOrgChange(null)}
 			/>

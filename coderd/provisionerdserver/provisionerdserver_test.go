@@ -522,7 +522,7 @@ func TestAcquireJob(t *testing.T) {
 					OAuthExpiry:      dbtime.Now().Add(time.Hour),
 					OAuthAccessToken: "access-token",
 				})
-				dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+				ealink := dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
 					ProviderID: gitAuthProvider.Id,
 					UserID:     user.ID,
 				})
@@ -768,7 +768,7 @@ func TestAcquireJob(t *testing.T) {
 						},
 						ExternalAuthProviders: []*sdkproto.ExternalAuthProvider{{
 							Id:          gitAuthProvider.Id,
-							AccessToken: "access_token",
+							AccessToken: ealink.OAuthAccessToken,
 						}},
 						Metadata: wantedMetadata,
 					},
@@ -3608,7 +3608,8 @@ func TestCompleteJob(t *testing.T) {
 					},
 					isTask:           true,
 					expectTaskStatus: database.TaskStatusPaused,
-					expectAppID:      uuid.NullUUID{UUID: sidebarAppID, Valid: true},
+					// Stop builds don't create agents or apps.
+					expectAppID:      uuid.NullUUID{},
 					expectHasAiTask:  true,
 					expectUsageEvent: false,
 				},

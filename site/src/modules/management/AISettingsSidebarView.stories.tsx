@@ -97,6 +97,67 @@ export const NoUpdateTemplates: Story = {
 	},
 };
 
+export const MCPServersForUpdateOnlyAdmin: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			updateAnyMCPServerConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toBeVisible();
+	},
+};
+
+export const MCPServersForDeleteOnlyAdmin: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			deleteAnyMCPServerConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toHaveAttribute("href", "/ai/settings/mcp-servers");
+	},
+};
+
+export const MCPServersForCreateOnlyAdmin: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			createAnyMCPServerConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toHaveAttribute("href", "/ai/settings/mcp-servers/add");
+	},
+};
+
+export const MCPServersHiddenWithoutPermission: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("link", { name: "MCP servers" }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const NoPermissions: Story = {
 	args: {
 		permissions: MockNoPermissions,

@@ -1004,7 +1004,7 @@ jobs:
       - run: make site/e2e/bin/coder
         name: make coder
 
-      - run: pnpm playwright:install
+      - run: pnpm exec playwright install chromium
         working-directory: site
 
       # Cache the Coder release binaries downloaded by the outdatedCLI /
@@ -1100,7 +1100,7 @@ jobs:
         working-directory: site/
         name: Build Storybook
 
-      - run: pnpm playwright:install
+      - run: pnpm exec playwright install chromium
         working-directory: site/
         name: Install Chromium
 

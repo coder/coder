@@ -92,6 +92,63 @@ export const WithSelectedValue: Story = {
 	},
 };
 
+export const SelectedValueShowsProviderIcon: Story = {
+	args: {
+		options: allModels,
+		value: "anthropic/claude-sonnet-4",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByTestId("model-selector-trigger-icon"),
+		).toBeInTheDocument();
+	},
+};
+
+export const SelectedValueShowsCustomProviderIcon: Story = {
+	args: {
+		options: [
+			{
+				...MockModelSelectorOption,
+				id: "anthropic-hyper/claude-opus-4",
+				provider: "anthropic",
+				providerId: "provider-anthropic-hyper",
+				providerLabel: "Hyper",
+				providerIcon: "/icon/coder.svg",
+				model: "claude-opus-4-20250514",
+				displayName: "Claude Opus 4",
+			},
+		],
+		value: "anthropic-hyper/claude-opus-4",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "Claude Opus 4" }),
+		).toBeInTheDocument();
+		const icon = canvas.getByTestId("model-selector-trigger-icon");
+		expect(icon.querySelector("img")).toHaveAttribute("src", "/icon/coder.svg");
+	},
+};
+
+export const PlaceholderShowsNoIcon: Story = {
+	args: {
+		value: "",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "Select model" }),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByTestId("model-selector-trigger-icon"),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const CustomTriggerLabel: Story = {
 	args: {
 		options: openAIModels,
