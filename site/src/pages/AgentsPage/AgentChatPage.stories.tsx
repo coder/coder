@@ -38,12 +38,14 @@ import {
 	MockWorkspaceAgent,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { setupMatchMedia } from "#/testHelpers/matchMedia";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
+import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
@@ -1651,6 +1653,60 @@ export const NarrowViewportShowsChatOverOpenPanel: Story = {
 			expect(canvas.getByRole("tab", { name: "Summary" })).toBeVisible();
 		});
 		expect(messagesRegion.checkVisibility()).toBe(false);
+	},
+};
+
+let narrowingMedia: ReturnType<typeof setupMatchMedia> | undefined;
+
+/**
+ * A panel expanded on a wide viewport must not stay fullscreen when the
+ * window narrows: suppression hides it, expansion included, and chat
+ * takes over. The breakpoint crossing is simulated by stubbing
+ * matchMedia because the story viewport cannot change mid-play.
+ */
+export const NarrowingSuppressesExpandedPanel: Story = {
+	beforeEach: () => {
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		narrowingMedia = setupMatchMedia({ [belowLgViewportMediaQuery]: false });
+		return () => {
+			narrowingMedia?.restore();
+			narrowingMedia = undefined;
+			localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		};
+	},
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Build a feature",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		await waitFor(() => {
+			expect(canvas.getByRole("tab", { name: "Summary" })).toBeVisible();
+		});
+
+		const messagesRegion = canvas.getByRole("region", { name: "Messages" });
+		await user.click(canvas.getByRole("button", { name: "Expand panel" }));
+		await waitFor(() => {
+			expect(messagesRegion.checkVisibility()).toBe(false);
+		});
+
+		narrowingMedia?.setMatches(belowLgViewportMediaQuery, true);
+		await waitFor(() => {
+			expect(messagesRegion.checkVisibility()).toBe(true);
+		});
+		// The suppressed panel is display:none, so its tab is no longer
+		// accessible to role queries.
+		expect(
+			canvas.queryByRole("tab", { name: "Summary" }),
+		).not.toBeInTheDocument();
 	},
 };
 

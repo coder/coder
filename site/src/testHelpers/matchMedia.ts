@@ -1,10 +1,11 @@
-import { vi } from "vitest";
-
 /**
- * Replaces `window.matchMedia` with a controllable mock for hook tests.
- * Queries listed in `initialMatches` report their configured value and
- * every other query reports `false`. `setMatches` updates a query and
- * notifies its registered change listeners.
+ * Replaces `window.matchMedia` with a controllable stub for tests and
+ * stories. Queries listed in `initialMatches` report their configured
+ * value; every other query delegates to the real `matchMedia` (or
+ * reports `false` where none exists, e.g. jsdom) so unrelated
+ * responsive components keep behaving truthfully. `setMatches` updates
+ * a query and notifies its registered change listeners; `restore` puts
+ * the original `window.matchMedia` back.
  */
 export const setupMatchMedia = (initialMatches: Record<string, boolean>) => {
 	const matches = { ...initialMatches };
@@ -17,9 +18,16 @@ export const setupMatchMedia = (initialMatches: Record<string, boolean>) => {
 		}
 		return set;
 	};
+	const original = window.matchMedia;
+	const originalFn =
+		typeof original === "function" ? original.bind(window) : undefined;
 	Object.defineProperty(window, "matchMedia", {
+		configurable: true,
 		writable: true,
-		value: vi.fn((query: string): MediaQueryList => {
+		value: (query: string): MediaQueryList => {
+			if (!(query in matches) && originalFn) {
+				return originalFn(query);
+			}
 			return {
 				get matches() {
 					return matches[query] ?? false;
@@ -38,11 +46,11 @@ export const setupMatchMedia = (initialMatches: Record<string, boolean>) => {
 				) => {
 					listenersFor(query).delete(listener);
 				},
-				dispatchEvent: vi.fn(() => true),
-				addListener: vi.fn(),
-				removeListener: vi.fn(),
+				dispatchEvent: () => true,
+				addListener: () => {},
+				removeListener: () => {},
 			} satisfies MediaQueryList;
-		}),
+		},
 	});
 	return {
 		setMatches: (query: string, value: boolean) => {
@@ -55,6 +63,13 @@ export const setupMatchMedia = (initialMatches: Record<string, boolean>) => {
 					listener.handleEvent(event);
 				}
 			}
+		},
+		restore: () => {
+			Object.defineProperty(window, "matchMedia", {
+				configurable: true,
+				writable: true,
+				value: original,
+			});
 		},
 	};
 };
