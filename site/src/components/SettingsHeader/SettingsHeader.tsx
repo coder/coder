@@ -97,7 +97,9 @@ export const SettingsHeaderDescription: FC<SettingsHeaderDescriptionProps> = ({
 	return (
 		<p
 			className={cn(
-				"m-0 text-content-secondary font-medium leading-normal",
+				// leading-6 matches the Link component's line height so inline docs
+				// links do not inflate the line box and shift the content below.
+				"m-0 text-content-secondary font-medium leading-6",
 				className,
 			)}
 		>
