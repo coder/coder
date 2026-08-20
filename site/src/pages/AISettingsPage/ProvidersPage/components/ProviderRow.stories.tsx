@@ -145,5 +145,7 @@ export const EmptyWarnings: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.queryByText(/warning/i)).not.toBeInTheDocument();
+		// An empty warnings array must not leak a bare "0" into the row.
+		await expect(canvas.queryByText("0")).not.toBeInTheDocument();
 	},
 };
