@@ -212,6 +212,18 @@ test("extractTitle reads frontmatter and ignores the make gen comment", () => {
 		frontmatterEnd: 3,
 		description: null,
 	});
+	// The docs homepage shape: a title-less frontmatter block (`markdown_url`) is
+	// stripped (frontmatterEnd covers it) and the title falls back to the body H1,
+	// so the frontmatter never leaks into the rendered page as plain text. (The
+	// sync separately relabels the root route "" to "Home".) Regression guard for
+	// the UAT "duplicate frontmatter renders as text" report on the homepage.
+	const homepage = "---\nmarkdown_url: /docs.md\n---\n\n# About\n\nbody\n";
+	assert.deepEqual(extractTitle(homepage, ""), {
+		title: "About",
+		h1Line: 4,
+		frontmatterEnd: 3,
+		description: null,
+	});
 });
 
 test("parseFrontmatter reads a flat block and ignores non-frontmatter", () => {
@@ -276,6 +288,19 @@ test("parseFrontmatter decodes YAML escapes and only treats mappings as frontmat
 		description: null,
 		endLine: 4,
 	});
+	// A title-less mapping (only a non-title/description key) is still a YAML
+	// mapping, so it counts as frontmatter and endLine covers the whole block. The
+	// docs homepage (docs/README.md) is exactly this shape - `markdown_url:
+	// /docs.md` with no title - and the block must be stripped so the key never
+	// renders as plain text in the page body.
+	assert.deepEqual(
+		parseFrontmatter("---\nmarkdown_url: /docs.md\n---\n\nbody"),
+		{
+			title: null,
+			description: null,
+			endLine: 3,
+		},
+	);
 	// A non-string scalar for title/description (never in the corpus) is treated
 	// as absent so the result stays a plain string or null.
 	assert.deepEqual(parseFrontmatter("---\ntitle: 123\n---\nbody"), {
