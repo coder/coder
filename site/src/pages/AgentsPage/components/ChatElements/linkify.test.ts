@@ -191,4 +191,33 @@ describe("splitTextForLinks", () => {
 			{ kind: "url", value: "http://localhost:3000/a\u0007bell" },
 		]);
 	});
+
+	it("treats a trailing entity reference as punctuation", () => {
+		expect(splitTextForLinks("https://coder.com/a&amp; b")).toEqual([
+			{ kind: "url", value: "https://coder.com/a" },
+			{ kind: "text", value: "&amp; b" },
+		]);
+		expect(splitTextForLinks("https://coder.com/a&b=1 c")).toEqual([
+			{ kind: "url", value: "https://coder.com/a&b=1" },
+			{ kind: "text", value: " c" },
+		]);
+	});
+
+	it("rejects underscores in the last two domain segments", () => {
+		expect(splitTextForLinks("see http://snake_case.com now")).toEqual([
+			{ kind: "text", value: "see http://snake_case.com now" },
+		]);
+		expect(splitTextForLinks("see http://a_b.example.com/x now")).toEqual([
+			{ kind: "text", value: "see " },
+			{ kind: "url", value: "http://a_b.example.com/x" },
+			{ kind: "text", value: " now" },
+		]);
+	});
+
+	it("stops the URL at an angle bracket", () => {
+		expect(splitTextForLinks("http://localhost:3000/a<b")).toEqual([
+			{ kind: "url", value: "http://localhost:3000/a" },
+			{ kind: "text", value: "<b" },
+		]);
+	});
 });

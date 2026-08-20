@@ -179,15 +179,6 @@ importers:
       lucide-react:
         specifier: 0.555.0
         version: 0.555.0(react@19.2.8)
-      mdast-util-from-markdown:
-        specifier: 2.0.2
-        version: 2.0.2
-      mdast-util-gfm-autolink-literal:
-        specifier: 2.0.1
-        version: 2.0.1
-      micromark-extension-gfm-autolink-literal:
-        specifier: 2.1.0
-        version: 2.1.0
       monaco-editor:
         specifier: 0.55.1
         version: 0.55.1
@@ -272,9 +263,6 @@ importers:
       unique-names-generator:
         specifier: 4.7.1
         version: 4.7.1
-      unist-util-visit:
-        specifier: 5.0.0
-        version: 5.0.0
       uuid:
         specifier: 11.1.1
         version: 11.1.1
@@ -10734,8 +10722,8 @@ snapshots:
     dependencies:
       '@types/mdast': 4.0.4
       escape-string-regexp: 5.0.0
-      unist-util-is: 6.0.1
-      unist-util-visit-parents: 6.0.2
+      unist-util-is: 6.0.0
+      unist-util-visit-parents: 6.0.1
 
   mdast-util-from-markdown@2.0.2:
     dependencies:
@@ -10876,7 +10864,7 @@ snapshots:
       mdast-util-to-string: 4.0.0
       micromark-util-classify-character: 2.0.1
       micromark-util-decode-string: 2.0.1
-      unist-util-visit: 5.1.0
+      unist-util-visit: 5.0.0
       zwitch: 2.0.4
 
   mdast-util-to-string@4.0.0:
@@ -11721,7 +11709,7 @@ snapshots:
       remark-parse: 11.0.0
       remark-rehype: 11.1.2
       unified: 11.0.5
-      unist-util-visit: 5.1.0
+      unist-util-visit: 5.0.0
       vfile: 6.0.3
     transitivePeerDependencies:
       - supports-color
@@ -12570,14 +12558,14 @@ snapshots:
   unist-util-visit@5.0.0:
     dependencies:
       '@types/unist': 3.0.3
-      unist-util-is: 6.0.1
-      unist-util-visit-parents: 6.0.2
+      unist-util-is: 6.0.0
+      unist-util-visit-parents: 6.0.1
 
   unist-util-visit@5.1.0:
     dependencies:
       '@types/unist': 3.0.3
-      unist-util-is: 6.0.0
-      unist-util-visit-parents: 6.0.1
+      unist-util-is: 6.0.1
+      unist-util-visit-parents: 6.0.2
 
   universalify@0.2.0: {}
 
