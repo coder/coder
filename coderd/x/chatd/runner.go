@@ -232,9 +232,6 @@ func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
 		SessionStart:             &r.sessionStart,
 		StopNudges:               &r.stopNudges,
 	}
-	if kind == taskKindInterrupt {
-		input.InterruptSnapshot = &interruptEpisodeSnapshot{}
-	}
 	go r.runTask(taskCtx, kind, key, input, done)
 }
 
