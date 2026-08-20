@@ -62,6 +62,27 @@ together collapses that sequence in practice, and ours does. The order is then
 not observable in time. It remains true in dependency: the entry is the origin
 and the state is the derived thing, whichever the storage engine writes first.
 
+**Ledger.** The derived view that entries are posted into. A journal is
+organized by when its entries were made; a ledger reorganizes the same content
+by the thing each entry concerns, and carries the result of those entries taken
+together. So it holds what is currently true, and every word of it is
+downstream of the journal.
+
+Where what is being recorded has a lifecycle, the distinction takes a
+particular and useful form: **with respect to a state machine, a journal
+records transitions and a ledger records states.** That holds for every entity
+in this work, each of which has one. It is a specialization and not the
+definition, and should not be used to gloss the general case: a ledger
+accumulating money carries a balance, which is the state of no machine.
+
+A ledger here is a row for each entity holding its present state, updated in
+place. A reader who has kept paper books should note the difference in form. A
+paper ledger account is a growing list of postings, because paper cannot be
+updated in place, and in the running balance form each line carries the balance
+that resulted from it. That is the same fold over the same transitions, kept as
+a sequence of snapshots rather than in one mutable cell. Nothing is lost by
+keeping it the other way, since the journal already holds every transition.
+
 **Journalizing, posting, and auditing.** Three actions, deliberately
 distinguished from each other. Journalizing is making the original entry.
 Posting is carrying entries into the derived view. Auditing is the examination

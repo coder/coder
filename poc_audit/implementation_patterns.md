@@ -21,6 +21,41 @@ document is about the shape, not the contents.
 
 ## Established
 
+### A table is named for its entity, its aspect, and its kind of book
+
+`authorization_lifecycle_journal` and `authorization_lifecycle_ledger`: the
+entity, then what about it is being recorded, then whether the table is a book
+of original entry or the derived view of current state.
+
+The aspect is not decoration. Nothing says a lifecycle is the only thing worth
+recording about an authorization, and a name that leaves it out would have to
+change the first time something else is.
+
+### A ledger keeps its retired rows, in one table
+
+A ledger holds every entity of its kind whatever state it is in, not only those
+currently alive.
+
+The reason is about posting rather than about storage. Every entry posts to the
+ledger, and were the ledger to hold only living entities then the entry ending
+a life would have to delete a row rather than update one. Posting would then
+carry an exception, and an exception in posting is worse than any quantity of
+retained rows.
+
+**One table, not a current one and a retired one.** Splitting a lifecycle
+ledger reintroduces at the physical level the exact exception the rule above
+removes, since termination becomes a move rather than an update. The state
+column already distinguishes the two sets, a second table would have to receive
+every future column twice, and any question about an entity's history would
+need a union.
+
+Where volume eventually makes it worth keeping the living set small, Postgres
+declarative partitioning by list on the state column gives that without a
+second logical table, and moves a row between partitions on update. Converting
+an existing table to a partitioned one calls for a rewrite, which costs less
+here than elsewhere: a ledger is derived from its journal and can be rebuilt
+from it.
+
 ### These patterns bind every journal
 
 Each pattern below applies to **every journal**, whether or not the journal
@@ -130,6 +165,30 @@ A journal's subject is not an exception to this. It is self reference: one
 journal per entity means the journal is about a single kind, and the table's
 name already says which. Nothing is standing in for a key into a union, so the
 rule does not reach it and there is no exception to remember.
+
+### A ledger row names the entry that last posted to it
+
+Bookkeeping cross references its two books in both directions. The journal's
+folio column names the ledger account posted to, and the ledger's names the
+journal page the posting came from. The reference is written as each amount is
+posted, which makes the column double as a control: it shows which lines have
+been transferred and which have not.
+
+Both directions exist here. A journal entry's subject is the identifier of the
+ledger row, and the ledger's `posting_reference` holds the identifier of the
+entry most recently posted to it.
+
+It buys two things. Reconciliation gets a cheap handle, since an entry newer
+than the reference on the row it concerns is an entry not yet posted. And
+posting can be made safe against a race: an update conditioned on the reference
+it expects to find will fail for the second of two concurrent posters rather
+than letting both appear to succeed. Such a race would almost certainly be a
+defect rather than a legitimate pattern, which is not a reason to let it corrupt
+a row in silence.
+
+**No foreign key, and none is available.** A journal's primary key is the entry
+identifier together with the line number, so the entry identifier alone is not
+unique, and it cannot be made unique because the lines of one entry share it.
 
 ### The recording date is set by the schema, not by a caller
 

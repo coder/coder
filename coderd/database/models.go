@@ -5067,6 +5067,35 @@ type AuditLog struct {
 	OnBehalfOfUserID uuid.NullUUID   `db:"on_behalf_of_user_id" json:"on_behalf_of_user_id"`
 }
 
+// Journal of persistent state changes to authorizations, against which the ledger and the world can be reconciled. One journal per entity: sharing one with another entity would assert that their lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.
+type AuthorizationLifecycleJournal struct {
+	// Identifies the entry. An entry may occupy several lines, which share this value and differ by line number. Multiple lines express an atomic group: one event rather than several that coincide, so an entry that ends one authorization and begins another leaves no gap between them.
+	EntryID int64 `db:"entry_id" json:"entry_id"`
+	Line    int16 `db:"line" json:"line"`
+	// When the entry was made, never when the event occurred. Never passed as a parameter: line 0 omits the column and takes the default, later lines write a literal null, so no caller can supply, override, or backdate it.
+	RecordingDate sql.NullTime `db:"recording_date" json:"recording_date"`
+	// When the event occurred, which for an observed transition may be long before it was recorded. Where the time is not known, the caller reads the clock at the earliest moment it can vouch for, making the value an upper bound rather than a measurement. How good the value is cannot be carried by this column.
+	EffectiveDate sql.NullTime   `db:"effective_date" json:"effective_date"`
+	ActorType     sql.NullString `db:"actor_type" json:"actor_type"`
+	Actor         uuid.NullUUID  `db:"actor" json:"actor"`
+	Event         string         `db:"event" json:"event"`
+	Subject       uuid.UUID      `db:"subject" json:"subject"`
+}
+
+// Current state of each authorization, an agency relation between a principal and an agent. Derived from authorization_lifecycle_journal, which is the book of original entry. Carries no timestamps: when anything happened is recorded there, and a second copy here could disagree with the first.
+type AuthorizationLifecycleLedger struct {
+	ID            uuid.UUID `db:"id" json:"id"`
+	PrincipalType string    `db:"principal_type" json:"principal_type"`
+	PrincipalID   uuid.UUID `db:"principal_id" json:"principal_id"`
+	AgentType     string    `db:"agent_type" json:"agent_type"`
+	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
+	// Reserved for future use; always empty. An empty scope denotes a universal grant, the grant that restricts nothing and therefore has the shortest description. Authorization is not capacity: what an agent can in fact do is restricted by its sandbox, its gateway, and other technical means, and reconciling capacity against authorization is future work that is trivial while every grant is universal.
+	Scope string `db:"scope" json:"scope"`
+	State string `db:"state" json:"state"`
+	// Identifies the journal entry most recently posted to this row, after the folio that cross references a paper ledger back to its journal. It gives reconciliation a cheap handle, since an entry newer than this one is an entry not yet posted, and it makes posting safe against a race when the update is conditioned on the value it expects to find.
+	PostingReference int64 `db:"posting_reference" json:"posting_reference"`
+}
+
 // Persisted boundary audit events. Each row is a single audit event processed by a Boundary proxy.
 type BoundaryLog struct {
 	ID uuid.UUID `db:"id" json:"id"`

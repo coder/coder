@@ -1844,6 +1844,56 @@ CREATE TABLE audit_logs (
     on_behalf_of_user_id uuid
 );
 
+CREATE TABLE authorization_lifecycle_journal (
+    entry_id bigint NOT NULL,
+    line smallint NOT NULL,
+    recording_date timestamp with time zone DEFAULT now(),
+    effective_date timestamp with time zone DEFAULT now(),
+    actor_type text,
+    actor uuid,
+    event text NOT NULL,
+    subject uuid NOT NULL,
+    CONSTRAINT authorization_lifecycle_journal_actor_on_first_line CHECK (((line = 0) = (actor IS NOT NULL))),
+    CONSTRAINT authorization_lifecycle_journal_actor_type_on_first_line CHECK (((line = 0) = (actor_type IS NOT NULL))),
+    CONSTRAINT authorization_lifecycle_journal_effective_date_on_first_line CHECK (((line = 0) = (effective_date IS NOT NULL))),
+    CONSTRAINT authorization_lifecycle_journal_line_non_negative CHECK ((line >= 0)),
+    CONSTRAINT authorization_lifecycle_journal_recording_date_on_first_line CHECK (((line = 0) = (recording_date IS NOT NULL)))
+);
+
+COMMENT ON TABLE authorization_lifecycle_journal IS 'Journal of persistent state changes to authorizations, against which the ledger and the world can be reconciled. One journal per entity: sharing one with another entity would assert that their lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.';
+
+COMMENT ON COLUMN authorization_lifecycle_journal.entry_id IS 'Identifies the entry. An entry may occupy several lines, which share this value and differ by line number. Multiple lines express an atomic group: one event rather than several that coincide, so an entry that ends one authorization and begins another leaves no gap between them.';
+
+COMMENT ON COLUMN authorization_lifecycle_journal.recording_date IS 'When the entry was made, never when the event occurred. Never passed as a parameter: line 0 omits the column and takes the default, later lines write a literal null, so no caller can supply, override, or backdate it.';
+
+COMMENT ON COLUMN authorization_lifecycle_journal.effective_date IS 'When the event occurred, which for an observed transition may be long before it was recorded. Where the time is not known, the caller reads the clock at the earliest moment it can vouch for, making the value an upper bound rather than a measurement. How good the value is cannot be carried by this column.';
+
+CREATE SEQUENCE authorization_lifecycle_journal_entry_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+CREATE TABLE authorization_lifecycle_ledger (
+    id uuid NOT NULL,
+    principal_type text NOT NULL,
+    principal_id uuid NOT NULL,
+    agent_type text NOT NULL,
+    agent_id uuid NOT NULL,
+    scope text NOT NULL,
+    state text NOT NULL,
+    posting_reference bigint NOT NULL,
+    CONSTRAINT authorization_lifecycle_ledger_scope_reserved CHECK ((scope = ''::text)),
+    CONSTRAINT authorization_lifecycle_ledger_state CHECK ((state = ANY (ARRAY['active'::text, 'terminated'::text])))
+);
+
+COMMENT ON TABLE authorization_lifecycle_ledger IS 'Current state of each authorization, an agency relation between a principal and an agent. Derived from authorization_lifecycle_journal, which is the book of original entry. Carries no timestamps: when anything happened is recorded there, and a second copy here could disagree with the first.';
+
+COMMENT ON COLUMN authorization_lifecycle_ledger.scope IS 'Reserved for future use; always empty. An empty scope denotes a universal grant, the grant that restricts nothing and therefore has the shortest description. Authorization is not capacity: what an agent can in fact do is restricted by its sandbox, its gateway, and other technical means, and reconciling capacity against authorization is future work that is trivial while every grant is universal.';
+
+COMMENT ON COLUMN authorization_lifecycle_ledger.posting_reference IS 'Identifies the journal entry most recently posted to this row, after the folio that cross references a paper ledger back to its journal. It gives reconciliation a cheap handle, since an entry newer than this one is an entry not yet posted, and it makes posting safe against a race when the update is conditioned on the value it expects to find.';
+
 CREATE TABLE boundary_logs (
     id uuid NOT NULL,
     session_id uuid NOT NULL,
@@ -4449,6 +4499,12 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY authorization_lifecycle_journal
+    ADD CONSTRAINT authorization_lifecycle_journal_pkey PRIMARY KEY (entry_id, line);
+
+ALTER TABLE ONLY authorization_lifecycle_ledger
+    ADD CONSTRAINT authorization_lifecycle_ledger_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY boundary_logs
     ADD CONSTRAINT boundary_logs_pkey PRIMARY KEY (id);
 
@@ -4850,6 +4906,14 @@ CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) 
 CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
+
+CREATE INDEX authorization_lifecycle_journal_actor_idx ON authorization_lifecycle_journal USING btree (actor_type, actor) WHERE (actor IS NOT NULL);
+
+CREATE INDEX authorization_lifecycle_journal_subject_idx ON authorization_lifecycle_journal USING btree (subject);
+
+CREATE INDEX authorization_lifecycle_ledger_agent_idx ON authorization_lifecycle_ledger USING btree (agent_type, agent_id);
+
+CREATE INDEX authorization_lifecycle_ledger_principal_idx ON authorization_lifecycle_ledger USING btree (principal_type, principal_id);
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
 

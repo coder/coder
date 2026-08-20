@@ -1,0 +1,5 @@
+DROP TABLE authorization_lifecycle_journal;
+
+DROP SEQUENCE authorization_lifecycle_journal_entry_seq;
+
+DROP TABLE authorization_lifecycle_ledger;
