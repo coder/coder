@@ -9,7 +9,7 @@
 		"export": "pnpm sync && next build",
 		"postinstall": "fumadocs-mdx",
 		"lint": "pnpm run lint:types",
-		"lint:types": "pnpm sync && fumadocs-mdx && next typegen && tsc --noEmit",
+		"lint:types": "pnpm sync && fumadocs-mdx && node scripts/ensure-source.mjs && next typegen && tsc --noEmit",
 		"format": "prettier --cache --write './**/*.{css,js,jsx,json,mjs,ts,tsx,yaml,yml}'",
 		"format:check": "prettier --cache --check './**/*.{css,js,jsx,json,mjs,ts,tsx,yaml,yml}'",
 		"test": "node --test 'scripts/**/*.test.mjs' && node --import tsx --test 'src/mdx-plugins/**/*.test.ts' && node --import tsx --import ./test/jsdom-setup.mjs --test 'src/components/**/*.test.tsx'"
