@@ -9,7 +9,10 @@ CREATE TABLE user_memories (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT user_memories_path_size CHECK (octet_length(path) <= 256),
-    CONSTRAINT user_memories_path_format CHECK (path ~ '^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*\.md$'),
+    CONSTRAINT user_memories_path_format CHECK (
+        path ~ '^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*\.md$'
+        AND path !~ '(^|/)[.]{1,2}(/|$)'
+    ),
     CONSTRAINT user_memories_content_size CHECK (octet_length(content) <= 65536)
 );
 
@@ -25,7 +28,10 @@ CREATE TABLE chat_memories (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT chat_memories_path_size CHECK (octet_length(path) <= 256),
-    CONSTRAINT chat_memories_path_format CHECK (path ~ '^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*\.md$'),
+    CONSTRAINT chat_memories_path_format CHECK (
+        path ~ '^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*\.md$'
+        AND path !~ '(^|/)[.]{1,2}(/|$)'
+    ),
     CONSTRAINT chat_memories_content_size CHECK (octet_length(content) <= 65536)
 );
 

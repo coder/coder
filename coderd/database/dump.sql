@@ -2112,7 +2112,7 @@ CREATE TABLE chat_memories (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT chat_memories_content_size CHECK ((octet_length(content) <= 65536)),
-    CONSTRAINT chat_memories_path_format CHECK ((path ~ '^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*\.md$'::text)),
+    CONSTRAINT chat_memories_path_format CHECK (((path ~ '^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*\.md$'::text) AND (path !~ '(^|/)[.]{1,2}(/|$)'::text))),
     CONSTRAINT chat_memories_path_size CHECK ((octet_length(path) <= 256))
 );
 
@@ -3803,7 +3803,7 @@ CREATE TABLE user_memories (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT user_memories_content_size CHECK ((octet_length(content) <= 65536)),
-    CONSTRAINT user_memories_path_format CHECK ((path ~ '^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*\.md$'::text)),
+    CONSTRAINT user_memories_path_format CHECK (((path ~ '^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*\.md$'::text) AND (path !~ '(^|/)[.]{1,2}(/|$)'::text))),
     CONSTRAINT user_memories_path_size CHECK ((octet_length(path) <= 256))
 );
 

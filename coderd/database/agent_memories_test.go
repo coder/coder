@@ -89,6 +89,7 @@ func TestUserMemories(t *testing.T) {
 		for _, invalid := range []string{
 			"", "no-extension", "dir/", "/absolute.md", "a//b.md",
 			"trailing/.md", "spaces in path.md", "note.txt",
+			"./local.md", "../escape.md", "dir/./local.md", "dir/../escape.md",
 		} {
 			_, err := insertMemory(ctx, user.ID, invalid)
 			require.Error(t, err, "path %q should be rejected", invalid)
@@ -275,11 +276,13 @@ func TestChatMemories(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		chat := insertTestChat(t, db)
-		_, err := insertMemory(ctx, chat.ID, "invalid path.md")
-		require.Error(t, err)
-		var pqErr *pq.Error
-		require.ErrorAs(t, err, &pqErr)
-		require.Equal(t, "chat_memories_path_format", pqErr.Constraint)
+		for _, invalid := range []string{"invalid path.md", "../escape.md"} {
+			_, err := insertMemory(ctx, chat.ID, invalid)
+			require.Error(t, err, "path %q should be rejected", invalid)
+			var pqErr *pq.Error
+			require.ErrorAs(t, err, &pqErr)
+			require.Equal(t, "chat_memories_path_format", pqErr.Constraint)
+		}
 	})
 
 	t.Run("DuplicatePathRejected", func(t *testing.T) {
