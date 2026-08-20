@@ -6,11 +6,11 @@ import {
 	ProvisionerKeyIDUserAuth,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { Link } from "#/components/Link/Link";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -51,11 +51,12 @@ export const OrganizationProvisionerKeysPageView: FC<
 
 	return (
 		<section className="w-full max-w-screen-2xl pb-10">
-			<SettingsHeader>
+			<SettingsHeader
+				actions={<SettingsHeaderDocsLink href={docs("/admin/provisioners")} />}
+			>
 				<SettingsHeaderTitle>Provisioner Keys</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					Manage provisioner keys used to authenticate provisioner instances.{" "}
-					<Link href={docs("/admin/provisioners")}>View docs</Link>
+					Manage provisioner keys used to authenticate provisioner instances.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
