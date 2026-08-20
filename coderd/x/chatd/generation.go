@@ -1117,10 +1117,10 @@ type generationAttempt struct {
 	startToolBatch func(calls []messagepartbuffer.DispatchedToolCall)
 	// recordToolStart stamps an occurrence's actual start; serial calls may
 	// start after dispatch. It is always non-nil after beginGenerationAttempt.
-	recordToolStart func(callIndex int, toolCallID string, startedAt time.Time)
+	recordToolStart func(dispatchIndex int, startedAt time.Time)
 	// recordToolCompletion stamps an occurrence's completion. It is always
 	// non-nil after beginGenerationAttempt.
-	recordToolCompletion func(callIndex int, toolCallID string, completedAt time.Time)
+	recordToolCompletion func(dispatchIndex int, completedAt time.Time)
 	// closeEpisode closes the attempt's buffer episode. It is always
 	// non-nil when beginGenerationAttempt succeeds.
 	closeEpisode func()
@@ -1170,11 +1170,11 @@ func (s *taskStarter) beginGenerationAttempt(
 		startToolBatch: func(calls []messagepartbuffer.DispatchedToolCall) {
 			_ = s.opts.MessagePartBuffer.StartToolBatch(key, calls)
 		},
-		recordToolStart: func(callIndex int, toolCallID string, startedAt time.Time) {
-			_ = s.opts.MessagePartBuffer.RecordToolStart(key, callIndex, toolCallID, startedAt)
+		recordToolStart: func(dispatchIndex int, startedAt time.Time) {
+			_ = s.opts.MessagePartBuffer.RecordToolStart(key, dispatchIndex, startedAt)
 		},
-		recordToolCompletion: func(callIndex int, toolCallID string, completedAt time.Time) {
-			_ = s.opts.MessagePartBuffer.RecordToolCompletion(key, callIndex, toolCallID, completedAt)
+		recordToolCompletion: func(dispatchIndex int, completedAt time.Time) {
+			_ = s.opts.MessagePartBuffer.RecordToolCompletion(key, dispatchIndex, completedAt)
 		},
 		closeEpisode: func() {
 			_ = s.opts.MessagePartBuffer.CloseEpisode(key)

@@ -517,9 +517,8 @@ func TestExecuteLocalTools_OnToolCompleteReportsLiveCompletions(t *testing.T) {
 	defer trap.Close()
 
 	type completion struct {
-		callIndex   int
-		toolCallID  string
-		completedAt time.Time
+		dispatchIndex int
+		completedAt   time.Time
 	}
 	completionCh := make(chan completion, 2)
 	fastGo := make(chan struct{})
@@ -530,8 +529,8 @@ func TestExecuteLocalTools_OnToolCompleteReportsLiveCompletions(t *testing.T) {
 			blockingTool("slow_tool", slowGo, fantasy.NewTextResponse("done")),
 		},
 		ActiveTools: []string{"fast_tool", "slow_tool"},
-		OnToolComplete: func(callIndex int, toolCallID string, completedAt time.Time) {
-			completionCh <- completion{callIndex: callIndex, toolCallID: toolCallID, completedAt: completedAt}
+		OnToolComplete: func(dispatchIndex int, completedAt time.Time) {
+			completionCh <- completion{dispatchIndex: dispatchIndex, completedAt: completedAt}
 		},
 		ToolCalls: []fantasy.ToolCallContent{
 			{ToolCallID: "call-fast", ToolName: "fast_tool", Input: "{}"},
@@ -544,14 +543,12 @@ func TestExecuteLocalTools_OnToolCompleteReportsLiveCompletions(t *testing.T) {
 	close(fastGo)
 	trap.MustWait(ctx).MustRelease(ctx)
 	fast := testutil.RequireReceive(ctx, t, completionCh)
-	require.Equal(t, "call-fast", fast.toolCallID)
-	require.Equal(t, 0, fast.callIndex, "callIndex is the call's position in dispatch order")
+	require.Equal(t, 0, fast.dispatchIndex)
 	clock.Advance(50 * time.Second)
 	close(slowGo)
 	trap.MustWait(ctx).MustRelease(ctx)
 	slow := testutil.RequireReceive(ctx, t, completionCh)
-	require.Equal(t, "call-slow", slow.toolCallID)
-	require.Equal(t, 1, slow.callIndex, "callIndex is the call's position in dispatch order")
+	require.Equal(t, 1, slow.dispatchIndex)
 	require.Equal(t, 50*time.Second, slow.completedAt.Sub(fast.completedAt))
 
 	outcome := testutil.RequireReceive(ctx, t, resultCh)

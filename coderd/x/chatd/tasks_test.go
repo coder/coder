@@ -585,11 +585,11 @@ func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T
 		{CallIndex: 0, ToolCallID: execCallID},
 		{CallIndex: 1, ToolCallID: waitCallID},
 	}))
-	require.NoError(t, buffer.RecordToolStart(batch.key, 0, execCallID, batch.clock.Now()))
-	require.NoError(t, buffer.RecordToolStart(batch.key, 1, waitCallID, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 1, batch.clock.Now()))
 	// Record a live completion without publishing a tool result.
 	batch.clock.Advance(3 * time.Second)
-	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, execCallID, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, batch.clock.Now()))
 	batch.clock.Advance(5 * time.Second)
 
 	snapshot := &interruptEpisodeSnapshot{}
@@ -600,7 +600,7 @@ func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T
 	require.False(t, waitRow.RuntimeMs.Valid)
 	require.True(t, snapshot.loaded)
 	require.Equal(t, batch.key, snapshot.key)
-	require.Len(t, snapshot.billing.ToolCompletions, 2)
+	require.Len(t, snapshot.billing.toolCompletions, 2)
 }
 
 func TestInterruptTask_RetrySnapshotOutlivesEpisodeEviction(t *testing.T) {
@@ -619,10 +619,10 @@ func TestInterruptTask_RetrySnapshotOutlivesEpisodeEviction(t *testing.T) {
 	snapshot := &interruptEpisodeSnapshot{
 		loaded: true,
 		key:    batch.key,
-		billing: messagepartbuffer.EpisodeBilling{
-			ClosedAt:           batch.clock.Now(),
-			ToolBatchStartedAt: batchStartedAt,
-			ToolCompletions:    []messagepartbuffer.ToolCompletion{{CallIndex: 0, ToolCallID: execCallID, StartedAt: batchStartedAt}},
+		billing: interruptEpisodeBilling{
+			interruptedAt:      batch.clock.Now(),
+			toolBatchStartedAt: batchStartedAt,
+			toolCompletions:    []messagepartbuffer.ToolCompletion{{CallIndex: 0, ToolCallID: execCallID, StartedAt: batchStartedAt}},
 		},
 	}
 
@@ -643,7 +643,7 @@ func TestInterruptTask_SnapshotCapturedBeforeChatRead(t *testing.T) {
 
 	batch.clock.Advance(2 * time.Second)
 	require.NoError(t, buffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 0, ToolCallID: execCallID}}))
-	require.NoError(t, buffer.RecordToolStart(batch.key, 0, execCallID, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
 	batch.clock.Advance(3 * time.Second)
 
 	snapshot := &interruptEpisodeSnapshot{}
@@ -682,7 +682,7 @@ func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
 
 	batch.clock.Advance(2 * time.Second)
 	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 0, ToolCallID: execCallID}}))
-	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, execCallID, batch.clock.Now()))
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
 	batch.clock.Advance(7 * time.Second)
 
 	messages := batch.interrupt(t, f)
@@ -701,7 +701,7 @@ func TestInterruptTask_UnbilledOnlyBatchBillsNothingOnInterrupt(t *testing.T) {
 
 	batch.clock.Advance(2 * time.Second)
 	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 0, ToolCallID: waitCallID}}))
-	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, waitCallID, batch.clock.Now()))
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
 	batch.clock.Advance(10 * time.Second)
 
 	messages := batch.interrupt(t, f)
@@ -726,7 +726,7 @@ func TestInterruptTask_UnstartedSerialCallBillsNothingOnInterrupt(t *testing.T) 
 		{CallIndex: 0, ToolCallID: waitCallID},
 		{CallIndex: 1, ToolCallID: serialCallID},
 	}))
-	require.NoError(t, buffer.RecordToolStart(batch.key, 0, waitCallID, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
 	batch.clock.Advance(10 * time.Second)
 
 	messages := batch.interrupt(t, f)
@@ -758,13 +758,13 @@ func TestInterruptTask_StartedSerialCallBillsFromItsOwnStart(t *testing.T) {
 		{CallIndex: 1, ToolCallID: waitCallID},
 		{CallIndex: 2, ToolCallID: serialCallID},
 	}))
-	require.NoError(t, buffer.RecordToolStart(batch.key, 0, execCallID, batch.clock.Now()))
-	require.NoError(t, buffer.RecordToolStart(batch.key, 1, waitCallID, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 1, batch.clock.Now()))
 	batch.clock.Advance(3 * time.Second)
-	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, execCallID, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, batch.clock.Now()))
 	batch.clock.Advance(3 * time.Second)
-	require.NoError(t, buffer.RecordToolCompletion(batch.key, 1, waitCallID, batch.clock.Now()))
-	require.NoError(t, buffer.RecordToolStart(batch.key, 2, serialCallID, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, 1, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 2, batch.clock.Now()))
 	batch.clock.Advance(2 * time.Second)
 
 	messages := batch.interrupt(t, f)
@@ -792,10 +792,10 @@ func TestInterruptTask_DuplicateCallIDsKeepOccurrenceStates(t *testing.T) {
 		{CallIndex: 0, ToolCallID: dupCallID},
 		{CallIndex: 1, ToolCallID: dupCallID},
 	}))
-	require.NoError(t, buffer.RecordToolStart(batch.key, 0, dupCallID, batch.clock.Now()))
-	require.NoError(t, buffer.RecordToolStart(batch.key, 1, dupCallID, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 1, batch.clock.Now()))
 	batch.clock.Advance(3 * time.Second)
-	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, dupCallID, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, batch.clock.Now()))
 	batch.clock.Advance(3 * time.Second)
 
 	messages := batch.interrupt(t, f)
@@ -824,10 +824,10 @@ func TestInterruptTask_DuplicateCallIDCompletionStampsOwnOccurrence(t *testing.T
 		{CallIndex: 0, ToolCallID: dupCallID},
 		{CallIndex: 1, ToolCallID: dupCallID},
 	}))
-	require.NoError(t, buffer.RecordToolStart(batch.key, 0, dupCallID, batch.clock.Now()))
-	require.NoError(t, buffer.RecordToolStart(batch.key, 1, dupCallID, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 1, batch.clock.Now()))
 	batch.clock.Advance(3 * time.Second)
-	require.NoError(t, buffer.RecordToolCompletion(batch.key, 1, dupCallID, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, 1, batch.clock.Now()))
 	batch.clock.Advance(3 * time.Second)
 
 	messages := batch.interrupt(t, f)
@@ -852,7 +852,7 @@ func TestInterruptTask_RejectedDuplicateIDDoesNotStealDispatchedOccurrence(t *te
 
 	batch.clock.Advance(2 * time.Second)
 	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 1, ToolCallID: dupCallID}}))
-	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, dupCallID, batch.clock.Now()))
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
 	batch.clock.Advance(10 * time.Second)
 
 	messages := batch.interrupt(t, f)
@@ -876,7 +876,7 @@ func TestInterruptTask_RejectedCallBillsNothingOnInterrupt(t *testing.T) {
 
 	batch.clock.Advance(2 * time.Second)
 	require.NoError(t, batch.starter.opts.MessagePartBuffer.StartToolBatch(batch.key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 1, ToolCallID: waitCallID}}))
-	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, waitCallID, batch.clock.Now()))
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
 	batch.clock.Advance(10 * time.Second)
 
 	messages := batch.interrupt(t, f)

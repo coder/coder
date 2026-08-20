@@ -234,7 +234,7 @@ type DispatchedToolCall struct {
 // ToolCompletion tracks a tool-call occurrence. StartedAt is zero when the
 // start is unknown; CompletedAt is zero while unfinished.
 type ToolCompletion struct {
-	// CallIndex is -1 when no seeded occurrence matched.
+	// CallIndex is the occurrence's position in the unresolved call order.
 	CallIndex   int
 	ToolCallID  string
 	StartedAt   time.Time
@@ -269,10 +269,9 @@ func (b *Buffer) StartToolBatch(key Key, calls []DispatchedToolCall) error {
 }
 
 // RecordToolStart stamps a dispatched call's actual start. Concurrent calls
-// start with the batch; serial calls may start later. If dispatchIndex does
-// not match, the first unstarted same-ID occurrence is used. Unknown starts
+// start with the batch; serial calls may start later. Unknown dispatch indexes
 // are dropped because they cannot correlate to unresolved calls.
-func (b *Buffer) RecordToolStart(key Key, dispatchIndex int, toolCallID string, startedAt time.Time) error {
+func (b *Buffer) RecordToolStart(key Key, dispatchIndex int, startedAt time.Time) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {
@@ -285,28 +284,19 @@ func (b *Buffer) RecordToolStart(key Key, dispatchIndex int, toolCallID string, 
 	if episode.closed {
 		return ErrEpisodeClosed
 	}
-	if dispatchIndex >= 0 && dispatchIndex < len(episode.toolCompletions) {
-		entry := &episode.toolCompletions[dispatchIndex]
-		if entry.ToolCallID == toolCallID && entry.StartedAt.IsZero() {
-			entry.StartedAt = startedAt
-			return nil
-		}
+	if dispatchIndex < 0 || dispatchIndex >= len(episode.toolCompletions) {
+		return nil
 	}
-	for i := range episode.toolCompletions {
-		entry := &episode.toolCompletions[i]
-		if entry.ToolCallID == toolCallID && entry.StartedAt.IsZero() {
-			entry.StartedAt = startedAt
-			return nil
-		}
+	entry := &episode.toolCompletions[dispatchIndex]
+	if entry.StartedAt.IsZero() {
+		entry.StartedAt = startedAt
 	}
 	return nil
 }
 
 // RecordToolCompletion stamps a call as it finishes, so interrupts use the
-// actual completion. dispatchIndex selects the seeded occurrence; otherwise
-// the first unfinished same-ID occurrence is used. Unmatched completions
-// append with CallIndex -1.
-func (b *Buffer) RecordToolCompletion(key Key, dispatchIndex int, toolCallID string, completedAt time.Time) error {
+// actual completion. Unknown dispatch indexes are dropped.
+func (b *Buffer) RecordToolCompletion(key Key, dispatchIndex int, completedAt time.Time) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {
@@ -319,25 +309,13 @@ func (b *Buffer) RecordToolCompletion(key Key, dispatchIndex int, toolCallID str
 	if episode.closed {
 		return ErrEpisodeClosed
 	}
-	if dispatchIndex >= 0 && dispatchIndex < len(episode.toolCompletions) {
-		entry := &episode.toolCompletions[dispatchIndex]
-		if entry.ToolCallID == toolCallID && entry.CompletedAt.IsZero() {
-			entry.CompletedAt = completedAt
-			return nil
-		}
+	if dispatchIndex < 0 || dispatchIndex >= len(episode.toolCompletions) {
+		return nil
 	}
-	for i := range episode.toolCompletions {
-		entry := &episode.toolCompletions[i]
-		if entry.ToolCallID == toolCallID && entry.CompletedAt.IsZero() {
-			entry.CompletedAt = completedAt
-			return nil
-		}
+	entry := &episode.toolCompletions[dispatchIndex]
+	if entry.CompletedAt.IsZero() {
+		entry.CompletedAt = completedAt
 	}
-	episode.toolCompletions = append(episode.toolCompletions, ToolCompletion{
-		CallIndex:   -1,
-		ToolCallID:  toolCallID,
-		CompletedAt: completedAt,
-	})
 	return nil
 }
 
@@ -439,8 +417,8 @@ func (b *Buffer) ToolBatchStartedAt(key Key) time.Time {
 }
 
 // ToolCompletions returns copied occurrence state. A zero start means not
-// launched; a zero completion means unfinished. Interrupts must use
-// CloseEpisodeForBilling to avoid a read-close race.
+// launched; a zero completion means unfinished. Read it before CloseEpisode
+// because closed episodes are garbage collected.
 func (b *Buffer) ToolCompletions(key Key) []ToolCompletion {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -449,45 +427,6 @@ func (b *Buffer) ToolCompletions(key Key) []ToolCompletion {
 		return nil
 	}
 	return slices.Clone(episode.toolCompletions)
-}
-
-// EpisodeBilling is the billing snapshot captured when an episode closes.
-type EpisodeBilling struct {
-	// ClosedAt is the first close instant, used as the retry-stable
-	// interrupt time.
-	ClosedAt time.Time
-	// ModelInvokedAt is the StartModelInvocation stamp, or zero if absent.
-	ModelInvokedAt time.Time
-	// ToolBatchStartedAt is the StartToolBatch stamp, or zero if absent.
-	ToolBatchStartedAt time.Time
-	// ToolCompletions is the close-time occurrence snapshot.
-	ToolCompletions []ToolCompletion
-}
-
-// CloseEpisodeForBilling closes the episode and returns billing stamps from
-// the same critical section, preventing a read-close race. Unknown episodes
-// close blank. Re-closing returns the original snapshot and refreshes
-// retention so retries keep the same billing state and buffered parts.
-func (b *Buffer) CloseEpisodeForBilling(key Key) (EpisodeBilling, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.closed {
-		return EpisodeBilling{}, ErrMessagePartBufferClosed
-	}
-	episode := b.getOrCreateEpisodeLocked(key)
-	now := b.opts.Clock.Now("message-part-buffer", "close")
-	if episode.close(now) {
-		b.queueClosedEpisodeLocked(key, episode)
-		episode.notifySubscribers()
-	} else {
-		b.refreshClosedEpisodeEvictionLocked(key, episode, now)
-	}
-	return EpisodeBilling{
-		ClosedAt:           episode.closedAt,
-		ModelInvokedAt:     episode.modelStartedAt,
-		ToolBatchStartedAt: episode.toolBatchStartedAt,
-		ToolCompletions:    slices.Clone(episode.toolCompletions),
-	}, nil
 }
 
 // SubscribeToEpisode replays existing parts and streams new parts.
@@ -607,14 +546,6 @@ func (b *Buffer) queueClosedEpisodeLocked(key Key, episode *episodeState) {
 		return
 	}
 	item := &closedEpisodeItem{key: key, closedAt: episode.closedAt}
-	episode.closedHeapItem = item
-	heap.Push(&b.closedEpisodes, item)
-}
-
-// refreshClosedEpisodeEvictionLocked refreshes retention with a new heap
-// item; cleanup skips superseded items by identity.
-func (b *Buffer) refreshClosedEpisodeEvictionLocked(key Key, episode *episodeState, evictAt time.Time) {
-	item := &closedEpisodeItem{key: key, closedAt: evictAt}
 	episode.closedHeapItem = item
 	heap.Push(&b.closedEpisodes, item)
 }

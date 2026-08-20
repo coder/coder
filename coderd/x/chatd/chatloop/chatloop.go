@@ -271,14 +271,14 @@ type ExecuteLocalToolsOptions struct {
 	OnBatchStart func()
 	// OnToolStart fires when each local call begins. Serial calls may start
 	// after concurrent siblings settle, so interrupts bill actual starts and
-	// skip dispatched calls that never run. callIndex identifies the
+	// skip dispatched calls that never run. dispatchIndex identifies the
 	// dispatch-order occurrence.
-	OnToolStart func(callIndex int, toolCallID string, startedAt time.Time)
+	OnToolStart func(dispatchIndex int, startedAt time.Time)
 	// OnToolComplete fires concurrently as each local call finishes, before
 	// ordered results publish. Interrupt billing uses the live timestamp;
-	// callIndex identifies the dispatch-order occurrence when IDs collide.
+	// dispatchIndex identifies the dispatch-order occurrence.
 	// The callback must be concurrency-safe.
-	OnToolComplete func(callIndex int, toolCallID string, completedAt time.Time)
+	OnToolComplete func(dispatchIndex int, completedAt time.Time)
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	Logger             slog.Logger
@@ -602,7 +602,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		for i, tr := range policyResults {
 			recordToolResultTimestamp(&result, tr.ToolCallID, now)
 			if opts.OnToolComplete != nil {
-				opts.OnToolComplete(i, tr.ToolCallID, now)
+				opts.OnToolComplete(i, now)
 			}
 			publishToolAttachments(ctx, opts.Logger, tr, now, publishMessagePart)
 			ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
@@ -628,10 +628,10 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	orderedCompletions := make([]time.Time, 0, len(localCalls))
 	// Keep starts by occurrence. Serial calls may begin after unbilled waits.
 	orderedStarts := make([]time.Time, len(localCalls))
-	onToolStart := func(callIndex int, toolCallID string, startedAt time.Time) {
-		orderedStarts[callIndex] = startedAt
+	onToolStart := func(dispatchIndex int, startedAt time.Time) {
+		orderedStarts[dispatchIndex] = startedAt
 		if opts.OnToolStart != nil {
-			opts.OnToolStart(callIndex, toolCallID, startedAt)
+			opts.OnToolStart(dispatchIndex, startedAt)
 		}
 	}
 	toolResults := executeTools(
@@ -1228,8 +1228,8 @@ func executeTools(
 	maxResultBytes int,
 	toolNameAliases map[string]string,
 	batchStart time.Time,
-	onStart func(callIndex int, toolCallID string, startedAt time.Time),
-	onComplete func(callIndex int, toolCallID string, completedAt time.Time),
+	onStart func(dispatchIndex int, startedAt time.Time),
+	onComplete func(dispatchIndex int, completedAt time.Time),
 	onResult func(fantasy.ToolResultContent, time.Time),
 ) []fantasy.ToolResultContent {
 	if len(toolCalls) == 0 {
@@ -1298,7 +1298,7 @@ func executeTools(
 			// accurate individual completion times.
 			completedAt[i] = clockNow(clock)
 			if onComplete != nil {
-				onComplete(i, tc.ToolCallID, completedAt[i])
+				onComplete(i, completedAt[i])
 			}
 		}()
 		results[i] = executeSingleTool(
@@ -1328,7 +1328,7 @@ func executeTools(
 			continue
 		}
 		if onStart != nil {
-			onStart(i, tc.ToolCallID, batchStart)
+			onStart(i, batchStart)
 		}
 		wg.Add(1)
 		go func() {
@@ -1350,7 +1350,7 @@ func executeTools(
 	for _, i := range serialIndexes {
 		// Stamp serial calls at launch, not batch start.
 		if onStart != nil {
-			onStart(i, localToolCalls[i].ToolCallID, clockNow(clock))
+			onStart(i, clockNow(clock))
 		}
 		runCall(i, localToolCalls[i])
 	}
