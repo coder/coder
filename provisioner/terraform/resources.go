@@ -207,6 +207,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	agentRuntimeAddresses := map[*proto.Agent]string{}
 	devcontainerRuntimeAddresses := map[*proto.Devcontainer]string{}
 	scriptOrderScripts := map[string]scriptOrderScript{}
+	scriptsByAddress := map[string]*proto.Script{}
 
 	// Indexes Terraform resources by their label.
 	// The label is what "terraform graph" uses to reference nodes.
@@ -665,6 +666,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			RunOnStart:       attrs.RunOnStart,
 			RunOnStop:        attrs.RunOnStop,
 			TimeoutSeconds:   attrs.TimeoutSeconds,
+			ResourceAddress:  resource.Address,
 		}
 		orderScript := scriptOrderScript{
 			RunOnStart: attrs.RunOnStart,
@@ -691,6 +693,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		}
 		if resource.Mode == tfjson.ManagedResourceMode {
 			scriptOrderScripts[resource.Address] = orderScript
+			scriptsByAddress[resource.Address] = script
 		}
 	}
 
@@ -701,6 +704,9 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	var resolvedScriptOrder *ScriptOrder
 	if len(scriptOrder.Graphs) > 0 {
 		resolvedScriptOrder = &scriptOrder
+	}
+	if err := attachScriptOrderDependencies(resolvedScriptOrder, scriptsByAddress); err != nil {
+		return nil, xerrors.Errorf("attach script order graph: %w", err)
 	}
 	// Associate metadata blocks with resources.
 	resourceMetadata := map[string][]*proto.Resource_Metadata{}
@@ -1098,6 +1104,46 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		HasExternalAgents:     hasExternalAgentResources(graph),
 		ScriptOrder:           resolvedScriptOrder,
 	}, nil
+}
+
+func attachScriptOrderDependencies(order *ScriptOrder, scriptsByAddress map[string]*proto.Script) error {
+	if order == nil {
+		return nil
+	}
+
+	for _, graph := range order.Graphs {
+		for _, dependency := range graph.Dependencies {
+			script, ok := scriptsByAddress[dependency.ScriptAddress]
+			if !ok {
+				return xerrors.Errorf("dependent script %q not found", dependency.ScriptAddress)
+			}
+			if _, ok := scriptsByAddress[dependency.PrerequisiteAddress]; !ok {
+				return xerrors.Errorf("prerequisite script %q not found", dependency.PrerequisiteAddress)
+			}
+
+			requirement, err := scriptDependencyRequirementProto(dependency.Requirement)
+			if err != nil {
+				return err
+			}
+			script.Dependencies = append(script.Dependencies, &proto.ScriptDependency{
+				PrerequisiteResourceAddress: dependency.PrerequisiteAddress,
+				Requirement:                 requirement,
+			})
+		}
+	}
+	return nil
+}
+
+func scriptDependencyRequirementProto(requirement ScriptOrderRequirement) (proto.ScriptDependencyRequirement, error) {
+	switch requirement {
+	case ScriptOrderRequirementSuccess:
+		return proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS, nil
+	case ScriptOrderRequirementCompletion:
+		return proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_COMPLETION, nil
+	default:
+		return proto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_UNSPECIFIED,
+			xerrors.Errorf("unknown script dependency requirement %q", requirement)
+	}
 }
 
 func convertScheduling(scheduling provider.Scheduling) *proto.Scheduling {

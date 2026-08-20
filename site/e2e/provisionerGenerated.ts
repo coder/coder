@@ -94,6 +94,13 @@ export enum DataUploadType {
   UNRECOGNIZED = -1,
 }
 
+export enum ScriptDependencyRequirement {
+  SCRIPT_DEPENDENCY_REQUIREMENT_UNSPECIFIED = 0,
+  SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS = 1,
+  SCRIPT_DEPENDENCY_REQUIREMENT_COMPLETION = 2,
+  UNRECOGNIZED = -1,
+}
+
 /** Empty indicates a successful request/response. */
 export interface Empty {
 }
@@ -306,6 +313,8 @@ export interface Script {
   runOnStop: boolean;
   timeoutSeconds: number;
   logPath: string;
+  resourceAddress: string;
+  dependencies: ScriptDependency[];
 }
 
 export interface Devcontainer {
@@ -532,6 +541,8 @@ export interface GraphComplete {
   hasAiTasks: boolean;
   aiTasks: AITask[];
   hasExternalAgents: boolean;
+  scriptOrderDataSourceCount: number;
+  scriptOrderRuleCount: number;
 }
 
 export interface Timing {
@@ -610,6 +621,15 @@ export interface ChunkPiece {
    */
   fullDataHash: Uint8Array;
   pieceIndex: number;
+}
+
+/**
+ * ScriptDependency identifies a prerequisite script and the outcome required
+ * from it.
+ */
+export interface ScriptDependency {
+  prerequisiteResourceAddress: string;
+  requirement: ScriptDependencyRequirement;
 }
 
 export const Empty = {
@@ -1090,6 +1110,12 @@ export const Script = {
     }
     if (message.logPath !== "") {
       writer.uint32(74).string(message.logPath);
+    }
+    if (message.resourceAddress !== "") {
+      writer.uint32(82).string(message.resourceAddress);
+    }
+    for (const v of message.dependencies) {
+      ScriptDependency.encode(v!, writer.uint32(90).fork()).ldelim();
     }
     return writer;
   },
@@ -1589,6 +1615,12 @@ export const GraphComplete = {
     if (message.hasExternalAgents !== false) {
       writer.uint32(72).bool(message.hasExternalAgents);
     }
+    if (message.scriptOrderDataSourceCount !== 0) {
+      writer.uint32(80).int32(message.scriptOrderDataSourceCount);
+    }
+    if (message.scriptOrderRuleCount !== 0) {
+      writer.uint32(88).int32(message.scriptOrderRuleCount);
+    }
     return writer;
   },
 };
@@ -1738,6 +1770,18 @@ export const ChunkPiece = {
     }
     if (message.pieceIndex !== 0) {
       writer.uint32(24).int32(message.pieceIndex);
+    }
+    return writer;
+  },
+};
+
+export const ScriptDependency = {
+  encode(message: ScriptDependency, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.prerequisiteResourceAddress !== "") {
+      writer.uint32(10).string(message.prerequisiteResourceAddress);
+    }
+    if (message.requirement !== 0) {
+      writer.uint32(16).int32(message.requirement);
     }
     return writer;
   },

@@ -22,12 +22,14 @@
             {
               "display_name": "Foobar Script 1",
               "script": "echo foobar 1",
-              "run_on_start": true
+              "run_on_start": true,
+              "resource_address": "coder_script.script1"
             },
             {
               "display_name": "Foobar Script 2",
               "script": "echo foobar 2",
-              "run_on_start": true
+              "run_on_start": true,
+              "resource_address": "coder_script.script2"
             }
           ],
           "resources_monitoring": {},
@@ -57,7 +59,8 @@
             {
               "display_name": "Foobar Script 3",
               "script": "echo foobar 3",
-              "run_on_start": true
+              "run_on_start": true,
+              "resource_address": "coder_script.script3"
             }
           ],
           "resources_monitoring": {},
