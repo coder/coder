@@ -152,7 +152,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		? "[@media(hover:hover)]:hover:-ml-1 [@media(hover:hover)]:hover:-mr-2 [@media(hover:hover)]:hover:pl-2 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-l-md [@media(hover:hover)]:hover:rounded-r-none"
 		: "[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
 	const activeLayout = isChildNode
-		? "has-[[aria-current=page]]:-ml-1 has-[[aria-current=page]]:-mr-2 has-[[aria-current=page]]:pl-[7px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-l-md has-[[aria-current=page]]:rounded-r-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[7px]"
+		? "has-[[aria-current=page]]:-ml-1 has-[[aria-current=page]]:-mr-2 has-[[aria-current=page]]:pl-2 has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-l-md has-[[aria-current=page]]:rounded-r-none [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-2"
 		: "has-[[aria-current=page]]:-mx-2 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[11px]";
 	const sharedMenuItemProps = {
 		isArchived: chat.archived,
