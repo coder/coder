@@ -742,6 +742,7 @@ func (s *taskStarter) generateAssistant(
 		ProviderOptions:      prepared.ProviderOptions,
 		PublishMessagePart:   attempt.publish,
 		OnModelStreamStart:   attempt.startModelInvocation,
+		StreamSilenceTimeout: s.server.streamSilenceTimeout,
 		Logger:               s.opts.Logger,
 		Clock:                s.opts.Clock,
 		Metrics:              s.server.metrics,

@@ -4355,6 +4355,17 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "debugLoggingEnabled",
 		},
 		{
+			Name:        "Chat: Stream Silence Timeout",
+			Description: "How long a chat model attempt may go without receiving a stream part before it is canceled and retried.",
+			Flag:        "chat-stream-silence-timeout",
+			Env:         "CODER_CHAT_STREAM_SILENCE_TIMEOUT",
+			Value:       &c.AI.Chat.StreamSilenceTimeout,
+			Default:     "5m",
+			Group:       &deploymentGroupChat,
+			YAML:        "streamSilenceTimeout",
+			Hidden:      true, // Hidden because most operators should not need to modify this.
+		},
+		{
 			Name:        "Chat: Hook URL",
 			Description: "HTTPS URL to receive chat agent lifecycle hook events (plain HTTP requires --chat-hook-allow-insecure). Hooks are disabled when unset. Requires the agent-lifecycle-hooks experiment.",
 			Flag:        "chat-hook-url",
@@ -5092,13 +5103,14 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
-	HookURL             serpent.URL      `json:"hook_url" typescript:",notnull"`
-	HookSecret          serpent.String   `json:"hook_secret" typescript:",notnull"`
-	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
-	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
-	HookAllowInsecure   serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
+	AcquireBatchSize     serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled  serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
+	StreamSilenceTimeout serpent.Duration `json:"stream_silence_timeout" typescript:",notnull"`
+	HookURL              serpent.URL      `json:"hook_url" typescript:",notnull"`
+	HookSecret           serpent.String   `json:"hook_secret" typescript:",notnull"`
+	HookTimeout          serpent.Duration `json:"hook_timeout" typescript:",notnull"`
+	HookEnabled          serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
+	HookAllowInsecure    serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`

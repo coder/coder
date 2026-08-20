@@ -179,6 +179,7 @@ type Server struct {
 	agentInactiveDisconnectTimeout time.Duration
 	dialTimeout                    time.Duration
 	instructionLookupTimeout       time.Duration
+	streamSilenceTimeout           time.Duration
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
 	stopWorkspaceFn                chattool.StopWorkspaceFn
@@ -3044,11 +3045,15 @@ type Config struct {
 	ReplicaID uuid.UUID
 	// StreamPartsDialer dials remote stream parts. Nil uses the local
 	// in-process channel dialer for every stream.
-	StreamPartsDialer              StreamPartsDialer
-	PendingChatAcquireInterval     time.Duration
-	MaxChatsPerAcquire             int32
-	InFlightChatStaleAfter         time.Duration
-	ChatHeartbeatInterval          time.Duration
+	StreamPartsDialer          StreamPartsDialer
+	PendingChatAcquireInterval time.Duration
+	MaxChatsPerAcquire         int32
+	InFlightChatStaleAfter     time.Duration
+	ChatHeartbeatInterval      time.Duration
+	// StreamSilenceTimeout bounds how long a model attempt may go
+	// without receiving a stream part before it is canceled and
+	// retried. Zero uses the chatloop default.
+	StreamSilenceTimeout           time.Duration
 	AgentConn                      AgentConnFunc
 	AgentInactiveDisconnectTimeout time.Duration
 	InstructionLookupTimeout       time.Duration
@@ -3146,6 +3151,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
 		dialTimeout:                    defaultDialTimeout,
 		instructionLookupTimeout:       instructionLookupTimeout,
+		streamSilenceTimeout:           cfg.StreamSilenceTimeout,
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
 		stopWorkspaceFn:                cfg.StopWorkspace,

@@ -944,6 +944,7 @@ func New(options *Options) *API {
 				AllowBYOKSet:                   true,
 				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
 				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
+				StreamSilenceTimeout:           options.DeploymentValues.AI.Chat.StreamSilenceTimeout.Value(),
 				Experiments:                    experiments,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,

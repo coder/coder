@@ -805,6 +805,10 @@ chat:
   # opt-in settings.
   # (default: false, type: bool)
   debugLoggingEnabled: false
+  # How long a chat model attempt may go without receiving a stream part before it
+  # is canceled and retried.
+  # (default: 5m, type: duration)
+  streamSilenceTimeout: 5m0s
   # HTTPS URL to receive chat agent lifecycle hook events (plain HTTP requires
   # --chat-hook-allow-insecure). Hooks are disabled when unset. Requires the
   # agent-lifecycle-hooks experiment.

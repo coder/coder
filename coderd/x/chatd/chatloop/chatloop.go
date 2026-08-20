@@ -35,8 +35,10 @@ import (
 const (
 	// defaultStreamSilenceTimeout bounds how long an individual
 	// model attempt may go without receiving a stream part before
-	// the attempt is canceled and retried.
-	defaultStreamSilenceTimeout = 10 * time.Minute
+	// the attempt is canceled and retried. Five minutes tolerates
+	// long provider thinking pauses while bounding how long a
+	// wedged provider stream can stall a turn.
+	defaultStreamSilenceTimeout = 5 * time.Minute
 	streamSilenceGuardTimerTag  = "streamSilenceGuard"
 )
 

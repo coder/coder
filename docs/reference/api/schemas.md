@@ -1103,7 +1103,8 @@ title: Schemas
       "rawQuery": "string",
       "scheme": "string",
       "user": {}
-    }
+    },
+    "stream_silence_timeout": 0
   }
 }
 ```
@@ -2550,21 +2551,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "rawQuery": "string",
     "scheme": "string",
     "user": {}
-  }
+  },
+  "stream_silence_timeout": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type                       | Required | Restrictions | Description |
-|-------------------------|----------------------------|----------|--------------|-------------|
-| `acquire_batch_size`    | integer                    | false    |              |             |
-| `debug_logging_enabled` | boolean                    | false    |              |             |
-| `hook_allow_insecure`   | boolean                    | false    |              |             |
-| `hook_enabled`          | boolean                    | false    |              |             |
-| `hook_secret`           | string                     | false    |              |             |
-| `hook_timeout`          | integer                    | false    |              |             |
-| `hook_url`              | [serpent.URL](#serpenturl) | false    |              |             |
+| Name                     | Type                       | Required | Restrictions | Description |
+|--------------------------|----------------------------|----------|--------------|-------------|
+| `acquire_batch_size`     | integer                    | false    |              |             |
+| `debug_logging_enabled`  | boolean                    | false    |              |             |
+| `hook_allow_insecure`    | boolean                    | false    |              |             |
+| `hook_enabled`           | boolean                    | false    |              |             |
+| `hook_secret`            | string                     | false    |              |             |
+| `hook_timeout`           | integer                    | false    |              |             |
+| `hook_url`               | [serpent.URL](#serpenturl) | false    |              |             |
+| `stream_silence_timeout` | integer                    | false    |              |             |
 
 ## codersdk.ChatContext
 
@@ -6100,7 +6103,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "rawQuery": "string",
           "scheme": "string",
           "user": {}
-        }
+        },
+        "stream_silence_timeout": 0
       }
     },
     "allow_workspace_renames": true,
@@ -6728,7 +6732,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "rawQuery": "string",
         "scheme": "string",
         "user": {}
-      }
+      },
+      "stream_silence_timeout": 0
     }
   },
   "allow_workspace_renames": true,
