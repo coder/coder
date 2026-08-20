@@ -29,7 +29,6 @@ import { PromptTable } from "./PromptTable";
 import {
 	classifyThreadSearch,
 	matchesNetworkCallSearch,
-	splitMatchSegments,
 } from "./sessionSearch";
 import { ToolCallTable } from "./ToolCallTable";
 
@@ -58,9 +57,8 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 	const [userToggled, setUserToggled] = useState<boolean | null>(null);
 	const isExpanded = userToggled ?? expandToMatch;
 
-	// Measure the full height so the collapse toggle knows whether the text
-	// exceeds maxHeight. The paragraph is never windowed, so one number
-	// suffices.
+	// The paragraph always renders its full text, so one scrollHeight
+	// measurement suffices for the collapse toggle.
 	const [fullHeight, setFullHeight] = useState(0);
 	useEffect(() => {
 		const el = contentRef.current;
@@ -76,11 +74,6 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 
 	const isExpandable = fullHeight > maxHeight;
 
-	const segments = splitMatchSegments(text, highlight ?? "");
-	// Render plain text (no spans) when nothing is highlighted so the
-	// paragraph keeps a single text node for consumers that read it.
-	const plain = segments.length === 1 && !segments[0].match;
-
 	return (
 		<div className="relative">
 			<p
@@ -94,17 +87,7 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 				}
 				className={cn(className, "overflow-hidden", isExpanded && "pb-9")}
 			>
-				{plain
-					? text
-					: segments.map((segment, i) =>
-							segment.match ? (
-								<strong key={i} className="text-content-primary font-semibold">
-									{segment.text}
-								</strong>
-							) : (
-								<span key={i}>{segment.text}</span>
-							),
-						)}
+				<HighlightText text={text} query={highlight ?? ""} />
 			</p>
 			{isExpandable && (
 				<div
@@ -344,9 +327,7 @@ interface ThreadItemProps {
 	 * something other than a tool call, so all tool calls render.
 	 */
 	matchedToolCallIds?: Set<string>;
-	/**
-	 * The active query, passed to the prompt for bolding.
-	 */
+	/** The active query, used to bold matching prompt and tool text. */
 	highlight: string;
 }
 
@@ -542,7 +523,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 
 	const isSearching = searchQuery.trim() !== "";
 
-	// One walk per thread feeds the filter, auto-expand, and windowing.
+	// One walk per thread feeds filtering and search-driven expansion.
 	const threadItems = threads
 		.map((thread) => ({
 			thread,

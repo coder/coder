@@ -123,13 +123,18 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 						<p
 							className={cn(
 								"m-0 text-sm font-normal text-content-secondary text-right",
-								!isSearching && "invisible",
+								!isSearching && "opacity-0",
 							)}
 							role="status"
-							aria-hidden={!isSearching}
 						>
-							<strong>{searchMatches.toLocaleString("en-US")}</strong>{" "}
-							{searchMatches === 1 ? "match" : "matches"}
+							{isSearching ? (
+								<>
+									<strong>{searchMatches.toLocaleString("en-US")}</strong>{" "}
+									{searchMatches === 1 ? "match" : "matches"}
+								</>
+							) : (
+								"\u00a0"
+							)}
 						</p>
 					</div>
 				)}
