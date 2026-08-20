@@ -43,8 +43,7 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 			filter={filter}
 			optionsSkeleton={<MenuSkeleton />}
 			isLoading={menus.user.isInitializing}
-			// No preset queries: the dropdown menus and the range picker
-			// already cover them, so the Filters button would be redundant.
+			// No preset queries; the search field and menus already cover them.
 			presets={[]}
 			error={error}
 			options={

@@ -61,18 +61,14 @@ const AISessionListPage: FC = () => {
 	const explicitTimeRange = parseTimeRange(filter.values);
 	const timeRange = explicitTimeRange ?? defaultRange;
 
-	// The URL stores only resolved timestamps; a preset is display metadata
-	// for the picker trigger. Remember the last committed picker value so the
-	// preset label survives re-renders, but show it only while the URL range
-	// still matches what the preset resolved to. The default window is the 24
-	// hours ending at mount, which is exactly the "Last 24 hours" preset.
+	// The preset is display-only; the URL stores resolved timestamps. Show
+	// the preset label only while the URL range still matches it.
 	const [lastPicked, setLastPicked] = useState<DateTimeRangeValue>(() => ({
 		start: defaultRange.startedAfter,
 		end: defaultRange.startedBefore,
 		preset: "last_24h",
 	}));
-	// RFC 3339 serialization truncates to seconds, so ranges that round-trip
-	// through the URL lose sub-second precision. Compare at second precision.
+	// URL round-trips truncate to seconds, so compare at second precision.
 	const sameSecond = (a: Date, b: Date) =>
 		Math.floor(a.getTime() / 1000) === Math.floor(b.getTime() / 1000);
 	const preset =
