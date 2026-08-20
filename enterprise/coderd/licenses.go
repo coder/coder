@@ -127,11 +127,6 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, lic)
 }
 
-// Requests and applies a trial license from the Coder licensor for this deployment.
-// The legacy trialer writes the license straight to the database, skipping auditing
-// and the entitlement refresh. This path installs the license the same way an
-// uploaded one is, so a trial behaves like any other license.
-//
 // @Summary Request a trial license
 // @ID request-a-trial-license
 // @Security CoderSessionToken
@@ -159,13 +154,6 @@ func (api *API) postTrialLicense(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if api.TrialLicenseRequester == nil {
-		httpapi.Write(ctx, rw, http.StatusNotImplemented, codersdk.Response{
-			Message: "Trial licenses are not available on this deployment.",
-		})
-		return
-	}
-
 	var req codersdk.CreateTrialLicenseRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -180,7 +168,17 @@ func (api *API) postTrialLicense(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rawLicense, err := api.TrialLicenseRequester(ctx, api.AGPL.DeploymentID, req)
+	rawLicense, err := api.trialer.Request(ctx, codersdk.LicensorTrialRequest{
+		DeploymentID: api.AGPL.DeploymentID,
+		Email:        req.Email,
+		FirstName:    req.FirstName,
+		LastName:     req.LastName,
+		PhoneNumber:  req.PhoneNumber,
+		JobTitle:     req.JobTitle,
+		CompanyName:  req.CompanyName,
+		Country:      req.Country,
+		Developers:   req.Developers,
+	})
 	if err != nil {
 		if licensorErr, ok := errors.AsType[*trialer.LicensorError](err); ok {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

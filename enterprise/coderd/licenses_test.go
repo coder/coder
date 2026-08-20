@@ -18,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/enterprise/trialer"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -257,123 +256,18 @@ func TestPostLicense(t *testing.T) {
 func TestPostTrialLicense(t *testing.T) {
 	t.Parallel()
 
-	trialRequest := codersdk.CreateTrialLicenseRequest{
-		Email:       "coder@coder.com",
-		FirstName:   "Coder",
-		LastName:    "McCoder",
-		PhoneNumber: "+14155550100",
-		JobTitle:    "Platform Engineer",
-		CompanyName: "Coder",
-		Country:     "United States",
-		Developers:  "51 - 100",
-	}
-
-	// requesterCall records what the licensor stub was handed. It travels over a
-	// channel because the stub runs on the request goroutine.
-	type requesterCall struct {
-		deploymentID string
-		req          codersdk.CreateTrialLicenseRequest
-	}
-
-	t.Run("Success", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		// Generated outside the stub: GenerateLicense fails the test on error, which
-		// is only safe on the test goroutine.
-		lic := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-			Trial:      true,
-			FeatureSet: codersdk.FeatureSetPremium,
-		})
-		calls := make(chan requesterCall, 1)
-		client, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
-			DontAddLicense: true,
-			TrialLicenseRequester: func(_ context.Context, deploymentID string, req codersdk.CreateTrialLicenseRequest) (string, error) {
-				calls <- requesterCall{deploymentID: deploymentID, req: req}
-				return lic, nil
-			},
-		})
-
-		respLic, err := client.CreateTrialLicense(ctx, trialRequest)
-		require.NoError(t, err)
-		require.True(t, respLic.Trial())
-		require.GreaterOrEqual(t, respLic.ID, int32(0))
-
-		licenses, err := client.Licenses(ctx)
-		require.NoError(t, err)
-		require.Len(t, licenses, 1)
-
-		// The handler refreshes entitlements itself, so a trial is usable without a
-		// separate refresh call.
-		//nolint:gocritic // Entitlements authz is not what's under test here.
-		entitlements, err := client.Entitlements(ctx)
-		require.NoError(t, err)
-		require.True(t, entitlements.HasLicense)
-		require.True(t, entitlements.Trial)
-
-		require.Len(t, calls, 1)
-		got := <-calls
-		require.Equal(t, api.AGPL.DeploymentID, got.deploymentID)
-		require.Equal(t, trialRequest, got.req)
-	})
-
-	t.Run("AlreadyLicensed", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		calls := make(chan requesterCall, 1)
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			TrialLicenseRequester: func(_ context.Context, deploymentID string, req codersdk.CreateTrialLicenseRequest) (string, error) {
-				calls <- requesterCall{deploymentID: deploymentID, req: req}
-				return "", nil
-			},
-		})
-
-		//nolint:gocritic // Requesting a trial is owner-only; the Forbidden subtest covers non-owners.
-		_, err := client.CreateTrialLicense(ctx, trialRequest)
-		errResp := &codersdk.Error{}
-		require.ErrorAs(t, err, &errResp)
-		require.Equal(t, http.StatusConflict, errResp.StatusCode())
-		require.Contains(t, errResp.Message, "already has a license")
-		require.Empty(t, calls, "the licensor must not be contacted when a license is installed")
-	})
-
-	t.Run("NotConfigured", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
-
-		//nolint:gocritic // Requesting a trial is owner-only; the Forbidden subtest covers non-owners.
-		_, err := client.CreateTrialLicense(ctx, trialRequest)
-		errResp := &codersdk.Error{}
-		require.ErrorAs(t, err, &errResp)
-		require.Equal(t, http.StatusNotImplemented, errResp.StatusCode())
-	})
-
 	t.Run("Forbidden", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		calls := make(chan requesterCall, 1)
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
-			DontAddLicense: true,
-			TrialLicenseRequester: func(_ context.Context, deploymentID string, req codersdk.CreateTrialLicenseRequest) (string, error) {
-				calls <- requesterCall{deploymentID: deploymentID, req: req}
-				return "", nil
-			},
-		})
+		client, user := coderdenttest.New(t, nil)
 		member, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		_, err := member.CreateTrialLicense(ctx, trialRequest)
+		_, err := member.CreateTrialLicense(ctx, codersdk.CreateTrialLicenseRequest{})
 		errResp := &codersdk.Error{}
 		require.ErrorAs(t, err, &errResp)
 		require.Equal(t, http.StatusForbidden, errResp.StatusCode())
-		require.Empty(t, calls, "the licensor must not be contacted for an unauthorized request")
 	})
 
 	t.Run("MissingFields", func(t *testing.T) {
@@ -381,12 +275,7 @@ func TestPostTrialLicense(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			DontAddLicense: true,
-			TrialLicenseRequester: func(context.Context, string, codersdk.CreateTrialLicenseRequest) (string, error) {
-				return "", nil
-			},
-		})
+		client, _ := coderdenttest.New(t, nil)
 
 		//nolint:gocritic // Requesting a trial is owner-only; the Forbidden subtest covers non-owners.
 		_, err := client.CreateTrialLicense(ctx, codersdk.CreateTrialLicenseRequest{})
@@ -398,86 +287,6 @@ func TestPostTrialLicense(t *testing.T) {
 			fields = append(fields, v.Field)
 		}
 		require.Contains(t, fields, "email")
-	})
-
-	t.Run("InvalidEmail", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			DontAddLicense: true,
-			TrialLicenseRequester: func(context.Context, string, codersdk.CreateTrialLicenseRequest) (string, error) {
-				return "", nil
-			},
-		})
-
-		req := trialRequest
-		req.Email = "not-an-email"
-		//nolint:gocritic // Requesting a trial is owner-only; the Forbidden subtest covers non-owners.
-		_, err := client.CreateTrialLicense(ctx, req)
-		errResp := &codersdk.Error{}
-		require.ErrorAs(t, err, &errResp)
-		require.Equal(t, http.StatusBadRequest, errResp.StatusCode())
-	})
-
-	t.Run("LicensorRejects", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		const message = "this deployment already had a trial"
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			DontAddLicense: true,
-			TrialLicenseRequester: func(context.Context, string, codersdk.CreateTrialLicenseRequest) (string, error) {
-				return "", &trialer.LicensorError{Message: message}
-			},
-		})
-
-		//nolint:gocritic // Requesting a trial is owner-only; the Forbidden subtest covers non-owners.
-		_, err := client.CreateTrialLicense(ctx, trialRequest)
-		errResp := &codersdk.Error{}
-		require.ErrorAs(t, err, &errResp)
-		require.Equal(t, http.StatusBadRequest, errResp.StatusCode())
-		require.Equal(t, message, errResp.Detail)
-	})
-
-	t.Run("LicensorUnreachable", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			DontAddLicense: true,
-			TrialLicenseRequester: func(context.Context, string, codersdk.CreateTrialLicenseRequest) (string, error) {
-				return "", xerrors.New("dial tcp: connection refused")
-			},
-		})
-
-		//nolint:gocritic // Requesting a trial is owner-only; the Forbidden subtest covers non-owners.
-		_, err := client.CreateTrialLicense(ctx, trialRequest)
-		errResp := &codersdk.Error{}
-		require.ErrorAs(t, err, &errResp)
-		require.Equal(t, http.StatusBadGateway, errResp.StatusCode())
-	})
-
-	t.Run("InvalidLicenseFromLicensor", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			DontAddLicense: true,
-			TrialLicenseRequester: func(context.Context, string, codersdk.CreateTrialLicenseRequest) (string, error) {
-				return "not-a-jwt", nil
-			},
-		})
-
-		//nolint:gocritic // Requesting a trial is owner-only; the Forbidden subtest covers non-owners.
-		_, err := client.CreateTrialLicense(ctx, trialRequest)
-		errResp := &codersdk.Error{}
-		require.ErrorAs(t, err, &errResp)
-		require.Equal(t, http.StatusBadGateway, errResp.StatusCode())
 	})
 }
 

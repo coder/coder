@@ -36,7 +36,7 @@ type CreateTrialLicenseRequest struct {
 	Email       string `json:"email"        validate:"required,email,max=254"      example:"jane.doe@example.com"  format:"email" maxLength:"254"`
 	FirstName   string `json:"first_name"   validate:"required,min=1,max=60"       example:"Jane"                   minLength:"1" maxLength:"60"`
 	LastName    string `json:"last_name"    validate:"required,min=1,max=60"       example:"Doe"                    minLength:"1" maxLength:"60"`
-	PhoneNumber string `json:"phone_number" validate:"required"                    example:"+14155552671"           pattern:"^\\+?[\\d\\s\\-\\.\\(\\)]{7,20}$"`
+	PhoneNumber string `json:"phone_number" validate:"required,min=7,max=20"       example:"+14155552671"           minLength:"7" maxLength:"20"`
 	JobTitle    string `json:"job_title"    validate:"required,min=2,max=100"      example:"Engineering Manager"    minLength:"2" maxLength:"100"`
 	CompanyName string `json:"company_name" validate:"required,min=2,max=100"      example:"Acme Corp"              minLength:"2" maxLength:"100"`
 	Country     string `json:"country"      validate:"required"                    example:"United States"`

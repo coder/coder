@@ -77,7 +77,6 @@ type Options struct {
 	ReplicaErrorGracePeriod    time.Duration
 	ExternalTokenEncryption    []dbcrypt.Cipher
 	ProvisionerDaemonPSK       string
-	TrialLicenseRequester      func(ctx context.Context, deploymentID string, req codersdk.CreateTrialLicenseRequest) (string, error)
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.
@@ -122,7 +121,6 @@ func NewWithAPI(t *testing.T, options *Options) (
 		DefaultQuietHoursSchedule:  oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
 		ProvisionerDaemonPSK:       options.ProvisionerDaemonPSK,
 		ExternalTokenEncryption:    options.ExternalTokenEncryption,
-		TrialLicenseRequester:      options.TrialLicenseRequester,
 	})
 	require.NoError(t, err)
 	setHandler(coderAPI.AGPL.RootHandler)

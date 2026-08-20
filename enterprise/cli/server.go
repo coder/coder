@@ -79,7 +79,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			backends.NewSlog(options.Logger),
 		)
 
-		options.TrialGenerator = trialer.New(options.Database, trialer.LicenseRequestURL, coderd.Keys)
+		options.TrialGenerator = trialer.New(options.Database, trialer.LicenseRequestURL, coderd.Keys).Generate
 
 		o := &coderd.Options{
 			Options:                   options,
@@ -94,7 +94,6 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			ProxyHealthInterval:       options.DeploymentValues.ProxyHealthStatusInterval.Value(),
 			DefaultQuietHoursSchedule: options.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
 			ProvisionerDaemonPSK:      options.DeploymentValues.Provisioner.DaemonPSK.Value(),
-			TrialLicenseRequester:     trialer.NewLicenseRequester(trialer.LicenseRequestURL),
 
 			CheckInactiveUsersCancelFunc: dormancy.CheckInactiveUsers(ctx, options.Logger, quartz.NewReal(), options.Database, options.Auditor),
 		}

@@ -63,6 +63,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/derpmesh"
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/enterprise/tailnet"
+	"github.com/coder/coder/v2/enterprise/trialer"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	agpltailnet "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
@@ -226,6 +227,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	api.AGPL = coderd.New(options.Options)
 	api.aiSeatTracker = aiseats.New(options.Database, api.Logger.Named("aiseats"), quartz.NewReal(), &api.AGPL.Auditor)
+	api.trialer = trialer.New(options.Database, trialer.LicenseRequestURL, options.LicenseKeys)
 	api.AGPL.AISeatTracker = api.aiSeatTracker
 	defer func() {
 		if err != nil {
@@ -880,9 +882,6 @@ type Options struct {
 	ProxyHealthInterval        time.Duration
 	LicenseKeys                map[string]ed25519.PublicKey
 
-	// requests a trial from the Coder licensor and returns the signed JWT.
-	TrialLicenseRequester func(ctx context.Context, deploymentID string, req codersdk.CreateTrialLicenseRequest) (string, error)
-
 	// optional pre-shared key for authentication of external provisioner daemons
 	ProvisionerDaemonPSK string
 
@@ -892,6 +891,8 @@ type Options struct {
 type API struct {
 	AGPL *coderd.API
 	*Options
+
+	trialer *trialer.Trialer
 
 	// ctx is canceled immediately on shutdown, it can be used to abort
 	// interruptible tasks.

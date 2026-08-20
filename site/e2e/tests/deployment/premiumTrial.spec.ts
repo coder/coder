@@ -6,7 +6,6 @@ import { expectUrl } from "../../expectUrl";
 import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
-// consistant e2e premium signup form details
 const testIdentity = {
 	firstName: "E2E",
 	lastName: "Test",

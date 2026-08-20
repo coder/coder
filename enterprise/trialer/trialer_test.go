@@ -42,7 +42,7 @@ func TestTrialer(t *testing.T) {
 	require.NoError(t, err)
 
 	gen := trialer.New(db, srv.URL, coderdenttest.Keys)
-	err = gen(context.Background(), codersdk.LicensorTrialRequest{
+	err = gen.Generate(context.Background(), codersdk.LicensorTrialRequest{
 		Email:       "kyle+colin@coder.com",
 		FirstName:   "Kyle",
 		LastName:    "Carberry",
@@ -74,18 +74,24 @@ func TestTrialer(t *testing.T) {
 	}, got.body)
 }
 
-func TestNewLicenseRequester(t *testing.T) {
+func TestTrialerRequest(t *testing.T) {
 	t.Parallel()
 
-	req := codersdk.CreateTrialLicenseRequest{
-		Email:       "coder@coder.com",
-		FirstName:   "Coder",
-		LastName:    "McCoder",
-		PhoneNumber: "+1 555 0100",
-		JobTitle:    "Platform Engineer",
-		CompanyName: "Coder",
-		Country:     "United States",
-		Developers:  "51 - 100",
+	req := codersdk.LicensorTrialRequest{
+		DeploymentID: "test-deployment",
+		Email:        "coder@coder.com",
+		FirstName:    "Coder",
+		LastName:     "McCoder",
+		PhoneNumber:  "+1 555 0100",
+		JobTitle:     "Platform Engineer",
+		CompanyName:  "Coder",
+		Country:      "United States",
+		Developers:   "51 - 100",
+	}
+
+	// Request reads neither the store nor the keys.
+	requester := func(url string) *trialer.Trialer {
+		return trialer.New(nil, url, nil)
 	}
 
 	t.Run("Success", func(t *testing.T) {
@@ -118,7 +124,7 @@ func TestNewLicenseRequester(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		raw, err := trialer.NewLicenseRequester(srv.URL)(context.Background(), "test-deployment", req)
+		raw, err := requester(srv.URL).Request(context.Background(), req)
 		require.NoError(t, err)
 		require.Equal(t, want, raw)
 
@@ -149,7 +155,7 @@ func TestNewLicenseRequester(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		_, err := trialer.NewLicenseRequester(srv.URL)(context.Background(), "test-deployment", req)
+		_, err := requester(srv.URL).Request(context.Background(), req)
 		licensorErr, ok := errors.AsType[*trialer.LicensorError](err)
 		require.True(t, ok, "expected a LicensorError, got %v", err)
 		require.Equal(t, "this deployment already had a trial", licensorErr.Message)
@@ -165,7 +171,7 @@ func TestNewLicenseRequester(t *testing.T) {
 
 		// A body that is not the licensor's error shape must still surface as a
 		// LicensorError carrying the status, not as an unmarshal failure.
-		_, err := trialer.NewLicenseRequester(srv.URL)(context.Background(), "test-deployment", req)
+		_, err := requester(srv.URL).Request(context.Background(), req)
 		licensorErr, ok := errors.AsType[*trialer.LicensorError](err)
 		require.True(t, ok, "expected a LicensorError, got %v", err)
 		require.Equal(t, "500 Internal Server Error", licensorErr.Message)
@@ -178,7 +184,7 @@ func TestNewLicenseRequester(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		_, err := trialer.NewLicenseRequester(srv.URL)(context.Background(), "test-deployment", req)
+		_, err := requester(srv.URL).Request(context.Background(), req)
 		require.Error(t, err)
 		_, ok := errors.AsType[*trialer.LicensorError](err)
 		require.False(t, ok, "an empty body is a protocol failure, not a licensor rejection")
@@ -190,7 +196,7 @@ func TestNewLicenseRequester(t *testing.T) {
 		url := srv.URL
 		srv.Close()
 
-		_, err := trialer.NewLicenseRequester(url)(context.Background(), "test-deployment", req)
+		_, err := requester(url).Request(context.Background(), req)
 		require.Error(t, err)
 		_, ok := errors.AsType[*trialer.LicensorError](err)
 		require.False(t, ok, "a transport failure is not a licensor rejection")
