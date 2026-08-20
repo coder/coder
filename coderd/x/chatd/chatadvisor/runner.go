@@ -40,6 +40,7 @@ func (rt *Runtime) RunAdvisor(
 	if !rt.tryAcquire() {
 		return AdvisorResult{
 			Type:          ResultTypeLimitReached,
+			Advice:        LimitReachedAdvice,
 			RemainingUses: 0,
 		}, nil
 	}

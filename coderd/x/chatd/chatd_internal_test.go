@@ -187,7 +187,7 @@ func TestStoreSubagentReportSummary(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db}
+		server := &Server{db: db, pubsub: dbpubsub.NewInMemory()}
 		chat := database.Chat{
 			ID:             uuid.New(),
 			OwnerID:        uuid.New(),
@@ -216,7 +216,7 @@ func TestStoreSubagentReportSummary(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db}
+		server := &Server{db: db, pubsub: dbpubsub.NewInMemory()}
 		chat := database.Chat{
 			ID:             uuid.New(),
 			OwnerID:        uuid.New(),
@@ -237,7 +237,7 @@ func TestStoreSubagentReportSummary(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db}
+		server := &Server{db: db, pubsub: dbpubsub.NewInMemory()}
 		chat := database.Chat{
 			ID:             uuid.New(),
 			OwnerID:        uuid.New(),
@@ -268,7 +268,7 @@ func TestStoreSubagentReportSummary(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db}
+		server := &Server{db: db, pubsub: dbpubsub.NewInMemory()}
 		chat := database.Chat{
 			ID:             uuid.New(),
 			OwnerID:        uuid.New(),
@@ -798,6 +798,7 @@ func TestAllowedExploreToolNames(t *testing.T) {
 		newTestAgentTool("read_skill"),
 		newTestAgentTool("read_skill_file"),
 		newTestAgentTool("ask_user_question"),
+		newTestAgentTool(chattool.FindToolsName),
 	})
 
 	require.Equal(t, []string{
@@ -812,6 +813,7 @@ func TestAllowedExploreToolNames(t *testing.T) {
 	require.NotContains(t, got, "start_workspace")
 	require.NotContains(t, got, "stop_workspace")
 	require.NotContains(t, got, "ask_user_question")
+	require.NotContains(t, got, chattool.FindToolsName)
 }
 
 func TestAllowedBehaviorToolNames(t *testing.T) {

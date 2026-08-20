@@ -328,7 +328,7 @@ module "git-clone" {
 module "personalize" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/personalize/coder"
-  version  = "1.0.32"
+  version  = "1.0.33"
   agent_id = coder_agent.dev.id
 }
 
@@ -969,7 +969,7 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count             = data.coder_workspace.me.start_count
   source            = "dev.registry.coder.com/coder/claude-code/coder"
-  version           = "5.2.0"
+  version           = "5.4.0"
   enable_ai_gateway = true
   anthropic_api_key = ""
   agent_id          = coder_agent.dev.id

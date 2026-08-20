@@ -10,14 +10,20 @@ import { cn } from "#/utils/cn";
 type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
 	example: TemplateExample;
 	activeTag?: string;
+	templateBuilderEnabled?: boolean;
 };
 
 export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 	example,
 	activeTag,
+	templateBuilderEnabled,
 	className,
 	...divProps
 }) => {
+	const useTemplateLink = templateBuilderEnabled
+		? `/templates/new/builder?base=${example.id}`
+		: `/templates/new?exampleId=${example.id}`;
+
 	return (
 		<div
 			className={cn(
@@ -50,10 +56,11 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 
 			<div>
 				<h4 className="text-sm font-semibold m-0 mb-1">{example.name}</h4>
-				<span className="block text-[13px] leading-[1.6] text-content-secondary">
+				<span className="block text-xs font-normal leading-[1.6] text-content-secondary">
 					{example.description}{" "}
 					<Link
-						className="inline-block text-[13px] mt-1 p-0"
+						size="sm"
+						className="inline-block mt-1 p-0"
 						asChild
 						showExternalIcon={false}
 					>
@@ -66,9 +73,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 
 			<div className="mt-auto flex flex-col items-center gap-3 pt-6">
 				<Button asChild className="w-full">
-					<RouterLink to={`/templates/new/builder?base=${example.id}`}>
-						Use template
-					</RouterLink>
+					<RouterLink to={useTemplateLink}>Use template</RouterLink>
 				</Button>
 			</div>
 		</div>

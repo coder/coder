@@ -500,6 +500,8 @@ func (api *API) groupMembers(rw http.ResponseWriter, r *http.Request) {
 		IncludeSystem:    false,
 		Search:           userFilterParams.Search,
 		Name:             userFilterParams.Name,
+		ExactUsername:    userFilterParams.ExactUsername,
+		ExactEmail:       userFilterParams.ExactEmail,
 		Status:           userFilterParams.Status,
 		IsServiceAccount: userFilterParams.IsServiceAccount,
 		RbacRole:         userFilterParams.RbacRole,

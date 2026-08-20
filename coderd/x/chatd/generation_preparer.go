@@ -25,6 +25,48 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// effectiveMCPServerConfigs loads the chat's stored selection plus
+// owner-readable Force On configs at generation time, so stored lists
+// predating enforcement cannot dodge the policy (Cure53 CDM-02-010).
+// Explore chats keep their immutable spawn-time snapshot instead.
+func (server *Server) effectiveMCPServerConfigs(
+	ctx context.Context,
+	logger slog.Logger,
+	chat database.Chat,
+) ([]database.MCPServerConfig, error) {
+	var configs []database.MCPServerConfig
+	if len(chat.MCPServerIDs) > 0 {
+		var err error
+		configs, err = enabledMCPServerConfigsForChatOrg(ctx, server.db, chat.OrganizationID, chat.MCPServerIDs)
+		if err != nil {
+			// Best-effort for the user-selected set, matching prior
+			// behavior: a load failure degrades the turn rather than
+			// failing it.
+			logger.Warn(ctx, "failed to load MCP server configs", slog.Error(err))
+			configs = nil
+		}
+	}
+	if isExploreSubagentMode(chat.Mode) {
+		return configs, nil
+	}
+	forced, err := forcedMCPServerConfigsForOwner(ctx, server.db, chat.OrganizationID, chat.OwnerID)
+	if err != nil {
+		// Fail closed: running the turn without the forced set would
+		// silently bypass a security policy.
+		return nil, err
+	}
+	seen := make(map[uuid.UUID]struct{}, len(configs))
+	for _, cfg := range configs {
+		seen[cfg.ID] = struct{}{}
+	}
+	for _, cfg := range forced {
+		if _, ok := seen[cfg.ID]; !ok {
+			configs = append(configs, cfg)
+		}
+	}
+	return configs, nil
+}
+
 func (server *Server) prepareGeneration(
 	ctx context.Context,
 	input generationPrepareInput,
@@ -58,24 +100,11 @@ func (server *Server) prepareGeneration(
 		}
 		return nil
 	})
-	if len(chat.MCPServerIDs) > 0 {
-		g.Go(func() error {
-			var err error
-			mcpConfigs, err = server.db.GetMCPServerConfigsByIDs(ctx, chat.MCPServerIDs)
-			if err != nil {
-				logger.Warn(ctx, "failed to load MCP server configs", slog.Error(err))
-			}
-			return nil
-		})
-		g.Go(func() error {
-			var err error
-			mcpTokens, err = server.db.GetMCPServerUserTokensByUserID(ctx, chat.OwnerID)
-			if err != nil {
-				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(err))
-			}
-			return nil
-		})
-	}
+	g.Go(func() error {
+		var err error
+		mcpConfigs, err = server.effectiveMCPServerConfigs(ctx, logger, chat)
+		return err
+	})
 	if err := g.Wait(); err != nil {
 		return generationPrepared{}, err
 	}
@@ -311,6 +340,11 @@ func (server *Server) prepareGeneration(
 	})
 	if len(mcpConnectConfigs) > 0 {
 		g2.Go(func() error {
+			var tokenErr error
+			mcpTokens, tokenErr = server.db.GetMCPServerUserTokensByUserID(ctx, chat.OwnerID)
+			if tokenErr != nil {
+				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
+			}
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
 			mcpTools, mcpCleanup = mcpclient.ConnectAll(
 				ctx,
@@ -412,7 +446,10 @@ func (server *Server) prepareGeneration(
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 			StoreFile:        storeChatAttachment,
 		}),
-		chattool.Execute(chattool.ExecuteOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
+		chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn:    workspaceCtx.getWorkspaceConn,
+			AgentBrowserSession: chat.ID.String(),
+		}),
 		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
@@ -487,6 +524,19 @@ func (server *Server) prepareGeneration(
 		builtinToolNames[t.Info().Name] = true
 	}
 
+	mcpConfigByID := make(map[uuid.UUID]database.MCPServerConfig, len(mcpConnectConfigs))
+	for _, config := range mcpConnectConfigs {
+		mcpConfigByID[config.ID] = config
+	}
+	deferredCandidates := collectDeferredMCPCandidates(deferredMCPCandidateInput{
+		mcpTools:              mcpTools,
+		workspaceMCPTools:     workspaceMCPTools,
+		mcpConfigByID:         mcpConfigByID,
+		planMode:              currentPlanMode,
+		parentChatID:          chat.ParentChatID,
+		approvedMCPConfigIDs:  approvedPlanMCPConfigIDs,
+		includeWorkspaceTools: !isExploreSubagent,
+	})
 	tools = append(tools, mcpTools...)
 	if !isExploreSubagent {
 		tools = append(tools, workspaceMCPTools...)
@@ -547,6 +597,51 @@ func (server *Server) prepareGeneration(
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
 		activeToolNames = allowedExploreToolNames(tools)
+	}
+	var allowInactiveTools map[string]bool
+	if decideMCPToolSearch(mcpToolSearchInput{
+		experimentEnabled: server.experiments.Enabled(codersdk.ExperimentMCPToolSearch),
+		candidates:        deferredCandidates,
+		dynamicToolNames:  dynamicToolNames,
+	}) {
+		activationTokenBudget := float64(modelConfig.ContextLimit) / mcpToolSearchBudgetDivisor
+		findTools := chattool.FindTools(chattool.FindToolsOptions{
+			Entries:            deferredMCPToolEntries(deferredCandidates),
+			SchemaTokenBudget:  activationTokenBudget,
+			CatalogTokenBudget: activationTokenBudget,
+			// Calls total is counted in executeLocalTools, which also
+			// sees calls rejected before the tool runs; OnCall covers
+			// only calls that reach the handler or its decode.
+			OnCall: func(callCtx context.Context, call chattool.FindToolsCall) {
+				if call.Rejection == "" {
+					server.metrics.FindToolsMatchCount.Observe(float64(call.MatchCount))
+					server.metrics.FindToolsActivationsTotal.Add(float64(len(call.Activated)))
+					if call.MatchCount == 0 {
+						server.metrics.FindToolsEmptyTotal.Inc()
+					}
+				}
+				// Queries and names are model output that can echo
+				// prompt content, so standard logs carry only
+				// aggregate fields; raw values are visible through
+				// the opt-in chat debug logging path.
+				logger.Info(callCtx, "deferred MCP tool search",
+					slog.F("query_count", len(call.Queries)),
+					slog.F("name_count", len(call.Names)),
+					slog.F("match_count", call.MatchCount),
+					slog.F("activated_count", len(call.Activated)),
+					slog.F("total_deferred", call.TotalDeferred),
+					slog.F("rejection", call.Rejection),
+				)
+			},
+		})
+		tools, activeToolNames, allowInactiveTools = configureDeferredMCPToolSearch(
+			tools,
+			activeToolNames,
+			deferredCandidates,
+			findTools,
+			deriveDeferredMCPActivations(promptRows, deferredCandidates, activationTokenBudget),
+		)
+		builtinToolNames[chattool.FindToolsName] = true
 	}
 
 	toolNameToConfigID := make(map[string]uuid.UUID)
@@ -633,6 +728,7 @@ func (server *Server) prepareGeneration(
 		Prompt:               prompt,
 		Tools:                tools,
 		ActiveTools:          activeToolNames,
+		AllowInactiveTools:   allowInactiveTools,
 		ProviderTools:        providerTools,
 		ModelRoute:           modelRoute,
 		ModelBuildOptions:    modelOpts,
@@ -808,4 +904,23 @@ func latestAssistantText(messages []database.ChatMessage) string {
 		return strings.TrimSpace(textFromParts(parts))
 	}
 	return ""
+}
+
+// ACLs are deliberately not re-checked: revocation blocks new selection but
+// leaves already-selected servers usable, like template ACLs for running
+// workspaces. Disabling or deleting the config cuts off existing chats.
+func enabledMCPServerConfigsForChatOrg(
+	ctx context.Context,
+	db database.Store,
+	organizationID uuid.UUID,
+	ids []uuid.UUID,
+) ([]database.MCPServerConfig, error) {
+	configs, err := db.GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams{
+		OrganizationID: organizationID,
+		IDs:            ids,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get enabled MCP server configs for organization: %w", err)
+	}
+	return configs, nil
 }

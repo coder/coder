@@ -117,6 +117,21 @@ func testSQLDB(t testing.TB) *sql.DB {
 	return db
 }
 
+func stepMigrationsUpTo(t *testing.T, next func() (version uint, more bool, err error), target uint) {
+	t.Helper()
+
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", target)
+		}
+		if version == target {
+			return
+		}
+	}
+}
+
 // paralleltest linter doesn't correctly handle table-driven tests (https://github.com/kunwardeep/paralleltest/issues/8)
 // nolint:paralleltest
 func TestCheckLatestVersion(t *testing.T) {
@@ -2991,4 +3006,326 @@ func TestMigration000566OAuth2AuthMethodBackfill(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "confidential", stillConfidential,
 		"the backfill aligns the declaration to what is enforced, so the enforced value must be unchanged")
+}
+
+func TestMigration000574MCPServerConfigsOrganizationID(t *testing.T) {
+	t.Parallel()
+
+	const priorMigrationVersion = 573
+
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	stepMigrationsUpTo(t, next, priorMigrationVersion)
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	var defaultOrgID uuid.UUID
+	err = sqlDB.QueryRowContext(ctx, `SELECT id FROM organizations WHERE is_default = true`).Scan(&defaultOrgID)
+	require.NoError(t, err)
+
+	otherOrgID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO organizations (
+			id, name, display_name, description, icon, created_at, updated_at,
+			is_default, deleted, default_org_member_roles
+		) VALUES ($1, 'migration-568-org', 'Migration 568 Org', '', '', $2, $2, false, false, '{}')
+	`, otherOrgID, now)
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO users (
+			id, username, email, hashed_password, created_at, updated_at,
+			status, rbac_roles, login_type
+		) VALUES ($1, 'migration-568-user', 'migration-568@example.com', ''::bytea, $2, $2, 'active', '{}', 'password')
+	`, userID, now)
+	require.NoError(t, err)
+
+	const keyDigest = "migration-568-key"
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO dbcrypt_keys (number, active_key_digest, test)
+		VALUES (568000, $1, 'migration-568-test')
+	`, keyDigest)
+	require.NoError(t, err)
+
+	providerID := uuid.New()
+	modelConfigID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO ai_providers (
+			id, type, name, display_name, enabled, base_url, created_at, updated_at
+		) VALUES ($1, 'openai', 'migration-568-provider', 'Migration 568 Provider', true, 'https://provider.example.com', $2, $2)
+	`, providerID, now)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_model_configs (
+			id, model, display_name, ai_provider_id, context_limit,
+			compression_threshold, created_at, updated_at
+		) VALUES ($1, 'migration-568-model', 'Migration 568 Model', $2, 128000, 70, $3, $3)
+	`, modelConfigID, providerID, now)
+	require.NoError(t, err)
+
+	type configSeed struct {
+		id                      uuid.UUID
+		slug                    string
+		authType                string
+		oauth2ClientID          string
+		oauth2ClientSecret      string
+		oauth2ClientSecretKeyID sql.NullString
+		oauth2AuthURL           string
+		oauth2TokenURL          string
+		oauth2RevocationURL     string
+		oauth2Scopes            string
+		apiKeyHeader            string
+		apiKeyValue             string
+		apiKeyValueKeyID        sql.NullString
+		customHeaders           string
+		customHeadersKeyID      sql.NullString
+	}
+	keyID := sql.NullString{String: keyDigest, Valid: true}
+	configs := []configSeed{
+		{id: uuid.New(), slug: "migration-568-none", authType: "none", apiKeyHeader: "Authorization", customHeaders: "{}"},
+		// Every credential column carries ciphertext to prove the backfill
+		// leaves rows byte-identical apart from organization_id.
+		{
+			id:                      uuid.New(),
+			slug:                    "migration-568-oauth2",
+			authType:                "oauth2",
+			oauth2ClientID:          "oauth-client-id",
+			oauth2ClientSecret:      "oauth-secret-ciphertext",
+			oauth2ClientSecretKeyID: keyID,
+			oauth2AuthURL:           "https://oauth.example.com/authorize",
+			oauth2TokenURL:          "https://oauth.example.com/token",
+			oauth2RevocationURL:     "https://oauth.example.com/revoke",
+			oauth2Scopes:            "openid profile",
+			apiKeyHeader:            "X-API-Key",
+			apiKeyValue:             "api-key-ciphertext",
+			apiKeyValueKeyID:        keyID,
+			customHeaders:           "custom-headers-ciphertext",
+			customHeadersKeyID:      keyID,
+		},
+	}
+
+	originalJSON := make(map[uuid.UUID]string, len(configs))
+	for _, config := range configs {
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO mcp_server_configs (
+				id, display_name, slug, description, url, auth_type,
+				oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id,
+				oauth2_auth_url, oauth2_token_url, oauth2_revocation_url, oauth2_scopes,
+				api_key_header, api_key_value, api_key_value_key_id,
+				custom_headers, custom_headers_key_id, availability, enabled,
+				created_by, updated_by, created_at, updated_at
+			) VALUES (
+				$1, $2, $3, $4, $5, $6,
+				$7, $8, $9, $10, $11, $12, $13,
+				$14, $15, $16, $17, $18, 'default_on', true,
+				$19, $19, $20, $20
+			)
+		`,
+			config.id, "Migration 568 "+config.authType, config.slug, "migration 568 config", "https://mcp.example.com/"+config.slug, config.authType,
+			config.oauth2ClientID, config.oauth2ClientSecret, config.oauth2ClientSecretKeyID,
+			config.oauth2AuthURL, config.oauth2TokenURL, config.oauth2RevocationURL, config.oauth2Scopes,
+			config.apiKeyHeader, config.apiKeyValue, config.apiKeyValueKeyID,
+			config.customHeaders, config.customHeadersKeyID, userID, now,
+		)
+		require.NoError(t, err)
+
+		var rowJSON string
+		err = sqlDB.QueryRowContext(ctx, `SELECT to_jsonb(config) FROM mcp_server_configs AS config WHERE id = $1`, config.id).Scan(&rowJSON)
+		require.NoError(t, err)
+		originalJSON[config.id] = rowJSON
+	}
+
+	oauthConfigID := configs[1].id
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO mcp_server_user_tokens (
+			id, mcp_server_config_id, user_id, access_token, access_token_key_id,
+			refresh_token, refresh_token_key_id, created_at, updated_at
+		) VALUES ($1, $2, $3, 'access-token-ciphertext', $4, 'refresh-token-ciphertext', $4, $5, $5)
+	`, uuid.New(), oauthConfigID, userID, keyDigest, now)
+	require.NoError(t, err)
+
+	chatID := uuid.New()
+	chatConfigIDs := []uuid.UUID{configs[1].id, configs[0].id}
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO chats (
+			id, owner_id, organization_id, last_model_config_id, title,
+			mcp_server_ids, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, 'Migration 568 Chat', $5, $6, $6)
+	`, chatID, userID, otherOrgID, modelConfigID, pq.Array(chatConfigIDs), now)
+	require.NoError(t, err)
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, 574, version)
+
+	var totalConfigs int
+	err = sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM mcp_server_configs`).Scan(&totalConfigs)
+	require.NoError(t, err)
+	require.Equal(t, len(configs), totalConfigs)
+
+	for _, config := range configs {
+		var gotJSON string
+		var organizationID uuid.UUID
+		err = sqlDB.QueryRowContext(ctx, `
+			SELECT to_jsonb(config) - 'organization_id', organization_id
+			FROM mcp_server_configs AS config
+			WHERE id = $1
+		`, config.id).Scan(&gotJSON, &organizationID)
+		require.NoError(t, err)
+		require.JSONEq(t, originalJSON[config.id], gotJSON)
+		require.Equal(t, defaultOrgID, organizationID)
+	}
+
+	var tokenCount int
+	var tokenConfigID uuid.UUID
+	err = sqlDB.QueryRowContext(ctx, `SELECT COUNT(*), MIN(mcp_server_config_id::text)::uuid FROM mcp_server_user_tokens`).Scan(&tokenCount, &tokenConfigID)
+	require.NoError(t, err)
+	require.Equal(t, 1, tokenCount)
+	require.Equal(t, oauthConfigID, tokenConfigID)
+
+	var slugConstraint string
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT pg_get_constraintdef(oid)
+		FROM pg_constraint
+		WHERE conname = 'mcp_server_configs_organization_id_slug_key'
+	`).Scan(&slugConstraint)
+	require.NoError(t, err)
+	require.Equal(t, "UNIQUE (organization_id, slug)", slugConstraint)
+
+	getChatIDs := func(t *testing.T, chatID uuid.UUID) []uuid.UUID {
+		t.Helper()
+		var ids []uuid.UUID
+		err := sqlDB.QueryRowContext(ctx, `SELECT mcp_server_ids FROM chats WHERE id = $1`, chatID).Scan(pq.Array(&ids))
+		require.NoError(t, err)
+		return ids
+	}
+	require.Equal(t, chatConfigIDs, getChatIDs(t, chatID))
+
+	// An organization-created config referenced by a chat exercises the down
+	// sweep: the config is deleted and its chat references removed.
+	orgLocalConfigID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO mcp_server_configs (
+			id, organization_id, display_name, slug, url, auth_type
+		) VALUES ($1, $2, 'Org-local config', 'migration-568-org-local', 'https://mcp.example.com/org-local', 'none')
+	`, orgLocalConfigID, otherOrgID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `
+		UPDATE chats SET mcp_server_ids = $2 WHERE id = $1
+	`, chatID, pq.Array([]uuid.UUID{orgLocalConfigID}))
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{orgLocalConfigID}, getChatIDs(t, chatID))
+
+	downSQL, err := os.ReadFile("000574_mcp_server_configs_organization_id.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	err = sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM mcp_server_configs`).Scan(&totalConfigs)
+	require.NoError(t, err)
+	require.Equal(t, len(configs), totalConfigs)
+
+	require.Empty(t, getChatIDs(t, chatID))
+	var danglingIDs int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM chats AS chat
+		CROSS JOIN LATERAL unnest(chat.mcp_server_ids) AS config_id
+		WHERE NOT EXISTS (SELECT 1 FROM mcp_server_configs WHERE id = config_id)
+	`).Scan(&danglingIDs)
+	require.NoError(t, err)
+	require.Zero(t, danglingIDs)
+}
+
+func TestMigration000576MCPServerConfigACL(t *testing.T) {
+	t.Parallel()
+
+	const priorMigrationVersion = 575
+
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", priorMigrationVersion)
+		}
+		if version == priorMigrationVersion {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	var defaultOrgID uuid.UUID
+	err = sqlDB.QueryRowContext(ctx, `SELECT id FROM organizations WHERE is_default = true`).Scan(&defaultOrgID)
+	require.NoError(t, err)
+
+	orgID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO organizations (
+			id, name, display_name, description, icon, created_at, updated_at,
+			is_default, deleted, default_org_member_roles
+		) VALUES ($1, 'migration-570-org', 'Migration 570 Org', '', '', $2, $2, false, false, '{}')
+	`, orgID, now)
+	require.NoError(t, err)
+
+	configIDs := []uuid.UUID{uuid.New(), uuid.New()}
+	orgIDs := []uuid.UUID{defaultOrgID, orgID}
+	for i, configID := range configIDs {
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO mcp_server_configs (
+				id, organization_id, display_name, slug, description, url, auth_type,
+				availability, enabled, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, 'unchanged', $5, 'none', 'default_on', true, $6, $6)
+		`, configID, orgIDs[i], fmt.Sprintf("Migration 570 Config %d", i), fmt.Sprintf("migration-570-config-%d", i), fmt.Sprintf("https://mcp.example.com/%d", i), now)
+		require.NoError(t, err)
+	}
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, 576, version)
+
+	for i, configID := range configIDs {
+		var displayName, description string
+		var enabled bool
+		var groupACL, userACL string
+		err = sqlDB.QueryRowContext(ctx, `
+			SELECT display_name, description, enabled, group_acl::text, user_acl::text
+			FROM mcp_server_configs WHERE id = $1
+		`, configID).Scan(&displayName, &description, &enabled, &groupACL, &userACL)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("Migration 570 Config %d", i), displayName)
+		require.Equal(t, "unchanged", description)
+		require.True(t, enabled)
+		require.JSONEq(t, fmt.Sprintf(`{%q:{"permissions":["read"]}}`, orgIDs[i].String()), groupACL)
+		require.JSONEq(t, `{}`, userACL)
+	}
+
+	for _, column := range []string{"group_acl", "user_acl"} {
+		var defaultValue string
+		err = sqlDB.QueryRowContext(ctx, `
+			SELECT column_default FROM information_schema.columns
+			WHERE table_name = 'mcp_server_configs' AND column_name = $1
+		`, column).Scan(&defaultValue)
+		require.NoError(t, err)
+		require.Equal(t, "'{}'::jsonb", defaultValue)
+	}
+
+	downSQL, err := os.ReadFile("000576_mcp_server_config_acl.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	var aclColumns int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM information_schema.columns
+		WHERE table_name = 'mcp_server_configs' AND column_name IN ('group_acl', 'user_acl')
+	`).Scan(&aclColumns)
+	require.NoError(t, err)
+	require.Zero(t, aclColumns)
 }

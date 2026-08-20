@@ -1,9 +1,8 @@
 # Deploy AI Gateway as a standalone service
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway requires a [Premium](../ai-governance.md) license.
+> Community deployments cannot access AI Gateway.
 
 When AI traffic needs dedicated compute, independent scaling, or a separate network endpoint, you can deploy AI Gateway separately from the Coder control plane (`coderd`).
 
@@ -15,7 +14,7 @@ A standalone AI Gateway serves client traffic on its own listener and maintains 
 Standalone AI Gateway requires:
 
 - Coder v2.36.0 or later.
-- A Coder license with the [AI Governance Add-On](../ai-governance.md).
+- A [Premium license with AI Governance](../ai-governance.md).
 - AI Gateway enabled on the Coder control plane with `CODER_AI_GATEWAY_ENABLED=true` or `--ai-gateway-enabled=true`.
 - The full Coder image or a Coder binary that includes the `coder ai-gateway start` command.
 
@@ -311,6 +310,13 @@ The standalone Gateway image does not need to match the `coderd` image version e
 The components can connect when their AI Gateway API versions are compatible, and `coderd` checks compatibility whenever a Gateway replica connects.
 
 A replica may run at the same API version as `coderd` or an earlier minor version of the same major version, but never a newer one.
+The Gateway treats certain handshake failures from `/api/v2/ai-gateway/serve` as fatal and exits rather than retrying:
+
+- HTTP 400: incompatible API version.
+- HTTP 401: invalid Gateway key.
+- HTTP 403: missing entitlement.
+- HTTP 404: endpoint not found. `coderd` may be too old and not expose `/serve` endpoint.
+
 Sequence changes that move both components:
 
 - To upgrade, upgrade `coderd` first, then roll out the standalone Gateway release.
