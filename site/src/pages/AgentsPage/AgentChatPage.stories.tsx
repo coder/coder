@@ -1612,6 +1612,39 @@ export const PlanModeFromChatState: Story = {
 	},
 };
 
+/**
+ * A right panel left open from a wide viewport must not hide chat on
+ * narrow viewports; the panel is suppressed until explicitly opened.
+ */
+export const NarrowViewportShowsChatOverOpenPanel: Story = {
+	beforeEach: () => {
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Build a feature",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByRole("region", { name: "Messages" })).toBeVisible();
+		});
+		expect(
+			canvas.queryByRole("tab", { name: "Summary" }),
+		).not.toBeInTheDocument();
+	},
+};
+
 /** Full layout with actions menu and diff panel portaled to the right slot. */
 export const CompletedWithDiffPanel: Story = {
 	beforeEach: () => {

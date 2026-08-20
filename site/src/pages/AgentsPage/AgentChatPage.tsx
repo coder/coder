@@ -67,7 +67,7 @@ import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
-import { useIsBelowLgViewport } from "#/hooks/useIsBelowMdViewport";
+import { useIsBelowLgViewport } from "#/hooks/useIsBelowLgViewport";
 import {
 	getDefaultOrganizationName,
 	useDashboard,
@@ -132,6 +132,29 @@ import {
 
 /** localStorage key controlling whether the right panel is visible. */
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
+
+/**
+ * Below the `lg` breakpoint, chat and the right panel are mutually
+ * exclusive, so a panel left open on a wide window would hide chat as
+ * soon as the window narrows. This suppresses the panel while narrow
+ * without touching the persisted preference: widening restores the
+ * panel, and an explicit user action (clearSuppression) overrides it.
+ */
+export function useRightPanelNarrowSuppression(): {
+	suppressed: boolean;
+	clearSuppression: () => void;
+} {
+	const isBelowLg = useIsBelowLgViewport();
+	const [suppressed, setSuppressed] = useState(isBelowLg);
+	const [prevIsBelowLg, setPrevIsBelowLg] = useState(isBelowLg);
+	// Render-time state adjustment on breakpoint crossings; see
+	// https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+	if (isBelowLg !== prevIsBelowLg) {
+		setPrevIsBelowLg(isBelowLg);
+		setSuppressed(isBelowLg);
+	}
+	return { suppressed, clearSuppression: () => setSuppressed(false) };
+}
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
@@ -857,45 +880,19 @@ const AgentChatPage: FC = () => {
 
 	// Right panel open/closed state is owned here so the loading
 	// skeleton and the loaded view share the same layout, preventing
-	// a horizontal shift when data arrives. This is the user's real,
-	// persisted preference; it is only ever changed by an explicit user
-	// action (see handleSetShowSidebarPanel), never by a viewport resize.
+	// a horizontal shift when data arrives.
 	const [showSidebarPanel, setShowSidebarPanel] = useState(() => {
 		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
 	});
-
-	// Below the `lg` breakpoint, chat and the right panel are mutually
-	// exclusive: whichever is "open" fills the whole viewport. A panel left
-	// open from a wide window would otherwise keep hiding chat the moment
-	// the window narrows, even though the user never asked to view that
-	// panel in this narrower session. narrowSuppressed hides the panel in
-	// that case without touching the persisted preference above, so
-	// widening back (or an explicit tap on a tab while narrow) restores it.
-	const [narrowSuppressed, setNarrowSuppressed] = useState(false);
-	const isBelowLgViewport = useIsBelowLgViewport();
-	const wasBelowLgViewportRef = useRef(isBelowLgViewport);
-	useEffect(() => {
-		if (isBelowLgViewport && !wasBelowLgViewportRef.current) {
-			// Just crossed into the narrow range: suppress a panel left open
-			// from the wider layout so chat is shown by default.
-			setNarrowSuppressed(true);
-		} else if (!isBelowLgViewport) {
-			// Wide again: the suppression no longer applies, and the next
-			// narrow entry should re-evaluate from the current preference.
-			setNarrowSuppressed(false);
-		}
-		wasBelowLgViewportRef.current = isBelowLgViewport;
-	}, [isBelowLgViewport]);
-
-	const effectiveShowSidebarPanel = showSidebarPanel && !narrowSuppressed;
+	const { suppressed: panelSuppressedOnNarrow, clearSuppression } =
+		useRightPanelNarrowSuppression();
+	const effectiveShowSidebarPanel =
+		showSidebarPanel && !panelSuppressedOnNarrow;
 
 	const handleSetShowSidebarPanel = (
 		next: boolean | ((prev: boolean) => boolean),
 	) => {
-		// An explicit user action always wins over the transient narrow-entry
-		// suppression, matching the existing drill-in behavior for tapping a
-		// tab while already narrow.
-		setNarrowSuppressed(false);
+		clearSuppression();
 		setShowSidebarPanel((prev) => {
 			const value = typeof next === "function" ? next(prev) : next;
 			localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(value));

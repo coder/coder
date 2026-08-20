@@ -199,6 +199,29 @@ export const LoadingWorkspace: Story = {
 	},
 };
 
+/** The tasks sidebar auto-collapses to the icon rail on small viewports. */
+export const SmallViewportCollapsesSidebar: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(MockWorkspace);
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: "Open Sidebar" }),
+			).toBeVisible();
+		});
+		expect(
+			canvas.queryByRole("link", { name: "Navigate to tasks" }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const LoadingTaskError: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTask").mockRejectedValue(
