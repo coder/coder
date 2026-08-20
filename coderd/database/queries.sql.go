@@ -23219,6 +23219,66 @@ func (q *sqlQuerier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID 
 	return items, nil
 }
 
+const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
+SELECT
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
+FROM
+	provisioner_jobs
+WHERE
+	id = ANY($1 :: uuid [ ])
+ORDER BY
+	created_at
+`
+
+// Fetches provisioner jobs by their IDs without computing queue position or
+// queue size. Callers that do not need the queue position should prefer this
+// over GetProvisionerJobsByIDsWithQueuePosition, whose window functions over
+// pending jobs and provisioner daemons are comparatively expensive.
+func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerJob
+	for rows.Next() {
+		var i ProvisionerJob
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StartedAt,
+			&i.CanceledAt,
+			&i.CompletedAt,
+			&i.Error,
+			&i.OrganizationID,
+			&i.InitiatorID,
+			&i.Provisioner,
+			&i.StorageMethod,
+			&i.Type,
+			&i.Input,
+			&i.WorkerID,
+			&i.FileID,
+			&i.Tags,
+			&i.ErrorCode,
+			&i.TraceMetadata,
+			&i.JobStatus,
+			&i.LogsLength,
+			&i.LogsOverflowed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProvisionerJobsByIDsWithQueuePosition = `-- name: GetProvisionerJobsByIDsWithQueuePosition :many
 WITH filtered_provisioner_jobs AS (
 	-- Step 1: Filter provisioner_jobs
