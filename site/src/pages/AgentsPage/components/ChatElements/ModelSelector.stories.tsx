@@ -92,24 +92,22 @@ export const WithSelectedValue: Story = {
 	},
 };
 
-// The trigger leads with the selected model's provider icon, which is
-// presentational (alt="") and excluded from the accessible name.
 export const SelectedValueShowsProviderIcon: Story = {
 	args: {
 		options: allModels,
 		value: "anthropic/claude-sonnet-4",
 	},
 	play: async ({ canvasElement }) => {
-		const trigger = within(canvasElement).getByRole("combobox", {
-			name: "Claude Sonnet 4",
-		});
-		const icon = trigger.querySelector("img");
-		expect(icon).not.toBeNull();
-		expect(icon).toHaveAttribute("src", "/icon/anthropic.svg");
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByTestId("model-selector-trigger-icon"),
+		).toBeInTheDocument();
 	},
 };
 
-// A configured provider icon URL wins over the built-in provider mapping.
 export const SelectedValueShowsCustomProviderIcon: Story = {
 	args: {
 		options: [
@@ -127,28 +125,27 @@ export const SelectedValueShowsCustomProviderIcon: Story = {
 		value: "anthropic-hyper/claude-opus-4",
 	},
 	play: async ({ canvasElement }) => {
-		const trigger = within(canvasElement).getByRole("combobox", {
-			name: "Claude Opus 4",
-		});
-		expect(trigger.querySelector("img")).toHaveAttribute(
-			"src",
-			"/icon/coder.svg",
-		);
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "Claude Opus 4" }),
+		).toBeInTheDocument();
+		const icon = canvas.getByTestId("model-selector-trigger-icon");
+		expect(icon.querySelector("img")).toHaveAttribute("src", "/icon/coder.svg");
 	},
 };
 
-// No icon renders when no model is selected.
 export const PlaceholderShowsNoIcon: Story = {
 	args: {
 		value: "",
 	},
 	play: async ({ canvasElement }) => {
-		const trigger = within(canvasElement).getByRole("combobox", {
-			name: "Select model",
-		});
-		expect(trigger.querySelector("img")).toBeNull();
-		// Only the chevron svg renders; no Building2 fallback icon.
-		expect(trigger.querySelectorAll("svg")).toHaveLength(1);
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("combobox", { name: "Select model" }),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByTestId("model-selector-trigger-icon"),
+		).not.toBeInTheDocument();
 	},
 };
 

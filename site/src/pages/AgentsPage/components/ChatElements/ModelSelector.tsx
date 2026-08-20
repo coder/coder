@@ -169,11 +169,13 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					onTouchStart={onTriggerTouchStart}
 				>
 					{selectedModel && (
-						<ProviderIcon
-							provider={selectedModel.provider}
-							icon={selectedModel.providerIcon}
-							className="size-3 shrink-0"
-						/>
+						<span data-testid="model-selector-trigger-icon">
+							<ProviderIcon
+								provider={selectedModel.provider}
+								icon={selectedModel.providerIcon}
+								className="size-3 shrink-0"
+							/>
+						</span>
 					)}
 					<span className="truncate">{triggerLabel}</span>
 					<ChevronDownIcon open={open} />
