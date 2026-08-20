@@ -48,7 +48,7 @@ export const AppearanceSettingsPageView: FC<
 	const getFieldHelpers = getFormHelpers(form);
 
 	return (
-		<div className="flex flex-col gap-8">
+		<div>
 			<SettingsHeader
 				actions={
 					<SettingsHeaderDocsLink href={docs("/admin/setup/appearance")} />
@@ -73,7 +73,7 @@ export const AppearanceSettingsPageView: FC<
 					canViewPremium={canViewPremium}
 				/>
 			) : (
-				<>
+				<div className="flex flex-col gap-8">
 					<VerticalForm
 						onSubmit={form.handleSubmit}
 						aria-label="Appearance settings"
@@ -122,7 +122,7 @@ export const AppearanceSettingsPageView: FC<
 							onSaveAppearance({ announcement_banners: announcementBanners })
 						}
 					/>
-				</>
+				</div>
 			)}
 		</div>
 	);

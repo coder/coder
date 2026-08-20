@@ -9,7 +9,12 @@ import {
 } from "#/api/queries/idpsync";
 import { Loader } from "#/components/Loader/Loader";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
-import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
@@ -63,22 +68,23 @@ const IdpOrgSyncPage: FC = () => {
 		<>
 			<title>{pageTitle("Organization IdP Sync")}</title>
 
-			<div className="flex flex-col gap-12">
-				<header className="flex flex-row items-baseline justify-between">
-					<div className="flex flex-col gap-2">
-						<h1 className="text-3xl m-0">Organization IdP Sync</h1>
-						<p className="flex flex-row gap-1 text-sm text-content-secondary font-medium m-0">
-							Automatically assign users to an organization based on their IdP
-							claims.
-						</p>
-					</div>
-					<div className="flex flex-row gap-2 items-center">
-						<SettingsHeaderDocsLink
-							href={docs("/admin/users/idp-sync#organization-sync")}
-						/>
-						<ExportPolicyButton syncSettings={settingsQuery.data} />
-					</div>
-				</header>
+			<div>
+				<SettingsHeader
+					actions={
+						<div className="flex flex-row gap-2 items-center">
+							<SettingsHeaderDocsLink
+								href={docs("/admin/users/idp-sync#organization-sync")}
+							/>
+							<ExportPolicyButton syncSettings={settingsQuery.data} />
+						</div>
+					}
+				>
+					<SettingsHeaderTitle>Organization IdP Sync</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Automatically assign users to an organization based on their IdP
+						claims.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 				{!isIdpSyncEnabled ? (
 					<PaywallPremium
 						message="IdP Organization Sync"

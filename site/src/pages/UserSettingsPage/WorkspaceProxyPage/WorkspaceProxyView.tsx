@@ -45,7 +45,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 	permissions,
 }) => {
 	return (
-		<div className="flex flex-col gap-4">
+		<div>
 			<SettingsHeader
 				actions={
 					<SettingsHeaderDocsLink
@@ -73,7 +73,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (
-				<>
+				<div className="flex flex-col gap-4">
 					{Boolean(getWorkspaceProxiesError) && (
 						<ErrorAlert error={getWorkspaceProxiesError} />
 					)}
@@ -96,7 +96,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 							/>
 						</TableBody>
 					</Table>
-				</>
+				</div>
 			)}
 		</div>
 	);
