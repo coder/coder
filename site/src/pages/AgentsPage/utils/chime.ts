@@ -1,13 +1,5 @@
 import { chimeOnCompletionStorage } from "#/utils/storage/keys";
 
-export function getChimeEnabled(): boolean {
-	return chimeOnCompletionStorage.get();
-}
-
-export function setChimeEnabled(enabled: boolean): void {
-	chimeOnCompletionStorage.set(enabled);
-}
-
 /**
  * Play the completion chime audio file. The file is a short,
  * warm two-tone bell sound shipped as a static asset.
@@ -129,7 +121,7 @@ export function maybePlayChime(
 		return;
 	}
 
-	if (!getChimeEnabled()) {
+	if (!chimeOnCompletionStorage.get()) {
 		return;
 	}
 

@@ -35,13 +35,10 @@ import {
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import {
 	emptyInputDraftStorage,
+	modelConfigReasoningEffortStorage,
 	persistedAttachmentsStorage,
 	selectedOrganizationIdStorage,
 } from "#/utils/storage/keys";
-import {
-	getReasoningEffortForModel,
-	saveReasoningEffortForModel,
-} from "../utils/reasoningEffort";
 import { AgentCreateForm } from "./AgentCreateForm";
 
 let pendingOrganizationAuthorization: Deferred<
@@ -608,8 +605,8 @@ export const RemembersReasoningEffortByModel: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		saveReasoningEffortForModel(modelID, "high");
-		saveReasoningEffortForModel(claudeModelConfigID, "medium");
+		modelConfigReasoningEffortStorage.forId(modelID).set("high");
+		modelConfigReasoningEffortStorage.forId(claudeModelConfigID).set("medium");
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -640,7 +637,9 @@ export const RemembersReasoningEffortByModel: Story = {
 		restoredSlider.focus();
 		await userEvent.keyboard("{ArrowRight}");
 		await waitFor(() => {
-			expect(getReasoningEffortForModel(modelID)).toBe("xhigh");
+			expect(modelConfigReasoningEffortStorage.forId(modelID).get()).toBe(
+				"xhigh",
+			);
 		});
 		await userEvent.keyboard("{Escape}");
 	},
@@ -676,7 +675,7 @@ export const PersistedReasoningEffortOutranksRootOverride: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		saveReasoningEffortForModel(modelID, "low");
+		modelConfigReasoningEffortStorage.forId(modelID).set("low");
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -771,7 +770,7 @@ export const StalePersistedEffortFallsThroughToRootOverride: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		saveReasoningEffortForModel(modelID, "max");
+		modelConfigReasoningEffortStorage.forId(modelID).set("max");
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);

@@ -1,11 +1,13 @@
 import { type FC, useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { useStorage } from "#/hooks/useStorage";
 import { cn } from "#/utils/cn";
 import {
+	chatFullWidthStorage,
 	rightPanelOpenStorage,
 	rightPanelWidthStorage,
 } from "#/utils/storage/keys";
-import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { chatWidthClass } from "../utils/chatWidth";
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
 
 const DEFAULT_PANEL_WIDTH = 480;
@@ -156,7 +158,7 @@ const ChatInputSkeleton: FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
  */
 export const AgentChatPageSkeleton: FC = () => {
 	const rightPanel = getRightPanelState();
-	const [chatFullWidth] = useChatFullWidth();
+	const [chatFullWidth] = useStorage(chatFullWidthStorage);
 
 	return (
 		<div

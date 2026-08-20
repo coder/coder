@@ -40,10 +40,6 @@ import {
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import type { PendingAttachment } from "./components/ChatPageContent";
-import {
-	getPersistedSidebarTabId,
-	savePersistedSidebarTabId,
-} from "./utils/sidebarTabStorage";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -1191,90 +1187,20 @@ describe("sidebar tab persistence", () => {
 		localStorage.clear();
 	});
 
-	describe("getPersistedSidebarTabId", () => {
-		it("returns null when no value is stored for that chat", () => {
-			expect(getPersistedSidebarTabId("chat-1")).toBeNull();
-		});
-
-		it("returns the stored string when one is present", () => {
-			localStorage.setItem(`${chatSidebarTabStorage.prefix}chat-1`, "terminal");
-			expect(getPersistedSidebarTabId("chat-1")).toBe("terminal");
-		});
-
-		it("returns null when chatID is undefined", () => {
-			expect(getPersistedSidebarTabId(undefined)).toBeNull();
-		});
-
-		it("returns null when chatID is empty string", () => {
-			expect(getPersistedSidebarTabId("")).toBeNull();
-		});
-
-		it("reads from the key agents.last-active-tab.<chatID>", () => {
-			const chatID = "chat-xyz";
-			localStorage.setItem(`agents.last-active-tab.${chatID}`, "git");
-			expect(getPersistedSidebarTabId(chatID)).toBe("git");
-		});
+	it("stores the tab under agents.last-active-tab.<chatID>", () => {
+		chatSidebarTabStorage.forId("chat-1").set("desktop");
+		expect(localStorage.getItem("agents.last-active-tab.chat-1")).toBe(
+			"desktop",
+		);
+		expect(chatSidebarTabStorage.forId("chat-1").get()).toBe("desktop");
 	});
 
-	describe("savePersistedSidebarTabId", () => {
-		it("writes the tab under agents.last-active-tab.<chatID>", () => {
-			savePersistedSidebarTabId("chat-1", "desktop");
-			expect(
-				localStorage.getItem(`${chatSidebarTabStorage.prefix}chat-1`),
-			).not.toBeNull();
-			expect(getPersistedSidebarTabId("chat-1")).toBe("desktop");
-		});
-
-		it("is a no-op when chatID is undefined", () => {
-			savePersistedSidebarTabId(undefined, "desktop");
-			expect(localStorage.length).toBe(0);
-		});
-
-		it("is a no-op when chatID is empty string", () => {
-			savePersistedSidebarTabId("", "desktop");
-			expect(localStorage.length).toBe(0);
-		});
-
-		it("can be round-tripped with getPersistedSidebarTabId", () => {
-			savePersistedSidebarTabId("chat-rt", "terminal");
-			expect(getPersistedSidebarTabId("chat-rt")).toBe("terminal");
-		});
-
-		it("does not collide across different chatIDs", () => {
-			savePersistedSidebarTabId("chat-a", "git");
-			savePersistedSidebarTabId("chat-b", "desktop");
-			expect(getPersistedSidebarTabId("chat-a")).toBe("git");
-			expect(getPersistedSidebarTabId("chat-b")).toBe("desktop");
-		});
-	});
-
-	describe("clearEntityStorage for chats", () => {
-		it("removes agents.last-active-tab.<chatID> from storage", () => {
-			savePersistedSidebarTabId("chat-1", "terminal");
-			clearEntityStorage("chat", "chat-1");
-			expect(getPersistedSidebarTabId("chat-1")).toBeNull();
-		});
-
-		it("is a no-op when nothing is stored", () => {
-			// Calling twice should not throw.
-			clearEntityStorage("chat", "chat-1");
-			clearEntityStorage("chat", "chat-1");
-			expect(getPersistedSidebarTabId("chat-1")).toBeNull();
-		});
-
-		it("is a no-op when chatID is empty string", () => {
-			savePersistedSidebarTabId("chat-1", "git");
-			clearEntityStorage("chat", "");
-			expect(getPersistedSidebarTabId("chat-1")).toBe("git");
-		});
-
-		it("only affects the target chat's entry", () => {
-			savePersistedSidebarTabId("chat-a", "git");
-			savePersistedSidebarTabId("chat-b", "desktop");
-			clearEntityStorage("chat", "chat-a");
-			expect(getPersistedSidebarTabId("chat-a")).toBeNull();
-			expect(getPersistedSidebarTabId("chat-b")).toBe("desktop");
-		});
+	it("is removed by chat entity cleanup without touching other chats", () => {
+		chatSidebarTabStorage.forId("chat-a").set("git");
+		chatSidebarTabStorage.forId("chat-b").set("desktop");
+		clearEntityStorage("chat", "chat-a");
+		expect(chatSidebarTabStorage.forId("chat-a").get()).toBeNull();
+		expect(chatSidebarTabStorage.forId("chat-b").get()).toBe("desktop");
 	});
 });
 

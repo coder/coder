@@ -1,13 +1,6 @@
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 
-import {
-	type FC,
-	type ReactNode,
-	type RefObject,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, type ReactNode, type RefObject, useState } from "react";
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { invalidateChatDiffContents } from "#/api/queries/chats";
@@ -20,6 +13,7 @@ import type {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useStorage } from "#/hooks/useStorage";
 import {
 	getAgentBrowserApp,
 	isWorkspaceAppEmbeddable,
@@ -30,6 +24,12 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { generateUUID } from "#/utils/random";
+import {
+	chatDefaultTerminalHiddenStorage,
+	chatFullWidthStorage,
+	chatRightPanelTabsStorage,
+	chatSidebarTabStorage,
+} from "#/utils/storage/keys";
 import { findWorkspaceAgent } from "#/utils/workspace";
 import {
 	AgentChatInput,
@@ -61,22 +61,13 @@ import { RightPanelAddTabControl } from "./components/RightPanel/RightPanelAddTa
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
-import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import { chatWidthClass } from "./utils/chatWidth";
 import {
-	getPersistedDefaultTerminalHidden,
-	getPersistedRightPanelTabs,
-	savePersistedDefaultTerminalHidden,
-	savePersistedRightPanelTabs,
-} from "./utils/rightPanelTabStorage";
-import {
+	isUserRightPanelTab,
 	type PortSelection,
 	type UserRightPanelTab,
 	validateUserRightPanelTabs,
 } from "./utils/rightPanelTabs";
-import {
-	getPersistedSidebarTabId,
-	savePersistedSidebarTabId,
-} from "./utils/sidebarTabStorage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -443,42 +434,53 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const visualExpanded =
 		showSidebarPanel && (dragVisualExpanded ?? isRightPanelExpanded);
 
+	// Per-chat tab state lives in plain state seeded from storage and is
+	// persisted from the event handlers below. Archived chats keep
+	// working tab state in memory but never write per-chat keys back,
+	// so the storage cleanup done on archive stays authoritative.
 	const [sidebarTabId, setSidebarTabIdState] = useState<string | null>(() =>
-		getPersistedSidebarTabId(agentId),
+		agentId ? chatSidebarTabStorage.forId(agentId).get() : null,
 	);
 	const [userRightPanelTabs, setUserRightPanelTabsState] = useState<
 		UserRightPanelTab[]
-	>(() => getPersistedRightPanelTabs(agentId));
+	>(() =>
+		agentId
+			? chatRightPanelTabsStorage
+					.forId(agentId)
+					.get()
+					.filter(isUserRightPanelTab)
+			: [],
+	);
 	const [defaultTerminalHidden, setDefaultTerminalHiddenState] =
-		useState<boolean>(() => getPersistedDefaultTerminalHidden(agentId));
+		useState<boolean>(() =>
+			agentId ? chatDefaultTerminalHiddenStorage.forId(agentId).get() : false,
+		);
 	const [pendingTabId, setPendingTabId] = useState<string | null>(null);
+	const persistChatTabState = agentId !== "" && !isArchived;
 
 	const setSidebarTabId = (tabId: string) => {
 		setSidebarTabIdState(tabId);
-		if (!isArchived) {
-			savePersistedSidebarTabId(agentId, tabId);
+		if (persistChatTabState) {
+			chatSidebarTabStorage.forId(agentId).set(tabId);
 		}
 	};
 
-	// Persist committed tab changes only: updaters stay pure and
-	// replayed or abandoned concurrent renders never write. Comparing
-	// against the last-persisted reference skips the initial state, so
-	// defaults are never written to storage on mount.
-	const lastPersistedTabsRef = useRef(userRightPanelTabs);
-	useEffect(() => {
-		if (lastPersistedTabsRef.current === userRightPanelTabs) {
-			return;
+	const setUserRightPanelTabs = (tabs: UserRightPanelTab[]) => {
+		setUserRightPanelTabsState(tabs);
+		if (persistChatTabState) {
+			chatRightPanelTabsStorage.forId(agentId).set(tabs);
 		}
-		lastPersistedTabsRef.current = userRightPanelTabs;
-		if (!isArchived) {
-			savePersistedRightPanelTabs(agentId, userRightPanelTabs);
-		}
-	}, [userRightPanelTabs, isArchived, agentId]);
+	};
 
 	const updateDefaultTerminalHidden = (hidden: boolean) => {
 		setDefaultTerminalHiddenState(hidden);
-		if (!isArchived) {
-			savePersistedDefaultTerminalHidden(agentId, hidden);
+		if (persistChatTabState) {
+			const handle = chatDefaultTerminalHiddenStorage.forId(agentId);
+			if (hidden) {
+				handle.set(true);
+			} else {
+				handle.remove();
+			}
 		}
 	};
 
@@ -628,8 +630,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			return;
 		}
 		const tabId = createUserRightPanelTabId("terminal");
-		setUserRightPanelTabsState((tabs) => [
-			...tabs,
+		setUserRightPanelTabs([
+			...userRightPanelTabs,
 			{
 				id: tabId,
 				kind: "terminal",
@@ -660,7 +662,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			agentId: workspaceAgent.id,
 			appId: app.id,
 		};
-		setUserRightPanelTabsState((tabs) => [...tabs, tab]);
+		setUserRightPanelTabs([...userRightPanelTabs, tab]);
 		activateRightPanelTab(tab.id);
 	};
 
@@ -683,7 +685,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			initialCommand: app.command,
 			sourceAppId: app.id,
 		};
-		setUserRightPanelTabsState((tabs) => [...tabs, tab]);
+		setUserRightPanelTabs([...userRightPanelTabs, tab]);
 		startPendingTab(tab.id);
 	};
 
@@ -710,7 +712,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			port: selection.port,
 			protocol: selection.protocol,
 		};
-		setUserRightPanelTabsState((tabs) => [...tabs, tab]);
+		setUserRightPanelTabs([...userRightPanelTabs, tab]);
 		activateRightPanelTab(tab.id);
 	};
 
@@ -812,8 +814,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		if (tabId === "terminal") {
 			updateDefaultTerminalHidden(true);
 		} else {
-			setUserRightPanelTabsState((tabs) =>
-				tabs.filter((tab) => tab.id !== tabId),
+			setUserRightPanelTabs(
+				userRightPanelTabs.filter((tab) => tab.id !== tabId),
 			);
 		}
 
@@ -1144,7 +1146,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	onToggleSidebarCollapsed,
 	showRightPanel,
 }) => {
-	const [chatFullWidth] = useChatFullWidth();
+	const [chatFullWidth] = useStorage(chatFullWidthStorage);
 	return (
 		<div
 			className={cn(

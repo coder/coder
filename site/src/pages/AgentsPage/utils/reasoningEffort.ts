@@ -1,19 +1,3 @@
-import { modelConfigReasoningEffortStorage } from "#/utils/storage/keys";
-
-/** Reads the persisted effort for a model, or undefined when none is stored or storage is unavailable. */
-export const getReasoningEffortForModel = (
-	modelID: string,
-): string | undefined =>
-	modelConfigReasoningEffortStorage.forId(modelID).get() ?? undefined;
-
-/** Persists the effort for a model. Storage errors (private mode, quota) fail soft so the caller's in-memory selection is unaffected. */
-export const saveReasoningEffortForModel = (
-	modelID: string,
-	reasoningEffort: string,
-): void => {
-	modelConfigReasoningEffortStorage.forId(modelID).set(reasoningEffort);
-};
-
 /** Display label for an effort value, e.g. "xhigh" renders as "Xhigh". */
 export const formatReasoningEffort = (value: string): string =>
 	value.charAt(0).toUpperCase() + value.slice(1);

@@ -6,11 +6,13 @@
  * key handles with parse-validation, change notification for same-tab
  * and cross-tab reactivity (the native "storage" event only fires in
  * other tabs), and a registry of entity-scoped key families that
- * drives lifecycle cleanup and the expired-key sweep.
+ * drives lifecycle cleanup and the startup sweep.
  *
  * Key definitions live in `keys.ts`; import handles from there rather
  * than defining keys at call sites.
  */
+
+import type { Schema } from "yup";
 
 export type PersistResult =
 	| { ok: true }
@@ -99,6 +101,25 @@ export const jsonCodec = <T>(
 	encode: (value) => JSON.stringify(value),
 });
 
+/**
+ * JSON codec whose shape is declared as a Yup schema. Validation is
+ * strict (no type coercion); the decoded value is rebuilt via cast so
+ * unknown properties from older builds never leak through.
+ */
+export const yupCodec = <T>(schema: Schema<T>): StorageCodec<T> => ({
+	decode: (raw) => {
+		try {
+			const parsed: unknown = JSON.parse(raw);
+			return schema.isValidSync(parsed, { strict: true })
+				? schema.cast(parsed, { stripUnknown: true })
+				: undefined;
+		} catch {
+			return undefined;
+		}
+	},
+	encode: (value) => JSON.stringify(value),
+});
+
 // -- Safe primitives --------------------------------------------------------
 
 const getAreaStorage = (area: StorageArea): Storage | null => {
@@ -164,14 +185,6 @@ const keyListeners = new Map<string, Set<() => void>>();
 type SnapshotCacheEntry = { raw: string | null; value: unknown };
 const snapshotCache = new Map<string, SnapshotCacheEntry>();
 
-/**
- * Keys whose snapshot holds a value newer than what is persisted
- * because the write failed (quota, unavailable storage). The value
- * stays visible in this tab for the session; any real change to the
- * underlying bytes discards the overlay.
- */
-const overlayKeys = new Set<string>();
-
 const notifyKey = (cacheKey: string): void => {
 	const listeners = keyListeners.get(cacheKey);
 	if (!listeners) {
@@ -184,7 +197,6 @@ const notifyKey = (cacheKey: string): void => {
 
 const invalidateAndNotify = (area: StorageArea, key: string): void => {
 	const cacheKey = cacheKeyFor(area, key);
-	overlayKeys.delete(cacheKey);
 	snapshotCache.delete(cacheKey);
 	notifyKey(cacheKey);
 };
@@ -220,92 +232,6 @@ addEventListener("storage", (event: StorageEvent) => {
 	invalidateAndNotify("local", event.key);
 });
 
-// -- Companion timestamps for entity-scoped keys -----------------------------
-
-/**
- * Entity-scoped values keep their legacy raw format so clients from
- * before and after a deploy can read each other's values. The
- * last-write time the sweep needs to expire orphans lives in a
- * companion key under this reserved prefix instead. The companion
- * also stores a fingerprint of the value bytes, so a value updated by
- * an old client (which does not touch companions) is detected and
- * re-stamped rather than expired on a stale timestamp.
- */
-const TIMESTAMP_KEY_PREFIX = "coder.storage.timestamps.";
-
-const timestampKeyFor = (key: string): string => TIMESTAMP_KEY_PREFIX + key;
-
-/** FNV-1a 32-bit hash, hex-encoded. Cheap change detection, not crypto. */
-const fingerprint = (raw: string): string => {
-	let hash = 0x811c9dc5;
-	for (let index = 0; index < raw.length; index++) {
-		hash ^= raw.charCodeAt(index);
-		hash = Math.imul(hash, 0x01000193);
-	}
-	return (hash >>> 0).toString(16);
-};
-
-type StoredTimestamp = { t: number; h: string };
-
-const readTimestamp = (key: string): StoredTimestamp | null => {
-	const raw = readRaw("local", timestampKeyFor(key));
-	if (raw === null) {
-		return null;
-	}
-	try {
-		const parsed: unknown = JSON.parse(raw);
-		if (typeof parsed === "object" && parsed !== null) {
-			const record = parsed as Record<string, unknown>;
-			if (typeof record.t === "number" && typeof record.h === "string") {
-				return { t: record.t, h: record.h };
-			}
-		}
-	} catch {
-		// Corrupt companion; caller re-stamps.
-	}
-	return null;
-};
-
-const writeTimestamp = (key: string, valueRaw: string, nowMs: number): void => {
-	writeRaw(
-		"local",
-		timestampKeyFor(key),
-		JSON.stringify({ t: nowMs, h: fingerprint(valueRaw) }),
-	);
-};
-
-const removeTimestamp = (key: string): void => {
-	removeRaw("local", timestampKeyFor(key));
-};
-
-/**
- * Envelope format written by pre-release builds of this module. The
- * sweep migrates any remaining envelopes back to raw values with
- * companion timestamps; regular reads no longer decode it.
- */
-const decodeLegacyEnvelope = (raw: string): { t: number; d: string } | null => {
-	try {
-		const parsed: unknown = JSON.parse(raw);
-		if (
-			typeof parsed === "object" &&
-			parsed !== null &&
-			!Array.isArray(parsed)
-		) {
-			const env = parsed as Record<string, unknown>;
-			if (
-				env.v === 1 &&
-				typeof env.t === "number" &&
-				typeof env.d === "string"
-			) {
-				return { t: env.t, d: env.d };
-			}
-		}
-	} catch {
-		// Not JSON, so not an envelope.
-	}
-	return null;
-};
-
 // -- Key handles ------------------------------------------------------------
 
 const createHandle = <T>(
@@ -313,9 +239,7 @@ const createHandle = <T>(
 	key: string,
 	codec: StorageCodec<NonNullable<T>>,
 	defaultValue: T,
-	options: { timestamped: boolean; overlay: boolean },
 ): StorageKeyHandle<T> => {
-	const { timestamped, overlay } = options;
 	const cacheKey = cacheKeyFor(area, key);
 
 	const decodeRaw = (raw: string | null): T => {
@@ -339,14 +263,11 @@ const createHandle = <T>(
 
 	const remove = (): void => {
 		// Skip the write and listener notification when there is
-		// nothing to remove, persisted or overlaid.
-		if (readRaw(area, key) === null && !overlayKeys.has(cacheKey)) {
+		// nothing to remove.
+		if (readRaw(area, key) === null) {
 			return;
 		}
 		removeRaw(area, key);
-		if (timestamped) {
-			removeTimestamp(key);
-		}
 		invalidateAndNotify(area, key);
 	};
 
@@ -357,26 +278,14 @@ const createHandle = <T>(
 		}
 		const raw = codec.encode(value as NonNullable<T>);
 		const result = writeRaw(area, key, raw);
-		if (result.ok) {
-			if (timestamped) {
-				// Value first, timestamp second: a failed companion write
-				// is stamped by the next sweep.
-				writeTimestamp(key, raw, Date.now());
-			}
-			overlayKeys.delete(cacheKey);
-			// Cache the caller's value directly so getSnapshot hands the
-			// exact same reference back.
-			snapshotCache.set(cacheKey, { raw, value });
-		} else if (overlay) {
-			// Persistence failed; keep the value visible in this tab by
-			// overlaying it on the bytes currently persisted.
-			overlayKeys.add(cacheKey);
-			snapshotCache.set(cacheKey, { raw: readRaw(area, key), value });
-		} else {
-			// Callers with their own failure handling need reads to keep
-			// reflecting what actually persisted.
+		if (!result.ok) {
+			// Reads keep reflecting what actually persisted; callers can
+			// inspect the result for their own failure handling.
 			return result;
 		}
+		// Cache the caller's value directly so getSnapshot hands the
+		// exact same reference back.
+		snapshotCache.set(cacheKey, { raw, value });
 		notifyKey(cacheKey);
 		return result;
 	};
@@ -417,7 +326,6 @@ export function defineStorageKey<T>(options: {
 		options.key,
 		options.codec,
 		options.defaultValue,
-		{ timestamped: false, overlay: true },
 	);
 }
 
@@ -427,8 +335,7 @@ type RegisteredEntityFamily = {
 	prefix: string;
 	entity: StorageEntityType;
 	entityIdFromSuffix: (suffix: string) => string;
-	ttlMs: number;
-	/** Custom expiry for families whose values embed their own timestamps. */
+	/** Startup expiry for families whose values embed their own timestamps. */
 	sweepValue?: (raw: string, nowMs: number) => SweepAction;
 };
 
@@ -439,18 +346,6 @@ export function defineEntityStorageKey<T>(options: {
 	entity: StorageEntityType;
 	codec: StorageCodec<NonNullable<T>>;
 	defaultValue: T;
-	ttlMs: number;
-	/**
-	 * Disable the companion timestamp for families whose values embed
-	 * their own timestamps. Requires a custom sweepValue.
-	 */
-	timestamped?: boolean;
-	/**
-	 * Disable the in-memory fallback for failed writes. Callers that
-	 * check PersistResult and run their own quota handling need reads
-	 * to reflect what actually persisted.
-	 */
-	overlay?: boolean;
 	/**
 	 * Extracts the owning entity ID from the key part after `prefix`.
 	 * Defaults to the whole suffix; composite-ID families override it.
@@ -463,9 +358,6 @@ export function defineEntityStorageKey<T>(options: {
 		entity,
 		codec,
 		defaultValue,
-		ttlMs,
-		timestamped = true,
-		overlay = true,
 		entityIdFromSuffix = (suffix) => suffix,
 		sweepValue,
 	} = options;
@@ -477,7 +369,6 @@ export function defineEntityStorageKey<T>(options: {
 		prefix,
 		entity,
 		entityIdFromSuffix,
-		ttlMs,
 		sweepValue,
 	});
 
@@ -492,10 +383,7 @@ export function defineEntityStorageKey<T>(options: {
 			const key = prefix + idParts.join(".");
 			let handle = handleCache.get(key);
 			if (!handle) {
-				handle = createHandle("local", key, codec, defaultValue, {
-					timestamped,
-					overlay,
-				});
+				handle = createHandle("local", key, codec, defaultValue);
 				handleCache.set(key, handle);
 			}
 			return handle;
@@ -518,38 +406,18 @@ export function clearEntityStorage(
 		return;
 	}
 	// Collect first: removing keys while enumerating by index skips
-	// entries. Keys known only in memory (failed-write overlays, and
-	// snapshots read before enumeration became restricted) must be
-	// cleaned too, so include every locally cached key alongside the
-	// localStorage listing. Overlay keys always have a snapshot entry.
-	const candidateKeys = new Set<string>(listLocalKeys());
-	for (const cacheKey of snapshotCache.keys()) {
-		if (cacheKey.startsWith("local:")) {
-			candidateKeys.add(cacheKey.slice("local:".length));
-		}
-	}
-	const ownedKeys: string[] = [];
-	for (const key of candidateKeys) {
-		// Companion timestamps are owned by their value key.
-		const valueKey = key.startsWith(TIMESTAMP_KEY_PREFIX)
-			? key.slice(TIMESTAMP_KEY_PREFIX.length)
-			: key;
-		const owned = entityFamilies.some(
+	// entries.
+	const ownedKeys = listLocalKeys().filter((key) =>
+		entityFamilies.some(
 			(family) =>
 				family.entity === entity &&
-				valueKey.startsWith(family.prefix) &&
-				family.entityIdFromSuffix(valueKey.slice(family.prefix.length)) === id,
-		);
-		if (owned) {
-			ownedKeys.push(key);
-		}
-	}
+				key.startsWith(family.prefix) &&
+				family.entityIdFromSuffix(key.slice(family.prefix.length)) === id,
+		),
+	);
 	for (const key of ownedKeys) {
 		removeRaw("local", key);
-		if (!key.startsWith(TIMESTAMP_KEY_PREFIX)) {
-			removeTimestamp(key);
-			invalidateAndNotify("local", key);
-		}
+		invalidateAndNotify("local", key);
 	}
 }
 
@@ -585,11 +453,10 @@ export function registerLegacyStorageKeys(keys: readonly string[]): void {
 let sweepHasRun = false;
 
 /**
- * Remove expired entity-scoped values and legacy keys. Explicit
- * cleanup cannot catch entities archived or deleted from another
- * client, so this time-based sweep collects those orphans. Runs once
- * per page load; call it before rendering the app so readers never
- * hydrate from values the sweep is about to expire.
+ * Remove legacy keys and expired records from families whose values
+ * embed their own timestamps. Runs once per page load; call it before
+ * rendering the app so readers never hydrate from values the sweep is
+ * about to expire.
  */
 export function sweepExpiredStorage(nowMs = Date.now()): void {
 	if (sweepHasRun) {
@@ -600,79 +467,32 @@ export function sweepExpiredStorage(nowMs = Date.now()): void {
 		removeRaw("local", key);
 	}
 	for (const key of listLocalKeys()) {
-		if (key.startsWith(TIMESTAMP_KEY_PREFIX)) {
-			// Companion whose value key is gone (removed by a client
-			// that does not know about companions).
-			if (readRaw("local", key.slice(TIMESTAMP_KEY_PREFIX.length)) === null) {
-				removeRaw("local", key);
-			}
-			continue;
-		}
-		const family = entityFamilies.find((candidate) =>
-			key.startsWith(candidate.prefix),
+		const family = entityFamilies.find(
+			(candidate) => candidate.sweepValue && key.startsWith(candidate.prefix),
 		);
-		if (!family) {
+		if (!family?.sweepValue) {
 			continue;
 		}
 		const raw = readRaw("local", key);
 		if (raw === null) {
 			continue;
 		}
-		if (family.sweepValue) {
-			const action = family.sweepValue(raw, nowMs);
-			if (action === "keep") {
-				continue;
-			}
-			if (action === "remove") {
-				removeRaw("local", key);
-			} else {
-				writeRaw("local", key, action.rewrite);
-			}
-			invalidateAndNotify("local", key);
+		const action = family.sweepValue(raw, nowMs);
+		if (action === "keep") {
 			continue;
 		}
-		sweepTimestampedKey(family, key, raw, nowMs);
-	}
-}
-
-const sweepTimestampedKey = (
-	family: RegisteredEntityFamily,
-	key: string,
-	raw: string,
-	nowMs: number,
-): void => {
-	const envelope = decodeLegacyEnvelope(raw);
-	if (envelope) {
-		if (nowMs - envelope.t > family.ttlMs) {
+		if (action === "remove") {
 			removeRaw("local", key);
-			removeTimestamp(key);
 		} else {
-			// Unwrap back to the raw value, keeping the original
-			// write time in the companion.
-			writeRaw("local", key, envelope.d);
-			writeTimestamp(key, envelope.d, envelope.t);
+			writeRaw("local", key, action.rewrite);
 		}
 		invalidateAndNotify("local", key);
-		return;
 	}
-	const stamp = readTimestamp(key);
-	if (!stamp || stamp.h !== fingerprint(raw)) {
-		// No companion (legacy or old-client write) or the value
-		// changed since it was stamped: start the TTL clock now.
-		writeTimestamp(key, raw, nowMs);
-		return;
-	}
-	if (nowMs - stamp.t > family.ttlMs) {
-		removeRaw("local", key);
-		removeTimestamp(key);
-		invalidateAndNotify("local", key);
-	}
-};
+}
 
 /** @internal Reset per-session sweep and cache state between tests. */
 export function _resetStorageForTesting(): void {
 	sweepHasRun = false;
 	snapshotCache.clear();
-	overlayKeys.clear();
 	keyListeners.clear();
 }
