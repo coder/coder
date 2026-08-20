@@ -100,6 +100,8 @@ const LicensesSettingsPage: FC = () => {
 				agentRuntimeHoursFeature={
 					entitlementsQuery.data?.features.agent_runtime_hours
 				}
+				aibridgeFeature={entitlementsQuery.data?.features.aibridge}
+				boundaryFeature={entitlementsQuery.data?.features.boundary}
 				refreshEntitlements={async () => {
 					try {
 						await refreshEntitlementsMutation.mutateAsync();

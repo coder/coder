@@ -186,7 +186,7 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 								className="h-auto rounded-full text-wrap"
 							>
 								<BanIcon />
-								Agent hours limit reached. Concurrent chats are now limited to
+								Agent hours limit reached. Concurrent agents are now limited to
 								5.
 							</Badge>
 						</div>

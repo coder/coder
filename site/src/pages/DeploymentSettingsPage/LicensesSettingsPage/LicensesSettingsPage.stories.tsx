@@ -127,7 +127,7 @@ export const WithoutUserLimitFeature: Story = {
 	},
 };
 
-export const ShowsAddonUiForFutureLicenseBeforeNbf: Story = {
+export const ShowsAIGovernanceForFutureLicenseBeforeNbf: Story = {
 	parameters: {
 		...withBaseQueries({
 			entitlements: createEntitlements({
@@ -162,7 +162,7 @@ export const ShowsAddonUiForFutureLicenseBeforeNbf: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText(/add-ons/i)).toBeInTheDocument();
+		await expect(canvas.queryByText(/add-ons/i)).not.toBeInTheDocument();
 		const aiGovernanceTitles = canvas.getAllByText(/^ai governance$/i);
 		await expect(aiGovernanceTitles.length).toBeGreaterThan(0);
 		await expect(canvas.getByText(/not started/i)).toBeInTheDocument();
