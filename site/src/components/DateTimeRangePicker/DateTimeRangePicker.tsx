@@ -30,7 +30,7 @@ import {
 import { cn } from "#/utils/cn";
 import {
 	combineDateTime,
-	type DateTimeRange,
+	type DateTimeRangeValue,
 	DEFAULT_QUICK_PRESETS,
 	formatCustomLabel,
 	type Meridiem,
@@ -40,8 +40,8 @@ import {
 } from "./dateTimeRange";
 
 interface DateTimeRangePickerProps {
-	value: DateTimeRange;
-	onChange: (value: DateTimeRange) => void;
+	value: DateTimeRangeValue;
+	onChange: (value: DateTimeRangeValue) => void;
 	now?: Date;
 	presets?: QuickPreset[];
 	size?: ButtonProps["size"];
@@ -84,7 +84,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 		if (next) {
 			// Rebuild the draft from the committed value each time the
 			// dropdown opens so a previously abandoned draft never leaks in.
-			if (value.type === "custom") {
+			if (value.preset === undefined) {
 				setCustomExpanded(true);
 				setSelection({ from: value.start, to: value.end });
 				const from = toClockFields(value.start);
@@ -105,7 +105,8 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	};
 
 	const handlePreset = (preset: QuickPreset) => {
-		onChange({ type: "preset", preset: preset.id });
+		const { start, end } = preset.range(currentTime);
+		onChange({ start, end, preset: preset.id });
 		setOpen(false);
 	};
 
@@ -135,19 +136,17 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 
 	const apply = () => {
 		if (draftStart && draftEnd) {
-			onChange({ type: "custom", start: draftStart, end: draftEnd });
+			onChange({ start: draftStart, end: draftEnd });
 			setOpen(false);
 		}
 	};
 
 	const activePreset =
-		value.type === "preset"
-			? quickPresets.find((preset) => preset.id === value.preset)
-			: undefined;
+		value.preset === undefined
+			? undefined
+			: quickPresets.find((preset) => preset.id === value.preset);
 	const triggerLabel =
-		value.type === "custom"
-			? formatCustomLabel(value.start, value.end)
-			: (activePreset?.label ?? "Select range");
+		activePreset?.label ?? formatCustomLabel(value.start, value.end);
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
@@ -194,7 +193,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 								selected={selection}
 								onSelect={setSelection}
 								defaultMonth={
-									value.type === "custom" ? value.start : currentTime
+									value.preset === undefined ? value.start : currentTime
 								}
 								today={currentTime}
 							/>

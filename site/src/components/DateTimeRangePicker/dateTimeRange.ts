@@ -12,14 +12,17 @@ export interface QuickPreset {
 }
 
 /**
- * The committed picker value. Preset selections keep their identity so
- * the trigger can keep rendering the preset label and callers can
- * re-evaluate the window over time; custom selections carry absolute
- * boundaries chosen from the calendar and time fields.
+ * The committed picker value. Boundaries are always concrete local
+ * Dates; send them to the API in UTC (Date.toISOString). Quick picks
+ * resolve to dates at selection time and record their id purely so the
+ * trigger can keep rendering the preset label; the id is display
+ * metadata and must not be sent to the backend.
  */
-export type DateTimeRange =
-	| { type: "preset"; preset: string }
-	| { type: "custom"; start: Date; end: Date };
+export interface DateTimeRangeValue {
+	start: Date;
+	end: Date;
+	preset?: string;
+}
 
 export const DEFAULT_QUICK_PRESETS: QuickPreset[] = [
 	{

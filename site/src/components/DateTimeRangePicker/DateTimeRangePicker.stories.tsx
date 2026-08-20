@@ -2,15 +2,18 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { DateTimeRangePicker } from "./DateTimeRangePicker";
-import type { DateTimeRange } from "./dateTimeRange";
+import type { DateTimeRangeValue } from "./dateTimeRange";
 
 // Matches the design mockup: mid-April 2026.
 const fixedNow = new Date(2026, 3, 16, 10, 30, 0);
 
-const presetValue: DateTimeRange = { type: "preset", preset: "last_15m" };
+const presetValue: DateTimeRangeValue = {
+	start: new Date(2026, 3, 16, 10, 15, 0),
+	end: fixedNow,
+	preset: "last_15m",
+};
 
-const customValue: DateTimeRange = {
-	type: "custom",
+const customValue: DateTimeRangeValue = {
 	start: new Date(2026, 3, 10, 0, 0, 0),
 	end: new Date(2026, 3, 16, 0, 0, 0),
 };
@@ -86,7 +89,7 @@ export const OpenShowsOnlyQuickPicks: Story = {
 
 export const SelectQuickPick: Story = {
 	render: function SelectQuickPickStory() {
-		const [value, setValue] = useState<DateTimeRange>(presetValue);
+		const [value, setValue] = useState<DateTimeRangeValue>(presetValue);
 		return (
 			<DateTimeRangePicker value={value} onChange={setValue} now={fixedNow} />
 		);
@@ -137,7 +140,7 @@ export const CustomRangeExpanded: Story = {
 
 export const ApplyCustomRange: Story = {
 	render: function ApplyCustomRangeStory() {
-		const [value, setValue] = useState<DateTimeRange>(presetValue);
+		const [value, setValue] = useState<DateTimeRangeValue>(presetValue);
 		return (
 			<DateTimeRangePicker value={value} onChange={setValue} now={fixedNow} />
 		);
@@ -214,7 +217,6 @@ export const InvalidTimeDisablesApply: Story = {
 export const EndBeforeStartShowsError: Story = {
 	args: {
 		value: {
-			type: "custom",
 			start: new Date(2026, 3, 10, 0, 0, 0),
 			end: new Date(2026, 3, 10, 0, 0, 0),
 		},
@@ -242,7 +244,7 @@ export const EndBeforeStartShowsError: Story = {
 
 export const CancelDiscardsDraft: Story = {
 	render: function CancelDiscardsDraftStory() {
-		const [value, setValue] = useState<DateTimeRange>(presetValue);
+		const [value, setValue] = useState<DateTimeRangeValue>(presetValue);
 		return (
 			<DateTimeRangePicker value={value} onChange={setValue} now={fixedNow} />
 		);
