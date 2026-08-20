@@ -129,6 +129,26 @@ install_mise() {
 	rm -rf "${tmp}"
 }
 
+configure_shell_path() {
+	local bashrc="${HOME}/.bashrc"
+	local marker="# Coder local cluster development tools"
+
+	if grep -Fqx "${marker}" "${bashrc}" 2>/dev/null; then
+		printf 'already configured: developer tool PATH in %s\n' "${bashrc}"
+		return
+	fi
+
+	log "Configuring developer tool PATH in ${bashrc}"
+	cat >>"${bashrc}" <<'EOF'
+
+# Coder local cluster development tools
+export PATH="${HOME}/.local/bin:${PATH}"
+if command -v mise >/dev/null 2>&1; then
+	eval "$(mise activate bash)"
+fi
+EOF
+}
+
 install_kubectl() {
 	local arch="$1"
 	local version="${KUBECTL_VERSION}"
@@ -490,6 +510,7 @@ main() {
 	install_base_packages
 	arch="$(machine_arch)"
 	install_mise
+	configure_shell_path
 	install_kubectl "${arch}"
 	install_k9s "${arch}"
 	check_docker
@@ -534,6 +555,7 @@ main() {
 
 	log "Local cluster is ready"
 	cluster_command info
+	printf 'Load developer tools in the current shell with: source %q\n' "${HOME}/.bashrc"
 	printf 'Open k9s with: k9s --context %s\n' "${context}"
 	printf 'Remove everything with: cd %q && ./scripts/develop-local-cluster.sh --cluster-name %q down\n' \
 		"${CODER_REPO_DIR}" "${CODER_DEV_CLUSTER_NAME}"
