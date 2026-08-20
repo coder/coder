@@ -61,22 +61,22 @@ const AISessionListPage: FC = () => {
 	const explicitTimeRange = parseTimeRange(filter.values);
 	const timeRange = explicitTimeRange ?? defaultRange;
 
-	// The preset is display-only; the URL stores resolved timestamps. Show
-	// the preset label only while the URL range still matches it.
-	const [lastPicked, setLastPicked] = useState<DateTimeRangeValue>(() => ({
-		start: defaultRange.startedAfter,
-		end: defaultRange.startedBefore,
-		preset: "last_24h",
-	}));
+	// The preset is display-only; the URL stores resolved timestamps. With no
+	// range in the URL (e.g. after clearing the search) the default window
+	// applies, which is the "Last 24 hours" preset. Otherwise show the last
+	// picked preset only while the URL range still matches it.
+	const [lastPicked, setLastPicked] = useState<DateTimeRangeValue | null>(null);
 	// URL round-trips truncate to seconds, so compare at second precision.
 	const sameSecond = (a: Date, b: Date) =>
 		Math.floor(a.getTime() / 1000) === Math.floor(b.getTime() / 1000);
 	const preset =
-		lastPicked.preset !== undefined &&
-		sameSecond(lastPicked.start, timeRange.startedAfter) &&
-		sameSecond(lastPicked.end, timeRange.startedBefore)
-			? lastPicked.preset
-			: undefined;
+		explicitTimeRange === null
+			? "last_24h"
+			: lastPicked?.preset !== undefined &&
+					sameSecond(lastPicked.start, timeRange.startedAfter) &&
+					sameSecond(lastPicked.end, timeRange.startedBefore)
+				? lastPicked.preset
+				: undefined;
 
 	const userMenu = useUserFilterMenu({
 		value: filter.values.initiator,
