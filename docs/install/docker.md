@@ -164,4 +164,4 @@ recommend setting an [access URL](../admin/setup/index.md#access-url)
 ## Next steps
 
 - [Create your first template](../tutorials/template-from-scratch.md)
-- [Control plane configuration](../admin/setup/index.md#configure-control-plane-access)
+- [Control plane configuration](../admin/setup/index.md)
