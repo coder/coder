@@ -3,7 +3,7 @@ package agentssh
 import (
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/coder/coder/v2/coderd/idemetadata"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type sshServerMetrics struct {
@@ -71,7 +71,7 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 	}
 }
 
-func magicTypeMetricLabel(magicType MagicSessionType) string {
+func magicTypeMetricLabel(magicType string) string {
 	// Family, not raw type, so cardinality stays bounded.
-	return idemetadata.Family(string(magicType))
+	return codersdk.AppNameFamily(magicType)
 }
