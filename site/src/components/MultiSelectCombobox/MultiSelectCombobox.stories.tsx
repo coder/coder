@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
+import { Input } from "#/components/Input/Input";
 import { MockOrganization, MockOrganization2 } from "#/testHelpers/entities";
 import { MultiSelectCombobox } from "./MultiSelectCombobox";
 
@@ -27,6 +28,23 @@ export default meta;
 type Story = StoryObj<typeof MultiSelectCombobox>;
 
 export const Default: Story = {};
+
+// Form pages such as IdP sync render the combobox beside a fixed h-10
+// Input. The visual snapshot guards that the empty combobox matches the
+// Input's height instead of growing from its inner padding and inherited
+// line-height.
+export const BesideInput: Story = {
+	decorators: [
+		(Story) => (
+			<div className="flex w-[40rem] flex-row items-start gap-2">
+				<Input className="w-72" placeholder="IdP group name" />
+				<div className="flex-1">
+					<Story />
+				</div>
+			</div>
+		),
+	],
+};
 
 export const OpenCombobox: Story = {
 	play: async ({ canvasElement }) => {
