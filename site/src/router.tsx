@@ -48,6 +48,12 @@ const CliAuthPage = lazy(() => import("./pages/CliAuthPage/CliAuthPage"));
 const DeviceAuthPage = lazy(
 	() => import("./pages/DeviceAuthPage/DeviceAuthPage"),
 );
+// Sketch route. `/oauth2/authorize` is currently served by the Go template
+// `site/static/oauth2allow.html`, so this React page is only reachable once the
+// backend serves the SPA there. See pages/OAuth2ConsentPage/OAuth2ConsentPage.tsx.
+const OAuth2ConsentPage = lazy(
+	() => import("./pages/OAuth2ConsentPage/OAuth2ConsentPage"),
+);
 const CliInstallPage = lazy(
 	() => import("./pages/CliInstallPage/CliInstallPage"),
 );
@@ -830,6 +836,7 @@ export const router = createBrowserRouter(
 				/>
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/device" element={<DeviceAuthPage />} />
+				<Route path="/oauth2/authorize" element={<OAuth2ConsentPage />} />
 				<Route path="/coder-cup" element={<CoderCupPage />} />
 				<Route path="/icons" element={<IconsPage />} />
 				<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
