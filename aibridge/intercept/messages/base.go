@@ -66,8 +66,13 @@ var bedrockSupportedBetaFlags = map[string]bool{
 }
 
 // BedrockRuntime carries everything a Bedrock-backed interception needs: the
-// static Bedrock config plus the AWS credentials provider.
-type BedrockRuntime = bedrocksig.Runtime
+// static Bedrock config plus the AWS credentials provider. The messages
+// interceptor reads the full config (Model and SmallFastModel for the
+// InvokeModel remap, BaseURL, Region).
+type BedrockRuntime struct {
+	Cfg   aibconfig.AWSBedrock
+	Creds aws.CredentialsProvider
+}
 
 type interceptionBase struct {
 	id         uuid.UUID
