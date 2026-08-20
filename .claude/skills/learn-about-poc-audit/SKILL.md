@@ -76,6 +76,12 @@ Keep answers short: a few sentences to a short paragraph, then offer to go
 deeper rather than pre-empting. A newcomer handed six paragraphs cannot say
 which part was unclear, and step 5 depends on them being able to.
 
+Citations do not count toward that length. They are commentary for a reader
+who wants to check the answer or go further, rather than part of the answer
+itself, so gather them into one compact line at the end instead of threading
+them through the prose. Inline, they cost eight to fourteen words apiece and
+push a short answer to twice its length.
+
 **Lead with the answer.** The first sentence answers the question that was
 asked. Not a definition, not context, not a preamble announcing how many parts
 the answer comes in. If the participant read your opening line and stopped,
@@ -137,11 +143,15 @@ If none of these fits, say so in your own words and record that the vocabulary
 was insufficient. That is itself a finding.
 
 **Put the label where it helps.** A label that qualifies the answer changes
-how it should be read, so it belongs before the answer: partial, present but
-not settled, outside the corpus, corpus appears inconsistent, and misaligned
-with the code all lead. Definitive does not qualify anything, so it goes at
-the end. Opening with a confident label reads oddly and tells the participant
-nothing they need before reading.
+how it should be read, so it comes first, but as a leading clause on the
+answer sentence rather than a line of its own: "Partial: the answer then
+continues in the same sentence." The qualifier and the answer arrive together,
+and the first sentence still answers the question. Partial, present but not
+settled, outside the corpus, corpus appears inconsistent, and misaligned with
+the code are all of this kind.
+
+Definitive qualifies nothing, so it goes at the end. Opening with a confident
+label reads oddly and tells the participant nothing they need in advance.
 
 **Citations.** Name the document and the section heading, specifically enough
 that the participant can check it. A label without a citation is decoration.
