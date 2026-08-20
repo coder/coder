@@ -160,19 +160,19 @@ END;
 $$;
 
 -- Prevent adding new user_memories for soft-deleted users.
--- Closes the window between an in-flight memory write and the
--- soft-delete UPDATE committing.
+-- Lock the user row before checking so a concurrent soft delete either
+-- cleans up this memory or commits first and causes this write to fail.
 CREATE FUNCTION insert_user_memory_fail_if_user_deleted() RETURNS trigger
     LANGUAGE plpgsql
 AS $$
-
+DECLARE
+    user_deleted boolean;
 BEGIN
-    PERFORM 1
+    SELECT deleted INTO user_deleted
     FROM users
     WHERE id = NEW.user_id
-      AND deleted = true
-    LIMIT 1;
-    IF FOUND THEN
+    FOR UPDATE;
+    IF FOUND AND user_deleted THEN
         RAISE EXCEPTION 'Cannot create user_memory for deleted user'
             USING ERRCODE = 'check_violation',
                   CONSTRAINT = 'user_memory_user_deleted';

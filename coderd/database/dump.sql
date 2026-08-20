@@ -1295,14 +1295,14 @@ $$;
 CREATE FUNCTION insert_user_memory_fail_if_user_deleted() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-
+DECLARE
+    user_deleted boolean;
 BEGIN
-    PERFORM 1
+    SELECT deleted INTO user_deleted
     FROM users
     WHERE id = NEW.user_id
-      AND deleted = true
-    LIMIT 1;
-    IF FOUND THEN
+    FOR UPDATE;
+    IF FOUND AND user_deleted THEN
         RAISE EXCEPTION 'Cannot create user_memory for deleted user'
             USING ERRCODE = 'check_violation',
                   CONSTRAINT = 'user_memory_user_deleted';

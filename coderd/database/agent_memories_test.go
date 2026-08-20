@@ -70,7 +70,7 @@ func TestUserMemories(t *testing.T) {
 		t.SkipNow()
 	}
 
-	db, _ := dbtestutil.NewDB(t)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 
 	// insertMemory creates a memory row owned by the given user.
 	insertMemory := func(ctx context.Context, userID uuid.UUID, path string) (database.UserMemory, error) {
@@ -221,6 +221,75 @@ func TestUserMemories(t *testing.T) {
 		var pqErr *pq.Error
 		require.ErrorAs(t, err, &pqErr)
 		require.Equal(t, "user_memory_user_deleted", pqErr.Constraint)
+	})
+
+	t.Run("SoftDeleteWinsConcurrentInsert", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user := dbgen.User(t, db, database.User{})
+
+		deleteTx, err := sqlDB.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		committed := false
+		t.Cleanup(func() {
+			if !committed {
+				_ = deleteTx.Rollback()
+			}
+		})
+
+		var lockedUserID uuid.UUID
+		err = deleteTx.QueryRowContext(ctx,
+			`SELECT id FROM users WHERE id = $1 FOR UPDATE`, user.ID,
+		).Scan(&lockedUserID)
+		require.NoError(t, err)
+		require.Equal(t, user.ID, lockedUserID)
+
+		insertConn, err := sqlDB.Conn(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = insertConn.Close() })
+
+		var insertPID int
+		err = insertConn.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&insertPID)
+		require.NoError(t, err)
+
+		insertResult := make(chan error, 1)
+		go func() {
+			_, err := insertConn.ExecContext(ctx, `
+				INSERT INTO user_memories (id, user_id, path, content)
+				VALUES ($1, $2, 'concurrent.md', 'content')
+			`, uuid.New(), user.ID)
+			insertResult <- err
+		}()
+
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			var lockWaits int
+			err := sqlDB.QueryRowContext(ctx, `
+				SELECT count(*)
+				FROM pg_stat_activity
+				WHERE pid = $1 AND wait_event_type = 'Lock'
+			`, insertPID).Scan(&lockWaits)
+			return err == nil && lockWaits == 1
+		}, testutil.IntervalFast, "wait for the memory insert to block on the user row")
+		require.NoError(t, ctx.Err(), "waiting for the memory insert")
+
+		_, err = deleteTx.ExecContext(ctx, `UPDATE users SET deleted = true WHERE id = $1`, user.ID)
+		require.NoError(t, err)
+		require.NoError(t, deleteTx.Commit())
+		committed = true
+
+		select {
+		case err := <-insertResult:
+			require.Error(t, err)
+			var pqErr *pq.Error
+			require.ErrorAs(t, err, &pqErr)
+			require.Equal(t, "user_memory_user_deleted", pqErr.Constraint)
+		case <-ctx.Done():
+			require.Failf(t, "memory insert did not finish", "context ended: %v", ctx.Err())
+		}
+
+		list, err := db.ListUserMemoriesByUserID(ctx, user.ID)
+		require.NoError(t, err)
+		require.Empty(t, list)
 	})
 
 	t.Run("SoftDeleteCleansMemories", func(t *testing.T) {
