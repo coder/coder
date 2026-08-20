@@ -30,14 +30,14 @@ limactl start coder-dev
 limactl shell coder-dev
 ```
 
-Download the bootstrap script from the `main` branch inside the VM:
+Download the bootstrap script from the temporary development branch inside the VM:
 
 ```console
 sudo apt-get update
 sudo apt-get install -y ca-certificates curl
 curl --fail --location \
   --output "$HOME/setup-local-cluster-lima.sh" \
-  https://raw.githubusercontent.com/coder/coder/main/scripts/develop-local-cluster/setup-local-cluster-lima.sh
+  https://raw.githubusercontent.com/coder/coder/pawel/develop-local-cluster/scripts/develop-local-cluster/setup-local-cluster-lima.sh
 chmod +x "$HOME/setup-local-cluster-lima.sh"
 ```
 
@@ -63,7 +63,7 @@ The bootstrap script:
 1. Installs missing base packages such as Git, Make, OpenSSL, jq, and vim.
 2. Installs checksum-pinned mise, kubectl, and k9s.
 3. Uses mise to install the repository-pinned Go, Node.js, pnpm, Helm, and kind versions.
-4. Clones or updates Coder in `~/src/coder` and checks out `main` by default.
+4. Clones or updates Coder in `~/src/coder` and checks out `pawel/develop-local-cluster` by default.
 5. Runs `develop-local-cluster.sh` to deploy PostgreSQL and Coder.
 6. Adds the license before deploying the Premium provisioner and AI Gateway components.
 7. When mTLS is enabled, generates certificates, configures AI Gateway to use Coder's HTTPS service, and verifies client certificate enforcement.
@@ -73,7 +73,7 @@ Common bootstrap overrides:
 | Environment variable             | Default                             |
 |----------------------------------|-------------------------------------|
 | `CODER_REPO_URL`                 | `https://github.com/coder/coder`    |
-| `CODER_REPO_REF`                 | `main`                              |
+| `CODER_REPO_REF`                 | `pawel/develop-local-cluster`       |
 | `CODER_REPO_DIR`                 | `~/src/coder`                       |
 | `CODER_DEV_CLUSTER_NAME`         | `coder-local`                       |
 | `CODER_DEV_CLUSTER_NAMESPACE`    | `coder`                             |

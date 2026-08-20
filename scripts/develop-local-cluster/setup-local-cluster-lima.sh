@@ -9,7 +9,7 @@
 #
 # Common overrides:
 #   CODER_REPO_URL=https://github.com/coder/coder
-#   CODER_REPO_REF=main
+#   CODER_REPO_REF=pawel/develop-local-cluster
 #   CODER_REPO_DIR=$HOME/src/coder
 #   CODER_DEV_CLUSTER_NAME=coder-local
 #   CODER_DEV_CLUSTER_MTLS=true
@@ -17,7 +17,7 @@
 set -euo pipefail
 
 CODER_REPO_URL="${CODER_REPO_URL:-https://github.com/coder/coder}"
-CODER_REPO_REF="${CODER_REPO_REF:-main}"
+CODER_REPO_REF="${CODER_REPO_REF:-pawel/develop-local-cluster}"
 CODER_REPO_DIR="${CODER_REPO_DIR:-${HOME}/src/coder}"
 CODER_DEV_CLUSTER_NAME="${CODER_DEV_CLUSTER_NAME:-coder-local}"
 CODER_DEV_CLUSTER_NAMESPACE="${CODER_DEV_CLUSTER_NAMESPACE:-coder}"
