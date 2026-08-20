@@ -257,11 +257,11 @@ func setupInjectedToolTest(
 func newDefaultProvider(t *testing.T, providerType string, addr string) aibridge.Provider {
 	switch providerType {
 	case config.ProviderAnthropic:
-		return aibridgetest.NewAnthropicProvider(t, anthropicCfg(addr, apiKey), nil)
+		return aibridgetest.NewAnthropicProvider(t, anthropicCfg(addr, apiKey))
 	case config.ProviderOpenAI:
 		return provider.NewOpenAI(openAICfg(addr, apiKey))
 	case providerBedrock:
-		return aibridgetest.NewAnthropicProvider(t, anthropicCfg(addr, apiKey), bedrockCfg(addr))
+		return aibridgetest.NewBedrockProvider(t, bedrockAnthropicCfg(addr, apiKey), *bedrockCfg(addr))
 	default:
 		panic("unknown provider type: " + providerType)
 	}

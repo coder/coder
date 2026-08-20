@@ -318,7 +318,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 			SmallFastModel:  "test-haiku",
 		}
 
-		_, err := provider.NewAnthropic(ctx, anthropicCfg("http://unused", apiKey), bedrockCfg)
+		_, err := provider.NewBedrock(ctx, anthropicCfg("http://unused", apiKey), *bedrockCfg)
 		require.ErrorContains(t, err, "region or base url required")
 	})
 
@@ -344,7 +344,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				}
 
 				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
-					withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
+					withCustomProvider(aibridgetest.NewBedrockProvider(t, bedrockAnthropicCfg(upstream.URL, apiKey), *bedrockCfg)),
 				)
 
 				// Make API call to aibridge for Anthropic /v1/messages, which will be routed via AWS Bedrock.
@@ -414,7 +414,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 		require.NotEmpty(t, wantModel)
 
 		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
-			withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
+			withCustomProvider(aibridgetest.NewBedrockProvider(t, bedrockAnthropicCfg(upstream.URL, apiKey), *bedrockCfg)),
 		)
 
 		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, fix.Request())
@@ -626,7 +626,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 					}
 
 					bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
-						withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bCfg)),
+						withCustomProvider(aibridgetest.NewBedrockProvider(t, bedrockAnthropicCfg(upstream.URL, apiKey), *bCfg)),
 					)
 
 					reqBody, err := sjson.SetBytes(fix.Request(), "stream", streaming)
@@ -788,7 +788,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 		bCfg.Region = region
 
 		bridgeServer := newBridgeTestServer(ctx, t, mockEgressProxy.URL,
-			withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(mockEgressProxy.URL, apiKey), bCfg)),
+			withCustomProvider(aibridgetest.NewBedrockProvider(t, bedrockAnthropicCfg(mockEgressProxy.URL, apiKey), *bCfg)),
 		)
 
 		// Sends a bridge request through a mock egress proxy that
@@ -2478,7 +2478,7 @@ func TestActorHeaders(t *testing.T) {
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
-				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
+				return aibridgetest.NewAnthropicProvider(t, cfg)
 			},
 			fixture:   fixtures.AntSimple,
 			streaming: true,
@@ -2489,7 +2489,7 @@ func TestActorHeaders(t *testing.T) {
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
-				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
+				return aibridgetest.NewAnthropicProvider(t, cfg)
 			},
 			fixture:   fixtures.AntSimple,
 			streaming: false,

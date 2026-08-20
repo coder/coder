@@ -162,7 +162,7 @@ func TestAnthropic_KeyFailover(t *testing.T) {
 				withCustomProvider(aibridgetest.NewAnthropicProvider(t, config.Anthropic{
 					BaseURL: upstream.URL,
 					KeyPool: pool,
-				}, nil)),
+				})),
 			)
 
 			requestBody, err := sjson.SetBytes(fix.Request(), "stream", tc.streaming)
@@ -233,7 +233,7 @@ func TestKeyPool_StateSharing(t *testing.T) {
 			name:         "anthropic",
 			providerName: config.ProviderAnthropic,
 			newProvider: func(baseURL string, pool *keypool.Pool) aibridge.Provider {
-				return aibridgetest.NewAnthropicProvider(t, config.Anthropic{BaseURL: baseURL, KeyPool: pool}, nil)
+				return aibridgetest.NewAnthropicProvider(t, config.Anthropic{BaseURL: baseURL, KeyPool: pool})
 			},
 			upstreamResponses: []testutil.UpstreamResponse{
 				testutil.NewErrorResponse(http.StatusTooManyRequests, "60"),

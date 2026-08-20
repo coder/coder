@@ -29,8 +29,6 @@ var _ Provider = &Anthropic{}
 // Anthropic allows for interactions with the Anthropic API.
 type Anthropic struct {
 	cfg config.Anthropic
-	// bedrock is nil for non-Bedrock providers.
-	bedrock *messages.BedrockRuntime
 }
 
 const routeMessages = "/v1/messages" // https://docs.anthropic.com/en/api/messages
@@ -51,7 +49,8 @@ var anthropicIsFailure = func(statusCode int) bool {
 	return circuitbreaker.DefaultIsFailure(statusCode)
 }
 
-func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) (*Anthropic, error) {
+func NewAnthropic(_ context.Context, cfg config.Anthropic) (*Anthropic, error) {
+	// ctx is kept for API stability; no context work is needed yet.
 	if cfg.Name == "" {
 		cfg.Name = config.ProviderAnthropic
 	}
@@ -63,31 +62,8 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 		cfg.CircuitBreaker.OpenErrorResponse = anthropicOpenErrorResponse
 	}
 
-	// Resolve the AWS credentials provider once and bundle it with the config.
-	// This performs no network call (the base identity and any AssumeRole
-	// resolve lazily on first retrieval); it only wires up the provider chain,
-	// so it is cheap to run at construction.
-	var bedrock *messages.BedrockRuntime
-	if bedrockCfg != nil {
-		creds, resolvedRegion, err := buildBedrockCredentials(ctx, *bedrockCfg)
-		if err != nil {
-			return nil, xerrors.Errorf("build bedrock credentials: %w", err)
-		}
-		runtimeCfg := *bedrockCfg
-		// resolvedRegion is bedrockCfg.Region if provided;
-		// otherwise, it is resolved from the environment via awsconfig.LoadDefaultConfig
-		if runtimeCfg.Region == "" {
-			runtimeCfg.Region = resolvedRegion
-		}
-		if err := runtimeCfg.Validate(); err != nil {
-			return nil, xerrors.Errorf("bedrock config: %w", err)
-		}
-		bedrock = &messages.BedrockRuntime{Cfg: runtimeCfg, Creds: creds}
-	}
-
 	return &Anthropic{
-		cfg:     cfg,
-		bedrock: bedrock,
+		cfg: cfg,
 	}, nil
 }
 
@@ -153,9 +129,9 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 
 	var interceptor intercept.Interceptor
 	if reqPayload.Stream() {
-		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
+		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, nil, r.Header, tracer)
 	} else {
-		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
+		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, nil, r.Header, tracer)
 	}
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
@@ -171,8 +147,7 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 //     failover.
 //
 // When both BYOK headers are present, X-Api-Key takes priority to match
-// claude-code behavior. Centralized requests require a key pool, except for
-// Bedrock providers, which authenticate via AWS signing rather than a pool.
+// claude-code behavior. Centralized requests require a key pool.
 func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, error) {
 	if apiKey := r.Header.Get(intercept.AuthHeaderXAPIKey); apiKey != "" {
 		return intercept.BYOK{Secret: apiKey, Header: intercept.AuthHeaderXAPIKey}, nil
@@ -182,9 +157,6 @@ func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, er
 	}
 	if p.cfg.KeyPool != nil {
 		return &intercept.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
-	}
-	if p.bedrock != nil {
-		return intercept.Bedrock{AccessKey: p.bedrock.Cfg.AccessKey}, nil
 	}
 	return nil, ErrNoCredential
 }
