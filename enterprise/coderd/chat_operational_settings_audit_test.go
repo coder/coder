@@ -35,6 +35,7 @@ type chatOperationalSettingAuditCase struct {
 	key              string
 	diffField        string
 	oldValue         string
+	oldValueAbsent   bool
 	newValue         string
 	effectiveDefault string
 	write            func(context.Context, *codersdk.ExperimentalClient, string) error
@@ -95,6 +96,12 @@ func requireChatOperationalSettingsAuditDiff(t *testing.T, log database.AuditLog
 	require.Equal(t, audit.Map{
 		field: {Old: oldValue, New: newValue},
 	}, diff)
+	require.Equal(t, database.AuditActionWrite, log.Action)
+	require.Equal(t, database.ResourceTypeChatOperationalSettings, log.ResourceType)
+	require.Empty(t, log.ResourceTarget)
+	require.NotEqual(t, uuid.Nil, log.ResourceID)
+	require.Equal(t, uuid.Nil, log.OrganizationID)
+	require.EqualValues(t, 204, log.StatusCode)
 }
 
 func TestChatOperationalSettingsAudit(t *testing.T) {
@@ -164,11 +171,11 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 			},
 		},
 		{
-			name:      "ComputerUseProvider",
-			key:       "agents_computer_use_provider",
-			diffField: "computer_use_provider",
-			oldValue:  string(codersdk.ChatComputerUseProviderAnthropic),
-			newValue:  string(codersdk.ChatComputerUseProviderOpenAI),
+			name:           "ComputerUseProvider",
+			key:            "agents_computer_use_provider",
+			diffField:      "computer_use_provider",
+			oldValueAbsent: true,
+			newValue:       string(codersdk.ChatComputerUseProviderOpenAI),
 			write: func(ctx context.Context, client *codersdk.ExperimentalClient, value string) error {
 				return client.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
 					Provider: codersdk.ChatComputerUseProvider(value),
@@ -209,17 +216,18 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 		},
 	}
 	retentionDays := settings[0]
-	computerUseProvider := settings[4]
 
 	for _, setting := range settings {
 		t.Run(setting.name, func(t *testing.T) {
 			t.Parallel()
 
 			fixture := newChatOperationalSettingsAuditFixture(t)
-			require.NoError(t, fixture.db.UpsertRuntimeConfig(fixture.systemCtx, database.UpsertRuntimeConfigParams{
-				Key:   setting.key,
-				Value: setting.oldValue,
-			}))
+			if !setting.oldValueAbsent {
+				require.NoError(t, fixture.db.UpsertRuntimeConfig(fixture.systemCtx, database.UpsertRuntimeConfigParams{
+					Key:   setting.key,
+					Value: setting.oldValue,
+				}))
+			}
 			require.NoError(t, setting.write(fixture.ctx, fixture.client, setting.newValue))
 
 			log := fixture.onlyAuditLog(t)
@@ -242,52 +250,6 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 			require.Empty(t, fixture.auditLogs(t))
 		})
 	}
-
-	t.Run("ComputerUseProviderEmptyEffectiveDefault", func(t *testing.T) {
-		t.Parallel()
-
-		fixture := newChatOperationalSettingsAuditFixture(t)
-		require.NoError(t, fixture.db.DeleteRuntimeConfig(fixture.systemCtx, computerUseProvider.key))
-		require.NoError(t, computerUseProvider.write(fixture.ctx, fixture.client, computerUseProvider.newValue))
-
-		log := fixture.onlyAuditLog(t)
-		requireChatOperationalSettingsAuditDiff(t, log, computerUseProvider.diffField, "", computerUseProvider.newValue)
-	})
-
-	t.Run("CommonMetadata", func(t *testing.T) {
-		t.Parallel()
-
-		fixture := newChatOperationalSettingsAuditFixture(t)
-		require.NoError(t, fixture.db.UpsertRuntimeConfig(fixture.systemCtx, database.UpsertRuntimeConfigParams{
-			Key:   retentionDays.key,
-			Value: retentionDays.oldValue,
-		}))
-		require.NoError(t, retentionDays.write(fixture.ctx, fixture.client, retentionDays.newValue))
-
-		log := fixture.onlyAuditLog(t)
-		require.Equal(t, database.AuditActionWrite, log.Action)
-		require.Equal(t, database.ResourceTypeChatOperationalSettings, log.ResourceType)
-		require.Empty(t, log.ResourceTarget)
-		require.NotEqual(t, uuid.Nil, log.ResourceID)
-		require.Equal(t, uuid.Nil, log.OrganizationID)
-		require.EqualValues(t, 204, log.StatusCode)
-	})
-
-	t.Run("IdenticalStoredValue", func(t *testing.T) {
-		t.Parallel()
-
-		fixture := newChatOperationalSettingsAuditFixture(t)
-		require.NoError(t, fixture.db.UpsertRuntimeConfig(fixture.systemCtx, database.UpsertRuntimeConfigParams{
-			Key:   retentionDays.key,
-			Value: retentionDays.newValue,
-		}))
-		require.NoError(t, retentionDays.write(fixture.ctx, fixture.client, retentionDays.newValue))
-
-		stored, err := fixture.db.GetChatSiteConfigValue(fixture.systemCtx, retentionDays.key)
-		require.NoError(t, err)
-		require.Equal(t, database.GetChatSiteConfigValueRow{Value: retentionDays.newValue, Exists: true}, stored)
-		require.Empty(t, fixture.auditLogs(t))
-	})
 
 	t.Run("InvalidWrite", func(t *testing.T) {
 		t.Parallel()
