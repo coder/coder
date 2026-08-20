@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
+	"storj.io/drpc/drpcerr"
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/tailnet"
@@ -176,6 +177,27 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 
 	err = testutil.TryReceive(ctx, t, errCh)
 	require.ErrorIs(t, err, tailnet.ErrUnsupportedVersion)
+}
+
+func TestClientService_UnsupportedProviders(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clientID := uuid.New()
+	_, client := createUpdateService(t, ctx, clientID, nil, nil)
+
+	_, err := client.RefreshResumeToken(ctx, &proto.RefreshResumeTokenRequest{})
+	require.ErrorContains(t, err, "resume tokens not supported on this connection")
+	require.EqualValues(t, drpcerr.Unimplemented, drpcerr.Code(err))
+
+	updates, err := client.WorkspaceUpdates(ctx, &proto.WorkspaceUpdatesRequest{
+		WorkspaceOwnerId: tailnet.UUIDToByteSlice(clientID),
+	})
+	if err == nil {
+		_, err = updates.Recv()
+	}
+	require.ErrorContains(t, err, "workspace updates not supported on this connection")
+	require.EqualValues(t, drpcerr.Unimplemented, drpcerr.Code(err))
 }
 
 func TestNetworkTelemetryBatcher(t *testing.T) {
