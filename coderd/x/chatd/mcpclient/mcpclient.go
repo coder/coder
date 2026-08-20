@@ -26,7 +26,7 @@ import (
 	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/mcpssrf"
+	"github.com/coder/safedial"
 )
 
 // toolNameSep separates the server slug from the original tool
@@ -902,10 +902,10 @@ func RefreshOAuth2Token(
 	refreshCtx, cancel := context.WithTimeout(ctx, connectTimeout)
 	defer cancel()
 	if httpClient == nil {
-		httpClient = mcpssrf.NewHTTPClient(&http.Client{}, nil)
+		httpClient = safedial.NewHTTPClient(&http.Client{})
 	}
 	refreshClient := *httpClient
-	refreshClient.CheckRedirect = mcpssrf.CheckSameOriginRedirect
+	refreshClient.CheckRedirect = safedial.CheckSameOriginRedirect
 	refreshCtx = context.WithValue(refreshCtx, oauth2.HTTPClient, &refreshClient)
 
 	// TokenSource automatically refreshes expired tokens. It
@@ -955,11 +955,11 @@ func RevokeOAuth2Token(
 	}
 
 	if httpClient == nil {
-		httpClient = mcpssrf.NewHTTPClient(&http.Client{}, nil)
+		httpClient = safedial.NewHTTPClient(&http.Client{})
 	}
 	// Copy so CheckRedirect does not leak into the shared client.
 	redirectSafe := *httpClient
-	redirectSafe.CheckRedirect = mcpssrf.CheckSameOriginRedirect
+	redirectSafe.CheckRedirect = safedial.CheckSameOriginRedirect
 	httpClient = &redirectSafe
 
 	token, hint := tok.AccessToken, "access_token"

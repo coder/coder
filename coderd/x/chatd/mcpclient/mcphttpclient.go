@@ -3,17 +3,17 @@ package mcpclient
 import (
 	"net/http"
 
-	"github.com/coder/coder/v2/coderd/mcpssrf"
+	"github.com/coder/safedial"
 )
 
 func httpClientWithHeaders(base *http.Client, headers map[string]string) *http.Client {
 	if base == nil {
-		base = mcpssrf.NewHTTPClient(&http.Client{}, nil)
+		base = safedial.NewHTTPClient(&http.Client{})
 	} else if base.Transport == nil {
-		base = mcpssrf.NewHTTPClient(base, nil)
+		base = safedial.NewHTTPClient(base)
 	}
 	client := *base
-	client.CheckRedirect = mcpssrf.CheckSameOriginRedirect
+	client.CheckRedirect = safedial.CheckSameOriginRedirect
 	if len(headers) == 0 {
 		return &client
 	}

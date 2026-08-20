@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/mcpssrf"
+	"github.com/coder/safedial"
 )
 
 func TestHTTPClientWithHeadersRejectsCrossOriginRedirect(t *testing.T) {
@@ -26,10 +26,10 @@ func TestHTTPClientWithHeadersRejectsCrossOriginRedirect(t *testing.T) {
 	}))
 	defer source.Close()
 
-	base := mcpssrf.NewHTTPClient(source.Client(), []netip.Prefix{
+	base := safedial.NewHTTPClient(source.Client(), safedial.WithAllowedPrefixes(
 		netip.MustParsePrefix("127.0.0.0/8"),
 		netip.MustParsePrefix("::1/128"),
-	})
+	))
 	client := httpClientWithHeaders(base, map[string]string{"Authorization": "Bearer secret"})
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, source.URL, nil)
 	require.NoError(t, err)

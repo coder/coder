@@ -73,7 +73,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/idpsync"
-	"github.com/coder/coder/v2/coderd/mcpssrf"
 	"github.com/coder/coder/v2/coderd/metricscache"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
@@ -115,6 +114,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/derpmetrics"
 	"github.com/coder/quartz"
+	"github.com/coder/safedial"
 	"github.com/coder/serpent"
 )
 
@@ -712,7 +712,10 @@ func New(options *Options) *API {
 	if mcpHTTPBase == nil {
 		mcpHTTPBase = &http.Client{}
 	}
-	mcpHTTPClient := mcpssrf.NewHTTPClient(mcpHTTPBase, options.MCPAllowedPrivateCIDRs)
+	mcpHTTPClient := safedial.NewHTTPClient(
+		mcpHTTPBase,
+		safedial.WithAllowedPrefixes(options.MCPAllowedPrivateCIDRs...),
+	)
 	api := &API{
 		ctx:           ctx,
 		cancel:        cancel,
