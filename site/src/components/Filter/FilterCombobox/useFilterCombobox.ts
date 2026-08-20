@@ -1,9 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+	type KeyboardEvent as ReactKeyboardEvent,
+	useEffect,
+	useMemo,
+	useReducer,
+	useRef,
+} from "react";
 import { useQueries, useQuery } from "react-query";
 import { useDebouncedFunction, useDebouncedValue } from "#/hooks/debounce";
 import {
 	collectValueSuggestions,
 	composeFilterQuery,
+	dedupeChips,
 	extractFreeText,
 	matchCategories,
 	parseChipToken,
@@ -20,6 +27,86 @@ const filterComboboxSearchResultsKey = (query: string) =>
 const filterComboboxOptionsKey = (categoryKey: string, query: string) =>
 	["filterCombobox", "options", categoryKey, query] as const;
 
+/**
+ * The popup has three mutually exclusive modes. `closed` hides it; `browsing`
+ * lists categories plus free-text typeahead suggestions; `category` narrows to
+ * one category's options. `open` and `isBrowsing` are derived from `mode` so
+ * the previously mirrored booleans and refs can no longer drift apart.
+ */
+type Mode = "closed" | "browsing" | "category";
+
+type State = {
+	mode: Mode;
+	activeCategoryKey: string | null;
+	inputValue: string;
+	committedFreeText: string;
+};
+
+type Action =
+	| { type: "openBrowsing" }
+	| {
+			type: "enterCategory";
+			categoryKey: string;
+			query: string;
+			committedFreeText: string;
+	  }
+	| { type: "typeInCategory"; value: string }
+	| { type: "typeFreeText"; value: string }
+	| { type: "setCommittedFreeText"; value: string }
+	| { type: "close"; input: "restore" | "clear" | "keep" }
+	| { type: "reconcile"; freeText: string };
+
+const closeState = (
+	state: State,
+	input: "restore" | "clear" | "keep",
+): State => ({
+	mode: "closed",
+	activeCategoryKey: null,
+	committedFreeText: state.committedFreeText,
+	inputValue:
+		input === "restore"
+			? state.committedFreeText
+			: input === "clear"
+				? ""
+				: state.inputValue,
+});
+
+const reducer = (state: State, action: Action): State => {
+	switch (action.type) {
+		case "openBrowsing":
+			return { ...state, mode: "browsing", activeCategoryKey: null };
+		case "enterCategory":
+			return {
+				mode: "category",
+				activeCategoryKey: action.categoryKey,
+				inputValue: action.query,
+				committedFreeText: action.committedFreeText.trim(),
+			};
+		case "typeInCategory":
+			return { ...state, mode: "category", inputValue: action.value };
+		case "typeFreeText":
+			return {
+				mode: "browsing",
+				activeCategoryKey: null,
+				inputValue: action.value,
+				committedFreeText: action.value.trim(),
+			};
+		case "setCommittedFreeText":
+			return { ...state, committedFreeText: action.value.trim() };
+		case "close":
+			return closeState(state, action.input);
+		case "reconcile":
+			return {
+				...state,
+				committedFreeText: action.freeText,
+				// A pending category selection owns the input, so only the free-text
+				// view mirrors an external value.
+				inputValue:
+					state.mode === "category" ? state.inputValue : action.freeText,
+			};
+	}
+};
+
 type UseFilterComboboxOptions = {
 	value: string;
 	onChange: (query: string) => void;
@@ -28,6 +115,13 @@ type UseFilterComboboxOptions = {
 	onSearchResultSelect?: (result: SearchResult) => void;
 };
 
+/**
+ * Drives the unified workspace filter combobox: a `mode` state machine for the
+ * popup, debounced query emission back to the caller, and the react-query
+ * lookups for category options, cross-category suggestions, and search results.
+ * Local state is reconciled against the caller-owned `value` so an external
+ * update wins over any in-flight local edit.
+ */
 export const useFilterCombobox = ({
 	value,
 	onChange,
@@ -39,23 +133,24 @@ export const useFilterCombobox = ({
 		() => categories.flatMap((category) => category.chipKeys ?? [category.key]),
 		[categories],
 	);
-	const [open, setOpen] = useState(false);
-	const [isBrowsing, setIsBrowsing] = useState(false);
-	const [activeCategoryKey, setActiveCategoryKey] = useState<string | null>(
-		null,
-	);
-	const [inputValue, setInputValue] = useState(() =>
-		extractFreeText(value, chipKeys),
-	);
-	const [committedFreeText, setCommittedFreeText] = useState(() =>
-		extractFreeText(value, chipKeys),
-	);
-	const committedFreeTextRef = useRef(committedFreeText);
-	const facetModeRef = useRef(false);
-	const isBrowsingRef = useRef(false);
+
+	const [state, dispatch] = useReducer(reducer, chipKeys, (keys): State => {
+		const freeText = extractFreeText(value, keys);
+		return {
+			mode: "closed",
+			activeCategoryKey: null,
+			inputValue: freeText,
+			committedFreeText: freeText,
+		};
+	});
+	const { mode, activeCategoryKey, inputValue, committedFreeText } = state;
+	const open = mode !== "closed";
+	const isBrowsing = mode === "browsing";
+
 	const lastEmittedRef = useRef(value);
+	const prevChipKeysRef = useRef(chipKeys);
 	const highlightedItemRef = useRef<string | null>(null);
-	const storeInputRef = useRef<HTMLInputElement | null>(null);
+	const inputRef = useRef<HTMLInputElement | null>(null);
 	const onChangeRef = useRef(onChange);
 	onChangeRef.current = onChange;
 	const onSearchResultSelectRef = useRef(onSearchResultSelect);
@@ -84,71 +179,25 @@ export const useFilterCombobox = ({
 		debouncedOnChange(query);
 	};
 
-	const setBrowsing = (next: boolean) => {
-		isBrowsingRef.current = next;
-		setIsBrowsing(next);
-	};
-
-	const setCommittedNameSearch = (nextValue: string) => {
-		const next = nextValue.trim();
-		committedFreeTextRef.current = next;
-		setCommittedFreeText(next);
-	};
-
-	const restoreFreeTextInput = () => {
-		setInputValue(committedFreeTextRef.current);
-	};
-
-	const resetPopup = (input: "restore" | "clear" | "keep") => {
-		facetModeRef.current = false;
-		setBrowsing(false);
-		setActiveCategoryKey(null);
-		setOpen(false);
-		if (input === "restore") {
-			restoreFreeTextInput();
-		} else if (input === "clear") {
-			setInputValue("");
-		}
-	};
-
-	const enterBrowsing = () => {
-		facetModeRef.current = false;
-		setBrowsing(true);
-		setActiveCategoryKey(null);
-		setOpen(true);
-	};
-
-	const enterCategoryMode = (categoryKey: string, query = "") => {
-		facetModeRef.current = true;
-		setBrowsing(false);
-		setActiveCategoryKey(categoryKey);
-		setInputValue(query);
-		setOpen(true);
-	};
-
+	// Reconcile local state with the caller-owned `value`. Reparse whenever the
+	// value changes externally or the chip categories change, so renaming or
+	// adding a category recomputes the free text instead of being suppressed by
+	// the self-emit guard.
 	useEffect(() => {
-		if (value === lastEmittedRef.current) {
+		const chipKeysChanged = prevChipKeysRef.current !== chipKeys;
+		prevChipKeysRef.current = chipKeys;
+		const isExternal = value !== lastEmittedRef.current;
+		if (!isExternal && !chipKeysChanged) {
 			return;
 		}
-		lastEmittedRef.current = value;
-		const freeText = extractFreeText(value, chipKeys);
-		committedFreeTextRef.current = freeText;
-		setCommittedFreeText(freeText);
-		if (!facetModeRef.current) {
-			setInputValue(freeText);
+		if (isExternal) {
+			// An authoritative external value must win, so drop any pending local
+			// write before adopting it.
+			cancelDebounce();
+			lastEmittedRef.current = value;
 		}
-	}, [value, chipKeys]);
-
-	const toggleFilterMenu = () => {
-		if (open) {
-			resetPopup("restore");
-			return;
-		}
-		enterBrowsing();
-		queueMicrotask(() => {
-			storeInputRef.current?.focus();
-		});
-	};
+		dispatch({ type: "reconcile", freeText: extractFreeText(value, chipKeys) });
+	}, [value, chipKeys, cancelDebounce]);
 
 	const activeCategory = categories.find(
 		(category) => category.key === activeCategoryKey,
@@ -167,8 +216,6 @@ export const useFilterCombobox = ({
 		}
 		return matchCategories(inputValue, categories);
 	}, [activeCategoryKey, isBrowsing, categories, inputValue]);
-	const listedCategoriesRef = useRef(listedCategories);
-	listedCategoriesRef.current = listedCategories;
 
 	const activeOptionsQuerySource = activeCategoryKey !== null ? inputValue : "";
 	const debouncedActiveOptionsQuery = useDebouncedValue(
@@ -293,13 +340,12 @@ export const useFilterCombobox = ({
 		isBrowsing &&
 		(suggestionsError || (hasSearchResults && searchResultsQuery.isError));
 
-	// Derived view-model for the browsing (typeahead) popup.
 	const typeaheadActive = activeCategoryKey === null && isBrowsing;
 	const hasTypeaheadQuery = typeaheadActive && inputValue.trim().length > 0;
 	const showValueSuggestions = hasTypeaheadQuery && valueSuggestions.length > 0;
 	const showSearchResults = hasTypeaheadQuery && searchResults.length > 0;
-	// Only spin while the first page of either source is still in flight; once
-	// anything has resolved we render rows instead of the spinner.
+	// Spin only until the first rows of a source arrive; once either source has
+	// resolved rows, render them instead of the spinner.
 	const typeaheadLoading =
 		hasTypeaheadQuery &&
 		((valueSuggestionsLoading && valueSuggestions.length === 0) ||
@@ -315,94 +361,119 @@ export const useFilterCombobox = ({
 	}
 
 	const updateFromChips = (tokens: string[], freeText?: string) => {
-		const nextFreeText =
-			freeText === undefined ? committedFreeTextRef.current : freeText;
+		const nextFreeText = freeText ?? committedFreeText;
 		if (freeText !== undefined) {
-			setCommittedNameSearch(freeText);
+			dispatch({ type: "setCommittedFreeText", value: freeText });
 		}
 		emitQuery(composeFilterQuery(tokens, chipKeys, nextFreeText), true);
 	};
 
 	const selectCategory = (categoryKey: string) => {
-		setCommittedNameSearch("");
 		emitQuery(composeFilterQuery(chipValues, chipKeys, ""), true);
-		enterCategoryMode(categoryKey);
+		dispatch({
+			type: "enterCategory",
+			categoryKey,
+			query: "",
+			committedFreeText: "",
+		});
 	};
 
 	const selectValueSuggestion = (token: string) => {
 		updateFromChips([...chipValues, token], "");
-		resetPopup("clear");
+		dispatch({ type: "close", input: "clear" });
 	};
 
 	// In category mode, choosing an option commits its chip while preserving the
 	// free-text name search that preceded the category prefix.
 	const selectCategoryOption = (token: string) => {
 		updateFromChips([...chipValues, token]);
-		resetPopup("restore");
+		dispatch({ type: "close", input: "restore" });
 	};
 
 	const selectSearchResult = (result: SearchResult) => {
 		onSearchResultSelectRef.current?.(result);
-		resetPopup("keep");
+		dispatch({ type: "close", input: "keep" });
+	};
+
+	const toggleFilterMenu = () => {
+		if (open) {
+			dispatch({ type: "close", input: "restore" });
+			return;
+		}
+		dispatch({ type: "openBrowsing" });
+		queueMicrotask(() => {
+			inputRef.current?.focus();
+		});
 	};
 
 	const handleInputFocus = () => {
-		if (activeCategoryKey !== null || facetModeRef.current) {
+		if (mode === "category") {
 			return;
 		}
-		enterBrowsing();
+		dispatch({ type: "openBrowsing" });
 	};
 
 	const handleInputValueChange = (nextValue: string) => {
 		const typedCategory = parseTypedCategoryPrefix(nextValue, categories);
 		if (typedCategory) {
-			setCommittedNameSearch(typedCategory.freeText);
 			emitQuery(
 				composeFilterQuery(chipValues, chipKeys, typedCategory.freeText),
 				true,
 			);
-			enterCategoryMode(typedCategory.categoryKey, typedCategory.query);
+			dispatch({
+				type: "enterCategory",
+				categoryKey: typedCategory.categoryKey,
+				query: typedCategory.query,
+				committedFreeText: typedCategory.freeText,
+			});
 			return;
 		}
 
 		if (activeCategory) {
-			setInputValue(nextValue);
-			facetModeRef.current = true;
-			setBrowsing(false);
-			setOpen(true);
+			dispatch({ type: "typeInCategory", value: nextValue });
 			return;
 		}
 
-		setCommittedNameSearch(nextValue);
-		setInputValue(nextValue);
+		// Typing a recognized chip token directly (not via the category menu)
+		// promotes it to a chip and keeps only the residual free text in the
+		// input, so the token never lingers as both a chip and stale text.
+		const typedChips = queryToChips(nextValue, chipKeys);
+		if (typedChips.length > 0) {
+			const mergedChips = dedupeChips([...chipValues, ...typedChips], chipKeys);
+			const freeText = extractFreeText(nextValue, chipKeys);
+			emitQuery(composeFilterQuery(mergedChips, chipKeys, freeText), true);
+			dispatch({ type: "typeFreeText", value: freeText });
+			return;
+		}
+
 		emitQuery(composeFilterQuery(chipValues, chipKeys, nextValue), false);
-		enterBrowsing();
+		dispatch({ type: "typeFreeText", value: nextValue });
 	};
 
 	// Radix only originates close requests (escape / outside press); opens flow
 	// from the caller, so a dismissal simply restores the free-text input.
 	const handleDismiss = () => {
-		resetPopup("restore");
+		dispatch({ type: "close", input: "restore" });
 	};
 
+	// Chip removal mirrors Backspace: drop the token and keep the current popup
+	// and input state untouched.
 	const handleRemoveChip = (token: string) => {
 		updateFromChips(chipValues.filter((entry) => entry !== token));
-		resetPopup("restore");
 	};
 
-	const handleInputKeyDown = (event: {
-		key: string;
-		shiftKey?: boolean;
-		preventDefault: () => void;
-	}) => {
-		if (event.key === "Backspace" && inputValue === "" && activeCategory) {
+	const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+		const isBackspaceOrDelete =
+			event.key === "Backspace" || event.key === "Delete";
+
+		if (isBackspaceOrDelete && inputValue === "" && activeCategory) {
 			event.preventDefault();
-			resetPopup("restore");
+			dispatch({ type: "close", input: "restore" });
 			return;
 		}
 
 		if (
-			(event.key === "Backspace" || event.key === "Delete") &&
+			isBackspaceOrDelete &&
 			inputValue === "" &&
 			!activeCategory &&
 			chipValues.length > 0
@@ -417,7 +488,7 @@ export const useFilterCombobox = ({
 		// preview has no chip token, so Tab falls through to the default focus
 		// move rather than navigating.
 		const isTabComplete = event.key === "Tab" && !event.shiftKey;
-		if (!isTabComplete || !isBrowsingRef.current) {
+		if (!isTabComplete || mode !== "browsing") {
 			return;
 		}
 
@@ -426,7 +497,7 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		const category = listedCategoriesRef.current.find(
+		const category = listedCategories.find(
 			(entry) => entry.key === highlighted,
 		);
 		if (category) {
@@ -442,7 +513,6 @@ export const useFilterCombobox = ({
 	};
 
 	return {
-		// Reactive state the view renders from.
 		open,
 		inputValue,
 		committedFreeText,
@@ -465,10 +535,9 @@ export const useFilterCombobox = ({
 			showValueSuggestions,
 			showSearchResults,
 		},
-		// Imperative handlers, grouped so the view wires intent, not internals.
 		actions: {
 			setInputRef: (node: HTMLInputElement | null) => {
-				storeInputRef.current = node;
+				inputRef.current = node;
 			},
 			toggleMenu: toggleFilterMenu,
 			dismiss: handleDismiss,
