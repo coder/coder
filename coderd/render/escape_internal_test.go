@@ -124,39 +124,57 @@ func TestEscapeMarkdown(t *testing.T) {
 	t.Run("NeutralisesStructure", func(t *testing.T) {
 		t.Parallel()
 
-		for _, tc := range []struct {
+		// A row guards something only if its value produces structure without
+		// escaping, so inertRaw has to be set deliberately. Leaving it unset on
+		// a value that cannot produce structure fails the liveness assertion
+		// below rather than passing as a test that asserts nothing.
+		type structureCase struct {
 			name  string
 			value string
-		}{
-			{"DisclosurePayload", "Eve\n## URGENT: SSO certificate expiring\n[Re-authenticate now](https://coder-sso.attacker.example/login)"},
-			{"InlineLink", "[Re-authenticate now](https://attacker.example/login)"},
-			{"ReferenceLink", "[Re-auth][1]\n\n[1]: https://attacker.example"},
-			{"Image", "![px](https://tracker.attacker.example/p.gif)"},
-			{"AngleAutolink", "Eve <https://attacker.example>"},
-			{"BareURL", "Eve https://attacker.example/login"},
-			{"Mailto", "Eve mailto:eve@attacker.example"},
-			{"ATXHeading", "Eve\n## URGENT"},
-			{"SetextH1", "URGENT: re-auth required\n===\nx"},
-			{"SetextH1Spaced", "Eve\n=== \n#### x"},
-			{"SetextH1Repeated", "Eve\n===\n===\nx"},
-			{"SetextH2", "Eve\n---\nx"},
-			{"ThematicBreak", "Eve\n----\nx"},
-			{"ThematicBreakStars", "Eve\n***\nnext"},
-			{"ThematicBreakUnderscores", "Eve\n___\nnext"},
-			{"ThematicBreakSpacedStars", "Eve\n* * *\nnext"},
-			{"ThematicBreakSpacedUnderscores", "Eve\n_ _ _\nnext"},
-			{"BulletList", "Eve\n- one\n- two"},
-			{"BulletListStar", "Eve\n* one\n* two"},
-			{"BulletListStarIndented", "Eve\n  * one\n  * two"},
-			{"OrderedList", "Eve\n1. one\n2. two"},
-			{"OrderedListMultiDigit", "Eve\n99. one\n100. two"},
-			{"OrderedListParen", "Eve\n1) one\n2) two"},
-			{"Blockquote", "Eve\n> quoted"},
-			{"Table", "a | b\n--- | ---\nc | d"},
-			{"JavascriptScheme", "[click](javascript:alert(1))"},
+			// inertRaw marks a value that produces no structural tag even
+			// unescaped. Each one is neutralized by something other than marker
+			// escaping, and is covered non-vacuously by another test.
+			inertRaw bool
+		}
+
+		for _, tc := range []structureCase{
+			{name: "DisclosurePayload", value: "Eve\n## URGENT: SSO certificate expiring\n[Re-authenticate now](https://coder-sso.attacker.example/login)"},
+			{name: "InlineLink", value: "[Re-authenticate now](https://attacker.example/login)"},
+			// A link reference definition is not recognized mid-paragraph, so
+			// this shape cannot form an anchor in the body helper's position.
+			{name: "ReferenceLink", value: "[Re-auth][1]\n\n[1]: https://attacker.example", inertRaw: true},
+			{name: "Image", value: "![px](https://tracker.attacker.example/p.gif)"},
+			{name: "AngleAutolink", value: "Eve <https://attacker.example>"},
+			// The notification renderer has autolinking disabled, which is what
+			// neutralizes these two. See TestEscapeMarkdownNoAutolink.
+			{name: "BareURL", value: "Eve https://attacker.example/login", inertRaw: true},
+			{name: "Mailto", value: "Eve mailto:eve@attacker.example", inertRaw: true},
+			{name: "ATXHeading", value: "Eve\n## URGENT"},
+			{name: "SetextH1", value: "URGENT: re-auth required\n===\nx"},
+			{name: "SetextH1Spaced", value: "Eve\n=== \n#### x"},
+			{name: "SetextH1Repeated", value: "Eve\n===\n===\nx"},
+			{name: "SetextH2", value: "Eve\n---\nx"},
+			{name: "ThematicBreak", value: "Eve\n----\nx"},
+			{name: "ThematicBreakStars", value: "Eve\n***\nnext"},
+			{name: "ThematicBreakUnderscores", value: "Eve\n___\nnext"},
+			{name: "ThematicBreakSpacedStars", value: "Eve\n* * *\nnext"},
+			{name: "ThematicBreakSpacedUnderscores", value: "Eve\n_ _ _\nnext"},
+			{name: "BulletList", value: "Eve\n- one\n- two"},
+			{name: "BulletListStar", value: "Eve\n* one\n* two"},
+			{name: "BulletListStarIndented", value: "Eve\n  * one\n  * two"},
+			{name: "OrderedList", value: "Eve\n1. one\n2. two"},
+			{name: "OrderedListMultiDigit", value: "Eve\n99. one\n100. two"},
+			{name: "OrderedListParen", value: "Eve\n1) one\n2) two"},
+			{name: "Blockquote", value: "Eve\n> quoted"},
+			{name: "Table", value: "a | b\n--- | ---\nc | d"},
+			// The safelink policy rejects the scheme, so no anchor forms even
+			// unescaped. See TestEscapeMarkdownNoAutolink/SafelinkRejectsUnsafeSchemes.
+			{name: "JavascriptScheme", value: "[click](javascript:alert(1))", inertRaw: true},
 			// A value that already contains backslashes cannot be used to forge
-			// an escape and re-enable link syntax.
-			{"EscapeForging", `Eve \[Re-auth\](https://attacker.example)`},
+			// an escape and re-enable link syntax. Inert by construction: the
+			// value's own backslashes neutralize it, and the assertion is that
+			// escaping does not re-enable it.
+			{name: "EscapeForging", value: `Eve \[Re-auth\](https://attacker.example)`, inertRaw: true},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -166,14 +184,19 @@ func TestEscapeMarkdown(t *testing.T) {
 				// interrupt the surrounding paragraph, so a marker can look
 				// neutralized with a single break and still open a list or a
 				// thematic break once a blank line precedes it.
+				rawProducedTag := false
 				for _, value := range []string{tc.value, strings.ReplaceAll(tc.value, "\n", "\n\n")} {
 					escaped := EscapeMarkdown(value)
 					html := HTMLFromNotificationMarkdown(body(escaped))
 					plain, err := PlaintextFromMarkdown(body(escaped))
 					require.NoError(t, err)
+					// The same value with escaping removed, which is what shows
+					// whether the assertions below depend on EscapeMarkdown.
+					raw := HTMLFromNotificationMarkdown(body(value))
 
 					for _, tag := range structuralTags {
 						assert.NotContains(t, html, tag, "value %q rendered HTML: %s", value, html)
+						rawProducedTag = rawProducedTag || strings.Contains(raw, tag)
 					}
 					// A backslash in the output is only acceptable if the value
 					// contained one: otherwise a character was escaped that the
@@ -182,6 +205,17 @@ func TestEscapeMarkdown(t *testing.T) {
 						assert.NotContains(t, html, `\`, "value %q leaked a literal backslash into HTML", value)
 						assert.NotContains(t, plain, `\`, "value %q leaked a literal backslash into plaintext", value)
 					}
+				}
+
+				// Without this, a row whose value can never reach a line-start
+				// position passes whether or not EscapeMarkdown runs. That is
+				// how "Eve\n1. one" sat in this table asserting nothing: a list
+				// cannot interrupt a paragraph without a blank line, so the
+				// digit-dot was never in a position to open one.
+				if !tc.inertRaw {
+					assert.True(t, rawProducedTag,
+						"vacuous row: %q produces no structural tag even unescaped, so the assertions above guard nothing; fix the value or set inertRaw with a reason",
+						tc.value)
 				}
 			})
 		}
