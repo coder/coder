@@ -5791,10 +5791,10 @@ func (mr *MockStoreMockRecorder) GetTemplateVersionsByTemplateID(ctx, arg any) *
 }
 
 // GetTemplateVersionsCreatedAfter mocks base method.
-func (m *MockStore) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.TemplateVersion, error) {
+func (m *MockStore) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.GetTemplateVersionsCreatedAfterRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetTemplateVersionsCreatedAfter", ctx, createdAt)
-	ret0, _ := ret[0].([]database.TemplateVersion)
+	ret0, _ := ret[0].([]database.GetTemplateVersionsCreatedAfterRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

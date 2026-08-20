@@ -48,7 +48,20 @@ WHERE
 	job_id = $1;
 
 -- name: GetTemplateVersionsCreatedAfter :many
-SELECT * FROM template_version_with_user AS template_versions WHERE created_at > $1;
+SELECT
+	template_versions.id,
+	template_versions.created_at,
+	template_versions.template_id,
+	template_versions.organization_id,
+	template_versions.job_id,
+	template_versions.source_example_id,
+	template_versions.has_ai_task,
+	COALESCE(terraform_values.script_order_data_source_count, 0)::integer AS script_order_data_source_count,
+	COALESCE(terraform_values.script_order_rule_count, 0)::integer AS script_order_rule_count
+FROM template_version_with_user AS template_versions
+LEFT JOIN template_version_terraform_values AS terraform_values
+	ON terraform_values.template_version_id = template_versions.id
+WHERE template_versions.created_at > $1;
 
 -- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT

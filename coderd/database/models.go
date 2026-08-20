@@ -6120,6 +6120,10 @@ type TemplateVersionTerraformValue struct {
 	CachedModuleFiles uuid.NullUUID   `db:"cached_module_files" json:"cached_module_files"`
 	// What version of the provisioning engine was used to generate the cached plan and module files.
 	ProvisionerdVersion string `db:"provisionerd_version" json:"provisionerd_version"`
+	// Number of coder_script_order data source declarations in the template configuration.
+	ScriptOrderDataSourceCount int32 `db:"script_order_data_source_count" json:"script_order_data_source_count"`
+	// Number of rule blocks across coder_script_order declarations in the template configuration.
+	ScriptOrderRuleCount int32 `db:"script_order_rule_count" json:"script_order_rule_count"`
 }
 
 type TemplateVersionVariable struct {

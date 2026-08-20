@@ -620,9 +620,11 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				Plan:                       startProvision.Plan,
 				ModuleFiles:                initResp.ModuleFiles,
 				// ModuleFileHash will be populated if the file is uploaded async
-				ModuleFilesHash:   []byte{},
-				HasAiTasks:        startProvision.HasAITasks,
-				HasExternalAgents: startProvision.HasExternalAgents,
+				ModuleFilesHash:            []byte{},
+				HasAiTasks:                 startProvision.HasAITasks,
+				HasExternalAgents:          startProvision.HasExternalAgents,
+				ScriptOrderDataSourceCount: startProvision.ScriptOrderDataSourceCount,
+				ScriptOrderRuleCount:       startProvision.ScriptOrderRuleCount,
 			},
 		},
 	}, nil
@@ -679,13 +681,15 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) (
 }
 
 type templateImportProvision struct {
-	Resources             []*sdkproto.Resource
-	Parameters            []*sdkproto.RichParameter
-	ExternalAuthProviders []*sdkproto.ExternalAuthProviderResource
-	Presets               []*sdkproto.Preset
-	Plan                  json.RawMessage
-	HasAITasks            bool
-	HasExternalAgents     bool
+	Resources                  []*sdkproto.Resource
+	Parameters                 []*sdkproto.RichParameter
+	ExternalAuthProviders      []*sdkproto.ExternalAuthProviderResource
+	Presets                    []*sdkproto.Preset
+	Plan                       json.RawMessage
+	HasAITasks                 bool
+	HasExternalAgents          bool
+	ScriptOrderDataSourceCount int32
+	ScriptOrderRuleCount       int32
 }
 
 // Performs a dry-run provision when importing a template.
@@ -747,13 +751,15 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 	}
 
 	return &templateImportProvision{
-		Resources:             graphComplete.Resources,
-		Parameters:            graphComplete.Parameters,
-		ExternalAuthProviders: graphComplete.ExternalAuthProviders,
-		Presets:               graphComplete.Presets,
-		Plan:                  planComplete.Plan,
-		HasAITasks:            graphComplete.HasAiTasks,
-		HasExternalAgents:     graphComplete.HasExternalAgents,
+		Resources:                  graphComplete.Resources,
+		Parameters:                 graphComplete.Parameters,
+		ExternalAuthProviders:      graphComplete.ExternalAuthProviders,
+		Presets:                    graphComplete.Presets,
+		Plan:                       planComplete.Plan,
+		HasAITasks:                 graphComplete.HasAiTasks,
+		HasExternalAgents:          graphComplete.HasExternalAgents,
+		ScriptOrderDataSourceCount: graphComplete.ScriptOrderDataSourceCount,
+		ScriptOrderRuleCount:       graphComplete.ScriptOrderRuleCount,
 	}, nil
 }
 

@@ -2065,7 +2065,9 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		moduleFiles := jobType.TemplateImport.ModuleFiles
 		// If there is a plan, or a module files archive we need to insert a
 		// template_version_terraform_values row.
-		if len(plan) > 0 || len(moduleFiles) > 0 {
+		if len(plan) > 0 || len(moduleFiles) > 0 ||
+			jobType.TemplateImport.ScriptOrderDataSourceCount > 0 ||
+			jobType.TemplateImport.ScriptOrderRuleCount > 0 {
 			// ...but the plan and the module files archive are both optional! So
 			// we need to fallback to a valid JSON object if the plan was omitted.
 			if len(plan) == 0 {
@@ -2124,11 +2126,13 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 			}
 
 			err = db.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
-				JobID:               jobID,
-				UpdatedAt:           now,
-				CachedPlan:          plan,
-				CachedModuleFiles:   fileID,
-				ProvisionerdVersion: s.apiVersion,
+				JobID:                      jobID,
+				UpdatedAt:                  now,
+				CachedPlan:                 plan,
+				CachedModuleFiles:          fileID,
+				ProvisionerdVersion:        s.apiVersion,
+				ScriptOrderDataSourceCount: jobType.TemplateImport.ScriptOrderDataSourceCount,
+				ScriptOrderRuleCount:       jobType.TemplateImport.ScriptOrderRuleCount,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert template version terraform data: %w", err)

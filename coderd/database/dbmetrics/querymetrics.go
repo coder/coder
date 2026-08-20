@@ -3089,7 +3089,7 @@ func (m queryMetricsStore) GetTemplateVersionsByTemplateID(ctx context.Context, 
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.TemplateVersion, error) {
+func (m queryMetricsStore) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.GetTemplateVersionsCreatedAfterRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateVersionsCreatedAfter(ctx, createdAt)
 	m.queryLatencies.WithLabelValues("GetTemplateVersionsCreatedAfter").Observe(time.Since(start).Seconds())

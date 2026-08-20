@@ -13,7 +13,9 @@ INSERT INTO
 		cached_plan,
 		cached_module_files,
 		updated_at,
-	    provisionerd_version
+		provisionerd_version,
+		script_order_data_source_count,
+		script_order_rule_count
 	)
 VALUES
 	(
@@ -21,7 +23,9 @@ VALUES
 		@cached_plan,
 		@cached_module_files,
 		@updated_at,
-		@provisionerd_version
+		@provisionerd_version,
+		@script_order_data_source_count,
+		@script_order_rule_count
 	);
 
 -- name: HasTemplateVersionsUsingCachedModuleFileInOrg :one

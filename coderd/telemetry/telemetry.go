@@ -494,7 +494,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		snapshot.TemplateVersions = make([]TemplateVersion, 0, len(templateVersions))
 		for _, version := range templateVersions {
-			snapshot.TemplateVersions = append(snapshot.TemplateVersions, ConvertTemplateVersion(version))
+			snapshot.TemplateVersions = append(snapshot.TemplateVersions, convertTemplateVersionWithTerraformValues(version))
 		}
 		return nil
 	})
@@ -1538,6 +1538,27 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 	return snapVersion
 }
 
+func convertTemplateVersionWithTerraformValues(version database.GetTemplateVersionsCreatedAfterRow) TemplateVersion {
+	snapVersion := TemplateVersion{
+		ID:                         version.ID,
+		CreatedAt:                  version.CreatedAt,
+		OrganizationID:             version.OrganizationID,
+		JobID:                      version.JobID,
+		ScriptOrderDataSourceCount: version.ScriptOrderDataSourceCount,
+		ScriptOrderRuleCount:       version.ScriptOrderRuleCount,
+	}
+	if version.TemplateID.Valid {
+		snapVersion.TemplateID = &version.TemplateID.UUID
+	}
+	if version.SourceExampleID.Valid {
+		snapVersion.SourceExampleID = &version.SourceExampleID.String
+	}
+	if version.HasAITask.Valid {
+		snapVersion.HasAITask = ptr.Ref(version.HasAITask.Bool)
+	}
+	return snapVersion
+}
+
 func ConvertLicense(license database.License) License {
 	// License is intentionally not anonymized because it's
 	// deployment-wide, and we already have an index of all issued
@@ -1862,13 +1883,15 @@ type Template struct {
 }
 
 type TemplateVersion struct {
-	ID              uuid.UUID  `json:"id"`
-	CreatedAt       time.Time  `json:"created_at"`
-	TemplateID      *uuid.UUID `json:"template_id,omitempty"`
-	OrganizationID  uuid.UUID  `json:"organization_id"`
-	JobID           uuid.UUID  `json:"job_id"`
-	SourceExampleID *string    `json:"source_example_id,omitempty"`
-	HasAITask       *bool      `json:"has_ai_task"`
+	ID                         uuid.UUID  `json:"id"`
+	CreatedAt                  time.Time  `json:"created_at"`
+	TemplateID                 *uuid.UUID `json:"template_id,omitempty"`
+	OrganizationID             uuid.UUID  `json:"organization_id"`
+	JobID                      uuid.UUID  `json:"job_id"`
+	SourceExampleID            *string    `json:"source_example_id,omitempty"`
+	HasAITask                  *bool      `json:"has_ai_task"`
+	ScriptOrderDataSourceCount int32      `json:"script_order_data_source_count"`
+	ScriptOrderRuleCount       int32      `json:"script_order_rule_count"`
 }
 
 type ProvisionerJob struct {

@@ -1663,11 +1663,13 @@ func TemplateVersionTerraformValues(t testing.TB, db database.Store, orig databa
 	}
 
 	params := database.InsertTemplateVersionTerraformValuesByJobIDParams{
-		JobID:               jobID,
-		CachedPlan:          takeFirstSlice(orig.CachedPlan, []byte("{}")),
-		CachedModuleFiles:   orig.CachedModuleFiles,
-		UpdatedAt:           takeFirst(orig.UpdatedAt, dbtime.Now()),
-		ProvisionerdVersion: takeFirst(orig.ProvisionerdVersion, proto.CurrentVersion.String()),
+		JobID:                      jobID,
+		CachedPlan:                 takeFirstSlice(orig.CachedPlan, []byte("{}")),
+		CachedModuleFiles:          orig.CachedModuleFiles,
+		UpdatedAt:                  takeFirst(orig.UpdatedAt, dbtime.Now()),
+		ProvisionerdVersion:        takeFirst(orig.ProvisionerdVersion, proto.CurrentVersion.String()),
+		ScriptOrderDataSourceCount: orig.ScriptOrderDataSourceCount,
+		ScriptOrderRuleCount:       orig.ScriptOrderRuleCount,
 	}
 
 	err := db.InsertTemplateVersionTerraformValuesByJobID(genCtx, params)
