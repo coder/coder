@@ -906,7 +906,7 @@ func ModelFromConfig(
 
 	apiKey := providerKeys.APIKey(provider)
 	if apiKey == "" &&
-		!(ProviderAllowsAmbientCredentials(provider) && providerKeys.HasProvider(provider)) {
+		(!ProviderAllowsAmbientCredentials(provider) || !providerKeys.HasProvider(provider)) {
 		return Model{}, missingProviderAPIKeyError(provider)
 	}
 	baseURL := providerKeys.BaseURL(provider)

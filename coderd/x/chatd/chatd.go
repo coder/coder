@@ -1949,6 +1949,8 @@ var ErrArchiveRequiresRootChat = xerrors.New(
 // Child chats must not be archived independently. ArchiveChat
 // rejects them with [ErrArchiveRequiresRootChat] so callers cannot
 // silently break the parent-implies-child archive invariant.
+//
+//nolint:staticcheck // Receiver name matches the other Server methods in this file.
 func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")

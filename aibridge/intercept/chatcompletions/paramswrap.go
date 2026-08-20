@@ -30,11 +30,11 @@ func (c *ChatCompletionNewParamsWrapper) UnmarshalJSON(raw []byte) error {
 
 	c.Stream = gjson.GetBytes(raw, "stream").Bool()
 	if c.Stream {
-		c.ChatCompletionNewParams.StreamOptions = openai.ChatCompletionStreamOptionsParam{
+		c.StreamOptions = openai.ChatCompletionStreamOptionsParam{
 			IncludeUsage: openai.Bool(true), // Always include usage when streaming.
 		}
 	} else {
-		c.ChatCompletionNewParams.StreamOptions = openai.ChatCompletionStreamOptionsParam{}
+		c.StreamOptions = openai.ChatCompletionStreamOptionsParam{}
 	}
 
 	return nil

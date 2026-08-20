@@ -2282,8 +2282,7 @@ func (q *querier) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteE
 
 func (q *querier) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, func(ctx context.Context, arg database.DeleteExternalAuthLinkParams) (database.ExternalAuthLink, error) {
-		//nolint:gosimple
-		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
+		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams(arg))
 	}, q.db.DeleteExternalAuthLink)(ctx, arg)
 }
 
@@ -9027,7 +9026,7 @@ func (q *querier) UpsertChatTitleGenerationModelOverride(ctx context.Context, va
 	return q.db.UpsertChatTitleGenerationModelOverride(ctx, value)
 }
 
-//nolint:revive // Parameter name matches the generated querier interface.
+//nolint:revive,staticcheck // Parameter name matches the generated querier interface.
 func (q *querier) UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err

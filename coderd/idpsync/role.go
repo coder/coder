@@ -44,7 +44,7 @@ func (AGPLIDPSync) SiteRoleSyncEnabled() bool {
 
 func (s AGPLIDPSync) UpdateRoleSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings RoleSyncSettings) error {
 	orgResolver := s.Manager.OrganizationResolver(db, orgID)
-	err := s.SyncSettings.Role.SetRuntimeValue(ctx, orgResolver, &settings)
+	err := s.Role.SetRuntimeValue(ctx, orgResolver, &settings)
 	if err != nil {
 		return xerrors.Errorf("update role sync settings: %w", err)
 	}

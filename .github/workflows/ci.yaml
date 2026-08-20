@@ -333,7 +333,7 @@ jobs:
         uses: ./.github/actions/pnpm-install
 
       - name: Install Go mise tools
-        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx go:github.com/rhysd/actionlint/cmd/actionlint
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/v2/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx go:github.com/rhysd/actionlint/cmd/actionlint
 
       - name: Get golangci-lint cache dir
         run: |
