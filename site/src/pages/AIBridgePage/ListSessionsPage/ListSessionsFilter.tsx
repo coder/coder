@@ -1,6 +1,6 @@
 import type { FC } from "react";
-import { DateTimeRangeFilter } from "#/components/DateTimeRangeFilter/DateTimeRangeFilter";
-import type { TimeRange } from "#/components/DateTimeRangeFilter/timeRange";
+import { DateTimeRangePicker } from "#/components/DateTimeRangePicker/DateTimeRangePicker";
+import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import {
 	Filter,
 	MenuSkeleton,
@@ -27,9 +27,8 @@ interface ListSessionsFilterProps {
 		client: ClientFilterMenu;
 		model: ModelFilterMenu;
 	};
-	timeRange: TimeRange;
-	defaultTimeRange: TimeRange;
-	onTimeRangeChange: (range: TimeRange) => void;
+	timeRange: DateTimeRangeValue;
+	onTimeRangeChange: (value: DateTimeRangeValue) => void;
 }
 
 export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
@@ -37,7 +36,6 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 	error,
 	menus,
 	timeRange,
-	defaultTimeRange,
 	onTimeRangeChange,
 }) => {
 	return (
@@ -45,24 +43,16 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 			filter={filter}
 			optionsSkeleton={<MenuSkeleton />}
 			isLoading={menus.user.isInitializing}
-			presets={[
-				{
-					name: "All sessions",
-					query: "",
-				},
-				{
-					name: "My sessions",
-					query: "initiator:me",
-				},
-			]}
+			// No preset queries: the dropdown menus and the range picker
+			// already cover them, so the Filters button would be redundant.
+			presets={[]}
 			error={error}
 			options={
 				<>
-					<DateTimeRangeFilter
+					<DateTimeRangePicker
 						value={timeRange}
-						defaultValue={defaultTimeRange}
 						onChange={onTimeRangeChange}
-						width={FILTER_WIDTH}
+						size="lg"
 					/>
 					<UserMenu
 						menu={menus.user}

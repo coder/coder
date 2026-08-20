@@ -2,6 +2,7 @@ import type { FC } from "react";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { paginatedSessions } from "#/api/queries/aiBridge";
+import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { useFilter, useFilterParamsKey } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -59,6 +60,28 @@ const AISessionListPage: FC = () => {
 
 	const explicitTimeRange = parseTimeRange(filter.values);
 	const timeRange = explicitTimeRange ?? defaultRange;
+
+	// The URL stores only resolved timestamps; a preset is display metadata
+	// for the picker trigger. Remember the last committed picker value so the
+	// preset label survives re-renders, but show it only while the URL range
+	// still matches what the preset resolved to. The default window is the 24
+	// hours ending at mount, which is exactly the "Last 24 hours" preset.
+	const [lastPicked, setLastPicked] = useState<DateTimeRangeValue>(() => ({
+		start: defaultRange.startedAfter,
+		end: defaultRange.startedBefore,
+		preset: "last_24h",
+	}));
+	// RFC 3339 serialization truncates to seconds, so ranges that round-trip
+	// through the URL lose sub-second precision. Compare at second precision.
+	const sameSecond = (a: Date, b: Date) =>
+		Math.floor(a.getTime() / 1000) === Math.floor(b.getTime() / 1000);
+	const preset =
+		lastPicked.preset !== undefined &&
+		sameSecond(lastPicked.start, timeRange.startedAfter) &&
+		sameSecond(lastPicked.end, timeRange.startedBefore)
+			? lastPicked.preset
+			: undefined;
+
 	const userMenu = useUserFilterMenu({
 		value: filter.values.initiator,
 		onChange: (option) =>
@@ -118,10 +141,20 @@ const AISessionListPage: FC = () => {
 						client: clientMenu,
 						model: modelMenu,
 					},
-					timeRange,
-					defaultTimeRange: defaultRange,
-					onTimeRangeChange: (range) =>
-						filter.update(queryWithTimeRange(filter.values, range)),
+					timeRange: {
+						start: timeRange.startedAfter,
+						end: timeRange.startedBefore,
+						preset,
+					},
+					onTimeRangeChange: (value) => {
+						setLastPicked(value);
+						filter.update(
+							queryWithTimeRange(filter.values, {
+								startedAfter: value.start,
+								startedBefore: value.end,
+							}),
+						);
+					},
 				}}
 			/>
 		</RequirePermission>
