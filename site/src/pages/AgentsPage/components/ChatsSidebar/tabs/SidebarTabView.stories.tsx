@@ -122,7 +122,7 @@ export const CloseableTabs: Story = {
 				label: "Terminal",
 				content: makePanelContent("Terminal"),
 			},
-			{ id: "debug", label: "Debug", content: makePanelContent("Debug") },
+			{ id: "summary", label: "Summary", content: makePanelContent("Summary") },
 			...Array.from({ length: 8 }, (_, index) => ({
 				id: `terminal-${index + 2}`,
 				label: `Terminal ${index + 2}`,
@@ -184,7 +184,7 @@ export const CloseableTabs: Story = {
 			canvas.queryByRole("button", { name: "Close Terminal tab" }),
 		).not.toBeInTheDocument();
 		expect(
-			canvas.queryByRole("button", { name: "Close Debug tab" }),
+			canvas.queryByRole("button", { name: "Close Summary tab" }),
 		).not.toBeInTheDocument();
 
 		expect(canvas.getByRole("tab", { name: "Terminal 2" })).toHaveAttribute(
