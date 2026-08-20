@@ -88,13 +88,6 @@ export const premiumTestsRequired = Boolean(
 
 export const license = process.env.CODER_E2E_LICENSE ?? "";
 
-/**
- * Enables the premium trial spec test suite. Gates some test functionality like telemetry.
- */
-export const enableTrialSignupTest = Boolean(
-	process.env.CODER_E2E_ENABLE_TRIAL_SIGNUP_TEST,
-);
-
 // Disabling terraform tests is optional for environments without Docker + Terraform.
 // By default, we opt into these tests.
 export const requireTerraformTests = !process.env.CODER_E2E_DISABLE_TERRAFORM;
