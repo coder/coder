@@ -245,9 +245,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										<span
 											className={cn(
 												"block flex-1 truncate text-[13px] text-content-primary",
-												isActive
-													? "font-medium"
-													: "opacity-85 [@media(hover:hover)]:group-hover:opacity-100",
+												!isActive &&
+													"opacity-85 [@media(hover:hover)]:group-hover:opacity-100",
 											)}
 										>
 											{chat.title}
