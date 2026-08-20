@@ -645,6 +645,45 @@ func TestConnectAll_NilRequiredBecomesEmptySlice(t *testing.T) {
 	assert.Equal(t, "[]", string(bs))
 }
 
+// TestConnectAll_NilPropertiesBecomesEmptyMap verifies that a tool
+// whose inputSchema omits "properties" produces an empty map instead
+// of nil.  A nil map serializes to JSON null, which some providers
+// reject as an invalid schema.
+func TestConnectAll_NilPropertiesBecomesEmptyMap(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	// noArgsTool defines a tool that takes no parameters at all.
+	noArgsTool := testTool{
+		tool: &mcp.Tool{
+			Name:        "no_args",
+			Description: "A tool with no parameters",
+			InputSchema: map[string]any{
+				"type": "object",
+			},
+		},
+		handler: func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return textToolResult("ok"), nil
+		},
+	}
+
+	ts := newTestMCPServer(t, noArgsTool)
+	cfg := makeConfig("srv", ts.URL)
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	info := tools[0].Info()
+	require.NotNil(t, info.Parameters, "Parameters should never be nil")
+	assert.Empty(t, info.Parameters, "Parameters should be empty for tools without parameters")
+
+	// Verify it serializes to {} not null.
+	bs, err := json.Marshal(info.Parameters)
+	require.NoError(t, err)
+	assert.Equal(t, "{}", string(bs))
+}
+
 // TestConnectAll_APIKeyAuth verifies that api_key auth sends the
 // configured header and value on every request.
 func TestConnectAll_APIKeyAuth(t *testing.T) {
