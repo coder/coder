@@ -1,6 +1,7 @@
 package prices_test
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
@@ -9,11 +10,13 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/aibridge/prices"
+	"github.com/coder/coder/v2/coderd/aibridge/prices/pricebook"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -184,6 +187,38 @@ func TestSeedFromBytes(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int64(12345), got.InputPrice.Int64)
 		require.Equal(t, int64(67890), got.OutputPrice.Int64)
+	})
+
+	t.Run("RowTagsMatchSQLColumns", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+
+		// The upsert extracts each field from the raw JSON by name, so the
+		// struct tags on pricebook.Row and the query have to agree. Building
+		// the seed from the struct rather than a JSON literal is what makes a
+		// renamed tag fail here: the query would look for a name the seed no
+		// longer carries and write NULL instead. Each price gets a distinct
+		// value so a query that reads the wrong field also fails.
+		var seed bytes.Buffer
+		require.NoError(t, pricebook.Write(&seed, []pricebook.Row{{
+			Provider:        "test-provider",
+			Model:           "tag-contract",
+			InputPrice:      ptr.Ref(int64(11)),
+			OutputPrice:     ptr.Ref(int64(22)),
+			CacheReadPrice:  ptr.Ref(int64(33)),
+			CacheWritePrice: ptr.Ref(int64(44)),
+		}}))
+		require.NoError(t, prices.SeedFromBytes(ctx, db, seed.Bytes()))
+
+		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "test-provider", Model: "tag-contract",
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(11), got.InputPrice.Int64)
+		require.Equal(t, int64(22), got.OutputPrice.Int64)
+		require.Equal(t, int64(33), got.CacheReadPrice.Int64)
+		require.Equal(t, int64(44), got.CacheWritePrice.Int64)
 	})
 
 	t.Run("LeavesCustomPricesUntouched", func(t *testing.T) {
