@@ -359,12 +359,25 @@ const userSkillPath = (user: string, name: string) =>
 	`${userSkillsPath(user)}/${encodeURIComponent(name)}`;
 const userAIProviderKeysPath = (user = "me") =>
 	`/api/experimental/users/${encodeURIComponent(user)}/ai-provider-keys`;
-const mcpServerConfigsPath = "/api/experimental/mcp/servers";
+const mcpServerConfigsPath = (organization: string) =>
+	`/api/experimental/organizations/${encodeURIComponent(organization)}/mcp-servers`;
+const mcpServerConfigPath = (organization: string, id: string) =>
+	`${mcpServerConfigsPath(organization)}/${encodeURIComponent(id)}`;
+export const mcpServerOAuth2ConnectPath = (organization: string, id: string) =>
+	`${mcpServerConfigPath(organization, id)}/oauth2/connect`;
+const mcpServerOAuth2DisconnectPath = (id: string) =>
+	`/api/experimental/mcp/servers/${encodeURIComponent(id)}/oauth2/disconnect`;
 
 type Claims = {
 	license_expires: number;
 	// nbf is a standard JWT claim for "not before" - the license valid from date
 	nbf?: number;
+	// iat is a standard JWT claim for "issued at"; the merged
+	// usage_period.issued_at is stamped from the winning license's iat.
+	iat?: number;
+	// exp is a standard JWT claim for "expires at" (end of grace period);
+	// it stamps usage_period.end, and nbf stamps usage_period.start.
+	exp?: number;
 	account_type?: string;
 	account_id?: string;
 	trial: boolean;
@@ -3471,6 +3484,17 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getAIModelPrices = async (filter: {
+		provider?: string;
+		model?: string;
+	}): Promise<TypesGen.AIModelPrice[]> => {
+		const response = await this.axios.get<TypesGen.AIModelPrice[]>(
+			"/api/experimental/ai/model-prices",
+			{ params: filter },
+		);
+		return response.data;
+	};
+
 	listAIProviders = async (): Promise<TypesGen.AIProvider[]> => {
 		const response = await this.axios.get<TypesGen.AIProvider[]>(
 			aiProviderConfigsPath,
@@ -3888,37 +3912,53 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getMCPServerConfigs = async (): Promise<TypesGen.MCPServerConfig[]> => {
-		const response =
-			await this.axios.get<TypesGen.MCPServerConfig[]>(mcpServerConfigsPath);
+	getMCPServerConfigs = async (
+		organization: string,
+	): Promise<TypesGen.MCPServerConfig[]> => {
+		const response = await this.axios.get<TypesGen.MCPServerConfig[]>(
+			mcpServerConfigsPath(organization),
+		);
+		return response.data;
+	};
+
+	getMCPServerConfig = async (
+		organization: string,
+		id: string,
+	): Promise<TypesGen.MCPServerConfig> => {
+		const response = await this.axios.get<TypesGen.MCPServerConfig>(
+			mcpServerConfigPath(organization, id),
+		);
 		return response.data;
 	};
 
 	createMCPServerConfig = async (
+		organization: string,
 		req: TypesGen.CreateMCPServerConfigRequest,
 	): Promise<TypesGen.MCPServerConfig> => {
 		const response = await this.axios.post<TypesGen.MCPServerConfig>(
-			mcpServerConfigsPath,
+			mcpServerConfigsPath(organization),
 			req,
 		);
 		return response.data;
 	};
 
 	updateMCPServerConfig = async (
+		organization: string,
 		id: string,
 		req: TypesGen.UpdateMCPServerConfigRequest,
 	): Promise<TypesGen.MCPServerConfig> => {
 		const response = await this.axios.patch<TypesGen.MCPServerConfig>(
-			`${mcpServerConfigsPath}/${encodeURIComponent(id)}`,
+			mcpServerConfigPath(organization, id),
 			req,
 		);
 		return response.data;
 	};
 
-	deleteMCPServerConfig = async (id: string): Promise<void> => {
-		await this.axios.delete(
-			`${mcpServerConfigsPath}/${encodeURIComponent(id)}`,
-		);
+	deleteMCPServerConfig = async (
+		organization: string,
+		id: string,
+	): Promise<void> => {
+		await this.axios.delete(mcpServerConfigPath(organization, id));
 	};
 
 	disconnectMCPServerOAuth2 = async (
@@ -3926,7 +3966,7 @@ class ExperimentalApiMethods {
 	): Promise<TypesGen.MCPServerOAuth2DisconnectResponse> => {
 		const response =
 			await this.axios.delete<TypesGen.MCPServerOAuth2DisconnectResponse>(
-				`${mcpServerConfigsPath}/${encodeURIComponent(id)}/oauth2/disconnect`,
+				mcpServerOAuth2DisconnectPath(id),
 			);
 		return response.data;
 	};

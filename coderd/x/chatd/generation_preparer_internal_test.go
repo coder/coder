@@ -9,6 +9,7 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -20,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func mustMarshalText(t *testing.T, parts ...string) pqtype.NullRawMessage {
@@ -521,5 +523,229 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.False(t, result.StatusLabelModel.Valid())
 		require.Empty(t, result.FallbackProvider)
 		require.Empty(t, result.FallbackModel)
+	})
+}
+
+// TestLatestPromptUsage verifies the compaction path reads the last
+// persisted assistant usage, not a cumulative sum across steps.
+// This is the chatd side of AIGOV-585: the issue blamed chatd for
+// summing usage across steps, but latestPromptUsage returns the
+// single most-recent non-zero usage. The real bug was in the
+// aibridge streaming interceptor (fixed in ad100452d4).
+func TestLatestPromptUsage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns last assistant step not a sum", func(t *testing.T) {
+		t.Parallel()
+		// Three-step agentic turn: each step re-sends the whole
+		// conversation, so InputTokens are 5000, 5200, 5400.
+		// A sum would be 15600; the correct answer is 5400.
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hi")),
+			withUsage(dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("step1")), 5000, 0),
+			dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageText("result")),
+			withUsage(dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("step2")), 5200, 0),
+			dbMessage(t, 5, database.ChatMessageRoleTool, false, codersdk.ChatMessageText("result")),
+			withUsage(dbMessage(t, 6, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("step3")), 5400, 0),
+		}
+		usage := latestPromptUsage(messages)
+		assert.Equal(t, int64(5400), usage.InputTokens,
+			"must return the last step's usage, not the sum across steps")
+	})
+
+	t.Run("returns zero when no messages have usage", func(t *testing.T) {
+		t.Parallel()
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hi")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("hi")),
+		}
+		assert.Equal(t, fantasy.Usage{}, latestPromptUsage(messages))
+	})
+
+	t.Run("returns zero for empty message list", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, fantasy.Usage{}, latestPromptUsage(nil))
+	})
+}
+
+// TestShouldCompactPromptUsage verifies the compaction threshold decision
+// is correct for both the inflated values the aibridge bug produced and
+// accurate per-step values.
+func TestShouldCompactPromptUsage(t *testing.T) {
+	t.Parallel()
+
+	const contextLimit = int64(262144) // 256K, as in the poolside report
+
+	t.Run("inflated cumulative usage triggers compaction", func(t *testing.T) {
+		t.Parallel()
+		// 417,012 tokens: what the aibridge cross-chunk sum bug
+		// produced for a ~6,000-token conversation.
+		assert.True(t, shouldCompactPromptUsage(
+			fantasy.Usage{InputTokens: 417012, TotalTokens: 418846},
+			contextLimit, 80))
+	})
+
+	t.Run("correct per-step usage does not trigger", func(t *testing.T) {
+		t.Parallel()
+		assert.False(t, shouldCompactPromptUsage(
+			fantasy.Usage{InputTokens: 6000, TotalTokens: 6030},
+			contextLimit, 80))
+	})
+
+	t.Run("threshold 100 disables compaction", func(t *testing.T) {
+		t.Parallel()
+		assert.False(t, shouldCompactPromptUsage(
+			fantasy.Usage{InputTokens: 500000}, contextLimit, 100))
+	})
+
+	t.Run("zero context limit disables compaction", func(t *testing.T) {
+		t.Parallel()
+		assert.False(t, shouldCompactPromptUsage(
+			fantasy.Usage{InputTokens: 6000}, 0, 80))
+	})
+
+	t.Run("counts cache read and creation tokens", func(t *testing.T) {
+		t.Parallel()
+		usage := fantasy.Usage{
+			InputTokens:         6000,
+			CacheReadTokens:     200000,
+			CacheCreationTokens: 5000,
+		}
+		// 211,000 / 262,144 = ~80.5%
+		assert.True(t, shouldCompactPromptUsage(usage, contextLimit, 80))
+	})
+
+	t.Run("falls back to TotalTokens when granular fields are missing", func(t *testing.T) {
+		t.Parallel()
+		assert.True(t, shouldCompactPromptUsage(
+			fantasy.Usage{TotalTokens: 211000},
+			contextLimit, 80))
+	})
+}
+
+func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
+	t.Parallel()
+
+	newOrgWithConfig := func(t *testing.T, db database.Store) (database.Organization, database.MCPServerConfig) {
+		t.Helper()
+		org := dbgen.Organization(t, db, database.Organization{})
+		cfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: org.ID,
+			Enabled:        true,
+		})
+		return org, cfg
+	}
+
+	t.Run("DefaultOrgConfigExcluded", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		defaultOrg, err := db.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+
+		// Configs resolve only within the chat's organization.
+		chatOrg, chatOrgCfg := newOrgWithConfig(t, db)
+		defaultOrgCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: defaultOrg.ID,
+			Enabled:        true,
+		})
+
+		configs, err := enabledMCPServerConfigsForChatOrg(ctx, db, chatOrg.ID, []uuid.UUID{chatOrgCfg.ID, defaultOrgCfg.ID})
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		require.Equal(t, chatOrgCfg.ID, configs[0].ID)
+	})
+
+	t.Run("ThirdOrgConfigExcluded", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		chatOrg, chatOrgCfg := newOrgWithConfig(t, db)
+		_, foreignCfg := newOrgWithConfig(t, db)
+
+		configs, err := enabledMCPServerConfigsForChatOrg(ctx, db, chatOrg.ID, []uuid.UUID{chatOrgCfg.ID, foreignCfg.ID})
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		require.Equal(t, chatOrgCfg.ID, configs[0].ID)
+	})
+
+	t.Run("DisabledConfigExcluded", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// dbgen.MCPServerConfig defaults Enabled to true, so insert the
+		// disabled config directly.
+		chatOrg := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		disabledCfg, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+			ID:             uuid.New(),
+			OrganizationID: chatOrg.ID,
+			DisplayName:    "Disabled MCP Server",
+			Slug:           testutil.GetRandomName(t),
+			Url:            "https://mcp.example.com",
+			Transport:      "streamable_http",
+			AuthType:       "none",
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+			Availability:   "default_off",
+			Enabled:        false,
+			CreatedBy:      user.ID,
+			UpdatedBy:      user.ID,
+		})
+		require.NoError(t, err)
+
+		configs, err := enabledMCPServerConfigsForChatOrg(ctx, db, chatOrg.ID, []uuid.UUID{disabledCfg.ID})
+		require.NoError(t, err)
+		require.Empty(t, configs)
+	})
+
+	t.Run("DuplicateIDsYieldOneConfigPerUniqueID", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// The ID array may contain duplicates, but the query returns one row
+		// per unique ID ordered by display_name.
+		chatOrg, cfgA := newOrgWithConfig(t, db)
+		cfgB := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: chatOrg.ID,
+			Enabled:        true,
+		})
+
+		// The requested order is the reverse of display_name order to
+		// prove the output ordering comes from the SQL, not the request.
+		requested := []uuid.UUID{cfgB.ID, cfgA.ID, cfgB.ID, cfgA.ID}
+
+		configs, err := enabledMCPServerConfigsForChatOrg(ctx, db, chatOrg.ID, requested)
+		require.NoError(t, err)
+		require.Len(t, configs, 2)
+		gotIDs := []uuid.UUID{configs[0].ID, configs[1].ID}
+		wantOrder := []uuid.UUID{cfgA.ID, cfgB.ID}
+		if cfgA.DisplayName > cfgB.DisplayName {
+			wantOrder = []uuid.UUID{cfgB.ID, cfgA.ID}
+		}
+		require.Equal(t, wantOrder, gotIDs, "output must follow display_name order, not request order")
+	})
+
+	t.Run("ChatOrgWithNoConfigs", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		defaultOrg, err := db.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+
+		chatOrg := dbgen.Organization(t, db, database.Organization{})
+		defaultOrgCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: defaultOrg.ID,
+			Enabled:        true,
+		})
+
+		configs, err := enabledMCPServerConfigsForChatOrg(ctx, db, chatOrg.ID, []uuid.UUID{defaultOrgCfg.ID})
+		require.NoError(t, err)
+		require.Empty(t, configs)
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -55,6 +56,18 @@ const (
 	// defaultRefreshRetryTimeout bounds the total time spent retrying a
 	// transient refresh failure across all attempts.
 	defaultRefreshRetryTimeout = 10 * time.Second
+
+	// defaultRefreshLeaseInitialBackoff is the starting wait between polls to
+	// check whether another replica has finished refreshing.
+	defaultRefreshLeaseInitialBackoff = 50 * time.Millisecond
+
+	// defaultRefreshLeaseMaxBackoff is the maximum wait between polls to check
+	// whether another replica has finished refreshing.
+	defaultRefreshLeaseMaxBackoff = 500 * time.Millisecond
+
+	// externalAuthLinkActiveLeaseConstraint indicates the lease could not be
+	// acquired because something else has an active lease.
+	externalAuthLinkActiveLeaseConstraint database.CheckConstraint = "external_auth_link_active_lease"
 )
 
 // SingleflightGroup exposes a subset of singleflight.Group for easier testing.
@@ -114,6 +127,10 @@ type Config struct {
 	// (e.g., "https://api.github.com" for GitHub). Derived from
 	// defaults when not explicitly configured.
 	APIBaseURL string
+	// If nil, http.DefaultClient is used. The value is read once at
+	// the first successful Git() call; later assignments have no
+	// effect because the provider is memoized.
+	HTTPClient *http.Client
 	// AppInstallURL is for GitHub App's (and hopefully others eventually)
 	// to provide a link to install the app. There's installation
 	// of the application, and user authentication. It's possible
@@ -159,18 +176,48 @@ type Config struct {
 
 	// RefreshGroup deduplicates concurrent requests.
 	RefreshGroup SingleflightGroup
+
+	// RefreshLeaseInitialBackoff is the starting wait between polls to check
+	// whether another replica has finished refreshing.
+	RefreshLeaseInitialBackoff time.Duration
+
+	// RefreshLeaseMaxBackoff is the maximum wait between polls to check whether
+	// another replica has finished refreshing.
+	RefreshLeaseMaxBackoff time.Duration
+
+	gitProviderMu sync.Mutex
+	// gitProvider memoizes the provider so the GitHub ETag response
+	// cache survives across Git calls.
+	gitProvider gitprovider.Provider
 }
 
-// Git returns a Provider for this config if the provider type is a
-// supported git hosting provider. Returns (nil, nil) for non-git
-// providers (e.g. Slack, JFrog). Returns a non-nil error if provider
-// construction fails.
-func (c *Config) Git(client *http.Client) (gitprovider.Provider, error) {
+// Git returns a Provider for this config. It returns (nil, nil) when
+// this config's type has no provider implementation, which covers both
+// non-git types (e.g. Slack, JFrog) and git types that are not
+// implemented yet (bitbucket-*, azure-devops*, gitea). Callers cannot
+// distinguish the two cases from the return values. Returns a non-nil
+// error if provider construction fails.
+//
+// The provider is built on the first successful call and cached for
+// the lifetime of the Config, so its in-memory response cache
+// survives across calls. The provider uses c.HTTPClient for API
+// requests; if c.HTTPClient is nil, http.DefaultClient is used.
+func (c *Config) Git() (gitprovider.Provider, error) {
 	norm := strings.ToLower(c.Type)
 	if !codersdk.EnhancedExternalAuthProvider(norm).Git() {
 		return nil, nil //nolint:nilnil // nil provider means non-git type, not an error
 	}
-	return gitprovider.New(norm, c.APIBaseURL, client)
+	c.gitProviderMu.Lock()
+	defer c.gitProviderMu.Unlock()
+	if c.gitProvider != nil {
+		return c.gitProvider, nil
+	}
+	p, err := gitprovider.New(norm, c.APIBaseURL, c.HTTPClient)
+	if err != nil {
+		return nil, err
+	}
+	c.gitProvider = p
+	return c.gitProvider, nil
 }
 
 // GenerateTokenExtra generates the extra token data to store in the database.
@@ -206,7 +253,15 @@ func IsInvalidTokenError(err error) bool {
 }
 
 // RefreshToken automatically refreshes the token if expired and permitted.
+// Tokens are then validated, whether or not they were refreshed.
 func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
+	// If the token is expired and refresh is disabled, prompt the user to
+	// authenticate manually again.
+	token := externalAuthLink.OAuthToken()
+	if c.NoRefresh && !token.Valid() {
+		return externalAuthLink, InvalidTokenError("token expired and refreshing is disabled")
+	}
+
 	// Prevent parallel refreshes by waiting for the result of any already
 	// in-flight refresh.  Otherwise, the parallel calls will fail with a bad
 	// refresh token error as they can only be used once.
@@ -220,9 +275,24 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		if c.RefreshRetryTimeout > 0 {
 			timeout += c.RefreshRetryTimeout
 		}
-		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 		defer cancel()
-		return c.innerRefreshToken(rctx, db, externalAuthLink)
+
+		// Although TokenSource().Token() will also check if the token is expired,
+		// do so ahead of time here to avoid the overhead of acquiring the lease
+		// when no refresh is required.  Also validate the token under this lock,
+		// since we already have it anyway.
+		if !token.Valid() {
+			return c.refreshAndValidateWithLease(ctx, db, externalAuthLink, timeout)
+		}
+
+		// Validate the token even if we did not refresh.  This is done within the
+		// group but outside the lease, meaning multiple instances may validate at
+		// the same time, but the lock overhead seems greater than the overhead of
+		// occasional concurrent validation, and is not strictly necessary like it
+		// is with refreshing, so avoid the lock when not refreshing.
+		_, err := c.validateWithRetry(ctx, token)
+		return externalAuthLink, err
 	})
 	select {
 	case results := <-ch:
@@ -237,37 +307,100 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	}
 }
 
-func (c *Config) innerRefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
-	// If the token is expired and refresh is disabled, we prompt
-	// the user to authenticate again.
-	if c.NoRefresh &&
-		// If the time is set to 0, then it should never expire.
-		// This is true for github, which has no expiry.
-		!externalAuthLink.OAuthExpiry.IsZero() &&
-		externalAuthLink.OAuthExpiry.Before(dbtime.Now()) {
-		return externalAuthLink, InvalidTokenError("token expired, refreshing is either disabled or refreshing failed and will not be retried")
+// refreshAndValidateWithLease wraps the refresh and subsequent validation with
+// concurrency protection between multiple instances by using a lease column on
+// the link's row.
+func (c *Config) refreshAndValidateWithLease(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink, timeout time.Duration) (newLink database.ExternalAuthLink, refreshErr error) {
+	// There may be other replicas also wanting to refresh; try to get a lease
+	// on the row.  This also ensures we have the latest link.
+	var leasedLink database.ExternalAuthLink
+	initial := defaultRefreshLeaseInitialBackoff
+	if c.RefreshLeaseInitialBackoff > 0 {
+		initial = c.RefreshLeaseInitialBackoff
+	}
+	maximum := defaultRefreshLeaseMaxBackoff
+	if c.RefreshLeaseMaxBackoff > 0 {
+		maximum = c.RefreshLeaseMaxBackoff
+	}
+	r := retry.New(initial, maximum)
+	// Make sure to release the lease if we manage to get one before returning.
+	defer func() {
+		if leasedLink.RefreshLeaseExpiresAt.Valid {
+			refreshErr = errors.Join(refreshErr, db.ReleaseExternalAuthLinkRefreshLease(ctx, database.ReleaseExternalAuthLinkRefreshLeaseParams{
+				ProviderID: externalAuthLink.ProviderID,
+				UserID:     externalAuthLink.UserID,
+				// The row will only update if we hold the current lease.  This is
+				// somewhat redundant since if we lost the lease our context would be
+				// expired anyway, so it is not actually possible to get the sql.ErrNoRows
+				// that would result from this.
+				RefreshLeaseExpiresAt: leasedLink.RefreshLeaseExpiresAt,
+			}))
+		}
+	}()
+	for !leasedLink.RefreshLeaseExpiresAt.Valid {
+		// Acquiring the lease also returns the link, so we can get the expiry date
+		// that the database sets and check to see if it was refreshed in the
+		// meantime.
+		var err error
+		leasedLink, err = db.AcquireExternalAuthLinkRefreshLease(ctx, database.AcquireExternalAuthLinkRefreshLeaseParams{
+			ProviderID: externalAuthLink.ProviderID,
+			UserID:     externalAuthLink.UserID,
+			TimeoutMs:  timeout.Milliseconds(),
+		})
+		switch {
+		// Something still holds the lock; keep waiting.
+		case database.IsCheckViolation(err, externalAuthLinkActiveLeaseConstraint):
+			if !r.Wait(ctx) {
+				return externalAuthLink, ctx.Err()
+			}
+		// Some kind of DB error or the row does not exist.
+		case err != nil:
+			return externalAuthLink, err
+		// Something else refreshed either while we were waiting or before we got a
+		// hold of the lease but after we initially fetched the link.
+		case leasedLink.OAuthRefreshToken != externalAuthLink.OAuthRefreshToken:
+			if leasedLink.OauthRefreshFailureReason != "" {
+				return externalAuthLink, refreshError(leasedLink, leasedLink.OauthRefreshFailureReason)
+			}
+			return leasedLink, nil
+		}
 	}
 
-	refreshToken := externalAuthLink.OAuthRefreshToken
+	// Otherwise the token has still not been updated; refresh it now.
+	newLink, refreshErr = c.refreshAndValidateToken(ctx, db, leasedLink)
+	return newLink, refreshErr
+}
 
-	// This is additional defensive programming. Because TokenSource is an interface,
-	// we cannot be sure that the implementation will treat an 'IsZero' time
-	// as "not-expired". The default implementation does, but a custom implementation
-	// might not. Removing the refreshToken will guarantee a refresh will fail.
+// refreshError converts a failure reason to an error.
+func refreshError(link database.ExternalAuthLink, reason string) error {
+	return InvalidTokenError(fmt.Sprintf("token expired and refreshing failed %s with: %s",
+		// Do not return the exact time, because then we have to know what timezone
+		// the user is in. This approximate time is good enough.
+		humanize.Time(link.UpdatedAt),
+		reason,
+	))
+}
+
+// refreshAndValidateToken does the actual token refresh, persists the result to
+// the database, then validates the token.  The provided link must be up to date
+// with the currently held lease.
+func (c *Config) refreshAndValidateToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
+	existingToken := externalAuthLink.OAuthToken()
+
+	// This is additional defensive programming. Because TokenSource is an
+	// interface, we cannot be sure that the implementation will treat an 'IsZero'
+	// time as "not-expired". The default implementation does, but a custom
+	// implementation might not. Removing the refresh token will guarantee a
+	// refresh will fail.
 	if c.NoRefresh {
-		refreshToken = ""
-	}
-
-	existingToken := &oauth2.Token{
-		AccessToken:  externalAuthLink.OAuthAccessToken,
-		RefreshToken: refreshToken,
-		Expiry:       externalAuthLink.OAuthExpiry,
+		existingToken.RefreshToken = ""
 	}
 
 	// NOTE: TokenSource(...).Token() will short-circuit if the token:
 	// - is not expired (returns original token)
 	// - is expired and has no refresh token (returns error)
-	// This means we will avoid making useless HTTP requests.
+	// This means we will avoid making useless HTTP requests, and only get errors
+	// when an actual refresh attempt is made.
 	//
 	// External providers (GitHub in particular) intermittently fail token
 	// refreshes with transient errors such as 5xx responses, network timeouts,
@@ -278,50 +411,41 @@ func (c *Config) innerRefreshToken(ctx context.Context, db database.Store, exter
 	// will never succeed and retrying wastes the refresh quota.
 	token, err := c.refreshTokenWithRetry(ctx, existingToken)
 	if err != nil {
-		// A refresh attempt can fail for numerous reasons. If it fails because
-		// of a bad refresh token, then the refresh token is invalid, and we
-		// should get rid of it. Keeping it around will cause additional refresh
-		// attempts that will fail and cost us api rate limits.
-		//
-		// The error message is saved for debugging purposes.
+		// A refresh attempt can fail for numerous reasons. If it fails because of a
+		// bad refresh token, then the refresh token is invalid, and we should get
+		// rid of it. Keeping it around will cause additional refresh attempts that
+		// will fail and cost us api rate limits.  Also save the error message for
+		// debugging purposes.
 		if isFailedRefresh(existingToken, err) {
-			// Before caching the failure, re-read the external auth link from the
-			// database. A nearly-concurrent request may have already refreshed the
-			// token successfully, consuming the single-use refresh token (e.g.,
-			// GitHub App tokens). In that case our "bad_refresh_token" error is a
-			// false positive from losing the race, and we should use the winner's
-			// updated token instead of poisoning the database with a cached failure.
-			currentLink, readErr := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
-				ProviderID: externalAuthLink.ProviderID,
-				UserID:     externalAuthLink.UserID,
-			})
-			if readErr == nil && currentLink.OAuthRefreshToken != externalAuthLink.OAuthRefreshToken {
-				return currentLink, nil
-			}
-
 			reason := err.Error()
 			if len(reason) > failureReasonLimit {
 				// Limit the length of the error message to prevent
 				// spamming the database with long error messages.
 				reason = reason[:failureReasonLimit]
 			}
-			dbExecErr := db.UpdateExternalAuthLinkRefreshToken(ctx, database.UpdateExternalAuthLinkRefreshTokenParams{
-				// Adding a reason will prevent further attempts to try and refresh the token.
-				OauthRefreshFailureReason: reason,
-				// Remove the invalid refresh token so it is never used again. The cached
-				// `reason` can be used to know why this field was zeroed out.
+			_, updateErr := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
+				ProviderID: externalAuthLink.ProviderID,
+				UserID:     externalAuthLink.UserID,
+				UpdatedAt:  dbtime.Now(),
+				// Remove the invalid refresh token so it is never used again.
 				OAuthRefreshToken:      "",
-				OAuthRefreshTokenKeyID: externalAuthLink.OAuthRefreshTokenKeyID.String,
-				UpdatedAt:              dbtime.Now(),
-				ProviderID:             externalAuthLink.ProviderID,
-				UserID:                 externalAuthLink.UserID,
-				// Optimistic lock: only clear the token if it hasn't been
-				// updated by a concurrent caller that won the refresh race.
-				OldOauthRefreshToken: externalAuthLink.OAuthRefreshToken,
+				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+				// The cached reason can be used to know why the token was zeroed out.
+				OauthRefreshFailureReason: reason,
+				// Preserve the access token, expiry, and extra info as they are.
+				OAuthAccessToken:      externalAuthLink.OAuthAccessToken,
+				OAuthAccessTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+				OAuthExpiry:           externalAuthLink.OAuthExpiry,
+				OAuthExtra:            externalAuthLink.OAuthExtra,
+				// The row will only update if we hold the current lease.  This is
+				// somewhat redundant since if we lost the lease our context would be
+				// expired anyway, so it is not actually possible to get the
+				// sql.ErrNoRows that would result from this.
+				RefreshLeaseExpiresAt: externalAuthLink.RefreshLeaseExpiresAt,
 			})
-			if dbExecErr != nil {
+			if updateErr != nil {
 				// This error should be rare.
-				return externalAuthLink, InvalidTokenError(fmt.Sprintf("refresh token failed: %q, then removing refresh token failed: %q", err.Error(), dbExecErr.Error()))
+				return externalAuthLink, InvalidTokenError(fmt.Sprintf("refresh token failed: %q, then removing refresh token failed: %q", err.Error(), updateErr.Error()))
 			}
 			// The refresh token was cleared
 			externalAuthLink.OAuthRefreshToken = ""
@@ -339,19 +463,12 @@ func (c *Config) innerRefreshToken(ctx context.Context, db database.Store, exter
 			if externalAuthLink.OauthRefreshFailureReason != "" {
 				// A cached refresh failure error exists. So the refresh token was set, but was invalid, and zeroed out.
 				// Return this cached error for the original refresh attempt.
-				return externalAuthLink, InvalidTokenError(fmt.Sprintf("token expired and refreshing failed %s with: %s",
-					// Do not return the exact time, because then we have to know what timezone the
-					// user is in. This approximate time is good enough.
-					humanize.Time(externalAuthLink.UpdatedAt),
-					externalAuthLink.OauthRefreshFailureReason,
-				))
+				return externalAuthLink, refreshError(externalAuthLink, externalAuthLink.OauthRefreshFailureReason)
 			}
 
-			return externalAuthLink, InvalidTokenError("token expired, refreshing is either disabled or refreshing failed and will not be retried")
+			return externalAuthLink, InvalidTokenError("token expired, refreshing failed and will not be retried")
 		}
 
-		// Non-expired tokens are short-circuited as noted above; reaching here
-		// means refresh failed.
 		return externalAuthLink, InvalidTokenError(fmt.Sprintf("refresh token: %s", err.Error()))
 	}
 
@@ -360,71 +477,53 @@ func (c *Config) innerRefreshToken(ctx context.Context, db database.Store, exter
 		return externalAuthLink, xerrors.Errorf("generate token extra: %w", err)
 	}
 
-	// Persist the refreshed token to the DB before validation. GitHub
-	// rotates refresh tokens on every use, so the old refresh token is
-	// already invalid on the IDP side. If we validated first and the
-	// validation endpoint was unavailable (e.g. rate-limited 403), the
-	// new token would be silently lost and the user would be forced to
-	// re-authenticate manually.
-	originalAccessToken := externalAuthLink.OAuthAccessToken
-	if token.AccessToken != originalAccessToken {
-		updatedAuthLink, err := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-			ProviderID:             c.ID,
-			UserID:                 externalAuthLink.UserID,
-			UpdatedAt:              dbtime.Now(),
-			OAuthAccessToken:       token.AccessToken,
-			OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
-			OAuthRefreshToken:      token.RefreshToken,
-			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
-			OAuthExpiry:            token.Expiry,
-			OAuthExtra:             extra,
-		})
-		if err != nil {
-			return updatedAuthLink, xerrors.Errorf("persist refreshed token: %w", err)
-		}
-		externalAuthLink = updatedAuthLink
-	}
-
-	r := retry.New(50*time.Millisecond, 200*time.Millisecond)
-	// See the comment below why the retry and cancel is required.
-	retryCtx, retryCtxCancel := context.WithTimeout(ctx, time.Second)
-	defer retryCtxCancel()
-validate:
-	valid, user, err := c.ValidateToken(ctx, token)
+	// Persist the refreshed token to the DB before validation. GitHub rotates
+	// refresh tokens on every use, so the old refresh token is already invalid on
+	// the IDP side. If we validated first and the validation endpoint was
+	// unavailable (e.g. rate-limited 403), the new token would be silently lost
+	// and the user would be forced to re-authenticate manually.
+	updatedAuthLink, err := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
+		ProviderID:             externalAuthLink.ProviderID,
+		UserID:                 externalAuthLink.UserID,
+		UpdatedAt:              dbtime.Now(),
+		OAuthAccessToken:       token.AccessToken,
+		OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
+		OAuthRefreshToken:      token.RefreshToken,
+		OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+		OAuthExpiry:            token.Expiry,
+		OAuthExtra:             extra,
+		// If there was any failure before, we can clear it now.
+		OauthRefreshFailureReason: "",
+		// The row will only update if we hold the current lease.  This is somewhat
+		// redundant since if we lost the lease our context would be expired anyway,
+		// so it is not actually possible to get the sql.ErrNoRows that would result
+		// from this.
+		RefreshLeaseExpiresAt: externalAuthLink.RefreshLeaseExpiresAt,
+	})
 	if err != nil {
-		return externalAuthLink, xerrors.Errorf("validate external auth token: %w", err)
-	}
-	if !valid {
-		// A customer using GitHub in Australia reported that validating immediately
-		// after refreshing the token would intermittently fail with a 401. Waiting
-		// a few milliseconds with the exact same token on the exact same request
-		// would resolve the issue. It seems likely that the write is not propagating
-		// to the read replica in time.
-		//
-		// We do an exponential backoff here to give the write time to propagate.
-		if c.Type == string(codersdk.EnhancedExternalAuthProviderGitHub) && r.Wait(retryCtx) {
-			goto validate
-		}
-		// The token is no longer valid!
-		return externalAuthLink, InvalidTokenError("token failed to validate")
+		return updatedAuthLink, xerrors.Errorf("persist refreshed token: %w", err)
 	}
 
-	// Update the associated user's github.com user ID if the token
-	// is for github.com and validation returned user info.
-	if token.AccessToken != originalAccessToken && IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
+	user, err := c.validateWithRetry(ctx, token)
+	if err != nil {
+		return updatedAuthLink, err
+	}
+
+	// Update the associated user's github.com user ID if the token is for
+	// github.com and validation returned user info.
+	if IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
 		err = db.UpdateUserGithubComUserID(ctx, database.UpdateUserGithubComUserIDParams{
-			ID: externalAuthLink.UserID,
+			ID: updatedAuthLink.UserID,
 			GithubComUserID: sql.NullInt64{
 				Int64: user.ID,
 				Valid: true,
 			},
 		})
 		if err != nil {
-			return externalAuthLink, xerrors.Errorf("update user github com user id: %w", err)
+			return updatedAuthLink, xerrors.Errorf("update user github com user id: %w", err)
 		}
 	}
-
-	return externalAuthLink, nil
+	return updatedAuthLink, nil
 }
 
 // refreshTokenWithRetry exchanges the refresh token for a new access token,
@@ -463,12 +562,8 @@ func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth
 	defer retryCancel()
 	backoff := retry.New(initial, maximum)
 
-	var (
-		token *oauth2.Token
-		err   error
-	)
 	for {
-		token, err = c.TokenSource(ctx, existingToken).Token()
+		token, err := c.TokenSource(ctx, existingToken).Token()
 		if err == nil || isFailedRefresh(existingToken, err) {
 			return token, err
 		}
@@ -486,17 +581,48 @@ func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth
 	}
 }
 
+// validateWithRetry validates the provided link, retrying on failure.  On
+// success return the user info.
+func (c *Config) validateWithRetry(ctx context.Context, token *oauth2.Token) (*codersdk.ExternalAuthUser, error) {
+	r := retry.New(50*time.Millisecond, 200*time.Millisecond)
+	// See the comment below why the retry and cancel is required.
+	retryCtx, retryCtxCancel := context.WithTimeout(ctx, time.Second)
+	defer retryCtxCancel()
+
+validate:
+	valid, user, err := c.ValidateToken(ctx, token)
+	if err != nil {
+		return nil, xerrors.Errorf("validate external auth token: %w", err)
+	}
+	if !valid {
+		// A customer using GitHub in Australia reported that validating immediately
+		// after refreshing the token would intermittently fail with a 401. Waiting
+		// a few milliseconds with the exact same token on the exact same request
+		// would resolve the issue. It seems likely that the write is not propagating
+		// to the read replica in time.
+		//
+		// We do an exponential backoff here to give the write time to propagate.
+		if c.Type == string(codersdk.EnhancedExternalAuthProviderGitHub) && r.Wait(retryCtx) {
+			goto validate
+		}
+		// The token is no longer valid!
+		return nil, InvalidTokenError("token failed to validate")
+	}
+
+	return user, nil
+}
+
 // ValidateToken checks if the Git token provided is valid.
 // The user is optionally returned if the provider supports it.
 // Returns valid=true when: the provider confirmed the token,
 // no ValidateURL is configured, or the validation endpoint
 // returned a rate-limited response (403 with rate-limit headers
 // or 429).
-func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *codersdk.ExternalAuthUser, error) {
-	if link == nil {
+func (c *Config) ValidateToken(ctx context.Context, token *oauth2.Token) (bool, *codersdk.ExternalAuthUser, error) {
+	if token == nil {
 		return false, nil, xerrors.New("validate external auth token: token is nil")
 	}
-	if !link.Expiry.IsZero() && link.Expiry.Before(dbtime.Now()) {
+	if !token.Valid() {
 		return false, nil, nil
 	}
 
@@ -509,7 +635,7 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		return false, nil, err
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", link.AccessToken))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
 	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceValidateToken, req)
 	if err != nil {
 		return false, nil, err
@@ -912,7 +1038,8 @@ func (c *DeviceAuth) formatDeviceCodeURL() (string, error) {
 
 // ConvertConfig converts the SDK configuration entry format
 // to the parsed and ready-to-consume in coderd provider type.
-func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
+// If httpClient is nil, http.DefaultClient is used.
+func ConvertConfig(ctx context.Context, logger slog.Logger, instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL, httpClient *http.Client) ([]*Config, error) {
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
@@ -920,6 +1047,8 @@ func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []
 		// This allows users to very simply state that they type is "GitHub",
 		// apply their client secret and ID, and have the UI appear nicely.
 		applyDefaultsToConfig(&entry)
+
+		logger := logger.Named("externalauth").With(slog.F("provider_id", entry.ID), slog.F("provider_type", entry.Type))
 
 		valid := codersdk.NameValid(entry.ID)
 		if valid != nil {
@@ -938,9 +1067,18 @@ func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []
 		}
 		ids[entry.ID] = struct{}{}
 
-		authRedirect, err := accessURL.Parse(fmt.Sprintf("/external-auth/%s/callback", entry.ID))
+		baseRedirectURL := accessURL
+		if entry.RedirectURL != "" {
+			var err error
+			baseRedirectURL, err = url.Parse(entry.RedirectURL)
+			if err != nil {
+				return nil, xerrors.Errorf("parse redirect url override for external auth provider %q: %w", entry.ID, err)
+			}
+			logger.Warn(ctx, "custom redirect URL used instead of 'access_url', ensure this matches the value configured in your provider")
+		}
+		authRedirect, err := baseRedirectURL.Parse(fmt.Sprintf("/external-auth/%s/callback", entry.ID))
 		if err != nil {
-			return nil, xerrors.Errorf("parse external auth callback url: %w", err)
+			return nil, xerrors.Errorf("parse callback url for external auth provider %q: %w", entry.ID, err)
 		}
 
 		var regex *regexp.Regexp
@@ -996,12 +1134,13 @@ func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []
 
 		cfg := &Config{
 			InstrumentedOAuth2Config:      instrumented,
-			Logger:                        logger.Named("externalauth").With(slog.F("provider_id", entry.ID), slog.F("provider_type", entry.Type)),
+			Logger:                        logger,
 			ID:                            entry.ID,
 			ClientID:                      entry.ClientID,
 			ClientSecret:                  entry.ClientSecret,
 			Regex:                         regex,
 			APIBaseURL:                    entry.APIBaseURL,
+			HTTPClient:                    httpClient,
 			Type:                          entry.Type,
 			NoRefresh:                     entry.NoRefresh,
 			ValidateURL:                   entry.ValidateURL,
@@ -1091,6 +1230,9 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	}
 	if config.ValidateURL == "" {
 		config.ValidateURL = defaults.ValidateURL
+	}
+	if config.RedirectURL == "" {
+		config.RedirectURL = defaults.RedirectURL
 	}
 	if config.RevokeURL == "" {
 		config.RevokeURL = defaults.RevokeURL
@@ -1588,7 +1730,7 @@ func isFailedRefresh(existingToken *oauth2.Token, err error) bool {
 			// previous 403 case caused token destruction on
 			// rate-limited refresh attempts.
 			return true
-		case http.StatusInternalServerError, http.StatusTooManyRequests:
+		case http.StatusInternalServerError, http.StatusTooManyRequests, http.StatusServiceUnavailable:
 			// These do not indicate a failed refresh, but could be a temporary issue.
 			return false
 		}

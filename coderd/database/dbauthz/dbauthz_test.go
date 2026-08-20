@@ -608,6 +608,23 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatWorkerAcquisitionCandidates(gomock.Any(), arg).Return([]database.GetChatWorkerAcquisitionCandidatesRow{row}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns([]database.GetChatWorkerAcquisitionCandidatesRow{row})
 	}))
+	s.Run("CountChatCapacityActiveByPool", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.CountChatCapacityActiveByPoolParams{ExcludeChatID: uuid.New(), StaleSeconds: 30}
+		row := database.CountChatCapacityActiveByPoolRow{ActiveRootCount: 1, ActiveSubagentCount: 2}
+		dbm.EXPECT().CountChatCapacityActiveByPool(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(row)
+	}))
+	s.Run("CountChatCapacityQueuedByPool", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		const staleSeconds = int32(30)
+		row := database.CountChatCapacityQueuedByPoolRow{QueuedRootCount: 3, QueuedSubagentCount: 4}
+		dbm.EXPECT().CountChatCapacityQueuedByPool(gomock.Any(), staleSeconds).Return(row, nil).AnyTimes()
+		check.Args(staleSeconds).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(row)
+	}))
+	s.Run("GetChatQueuedForCapacity", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.GetChatQueuedForCapacityParams{ChatID: uuid.New(), StaleSeconds: 30, RootCapacity: 5, SubagentCapacity: 10}
+		dbm.EXPECT().GetChatQueuedForCapacity(gomock.Any(), arg).Return(true, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(true)
+	}))
 	s.Run("GetChatsByIDsForRunnerSync", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New(), uuid.New()}
 		chat := testutil.Fake(s.T(), faker, database.Chat{ID: ids[0]})
@@ -928,6 +945,7 @@ func (s *MethodTestSuite) TestChats() {
 			ID:             file.ID,
 			Name:           file.Name,
 			Mimetype:       file.Mimetype,
+			SizeBytes:      int64(len(file.Data)),
 			CreatedAt:      file.CreatedAt,
 			OwnerID:        file.OwnerID,
 			OrganizationID: file.OrganizationID,
@@ -1614,54 +1632,84 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().CleanupDeletedMCPServerIDsFromChats(gomock.Any()).Return(nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceChat, policy.ActionUpdate)
 	}))
-	s.Run("DeleteMCPServerConfigByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		id := uuid.New()
-		dbm.EXPECT().DeleteMCPServerConfigByID(gomock.Any(), id).Return(nil).AnyTimes()
-		check.Args(id).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	s.Run("DeleteMCPServerConfigByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
+		dbm.EXPECT().GetMCPServerConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
+		dbm.EXPECT().DeleteMCPServerConfigByID(gomock.Any(), config.ID).Return(nil).AnyTimes()
+		check.Args(config.ID).Asserts(config, policy.ActionDelete)
 	}))
-	s.Run("DeleteMCPServerUserToken", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("DeleteMCPServerUserToken", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.DeleteMCPServerUserTokenParams{
 			MCPServerConfigID: uuid.New(),
 			UserID:            uuid.New(),
 		}
+		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{MCPServerConfigID: arg.MCPServerConfigID, UserID: arg.UserID})
+		dbm.EXPECT().GetMCPServerUserToken(gomock.Any(), database.GetMCPServerUserTokenParams(arg)).Return(token, nil).AnyTimes()
 		dbm.EXPECT().DeleteMCPServerUserToken(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+		check.Args(arg).Asserts(token, policy.ActionUpdatePersonal)
 	}))
-	s.Run("GetEnabledMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
-		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
-		dbm.EXPECT().GetEnabledMCPServerConfigs(gomock.Any()).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.MCPServerConfig{configA, configB})
+	s.Run("DeleteMCPServerUserTokensByConfigID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
+		dbm.EXPECT().GetMCPServerConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
+		dbm.EXPECT().DeleteMCPServerUserTokensByConfigID(gomock.Any(), config.ID).Return(nil).AnyTimes()
+		check.Args(config.ID).Asserts(config, policy.ActionUpdate)
 	}))
-	s.Run("GetForcedMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
-		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
-		dbm.EXPECT().GetForcedMCPServerConfigs(gomock.Any()).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.MCPServerConfig{configA, configB})
+	s.Run("GetEnabledMCPServerConfigsByOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: orgID, Enabled: true})
+		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: orgID, Enabled: true})
+		dbm.EXPECT().GetEnabledMCPServerConfigsByOrganization(gomock.Any(), orgID).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
+		check.Args(orgID).Asserts(configA, policy.ActionRead, configB, policy.ActionRead).OutOfOrder().Returns([]database.MCPServerConfig{configA, configB})
+	}))
+	s.Run("GetForcedMCPServerConfigsByOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: orgID, Availability: "force_on"})
+		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: orgID, Availability: "force_on"})
+		dbm.EXPECT().GetForcedMCPServerConfigsByOrganization(gomock.Any(), orgID).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
+		check.Args(orgID).Asserts(configA, policy.ActionRead, configB, policy.ActionRead).OutOfOrder().Returns([]database.MCPServerConfig{configA, configB})
 	}))
 	s.Run("GetMCPServerConfigByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
 		dbm.EXPECT().GetMCPServerConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
-		check.Args(config.ID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(config)
+		check.Args(config.ID).Asserts(config, policy.ActionRead).Returns(config)
 	}))
-	s.Run("GetMCPServerConfigBySlug", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		slug := "test-mcp-server"
-		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{Slug: slug})
-		dbm.EXPECT().GetMCPServerConfigBySlug(gomock.Any(), slug).Return(config, nil).AnyTimes()
-		check.Args(slug).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(config)
+	s.Run("GetMCPServerConfigByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
+		dbm.EXPECT().GetMCPServerConfigByIDForUpdate(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
+		check.Args(config.ID).Asserts(config, policy.ActionRead).Returns(config)
 	}))
-	s.Run("GetMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
-		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
-		dbm.EXPECT().GetMCPServerConfigs(gomock.Any()).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.MCPServerConfig{configA, configB})
+	s.Run("GetMCPServerConfigByOrganizationAndSlug", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.GetMCPServerConfigByOrganizationAndSlugParams{
+			OrganizationID: uuid.New(),
+			Slug:           "test-mcp-server",
+		}
+		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: arg.OrganizationID, Slug: arg.Slug})
+		dbm.EXPECT().GetMCPServerConfigByOrganizationAndSlug(gomock.Any(), arg).Return(config, nil).AnyTimes()
+		check.Args(arg).Asserts(config, policy.ActionRead).Returns(config)
 	}))
-	s.Run("GetMCPServerConfigsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
-		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
-		ids := []uuid.UUID{configA.ID, configB.ID}
-		dbm.EXPECT().GetMCPServerConfigsByIDs(gomock.Any(), ids).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
-		check.Args(ids).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.MCPServerConfig{configA, configB})
+	s.Run("GetMCPServerConfigsByOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: orgID})
+		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: orgID})
+		dbm.EXPECT().GetAuthorizedMCPServerConfigs(gomock.Any(), orgID, gomock.Any()).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
+		check.Args(orgID).Asserts().Returns([]database.MCPServerConfig{configA, configB})
+	}))
+	s.Run("GetAuthorizedMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: orgID})
+		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: orgID})
+		dbm.EXPECT().GetAuthorizedMCPServerConfigs(gomock.Any(), orgID, gomock.Any()).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
+		check.Args(orgID, emptyPreparedAuthorized{}).Asserts().Returns([]database.MCPServerConfig{configA, configB})
+	}))
+	s.Run("GetEnabledMCPServerConfigsByOrganizationAndIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams{
+			OrganizationID: uuid.New(),
+			IDs:            []uuid.UUID{uuid.New(), uuid.New()},
+		}
+		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{ID: arg.IDs[0], OrganizationID: arg.OrganizationID})
+		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{ID: arg.IDs[1], OrganizationID: arg.OrganizationID})
+		dbm.EXPECT().GetEnabledMCPServerConfigsByOrganizationAndIDs(gomock.Any(), arg).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
+		check.Args(arg).Asserts(configA, policy.ActionRead, configB, policy.ActionRead).OutOfOrder().Returns([]database.MCPServerConfig{configA, configB})
 	}))
 	s.Run("GetMCPServerUserToken", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.GetMCPServerUserTokenParams{
@@ -1670,22 +1718,37 @@ func (s *MethodTestSuite) TestChats() {
 		}
 		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{MCPServerConfigID: arg.MCPServerConfigID, UserID: arg.UserID})
 		dbm.EXPECT().GetMCPServerUserToken(gomock.Any(), arg).Return(token, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(token)
+		check.Args(arg).Asserts(token, policy.ActionReadPersonal).Returns(token)
+	}))
+	s.Run("GetMCPServerUserTokenByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{})
+		dbm.EXPECT().GetMCPServerUserTokenByID(gomock.Any(), token.ID).Return(token, nil).AnyTimes()
+		check.Args(token.ID).Asserts(token, policy.ActionReadPersonal).Returns(token)
 	}))
 	s.Run("GetMCPServerUserTokensByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		userID := uuid.New()
-		tokens := []database.MCPServerUserToken{testutil.Fake(s.T(), faker, database.MCPServerUserToken{UserID: userID})}
-		dbm.EXPECT().GetMCPServerUserTokensByUserID(gomock.Any(), userID).Return(tokens, nil).AnyTimes()
-		check.Args(userID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(tokens)
+		tokenA := testutil.Fake(s.T(), faker, database.MCPServerUserToken{UserID: userID})
+		tokenB := testutil.Fake(s.T(), faker, database.MCPServerUserToken{UserID: userID})
+		dbm.EXPECT().GetMCPServerUserTokensByUserID(gomock.Any(), userID).Return([]database.MCPServerUserToken{tokenA, tokenB}, nil).AnyTimes()
+		check.Args(userID).Asserts(tokenA, policy.ActionReadPersonal, tokenB, policy.ActionReadPersonal).OutOfOrder().Returns([]database.MCPServerUserToken{tokenA, tokenB})
 	}))
 	s.Run("InsertMCPServerConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.InsertMCPServerConfigParams{
-			DisplayName: "Test MCP Server",
-			Slug:        "test-mcp-server",
+			ID:             uuid.New(),
+			OrganizationID: uuid.New(),
+			DisplayName:    "Test MCP Server",
+			Slug:           "test-mcp-server",
 		}
-		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{DisplayName: arg.DisplayName, Slug: arg.Slug})
+		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: arg.OrganizationID, DisplayName: arg.DisplayName, Slug: arg.Slug})
 		dbm.EXPECT().InsertMCPServerConfig(gomock.Any(), arg).Return(config, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(config)
+		check.Args(arg).Asserts(rbac.ResourceMCPServerConfig.InOrg(arg.OrganizationID), policy.ActionCreate).Returns(config)
+	}))
+	s.Run("UpdateMCPServerConfigACLByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
+		arg := database.UpdateMCPServerConfigACLByIDParams{ID: config.ID, UpdatedBy: uuid.New()}
+		dbm.EXPECT().GetMCPServerConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
+		dbm.EXPECT().UpdateMCPServerConfigACLByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(config, policy.ActionShare)
 	}))
 	s.Run("UpdateChatMCPServerIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
@@ -1736,8 +1799,9 @@ func (s *MethodTestSuite) TestChats() {
 			DisplayName: "Updated MCP Server",
 			Slug:        "updated-mcp-server",
 		}
+		dbm.EXPECT().GetMCPServerConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
 		dbm.EXPECT().UpdateMCPServerConfig(gomock.Any(), arg).Return(config, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(config)
+		check.Args(arg).Asserts(config, policy.ActionUpdate).Returns(config)
 	}))
 	s.Run("UpdateMCPServerUserTokenFromRefresh", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{})
@@ -1747,8 +1811,9 @@ func (s *MethodTestSuite) TestChats() {
 			AccessToken: "refreshed-access-token",
 			TokenType:   "bearer",
 		}
+		dbm.EXPECT().GetMCPServerUserTokenByID(gomock.Any(), token.ID).Return(token, nil).AnyTimes()
 		dbm.EXPECT().UpdateMCPServerUserTokenFromRefresh(gomock.Any(), arg).Return(token, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(token)
+		check.Args(arg).Asserts(token, policy.ActionUpdatePersonal).Returns(token)
 	}))
 	s.Run("UpsertMCPServerUserToken", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.UpsertMCPServerUserTokenParams{
@@ -1759,7 +1824,7 @@ func (s *MethodTestSuite) TestChats() {
 		}
 		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{MCPServerConfigID: arg.MCPServerConfigID, UserID: arg.UserID})
 		dbm.EXPECT().UpsertMCPServerUserToken(gomock.Any(), arg).Return(token, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(token)
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal).Returns(token)
 	}))
 	s.Run("MarkMCPServerUserTokenRefreshFailure", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		token := testutil.Fake(s.T(), faker, database.MCPServerUserToken{})
@@ -1768,8 +1833,9 @@ func (s *MethodTestSuite) TestChats() {
 			UpdatedAt:                 token.UpdatedAt,
 			OauthRefreshFailureReason: "invalid_grant",
 		}
+		dbm.EXPECT().GetMCPServerUserTokenByID(gomock.Any(), token.ID).Return(token, nil).AnyTimes()
 		dbm.EXPECT().MarkMCPServerUserTokenRefreshFailure(gomock.Any(), arg).Return(token, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(token)
+		check.Args(arg).Asserts(token, policy.ActionUpdatePersonal).Returns(token)
 	}))
 }
 
@@ -3195,19 +3261,29 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().InsertExternalAuthLink(gomock.Any(), arg).Return(database.ExternalAuthLink{}, nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal)
 	}))
-	s.Run("UpdateExternalAuthLinkRefreshToken", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		link := testutil.Fake(s.T(), faker, database.ExternalAuthLink{})
-		arg := database.UpdateExternalAuthLinkRefreshTokenParams{OAuthRefreshToken: "", OAuthRefreshTokenKeyID: "", ProviderID: link.ProviderID, UserID: link.UserID, UpdatedAt: link.UpdatedAt, OldOauthRefreshToken: link.OAuthRefreshToken}
-		dbm.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{ProviderID: link.ProviderID, UserID: link.UserID}).Return(link, nil).AnyTimes()
-		dbm.EXPECT().UpdateExternalAuthLinkRefreshToken(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(link, policy.ActionUpdatePersonal)
-	}))
 	s.Run("UpdateExternalAuthLink", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		link := testutil.Fake(s.T(), faker, database.ExternalAuthLink{})
 		arg := database.UpdateExternalAuthLinkParams{ProviderID: link.ProviderID, UserID: link.UserID, OAuthAccessToken: link.OAuthAccessToken, OAuthRefreshToken: link.OAuthRefreshToken, OAuthExpiry: link.OAuthExpiry, UpdatedAt: link.UpdatedAt}
 		dbm.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{ProviderID: link.ProviderID, UserID: link.UserID}).Return(link, nil).AnyTimes()
 		dbm.EXPECT().UpdateExternalAuthLink(gomock.Any(), arg).Return(link, nil).AnyTimes()
 		check.Args(arg).Asserts(link, policy.ActionUpdatePersonal).Returns(link)
+	}))
+	s.Run("AcquireExternalAuthLinkRefreshLease", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		link := testutil.Fake(s.T(), faker, database.ExternalAuthLink{})
+		dbm.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{ProviderID: link.ProviderID, UserID: link.UserID}).Return(link, nil).AnyTimes()
+		timeout := 10 * time.Second
+		arg := database.AcquireExternalAuthLinkRefreshLeaseParams{ProviderID: link.ProviderID, UserID: link.UserID, TimeoutMs: timeout.Milliseconds()}
+		dbm.EXPECT().AcquireExternalAuthLinkRefreshLease(gomock.Any(), arg).Return(link, nil).AnyTimes()
+		check.Args(arg).Asserts(link, policy.ActionUpdatePersonal).Returns(link)
+	}))
+	s.Run("ReleaseExternalAuthLinkRefreshLease", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		link := testutil.Fake(s.T(), faker, database.ExternalAuthLink{
+			RefreshLeaseExpiresAt: sql.NullTime{Time: dbtime.Now().Add(time.Minute), Valid: true},
+		})
+		dbm.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{ProviderID: link.ProviderID, UserID: link.UserID}).Return(link, nil).AnyTimes()
+		arg := database.ReleaseExternalAuthLinkRefreshLeaseParams{ProviderID: link.ProviderID, UserID: link.UserID, RefreshLeaseExpiresAt: link.RefreshLeaseExpiresAt}
+		dbm.EXPECT().ReleaseExternalAuthLinkRefreshLease(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(link, policy.ActionUpdatePersonal).Returns()
 	}))
 	s.Run("UpdateUserLink", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		link := testutil.Fake(s.T(), faker, database.UserLink{})
@@ -6013,6 +6089,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppCodes() {
 		check.Args(database.InsertOAuth2ProviderAppCodeParams{
 			AppID:  app.ID,
 			UserID: user.ID,
+			Scope:  string(database.ApiKeyScopeCoderAll),
 		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionCreate)
 	}))
 	s.Run("DeleteOAuth2ProviderAppCodeByID", s.Subtest(func(db database.Store, check *expects) {
@@ -6057,6 +6134,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 			AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 			APIKeyID:    key.ID,
 			UserID:      user.ID,
+			Scope:       string(database.ApiKeyScopeCoderAll),
 		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionCreate)
 	}))
 	s.Run("GetOAuth2ProviderAppTokenByPrefix", s.Subtest(func(db database.Store, check *expects) {
@@ -6530,6 +6608,14 @@ func (s *MethodTestSuite) TestUsageEvents() {
 		}).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
 	}))
 
+	s.Run("GetTotalUsageHBAgentRuntimeV1", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().GetTotalUsageHBAgentRuntimeV1(gomock.Any(), gomock.Any()).Return(int64(1), nil)
+		check.Args(database.GetTotalUsageHBAgentRuntimeV1Params{
+			StartTime: time.Time{},
+			EndTime:   time.Time{},
+		}).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
+	}))
+
 	s.Run("ListUsageEventCreatedAtsByTypeSince", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		params := database.ListUsageEventCreatedAtsByTypeSinceParams{
 			EventType: "hb_agent_runtime_v1",
@@ -6847,6 +6933,11 @@ func (s *MethodTestSuite) TestAIBridge() {
 	s.Run("GetAIModelPriceByProviderModel", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).Return(database.AIModelPrice{}, nil).AnyTimes()
 		check.Args(database.GetAIModelPriceByProviderModelParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
+	}))
+
+	s.Run("GetAIModelPrices", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		db.EXPECT().GetAIModelPrices(gomock.Any(), gomock.Any()).Return([]database.AIModelPrice{}, nil).AnyTimes()
+		check.Args(database.GetAIModelPricesParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
 	}))
 
 	s.Run("GetOrganizationGroupsAISpend", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -7531,9 +7622,18 @@ func TestAsChatd(t *testing.T) {
 		err = auth.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceDeploymentConfig)
 		require.Error(t, err, "deployment config update should not be allowed")
 
-		// User read_personal (needed for GetUserChatCustomPrompt).
-		err = auth.Authorize(ctx, actor, policy.ActionReadPersonal, rbac.ResourceUser)
-		require.NoError(t, err, "user read_personal should be allowed")
+		// Pin the complete ResourceUser action set: read_personal (user
+		// chat custom prompts) only. Token refresh persistence uses the
+		// per-user AsChatdTokenOwner subject, so a future site-wide
+		// personal-write grant fails here.
+		for _, action := range rbac.ResourceUser.AvailableActions() {
+			err := auth.Authorize(ctx, actor, action, rbac.ResourceUser)
+			if action == policy.ActionReadPersonal {
+				require.NoError(t, err, "user %s should be allowed", action)
+			} else {
+				require.Error(t, err, "user %s should be denied", action)
+			}
+		}
 	})
 
 	t.Run("DeniedActions", func(t *testing.T) {
@@ -7554,6 +7654,11 @@ func TestAsChatd(t *testing.T) {
 		// Cannot access provisioner daemons.
 		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceProvisionerDaemon)
 		require.Error(t, err, "provisioner daemon read should be denied")
+
+		// Cannot access organizations; MCP server config resolution is
+		// strictly org-scoped and needs no organization reads.
+		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceOrganization)
+		require.Error(t, err, "organization read should be denied")
 	})
 }
 

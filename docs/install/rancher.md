@@ -83,7 +83,7 @@ kubectl create secret generic coder-db-url -n coder \
   --from-literal=url="postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
 ```
 
-> [!Important]
+> [!IMPORTANT]
 > If you're using a managed PostgreSQL service, replace the connection URL with your specific database credentials.
 
 ## Install Coder through the Rancher UI

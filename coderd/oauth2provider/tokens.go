@@ -288,7 +288,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	// The secret must belong to the app identified by the request's
 	// client_id, which is otherwise unauthenticated at this point (it is
 	// parsed straight from the request with no verification). Without this
-	// check, a valid secret for one app could mint a token attributed to a
+	// check, a valid secret for one app could issue a token attributed to a
 	// different app.
 	if dbSecret.AppID != app.ID {
 		return codersdk.OAuth2TokenResponse{}, errBadSecret
@@ -436,6 +436,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			APIKeyID:    newKey.ID,
 			UserID:      dbCode.UserID,
 			Audience:    dbCode.ResourceUri,
+			Scope:       dbCode.Scope,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
@@ -560,6 +561,10 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 			APIKeyID:    newKey.ID,
 			UserID:      dbToken.UserID,
 			Audience:    dbToken.Audience,
+			// RFC 6749 §6: a refresh with no scope parameter is granted the
+			// originally granted scope. Later phases narrow this against
+			// req.Scope; they never widen it.
+			Scope: dbToken.Scope,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert oauth2 refresh token: %w", err)
