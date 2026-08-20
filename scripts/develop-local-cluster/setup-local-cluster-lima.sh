@@ -66,6 +66,7 @@ install_base_packages() {
 		tar
 		unzip
 		vim
+		zstd
 	)
 	local missing=()
 	local package
@@ -230,6 +231,7 @@ install_repo_tools() {
 		pnpm \
 		helm \
 		kind \
+		terraform \
 		protoc \
 		protoc-gen-go \
 		go:storj.io/drpc/cmd/protoc-gen-go-drpc \
@@ -241,6 +243,7 @@ install_repo_tools() {
 	printf 'available: pnpm (%s)\n' "$(pnpm --version)"
 	printf 'available: Helm (%s)\n' "$(helm version --short)"
 	printf 'available: kind (%s)\n' "$(kind version)"
+	printf 'available: Terraform (%s)\n' "$(terraform version -json | jq -r '.terraform_version')"
 	printf 'available: protoc (%s)\n' "$(protoc --version)"
 	printf 'available: protoc-gen-go (%s)\n' "$(protoc-gen-go --version)"
 	printf 'available: protoc-gen-go-drpc\n'
