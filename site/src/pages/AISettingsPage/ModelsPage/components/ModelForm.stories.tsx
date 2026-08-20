@@ -636,9 +636,11 @@ export const CostEstimateDebouncesLivePriceLookup: Story = {
 	},
 };
 
-// On an entitled form the live lookup may override the catalog, so typing
-// into an empty identifier shows the loading placeholder immediately rather
-// than briefly flashing catalog prices before the lookup fires.
+// On an entitled form the live lookup may override the catalog, so
+// committing a catalog model shows the loading placeholder immediately
+// rather than briefly flashing catalog prices before the lookup fires. In
+// add mode the identifier autocomplete only commits the model when an
+// option is selected, so select one instead of typing free text.
 export const CostEstimateShowsLoadingWhileDebouncePending: Story = {
 	args: {
 		selectedProviderState: MockAnthropicProviderState,
@@ -648,12 +650,16 @@ export const CostEstimateShowsLoadingWhileDebouncePending: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			canvas.getByRole("button", { name: /cost estimate/i }),
 		);
 		await userEvent.type(
 			canvas.getByLabelText(/model identifier/i),
-			"claude-haiku-4-5",
+			"claude-haiku",
+		);
+		await userEvent.click(
+			await body.findByRole("option", { name: /claude haiku 4\.5/i }),
 		);
 		await waitForPriceLoading(canvas);
 		// The catalog price must not render while the lookup is pending.
