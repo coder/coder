@@ -171,17 +171,15 @@ export const ApplyCustomRange: Story = {
 		await userEvent.click(
 			screen.getByRole("button", { name: /April 10th, 2026/ }),
 		);
-		// One boundary is not a range yet.
-		expect(applyButton).toBeDisabled();
 		await userEvent.click(
 			screen.getByRole("button", { name: /April 16th, 2026/ }),
 		);
 
-		// Set the To boundary to noon via the meridiem select.
+		// Flip the To meridiem to exercise the select.
 		await userEvent.click(
 			screen.getByRole("combobox", { name: "To AM or PM" }),
 		);
-		await userEvent.click(await screen.findByRole("option", { name: "PM" }));
+		await userEvent.click(await screen.findByRole("option", { name: "AM" }));
 
 		await waitFor(() => {
 			expect(applyButton).toBeEnabled();
@@ -194,6 +192,44 @@ export const ApplyCustomRange: Story = {
 		});
 		expect(
 			canvas.getByRole("button", { name: /April 10-16/ }),
+		).toBeInTheDocument();
+	},
+};
+
+export const SelectSingleDay: Story = {
+	render: function SelectSingleDayStory() {
+		const [value, setValue] = useState<DateTimeRangeValue>(presetValue);
+		return (
+			<DateTimeRangePicker value={value} onChange={setValue} now={fixedNow} />
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+
+		await userEvent.click(
+			await screen.findByRole("radio", { name: "Custom range" }),
+		);
+		await waitFor(() => {
+			expect(screen.getByRole("grid")).toBeInTheDocument();
+		});
+
+		// A single calendar click is a complete one-day range spanning the
+		// default 12:00:00 AM to 11:59:59 PM.
+		await userEvent.click(
+			screen.getByRole("button", { name: /April 10th, 2026/ }),
+		);
+		const applyButton = screen.getByRole("button", { name: "Apply" });
+		await waitFor(() => {
+			expect(applyButton).toBeEnabled();
+		});
+		await userEvent.click(applyButton);
+
+		await waitFor(() => {
+			expect(screen.queryByRole("grid")).toBeNull();
+		});
+		expect(
+			canvas.getByRole("button", { name: /April 10, 12:00 AM - 11:59 PM/ }),
 		).toBeInTheDocument();
 	},
 };

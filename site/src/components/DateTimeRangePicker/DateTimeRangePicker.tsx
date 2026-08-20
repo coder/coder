@@ -59,12 +59,14 @@ interface TimeFieldsState {
 	toTouched: boolean;
 }
 
-const midnightFields = (): TimeFieldsState => ({
+// From defaults to the start of the day and To to the end, so any
+// day-only selection spans the full final day.
+const defaultTimeFields = (): TimeFieldsState => ({
 	from: "12:00:00",
 	fromMeridiem: "AM",
 	fromTouched: false,
-	to: "12:00:00",
-	toMeridiem: "AM",
+	to: "11:59:59",
+	toMeridiem: "PM",
 	toTouched: false,
 });
 
@@ -80,7 +82,8 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	const [open, setOpen] = useState(false);
 	const [customExpanded, setCustomExpanded] = useState(false);
 	const [selection, setSelection] = useState<DayPickerDateRange | undefined>();
-	const [timeFields, setTimeFields] = useState<TimeFieldsState>(midnightFields);
+	const [timeFields, setTimeFields] =
+		useState<TimeFieldsState>(defaultTimeFields);
 	const fromTimeId = useId();
 	const toTimeId = useId();
 	const errorId = useId();
@@ -105,7 +108,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 			} else {
 				setCustomExpanded(false);
 				setSelection(undefined);
-				setTimeFields(midnightFields());
+				setTimeFields(defaultTimeFields());
 			}
 		}
 		setOpen(next);
@@ -151,11 +154,15 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 		selection?.from && parsedFrom
 			? combineDateTime(selection.from, parsedFrom, timeFields.fromMeridiem)
 			: null;
-	// A range needs both boundaries; a single calendar click keeps Apply
-	// disabled instead of silently committing a one-day range.
+	// A lone calendar click is a valid single-day range: the To boundary
+	// falls back to the From day until a second day is picked.
 	const draftEnd =
-		selection?.to && parsedTo
-			? combineDateTime(selection.to, parsedTo, timeFields.toMeridiem)
+		selection?.from && parsedTo
+			? combineDateTime(
+					selection.to ?? selection.from,
+					parsedTo,
+					timeFields.toMeridiem,
+				)
 			: null;
 	const rangeError =
 		draftStart && draftEnd && draftEnd.getTime() <= draftStart.getTime()
