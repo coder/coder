@@ -26,7 +26,7 @@ const (
 )
 
 // ProviderOutcome classifies one ai_providers row, including
-// disabled rows (503 stubs), errored rows (excluded from pool),
+// disabled rows (503 sentinel), errored rows (excluded from pool),
 // and proxy-excluded rows (excluded from proxy routing).
 // Err is set when Status is Error or ProxyExcluded; the build error
 // is already logged at the call site.

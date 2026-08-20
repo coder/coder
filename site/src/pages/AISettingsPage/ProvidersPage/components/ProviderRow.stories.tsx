@@ -125,10 +125,25 @@ export const WithHostnameCollisionWarning: Story = {
 		);
 		await expect(badge).toHaveAttribute("tabIndex", "0");
 
-		// Keyboard activation must not navigate the row.
+		// Keyboard and mouse activation must not navigate the row.
 		badge.focus();
 		await userEvent.keyboard("{Enter}");
 		await userEvent.keyboard(" ");
+		await userEvent.click(badge);
 		await expect(args.onClick).not.toHaveBeenCalled();
+	},
+};
+
+export const EmptyWarnings: Story = {
+	args: {
+		provider: {
+			...MockAIProviderOpenAI,
+			enabled: true,
+			status: { warnings: [] },
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.queryByText(/warning/i)).not.toBeInTheDocument();
 	},
 };

@@ -621,12 +621,12 @@ func aiProviderHostnameWarningFromDB(ctx context.Context, logger slog.Logger, st
 	if host == "" {
 		return nil
 	}
-	allProviders, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{})
+	enabledProviders, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{})
 	if err != nil {
 		logger.Error(ctx, "load AI providers for hostname warnings", slog.Error(err))
 		return nil
 	}
-	namesByHost := buildHostnameCollisionMap(allProviders)
+	namesByHost := buildHostnameCollisionMap(enabledProviders)
 	return aiProviderHostnameWarningFromMap(provider, namesByHost)
 }
 
