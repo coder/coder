@@ -629,11 +629,14 @@ func newMCPTool(
 }
 
 func splitInputSchema(schema any) (map[string]any, []string) {
-	m, ok := schema.(map[string]any)
-	if !ok {
-		return nil, nil
-	}
+	m, _ := schema.(map[string]any)
 	properties, _ := m["properties"].(map[string]any)
+	if properties == nil {
+		// A tool with no parameters has no "properties" object. A nil
+		// map serializes to JSON null, which some providers reject as
+		// an invalid schema, so normalize to an empty object.
+		properties = map[string]any{}
+	}
 	var required []string
 	if rawRequired, ok := m["required"].([]any); ok {
 		for _, r := range rawRequired {
