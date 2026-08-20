@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -96,6 +97,10 @@ type generationDebug struct {
 	HistoryTipMessageID int64
 	TriggerLabel        string
 	ModelConfig         database.ChatModelConfig
+	// MCPConnectSummaries carries per-server MCP connect outcomes
+	// from turn preparation into the debug run summary so slow or
+	// failing servers are visible in the debug UI.
+	MCPConnectSummaries []mcpclient.ConnectSummary
 }
 
 // generationOutcome describes a completed generation outcome.

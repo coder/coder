@@ -436,6 +436,14 @@ export const compactDuration = (ms: number): string => {
 // View-model types for coerced debug payloads.
 // ---------------------------------------------------------------------------
 
+export interface MCPConnectSummaryViewModel {
+	slug: string;
+	outcome: string;
+	durationMs: number | undefined;
+	toolCount: number | undefined;
+	error: string | undefined;
+}
+
 interface RunSummaryViewModel {
 	primaryLabel: string;
 	endpointLabel: string | undefined;
@@ -444,6 +452,7 @@ interface RunSummaryViewModel {
 	stepCount: number | undefined;
 	totalInputTokens: number | undefined;
 	totalOutputTokens: number | undefined;
+	mcpConnect: MCPConnectSummaryViewModel[];
 	warnings: string[];
 }
 
@@ -868,6 +877,32 @@ const extractKnownFields = (
 // Public coercion: run summary.
 // ---------------------------------------------------------------------------
 
+const coerceMCPConnectSummaries = (
+	value: unknown,
+): MCPConnectSummaryViewModel[] => {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	const result: MCPConnectSummaryViewModel[] = [];
+	for (const entry of value) {
+		if (!isRecord(entry)) {
+			continue;
+		}
+		const slug = toOptionalString(entry.slug);
+		if (!slug) {
+			continue;
+		}
+		result.push({
+			slug,
+			outcome: toOptionalString(entry.outcome) ?? "unknown",
+			durationMs: toFiniteNumber(entry.duration_ms),
+			toolCount: toFiniteNumber(entry.tool_count),
+			error: toOptionalString(entry.error),
+		});
+	}
+	return result;
+};
+
 export const coerceRunSummary = (data: unknown): RunSummaryViewModel => {
 	const defaults: RunSummaryViewModel = {
 		primaryLabel: "",
@@ -877,6 +912,7 @@ export const coerceRunSummary = (data: unknown): RunSummaryViewModel => {
 		stepCount: undefined,
 		totalInputTokens: undefined,
 		totalOutputTokens: undefined,
+		mcpConnect: [],
 		warnings: [],
 	};
 	const parsed = deepParse(data);
@@ -923,6 +959,9 @@ export const coerceRunSummary = (data: unknown): RunSummaryViewModel => {
 				"completion_tokens",
 				"completionTokens",
 			),
+		),
+		mcpConnect: coerceMCPConnectSummaries(
+			pickField(parsed, "mcp_connect", "mcpConnect"),
 		),
 		warnings: [],
 	};
