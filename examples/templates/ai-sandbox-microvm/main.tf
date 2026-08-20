@@ -193,10 +193,25 @@ resource "coder_script" "sandbox" {
     log_file=/tmp/coder-agent-sandbox.log
     pid_file=/tmp/coder-agent-sandbox.pid
 
+    # Replace any sandbox left over from a previous boot rather than
+    # adopting it: the old process serves a stale agent binary and stale
+    # mounts, so restarting the workspace must restart the sandbox for
+    # binary updates to take effect. run_on_start executes once per
+    # workspace start, so this cannot kill a sandbox started by this boot.
     if [ -s "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
-      echo "coder agent sandbox is already running with PID $(cat "$pid_file")" >>"$log_file"
-      exit 0
+      old_pid="$(cat "$pid_file")"
+      echo "terminating previous coder agent sandbox with PID $old_pid" >>"$log_file"
+      sudo kill "$old_pid" 2>/dev/null || kill "$old_pid" 2>/dev/null || true
+      for _ in $(seq 1 30); do
+        kill -0 "$old_pid" 2>/dev/null || break
+        sleep 1
+      done
+      if kill -0 "$old_pid" 2>/dev/null; then
+        echo "previous sandbox did not exit after 30s; sending SIGKILL" >>"$log_file"
+        sudo kill -9 "$old_pid" 2>/dev/null || kill -9 "$old_pid" 2>/dev/null || true
+      fi
     fi
+    rm -f "$pid_file"
 
     coder_bin="$(readlink -f /proc/$PPID/exe 2>/dev/null || true)"
     case "$coder_bin" in
