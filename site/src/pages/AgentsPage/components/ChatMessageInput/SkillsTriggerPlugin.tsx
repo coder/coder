@@ -9,18 +9,16 @@ import {
 	KEY_ENTER_COMMAND,
 	KEY_ESCAPE_COMMAND,
 	KEY_TAB_COMMAND,
-	type LexicalEditor,
 	type NodeKey,
 } from "lexical";
 import { useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
 import { parsePersonalSkillTrigger } from "../../utils/personalSkills";
-import type { CaretAnchorRect, SkillMenuItem } from "./SkillsTriggerMenu";
+import type { SkillMenuItem } from "./SkillsTriggerMenu";
 
 export type ActiveSkillsTrigger = {
 	nodeKey: NodeKey;
 	slashOffset: number;
 	query: string;
-	anchorRect: CaretAnchorRect | null;
 };
 
 type DismissedSkillsTrigger = Pick<
@@ -38,68 +36,6 @@ type SkillsTriggerPluginProps = {
 	onSkillSelect: (skill: SkillMenuItem) => void;
 };
 
-const currentCaretRect = (): CaretAnchorRect | null => {
-	const selection = getSelection();
-	if (!selection || selection.rangeCount === 0) {
-		return null;
-	}
-
-	const range = selection.getRangeAt(0);
-	let rect = range.getBoundingClientRect();
-	if ((rect.width === 0 && rect.height === 0) || Number.isNaN(rect.top)) {
-		const fallbackRange = range.cloneRange();
-		if (fallbackRange.startOffset > 0) {
-			fallbackRange.setStart(
-				fallbackRange.startContainer,
-				fallbackRange.startOffset - 1,
-			);
-		}
-		rect = fallbackRange.getBoundingClientRect();
-	}
-
-	if (Number.isNaN(rect.top)) {
-		return null;
-	}
-
-	return {
-		top: rect.top,
-		left: rect.left,
-		height: rect.height,
-	};
-};
-
-// Anchors the menu to the slash character itself so it stays put
-// while the user types the query, instead of following the caret.
-const slashAnchorRect = (
-	editor: LexicalEditor,
-	trigger: Omit<ActiveSkillsTrigger, "anchorRect">,
-): CaretAnchorRect | null => {
-	const element = editor.getElementByKey(trigger.nodeKey);
-	const textNode = element?.firstChild;
-	if (!textNode || textNode.nodeType !== Node.TEXT_NODE) {
-		return null;
-	}
-
-	const textLength = textNode.textContent?.length ?? 0;
-	if (trigger.slashOffset >= textLength) {
-		return null;
-	}
-
-	const range = document.createRange();
-	range.setStart(textNode, trigger.slashOffset);
-	range.setEnd(textNode, trigger.slashOffset + 1);
-	const rect = range.getBoundingClientRect();
-	if ((rect.width === 0 && rect.height === 0) || Number.isNaN(rect.top)) {
-		return null;
-	}
-
-	return {
-		top: rect.top,
-		left: rect.left,
-		height: rect.height,
-	};
-};
-
 const isSameTrigger = (
 	trigger: DismissedSkillsTrigger,
 	dismissedTrigger: DismissedSkillsTrigger | null,
@@ -110,10 +46,7 @@ const isSameTrigger = (
 	);
 };
 
-const activeTriggerFromSelection = (): Omit<
-	ActiveSkillsTrigger,
-	"anchorRect"
-> | null => {
+const activeTriggerFromSelection = (): ActiveSkillsTrigger | null => {
 	const selection = $getSelection();
 	if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
 		return null;
@@ -181,29 +114,12 @@ export const SkillsTriggerPlugin = ({
 			return;
 		}
 
-		onTriggerChange({
-			...trigger,
-			anchorRect: slashAnchorRect(editor, trigger) ?? currentCaretRect(),
-		});
+		onTriggerChange(trigger);
 	});
 
 	useEffect(() => {
 		return editor.registerUpdateListener(() => refreshTrigger());
 	}, [editor]);
-
-	useEffect(() => {
-		return editor.registerRootListener((rootElement, previousRootElement) => {
-			previousRootElement?.removeEventListener("scroll", refreshTrigger);
-			rootElement?.addEventListener("scroll", refreshTrigger, {
-				passive: true,
-			});
-		});
-	}, [editor]);
-
-	useEffect(() => {
-		addEventListener("resize", refreshTrigger);
-		return () => removeEventListener("resize", refreshTrigger);
-	}, []);
 
 	const moveMenuHighlight = useEffectEvent(
 		(event: KeyboardEvent, delta: number) => {

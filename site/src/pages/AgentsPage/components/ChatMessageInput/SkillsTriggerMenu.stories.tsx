@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type ComponentProps, useState } from "react";
-import { expect, fn, userEvent } from "storybook/test";
+import { expect, fn, userEvent, waitFor } from "storybook/test";
 import { filterSkillsByQuery } from "../../utils/personalSkills";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import {
@@ -35,12 +35,29 @@ const mockWorkspaceSkillItems = mockWorkspaceSkills.map((skill) =>
 	createSkillMenuItem("workspace", skill),
 );
 
+// Provides the composer-box element the menu anchors to, since the
+// menu is pinned above its anchor at the anchor's width.
+const MenuStoryHarness = (args: ComponentProps<typeof SkillsTriggerMenu>) => {
+	const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
+	return (
+		<>
+			<div
+				ref={setAnchor}
+				className="mt-64 h-16 w-64 rounded-md border border-border border-solid p-2 text-content-secondary text-sm"
+			>
+				Mock composer
+			</div>
+			<SkillsTriggerMenu {...args} anchor={anchor} />
+		</>
+	);
+};
+
 const meta: Meta<typeof SkillsTriggerMenu> = {
 	title: "components/ChatMessageInput/SkillsTriggerMenu",
 	component: SkillsTriggerMenu,
 	args: {
 		open: true,
-		anchorRect: { top: 120, left: 80, height: 20 },
+		anchor: null,
 		query: "",
 		personalSkills: mockPersonalSkillItems,
 		workspaceSkills: [],
@@ -50,12 +67,10 @@ const meta: Meta<typeof SkillsTriggerMenu> = {
 		onSelect: fn(),
 		onClose: fn(),
 	},
+	render: (args) => <MenuStoryHarness {...args} />,
 	decorators: [
 		(Story) => (
-			<div className="h-80 p-6">
-				<p className="text-content-secondary text-sm">
-					The menu is anchored to a mock caret position.
-				</p>
+			<div className="h-96 p-6">
 				<Story />
 			</div>
 		),
@@ -161,13 +176,16 @@ const SelectionScrollHarness = (
 	args: ComponentProps<typeof SkillsTriggerMenu>,
 ) => {
 	const [selectedIndex, setSelectedIndex] = useState(0);
+	const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
 	return (
 		<>
 			<button type="button" onClick={() => setSelectedIndex(29)}>
 				Highlight last skill
 			</button>
+			<div ref={setAnchor} className="mt-96 h-16 w-96" />
 			<SkillsTriggerMenu
 				{...args}
+				anchor={anchor}
 				selectedIndex={selectedIndex}
 				onSelectedIndexChange={setSelectedIndex}
 			/>
@@ -241,16 +259,25 @@ export const SelectsCommandByClick: Story = {
 	},
 };
 
-// The menu opens above its anchor on desktop, matching the mobile
-// pinned-above-composer placement (CODAGT-956).
-export const OpensAboveAnchor: Story = {
-	args: {
-		anchorRect: { top: 400, left: 80, height: 20 },
-	},
+// The menu opens above its anchor at the anchor's exact width,
+// matching the mobile pinned-above-composer placement (CODAGT-956).
+export const OpensAboveAnchorAtAnchorWidth: Story = {
 	play: async () => {
 		const item = await findVisibleText("/reviewer");
 		const content = item.closest("[data-side]");
 		expect(content).not.toBeNull();
 		expect(content).toHaveAttribute("data-side", "top");
+		const anchorBox = (await findVisibleText("Mock composer")).closest("div");
+		expect(anchorBox).not.toBeNull();
+		if (!anchorBox || !(content instanceof HTMLElement)) return;
+		// The entrance animation scales the content from 95%, so wait
+		// for the settled geometry.
+		await waitFor(() => {
+			const anchorRect = anchorBox.getBoundingClientRect();
+			const contentRect = content.getBoundingClientRect();
+			expect(contentRect.width).toBeCloseTo(anchorRect.width, 0);
+			expect(contentRect.left).toBeCloseTo(anchorRect.left, 0);
+			expect(contentRect.bottom).toBeLessThanOrEqual(anchorRect.top);
+		});
 	},
 };

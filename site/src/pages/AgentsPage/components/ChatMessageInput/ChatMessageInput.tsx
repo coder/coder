@@ -528,6 +528,11 @@ interface ChatMessageInputProps
 	 * composer intercepts it at submit time.
 	 */
 	slashCommands?: readonly ChatSlashCommand[];
+	/**
+	 * Composer box element the skills menu is pinned above and sized
+	 * to match. Falls back to this component's own container.
+	 */
+	skillsMenuAnchor?: HTMLElement | null;
 	"aria-label"?: string;
 }
 
@@ -572,10 +577,7 @@ const isSameSkillsTrigger = (
 	return (
 		a.nodeKey === b.nodeKey &&
 		a.slashOffset === b.slashOffset &&
-		a.query === b.query &&
-		a.anchorRect?.top === b.anchorRect?.top &&
-		a.anchorRect?.left === b.anchorRect?.left &&
-		a.anchorRect?.height === b.anchorRect?.height
+		a.query === b.query
 	);
 };
 
@@ -597,6 +599,7 @@ const ChatMessageInput = ({
 	personalSkillsOverride,
 	workspaceSkills,
 	slashCommands,
+	skillsMenuAnchor,
 	"aria-label": ariaLabel,
 	ref,
 	...props
@@ -622,6 +625,8 @@ const ChatMessageInput = ({
 	const pendingReplacementRef = useRef<string | null>(null);
 	const [skillsTrigger, setSkillsTrigger] =
 		useState<ActiveSkillsTrigger | null>(null);
+	const [containerElement, setContainerElement] =
+		useState<HTMLDivElement | null>(null);
 	const suppressedSkillsTriggerRef = useRef<SkillsTriggerLocation | null>(null);
 	const [skillsMenuSelectedIndex, setSkillsMenuSelectedIndex] = useState(0);
 	const hasSkillsTrigger = Boolean(skillsTrigger);
@@ -935,6 +940,7 @@ const ChatMessageInput = ({
 	return (
 		<LexicalComposer initialConfig={initialConfig} key={remountKey}>
 			<div
+				ref={setContainerElement}
 				className={cn(
 					"grid w-full rounded-md bg-transparent text-base placeholder:text-content-secondary focus-visible:outline-none whitespace-pre-wrap break-words [&>*]:col-start-1 [&>*]:row-start-1",
 					disabled && "cursor-not-allowed opacity-50",
@@ -995,7 +1001,7 @@ const ChatMessageInput = ({
 				{autoFocus && <AutoFocusPlugin />}
 				<SkillsTriggerMenu
 					open={skillsMenuOpen}
-					anchorRect={skillsTrigger?.anchorRect ?? null}
+					anchor={skillsMenuAnchor ?? containerElement}
 					query={skillsSearchQuery}
 					commands={commandMenuItems}
 					personalSkills={personalSkillItems}
