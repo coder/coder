@@ -82,20 +82,16 @@ const CustomRolesPage: FC = () => {
 			<RequirePermission
 				isFeatureVisible={organizationPermissions?.viewOrgRoles ?? false}
 			>
-				<div className="flex flex-row gap-4 items-baseline justify-between">
-					<SettingsHeader
-						actions={
-							<SettingsHeaderDocsLink
-								href={docs("/admin/users/groups-roles")}
-							/>
-						}
-					>
-						<SettingsHeaderTitle>Roles</SettingsHeaderTitle>
-						<SettingsHeaderDescription>
-							Manage roles for this organization.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
-				</div>
+				<SettingsHeader
+					actions={
+						<SettingsHeaderDocsLink href={docs("/admin/users/groups-roles")} />
+					}
+				>
+					<SettingsHeaderTitle>Roles</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Manage roles for this organization.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 
 				<CustomRolesPageView
 					organization={organization}

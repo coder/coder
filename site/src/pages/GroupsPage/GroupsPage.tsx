@@ -113,19 +113,17 @@ const GroupsPage: FC = () => {
 		<div className="w-full max-w-screen-2xl pb-10">
 			{title}
 
-			<div className="flex max-w-full flex-row items-baseline justify-between gap-4">
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/admin/users/groups-roles")} />
-					}
-				>
-					<SettingsHeaderTitle>Groups</SettingsHeaderTitle>
-					<SettingsHeaderDescription>
-						Manage groups for this{" "}
-						{showOrganizations ? "organization" : "deployment"}.
-					</SettingsHeaderDescription>
-				</SettingsHeader>
-			</div>
+			<SettingsHeader
+				actions={
+					<SettingsHeaderDocsLink href={docs("/admin/users/groups-roles")} />
+				}
+			>
+				<SettingsHeaderTitle>Groups</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Manage groups for this{" "}
+					{showOrganizations ? "organization" : "deployment"}.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			<GroupsPageView
 				groups={groupsWithSpend}
