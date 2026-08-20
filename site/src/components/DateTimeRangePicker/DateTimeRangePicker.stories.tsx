@@ -25,6 +25,22 @@ const meta: Meta<typeof DateTimeRangePicker> = {
 		now: fixedNow,
 		onChange: fn(),
 	},
+	// Every story is stateful so committing a selection updates the
+	// trigger the same way it does in the app; onChange still reports
+	// to the actions panel through the fn() spy.
+	render: function StatefulPicker(args) {
+		const [value, setValue] = useState(args.value);
+		return (
+			<DateTimeRangePicker
+				{...args}
+				value={value}
+				onChange={(next) => {
+					args.onChange(next);
+					setValue(next);
+				}}
+			/>
+		);
+	},
 };
 
 export default meta;
@@ -95,13 +111,10 @@ export const OpenShowsOnlyQuickPicks: Story = {
 };
 
 export const SelectQuickPick: Story = {
-	render: function SelectQuickPickStory() {
-		const [value, setValue] = useState<DateTimeRangeValue>(presetValue);
-		return (
-			<DateTimeRangePicker value={value} onChange={setValue} now={fixedNow} />
-		);
+	args: {
+		value: presetValue,
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
 
@@ -112,6 +125,7 @@ export const SelectQuickPick: Story = {
 		await waitFor(() => {
 			expect(screen.queryByRole("radio", { name: "Custom range" })).toBeNull();
 		});
+		expect(args.onChange).toHaveBeenCalledTimes(1);
 		expect(
 			canvas.getByRole("button", { name: /Last hour/ }),
 		).toBeInTheDocument();
@@ -155,11 +169,8 @@ export const CustomRangeExpanded: Story = {
 };
 
 export const ApplyCustomRange: Story = {
-	render: function ApplyCustomRangeStory() {
-		const [value, setValue] = useState<DateTimeRangeValue>(presetValue);
-		return (
-			<DateTimeRangePicker value={value} onChange={setValue} now={fixedNow} />
-		);
+	args: {
+		value: presetValue,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -202,11 +213,8 @@ export const ApplyCustomRange: Story = {
 };
 
 export const SelectSingleDay: Story = {
-	render: function SelectSingleDayStory() {
-		const [value, setValue] = useState<DateTimeRangeValue>(presetValue);
-		return (
-			<DateTimeRangePicker value={value} onChange={setValue} now={fixedNow} />
-		);
+	args: {
+		value: presetValue,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -316,11 +324,8 @@ export const EndBeforeStartShowsError: Story = {
 };
 
 export const CancelDiscardsDraft: Story = {
-	render: function CancelDiscardsDraftStory() {
-		const [value, setValue] = useState<DateTimeRangeValue>(presetValue);
-		return (
-			<DateTimeRangePicker value={value} onChange={setValue} now={fixedNow} />
-		);
+	args: {
+		value: presetValue,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
