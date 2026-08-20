@@ -266,13 +266,10 @@ type ExecuteLocalToolsOptions struct {
 	// UnbilledToolNames lists called tool names excluded from the batch
 	// window. Include deprecated aliases.
 	UnbilledToolNames map[string]bool
-	// OnBatchStart fires immediately before dispatch. Interrupt billing uses
-	// it to avoid charging pre-dispatch cancellations.
-	OnBatchStart func()
 	// OnToolStart fires when each local call begins. Serial calls may start
 	// after concurrent siblings settle, so interrupts bill actual starts and
-	// skip dispatched calls that never run. dispatchIndex identifies the
-	// dispatch-order occurrence.
+	// skip calls that never run. dispatchIndex identifies the dispatch-order
+	// occurrence.
 	OnToolStart func(dispatchIndex int, startedAt time.Time)
 	// OnToolComplete fires concurrently as each local call finishes, before
 	// ordered results publish. Interrupt billing uses the live timestamp;
@@ -599,11 +596,8 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	)
 	if exclusiveViolation {
 		now := clockNow(opts.Clock)
-		for i, tr := range policyResults {
+		for _, tr := range policyResults {
 			recordToolResultTimestamp(&result, tr.ToolCallID, now)
-			if opts.OnToolComplete != nil {
-				opts.OnToolComplete(i, now)
-			}
 			publishToolAttachments(ctx, opts.Logger, tr, now, publishMessagePart)
 			ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
 			ssePart.CreatedAt = &now
@@ -620,9 +614,6 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	}
 
 	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
-	if opts.OnBatchStart != nil {
-		opts.OnBatchStart()
-	}
 	batchStart := clockNow(opts.Clock)
 	// Keep completions by occurrence so duplicate IDs cannot collapse them.
 	orderedCompletions := make([]time.Time, 0, len(localCalls))

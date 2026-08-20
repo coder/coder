@@ -148,37 +148,6 @@ func TestBuffer_ModelInvokedAt(t *testing.T) {
 	require.Zero(t, buffer.ModelInvokedAt(implicit))
 }
 
-func TestBuffer_ToolBatchStartedAt(t *testing.T) {
-	t.Parallel()
-
-	clock := quartz.NewMock(t)
-	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
-	defer buffer.Close()
-
-	key := testEpisodeKey()
-	require.Zero(t, buffer.ToolBatchStartedAt(key), "unknown episode has no batch stamp")
-	require.ErrorIs(t, buffer.StartToolBatch(key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 0, ToolCallID: "call-1"}}), messagepartbuffer.ErrEpisodeNotFound)
-
-	require.NoError(t, buffer.CreateEpisode(key))
-	require.Zero(t, buffer.ToolBatchStartedAt(key), "episode without a tool batch has no batch stamp")
-	clock.Advance(time.Second)
-	require.NoError(t, buffer.StartToolBatch(key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 0, ToolCallID: "call-1"}}))
-	startedAt := buffer.ToolBatchStartedAt(key)
-	require.Equal(t, clock.Now(), startedAt)
-
-	clock.Advance(1500 * time.Millisecond)
-	require.NoError(t, buffer.CloseEpisode(key))
-	require.ErrorIs(t, buffer.StartToolBatch(key, []messagepartbuffer.DispatchedToolCall{{CallIndex: 0, ToolCallID: "call-1"}}), messagepartbuffer.ErrEpisodeClosed)
-	require.Equal(t, startedAt, buffer.ToolBatchStartedAt(key))
-
-	modelOnly := testEpisodeKey()
-	require.NoError(t, buffer.CreateEpisode(modelOnly))
-	require.NoError(t, buffer.StartModelInvocation(modelOnly))
-	clock.Advance(time.Second)
-	require.NoError(t, buffer.CloseEpisode(modelOnly))
-	require.Zero(t, buffer.ToolBatchStartedAt(modelOnly))
-}
-
 func TestBuffer_ToolCompletions(t *testing.T) {
 	t.Parallel()
 
@@ -188,97 +157,60 @@ func TestBuffer_ToolCompletions(t *testing.T) {
 
 	key := testEpisodeKey()
 	require.Nil(t, buffer.ToolCompletions(key), "unknown episode has no completions")
+	require.ErrorIs(t, buffer.RecordToolStart(key, 0, clock.Now()), messagepartbuffer.ErrEpisodeNotFound)
 	require.ErrorIs(t, buffer.RecordToolCompletion(key, 0, clock.Now()), messagepartbuffer.ErrEpisodeNotFound)
 
 	require.NoError(t, buffer.CreateEpisode(key))
-	require.Empty(t, buffer.ToolCompletions(key), "episode without a tool batch has no completions")
-	require.NoError(t, buffer.StartToolBatch(key, []messagepartbuffer.DispatchedToolCall{
-		{CallIndex: 0, ToolCallID: "call-1"},
-		{CallIndex: 1, ToolCallID: "call-dup"},
-		{CallIndex: 2, ToolCallID: "call-dup"},
-	}))
-	require.Equal(t, []messagepartbuffer.ToolCompletion{
-		{CallIndex: 0, ToolCallID: "call-1"},
-		{CallIndex: 1, ToolCallID: "call-dup"},
-		{CallIndex: 2, ToolCallID: "call-dup"},
-	}, buffer.ToolCompletions(key))
+	require.Empty(t, buffer.ToolCompletions(key), "episode without started tools has no completions")
+	require.NoError(t, buffer.RecordToolCompletion(key, 2, clock.Now()))
+	require.Empty(t, buffer.ToolCompletions(key), "completion without a start must be dropped")
+
 	clock.Advance(time.Second)
-	secondDupCompletedAt := clock.Now()
-	require.NoError(t, buffer.RecordToolCompletion(key, 2, secondDupCompletedAt))
+	secondStartedAt := clock.Now()
+	require.NoError(t, buffer.RecordToolStart(key, 2, secondStartedAt))
+	clock.Advance(time.Second)
+	firstStartedAt := clock.Now()
+	require.NoError(t, buffer.RecordToolStart(key, 1, firstStartedAt))
 	require.Equal(t, []messagepartbuffer.ToolCompletion{
-		{CallIndex: 0, ToolCallID: "call-1"},
-		{CallIndex: 1, ToolCallID: "call-dup"},
-		{CallIndex: 2, ToolCallID: "call-dup", CompletedAt: secondDupCompletedAt},
+		{CallIndex: 2, StartedAt: secondStartedAt},
+		{CallIndex: 1, StartedAt: firstStartedAt},
+	}, buffer.ToolCompletions(key))
+
+	clock.Advance(time.Second)
+	require.NoError(t, buffer.RecordToolStart(key, 2, clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(key, -1, clock.Now()))
+	require.Equal(t, []messagepartbuffer.ToolCompletion{
+		{CallIndex: 2, StartedAt: secondStartedAt},
+		{CallIndex: 1, StartedAt: firstStartedAt},
+	}, buffer.ToolCompletions(key), "repeated and invalid starts must not replace or append occurrences")
+
+	clock.Advance(time.Second)
+	secondCompletedAt := clock.Now()
+	require.NoError(t, buffer.RecordToolCompletion(key, 2, secondCompletedAt))
+	require.Equal(t, []messagepartbuffer.ToolCompletion{
+		{CallIndex: 2, StartedAt: secondStartedAt, CompletedAt: secondCompletedAt},
+		{CallIndex: 1, StartedAt: firstStartedAt},
 	}, buffer.ToolCompletions(key))
 	clock.Advance(2 * time.Second)
-	firstDupCompletedAt := clock.Now()
-	require.NoError(t, buffer.RecordToolCompletion(key, 1, firstDupCompletedAt))
+	firstCompletedAt := clock.Now()
+	require.NoError(t, buffer.RecordToolCompletion(key, 1, firstCompletedAt))
 	completions := buffer.ToolCompletions(key)
 	require.Equal(t, []messagepartbuffer.ToolCompletion{
-		{CallIndex: 0, ToolCallID: "call-1"},
-		{CallIndex: 1, ToolCallID: "call-dup", CompletedAt: firstDupCompletedAt},
-		{CallIndex: 2, ToolCallID: "call-dup", CompletedAt: secondDupCompletedAt},
+		{CallIndex: 2, StartedAt: secondStartedAt, CompletedAt: secondCompletedAt},
+		{CallIndex: 1, StartedAt: firstStartedAt, CompletedAt: firstCompletedAt},
 	}, completions)
 
 	completions[0].CompletedAt = clock.Now()
-	require.True(t, buffer.ToolCompletions(key)[0].CompletedAt.IsZero())
+	require.Equal(t, secondCompletedAt, buffer.ToolCompletions(key)[0].CompletedAt)
 
 	clock.Advance(time.Second)
 	unseededAt := clock.Now()
 	require.NoError(t, buffer.RecordToolCompletion(key, 5, unseededAt))
-	require.Len(t, buffer.ToolCompletions(key), 3, "unknown dispatch index must be dropped")
+	require.Len(t, buffer.ToolCompletions(key), 2, "completion without a start must be dropped")
 
 	require.NoError(t, buffer.CloseEpisode(key))
-	require.ErrorIs(t, buffer.RecordToolCompletion(key, 0, clock.Now()), messagepartbuffer.ErrEpisodeClosed)
-	require.True(t, buffer.ToolCompletions(key)[0].CompletedAt.IsZero())
-}
-
-func TestBuffer_RecordToolStart(t *testing.T) {
-	t.Parallel()
-
-	clock := quartz.NewMock(t)
-	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
-	defer buffer.Close()
-
-	key := testEpisodeKey()
-	require.ErrorIs(t, buffer.RecordToolStart(key, 0, clock.Now()), messagepartbuffer.ErrEpisodeNotFound)
-
-	require.NoError(t, buffer.CreateEpisode(key))
-	require.NoError(t, buffer.StartToolBatch(key, []messagepartbuffer.DispatchedToolCall{
-		{CallIndex: 0, ToolCallID: "call-1"},
-		{CallIndex: 1, ToolCallID: "call-dup"},
-		{CallIndex: 2, ToolCallID: "call-dup"},
-	}))
-	for _, completion := range buffer.ToolCompletions(key) {
-		require.True(t, completion.StartedAt.IsZero(), "seeding must not mark occurrences as started")
-	}
-
-	clock.Advance(time.Second)
-	secondDupStartedAt := clock.Now()
-	require.NoError(t, buffer.RecordToolStart(key, 2, secondDupStartedAt))
-	require.Equal(t, []messagepartbuffer.ToolCompletion{
-		{CallIndex: 0, ToolCallID: "call-1"},
-		{CallIndex: 1, ToolCallID: "call-dup"},
-		{CallIndex: 2, ToolCallID: "call-dup", StartedAt: secondDupStartedAt},
-	}, buffer.ToolCompletions(key))
-
-	clock.Advance(time.Second)
-	require.NoError(t, buffer.RecordToolStart(key, 7, clock.Now()))
-	require.True(t, buffer.ToolCompletions(key)[1].StartedAt.IsZero(), "unknown dispatch index must be dropped")
-
-	clock.Advance(time.Second)
-	firstDupStartedAt := clock.Now()
-	require.NoError(t, buffer.RecordToolStart(key, 1, firstDupStartedAt))
-	require.Equal(t, firstDupStartedAt, buffer.ToolCompletions(key)[1].StartedAt)
-
-	require.NoError(t, buffer.RecordToolStart(key, 9, clock.Now()))
-	require.Len(t, buffer.ToolCompletions(key), 3)
-
-	completions := buffer.ToolCompletions(key)
-	require.NoError(t, buffer.CloseEpisode(key))
-	require.Equal(t, secondDupStartedAt, completions[2].StartedAt)
 	require.ErrorIs(t, buffer.RecordToolStart(key, 0, clock.Now()), messagepartbuffer.ErrEpisodeClosed)
-	require.True(t, buffer.ToolCompletions(key)[0].StartedAt.IsZero())
+	require.ErrorIs(t, buffer.RecordToolCompletion(key, 0, clock.Now()), messagepartbuffer.ErrEpisodeClosed)
 }
 
 func TestBuffer_SubscribeExistingReplaysThenStreamsLiveParts(t *testing.T) {

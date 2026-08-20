@@ -252,19 +252,17 @@ type interruptEpisodeSnapshot struct {
 }
 
 type interruptEpisodeBilling struct {
-	interruptedAt      time.Time
-	modelInvokedAt     time.Time
-	toolBatchStartedAt time.Time
-	toolCompletions    []messagepartbuffer.ToolCompletion
+	interruptedAt   time.Time
+	modelInvokedAt  time.Time
+	toolCompletions []messagepartbuffer.ToolCompletion
 }
 
 // closeInterruptEpisode snapshots billing, closes the episode, and returns its
 // buffered parts. Unknown episodes close blank so interruption converges.
 func (s *taskStarter) closeInterruptEpisode(ctx context.Context, key messagepartbuffer.Key) (interruptEpisodeBilling, []messagepartbuffer.Part, error) {
 	billing := interruptEpisodeBilling{
-		modelInvokedAt:     s.opts.MessagePartBuffer.ModelInvokedAt(key),
-		toolBatchStartedAt: s.opts.MessagePartBuffer.ToolBatchStartedAt(key),
-		toolCompletions:    s.opts.MessagePartBuffer.ToolCompletions(key),
+		modelInvokedAt:  s.opts.MessagePartBuffer.ModelInvokedAt(key),
+		toolCompletions: s.opts.MessagePartBuffer.ToolCompletions(key),
 	}
 	if err := s.opts.MessagePartBuffer.CloseEpisode(key); err != nil {
 		if ctx.Err() != nil {
@@ -370,7 +368,6 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		// Reuse the captured interrupt instant so database delay and retries do
 		// not inflate billing.
 		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, interruptedToolBatchBilling{
-			batchStartedAt:  episodeBilling.toolBatchStartedAt,
 			toolCompletions: episodeBilling.toolCompletions,
 		})
 		if err != nil {
@@ -751,11 +748,9 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 // interruptedToolBatchBilling is the live batch state used to bill
 // synthesized cancellation rows.
 type interruptedToolBatchBilling struct {
-	// batchStartedAt is zero when no local tool batch was live.
-	batchStartedAt time.Time
-	// toolCompletions uses unresolved-call positions. Completed calls bill
-	// to completion, running calls bill to the interrupt, and queued or
-	// undispatched calls bill nothing.
+	// toolCompletions contains started occurrences at unresolved-call
+	// positions. Completed calls bill to completion and running calls bill
+	// to the interrupt. Absent calls never started and bill nothing.
 	toolCompletions []messagepartbuffer.ToolCompletion
 }
 
@@ -782,12 +777,12 @@ func committedPendingLocalToolCancellationMessages(
 	}
 	// Match by unresolved-call position so rejected and duplicate-ID calls
 	// cannot share occurrence state.
-	dispatched := make(map[int]messagepartbuffer.ToolCompletion, len(billing.toolCompletions))
+	started := make(map[int]messagepartbuffer.ToolCompletion, len(billing.toolCompletions))
 	for _, completion := range billing.toolCompletions {
 		if completion.CallIndex < 0 {
 			continue
 		}
-		dispatched[completion.CallIndex] = completion
+		started[completion.CallIndex] = completion
 	}
 	var (
 		windowEnd    time.Time
@@ -815,27 +810,22 @@ func committedPendingLocalToolCancellationMessages(
 			ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: chat.LastModelConfigID != uuid.Nil},
 			ContentVersion: chatprompt.CurrentContentVersion,
 		})
-		if billing.batchStartedAt.IsZero() || unbilledSubagentToolNames[call.ToolName] {
+		if unbilledSubagentToolNames[call.ToolName] {
 			continue
 		}
-		// Bill only matching dispatched calls. Completed calls end at
-		// completion, running calls end at the interrupt, and queued serial
-		// calls are skipped. Ties keep the first call.
-		occurrence, ok := dispatched[i]
-		if !ok || occurrence.ToolCallID != call.ToolCallID {
+		// Bill only matching started calls. Completed calls end at completion,
+		// running calls end at the interrupt, and ties keep the first call.
+		occurrence, ok := started[i]
+		if !ok {
 			continue
 		}
 		start := occurrence.StartedAt
+		if start.IsZero() {
+			continue
+		}
 		end := occurrence.CompletedAt
 		if end.IsZero() {
-			if start.IsZero() {
-				continue
-			}
 			end = interruptedAt
-		}
-		if start.IsZero() {
-			// Completed calls should have starts; batchStart preserves legacy data.
-			start = billing.batchStartedAt
 		}
 		intervals = append(intervals, chatloop.BilledInterval{Start: start, End: end})
 		if end.After(windowEnd) {

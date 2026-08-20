@@ -101,11 +101,9 @@ type episodeState struct {
 	// episode's provider stream is opened. It is zero for episodes
 	// that never invoke a model, such as local tool execution
 	// batches.
-	modelStartedAt     time.Time
-	toolBatchStartedAt time.Time
-	// toolCompletions stores per-occurrence start and completion stamps for
-	// interrupts. Positional storage preserves queued serial calls and
-	// duplicate IDs.
+	modelStartedAt time.Time
+	// toolCompletions stores started occurrences for interrupts. CallIndex
+	// distinguishes rejected-call gaps and duplicate IDs.
 	toolCompletions []ToolCompletion
 	closed          bool
 	closedAt        time.Time
@@ -223,28 +221,19 @@ func (b *Buffer) StartModelInvocation(key Key) error {
 	return nil
 }
 
-// DispatchedToolCall identifies a dispatched tool-call occurrence.
-type DispatchedToolCall struct {
-	// CallIndex is its position in the unresolved call order, used to
-	// distinguish rejected and duplicate-ID calls.
-	CallIndex  int
-	ToolCallID string
-}
-
-// ToolCompletion tracks a tool-call occurrence. StartedAt is zero when the
-// start is unknown; CompletedAt is zero while unfinished.
+// ToolCompletion tracks a started tool-call occurrence. CompletedAt is zero
+// while the call is unfinished.
 type ToolCompletion struct {
 	// CallIndex is the occurrence's position in the unresolved call order.
 	CallIndex   int
-	ToolCallID  string
 	StartedAt   time.Time
 	CompletedAt time.Time
 }
 
-// StartToolBatch stamps dispatch and seeds one entry per occurrence. A zero
-// start is queued; a started entry with zero completion is running. Absent
-// calls were not dispatched, and duplicate IDs remain distinct.
-func (b *Buffer) StartToolBatch(key Key, calls []DispatchedToolCall) error {
+// RecordToolStart adds a tool-call occurrence when it begins execution.
+// CallIndex preserves rejected-call gaps and keeps duplicate IDs distinct.
+// Repeated starts keep the first timestamp.
+func (b *Buffer) RecordToolStart(key Key, callIndex int, startedAt time.Time) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {
@@ -257,46 +246,24 @@ func (b *Buffer) StartToolBatch(key Key, calls []DispatchedToolCall) error {
 	if episode.closed {
 		return ErrEpisodeClosed
 	}
-	episode.toolBatchStartedAt = b.opts.Clock.Now("message-part-buffer", "tool-batch-start")
-	episode.toolCompletions = make([]ToolCompletion, 0, len(calls))
-	for _, call := range calls {
-		episode.toolCompletions = append(episode.toolCompletions, ToolCompletion{
-			CallIndex:  call.CallIndex,
-			ToolCallID: call.ToolCallID,
-		})
-	}
-	return nil
-}
-
-// RecordToolStart stamps a dispatched call's actual start. Concurrent calls
-// start with the batch; serial calls may start later. Unknown dispatch indexes
-// are dropped because they cannot correlate to unresolved calls.
-func (b *Buffer) RecordToolStart(key Key, dispatchIndex int, startedAt time.Time) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.closed {
-		return ErrMessagePartBufferClosed
-	}
-	episode, err := b.getEpisodeLocked(key)
-	if err != nil {
-		return err
-	}
-	if episode.closed {
-		return ErrEpisodeClosed
-	}
-	if dispatchIndex < 0 || dispatchIndex >= len(episode.toolCompletions) {
+	if callIndex < 0 {
 		return nil
 	}
-	entry := &episode.toolCompletions[dispatchIndex]
-	if entry.StartedAt.IsZero() {
-		entry.StartedAt = startedAt
+	for _, entry := range episode.toolCompletions {
+		if entry.CallIndex == callIndex {
+			return nil
+		}
 	}
+	episode.toolCompletions = append(episode.toolCompletions, ToolCompletion{
+		CallIndex: callIndex,
+		StartedAt: startedAt,
+	})
 	return nil
 }
 
 // RecordToolCompletion stamps a call as it finishes, so interrupts use the
-// actual completion. Unknown dispatch indexes are dropped.
-func (b *Buffer) RecordToolCompletion(key Key, dispatchIndex int, completedAt time.Time) error {
+// actual completion. Calls without a recorded start are dropped.
+func (b *Buffer) RecordToolCompletion(key Key, callIndex int, completedAt time.Time) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.closed {
@@ -309,12 +276,15 @@ func (b *Buffer) RecordToolCompletion(key Key, dispatchIndex int, completedAt ti
 	if episode.closed {
 		return ErrEpisodeClosed
 	}
-	if dispatchIndex < 0 || dispatchIndex >= len(episode.toolCompletions) {
-		return nil
-	}
-	entry := &episode.toolCompletions[dispatchIndex]
-	if entry.CompletedAt.IsZero() {
-		entry.CompletedAt = completedAt
+	for i := range episode.toolCompletions {
+		entry := &episode.toolCompletions[i]
+		if entry.CallIndex != callIndex {
+			continue
+		}
+		if entry.CompletedAt.IsZero() {
+			entry.CompletedAt = completedAt
+		}
+		break
 	}
 	return nil
 }
@@ -404,21 +374,9 @@ func (b *Buffer) ModelInvokedAt(key Key) time.Time {
 	return episode.modelStartedAt
 }
 
-// ToolBatchStartedAt returns the StartToolBatch stamp, or zero if absent.
-// Read it before CloseEpisode because closed episodes are garbage collected.
-func (b *Buffer) ToolBatchStartedAt(key Key) time.Time {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	episode := b.episodes[key]
-	if episode == nil {
-		return time.Time{}
-	}
-	return episode.toolBatchStartedAt
-}
-
-// ToolCompletions returns copied occurrence state. A zero start means not
-// launched; a zero completion means unfinished. Read it before CloseEpisode
-// because closed episodes are garbage collected.
+// ToolCompletions returns copied started-occurrence state. A zero completion
+// means unfinished. Read it before CloseEpisode because closed episodes are
+// garbage collected.
 func (b *Buffer) ToolCompletions(key Key) []ToolCompletion {
 	b.mu.Lock()
 	defer b.mu.Unlock()

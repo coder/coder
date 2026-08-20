@@ -406,27 +406,33 @@ func TestExecuteLocalTools_DuplicateToolCallIDsKeepOccurrenceCompletions(t *test
 	require.Equal(t, "call-dup", outcome.BatchRuntimeToolCallID)
 }
 
-func TestExecuteLocalTools_OnBatchStartFiresOnlyOnDispatch(t *testing.T) {
+func TestExecuteLocalTools_ExecutionCallbacksFireOnlyForRuns(t *testing.T) {
 	t.Parallel()
 
-	t.Run("dispatched batch seeds before tools run", func(t *testing.T) {
+	t.Run("started call records a paired lifecycle", func(t *testing.T) {
 		t.Parallel()
 
 		starts := 0
-		seededWhenToolRan := false
+		completions := 0
+		startedWhenToolRan := false
 		tool := fantasy.NewAgentTool(
 			"fast_tool",
 			"test tool",
 			func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				seededWhenToolRan = starts > 0
+				startedWhenToolRan = starts > 0
 				return fantasy.NewTextResponse("done"), nil
 			},
 		)
 		outcome, err := chatloop.ExecuteLocalTools(context.Background(), chatloop.ExecuteLocalToolsOptions{
-			Clock:        quartz.NewMock(t),
-			Tools:        []fantasy.AgentTool{tool},
-			ActiveTools:  []string{"fast_tool"},
-			OnBatchStart: func() { starts++ },
+			Clock:       quartz.NewMock(t),
+			Tools:       []fantasy.AgentTool{tool},
+			ActiveTools: []string{"fast_tool"},
+			OnToolStart: func(int, time.Time) {
+				starts++
+			},
+			OnToolComplete: func(int, time.Time) {
+				completions++
+			},
 			ToolCalls: []fantasy.ToolCallContent{
 				{ToolCallID: "call-1", ToolName: "fast_tool", Input: "{}"},
 			},
@@ -434,34 +440,40 @@ func TestExecuteLocalTools_OnBatchStartFiresOnlyOnDispatch(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, outcome.Step.Content, 1)
 		require.Equal(t, 1, starts)
-		require.True(t, seededWhenToolRan, "the batch must be seeded before any tool goroutine runs")
+		require.Equal(t, 1, completions)
+		require.True(t, startedWhenToolRan, "the start callback must fire before the tool runs")
 	})
 
-	t.Run("canceled context never seeds", func(t *testing.T) {
+	t.Run("canceled context records no lifecycle", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		started := false
+		completed := false
 		_, err := chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
-			Clock:        quartz.NewMock(t),
-			OnBatchStart: func() { started = true },
+			Clock:          quartz.NewMock(t),
+			OnToolStart:    func(int, time.Time) { started = true },
+			OnToolComplete: func(int, time.Time) { completed = true },
 			ToolCalls: []fantasy.ToolCallContent{
 				{ToolCallID: "call-1", ToolName: "fast_tool", Input: "{}"},
 			},
 		})
 		require.ErrorIs(t, err, context.Canceled)
-		require.False(t, started, "a canceled batch dispatches nothing and must not seed billing state")
+		require.False(t, started)
+		require.False(t, completed)
 	})
 
-	t.Run("exclusive violation never seeds", func(t *testing.T) {
+	t.Run("exclusive violation records no lifecycle", func(t *testing.T) {
 		t.Parallel()
 
 		started := false
+		completed := false
 		outcome, err := chatloop.ExecuteLocalTools(context.Background(), chatloop.ExecuteLocalToolsOptions{
 			Clock:              quartz.NewMock(t),
 			ExclusiveToolNames: map[string]bool{"exclusive_tool": true},
-			OnBatchStart:       func() { started = true },
+			OnToolStart:        func(int, time.Time) { started = true },
+			OnToolComplete:     func(int, time.Time) { completed = true },
 			ToolCalls: []fantasy.ToolCallContent{
 				{ToolCallID: "call-1", ToolName: "exclusive_tool", Input: "{}"},
 				{ToolCallID: "call-2", ToolName: "fast_tool", Input: "{}"},
@@ -469,7 +481,8 @@ func TestExecuteLocalTools_OnBatchStartFiresOnlyOnDispatch(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, outcome.Step.Content, 2, "the whole batch resolves to synthesized policy errors")
-		require.False(t, started, "a policy-rejected batch dispatches nothing and must not seed billing state")
+		require.False(t, started)
+		require.False(t, completed)
 	})
 }
 

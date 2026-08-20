@@ -865,19 +865,22 @@ func (s *taskStarter) executeLocalTools(
 	var outcome chatloop.ToolExecutionOutcome
 	var spawnDispatchErr error
 	if len(allowed) > 0 {
-		// Seed only calls that will dispatch, after policy checks. Positional
-		// indexes skip rejected calls and keep duplicate IDs distinct.
-		var onBatchStart func()
+		var onToolStart func(int, time.Time)
+		var onToolComplete func(int, time.Time)
 		if !exclusiveRejected {
-			dispatched := make([]messagepartbuffer.DispatchedToolCall, 0, len(allowed))
-			for j, tc := range allowed {
-				dispatched = append(dispatched, messagepartbuffer.DispatchedToolCall{
-					CallIndex:  allowedIndexes[j],
-					ToolCallID: tc.ToolCallID,
-				})
+			// Translate dispatch-order callbacks back to unresolved-call
+			// positions so rejected gaps and duplicate IDs remain distinct.
+			onToolStart = func(dispatchIndex int, startedAt time.Time) {
+				if dispatchIndex < 0 || dispatchIndex >= len(allowedIndexes) {
+					return
+				}
+				attempt.recordToolStart(allowedIndexes[dispatchIndex], startedAt)
 			}
-			onBatchStart = func() {
-				attempt.startToolBatch(dispatched)
+			onToolComplete = func(dispatchIndex int, completedAt time.Time) {
+				if dispatchIndex < 0 || dispatchIndex >= len(allowedIndexes) {
+					return
+				}
+				attempt.recordToolCompletion(allowedIndexes[dispatchIndex], completedAt)
 			}
 		}
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
@@ -894,9 +897,8 @@ func (s *taskStarter) executeLocalTools(
 			ContextLimit:       prepared.ContextLimitFallback,
 			ToolNameAliases:    subagentToolNameAliases,
 			UnbilledToolNames:  unbilledSubagentToolNames,
-			OnBatchStart:       onBatchStart,
-			OnToolStart:        attempt.recordToolStart,
-			OnToolComplete:     attempt.recordToolCompletion,
+			OnToolStart:        onToolStart,
+			OnToolComplete:     onToolComplete,
 			PublishMessagePart: attempt.publish,
 			Logger:             s.opts.Logger,
 			Metrics:            s.server.metrics,
@@ -1112,15 +1114,12 @@ type generationAttempt struct {
 	// can bill the window the step would have reported. It is always
 	// non-nil when beginGenerationAttempt succeeds.
 	startModelInvocation func()
-	// startToolBatch stamps dispatch and seeds tool-call occurrences. It is
-	// always non-nil after beginGenerationAttempt.
-	startToolBatch func(calls []messagepartbuffer.DispatchedToolCall)
 	// recordToolStart stamps an occurrence's actual start; serial calls may
 	// start after dispatch. It is always non-nil after beginGenerationAttempt.
-	recordToolStart func(dispatchIndex int, startedAt time.Time)
+	recordToolStart func(callIndex int, startedAt time.Time)
 	// recordToolCompletion stamps an occurrence's completion. It is always
 	// non-nil after beginGenerationAttempt.
-	recordToolCompletion func(dispatchIndex int, completedAt time.Time)
+	recordToolCompletion func(callIndex int, completedAt time.Time)
 	// closeEpisode closes the attempt's buffer episode. It is always
 	// non-nil when beginGenerationAttempt succeeds.
 	closeEpisode func()
@@ -1167,14 +1166,11 @@ func (s *taskStarter) beginGenerationAttempt(
 		startModelInvocation: func() {
 			_ = s.opts.MessagePartBuffer.StartModelInvocation(key)
 		},
-		startToolBatch: func(calls []messagepartbuffer.DispatchedToolCall) {
-			_ = s.opts.MessagePartBuffer.StartToolBatch(key, calls)
+		recordToolStart: func(callIndex int, startedAt time.Time) {
+			_ = s.opts.MessagePartBuffer.RecordToolStart(key, callIndex, startedAt)
 		},
-		recordToolStart: func(dispatchIndex int, startedAt time.Time) {
-			_ = s.opts.MessagePartBuffer.RecordToolStart(key, dispatchIndex, startedAt)
-		},
-		recordToolCompletion: func(dispatchIndex int, completedAt time.Time) {
-			_ = s.opts.MessagePartBuffer.RecordToolCompletion(key, dispatchIndex, completedAt)
+		recordToolCompletion: func(callIndex int, completedAt time.Time) {
+			_ = s.opts.MessagePartBuffer.RecordToolCompletion(key, callIndex, completedAt)
 		},
 		closeEpisode: func() {
 			_ = s.opts.MessagePartBuffer.CloseEpisode(key)
