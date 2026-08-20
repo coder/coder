@@ -183,7 +183,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								{TRIAL_OFFER_DESCRIPTION}
 							</span>
 							<a
-								href={PREMIUM_PRICING_LINK}
+								href="https://coder.com/pricing"
 								target="_blank"
 								rel="noreferrer"
 								className="text-xs text-content-link hover:underline mt-0.5"
