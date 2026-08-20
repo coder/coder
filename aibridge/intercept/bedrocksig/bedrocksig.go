@@ -2,8 +2,6 @@
 // Mantle. It depends only on stdlib and the AWS SDK so it can be imported from
 // either the anthropic-go or openai-go interceptor packages without pulling in
 // the other SDK.
-//
-// Throwaway extraction per AIGOV-532.
 package bedrocksig
 
 import (
