@@ -744,6 +744,11 @@
 									"state": ["early access"],
 									"children": [
 										{
+											"title": "Declarative ordering",
+											"description": "Order lifecycle-triggered coder_script resources with declarative Terraform dependencies.",
+											"path": "./admin/templates/startup-coordination/script-ordering.md"
+										},
+										{
 											"title": "Usage",
 											"description": "Declare units and dependencies with coder exp sync to coordinate your workspace startup scripts.",
 											"path": "./admin/templates/startup-coordination/usage.md"
