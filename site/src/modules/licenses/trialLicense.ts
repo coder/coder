@@ -23,7 +23,7 @@ export const CONTACT_SALES_LINK = "https://coder.com/contact/sales";
 export const TRIAL_OFFER_TITLE = "Start a 30-day trial of Coder Premium";
 
 export const TRIAL_OFFER_DESCRIPTION =
-	"Control what agents can access, who can use which templates, and how your infrastructure scales. No credit card required.";
+	"Get access to high availability, template RBAC, audit logging, quotas, and more.";
 
 export const PREMIUM_TRIAL_UPSELL =
 	"Coder Premium adds enterprise-grade AI governance, role-based access controls, and high availability to your self-hosted development platform. Control what agents can access, who can use which templates, and how your infrastructure scales.";
