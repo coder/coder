@@ -70,6 +70,9 @@ type chatWorkerTaskStartInput struct {
 	DebugTurn                *runnerDebugTurn
 	SessionStart             *sessionStartTracker
 	StopNudges               *stopNudgeTracker
+	// InterruptSnapshot carries one interrupt task's first episode snapshot
+	// across retries. Nil re-reads the buffer.
+	InterruptSnapshot *interruptEpisodeSnapshot
 }
 
 func (i chatWorkerTaskStartInput) hookTurnID() *uuid.UUID {
