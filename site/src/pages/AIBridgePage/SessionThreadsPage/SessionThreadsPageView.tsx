@@ -117,7 +117,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 						<SearchField
 							value={searchQuery}
 							onChange={setSearchQuery}
-							placeholder="Search prompt text, tool calls, and network requests..."
+							placeholder="Search..."
 							aria-label="Search session events"
 						/>
 						<p
