@@ -1,14 +1,10 @@
 package messages
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"strconv"
@@ -21,7 +17,6 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/shared"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -32,6 +27,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -69,28 +65,9 @@ var bedrockSupportedBetaFlags = map[string]bool{
 	"tool-examples-2025-10-29": true,
 }
 
-// BedrockPRMUserAgent is Coder's AWS Partner Revenue Measurement (PRM)
-// attribution marker for outbound Bedrock requests.
-//
-// It is appended to Bedrock User-Agent headers so AWS can recognize the
-// traffic as Coder-associated Bedrock usage.
-const BedrockPRMUserAgent = "sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24"
-
-// bedrockMantleSigningService is the AWS SigV4 service name for mantle.
-const bedrockMantleSigningService = "bedrock-mantle"
-
-func appendBedrockPRMUserAgent(req *http.Request) {
-	if ua := req.Header.Get("User-Agent"); ua != "" {
-		req.Header.Set("User-Agent", ua+" "+BedrockPRMUserAgent)
-	}
-}
-
 // BedrockRuntime carries everything a Bedrock-backed interception needs: the
 // static Bedrock config plus the AWS credentials provider.
-type BedrockRuntime struct {
-	Cfg   aibconfig.AWSBedrock
-	Creds aws.CredentialsProvider
-}
+type BedrockRuntime = bedrocksig.Runtime
 
 type interceptionBase struct {
 	id         uuid.UUID
@@ -350,7 +327,7 @@ func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([
 
 	var out []option.RequestOption
 	out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-		appendBedrockPRMUserAgent(req)
+		bedrocksig.AppendPRMUserAgent(req)
 		return next(req)
 	}))
 	out = append(out, bedrock.WithConfig(awsCfg))
@@ -384,39 +361,12 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 		return nil, xerrors.Errorf("resolve AWS credentials: %w", err)
 	}
 
-	signer := v4.NewSigner()
 	var out []option.RequestOption
 	out = append(out, option.WithBaseURL(cfg.BaseURL))
 	// Appended last so it runs innermost (right before the HTTP send) and signs
 	// the request after all other headers are set.
-	out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-		appendBedrockPRMUserAgent(req)
-
-		creds, err := i.bedrock.Creds.Retrieve(req.Context())
-		if err != nil {
-			return nil, xerrors.Errorf("mantle SigV4: resolve AWS credentials: %w", err)
-		}
-
-		// SigV4 requires a payload hash, so read the body to hash it and then
-		// restore it for the downstream HTTP client to send.
-		var body []byte
-		if req.Body != nil {
-			var err error
-			body, err = io.ReadAll(req.Body)
-			if err != nil {
-				return nil, xerrors.Errorf("mantle SigV4: read request body: %w", err)
-			}
-			_ = req.Body.Close()
-			req.Body = io.NopCloser(bytes.NewReader(body))
-			req.ContentLength = int64(len(body))
-		}
-
-		hash := sha256.Sum256(body)
-		if err := signer.SignHTTP(req.Context(), creds, req, hex.EncodeToString(hash[:]), bedrockMantleSigningService, cfg.Region, time.Now()); err != nil {
-			return nil, xerrors.Errorf("mantle SigV4: sign request: %w", err)
-		}
-		return next(req)
-	}))
+	//nolint:bodyclose // signing middleware hands the response to the transport, which closes the body.
+	out = append(out, option.WithMiddleware(bedrocksig.SignMiddleware(i.bedrock.Creds, cfg.Region)))
 
 	return out, nil
 }
