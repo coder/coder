@@ -17,10 +17,12 @@ type MCPOAuthFlow = {
 	connect: (serverId: string) => void;
 };
 
-// Runs the MCP server OAuth2 popup flow: opens the consent popup,
-// listens for the completion message coderd's callback page posts to
-// the opener, and reports success only for the initiating popup and
-// server.
+/**
+ * Runs the MCP server OAuth2 popup flow: opens the consent popup,
+ * listens for the completion message coderd's callback page posts to
+ * the opener, and reports success only for the initiating popup and
+ * server.
+ */
 export const useMCPOAuthFlow = ({
 	organizationId,
 	onAuthComplete,

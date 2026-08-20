@@ -769,8 +769,8 @@ const dispatchMCPOAuthComplete = (
 	);
 };
 
-// Requires window.open mocked to return `window` so the completion
-// message can carry the popup as its source.
+// Requires window.open mocked to return a Window; the completion
+// message's source must be that same mocked popup to correlate.
 const startMCPOAuthFlow = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
 	const body = within(canvasElement.ownerDocument.body);
