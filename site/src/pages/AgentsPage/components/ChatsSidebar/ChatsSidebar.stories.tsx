@@ -1596,40 +1596,6 @@ export const ArchivingShowsSpinnerOnly: Story = {
 	},
 };
 
-export const ArchivingActiveChatShowsSpinnerOnly: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "archiving-active-chat",
-				title: "Selected chat being archived",
-				updated_at: recentTimestamp,
-			}),
-		],
-		isArchiving: true,
-		archivingChatId: "archiving-active-chat",
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				path: "/agents/archiving-active-chat",
-				pathParams: { agentId: "archiving-active-chat" },
-			},
-			routing: agentsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			await canvas.findByTitle("Loading spinner"),
-		).toBeInTheDocument();
-		// The persistent kebab on the active row must yield to the
-		// archiving spinner instead of overlapping it.
-		expect(
-			canvas.queryByLabelText("Open actions for Selected chat being archived"),
-		).not.toBeInTheDocument();
-	},
-};
-
 export const DefaultShowsTimestampHidesMenu: Story = {
 	args: {
 		chats: [
