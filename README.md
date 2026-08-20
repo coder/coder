@@ -49,7 +49,7 @@
 
 ## Quickstart
 
-> See our [install guides](https://coder.com/docs/install) for other methods and a complete tutorial.
+> Check out our [install guides](https://coder.com/docs/install) for other methods and a complete tutorial.
 
 Try Coder with the [install script](https://github.com/coder/coder/blob/main/install.sh) on Linux and macOS, or grab the latest binary or installer from [GitHub Releases](https://github.com/coder/coder/releases/) on Windows:
 
@@ -63,7 +63,7 @@ Start the server and open [http://localhost:3000](http://localhost:3000) to crea
 coder server
 ```
 
-For a production deployment, add a PostgreSQL database (version 13 or higher) and an external access URL, and see our [validated architectures](https://coder.com/docs/admin/infrastructure/validated-architectures) for sizing and infrastructure guidance:
+For a production deployment, add a PostgreSQL database (version 13 or later) and an external access URL, and see our [validated architectures](https://coder.com/docs/admin/infrastructure/validated-architectures) for sizing and infrastructure guidance:
 
 ```shell
 coder server --postgres-url <url> --access-url <url>
@@ -89,7 +89,7 @@ Browse the [documentation](https://coder.com/docs) or visit a specific section b
 
 For community support, showcasing what you built, and feedback on in-progress features, join our [Discord](https://discord.gg/coder) or [GitHub Discussions](https://github.com/coder/coder/discussions).
 
-Dedicated support is included in Coder Premium. See [coder.com/pricing](https://coder.com/pricing).
+Dedicated support is included in Coder Premium. For more information, visit [coder.com/pricing](https://coder.com/pricing).
 
 ## Integrations
 
