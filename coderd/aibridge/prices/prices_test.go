@@ -78,6 +78,24 @@ func TestSeedFromBytes(t *testing.T) {
 		require.Zero(t, gpt.CacheWritePrice.Int64)
 	})
 
+	t.Run("SeededPricesAreDefault", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
+
+		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai", Model: "gpt-4o",
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.AIModelPriceSourceDefault, got.Source)
+		require.Equal(t, int64(2_500_000), got.InputPrice.Int64)
+		require.Equal(t, int64(10_000_000), got.OutputPrice.Int64)
+		require.Equal(t, int64(1_250_000), got.CacheReadPrice.Int64)
+		require.False(t, got.CacheWritePrice.Valid)
+	})
+
 	t.Run("Idempotent", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -111,14 +129,17 @@ func TestSeedFromBytes(t *testing.T) {
 		// cache_write_price is set to a non-NULL value here even though the
 		// embedded seed leaves it NULL for OpenAI; Seed must replace it with
 		// NULL to keep the table in sync with the seed.
-		require.NoError(t, db.UpsertAIModelPrices(ctx, []byte(`[{
-			"provider": "openai",
-			"model": "gpt-4o",
-			"input_price": 1,
-			"output_price": 2,
-			"cache_read_price": 3,
-			"cache_write_price": 4
-		}]`)))
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+			Seed: []byte(`[{
+				"provider": "openai",
+				"model": "gpt-4o",
+				"input_price": 1,
+				"output_price": 2,
+				"cache_read_price": 3,
+				"cache_write_price": 4
+			}]`),
+			Source: database.AIModelPriceSourceDefault,
+		}))
 		before, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
 			Provider: "openai", Model: "gpt-4o",
 		})
@@ -146,14 +167,17 @@ func TestSeedFromBytes(t *testing.T) {
 
 		// Insert a row for a (provider, model) the seed doesn't cover. After
 		// Seed it should still be there with its values intact.
-		require.NoError(t, db.UpsertAIModelPrices(ctx, []byte(`[{
-			"provider": "test-provider",
-			"model": "test-model-not-in-seed",
-			"input_price": 12345,
-			"output_price": 67890,
-			"cache_read_price": null,
-			"cache_write_price": null
-		}]`)))
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+			Seed: []byte(`[{
+				"provider": "test-provider",
+				"model": "test-model-not-in-seed",
+				"input_price": 12345,
+				"output_price": 67890,
+				"cache_read_price": null,
+				"cache_write_price": null
+			}]`),
+			Source: database.AIModelPriceSourceDefault,
+		}))
 
 		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
 
@@ -195,6 +219,48 @@ func TestSeedFromBytes(t *testing.T) {
 		require.Equal(t, int64(22), got.OutputPrice.Int64)
 		require.Equal(t, int64(33), got.CacheReadPrice.Int64)
 		require.Equal(t, int64(44), got.CacheWritePrice.Int64)
+	})
+
+	t.Run("LeavesCustomPricesUntouched", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+
+		// Price a model the seed also covers.
+		require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+			Seed: []byte(`[{
+				"provider": "openai",
+				"model": "gpt-4o",
+				"input_price": 1,
+				"output_price": 2,
+				"cache_read_price": 3,
+				"cache_write_price": 4
+			}]`),
+			Source: database.AIModelPriceSourceCustom,
+		}))
+		before, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai", Model: "gpt-4o",
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.AIModelPriceSourceCustom, before.Source)
+		require.Equal(t, int64(1), before.InputPrice.Int64)
+		require.Equal(t, int64(2), before.OutputPrice.Int64)
+		require.Equal(t, int64(3), before.CacheReadPrice.Int64)
+		require.Equal(t, int64(4), before.CacheWritePrice.Int64)
+
+		// Re-applying the price book writes its own row and leaves this one be.
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
+
+		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai", Model: "gpt-4o",
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(1), got.InputPrice.Int64)
+		require.Equal(t, int64(2), got.OutputPrice.Int64)
+		require.Equal(t, int64(3), got.CacheReadPrice.Int64)
+		require.Equal(t, int64(4), got.CacheWritePrice.Int64)
+		require.Equal(t, database.AIModelPriceSourceCustom, got.Source)
+		require.Equal(t, before.UpdatedAt, got.UpdatedAt)
 	})
 
 	// Verifies the chain: AsAIBridged context -> dbauthz wrapper auth check
@@ -323,57 +389,4 @@ func TestSeed(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	db, _ := dbtestutil.NewDB(t)
 	require.NoError(t, prices.Seed(ctx, db))
-}
-
-// TestIsDefaultPriced reads the real embedded price book, so it uses a model
-// the generator injects rather than one that could drift out of upstream.
-func TestIsDefaultPriced(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		provider string
-		model    string
-		want     bool
-	}{
-		{
-			name:     "ModelInThePriceBook",
-			provider: "anthropic",
-			model:    "claude-opus-5",
-			want:     true,
-		},
-		{
-			name:     "ModelNotInThePriceBook",
-			provider: "anthropic",
-			model:    "not-a-real-model",
-			want:     false,
-		},
-		{
-			// The book is keyed on both columns, so the same model under
-			// another provider is a different entry.
-			name:     "SameModelUnderAnotherProvider",
-			provider: "openai",
-			model:    "claude-opus-5",
-			want:     false,
-		},
-		{
-			name:     "UnknownProvider",
-			provider: "unknown-provider",
-			model:    "claude-opus-5",
-			want:     false,
-		},
-		{
-			name:     "Empty",
-			provider: "",
-			model:    "",
-			want:     false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tt.want, prices.IsDefaultPriced(tt.provider, tt.model))
-		})
-	}
 }

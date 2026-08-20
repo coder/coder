@@ -219,6 +219,17 @@ var (
 		Type: "license",
 	}
 
+	// ResourceMCPServerConfig
+	// Valid Actions
+	//  - "ActionCreate" :: create a new MCP server config
+	//  - "ActionDelete" :: delete MCP server config
+	//  - "ActionRead" :: read MCP server config
+	//  - "ActionShare" :: share MCP server config with other users or groups
+	//  - "ActionUpdate" :: update MCP server config
+	ResourceMCPServerConfig = Object{
+		Type: "mcp_server_config",
+	}
+
 	// ResourceNotificationMessage
 	// Valid Actions
 	//  - "ActionCreate" :: create notification messages
@@ -522,6 +533,7 @@ func AllResources() []Objecter {
 		ResourceIdpsyncSettings,
 		ResourceInboxNotification,
 		ResourceLicense,
+		ResourceMCPServerConfig,
 		ResourceNotificationMessage,
 		ResourceNotificationPreference,
 		ResourceNotificationTemplate,

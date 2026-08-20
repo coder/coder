@@ -2,24 +2,33 @@ import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { pageTitle } from "#/utils/page";
 import { MCPServerForm } from "../components/MCPServerForm";
+import { OrganizationPicker } from "../components/OrganizationPicker";
 
 interface UpdateMCPServerPageViewProps {
 	server: TypesGen.MCPServerConfig;
+	organizations: readonly TypesGen.Organization[];
+	organization: TypesGen.Organization;
+	listPath: string;
 	isSaving: boolean;
 	isDeleting: boolean;
-	onUpdateServer: (
+	canSelectUserOIDC: boolean;
+	onUpdateServer?: (
 		serverId: string,
 		req: TypesGen.UpdateMCPServerConfigRequest,
 	) => Promise<unknown>;
-	onDeleteServer: (serverId: string) => Promise<void>;
-	onToggleEnabled: (enabled: boolean) => void;
+	onDeleteServer?: (serverId: string) => Promise<void>;
+	onToggleEnabled?: (enabled: boolean) => void;
 	onCancel: () => void;
 }
 
 const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 	server,
+	organizations,
+	organization,
+	listPath,
 	isSaving,
 	isDeleting,
+	canSelectUserOIDC,
 	onUpdateServer,
 	onDeleteServer,
 	onToggleEnabled,
@@ -28,11 +37,20 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 	return (
 		<>
 			<title>{pageTitle(server.display_name, "AI Settings")}</title>
+			<OrganizationPicker
+				id="mcp-update-organization"
+				className="mb-6"
+				organizations={organizations}
+				organization={organization}
+				showSingleOrganization
+			/>
 			<MCPServerForm
 				key={server.id}
 				server={server}
+				listPath={listPath}
 				isSaving={isSaving}
 				isDeleting={isDeleting}
+				canSelectUserOIDC={canSelectUserOIDC}
 				onUpdateServer={onUpdateServer}
 				onDeleteServer={onDeleteServer}
 				onToggleEnabled={onToggleEnabled}

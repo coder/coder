@@ -212,10 +212,13 @@ Available query filters:
   - `GitHub Copilot (VS Code)`
   - `GitHub Copilot (CLI)`
   - `Kilo Code`
+  - `Roo Code`
   - `Coder Agents`
   - `Mux`
   - `Cursor`
   - `OpenCode`
+  - `Charm Crush`
+  - `Junie`
   - `Unknown`
 
   </details>
