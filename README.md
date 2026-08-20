@@ -26,7 +26,6 @@
 [![discord](https://img.shields.io/discord/747933592273027093?label=discord)](https://cdr.co/discord-Y6fMxGdNRg)
 [![release](https://img.shields.io/github/v/release/coder/coder)](https://github.com/coder/coder/releases/latest)
 [![godoc](https://pkg.go.dev/badge/github.com/coder/coder.svg)](https://pkg.go.dev/github.com/coder/coder)
-[![Go Report Card](https://goreportcard.com/badge/github.com/coder/coder/v2)](https://goreportcard.com/report/github.com/coder/coder/v2)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9511/badge)](https://www.bestpractices.dev/projects/9511)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/coder/coder/badge)](https://scorecard.dev/viewer/?uri=github.com%2Fcoder%2Fcoder)
 [![license](https://img.shields.io/github/license/coder/coder)](./LICENSE)
@@ -52,7 +51,7 @@
 
 > See our [install guides](https://coder.com/docs/install) for other methods and a complete tutorial.
 
-Install Coder with the [install script](https://github.com/coder/coder/blob/main/install.sh) on Linux and macOS, or grab the latest binary or installer from [GitHub Releases](https://github.com/coder/coder/releases/) on Windows:
+Try Coder with the [install script](https://github.com/coder/coder/blob/main/install.sh) on Linux and macOS, or grab the latest binary or installer from [GitHub Releases](https://github.com/coder/coder/releases/) on Windows:
 
 ```shell
 curl -L https://coder.com/install.sh | sh
@@ -64,7 +63,7 @@ Start the server and open [http://localhost:3000](http://localhost:3000) to crea
 coder server
 ```
 
-For a production deployment, add a PostgreSQL database (version 13 or higher) and an external access URL:
+For a production deployment, add a PostgreSQL database (version 13 or higher) and an external access URL, and see our [validated architectures](https://coder.com/docs/admin/infrastructure/validated-architectures) for sizing and infrastructure guidance:
 
 ```shell
 coder server --postgres-url <url> --access-url <url>
@@ -79,7 +78,7 @@ Browse the [documentation](https://coder.com/docs) or visit a specific section b
 - [**Workspaces**](https://coder.com/docs/user-guides/workspace-management): Workspaces contain the IDEs, dependencies, and configuration information needed for software development
 - [**Templates**](https://coder.com/docs/admin/templates): Templates are written in Terraform and describe the infrastructure for workspaces
 - [**Coder Agents**](https://coder.com/docs/ai-coder/agents): Delegate coding work to AI agents running on your self-hosted infrastructure
-- [**AI Gateway**](https://coder.com/docs/ai-coder/ai-gateway): Centralize authentication, auditing, and MCP administration for AI tooling
+- [**AI Gateway**](https://coder.com/docs/ai-coder/ai-gateway): Centralize authentication, auditing, and cost controls for AI tooling
 - [**Administration**](https://coder.com/docs/admin): Learn how to operate Coder
 - [**Premium**](https://coder.com/pricing#compare-plans): Learn about paid features built for large teams
 - [**IDEs**](https://coder.com/docs/user-guides/workspace-access): Connect your existing editor to a workspace
@@ -100,7 +99,7 @@ New integrations are always in progress. Open an issue to request one. Contribut
 
 - [**Coder Registry**](https://registry.coder.com): Templates, modules, and integrations for common development environments
 - [**Coding Agents**](https://registry.coder.com/modules?search=tag%3Aagent): Run agents like Claude Code, Codex, and OpenCode isolated in Coder workspaces
-- [**Terraform Provider**](https://github.com/coder/terraform-provider-coderd): Declaratively manage your Coder deployment configuration as code
+- [**coderd Terraform Provider**](https://github.com/coder/terraform-provider-coderd): Declaratively manage your Coder deployment configuration as code
 - [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote): Open any Coder workspace in VS Code with a single click
 - [**JetBrains Toolbox Plugin**](https://plugins.jetbrains.com/plugin/26968-coder): Open any Coder workspace from JetBrains Toolbox with a single click
 - [**Dev Containers**](https://coder.com/docs/user-guides/devcontainers): Build development environments using `devcontainer.json` on Docker, Kubernetes, and OpenShift
@@ -111,8 +110,8 @@ New integrations are always in progress. Open an issue to request one. Contribut
 ### Community
 
 - [**Coder Discord**](https://cdr.co/discord-5hw2sjadGU): Chat with the community, get support, and hear about new product updates first
-- [**Community Templates**](https://registry.coder.com/templates): Community-contributed workspace templates in the Coder Registry
-- [**Community Modules**](https://registry.coder.com/modules): Community-contributed modules to extend Coder templates
+- [**Community Templates**](https://registry.coder.com/templates?search=status%3Acommunity): Community-contributed workspace templates in the Coder Registry
+- [**Community Modules**](https://registry.coder.com/modules?search=status%3Acommunity): Community-contributed modules to extend Coder templates
 - [**Coder Template GitHub Action**](https://github.com/marketplace/actions/update-coder-template): A GitHub Action that updates Coder templates
 - [**Coder Agents Chat Action**](https://github.com/coder/agents-chat-action): A GitHub Action that starts a Coder Agents chat against a GitHub issue or pull request
 
