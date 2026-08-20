@@ -29,10 +29,6 @@ type Story = StoryObj<typeof MultiSelectCombobox>;
 
 export const Default: Story = {};
 
-// Form pages such as IdP sync render the combobox beside a fixed h-10
-// Input. The visual snapshot guards that the empty combobox matches the
-// Input's height instead of growing from its inner padding and inherited
-// line-height.
 export const BesideInput: Story = {
 	decorators: [
 		(Story) => (
