@@ -11,8 +11,6 @@ export const licenses = () => ({
 
 export const createTrialLicense = (queryClient: QueryClient) => ({
 	mutationFn: API.createTrialLicense,
-	// The server refreshes entitlements while handling the request, so the client
-	// only needs to drop its stale caches.
 	onSuccess: async () => {
 		await Promise.all([
 			queryClient.invalidateQueries({ queryKey: entitlementsQueryKey }),

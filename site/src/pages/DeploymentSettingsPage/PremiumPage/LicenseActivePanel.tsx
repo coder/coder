@@ -8,18 +8,17 @@ import { Button } from "#/components/Button/Button";
  */
 export const LicenseActivePanel: FC = () => {
 	return (
-		<div className="flex flex-col gap-6 items-start">
-			<div className="flex flex-col gap-2">
-				<h1 className="m-0 font-semibold text-2xl text-content-primary">
-					A license is already installed
-				</h1>
-				<p className="m-0 text-sm text-content-secondary">
-					This deployment already has a license, so a trial is not available.
-					Review your entitlements on the Licenses page.
-				</p>
-			</div>
+		<div className="flex flex-col items-center gap-6 text-center max-w-md">
+			<h1 className="m-0 font-semibold text-3xl text-content-primary">
+				A license is already installed
+			</h1>
 
-			<Button asChild>
+			<p className="m-0 px-8 text-sm text-content-primary">
+				This deployment already has a license.
+				Review your entitlements on the Licenses page.
+			</p>
+
+			<Button asChild className="w-full">
 				<RouterLink to="/deployment/licenses">View licenses</RouterLink>
 			</Button>
 		</div>

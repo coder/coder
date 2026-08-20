@@ -1,5 +1,5 @@
 import type { FC, ReactNode } from "react";
-import { Label } from "#/components/Label/Label";
+import { FormField } from "#/components/FormField/FormField";
 import {
 	Select,
 	SelectContent,
@@ -9,72 +9,56 @@ import {
 import { cn } from "#/utils/cn";
 import type { FormHelpers } from "#/utils/formUtils";
 
-const Field: FC<{
-	label: string;
-	id: string;
-	error?: boolean;
-	helperText?: ReactNode;
-	className?: string;
-	children: ReactNode;
-}> = ({ label, id, error, helperText, className, children }) => (
-	<div className={cn("flex flex-col gap-2", className)}>
-		<Label htmlFor={id}>{label}</Label>
-		{children}
-		{helperText && (
-			<span
-				className={cn(
-					"text-xs text-left",
-					error ? "text-content-destructive" : "text-content-secondary",
-				)}
-			>
-				{helperText}
-			</span>
-		)}
-	</div>
-);
-
-type SelectFieldProps = FormHelpers & {
-	label: string;
-	className?: string;
+type SelectFieldProps = {
+	field: FormHelpers;
+	label: ReactNode;
 	onValueChange: (value: string) => void;
-	placeholder?: string;
 	children: ReactNode;
+	id?: string;
+	description?: ReactNode;
+	placeholder?: string;
+	required?: boolean;
 	disabled?: boolean;
+	className?: string;
 };
 
 /**
  * A labelled Select wired to Formik through getFormHelpers. The label's
- * `htmlFor` targets the trigger's `id`, which is what gives the combobox its
- * accessible name.
+ * `htmlFor` targets the trigger's `id`, which makes the ComboBox name accessible.
  */
 export const SelectField: FC<SelectFieldProps> = ({
+	field,
 	label,
-	id,
-	error,
-	helperText,
-	className,
-	value,
 	onValueChange,
-	placeholder,
 	children,
+	id,
+	description,
+	placeholder,
+	required,
 	disabled,
+	className,
 }) => (
-	<Field
+	<FormField
+		field={field}
 		label={label}
+		description={description}
 		id={id}
-		error={error}
-		helperText={helperText}
-		className={className}
-	>
-		<Select
-			value={String(value ?? "")}
-			onValueChange={onValueChange}
-			disabled={disabled}
-		>
-			<SelectTrigger id={id}>
-				<SelectValue placeholder={placeholder} />
-			</SelectTrigger>
-			<SelectContent>{children}</SelectContent>
-		</Select>
-	</Field>
+		required={required}
+		control={(controlProps) => (
+			<Select
+				value={String(field.value ?? "")}
+				onValueChange={onValueChange}
+				disabled={disabled}
+			>
+				<SelectTrigger
+					{...controlProps}
+					aria-required={required}
+					className={cn(field.error && "border-border-destructive", className)}
+				>
+					<SelectValue placeholder={placeholder} />
+				</SelectTrigger>
+				<SelectContent>{children}</SelectContent>
+			</Select>
+		)}
+	/>
 );

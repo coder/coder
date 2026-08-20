@@ -218,8 +218,8 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								/>
 								<SelectField
 									label="Number of developers"
-									{...getFieldHelpers("trial_info.developers")}
-									onValueChange={(value: string) =>
+									field={getFieldHelpers("trial_info.developers")}
+									onValueChange={(value) =>
 										form.setFieldValue("trial_info.developers", value)
 									}
 									placeholder="Select..."
@@ -246,8 +246,8 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								/>
 								<SelectField
 									label="Country"
-									{...getFieldHelpers("trial_info.country")}
-									onValueChange={(value: string) =>
+									field={getFieldHelpers("trial_info.country")}
+									onValueChange={(value) =>
 										form.setFieldValue("trial_info.country", value)
 									}
 									placeholder="Select..."

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
+import { PREMIUM_TRIAL_UPSELL } from "#/modules/licenses/trialLicense";
 import { PremiumPageView } from "./PremiumPageView";
 
 const meta: Meta<typeof PremiumPageView> = {
@@ -161,10 +162,13 @@ export const LicenseActive: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "View licenses" }),
 		).toHaveAttribute("href", "/deployment/licenses");
-		// An installed license drops the trial pitch from the hero.
+		// An installed license collapses the two-column pitch into the banner.
 		await expect(
-			canvas.getByRole("heading", { name: "Coder Premium", level: 2 }),
-		).toBeInTheDocument();
+			canvas.queryByRole("heading", { level: 2 }),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText(PREMIUM_TRIAL_UPSELL),
+		).not.toBeInTheDocument();
 		await expect(
 			canvas.queryByLabelText(/^Business email/),
 		).not.toBeInTheDocument();

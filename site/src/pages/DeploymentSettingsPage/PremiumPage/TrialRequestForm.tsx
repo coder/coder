@@ -147,10 +147,8 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 					/>
 					<SelectField
 						label="Number of developers"
-						{...getFieldHelpers("developers")}
-						onValueChange={(value: string) =>
-							form.setFieldValue("developers", value)
-						}
+						field={getFieldHelpers("developers")}
+						onValueChange={(value) => form.setFieldValue("developers", value)}
 						placeholder="Select..."
 						disabled={isSubmitting}
 					>
@@ -164,10 +162,8 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 
 				<SelectField
 					label="Country"
-					{...getFieldHelpers("country")}
-					onValueChange={(value: string) =>
-						form.setFieldValue("country", value)
-					}
+					field={getFieldHelpers("country")}
+					onValueChange={(value) => form.setFieldValue("country", value)}
 					placeholder="Select..."
 					disabled={isSubmitting}
 				>

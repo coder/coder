@@ -30,11 +30,17 @@ export const PremiumPageView: FC<PremiumPageViewProps> = ({
 	isSubmitting,
 	error,
 }) => {
-	if (hasLicense && isTrial) {
+	// An installed license has nothing to sell, so both license states collapse
+	// the two-column pitch into a single banner.
+	if (hasLicense) {
 		return (
 			<div className="relative isolate overflow-hidden rounded-lg py-12 mb-8 border border-solid bg-surface-secondary flex items-center justify-center">
 				<Supergraphic className="bg-[position:20%_20%]" />
-				<TrialActivePanel daysRemaining={trialDaysRemaining} />
+				{isTrial ? (
+					<TrialActivePanel daysRemaining={trialDaysRemaining} />
+				) : (
+					<LicenseActivePanel />
+				)}
 			</div>
 		);
 	}
@@ -45,18 +51,14 @@ export const PremiumPageView: FC<PremiumPageViewProps> = ({
 				<div className="relative isolate overflow-hidden hidden lg:flex flex-col p-12 bg-surface-secondary">
 					<Supergraphic className="bg-[position:20%_20%] bg-[length:110%_125%] -scale-x-100" />
 					<h2 className="self-end m-0 pt-24 max-w-md text-3xl font-semibold text-content-primary text-balance">
-						{hasLicense ? "Coder Premium" : TRIAL_OFFER_TITLE}
+						{TRIAL_OFFER_TITLE}
 					</h2>
-					{!hasLicense && (
-						<p className="self-start m-0 max-w-sm pt-6 text-sm text-content-primary">
-							{PREMIUM_TRIAL_UPSELL}
-						</p>
-					)}
+					<p className="self-start m-0 max-w-sm pt-6 text-sm text-content-primary">
+						{PREMIUM_TRIAL_UPSELL}
+					</p>
 				</div>
 				<div className="flex flex-col justify-center p-8 lg:p-12 bg-surface-secondary">
-					{hasLicense ? (
-						<LicenseActivePanel />
-					) : canRequestTrial ? (
+					{canRequestTrial ? (
 						<TrialRequestForm
 							onSubmit={onSubmit}
 							isSubmitting={isSubmitting}
