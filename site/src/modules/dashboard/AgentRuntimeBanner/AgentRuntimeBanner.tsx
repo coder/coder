@@ -10,8 +10,7 @@ import { LicenseBannerView } from "../LicenseBanner/LicenseBannerView";
 // admin-facing appendAgentRuntimeHoursWarning
 // (enterprise/coderd/license/license.go): a non-positive allocation
 // disables the feature rather than exhausting it, and each rung supersedes
-// the ones below it so at most one message renders. Exported for the unit
-// test, so what it pins is what production renders.
+// the ones below it so at most one message renders.
 export const agentRuntimeBannerMessage = (
 	feature: Feature | undefined,
 ): string | null => {
