@@ -20,7 +20,7 @@
 		"framer-motion": "^10.18.0",
 		"front-matter": "4.0.2",
 		"lodash": "4.18.1",
-		"next": "15.5.21",
+		"next": "15.5.23",
 		"react": "18.3.1",
 		"react-dom": "18.3.1",
 		"react-icons": "5.7.0",
@@ -30,7 +30,7 @@
 		"sanitize-html": "2.17.6"
 	},
 	"devDependencies": {
-		"@types/lodash": "4.17.24",
+		"@types/lodash": "4.17.25",
 		"@types/node": "22.20.1",
 		"@types/react": "18.3.12",
 		"@types/react-dom": "18.3.1",

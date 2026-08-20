@@ -648,7 +648,7 @@ export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
-export const MockTasksTabVisible: boolean = false;
+export const MockAITasksEnabled: boolean = false;
 export const MockAIGatewayEnabled: boolean = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
@@ -949,6 +949,7 @@ export const MockTemplate: TypesGen.Template = {
 	created_by_name: "test_creator",
 	icon: "/icon/code.svg",
 	allow_user_cancel_workspace_jobs: true,
+	agents_allowed: true,
 	failure_ttl_ms: 0,
 	time_til_dormant_ms: 0,
 	time_til_dormant_autodelete_ms: 0,
@@ -2700,6 +2701,20 @@ export const mockApiError = ({
 	},
 });
 
+export const MockAgentRuntimeHoursFeature: TypesGen.Feature = {
+	enabled: true,
+	entitlement: "entitled",
+	limit: 1000,
+	soft_limit: 850,
+	actual: 400,
+	actual_ms: 400 * 3_600_000,
+	usage_period: {
+		issued_at: "June 1, 2026",
+		start: "June 1, 2026",
+		end: "May 31, 2027",
+	},
+};
+
 export const MockEntitlements: TypesGen.Entitlements = {
 	errors: [],
 	warnings: [],
@@ -3067,6 +3082,28 @@ export const MockWebConnectionLog: TypesGen.ConnectionLog = {
 	},
 };
 
+const MockTunnelWebInfo: TypesGen.ConnectionLogWebInfo = {
+	user_agent: "coder-cli/2.0.0",
+	user: MockUserMember,
+	slug_or_port: "",
+	status_code: 101,
+};
+
+export const MockTunnelConnectionLog: TypesGen.ConnectionLog = {
+	...MockWebConnectionLog,
+	type: "tunnel",
+	web_info: MockTunnelWebInfo,
+};
+
+export const MockDeniedTunnelConnectionLog: TypesGen.ConnectionLog = {
+	...MockTunnelConnectionLog,
+	id: "09747acf-207f-4f53-a875-fde339924f60",
+	web_info: {
+		...MockTunnelWebInfo,
+		status_code: 403,
+	},
+};
+
 export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 	id: "7884a866-4ae1-4945-9fba-b2b8d2b7c5a9",
 	connect_time: "2022-05-19T16:45:57.122Z",
@@ -3343,6 +3380,10 @@ export const MockPermissions: Permissions = {
 	editAnyGroups: true,
 	editAnySettings: true,
 	viewAnyIdpSyncSettings: true,
+	viewAnyMCPServerConfigs: true,
+	createAnyMCPServerConfig: true,
+	updateAnyMCPServerConfig: true,
+	deleteAnyMCPServerConfig: true,
 	viewAnyMembers: true,
 	viewAnyAIBridgeInterception: true,
 	viewAnyAIProvider: true,
@@ -3380,8 +3421,12 @@ export const MockNoPermissions: Permissions = {
 	editAnyGroups: false,
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
+	viewAnyMCPServerConfigs: false,
+	createAnyMCPServerConfig: false,
+	updateAnyMCPServerConfig: false,
+	deleteAnyMCPServerConfig: false,
 	viewAnyMembers: false,
-	viewAnyAIBridgeInterception: true,
+	viewAnyAIBridgeInterception: false,
 	viewAnyAIProvider: false,
 	viewAIGatewayKeys: false,
 	createOAuth2App: false,
@@ -3407,6 +3452,10 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	viewProvisionerJobs: true,
 	viewIdpSyncSettings: true,
 	editIdpSyncSettings: true,
+	viewMCPServerConfigs: true,
+	createMCPServerConfig: true,
+	updateMCPServerConfig: true,
+	deleteMCPServerConfig: true,
 };
 
 export const MockNoOrganizationPermissions: OrganizationPermissions = {
@@ -3425,6 +3474,10 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	viewProvisionerJobs: false,
 	viewIdpSyncSettings: false,
 	editIdpSyncSettings: false,
+	viewMCPServerConfigs: false,
+	createMCPServerConfig: false,
+	updateMCPServerConfig: false,
+	deleteMCPServerConfig: false,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {
@@ -4867,6 +4920,10 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	},
 ];
 
+export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {
+	dynamic_client_registration_enabled: false,
+};
+
 export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
 	[
 		{
@@ -5555,6 +5612,54 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	last_prompt: "But *can* I really fix it?",
 	last_active_at: "2026-03-09T10:28:15.03152Z",
 };
+
+export const MockAIBridgeSessionNetworkCalls: readonly TypesGen.AgentFirewallLog[] =
+	[
+		{
+			id: "netcall-1",
+			session_id: "firewall-session-1",
+			sequence_number: 1,
+			proto: "http",
+			method: "POST",
+			detail: "https://api.github.com/repos/coder/coder",
+			allowed: true,
+			matched_rule: "allow api.github.com",
+			created_at: "2026-03-09T09:28:16.000Z",
+		},
+		{
+			id: "netcall-2",
+			session_id: "firewall-session-1",
+			sequence_number: 2,
+			proto: "http",
+			method: "GET",
+			detail: "https://registry.npmjs.org/lodash",
+			allowed: false,
+			matched_rule: null,
+			created_at: "2026-03-09T09:28:17.000Z",
+		},
+		{
+			id: "netcall-3",
+			session_id: "firewall-session-1",
+			sequence_number: 3,
+			proto: "http",
+			method: "POST",
+			detail: "https://hooks.slack.com/services/T01",
+			allowed: false,
+			matched_rule: null,
+			created_at: "2026-03-09T09:28:18.000Z",
+		},
+		{
+			id: "netcall-4",
+			session_id: "firewall-session-1",
+			sequence_number: 4,
+			proto: "dns",
+			method: "A",
+			detail: "api.github.com",
+			allowed: true,
+			matched_rule: "allow api.github.com",
+			created_at: "2026-03-09T09:28:19.000Z",
+		},
+	];
 
 export const MockAIProviderOpenAI: TypesGen.AIProvider = {
 	id: "7a5d6b6a-5f02-4a9c-9c4e-2b3e2a3d2f01",

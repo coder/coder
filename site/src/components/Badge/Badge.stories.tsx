@@ -1,6 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { DatabaseIcon, SettingsIcon, TriangleAlertIcon } from "lucide-react";
+import {
+	CheckIcon,
+	DatabaseIcon,
+	SettingsIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
 import { Badges } from "#/components/Badges/Badges";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { Badge } from "./Badge";
 
 const meta: Meta<typeof Badge> = {
@@ -181,5 +187,24 @@ export const MediumWithIcon: Story = {
 			<TriangleAlertIcon />
 			Immutable
 		</Badge>
+	),
+};
+
+export const StatusWithIcon: Story = {
+	render: () => (
+		<Badges>
+			<Badge variant="info" size="md" role="status">
+				<Spinner loading />
+				Running
+			</Badge>
+			<Badge variant="green" size="md" role="status">
+				<CheckIcon />
+				Success
+			</Badge>
+			<Badge variant="destructive" size="md" role="status">
+				<TriangleAlertIcon />
+				Failed
+			</Badge>
+		</Badges>
 	),
 };

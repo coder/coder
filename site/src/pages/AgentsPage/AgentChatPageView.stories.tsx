@@ -1,10 +1,20 @@
+import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, type FC, useRef } from "react";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { type ComponentProps, type FC, useRef, useState } from "react";
+import {
+	expect,
+	fireEvent,
+	fn,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
@@ -14,6 +24,8 @@ import {
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
+	MockWorkspaceApp,
+	MockWorkspaceResource,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -21,18 +33,17 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
+import { docs } from "#/utils/docs";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
-import {
-	createChatStore,
-	useChatSelector,
-} from "./components/ChatConversation/chatStore";
+import type { ChatDetailError } from "./components/ChatConversation/chatError";
+import { createChatStore } from "./components/ChatConversation/chatStore";
+import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
-import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 // ---------------------------------------------------------------------------
 // Shared constants & helpers
@@ -76,9 +87,6 @@ const buildEditing = (
 	editingFileBlocks: [] as readonly ChatMessagePart[],
 	handleEditUserMessage: fn(),
 	handleCancelHistoryEdit: fn(),
-	editingQueuedMessageID: null,
-	handleStartQueueEdit: fn(),
-	handleCancelQueueEdit: fn(),
 	handleSendFromInput: fn(),
 	handleContentChange: fn(),
 	...overrides,
@@ -119,13 +127,7 @@ type StoryProps = Omit<
 
 const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 	const defaultStoreRef = useRef(createChatStore());
-	const defaultScrollContainerRef = useRef<HTMLDivElement | null>(null);
-	const defaultScrollToBottomRef = useRef<(() => void) | null>(null);
 	const store = overrides.store ?? defaultStoreRef.current;
-	const messageCount = useChatSelector(
-		store,
-		(state) => state.messagesByID.size,
-	);
 
 	const props = {
 		agentId: AGENT_ID,
@@ -166,12 +168,11 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		handleArchiveAgentAction: fn(),
 		handleUnarchiveAgentAction: fn(),
 		handleArchiveAndDeleteWorkspaceAction: fn(),
-		scrollContainerRef:
-			overrides.scrollContainerRef ?? defaultScrollContainerRef,
-		scrollToBottomRef: overrides.scrollToBottomRef ?? defaultScrollToBottomRef,
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
-		onFetchMoreMessages: fn(),
+		isHydratingMessages: false,
+		hasFetchMoreError: false,
+		onFetchMoreMessages: fn(async () => {}),
 		mcpServers: [] as ComponentProps<typeof AgentChatPageView>["mcpServers"],
 		selectedMCPServerIds: [] as ComponentProps<
 			typeof AgentChatPageView
@@ -182,9 +183,10 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		canConfigureAgentSetup: true,
 		providerCount: 1,
 		modelCount: 1,
+		initialChatStatus: "waiting" as const,
+		initialMessages: [],
 		...overrides,
 		store,
-		messageCount: overrides.messageCount ?? messageCount,
 		editing: buildEditing(editing),
 	};
 	return <AgentChatPageView {...props} />;
@@ -202,7 +204,16 @@ const meta: Meta<typeof AgentChatPageView> = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChat").mockResolvedValue(buildChat());
 	},
-	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
+	decorators: [
+		(Story) => (
+			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+				<Story />
+			</MessageScroller.Provider>
+		),
+		withAuthProvider,
+		withDashboardProvider,
+		withProxyProvider(),
+	],
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
@@ -314,6 +325,135 @@ export const ArchivedOtherUserChat: Story = {
 		expect(
 			canvas.getByText("This agent has been archived and is read-only."),
 		).toBeVisible();
+	},
+};
+
+export const QueuedForCapacityCommunityAdmin: Story = {
+	parameters: {
+		permissions: { viewAllLicenses: true },
+	},
+	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const callout = within(canvas.getByRole("alert"));
+		const message = callout.getByText(
+			/reached the Community license limit for active agents/,
+		);
+		expect(message).toBeVisible();
+		expect(message).toHaveTextContent(
+			"This agent is queued and will start automatically when capacity is available.",
+		);
+		const trialLink = canvas.getByRole("link", {
+			name: /start an unlimited trial/i,
+		});
+		expect(trialLink).toHaveAttribute("href", "https://coder.com/trial");
+		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
+		expect(learnMoreLink).toHaveAttribute(
+			"href",
+			docs("/ai-coder/agents/platform-controls#concurrent-agents"),
+		);
+	},
+};
+
+export const QueuedForCapacityCommunityMember: Story = {
+	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const message = canvas.getByText(
+			/reached the Community license limit for active agents/,
+		);
+		expect(message).toBeVisible();
+		expect(
+			canvas.queryByRole("link", { name: /start an unlimited trial/i }),
+		).not.toBeInTheDocument();
+		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
+		expect(learnMoreLink).toHaveAttribute(
+			"href",
+			docs("/ai-coder/agents/platform-controls#concurrent-agents"),
+		);
+	},
+};
+
+export const QueuedForCapacityPremiumAdmin: Story = {
+	parameters: {
+		features: ["multiple_organizations"],
+		permissions: { viewAllLicenses: true },
+	},
+	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const message = canvas.getByText(
+			/reached your license’s limit for active agents/,
+		);
+		expect(message).toBeVisible();
+		expect(message).toHaveTextContent(
+			"Contact your Coder account team or sales@coder.com to upgrade to unlimited concurrent agents.",
+		);
+		const salesLink = canvas.getByRole("link", { name: /sales@coder\.com/ });
+		expect(salesLink).toHaveAttribute("href", "mailto:sales@coder.com");
+		expect(
+			canvas.queryByRole("link", { name: /learn more/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const QueuedForCapacityPremiumMember: Story = {
+	parameters: {
+		features: ["multiple_organizations"],
+	},
+	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const message = canvas.getByText(
+			/reached your license’s limit for active agents/,
+		);
+		expect(message).toBeVisible();
+		expect(
+			canvas.queryByRole("link", { name: /sales@coder\.com/ }),
+		).not.toBeInTheDocument();
+		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
+		expect(learnMoreLink).toHaveAttribute(
+			"href",
+			docs("/ai-coder/agents/platform-controls#concurrent-agents"),
+		);
+	},
+};
+
+export const QueuedForCapacityPremiumHardLimit: Story = {
+	parameters: {
+		features: [
+			"multiple_organizations",
+			{
+				name: "agent_runtime_hours",
+				limit: 3000,
+				hard_limit: 4000,
+				actual: 4000,
+			},
+		],
+		permissions: { viewAllLicenses: true },
+	},
+	render: () => <StoryAgentChatPageView queuedForCapacity />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const message = canvas.getByText(
+			/reached the 4000-hour Agent Hours hard limit/,
+		);
+		expect(message).toBeVisible();
+		expect(message).toHaveTextContent(
+			"This agent is queued and will start automatically when capacity is available.",
+		);
+		const salesLink = canvas.getByRole("link", { name: /sales@coder\.com/ });
+		expect(salesLink).toHaveAttribute("href", "mailto:sales@coder.com");
+	},
+};
+
+export const NotQueuedForCapacity: Story = {
+	render: () => <StoryAgentChatPageView />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByText(/limit for active agents/),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -973,24 +1113,8 @@ export const NotFoundSidebarCollapsed: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// Infinite scroll stories
+// Transcript scrolling stories
 // ---------------------------------------------------------------------------
-
-/** Generate a long conversation so the scroll container overflows. */
-const buildLongConversation = (count: number): TypesGen.ChatMessage[] => {
-	const messages: TypesGen.ChatMessage[] = [];
-	for (let i = 1; i <= count; i++) {
-		const role: TypesGen.ChatMessageRole = i % 2 === 1 ? "user" : "assistant";
-		const text =
-			role === "user"
-				? `Question ${Math.ceil(i / 2)}: Can you explain concept ${Math.ceil(i / 2)} in detail?`
-				: `Sure! Here is a detailed explanation of concept ${Math.floor(i / 2)}. `.repeat(
-						4,
-					);
-		messages.push(buildMessage(i, role, text));
-	}
-	return messages;
-};
 
 const scrollStoryDecorators: Decorator[] = [
 	(Story) => (
@@ -1006,57 +1130,17 @@ const scrollStoryDecorators: Decorator[] = [
 	),
 ];
 
-const waitForScrollOverflow = async (scrollContainer: HTMLElement) => {
+const getViewport = (canvas: ReturnType<typeof within>) =>
+	canvas.getByRole("region", { name: "Messages" });
+
+const waitForScrollOverflow = async (viewport: HTMLElement) => {
 	await waitFor(() => {
-		expect(scrollContainer.scrollHeight).toBeGreaterThan(
-			scrollContainer.clientHeight,
-		);
+		expect(viewport.scrollHeight).toBeGreaterThan(viewport.clientHeight);
 	});
 };
 
-const scrollToHistoryTop = (scrollContainer: HTMLElement) => {
-	// In the library's documented column-reverse layout, older history is
-	// reached by driving the scroll offset toward the negative extreme.
-	scrollContainer.scrollTop = -scrollContainer.scrollHeight;
-	scrollContainer.dispatchEvent(new Event("scroll"));
-};
-
-const scrollToLatestMessages = (scrollContainer: HTMLElement) => {
-	scrollContainer.scrollTop = 0;
-	scrollContainer.dispatchEvent(new Event("scroll"));
-};
-
-const waitForFetchCount = async (
-	fetchSpy: ReturnType<typeof fn>,
-	count: number,
-) => {
-	await waitFor(() => {
-		expect(fetchSpy).toHaveBeenCalledTimes(count);
-	});
-};
-
-const waitForVisibleText = async (
-	canvas: ReturnType<typeof within>,
-	text: string,
-) => {
-	await waitFor(() => {
-		// The chat timeline renders hidden measurement copies for some message
-		// layouts, so pick any visible match instead of assuming the first node is
-		// the one a user sees.
-		const matches = canvas.queryAllByText(text);
-		const hasVisibleMatch = matches.some((element: Element) => {
-			const style = window.getComputedStyle(element);
-			return (
-				style.display !== "none" &&
-				style.visibility !== "hidden" &&
-				element.getClientRects().length > 0
-			);
-		});
-		expect(hasVisibleMatch).toBe(true);
-	});
-};
-
-const waitForIntersectionObserverTick = async () => {
+/** The scroller commits its state on an animation frame. */
+const settleScroller = async () => {
 	await new Promise<void>((resolve) => {
 		requestAnimationFrame(() => {
 			requestAnimationFrame(() => {
@@ -1064,6 +1148,11 @@ const waitForIntersectionObserverTick = async () => {
 			});
 		});
 	});
+};
+
+const scrollTo = (viewport: HTMLElement, scrollTop: number) => {
+	viewport.scrollTop = scrollTop;
+	fireEvent.scroll(viewport);
 };
 
 /** Helper that extracts the current messages array from a store. */
@@ -1086,8 +1175,7 @@ const prependOlderMessages = (
 	count: number,
 ) => {
 	const existing = getStoreMessages(store);
-	const oldestMessage = existing[0];
-	const oldestID = oldestMessage?.id ?? 1;
+	const oldestID = existing[0]?.id ?? 1;
 	const olderMessages = Array.from({ length: count }, (_, index) => {
 		const id = oldestID - count + index;
 		const role: TypesGen.ChatMessageRole = id % 2 === 0 ? "assistant" : "user";
@@ -1100,417 +1188,376 @@ const prependOlderMessages = (
 	store.replaceMessages([...olderMessages, ...existing]);
 };
 
-const resetScrollStoryStore = (
-	store: ReturnType<typeof createChatStore>,
-	// Default to a transcript long enough to overflow the 600px decorator so the
-	// inverse-scroll stories exercise the fetch threshold immediately.
-	count = 80,
-) => {
-	store.replaceMessages(buildLongConversation(count));
-	store.setChatStatus("waiting");
-};
+const singleRenderStore = buildStoreWithMessages([
+	buildMessage(1, "user", "Only rendered once"),
+	buildMessage(2, "assistant", "Understood."),
+]);
 
-const inverseScrollStore = buildStoreWithMessages(buildLongConversation(80));
-const inverseScrollFetchSpy = fn(() => {
-	prependOlderMessages(inverseScrollStore, 10);
-});
-
-/**
- * Scrolling upward in the library's inverse mode loads older messages into the
- * top of the transcript.
- */
-export const InverseScrollLoadsOlderMessages: Story = {
+/** Every prompt renders exactly one row: no sticky copy trails the original. */
+export const UserPromptsRenderOnce: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
-	render: () => (
-		<StoryAgentChatPageView
-			store={inverseScrollStore}
-			hasMoreMessages
-			onFetchMoreMessages={inverseScrollFetchSpy}
-		/>
-	),
+	render: () => <StoryAgentChatPageView store={singleRenderStore} />,
 	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(inverseScrollStore);
-		inverseScrollFetchSpy.mockClear();
 		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-		expect(inverseScrollFetchSpy).not.toHaveBeenCalled();
-
-		scrollToHistoryTop(scrollContainer);
-
-		await waitForFetchCount(inverseScrollFetchSpy, 1);
-		await waitForVisibleText(canvas, "Older question 9.");
+		expect(canvas.getAllByText("Only rendered once")).toHaveLength(1);
+		expect(canvas.getAllByTestId("chat-message-message:1")).toHaveLength(1);
 	},
 };
 
-const multiPageScrollStore = buildStoreWithMessages(buildLongConversation(80));
-const multiPageFetchSpy = fn(() => {
-	prependOlderMessages(multiPageScrollStore, 10);
+const startEdgeStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 40).slice(1),
+);
+
+const streamCompletionStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 40),
+);
+
+let releaseStartEdgeFetch: (() => void) | undefined;
+let startEdgeFetchGate: Promise<void>;
+const startEdgeFetchSpy = fn(async () => {
+	await startEdgeFetchGate;
+	prependOlderMessages(startEdgeStore, 10);
 });
 
-/**
- * The library resets its one-shot load guard when dataLength changes, so a
- * second upward reveal can load another page.
- */
-export const InverseScrollCanLoadMultiplePages: Story = {
+/** Reaching the start of the loaded history requests the previous page once. */
+export const ReachingTheStartLoadsEarlierMessages: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
-	render: () => (
-		<StoryAgentChatPageView
-			store={multiPageScrollStore}
-			hasMoreMessages
-			onFetchMoreMessages={multiPageFetchSpy}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(multiPageScrollStore);
-		multiPageFetchSpy.mockClear();
-		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-
-		scrollToHistoryTop(scrollContainer);
-		await waitForFetchCount(multiPageFetchSpy, 1);
-		await waitForVisibleText(canvas, "Older question 9.");
-
-		scrollToLatestMessages(scrollContainer);
-		await waitFor(() => {
-			expect(scrollContainer.scrollTop).toBe(0);
+	beforeEach: () => {
+		startEdgeFetchGate = new Promise<void>((resolve) => {
+			releaseStartEdgeFetch = resolve;
 		});
-		await waitForIntersectionObserverTick();
-		scrollToHistoryTop(scrollContainer);
+	},
+	render: () => (
+		<StoryAgentChatPageView
+			store={startEdgeStore}
+			hasMoreMessages
+			onFetchMoreMessages={startEdgeFetchSpy}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		startEdgeStore.replaceMessages(
+			buildLongConversation(AGENT_ID, 40).slice(1),
+		);
+		startEdgeStore.setChatStatus("waiting");
+		startEdgeFetchSpy.mockClear();
+		const canvas = within(canvasElement);
+		const viewport = getViewport(canvas);
 
-		await waitForFetchCount(multiPageFetchSpy, 2);
-		await waitForVisibleText(canvas, "Older answer 10.");
+		await waitForScrollOverflow(viewport);
+		await settleScroller();
+		expect(startEdgeFetchSpy).not.toHaveBeenCalled();
+
+		const marker = canvas.getByTestId("chat-message-message:2");
+		fireEvent.wheel(viewport, { deltaY: -100 });
+		scrollTo(viewport, 0);
+		await waitFor(() => {
+			expect(startEdgeFetchSpy).toHaveBeenCalledTimes(1);
+		});
+		const markerOffset =
+			marker.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+		releaseStartEdgeFetch?.();
+
+		await waitFor(() => {
+			expect(canvas.getByTestId("chat-message-message:1")).toBeInTheDocument();
+		});
+		await settleScroller();
+		expect(
+			Math.abs(
+				marker.getBoundingClientRect().top -
+					viewport.getBoundingClientRect().top -
+					markerOffset,
+			),
+		).toBeLessThan(4);
 	},
 };
 
-const scrollToBottomButtonStoryStore = buildStoreWithMessages(
-	buildLongConversation(80),
+/**
+ * Stream completion must not yank the transcript to the oldest message. The
+ * live assistant row is replaced by its durable row (a remount, not an
+ * in-place reconciliation), and the only anchored row is the active turn's
+ * prompt, so the scroller has no unhandled historical anchor to jump to.
+ */
+export const StreamCompletionKeepsViewportPosition: Story = {
+	parameters: { pixel: { exclude: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={streamCompletionStore} />,
+	play: async ({ canvasElement }) => {
+		streamCompletionStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
+		streamCompletionStore.setChatStatus("waiting");
+		const canvas = within(canvasElement);
+		const viewport = getViewport(canvas);
+
+		await waitForScrollOverflow(viewport);
+		await settleScroller();
+
+		// Sit at the live edge; the oldest message is scrolled above the viewport.
+		scrollTo(viewport, viewport.scrollHeight);
+		await settleScroller();
+		const oldest = canvas.getByTestId("chat-message-message:1");
+		const oldestAboveViewport = () =>
+			oldest.getBoundingClientRect().bottom <=
+			viewport.getBoundingClientRect().top;
+		expect(oldestAboveViewport()).toBe(true);
+
+		// A new turn begins: the prompt is appended and the assistant starts
+		// streaming into the live row.
+		streamCompletionStore.batch(() => {
+			streamCompletionStore.upsertDurableMessages([
+				buildMessage(41, "user", "Final question."),
+			]);
+			streamCompletionStore.setChatStatus("running");
+			streamCompletionStore.applyMessageParts([
+				{ type: "text", text: "Streaming the final answer." },
+			]);
+		});
+		// The live assistant row mounts under its ephemeral key.
+		await waitFor(() => {
+			expect(
+				canvas.getByTestId("chat-message-live-assistant"),
+			).toBeInTheDocument();
+		});
+		await settleScroller();
+
+		// The durable assistant row replaces the live row, then the turn ends.
+		streamCompletionStore.batch(() => {
+			streamCompletionStore.upsertDurableMessages([
+				buildMessage(42, "assistant", "Streaming the final answer."),
+			]);
+			streamCompletionStore.clearStreamState();
+			streamCompletionStore.setChatStatus("waiting");
+		});
+		await waitFor(() => {
+			expect(canvas.getByTestId("chat-message-message:42")).toBeInTheDocument();
+		});
+		await settleScroller();
+
+		// The viewport never jumped back to the oldest message.
+		expect(oldestAboveViewport()).toBe(true);
+	},
+};
+
+const thinkingShiftStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 40),
 );
 
 /**
- * The replacement container should keep the floating affordance that returns a
- * user from older history to the newest messages.
+ * The Thinking indicator must hand off to streaming text without collapsing
+ * the live row for a frame. The anchored prompt must not move.
  */
-export const ScrollToBottomButtonWorksWithInverseScroll: Story = {
+export const ThinkingHandoffKeepsPromptPosition: Story = {
 	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
-	render: () => (
-		<StoryAgentChatPageView store={scrollToBottomButtonStoryStore} />
-	),
+	render: () => <StoryAgentChatPageView store={thinkingShiftStore} />,
 	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(scrollToBottomButtonStoryStore);
+		thinkingShiftStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
+		thinkingShiftStore.setChatStatus("waiting");
 		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
+		const viewport = getViewport(canvas);
+		await waitForScrollOverflow(viewport);
+		await settleScroller();
+		scrollTo(viewport, viewport.scrollHeight);
+		await settleScroller();
 
-		await waitForScrollOverflow(scrollContainer);
-		expect(
-			canvas.queryByRole("button", { name: /scroll to bottom/i }),
-		).toBeNull();
+		// Begin a turn: the prompt is appended and the chat goes running, so
+		// the live row shows the Thinking indicator with no stream output yet.
+		thinkingShiftStore.batch(() => {
+			thinkingShiftStore.upsertDurableMessages([
+				buildMessage(41, "user", "Follow-up question."),
+			]);
+			thinkingShiftStore.setChatStatus("running");
+		});
+		await canvas.findByTestId("chat-message-live-assistant");
+		await canvas.findByTestId("live-activity-slot");
+		await settleScroller();
 
-		scrollToHistoryTop(scrollContainer);
+		const prompt = canvas.getByTestId("chat-message-message:41");
+		const liveRow = canvas.getByTestId("chat-message-live-assistant");
+		const promptTop = () =>
+			prompt.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+		// Capture the baseline while the Thinking indicator is shown: the bug
+		// shrank the live row below this for one frame when the first chunk
+		// arrived. Guard against a degenerate unpainted baseline so the height
+		// assertion below cannot silently become a tautology.
+		const anchoredTop = promptTop();
+		const thinkingHeight = liveRow.getBoundingClientRect().height;
+		expect(thinkingHeight).toBeGreaterThan(0);
+
+		// The first stream chunk replaces the Thinking indicator with text. The
+		// live row must never shrink below its Thinking-indicator height, so the
+		// anchored prompt and everything above it must stay put. Position uses a
+		// tolerance because rect tops are fractional; a 24px drop is 6x it.
+		thinkingShiftStore.applyMessageParts([
+			{ type: "text", text: "Here is the start of the answer." },
+		]);
+		for (let i = 0; i < 6; i++) {
+			expect(liveRow.getBoundingClientRect().height).toBeGreaterThanOrEqual(
+				thinkingHeight,
+			);
+			expect(Math.abs(promptTop() - anchoredTop)).toBeLessThan(4);
+			await new Promise<void>((r) => requestAnimationFrame(() => r()));
+		}
+	},
+};
+
+const underflowFetchSpy = fn();
+
+const UnderflowPaginationStory: FC = () => {
+	const store = useRef(
+		buildStoreWithMessages([
+			buildMessage(9, "assistant", "The newest loaded message. ".repeat(6)),
+		]),
+	).current;
+	const [loadedPages, setLoadedPages] = useState(0);
+	const [isFetching, setIsFetching] = useState(false);
+
+	const completePage = () => {
+		const nextPage = loadedPages + 1;
+		store.replaceMessages([
+			buildMessage(
+				9 - nextPage,
+				nextPage % 2 === 1 ? "user" : "assistant",
+				`Loaded underflow page ${nextPage}. `.repeat(20),
+			),
+			...getStoreMessages(store),
+		]);
+		setLoadedPages(nextPage);
+		setIsFetching(false);
+	};
+
+	return (
+		<div className="flex h-[600px] flex-col">
+			<StoryAgentChatPageView
+				store={store}
+				hasMoreMessages={loadedPages < 2}
+				isFetchingMoreMessages={isFetching}
+				onFetchMoreMessages={async () => {
+					underflowFetchSpy();
+					setIsFetching(true);
+				}}
+			/>
+			<button type="button" disabled={!isFetching} onClick={completePage}>
+				Complete history page
+			</button>
+		</div>
+	);
+};
+
+/**
+ * A transcript that does not fill the viewport keeps asking for history, one
+ * page at a time, until it overflows or the history ends.
+ */
+export const ShortTranscriptLoadsUntilHistoryIsExhausted: Story = {
+	parameters: { pixel: { exclude: true } },
+	beforeEach: () => {
+		underflowFetchSpy.mockClear();
+	},
+	render: () => <UnderflowPaginationStory />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const completePage = canvas.getByRole("button", {
+			name: "Complete history page",
+		});
 
 		await waitFor(() => {
+			expect(underflowFetchSpy).toHaveBeenCalledTimes(1);
 			expect(
-				canvas.getByRole("button", { name: /scroll to bottom/i }),
+				canvas.getByRole("status", { name: "Loading earlier messages" }),
+			).toBeVisible();
+		});
+		scrollTo(getViewport(canvas), 0);
+		expect(underflowFetchSpy).toHaveBeenCalledTimes(1);
+
+		await userEvent.click(completePage);
+		await waitFor(() => {
+			expect(canvas.getByText(/Loaded underflow page 1\./)).toBeVisible();
+			expect(underflowFetchSpy).toHaveBeenCalledTimes(2);
+		});
+
+		await userEvent.click(completePage);
+		await waitFor(() => {
+			expect(canvas.getByText(/Loaded underflow page 2\./)).toBeVisible();
+			expect(
+				canvas.queryByRole("status", { name: "Loading earlier messages" }),
+			).not.toBeInTheDocument();
+		});
+		expect(underflowFetchSpy).toHaveBeenCalledTimes(2);
+	},
+};
+
+const retryFetchSpy = fn();
+
+const RetryPaginationStory: FC = () => {
+	const store = useRef(
+		buildStoreWithMessages(buildLongConversation(AGENT_ID, 40)),
+	).current;
+	const [hasError, setHasError] = useState(true);
+	const [isFetching, setIsFetching] = useState(false);
+
+	const completePage = () => {
+		prependOlderMessages(store, 4);
+		setIsFetching(false);
+	};
+
+	return (
+		<div className="flex h-[600px] flex-col">
+			<StoryAgentChatPageView
+				store={store}
+				hasMoreMessages
+				isFetchingMoreMessages={isFetching}
+				hasFetchMoreError={hasError}
+				onFetchMoreMessages={async () => {
+					retryFetchSpy();
+					setHasError(false);
+					setIsFetching(true);
+				}}
+			/>
+			<button type="button" disabled={!isFetching} onClick={completePage}>
+				Complete retry page
+			</button>
+		</div>
+	);
+};
+
+/**
+ * A failed history request stops the automatic loading and offers a retry that
+ * keyboard users can reach.
+ */
+export const FailedHistoryPageOffersKeyboardRetry: Story = {
+	parameters: { pixel: { exclude: true } },
+	beforeEach: () => {
+		retryFetchSpy.mockClear();
+	},
+	render: () => <RetryPaginationStory />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const viewport = getViewport(canvas);
+		const retry = canvas.getByRole("button", {
+			name: "Retry loading earlier messages",
+		});
+
+		scrollTo(viewport, 0);
+		await settleScroller();
+		expect(retry).toBeVisible();
+		expect(retryFetchSpy).not.toHaveBeenCalled();
+
+		retry.focus();
+		expect(retry).toHaveFocus();
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(retryFetchSpy).toHaveBeenCalledTimes(1);
+			expect(
+				canvas.getByRole("status", { name: "Loading earlier messages" }),
 			).toBeVisible();
 		});
 
 		await userEvent.click(
-			canvas.getByRole("button", { name: /scroll to bottom/i }),
+			canvas.getByRole("button", { name: "Complete retry page" }),
 		);
-
 		await waitFor(() => {
-			expect(scrollContainer.scrollTop).toBe(0);
-			expect(
-				canvas.queryByRole("button", { name: /scroll to bottom/i }),
-			).toBeNull();
-		});
-	},
-};
-
-const scrollToBottomStoryStore = buildStoreWithMessages(
-	buildLongConversation(80),
-);
-// Story objects live at module scope, so use a ref-shaped object instead of a
-// hook to capture the imperative callback across the render and play phases.
-const scrollToBottomStoryRef: { current: (() => void) | null } = {
-	current: null,
-};
-
-/**
- * Page-level send and edit flows still rely on an imperative scroll-to-bottom
- * hook, so the replacement container must keep that contract working.
- */
-export const ScrollToBottomRefStillWorks: Story = {
-	parameters: { pixel: { exclude: true } },
-	decorators: scrollStoryDecorators,
-	render: () => (
-		<StoryAgentChatPageView
-			store={scrollToBottomStoryStore}
-			scrollToBottomRef={scrollToBottomStoryRef}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(scrollToBottomStoryStore);
-		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-		scrollToHistoryTop(scrollContainer);
-
-		await waitFor(() => {
-			expect(scrollContainer.scrollTop).toBeLessThan(0);
-			expect(typeof scrollToBottomStoryRef.current).toBe("function");
-		});
-
-		const scrollToBottom = scrollToBottomStoryRef.current;
-		if (!scrollToBottom) {
-			throw new Error("Expected scrollToBottomRef to be available.");
-		}
-		scrollToBottom();
-
-		await waitFor(() => {
-			expect(scrollContainer.scrollTop).toBe(0);
-		});
-	},
-};
-
-const messageOrderStore = buildStoreWithMessages([
-	buildMessage(1, "user", "Oldest message"),
-	buildMessage(2, "assistant", "Older response"),
-	buildMessage(3, "user", "Newer question"),
-	buildMessage(4, "assistant", "Newest reply"),
-]);
-
-/**
- * The reversed container layout must not invert the transcript's visible order.
- */
-export const MessageOrderIsStillCorrect: Story = {
-	parameters: { pixel: { exclude: true } },
-	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={messageOrderStore} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const oldest = canvas.getByText("Oldest message");
-		const newer = canvas.getByText("Newest reply");
-
-		await waitFor(() => {
-			expect(oldest.getBoundingClientRect().top).toBeLessThan(
-				newer.getBoundingClientRect().top,
-			);
-		});
-	},
-};
-
-const stickyPinningStore = buildStoreWithMessages(buildLongConversation(40));
-
-/**
- * Regression guard for the StickyUserMessage push-up logic.
- *
- * `react-infinite-scroll-component` renders two wrapper divs between the
- * scroll container and the message tree. The library applies `overflow:
- * auto` to its inner wrapper, which used to make `position: sticky` on a
- * user message resolve against that wrapper instead of the actual scroller.
- * The fix forces both wrappers to `display: contents` so the sticky
- * container's nearest scrolling ancestor is once again the
- * `.overflow-y-auto` element.
- *
- * This story scrolls past the most recent user message and asserts the
- * message is pinned within a few pixels of the scroll container's top.
- */
-export const StickyUserMessagePinsOnScroll: Story = {
-	parameters: { pixel: { exclude: true } },
-	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={stickyPinningStore} />,
-	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(stickyPinningStore, 40);
-		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-
-		// Each sticky user message is the element immediately following its
-		// `data-user-sentinel` marker. The push-up logic depends on the
-		// sticky container resolving against the real scroll container,
-		// which is the regression this story guards against.
-		const sentinels = scrollContainer.querySelectorAll("[data-user-sentinel]");
-		expect(sentinels.length).toBeGreaterThan(0);
-		for (const sentinel of Array.from(sentinels)) {
-			expect(sentinel.closest("[data-testid='scroll-container']")).toBe(
-				scrollContainer,
-			);
-			const container = sentinel.nextElementSibling;
-			expect(container).not.toBeNull();
-			expect(window.getComputedStyle(container as Element).position).toBe(
-				"sticky",
-			);
-		}
-
-		// At the default `scrollTop = 0`, the inverse layout shows the
-		// newest messages at the bottom of the viewport. Older user
-		// messages whose sentinels have already scrolled above the
-		// scroller's top edge should be pinned by `position: sticky`. Pick
-		// a sentinel that is comfortably above the top edge so a tiny
-		// scroll offset cannot flip it on or off the boundary.
-		const scrollerRect = scrollContainer.getBoundingClientRect();
-		// Walk the sentinels in reverse DOM order so we land on the
-		// most recent user message whose sentinel has scrolled above
-		// the scroll container's top edge. That is the message the
-		// push-up logic actively pins at the top; earlier pinned
-		// messages will have been pushed out of view by it.
-		const pinnedSentinel = Array.from(sentinels)
-			.reverse()
-			.find(
-				(sentinel) =>
-					sentinel.getBoundingClientRect().top < scrollerRect.top - 4,
-			) as HTMLElement | undefined;
-		expect(pinnedSentinel).toBeDefined();
-		if (!pinnedSentinel) {
-			return;
-		}
-		const pinnedContainer = pinnedSentinel.nextElementSibling as HTMLElement;
-
-		// `position: sticky` should pin the user message container near
-		// the scroll container's top edge while the assistant response
-		// below it is on screen. Before the fix, the sticky container
-		// resolved against the InfiniteScroll wrapper rather than the
-		// real scroll container, so it scrolled out with its sentinel
-		// and ended up far above the viewport.
-		const pinnedRect = pinnedContainer.getBoundingClientRect();
-		expect(window.getComputedStyle(pinnedContainer).position).toBe("sticky");
-		expect(pinnedRect.top - scrollerRect.top).toBeGreaterThanOrEqual(-1);
-		expect(pinnedRect.top - scrollerRect.top).toBeLessThan(40);
-	},
-};
-
-// Tall user messages interleaved with verbose assistant replies. The height
-// gives the sticky clip room to shrink as the transcript grows, and the
-// volume overflows the 600px scroll decorator.
-const buildTallStickyConversation = (count: number): TypesGen.ChatMessage[] => {
-	const messages: TypesGen.ChatMessage[] = [];
-	for (let i = 1; i <= count; i++) {
-		const role: TypesGen.ChatMessageRole = i % 2 === 1 ? "user" : "assistant";
-		const text =
-			role === "user"
-				? Array.from(
-						{ length: 6 },
-						(_, line) =>
-							`Question ${Math.ceil(i / 2)} paragraph ${line + 1}: keep this user message tall enough to clip.`,
-					).join("\n\n")
-				: `Detailed answer ${Math.floor(i / 2)}. `.repeat(12);
-		messages.push(buildMessage(i, role, text));
-	}
-	return messages;
-};
-
-const stickyClipUpdateStore = buildStoreWithMessages(
-	buildTallStickyConversation(30),
-);
-
-/**
- * Regression guard: the sticky truncation must stay in sync as the
- * transcript grows while the user is pinned to the bottom.
- *
- * The clip height is recomputed by a scroll handler, a window-resize
- * handler, and a ResizeObserver on the transcript. The observer used to
- * watch `scroller.firstElementChild`, which is the aria-hidden flex spacer
- * that pins content to the bottom. That spacer collapses to 0px once the
- * transcript overflows and then stops emitting resize callbacks, so several
- * messages arriving while pinned left the clip stale until the next manual
- * scroll and the bubble overflowed. The fix observes the real content
- * wrapper tagged with `data-chat-scroll-content`.
- *
- * This story grows the transcript while pinned and asserts the clip tracks
- * the new geometry without any scroll event.
- */
-export const StickyUserMessageClipUpdatesWhilePinned: Story = {
-	parameters: { pixel: { exclude: true } },
-	decorators: scrollStoryDecorators,
-	render: () => <StoryAgentChatPageView store={stickyClipUpdateStore} />,
-	play: async ({ canvasElement }) => {
-		stickyClipUpdateStore.replaceMessages(buildTallStickyConversation(30));
-		stickyClipUpdateStore.setChatStatus("waiting");
-		const canvas = within(canvasElement);
-		const scrollContainer = canvas.getByTestId("scroll-container");
-
-		await waitForScrollOverflow(scrollContainer);
-
-		// The observed transcript node must be the real content wrapper, not
-		// the aria-hidden flex spacer that collapses to 0px on overflow.
-		const contentMarker = scrollContainer.querySelector(
-			"[data-chat-scroll-content]",
-		);
-		expect(contentMarker).not.toBeNull();
-		const spacer = scrollContainer.firstElementChild;
-		expect(spacer).not.toBe(contentMarker);
-		expect(spacer?.getAttribute("aria-hidden")).toBe("true");
-
-		// Every sticky sentinel lives inside the observed content node, so a
-		// resize of that node reflects transcript growth.
-		const sentinels = scrollContainer.querySelectorAll("[data-user-sentinel]");
-		expect(sentinels.length).toBeGreaterThan(0);
-		for (const sentinel of Array.from(sentinels)) {
-			expect(contentMarker?.contains(sentinel)).toBe(true);
-		}
-
-		// At scrollTop 0 the newest message is pinned to the bottom. The most
-		// recent user message whose sentinel sits just above the top edge is
-		// the bubble pinned at the top and actively clipped.
-		const scrollerRect = scrollContainer.getBoundingClientRect();
-		const pinnedSentinel = Array.from(sentinels)
-			.reverse()
-			.find(
-				(sentinel) =>
-					sentinel.getBoundingClientRect().top < scrollerRect.top - 4,
-			) as HTMLElement | undefined;
-		expect(pinnedSentinel).toBeDefined();
-		if (!pinnedSentinel) {
-			return;
-		}
-		const pinnedContainer = pinnedSentinel.nextElementSibling as HTMLElement;
-
-		const MIN_CLIP_HEIGHT = 72;
-		const readClip = () =>
-			Number.parseFloat(pinnedContainer.style.getPropertyValue("--clip-h")) ||
-			0;
-		const measureScrolledPast = () =>
-			scrollContainer.getBoundingClientRect().top -
-			pinnedSentinel.getBoundingClientRect().top;
-		const expectedClip = () =>
-			Math.max(
-				pinnedContainer.offsetHeight - measureScrolledPast(),
-				MIN_CLIP_HEIGHT,
-			);
-
-		const scrolledPastBefore = measureScrolledPast();
-		expect(scrolledPastBefore).toBeGreaterThan(4);
-		// Stay in the clipping regime (not a near-full-height bubble).
-		expect(pinnedContainer.offsetHeight).toBeLessThanOrEqual(
-			scrollContainer.clientHeight * 0.75,
-		);
-		expect(scrollContainer.scrollTop).toBe(0);
-
-		// Grow the transcript at the newest end. While pinned, scrollTop stays
-		// at 0 so no scroll event fires; only the content ResizeObserver can
-		// drive the recompute.
-		stickyClipUpdateStore.replaceMessages([
-			...getStoreMessages(stickyClipUpdateStore),
-			buildMessage(31, "assistant", "Freshly streamed reply. ".repeat(80)),
-			buildMessage(32, "assistant", "More freshly streamed reply. ".repeat(80)),
-		]);
-
-		// The pinned bubble is now further above the top edge. Its clip must
-		// follow the new geometry. Before the fix it stayed stale (matching
-		// the pre-growth scrolledPast) until a manual scroll.
-		await waitFor(() => {
-			expect(scrollContainer.scrollTop).toBe(0);
-			expect(measureScrolledPast()).toBeGreaterThan(scrolledPastBefore + 10);
-			expect(Math.abs(readClip() - expectedClip())).toBeLessThanOrEqual(2);
+			expect(canvas.getByText("Older question 3.")).toBeInTheDocument();
 		});
 	},
 };
@@ -1579,12 +1626,12 @@ const sidebarTabStorageKey = `${lastActiveSidebarTabStorageKeyPrefix}${AGENT_ID}
 
 /**
  * When localStorage contains a persisted tab ID for this chat, the sidebar
- * should restore it on mount. Seed localStorage with "terminal" and verify
- * that the Terminal tab is selected instead of the default Git tab.
+ * should restore it on mount. Seed localStorage with "git" and verify that
+ * the Git tab is selected instead of the default Summary tab.
  */
 export const RestoresPersistedSidebarTab: Story = {
 	beforeEach: () => {
-		localStorage.setItem(sidebarTabStorageKey, "terminal");
+		localStorage.setItem(sidebarTabStorageKey, "git");
 		return () => {
 			localStorage.removeItem(sidebarTabStorageKey);
 		};
@@ -1601,12 +1648,12 @@ export const RestoresPersistedSidebarTab: Story = {
 		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
-			expect(terminalTab).toHaveAttribute("aria-selected", "true");
+			const gitTab = canvas.getByRole("tab", { name: "Git" });
+			expect(gitTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		const gitTab = canvas.getByRole("tab", { name: "Git" });
-		expect(gitTab).toHaveAttribute("aria-selected", "false");
+		const summaryTab = canvas.getByRole("tab", { name: "Summary" });
+		expect(summaryTab).toHaveAttribute("aria-selected", "false");
 	},
 };
 
@@ -1637,14 +1684,14 @@ export const PersistsSidebarTabClick: Story = {
 			expect(summaryTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
-		await userEvent.click(terminalTab);
+		const gitTab = canvas.getByRole("tab", { name: "Git" });
+		await userEvent.click(gitTab);
 
 		await waitFor(() => {
-			expect(terminalTab).toHaveAttribute("aria-selected", "true");
+			expect(gitTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("terminal");
+		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("git");
 	},
 };
 
@@ -1674,6 +1721,158 @@ export const PreservesUnavailableSidebarTab: Story = {
 		expect(canvas.queryByRole("tab", { name: "Terminal" })).toBeNull();
 
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("terminal");
+	},
+};
+
+const mockAgentBrowserApp: TypesGen.WorkspaceApp = {
+	...MockWorkspaceApp,
+	id: "agent-browser-app",
+	slug: AGENT_BROWSER_APP_SLUG,
+	display_name: "agent-browser",
+	health: "healthy",
+};
+
+const mockAgentWithBrowserApp: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	apps: [...MockWorkspaceAgent.apps, mockAgentBrowserApp],
+};
+
+export const BrowserTabForHealthyAgentBrowserApp: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={mockAgentWithBrowserApp}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const browserTab = await canvas.findByRole("tab", { name: "Browser" });
+		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
+		expect(tabLabels).toEqual(["Summary", "Git", "Browser", "Terminal"]);
+
+		// The frame stays mounted while inactive to preserve app state, so
+		// assert visibility rather than presence.
+		const frame = canvas.getByTitle("agent-browser");
+		expect(frame.checkVisibility()).toBe(false);
+
+		await userEvent.click(browserTab);
+
+		await waitFor(() => {
+			expect(browserTab).toHaveAttribute("aria-selected", "true");
+		});
+		expect(frame.checkVisibility()).toBe(true);
+	},
+};
+
+export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				apps: [{ ...mockAgentBrowserApp, health: "disabled" }],
+			}}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const browserTab = await canvas.findByRole("tab", { name: "Browser" });
+		await userEvent.click(browserTab);
+
+		await waitFor(() => {
+			expect(browserTab).toHaveAttribute("aria-selected", "true");
+		});
+		expect(canvas.getByTitle("agent-browser").checkVisibility()).toBe(true);
+	},
+};
+
+export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={{
+				...MockWorkspaceAgent,
+				apps: [{ ...mockAgentBrowserApp, health: "unhealthy" }],
+			}}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
+	},
+};
+
+export const NoBrowserTabForAppOnNonBoundAgent: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={{
+				...MockWorkspace,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{
+							...MockWorkspaceResource,
+							agents: [
+								MockWorkspaceAgent,
+								{
+									...mockAgentWithBrowserApp,
+									id: "other-agent",
+									name: "other-agent",
+								},
+							],
+						},
+					],
+				},
+			}}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
+	},
+};
+
+export const PreservesUnavailableBrowserTab: Story = {
+	beforeEach: () => {
+		localStorage.setItem(sidebarTabStorageKey, "browser");
+		return () => {
+			localStorage.removeItem(sidebarTabStorageKey);
+		};
+	},
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
+			expect(summaryTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
+
+		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("browser");
 	},
 };
 
@@ -1711,11 +1910,11 @@ export const DoesNotPersistForArchivedChat: Story = {
 			expect(summaryTab).toHaveAttribute("aria-selected", "true");
 		});
 
-		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
-		await userEvent.click(terminalTab);
+		const gitTab = canvas.getByRole("tab", { name: "Git" });
+		await userEvent.click(gitTab);
 
 		await waitFor(() => {
-			expect(terminalTab).toHaveAttribute("aria-selected", "true");
+			expect(gitTab).toHaveAttribute("aria-selected", "true");
 		});
 
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBeNull();

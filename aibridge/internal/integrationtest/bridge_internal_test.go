@@ -837,6 +837,41 @@ func TestOpenAIChatCompletions(t *testing.T) {
 		}
 	})
 
+	t.Run("streaming cumulative usage with injected tool", func(t *testing.T) {
+		t.Parallel()
+
+		bridgeServer, mockMCP, resp := setupInjectedToolTest(
+			t,
+			fixtures.OaiChatStreamingCumulativeUsageInjectedTool,
+			true,
+			defaultTracer,
+			pathOpenAIChatCompletions,
+			nil,
+		)
+		defer resp.Body.Close()
+
+		sp := aibridge.NewSSEParser()
+		require.NoError(t, sp.Parse(resp.Body))
+
+		var finalUsage gjson.Result
+		events := sp.MessageEvents()
+		for i := len(events) - 1; i >= 0; i-- {
+			if usage := gjson.Get(events[i].Data, "usage"); usage.Exists() {
+				finalUsage = usage
+				break
+			}
+		}
+
+		require.True(t, finalUsage.Exists())
+		require.EqualValues(t, 6000, finalUsage.Get("prompt_tokens").Int())
+		require.EqualValues(t, 30, finalUsage.Get("completion_tokens").Int())
+		require.EqualValues(t, 6030, finalUsage.Get("total_tokens").Int())
+		require.EqualValues(t, 12000, bridgeServer.Recorder.TotalInputTokens())
+		require.EqualValues(t, 60, bridgeServer.Recorder.TotalOutputTokens())
+		require.Len(t, mockMCP.getCallsByTool(mockToolName), 1)
+		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+	})
+
 	t.Run("streaming injected tool call edge cases", func(t *testing.T) {
 		t.Parallel()
 
@@ -2450,4 +2485,66 @@ func extractSigV4Field(authHeader, prefix string) string {
 		val = val[:end]
 	}
 	return strings.TrimSpace(val)
+}
+
+// TestTokenUsageRecordedWithoutMCPProxier asserts that an interception records
+// token usage when no MCP server proxier is configured. Upstream reports usage
+// independently of tool injection, and coderd/aibridged tolerates a nil
+// proxier when proxier construction fails, so usage must not depend on one.
+func TestTokenUsageRecordedWithoutMCPProxier(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name                                      string
+		fixture                                   []byte
+		path                                      string
+		expectedInputTokens, expectedOutputTokens int64
+	}{
+		{
+			name:                 "openai responses",
+			fixture:              fixtures.OaiResponsesStreamingSimple,
+			path:                 pathOpenAIResponses,
+			expectedInputTokens:  11,
+			expectedOutputTokens: 18,
+		},
+		{
+			name:                 "anthropic messages",
+			fixture:              fixtures.AntSimple,
+			path:                 pathAnthropicMessages,
+			expectedInputTokens:  18,
+			expectedOutputTokens: 241,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+			t.Cleanup(cancel)
+
+			fix := fixtures.Parse(t, tc.fixture)
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+
+			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, func(c *bridgeConfig) {
+				c.noMCPProxy = true
+			})
+
+			inputBefore := bridgeServer.Recorder.TotalInputTokens()
+			outputBefore := bridgeServer.Recorder.TotalOutputTokens()
+
+			reqBody, err := sjson.SetBytes(fix.Request(), "stream", true)
+			require.NoError(t, err)
+			resp, err := bridgeServer.makeRequest(t, http.MethodPost, tc.path, reqBody)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			_, err = io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			require.NotEmpty(t, bridgeServer.Recorder.RecordedTokenUsages(), "token usage must be recorded without an MCP proxier")
+			assert.EqualValues(t, tc.expectedInputTokens, bridgeServer.Recorder.TotalInputTokens()-inputBefore, "input tokens miscalculated")
+			assert.EqualValues(t, tc.expectedOutputTokens, bridgeServer.Recorder.TotalOutputTokens()-outputBefore, "output tokens miscalculated")
+		})
+	}
 }

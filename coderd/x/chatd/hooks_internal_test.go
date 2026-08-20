@@ -59,6 +59,7 @@ func TestSessionStartDispatchFailureFinishesGeneration(t *testing.T) {
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		consumer.Client(),
 		consumer.URL,
+		false,
 		"test-hook-secret-32-bytes-minimum!!",
 		time.Second,
 		"test-deployment",

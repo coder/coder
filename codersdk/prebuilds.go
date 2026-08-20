@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 )
 
@@ -29,7 +28,7 @@ func (c *Client) GetPrebuildsSettings(ctx context.Context) (PrebuildsSettings, e
 		return PrebuildsSettings{}, ReadBodyAsError(res)
 	}
 	var settings PrebuildsSettings
-	return settings, json.NewDecoder(res.Body).Decode(&settings)
+	return settings, ReadBodyAsJSON(res, &settings)
 }
 
 // PutPrebuildsSettings modifies the prebuilds settings, which currently just controls whether all

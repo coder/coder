@@ -529,3 +529,32 @@ func netAddrNil(m dsl.Matcher) {
 	m.Match("$_.RemoteAddr().Network()").Report("RemoteAddr() may return nil and segfault if you call Network()")
 	m.Match("$_.LocalAddr().Network()").Report("LocalAddr() may return nil and segfault if you call Network()")
 }
+
+// codersdkResponseBodyDecode ensures that codersdk typed endpoint methods
+// decode HTTP response bodies through codersdk.ReadBodyAsJSON, which
+// returns a structured *codersdk.Error when an intermediary such as a
+// reverse proxy or SSO portal responds with HTML, an empty body, or other
+// non-JSON content. Responses that intentionally bypass the Coder API
+// error contract (agent-direct HTTP over tailnet, cloud metadata
+// services) suppress this rule with a nolint:gocritic comment explaining
+// why.
+//
+// Both the chained call form and decoders assigned to a variable first
+// are matched.
+//
+//nolint:unused,deadcode,varnamelen
+func codersdkResponseBodyDecode(m dsl.Matcher) {
+	m.Import("encoding/json")
+	m.Import("net/http")
+	m.Match(
+		`json.NewDecoder($res.Body).Decode($_)`,
+		`$_ := json.NewDecoder($res.Body)`,
+		`$_ = json.NewDecoder($res.Body)`,
+	).
+		Where(
+			(m["res"].Type.Is("*http.Response") || m["res"].Type.Is("http.Response")) &&
+				m.File().PkgPath.Matches(`github.com/coder/coder/v2/codersdk`) &&
+				!m.File().Name.Matches(`_test\.go$`),
+		).
+		Report("Use codersdk.ReadBodyAsJSON to decode typed API responses so non-JSON bodies produce a structured error. For responses that are intentionally not Coder API JSON, add a nolint:gocritic comment explaining why.")
+}

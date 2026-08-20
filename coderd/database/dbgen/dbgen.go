@@ -141,7 +141,6 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		CacheReadTokens:     []int64{seed.CacheReadTokens.Int64},
 		ContextLimit:        []int64{seed.ContextLimit.Int64},
 		Compressed:          []bool{seed.Compressed},
-		TotalCostMicros:     []int64{seed.TotalCostMicros.Int64},
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
 	})
 	require.NoError(t, err, "insert chat message")
@@ -329,6 +328,15 @@ func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider, m
 func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerConfig) database.MCPServerConfig {
 	t.Helper()
 
+	// New configs belong to the default organization, matching the
+	// org-less shape they had before configs became org-scoped.
+	organizationID := seed.OrganizationID
+	if organizationID == uuid.Nil {
+		defaultOrg, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		organizationID = defaultOrg.ID
+	}
+
 	// CreatedBy and UpdatedBy are user FKs, so default fixtures create a user.
 	createdBy := seed.CreatedBy.UUID
 	if createdBy == uuid.Nil {
@@ -339,7 +347,20 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		updatedBy = createdBy
 	}
 
+	groupACL := seed.GroupACL
+	if groupACL == nil {
+		groupACL = database.ChatACL{
+			organizationID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		}
+	}
+	userACL := seed.UserACL
+	if userACL == nil {
+		userACL = database.ChatACL{}
+	}
+
 	cfg, err := db.InsertMCPServerConfig(genCtx, database.InsertMCPServerConfigParams{
+		ID:                      takeFirst(seed.ID, uuid.New()),
+		OrganizationID:          organizationID,
 		DisplayName:             takeFirst(seed.DisplayName, "Test MCP Server"),
 		Slug:                    takeFirst(seed.Slug, testutil.GetRandomName(t)),
 		Description:             seed.Description,
@@ -366,6 +387,8 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		ModelIntent:             seed.ModelIntent,
 		AllowInPlanMode:         seed.AllowInPlanMode,
 		ForwardCoderHeaders:     seed.ForwardCoderHeaders,
+		GroupACL:                groupACL,
+		UserACL:                 userACL,
 		CreatedBy:               createdBy,
 		UpdatedBy:               updatedBy,
 	})
@@ -556,6 +579,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, database.AppSharingLevelOwner),
 		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, false),
 		CorsBehavior:                 takeFirst(seed.CorsBehavior, database.CorsBehaviorSimple),
+		AgentsAllowed:                seed.AgentsAllowed,
 	})
 	require.NoError(t, err, "insert template")
 
@@ -1733,7 +1757,7 @@ func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2Prov
 		Icon:                    takeFirst(seed.Icon, ""),
 		CallbackURL:             takeFirst(seed.CallbackURL, "http://localhost"),
 		RedirectUris:            takeFirstSlice(seed.RedirectUris, []string{}),
-		ClientType:              takeFirst(seed.ClientType, sql.NullString{String: "confidential", Valid: true}),
+		ClientType:              takeFirst(seed.ClientType, "confidential"),
 		DynamicallyRegistered:   takeFirst(seed.DynamicallyRegistered, sql.NullBool{Bool: false, Valid: true}),
 		ClientIDIssuedAt:        takeFirst(seed.ClientIDIssuedAt, sql.NullTime{}),
 		ClientSecretExpiresAt:   takeFirst(seed.ClientSecretExpiresAt, sql.NullTime{}),
@@ -1784,22 +1808,29 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 		CodeChallengeMethod: seed.CodeChallengeMethod,
 		StateHash:           seed.StateHash,
 		RedirectUri:         seed.RedirectUri,
+		Scope:               takeFirst(seed.Scope, string(database.ApiKeyScopeCoderAll)),
 	})
 	require.NoError(t, err, "insert oauth2 app code")
 	return code
 }
 
 func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth2ProviderAppToken) database.OAuth2ProviderAppToken {
+	require.NotEqual(t, uuid.Nil, seed.AppID, "An app id is required to use 'dbgen.OAuth2ProviderAppToken', use 'dbgen.OAuth2ProviderApp'.")
 	token, err := db.InsertOAuth2ProviderAppToken(genCtx, database.InsertOAuth2ProviderAppTokenParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
 		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
 		ExpiresAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
 		HashPrefix:  takeFirstSlice(seed.HashPrefix, []byte("prefix")),
 		RefreshHash: takeFirstSlice(seed.RefreshHash, []byte("hashed-secret")),
-		AppSecretID: takeFirst(seed.AppSecretID, uuid.New()),
+		AppID:       seed.AppID,
+		// Public (secretless) clients reference no secret, so a zero-value
+		// NullUUID is passed through as NULL rather than defaulted. takeFirst
+		// cannot express that, since NULL is its "unset" sentinel.
+		AppSecretID: seed.AppSecretID,
 		APIKeyID:    takeFirst(seed.APIKeyID, uuid.New().String()),
 		UserID:      takeFirst(seed.UserID, uuid.New()),
 		Audience:    seed.Audience,
+		Scope:       takeFirst(seed.Scope, string(database.ApiKeyScopeCoderAll)),
 	})
 	require.NoError(t, err, "insert oauth2 app token")
 	return token
@@ -2221,6 +2252,8 @@ func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
 	case database.CryptoKeyFeatureOIDCConvert:
 		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
+		return generateCryptoKey(64)
+	case database.CryptoKeyFeatureChatFilesToken:
 		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureNATSCA:
 		return generateCACryptoKeySecret()

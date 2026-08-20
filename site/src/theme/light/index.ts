@@ -2,11 +2,11 @@ import { forLightThemes } from "../externalImages";
 import branding from "./branding";
 import experimental from "./experimental";
 import monaco from "./monaco";
-import muiTheme from "./mui";
+import palette from "./palette";
 import roles from "./roles";
 
 export default {
-	...muiTheme,
+	palette,
 	externalImages: forLightThemes,
 	experimental,
 	branding,

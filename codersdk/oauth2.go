@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -56,7 +57,7 @@ func (c *Client) OAuth2ProviderApps(ctx context.Context, filter OAuth2ProviderAp
 		return []OAuth2ProviderApp{}, ReadBodyAsError(res)
 	}
 	var apps []OAuth2ProviderApp
-	return apps, json.NewDecoder(res.Body).Decode(&apps)
+	return apps, ReadBodyAsJSON(res, &apps)
 }
 
 // OAuth2ProviderApp returns an application configured to authenticate using
@@ -71,7 +72,7 @@ func (c *Client) OAuth2ProviderApp(ctx context.Context, id uuid.UUID) (OAuth2Pro
 		return OAuth2ProviderApp{}, ReadBodyAsError(res)
 	}
 	var apps OAuth2ProviderApp
-	return apps, json.NewDecoder(res.Body).Decode(&apps)
+	return apps, ReadBodyAsJSON(res, &apps)
 }
 
 type PostOAuth2ProviderAppRequest struct {
@@ -92,7 +93,7 @@ func (c *Client) PostOAuth2ProviderApp(ctx context.Context, app PostOAuth2Provid
 		return OAuth2ProviderApp{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ProviderApp
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 type PutOAuth2ProviderAppRequest struct {
@@ -113,7 +114,7 @@ func (c *Client) PutOAuth2ProviderApp(ctx context.Context, id uuid.UUID, app Put
 		return OAuth2ProviderApp{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ProviderApp
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteOAuth2ProviderApp deletes an application, also invalidating any tokens
@@ -153,7 +154,7 @@ func (c *Client) OAuth2ProviderAppSecrets(ctx context.Context, appID uuid.UUID) 
 		return []OAuth2ProviderAppSecret{}, ReadBodyAsError(res)
 	}
 	var resp []OAuth2ProviderAppSecret
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // PostOAuth2ProviderAppSecret creates a new secret for an OAuth2 application.
@@ -168,7 +169,7 @@ func (c *Client) PostOAuth2ProviderAppSecret(ctx context.Context, appID uuid.UUI
 		return OAuth2ProviderAppSecretFull{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ProviderAppSecretFull
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteOAuth2ProviderAppSecret deletes a secret from an OAuth2 application,
@@ -209,7 +210,7 @@ func (c *Client) OAuth2ProviderSettings(ctx context.Context) (OAuth2ProviderSett
 		return OAuth2ProviderSettings{}, ReadBodyAsError(res)
 	}
 	var settings OAuth2ProviderSettings
-	return settings, json.NewDecoder(res.Body).Decode(&settings)
+	return settings, ReadBodyAsJSON(res, &settings)
 }
 
 // PutOAuth2ProviderSettings modifies the deployment-wide OAuth2 provider settings.
@@ -223,7 +224,7 @@ func (c *Client) PutOAuth2ProviderSettings(ctx context.Context, settings OAuth2P
 		return OAuth2ProviderSettings{}, ReadBodyAsError(res)
 	}
 	var updated OAuth2ProviderSettings
-	return updated, json.NewDecoder(res.Body).Decode(&updated)
+	return updated, ReadBodyAsJSON(res, &updated)
 }
 
 type OAuth2ProviderGrantType string
@@ -269,11 +270,44 @@ const (
 	OAuth2TokenEndpointAuthMethodNone              OAuth2TokenEndpointAuthMethod = "none"
 )
 
-func (m OAuth2TokenEndpointAuthMethod) Valid() bool {
-	switch m {
-	case OAuth2TokenEndpointAuthMethodClientSecretBasic,
+// AllOAuth2TokenEndpointAuthMethods returns every accepted token endpoint auth
+// method. Valid() is defined in terms of it, so what registration accepts
+// cannot drift from what this function reports.
+//
+// Discovery metadata does not yet derive from it:
+// coderd/oauth2provider/metadata.go's TokenEndpointAuthMethodsSupported is
+// hardcoded to {client_secret_basic, client_secret_post} and does not
+// advertise "none", even though "none" is accepted here. A follow-up PR
+// wires the token endpoint to honor "none"; only once that lands should
+// discovery advertise it too.
+func AllOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
+	return []OAuth2TokenEndpointAuthMethod{
+		OAuth2TokenEndpointAuthMethodClientSecretBasic,
 		OAuth2TokenEndpointAuthMethodClientSecretPost,
-		OAuth2TokenEndpointAuthMethodNone:
+		OAuth2TokenEndpointAuthMethodNone,
+	}
+}
+
+func (m OAuth2TokenEndpointAuthMethod) Valid() bool {
+	return slices.Contains(AllOAuth2TokenEndpointAuthMethods(), m)
+}
+
+// OAuth2ClientType is how a client authenticates at the token endpoint
+// (RFC 7591 §2, OAuth 2.1 §2.1). A confidential client authenticates with a
+// secret; a public client authenticates with PKCE alone. It is derived from
+// the requested token_endpoint_auth_method and stored on the app. A
+// follow-up PR wires the token endpoint to read it when deciding whether to
+// require a client secret.
+type OAuth2ClientType string
+
+const (
+	OAuth2ClientTypeConfidential OAuth2ClientType = "confidential"
+	OAuth2ClientTypePublic       OAuth2ClientType = "public"
+)
+
+func (t OAuth2ClientType) Valid() bool {
+	switch t {
+	case OAuth2ClientTypeConfidential, OAuth2ClientTypePublic:
 		return true
 	}
 	return false
@@ -527,14 +561,19 @@ func (req OAuth2ClientRegistrationRequest) ApplyDefaults() OAuth2ClientRegistrat
 	return req
 }
 
-// DetermineClientType determines if client is public or confidential
-func (*OAuth2ClientRegistrationRequest) DetermineClientType() string {
-	// For now, default to confidential
-	// In the future, we might detect based on:
-	// - token_endpoint_auth_method == "none" -> public
-	// - application_type == "native" -> might be public
-	// - Other heuristics
-	return "confidential"
+// DetermineClientType determines if client is public or confidential, based
+// on the requested token_endpoint_auth_method (RFC 7591 §2, OAuth 2.1 §2.1).
+//
+// Only "none" reads as public; every other value, including an omitted one,
+// reads as confidential, so this is safe to call before ApplyDefaults(). A
+// caller that also compares the request's auth method against a stored one must
+// apply defaults first, or an omitted field compares as "" and looks like a
+// change the client did not request.
+func (req *OAuth2ClientRegistrationRequest) DetermineClientType() OAuth2ClientType {
+	if req.TokenEndpointAuthMethod == OAuth2TokenEndpointAuthMethodNone {
+		return OAuth2ClientTypePublic
+	}
+	return OAuth2ClientTypeConfidential
 }
 
 // GenerateClientName generates a client name if not provided
@@ -611,7 +650,7 @@ func (c *Client) PostOAuth2ClientRegistration(ctx context.Context, req OAuth2Cli
 		return OAuth2ClientRegistrationResponse{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ClientRegistrationResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetOAuth2ClientConfiguration retrieves client configuration (RFC 7592)
@@ -628,7 +667,7 @@ func (c *Client) GetOAuth2ClientConfiguration(ctx context.Context, clientID stri
 		return OAuth2ClientConfiguration{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ClientConfiguration
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // PutOAuth2ClientConfiguration updates client configuration (RFC 7592)
@@ -645,7 +684,7 @@ func (c *Client) PutOAuth2ClientConfiguration(ctx context.Context, clientID stri
 		return OAuth2ClientConfiguration{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ClientConfiguration
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // DeleteOAuth2ClientConfiguration deletes client registration (RFC 7592)

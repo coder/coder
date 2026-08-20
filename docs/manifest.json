@@ -262,11 +262,6 @@
 							"path": "./user-guides/workspace-access/jetbrains/index.md",
 							"children": [
 								{
-									"title": "JetBrains Fleet",
-									"description": "Connect JetBrains Fleet, a lightweight multi-language IDE, to a Coder workspace over SSH.",
-									"path": "./user-guides/workspace-access/jetbrains/fleet.md"
-								},
-								{
 									"title": "JetBrains Gateway",
 									"description": "Use JetBrains Gateway to open and work in your Coder workspace from a full JetBrains IDE.",
 									"path": "./user-guides/workspace-access/jetbrains/gateway.md"
@@ -320,9 +315,9 @@
 							"path": "./user-guides/workspace-access/cursor.md"
 						},
 						{
-							"title": "Windsurf",
-							"description": "Access your Coder workspace with Windsurf, the AI-powered code editor, over SSH.",
-							"path": "./user-guides/workspace-access/windsurf.md"
+							"title": "Devin Desktop",
+							"description": "Access your Coder workspace with Devin Desktop (formerly Windsurf), the AI-powered code editor, over SSH.",
+							"path": "./user-guides/workspace-access/devin-desktop.md"
 						},
 						{
 							"title": "Antigravity",
@@ -422,6 +417,11 @@
 							"description": "Customize your Coder deployment's appearance, including the logo, service banner, and application name.",
 							"path": "./admin/setup/appearance.md",
 							"state": ["premium"]
+						},
+						{
+							"title": "Configuration Reference",
+							"description": "Searchable list of every Coder server setting with its environment variable, CLI flag, and YAML key",
+							"path": "./admin/setup/configuration-reference.md"
 						},
 						{
 							"title": "Telemetry",
@@ -1022,91 +1022,57 @@
 					"title": "Coder Agents",
 					"description": "Delegate development work to coding agents in your deployment with Coder Agents, a chat interface and API.",
 					"path": "./ai-coder/agents/index.md",
-					"state": ["beta"],
 					"children": [
 						{
 							"title": "Getting Started",
 							"description": "Enable Coder Agents, prepare your deployment, and run your first Coder Agent",
-							"path": "./ai-coder/agents/getting-started.md",
-							"state": ["beta"]
-						},
-						{
-							"title": "Search Syntax",
-							"description": "Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.",
-							"path": "./ai-coder/agents/chat-search-syntax.md",
-							"state": ["beta"]
+							"path": "./ai-coder/agents/getting-started.md"
 						},
 						{
 							"title": "Architecture",
 							"description": "Learn how the Coder Agents control-plane agent communicates with your workspaces.",
-							"path": "./ai-coder/agents/architecture.md",
-							"state": ["beta"]
-						},
-						{
-							"title": "Chat Sharing",
-							"description": "Give other users and groups read-only access to a Coder Agents conversation with chat sharing.",
-							"path": "./ai-coder/agents/chat-sharing.md",
-							"state": ["beta"]
-						},
-						{
-							"title": "Models",
-							"description": "Configure the LLM providers and models that power Coder Agents from Admin settings.",
-							"path": "./ai-coder/agents/models.md",
-							"state": ["beta"]
-						},
-						{
-							"title": "Tools",
-							"description": "How Coder Agents uses tool calls to select templates and create workspaces",
-							"path": "./ai-coder/agents/tools/index.md",
-							"state": ["beta"]
+							"path": "./ai-coder/agents/architecture.md"
 						},
 						{
 							"title": "Platform Controls",
 							"description": "Learn how platform teams control Coder Agents behavior, models, spend, and policies.",
 							"path": "./ai-coder/agents/platform-controls/index.md",
-							"state": ["beta"],
 							"children": [
 								{
 									"title": "Template Optimization",
 									"description": "Best practices for creating templates that are discoverable and useful to Coder Agents",
-									"path": "./ai-coder/agents/platform-controls/template-optimization.md",
-									"state": ["beta"]
+									"path": "./ai-coder/agents/platform-controls/template-optimization.md"
 								},
 								{
 									"title": "MCP Servers",
 									"description": "Configure external MCP servers that provide additional tools for agent chat sessions",
-									"path": "./ai-coder/agents/platform-controls/mcp-servers.md",
-									"state": ["beta"]
+									"path": "./ai-coder/agents/platform-controls/mcp-servers.md"
 								},
 								{
-									"title": "Spend Management",
-									"description": "Set spend limits and track AI costs for Coder Agents with admin-only controls.",
-									"path": "./ai-coder/agents/platform-controls/usage-insights.md",
-									"state": ["beta"]
+									"title": "Spend management",
+									"description": "Cap Coder Agents spend with AI Gateway budgets and track the resulting spend.",
+									"path": "./ai-coder/agents/platform-controls/spend-management.md",
+									"state": ["premium"]
 								},
 								{
 									"title": "Git Providers",
 									"description": "Configure Git providers so Coder Agents can show pull request diffs in the in-chat viewer.",
-									"path": "./ai-coder/agents/platform-controls/git-providers.md",
-									"state": ["beta"]
+									"path": "./ai-coder/agents/platform-controls/git-providers.md"
 								},
 								{
 									"title": "Data Retention",
 									"description": "Configure automatic cleanup of old Coder Agents conversation data to manage database size.",
-									"path": "./ai-coder/agents/platform-controls/chat-retention.md",
-									"state": ["beta"]
+									"path": "./ai-coder/agents/platform-controls/chat-retention.md"
 								},
 								{
 									"title": "Debug Data Retention",
 									"description": "Configure automatic cleanup of old Coder Agents chat debug data to manage database size.",
-									"path": "./ai-coder/agents/platform-controls/chat-debug-retention.md",
-									"state": ["beta"]
+									"path": "./ai-coder/agents/platform-controls/chat-debug-retention.md"
 								},
 								{
 									"title": "Auto-Archive",
 									"description": "Automatically archive long-inactive Coder Agents conversations to keep chat lists tidy.",
-									"path": "./ai-coder/agents/platform-controls/chat-auto-archive.md",
-									"state": ["beta"]
+									"path": "./ai-coder/agents/platform-controls/chat-auto-archive.md"
 								},
 								{
 									"title": "Advisor",
@@ -1131,14 +1097,37 @@
 						{
 							"title": "Extending Agents",
 							"description": "Extend Coder Agents with custom skills and MCP tools defined in your workspace templates.",
-							"path": "./ai-coder/agents/extending-agents.md",
-							"state": ["beta"]
+							"path": "./ai-coder/agents/extending-agents.md"
+						},
+						{
+							"title": "Models",
+							"description": "Configure the LLM providers and models that power Coder Agents from Admin settings.",
+							"path": "./ai-coder/agents/models.md"
+						},
+						{
+							"title": "Tools",
+							"description": "How Coder Agents uses tool calls to select templates and create workspaces",
+							"path": "./ai-coder/agents/tools/index.md"
+						},
+						{
+							"title": "Chat Sharing",
+							"description": "Give other users and groups read-only access to a Coder Agents conversation with chat sharing.",
+							"path": "./ai-coder/agents/chat-sharing.md"
+						},
+						{
+							"title": "Search Syntax",
+							"description": "Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.",
+							"path": "./ai-coder/agents/chat-search-syntax.md"
+						},
+						{
+							"title": "Licensing \u0026 Usage",
+							"description": "Compare Coder Agents licenses and learn how Coder measures and reports Agent Time usage.",
+							"path": "./ai-coder/agents/licensing-usage.md"
 						},
 						{
 							"title": "Tasks to Chats API Migration",
-							"description": "Migrate your integrations from the Coder Tasks API to the newer Coder Agents Chats API.",
-							"path": "./ai-coder/agents/tasks-to-chats-migration.md",
-							"state": ["beta"]
+							"description": "Migrate your integrations from the deprecated Coder Tasks API to the Coder Agents Chats API.",
+							"path": "./ai-coder/agents/tasks-to-chats-migration.md"
 						}
 					]
 				},
@@ -1210,7 +1199,7 @@
 									"title": "Standalone Deployment",
 									"description": "Deploy and operate AI Gateway as a standalone service",
 									"path": "./ai-coder/ai-gateway/standalone.md",
-									"state": ["ai governance add-on"]
+									"state": ["premium"]
 								},
 								{
 									"title": "Authentication",
@@ -1276,6 +1265,12 @@
 											"title": "JetBrains",
 											"description": "Configure JetBrains AI Assistant to route model requests through AI Gateway.",
 											"path": "./ai-coder/ai-gateway/clients/jetbrains.md",
+											"state": ["premium"]
+										},
+										{
+											"title": "Junie",
+											"description": "Configure Junie CLI to route requests through AI Gateway with a custom model profile.",
+											"path": "./ai-coder/ai-gateway/clients/junie.md",
 											"state": ["premium"]
 										},
 										{
@@ -1348,12 +1343,6 @@
 									"state": ["premium"]
 								}
 							]
-						},
-						{
-							"title": "Usage Data Reporting",
-							"description": "Learn what AI usage data AI Governance reports to Coder for billing and reporting.",
-							"path": "./ai-coder/usage-data-reporting.md",
-							"state": ["premium"]
 						}
 					]
 				},
@@ -1362,54 +1351,6 @@
 					"description": "Connect external AI coding agents to Coder using its built-in Model Context Protocol server.",
 					"path": "./ai-coder/mcp-server.md",
 					"state": ["beta"]
-				},
-				{
-					"title": "Coder Tasks",
-					"description": "Run and manage coding agents like Claude Code and Codex on your own infrastructure with Coder Tasks.",
-					"path": "./ai-coder/tasks.md",
-					"children": [
-						{
-							"title": "Understanding Coder Tasks",
-							"description": "Understand the core principles and concepts behind Coder Tasks for managing coding agents.",
-							"path": "./ai-coder/tasks-core-principles.md"
-						},
-						{
-							"title": "Custom Agents",
-							"description": "Run custom coding agents beyond the Coder Registry defaults with Coder Tasks.",
-							"path": "./ai-coder/custom-agents.md"
-						},
-						{
-							"title": "Task Lifecycle",
-							"description": "Learn how Coder Tasks pause when idle and resume on interaction, and what state is preserved.",
-							"path": "./ai-coder/tasks-lifecycle.md"
-						},
-						{
-							"title": "Agent Compatibility",
-							"description": "See which AI coding agents support session persistence across workspace restarts in Coder Tasks.",
-							"path": "./ai-coder/agent-compatibility.md"
-						},
-						{
-							"title": "Tasks Migration Guide",
-							"description": "Migrate your task templates for the Coder Tasks changes introduced in version 2.28.0.",
-							"path": "./ai-coder/tasks-migration.md"
-						},
-						{
-							"title": "Security \u0026 Agent Firewall",
-							"description": "Learn about security and the Agent Firewall when running AI coding agents in Coder",
-							"path": "./ai-coder/security.md"
-						},
-						{
-							"title": "Create a GitHub to Coder Tasks Workflow",
-							"description": "Build a workflow that triggers Coder Tasks from GitHub issues and pull requests.",
-							"path": "./ai-coder/github-to-tasks.md"
-						},
-						{
-							"title": "Tasks to Chats API Migration",
-							"description": "Migrate your integrations from the Coder Tasks API to the newer Coder Agents Chats API.",
-							"path": "./ai-coder/agents/tasks-to-chats-migration.md",
-							"state": ["beta"]
-						}
-					]
 				}
 			]
 		},
@@ -1571,6 +1512,11 @@
 			"icon_path": "./images/icons/notes.svg",
 			"children": [
 				{
+					"title": "Glossary",
+					"description": "Definitions of Coder terms and product names",
+					"path": "./reference/glossary.md"
+				},
+				{
 					"title": "REST API",
 					"description": "Reference for the Coder REST API, including endpoints, authentication, and schemas.",
 					"path": "./reference/api/index.md",
@@ -1644,6 +1590,10 @@
 							"path": "./reference/api/insights.md"
 						},
 						{
+							"title": "MCP",
+							"path": "./reference/api/mcp.md"
+						},
+						{
 							"title": "Members",
 							"path": "./reference/api/members.md"
 						},
@@ -1674,10 +1624,6 @@
 						{
 							"title": "Secrets",
 							"path": "./reference/api/secrets.md"
-						},
-						{
-							"title": "Tasks",
-							"path": "./reference/api/tasks.md"
 						},
 						{
 							"title": "TemplateBuilder",
@@ -2309,51 +2255,6 @@
 							"title": "support bundle",
 							"description": "Generate a support bundle to troubleshoot issues connecting to a workspace.",
 							"path": "reference/cli/support_bundle.md"
-						},
-						{
-							"title": "task",
-							"description": "Manage tasks",
-							"path": "reference/cli/task.md"
-						},
-						{
-							"title": "task create",
-							"description": "Create a task",
-							"path": "reference/cli/task_create.md"
-						},
-						{
-							"title": "task delete",
-							"description": "Delete tasks",
-							"path": "reference/cli/task_delete.md"
-						},
-						{
-							"title": "task list",
-							"description": "List tasks",
-							"path": "reference/cli/task_list.md"
-						},
-						{
-							"title": "task logs",
-							"description": "Show a task's logs",
-							"path": "reference/cli/task_logs.md"
-						},
-						{
-							"title": "task pause",
-							"description": "Pause a task",
-							"path": "reference/cli/task_pause.md"
-						},
-						{
-							"title": "task resume",
-							"description": "Resume a task",
-							"path": "reference/cli/task_resume.md"
-						},
-						{
-							"title": "task send",
-							"description": "Send input to a task",
-							"path": "reference/cli/task_send.md"
-						},
-						{
-							"title": "task status",
-							"description": "Show the status of a task.",
-							"path": "reference/cli/task_status.md"
 						},
 						{
 							"title": "templates",

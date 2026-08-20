@@ -21,6 +21,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 		provisionerTags      []string
 		variablesFile        string
 		commandLineVariables []string
+		agentsAllowed        bool
 		disableEveryone      bool
 		requireActiveVersion bool
 
@@ -159,6 +160,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				TimeTilDormantAutoDeleteMillis: ptr.Ref(dormancyAutoDeletion.Milliseconds()),
 				DisableEveryoneGroupAccess:     disableEveryone,
 				RequireActiveVersion:           requireActiveVersion,
+				AgentsAllowed:                  &agentsAllowed,
 			}
 
 			template, err := client.CreateTemplate(inv.Context(), organization.ID, createReq)
@@ -179,6 +181,12 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 		},
 	}
 	cmd.Options = serpent.OptionSet{
+		{
+			Flag:        "agents-allowed",
+			Description: "Allow Coder Agents to create workspaces using this template.",
+			Default:     "true",
+			Value:       serpent.BoolOf(&agentsAllowed),
+		},
 		{
 			Flag: "private",
 			Description: "Disable the default behavior of granting template access to the 'everyone' group. " +

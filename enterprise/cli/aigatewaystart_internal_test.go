@@ -5,7 +5,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -21,40 +20,30 @@ import (
 	"storj.io/drpc"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/cli/clitest"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
-// failThenSucceedReloader fails the first failUntil reloads, then succeeds,
-// modeling a coderd connection or provider fetch that recovers after a few
-// transient failures.
-type failThenSucceedReloader struct {
+// mockReloader returns err for the first failUntil Reload calls, then nil.
+// onReload runs at the end of every reload, letting a test hang the retry loop.
+type mockReloader struct {
 	calls     atomic.Int32
 	failUntil int32
+	err       error
+	onReload  func()
 }
 
-func (r *failThenSucceedReloader) Reload(_ context.Context) error {
-	if r.calls.Add(1) <= r.failUntil {
-		return xerrors.New("transient failure")
+func (r *mockReloader) Reload(context.Context) error {
+	failed := r.calls.Add(1) <= r.failUntil
+	if r.onReload != nil {
+		r.onReload()
+	}
+	if failed {
+		return r.err
 	}
 	return nil
-}
-
-type failingReloader struct {
-	after func()
-	calls atomic.Int32
-	err   error
-}
-
-func (r *failingReloader) Reload(context.Context) error {
-	r.calls.Add(1)
-	if r.after != nil {
-		r.after()
-	}
-	return r.err
 }
 
 type connectedDRPCConn struct {
@@ -95,13 +84,14 @@ func (p *controlledShutdownPool) Shutdown(ctx context.Context) error {
 	return errors.Join(p.CachedBridgePool.Shutdown(ctx), p.err)
 }
 
-type standaloneGatewayTestParams struct {
-	address string
-	params  standaloneGatewayParams
-	pool    *controlledShutdownPool
-}
+// testGatewayOption mutates the default standaloneGatewayParams before the
+// gateway is constructed.
+type testGatewayOption func(*standaloneGatewayParams)
 
-func newStandaloneGatewayTestParams(t *testing.T) *standaloneGatewayTestParams {
+// newTestStandaloneGateway constructs a standalone gateway for
+// testing, with a controllable shutdown pool and optional customizations.
+// Uses blockingStandaloneDaemonDialer to mock coderd.
+func newTestStandaloneGateway(t *testing.T, opts ...testGatewayOption) (*standaloneGateway, *controlledShutdownPool) {
 	t.Helper()
 
 	logger := slog.Make()
@@ -113,20 +103,26 @@ func newStandaloneGatewayTestParams(t *testing.T) *standaloneGatewayTestParams {
 	})
 
 	pool := &controlledShutdownPool{CachedBridgePool: cachedPool}
-	address := fmt.Sprintf("127.0.0.1:%d", testutil.RandomPort(t))
-	return &standaloneGatewayTestParams{
-		address: address,
-		params: standaloneGatewayParams{
-			httpAddress: address,
+	params := standaloneGatewayParams{
+		httpAddress: "127.0.0.1:0",
 
-			dialer: blockingStandaloneDaemonDialer,
-			pool:   pool,
+		dialer: blockingStandaloneDaemonDialer,
+		pool:   pool,
 
-			logger: logger,
-			tracer: tracer,
-		},
-		pool: pool,
+		logger: logger,
+		tracer: tracer,
 	}
+	for _, m := range opts {
+		m(&params)
+	}
+
+	gateway, err := newStandaloneGateway(params)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, shutdownWithTimeout(gateway.daemon.Shutdown, testutil.WaitShort))
+	})
+	return gateway, pool
 }
 
 func TestStandaloneGatewayLoadProviders(t *testing.T) {
@@ -134,40 +130,37 @@ func TestStandaloneGatewayLoadProviders(t *testing.T) {
 
 	reloadErr := xerrors.New("reload failed")
 	tests := []struct {
-		name       string
-		setup      func(*testing.T, *aibridged.Server, context.CancelFunc) (aibridged.ProviderReloader, *atomic.Int32)
-		wantErr    error
-		wantCalls  int32
-		wantLoaded bool
+		name              string
+		reloaderFailUntil int32
+		reloaderErr       error
+		reloaderAfter     func(t *testing.T, daemon *aibridged.Server, cancel context.CancelFunc)
+		wantErr           error
+		wantCalls         int32
+		wantLoaded        bool
 	}{
 		{
-			name: "Retry succeeds",
-			setup: func(_ *testing.T, _ *aibridged.Server, _ context.CancelFunc) (aibridged.ProviderReloader, *atomic.Int32) {
-				reloader := &failThenSucceedReloader{failUntil: 2}
-				return reloader, &reloader.calls
-			},
-			wantCalls:  3,
-			wantLoaded: true,
+			name:              "Retry succeeds",
+			reloaderFailUntil: 2,
+			reloaderErr:       xerrors.New("transient failure"),
+			wantCalls:         3,
+			wantLoaded:        true,
 		},
 		{
-			name: "Daemon stops retry",
-			setup: func(t *testing.T, daemon *aibridged.Server, _ context.CancelFunc) (aibridged.ProviderReloader, *atomic.Int32) {
-				reloader := &failingReloader{
-					after: func() {
-						require.NoError(t, daemon.Close())
-					},
-					err: reloadErr,
-				}
-				return reloader, &reloader.calls
+			name:              "Daemon stops retry",
+			reloaderFailUntil: 1,
+			reloaderErr:       reloadErr,
+			reloaderAfter: func(t *testing.T, daemon *aibridged.Server, _ context.CancelFunc) {
+				require.NoError(t, daemon.Close())
 			},
 			wantErr:   reloadErr,
 			wantCalls: 1,
 		},
 		{
-			name: "Context cancellation stops retry",
-			setup: func(_ *testing.T, _ *aibridged.Server, cancel context.CancelFunc) (aibridged.ProviderReloader, *atomic.Int32) {
-				reloader := &failingReloader{after: cancel, err: reloadErr}
-				return reloader, &reloader.calls
+			name:              "Context cancellation stops retry",
+			reloaderFailUntil: 1,
+			reloaderErr:       reloadErr,
+			reloaderAfter: func(_ *testing.T, _ *aibridged.Server, cancel context.CancelFunc) {
+				cancel()
 			},
 			wantErr:   context.Canceled,
 			wantCalls: 1,
@@ -180,13 +173,13 @@ func TestStandaloneGatewayLoadProviders(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 			defer cancel()
-			logger := slog.Make()
-			daemon := newTestStandaloneDaemon(t, logger)
-			reloader, calls := tc.setup(t, daemon, cancel)
-			gateway := &standaloneGateway{
-				daemon:         daemon,
-				providerLogger: logger,
-				reloader:       reloader,
+			reloader := &mockReloader{failUntil: tc.reloaderFailUntil, err: tc.reloaderErr}
+			gateway, _ := newTestStandaloneGateway(t)
+			gateway.reloader = reloader
+			// reloaderAfter needs daemon which only exists once the gateway is constructed,
+			// nothing reloads until loadProviders below.
+			if tc.reloaderAfter != nil {
+				reloader.onReload = func() { tc.reloaderAfter(t, gateway.daemon, cancel) }
 			}
 
 			err := gateway.loadProviders(ctx)
@@ -195,7 +188,7 @@ func TestStandaloneGatewayLoadProviders(t *testing.T) {
 			} else {
 				require.ErrorIs(t, err, tc.wantErr)
 			}
-			require.Equal(t, tc.wantCalls, calls.Load())
+			require.Equal(t, tc.wantCalls, reloader.calls.Load())
 			require.Equal(t, tc.wantLoaded, gateway.providersLoaded.Load())
 		})
 	}
@@ -205,34 +198,19 @@ func TestStandaloneGatewayHealthAndReadiness(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slog.Make()
-	tracer := sdktrace.NewTracerProvider().Tracer("test")
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, logger, nil, tracer)
-	require.NoError(t, err)
 	connections := make(chan drpc.Conn, 2)
-	dialer := func(ctx context.Context) (aibridged.DRPCClient, error) {
-		select {
-		case conn := <-connections:
-			return &aibridged.Client{Conn: conn}, nil
-		case <-ctx.Done():
-			return nil, ctx.Err()
+	modifyDialer := func(p *standaloneGatewayParams) {
+		p.dialer = func(ctx context.Context) (aibridged.DRPCClient, error) {
+			select {
+			case conn := <-connections:
+				return &aibridged.Client{Conn: conn}, nil
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
 		}
 	}
-	daemon, err := aibridged.New(ctx, pool, dialer, logger, tracer)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, shutdownWithTimeout(daemon.Shutdown, testutil.WaitShort))
-	})
-
-	gateway := &standaloneGateway{
-		daemon:         daemon,
-		providerLogger: logger,
-		reloader:       &failThenSucceedReloader{},
-	}
-	gateway.httpServer = &http.Server{
-		Handler:           newGatewayMux(daemon, gateway.ready, func(next http.Handler) http.Handler { return next }),
-		ReadHeaderTimeout: testutil.WaitShort,
-	}
+	gateway, _ := newTestStandaloneGateway(t, modifyDialer)
+	gateway.reloader = &mockReloader{}
 
 	// The HTTP server is healthy before the daemon connects or providers load.
 	require.Equal(t, http.StatusOK, healthzStatus(t, gateway))
@@ -241,7 +219,7 @@ func TestStandaloneGatewayHealthAndReadiness(t *testing.T) {
 	// A daemon connection alone does not make the gateway ready.
 	firstConn := &connectedDRPCConn{closed: make(chan struct{})}
 	connections <- firstConn
-	require.Eventually(t, daemon.Ready, testutil.WaitShort, testutil.IntervalFast)
+	require.Eventually(t, gateway.daemon.Ready, testutil.WaitShort, testutil.IntervalFast)
 	require.Equal(t, http.StatusOK, healthzStatus(t, gateway))
 	require.Equal(t, http.StatusServiceUnavailable, readyzStatus(t, gateway))
 
@@ -252,13 +230,13 @@ func TestStandaloneGatewayHealthAndReadiness(t *testing.T) {
 
 	// Losing the daemon connection affects readiness but not HTTP health.
 	require.NoError(t, firstConn.Close())
-	require.Eventually(t, func() bool { return !daemon.Ready() }, testutil.WaitShort, testutil.IntervalFast)
+	require.Eventually(t, func() bool { return !gateway.daemon.Ready() }, testutil.WaitShort, testutil.IntervalFast)
 	require.Equal(t, http.StatusOK, healthzStatus(t, gateway))
 	require.Equal(t, http.StatusServiceUnavailable, readyzStatus(t, gateway))
 
 	// Readiness recovers when the daemon reconnects; providers remain loaded.
 	connections <- &connectedDRPCConn{closed: make(chan struct{})}
-	require.Eventually(t, daemon.Ready, testutil.WaitShort, testutil.IntervalFast)
+	require.Eventually(t, gateway.daemon.Ready, testutil.WaitShort, testutil.IntervalFast)
 	require.Equal(t, http.StatusOK, healthzStatus(t, gateway))
 	require.Equal(t, http.StatusOK, readyzStatus(t, gateway))
 }
@@ -280,101 +258,70 @@ func probeStatus(t *testing.T, gateway *standaloneGateway, path string) int {
 	return rec.Code
 }
 
-func TestAIGatewayStart_HealthBeforeProviders(t *testing.T) {
-	t.Parallel()
-
-	gatewayAddress := fmt.Sprintf("127.0.0.1:%d", testutil.RandomPort(t))
-	coderAddress := fmt.Sprintf("127.0.0.1:%d", testutil.RandomPort(t))
-
-	var root RootCmd
-	cmd, err := root.Command(root.enterpriseOnly())
-	require.NoError(t, err)
-	inv, _ := clitest.NewWithCommand(t, cmd,
-		"--url", "http://"+coderAddress,
-		"ai-gateway", "start",
-		"--key", "test-key",
-		"--http-address", gatewayAddress,
-	)
-	clitest.Start(t, inv.WithContext(testutil.Context(t, testutil.WaitShort)))
-
-	client := &http.Client{Timeout: testutil.WaitShort}
-	baseURL := "http://" + gatewayAddress
-	require.Eventually(t, func() bool {
-		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+healthzPath, nil)
-		if err != nil {
-			return false
-		}
-		resp, err := client.Do(req)
-		if err != nil {
-			return false
-		}
-		defer resp.Body.Close()
-		return resp.StatusCode == http.StatusOK
-	}, testutil.WaitShort, testutil.IntervalFast)
-
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+readyzPath, nil)
-	require.NoError(t, err)
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
-}
-
 func TestRunStandaloneGateway_ContextCanceled(t *testing.T) {
 	t.Parallel()
 
 	testCtx := testutil.Context(t, testutil.WaitShort)
 	runCtx, cancelRun := context.WithCancel(testCtx)
 	defer cancelRun()
-	test := newStandaloneGatewayTestParams(t)
-
+	gateway, _ := newTestStandaloneGateway(t)
 	runDone := make(chan error, 1)
 	go func() {
-		runDone <- runStandaloneGateway(runCtx, test.params)
+		runDone <- gateway.run(runCtx)
 	}()
-	requireListenerReady(t, test.address)
+	requireListening(testCtx, t, gateway, runDone)
 	cancelRun()
 
 	require.NoError(t, testutil.RequireReceive(testCtx, t, runDone))
-	requireListenerAvailable(t, test.address, "HTTP listener must be closed before run returns")
+	require.True(t, gateway.drpcClosed.Load(), "DRPC connection must be closed before run returns")
+	require.True(t, gateway.providerRefreshStopped.Load(), "provider refresh must stop before run returns")
+	require.True(t, gateway.listenerClosed.Load(), "HTTP listener must be closed before run returns")
 }
 
 func TestRunStandaloneGateway_DaemonExited(t *testing.T) {
 	t.Parallel()
 
-	test := newStandaloneGatewayTestParams(t)
-	test.params.dialer = func(context.Context) (aibridged.DRPCClient, error) {
-		return nil, codersdk.NewError(http.StatusUnauthorized, codersdk.Response{Message: "invalid gateway key"})
+	modifyDialer := func(p *standaloneGatewayParams) {
+		p.dialer = func(context.Context) (aibridged.DRPCClient, error) {
+			return nil, codersdk.NewError(http.StatusUnauthorized, codersdk.Response{Message: "invalid gateway key"})
+		}
 	}
-
-	err := runStandaloneGateway(testutil.Context(t, testutil.WaitShort), test.params)
+	gateway, _ := newTestStandaloneGateway(t, modifyDialer)
+	err := gateway.run(testutil.Context(t, testutil.WaitShort))
 	require.ErrorContains(t, err, "AI Gateway daemon exited")
-	requireListenerAvailable(t, test.address, "HTTP listener must be closed before run returns")
+	require.True(t, gateway.drpcClosed.Load(), "DRPC connection must be closed before run returns")
+	require.True(t, gateway.providerRefreshStopped.Load(), "provider refresh must stop before run returns")
+	require.True(t, gateway.listenerClosed.Load(), "HTTP listener must be closed before run returns")
 }
 
 func TestRunStandaloneGateway_HTTPStopsBeforeDaemonShutdown(t *testing.T) {
 	t.Parallel()
 
 	testCtx := testutil.Context(t, testutil.WaitShort)
-	test := newStandaloneGatewayTestParams(t)
+	modifyTLS := func(p *standaloneGatewayParams) {
+		p.tlsCertFile = filepath.Join(t.TempDir(), "missing.crt")
+		p.tlsKeyFile = filepath.Join(t.TempDir(), "missing.key")
+	}
+	gateway, pool := newTestStandaloneGateway(t, modifyTLS)
 	shutdownErr := xerrors.New("pool shutdown failed")
 	shutdownStarted := make(chan struct{}, 1)
 	shutdownRelease := make(chan struct{})
-	test.pool.err = shutdownErr
-	test.pool.started = shutdownStarted
-	test.pool.release = shutdownRelease
-	test.params.tlsCertFile = filepath.Join(t.TempDir(), "missing.crt")
-	test.params.tlsKeyFile = filepath.Join(t.TempDir(), "missing.key")
+	pool.err = shutdownErr
+	pool.started = shutdownStarted
+	pool.release = shutdownRelease
 
 	runDone := make(chan error, 1)
 	go func() {
-		runDone <- runStandaloneGateway(testCtx, test.params)
+		runDone <- gateway.run(testCtx)
 	}()
 	testutil.RequireReceive(testCtx, t, shutdownStarted)
-	requireListenerAvailable(t, test.address, "HTTP listener must close before daemon shutdown")
+	require.True(t, gateway.providerRefreshStopped.Load(), "provider refresh must stop before daemon shutdown")
+	require.True(t, gateway.listenerClosed.Load(), "HTTP listener must close before daemon shutdown")
+	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must remain open until daemon shutdown completes")
 	close(shutdownRelease)
 
 	err := testutil.RequireReceive(testCtx, t, runDone)
+	require.False(t, gateway.drpcClosed.Load(), "DRPC connection shutdown must not be marked successful after an error")
 	require.ErrorContains(t, err, "serve:")
 	require.ErrorContains(t, err, "shutdown AI Gateway daemon:")
 	require.ErrorContains(t, err, shutdownErr.Error())
@@ -383,16 +330,20 @@ func TestRunStandaloneGateway_HTTPStopsBeforeDaemonShutdown(t *testing.T) {
 func TestRunStandaloneGateway_ListenAndShutdownErrors(t *testing.T) {
 	t.Parallel()
 
-	test := newStandaloneGatewayTestParams(t)
-	shutdownErr := xerrors.New("pool shutdown failed")
-	test.pool.err = shutdownErr
-	listener, err := net.Listen("tcp", test.address)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = listener.Close()
 	})
+	// Occupy an address so binding the gateway listener fails.
+	modifyAddr := func(p *standaloneGatewayParams) {
+		p.httpAddress = listener.Addr().String()
+	}
+	gateway, pool := newTestStandaloneGateway(t, modifyAddr)
+	shutdownErr := xerrors.New("pool shutdown failed")
+	pool.err = shutdownErr
 
-	err = runStandaloneGateway(testutil.Context(t, testutil.WaitShort), test.params)
+	err = gateway.run(testutil.Context(t, testutil.WaitShort))
 	require.NoError(t, listener.Close())
 	require.ErrorContains(t, err, "listen on")
 	require.ErrorContains(t, err, "shutdown AI Gateway daemon:")
@@ -404,45 +355,31 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 
 	// Set up a running daemon, provider reloader, and blocked HTTP request.
 	testCtx := testutil.Context(t, testutil.WaitShort)
-	logger := slog.Make()
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, logger, nil, sdktrace.NewTracerProvider().Tracer("test"))
-	require.NoError(t, err)
 
-	dialCtxCh := make(chan context.Context, 1)
-	dialer := func(ctx context.Context) (aibridged.DRPCClient, error) {
-		select {
-		case dialCtxCh <- ctx:
-		default:
-		}
-		<-ctx.Done()
-		return nil, ctx.Err()
-	}
-	daemon, err := aibridged.New(context.Background(), pool, dialer, logger, sdktrace.NewTracerProvider().Tracer("test"))
-	require.NoError(t, err)
-
-	httpAddress := fmt.Sprintf("127.0.0.1:%d", testutil.RandomPort(t))
-	reloader := &failThenSucceedReloader{}
+	// inFlightPath scopes the blocking handler to the request this test keeps in
+	// flight. Another test may probe a port the OS later assigns to this
+	// listener, and such traffic must not stand in for that request.
+	const inFlightPath = "/in-flight"
+	reloader := &mockReloader{}
 	handlerStarted := make(chan struct{}, 1)
 	httpShutdownStarted := make(chan struct{}, 1)
 	releaseHandler := make(chan struct{})
-	gateway := &standaloneGateway{
-		daemon: daemon,
-		httpServer: &http.Server{
-			Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				select {
-				case handlerStarted <- struct{}{}:
-				default:
-				}
-				<-releaseHandler
-				w.WriteHeader(http.StatusNoContent)
-			}),
-			ReadHeaderTimeout: testutil.WaitShort,
-		},
-		httpAddress:    httpAddress,
-		logger:         logger,
-		providerLogger: logger,
-		reloader:       reloader,
-	}
+	gateway, _ := newTestStandaloneGateway(t)
+	gateway.reloader = reloader
+	// The gateway mux is replaced with a handler this test can block, so an
+	// in-flight request is observable during shutdown.
+	gateway.httpServer.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != inFlightPath {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		select {
+		case handlerStarted <- struct{}{}:
+		default:
+		}
+		<-releaseHandler
+		w.WriteHeader(http.StatusNoContent)
+	})
 	gateway.httpServer.RegisterOnShutdown(func() {
 		httpShutdownStarted <- struct{}{}
 	})
@@ -453,13 +390,12 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 		serveDone <- gateway.serve(serveCtx)
 	}()
 
-	dialCtx := testutil.RequireReceive(testCtx, t, dialCtxCh)
+	listenAddress := requireListening(testCtx, t, gateway, serveDone)
 	require.Eventually(t, gateway.providersLoaded.Load, testutil.WaitShort, testutil.IntervalFast)
-	requireListenerReady(t, httpAddress)
 
 	requestDone := make(chan error, 1)
 	go func() {
-		req, err := http.NewRequestWithContext(testCtx, http.MethodGet, "http://"+httpAddress, nil)
+		req, err := http.NewRequestWithContext(testCtx, http.MethodGet, "http://"+listenAddress+inFlightPath, nil)
 		if err != nil {
 			requestDone <- err
 			return
@@ -478,68 +414,38 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 	// Trigger shutdown after the initial load enters the provider watch loop.
 	cancelServe()
 	testutil.RequireReceive(testCtx, t, httpShutdownStarted)
-	select {
-	case <-dialCtx.Done():
-		t.Fatal("daemon context canceled before the in-flight HTTP request drained")
-	case err := <-serveDone:
-		t.Fatalf("server returned before the in-flight HTTP request drained: %v", err)
-	default:
-	}
+	require.True(t, gateway.providerRefreshStopped.Load(), "provider refresh must stop before HTTP draining")
+	require.False(t, gateway.listenerClosed.Load(), "HTTP listener must remain open while requests drain")
+	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must remain open while requests drain")
 
 	// Expect provider reload to stop while HTTP draining keeps the daemon alive.
 	close(releaseHandler)
 	require.NoError(t, testutil.RequireReceive(testCtx, t, requestDone))
 	require.NoError(t, testutil.RequireReceive(testCtx, t, serveDone))
-	select {
-	case <-dialCtx.Done():
-		t.Fatal("daemon context canceled by serve")
-	case <-daemon.Done():
-		t.Fatal("daemon stopped before its runtime owner shut it down")
-	default:
-	}
+	require.True(t, gateway.providerRefreshStopped.Load(), "provider refresh must stop before serve returns")
+	require.True(t, gateway.listenerClosed.Load(), "HTTP listener must be closed before serve returns")
+	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must remain open until its runtime owner shuts it down")
 
 	// Expect the runtime owner to shut down the daemon after HTTP serving stops.
-	require.NoError(t, shutdownWithTimeout(daemon.Shutdown, daemonShutdownTimeout))
-	testutil.TryReceive(testCtx, t, dialCtx.Done())
-	testutil.TryReceive(testCtx, t, daemon.Done())
-
-	requireListenerAvailable(t, httpAddress, "HTTP listener must be closed before serve returns")
+	require.NoError(t, gateway.shutdownDaemon())
+	require.True(t, gateway.drpcClosed.Load(), "DRPC connection must close during daemon shutdown")
 }
 
-func requireListenerReady(t *testing.T, address string) {
+// requireListening waits until the gateway's HTTP listener is bound and returns
+// its resolved address. It reports the serve error, such as a port clash, rather
+// than leaving callers to time out on an unrelated assertion.
+func requireListening(ctx context.Context, t *testing.T, gateway *standaloneGateway, done <-chan error) string {
 	t.Helper()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", address)
-		if err != nil {
-			return false
-		}
-		_ = conn.Close()
-		return true
-	}, testutil.IntervalFast)
-}
-
-func requireListenerAvailable(t *testing.T, address, message string) {
-	t.Helper()
-
-	listener, err := net.Listen("tcp", address)
-	require.NoError(t, err, message)
-	require.NoError(t, listener.Close())
-}
-
-func newTestStandaloneDaemon(t *testing.T, logger slog.Logger) *aibridged.Server {
-	t.Helper()
-
-	tracer := sdktrace.NewTracerProvider().Tracer("test")
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, logger, nil, tracer)
-	require.NoError(t, err)
-	daemon, err := aibridged.New(context.Background(), pool, blockingStandaloneDaemonDialer, logger, tracer)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, daemon.Close())
-	})
-	return daemon
+	select {
+	case <-gateway.listenerReady:
+		return gateway.httpAddr.String()
+	case err := <-done:
+		t.Fatalf("gateway stopped before listening: %v", err)
+	case <-ctx.Done():
+		t.Fatalf("gateway never started listening: %v", ctx.Err())
+	}
+	return ""
 }
 
 func blockingStandaloneDaemonDialer(ctx context.Context) (aibridged.DRPCClient, error) {
@@ -686,6 +592,7 @@ func TestAIGatewayStart_InheritedOptions(t *testing.T) {
 
 	// Groups the gateway sources options from.
 	sourceGroups := map[string]struct{}{
+		"Config":     {},
 		"Logging":    {},
 		"Tracing":    {},
 		"AI Gateway": {},

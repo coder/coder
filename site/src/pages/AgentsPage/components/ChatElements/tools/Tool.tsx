@@ -1,8 +1,8 @@
-import { useTheme } from "@emotion/react";
 import { File as FileViewer } from "@pierre/diffs/react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { useTheme } from "#/theme/context";
 import { cn } from "#/utils/cn";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
@@ -15,7 +15,9 @@ import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
 import { ExecuteTool as ExecuteToolComponent } from "./ExecuteTool";
+import { type FindToolsMatch, FindToolsTool } from "./FindToolsTool";
 import { ListAgentsTool } from "./ListAgentsTool";
+import { ListSubagentModelsTool } from "./ListSubagentModelsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
@@ -88,6 +90,7 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	modelIntent?: string;
 	/** Parsed command tuples ([program] or [program, arg]) for execute tool calls. */
 	parsedCommands?: readonly string[][];
+	hookRewritten?: boolean;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
 }
@@ -572,6 +575,24 @@ const ListAgentsRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const ListSubagentModelsRenderer: FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => {
+	const rec = asRecord(result);
+	const models = rec && Array.isArray(rec.models) ? rec.models : [];
+
+	return (
+		<ListSubagentModelsTool
+			models={models}
+			status={status}
+			isError={isError}
+			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+		/>
+	);
+};
+
 const ReadTemplateRenderer: FC<ToolRendererProps> = ({
 	status,
 	result,
@@ -697,6 +718,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 	status,
 	result,
 	isError,
+	modelIntent,
 }) => {
 	const parsedArgs = parseArgs(args);
 	const question = parsedArgs ? asString(parsedArgs.question) : "";
@@ -722,10 +744,6 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 		(typeof result === "string" && (hasError || resolvedResultType === "error")
 			? result
 			: "");
-	const advisorModel = rec ? asString(rec.advisor_model) : "";
-	const remainingUses = rec
-		? asNumber(rec.remaining_uses, { parseString: true })
-		: undefined;
 
 	return (
 		<AdvisorTool
@@ -735,8 +753,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 			resultType={resolvedResultType}
 			advice={advice}
 			errorMessage={errorMessage || undefined}
-			advisorModel={advisorModel || undefined}
-			remainingUses={remainingUses}
+			modelIntent={modelIntent}
 		/>
 	);
 };
@@ -969,6 +986,97 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const parseArray = <T,>(
+	value: unknown,
+	parseItem: (item: unknown) => T | null,
+): T[] | null => {
+	let array = value;
+	if (typeof array === "string") {
+		try {
+			array = JSON.parse(array);
+		} catch {
+			return null;
+		}
+	}
+	if (!Array.isArray(array)) {
+		return null;
+	}
+	const items: T[] = [];
+	for (const item of array) {
+		const parsed = parseItem(item);
+		if (parsed === null) {
+			return null;
+		}
+		items.push(parsed);
+	}
+	return items;
+};
+
+const parseStringList = (value: unknown): string[] | null =>
+	parseArray(value, (item) =>
+		typeof item === "string" ? item.trim() : null,
+	)?.filter(Boolean) ?? null;
+
+const parseFindToolsMatches = (value: unknown): FindToolsMatch[] | null =>
+	parseArray(value, (item) => {
+		const record = asRecord(item);
+		return record &&
+			typeof record.name === "string" &&
+			typeof record.description === "string"
+			? { name: record.name, description: record.description }
+			: null;
+	});
+
+const FindToolsRenderer: FC<ToolRendererProps> = (props) => {
+	const parsedArgs = parseArgs(props.args);
+	if (!parsedArgs) {
+		return <GenericToolRenderer {...props} />;
+	}
+	const queries =
+		parsedArgs.queries === undefined ? [] : parseStringList(parsedArgs.queries);
+	const names =
+		parsedArgs.names === undefined ? [] : parseStringList(parsedArgs.names);
+	if (!queries || !names) {
+		return <GenericToolRenderer {...props} />;
+	}
+	const parsedResult = parseArgs(props.result);
+	if (props.isError) {
+		// Error results carry plain text or an error record instead of
+		// matches, so they render through the specialized error state
+		// rather than the malformed-result fallback.
+		const errorMessage = parsedResult
+			? asString(parsedResult.error || parsedResult.message)
+			: asString(props.result);
+		return (
+			<FindToolsTool
+				queries={queries}
+				names={names}
+				matches={[]}
+				status={props.status}
+				isError
+				errorMessage={errorMessage || undefined}
+			/>
+		);
+	}
+	let matches: FindToolsMatch[] | null = [];
+	if (props.status !== "running" || props.result !== undefined) {
+		matches = parsedResult ? parseFindToolsMatches(parsedResult.matches) : null;
+	}
+	if (!matches) {
+		return <GenericToolRenderer {...props} />;
+	}
+
+	return (
+		<FindToolsTool
+			queries={queries}
+			names={names}
+			matches={matches}
+			status={props.status}
+			isError={false}
+		/>
+	);
+};
+
 // ---------------------------------------------------------------------------
 // process_signal promotes soft failures (success=false
 // in the result body, isError=false at protocol level) so the generic
@@ -1017,6 +1125,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 // ---------------------------------------------------------------------------
 
 export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
+	find_tools: FindToolsRenderer,
 	execute: ExecuteRenderer,
 	process_output: ProcessOutputRenderer,
 	process_signal: ProcessSignalRenderer,
@@ -1027,6 +1136,7 @@ export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	start_workspace: StartWorkspaceRenderer,
 	list_templates: ListTemplatesRenderer,
 	list_agents: ListAgentsRenderer,
+	list_subagent_models: ListSubagentModelsRenderer,
 	read_template: ReadTemplateRenderer,
 	read_skill: ReadSkillRenderer,
 	read_skill_file: ReadSkillFileRenderer,
@@ -1036,6 +1146,10 @@ export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	advisor: AdvisorRenderer,
 	computer: ComputerRenderer,
 };
+
+// Exported so tests can assert cross-cutting affordances across every
+// registered renderer instead of a hand-picked subset.
+export const toolRendererNames: readonly string[] = Object.keys(toolRenderers);
 
 // ---------------------------------------------------------------------------
 // Public Tool component with a single wrapper div and map dispatch.
@@ -1063,6 +1177,7 @@ export const Tool = memo(
 		previousResponseText,
 		modelIntent,
 		parsedCommands,
+		hookRewritten = false,
 		shellToolDisplayMode,
 		codeDiffDisplayMode,
 		ref,
@@ -1088,29 +1203,31 @@ export const Tool = memo(
 				)}
 				{...props}
 			>
-				<Renderer
-					name={name}
-					status={status}
-					args={args}
-					result={result}
-					isError={isError}
-					killedBySignal={killedBySignal}
-					subagentTitles={subagentTitles}
-					subagentVariants={subagentVariants}
-					showDesktopPreviews={showDesktopPreviews}
-					subagentStatusOverrides={subagentStatusOverrides}
-					mcpServerConfigId={mcpServerConfigId}
-					mcpServers={mcpServers}
-					onImplementPlan={onImplementPlan}
-					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-					isChatCompleted={isChatCompleted}
-					isLatestAskUserQuestion={isLatestAskUserQuestion}
-					previousResponseText={previousResponseText}
-					modelIntent={modelIntent}
-					parsedCommands={parsedCommands}
-					shellToolDisplayMode={shellToolDisplayMode}
-					codeDiffDisplayMode={codeDiffDisplayMode}
-				/>
+				<ToolCall.PolicyProvider hookRewritten={hookRewritten}>
+					<Renderer
+						name={name}
+						status={status}
+						args={args}
+						result={result}
+						isError={isError}
+						killedBySignal={killedBySignal}
+						subagentTitles={subagentTitles}
+						subagentVariants={subagentVariants}
+						showDesktopPreviews={showDesktopPreviews}
+						subagentStatusOverrides={subagentStatusOverrides}
+						mcpServerConfigId={mcpServerConfigId}
+						mcpServers={mcpServers}
+						onImplementPlan={onImplementPlan}
+						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+						isChatCompleted={isChatCompleted}
+						isLatestAskUserQuestion={isLatestAskUserQuestion}
+						previousResponseText={previousResponseText}
+						modelIntent={modelIntent}
+						parsedCommands={parsedCommands}
+						shellToolDisplayMode={shellToolDisplayMode}
+						codeDiffDisplayMode={codeDiffDisplayMode}
+					/>
+				</ToolCall.PolicyProvider>
 			</div>
 		);
 	},

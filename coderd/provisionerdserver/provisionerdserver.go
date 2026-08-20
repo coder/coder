@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -79,6 +80,14 @@ type Options struct {
 	ExternalAuthConfigs []*externalauth.Config
 	AISeatTracker       aiseats.SeatTracker
 
+	// KeyID is the provisioner key the daemon authenticated with, or the
+	// zero value if it did not authenticate with a key.
+	KeyID uuid.UUID
+
+	// SessionCancel terminates the daemon's session. Required when KeyID is a
+	// deletable provisioner key; optional otherwise.
+	SessionCancel context.CancelFunc
+
 	// Clock for testing
 	Clock quartz.Clock
 
@@ -104,6 +113,8 @@ type server struct {
 	lifecycleCtx                context.Context
 	AccessURL                   *url.URL
 	ID                          uuid.UUID
+	KeyID                       uuid.UUID
+	sessionCancel               context.CancelFunc
 	OrganizationID              uuid.UUID
 	Logger                      slog.Logger
 	Provisioners                []database.ProvisionerType
@@ -134,6 +145,16 @@ type server struct {
 	heartbeatInterval time.Duration
 	heartbeatFn       func(ctx context.Context) error
 
+	// jobMu guards activeJobs and terminationPending.
+	jobMu sync.Mutex
+	// activeJobs tracks jobs claimed by this session that have not yet been
+	// completed or failed. The in-tree provisioner daemon runs jobs serially,
+	// so at most one entry is expected; the protocol does not enforce this.
+	activeJobs map[uuid.UUID]struct{}
+	// terminationPending records a termination request that arrived while a
+	// job was active; it is performed when the last active job finishes.
+	terminationPending bool
+
 	metrics *Metrics
 }
 
@@ -141,6 +162,10 @@ type server struct {
 // it cannot be used in the tag keys or values.
 
 var ErrTagsContainNullByte = xerrors.New("tags cannot contain the null byte (0x00)")
+
+// ErrProvisionerKeyDeleted is returned from job acquisition when the
+// provisioner key the daemon authenticated with no longer exists.
+var ErrProvisionerKeyDeleted = xerrors.New("provisioner key was deleted")
 
 type Tags map[string]string
 
@@ -159,6 +184,15 @@ func (t Tags) Valid() error {
 		}
 	}
 	return nil
+}
+
+// Server is the provisioner daemon DRPC server plus session-lifecycle hooks
+// used by the serve handlers.
+type Server interface {
+	proto.DRPCProvisionerDaemonServer
+	// TerminateSession cancels the session once no acquired job is
+	// active. Safe to call from any goroutine.
+	TerminateSession()
 }
 
 func NewServer(
@@ -186,10 +220,15 @@ func NewServer(
 	prebuildsOrchestrator *atomic.Pointer[prebuilds.ReconciliationOrchestrator],
 	metrics *Metrics,
 	experiments codersdk.Experiments,
-) (proto.DRPCProvisionerDaemonServer, error) {
+) (Server, error) {
 	// Fail-fast if pointers are nil
 	if lifecycleCtx == nil {
 		return nil, xerrors.New("ctx is nil")
+	}
+	// A deletable key's session must be cancelable, otherwise key deletion
+	// cannot terminate it.
+	if codersdk.IsDeletableProvisionerKey(options.KeyID) && options.SessionCancel == nil {
+		return nil, xerrors.New("SessionCancel is required when KeyID is a deletable provisioner key")
 	}
 	if quotaCommitter == nil {
 		return nil, xerrors.New("quotaCommitter is nil")
@@ -236,6 +275,8 @@ func NewServer(
 		apiVersion:                  apiVersion,
 		AccessURL:                   accessURL,
 		ID:                          id,
+		KeyID:                       options.KeyID,
+		sessionCancel:               options.SessionCancel,
 		OrganizationID:              organizationID,
 		Logger:                      logger,
 		Provisioners:                provisioners,
@@ -260,6 +301,7 @@ func NewServer(
 		PrebuildsOrchestrator:       prebuildsOrchestrator,
 		UsageInserter:               usageInserter,
 		AISeatTracker:               options.AISeatTracker,
+		activeJobs:                  map[uuid.UUID]struct{}{},
 		metrics:                     metrics,
 		Experiments:                 experiments,
 	}
@@ -297,6 +339,16 @@ func (s *server) heartbeatLoop() {
 			if err := s.heartbeat(hbCtx); err != nil && !database.IsQueryCanceledError(err) {
 				s.Logger.Warn(hbCtx, "heartbeat failed", slog.Error(err))
 			}
+			// The key check rides the heartbeat tick so a session whose deletable
+			// key is gone terminates within one interval. Transient errors are
+			// logged and the session is left running.
+			if deleted, err := s.keyDeleted(hbCtx); err != nil && !database.IsQueryCanceledError(err) {
+				s.Logger.Warn(hbCtx, "check provisioner key on heartbeat", slog.Error(err))
+			} else if deleted {
+				s.Logger.Warn(hbCtx, "provisioner key deleted, canceling session",
+					slog.F("provisioner_key_id", s.KeyID))
+				s.TerminateSession()
+			}
 			hbCancel()
 			elapsed := s.timeNow().Sub(start)
 			nextBeat := s.heartbeatInterval - elapsed
@@ -328,27 +380,105 @@ func (s *server) defaultHeartbeat(ctx context.Context) error {
 	})
 }
 
+// keyDeleted reports whether the provisioner key no longer exists.
+func (s *server) keyDeleted(ctx context.Context) (bool, error) {
+	if !codersdk.IsDeletableProvisionerKey(s.KeyID) {
+		return false, nil
+	}
+	_, err := s.Database.GetProvisionerKeyByID(
+		//nolint:gocritic // Callers' contexts cannot read provisioner keys
+		// (provisionerd actor or no actor at all), so scope the read to this
+		// narrow subject.
+		dbauthz.AsSystemReadProvisionerDaemons(ctx), s.KeyID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return true, nil
+	}
+	if err != nil {
+		return false, xerrors.Errorf("get provisioner key: %w", err)
+	}
+	return false, nil
+}
+
+// TerminateSession cancels the session. Cancellation is deferred while a job
+// claimed by this session is active so the daemon can report the job's
+// result; the last active job's completion performs it. Requires a configured
+// sessionCancel.
+func (s *server) TerminateSession() {
+	s.jobMu.Lock()
+	if len(s.activeJobs) > 0 {
+		s.terminationPending = true
+		s.jobMu.Unlock()
+		s.Logger.Info(s.lifecycleCtx, "deferring session cancellation until active jobs finish",
+			slog.F("provisioner_key_id", s.KeyID))
+		return
+	}
+	s.jobMu.Unlock()
+	s.sessionCancel()
+}
+
+// jobStarted records a job claimed by this session as active.
+func (s *server) jobStarted(id uuid.UUID) {
+	s.jobMu.Lock()
+	defer s.jobMu.Unlock()
+	s.activeJobs[id] = struct{}{}
+}
+
+// jobFinished removes an active job and performs a termination deferred while
+// jobs were active. The daemon may not receive the final RPC response when
+// this cancels the session; the job's outcome is already persisted.
+func (s *server) jobFinished(id uuid.UUID) {
+	s.jobMu.Lock()
+	delete(s.activeJobs, id)
+	terminate := s.terminationPending && len(s.activeJobs) == 0
+	s.jobMu.Unlock()
+	if !terminate {
+		return
+	}
+	s.Logger.Warn(s.lifecycleCtx, "canceling session after job completion",
+		slog.F("provisioner_key_id", s.KeyID))
+	s.sessionCancel()
+}
+
 // AcquireJob queries the database to lock a job.
 //
 // Deprecated: This method is only available for back-level provisioner daemons.
 func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
+	if deleted, err := s.keyDeleted(ctx); err != nil {
+		return nil, xerrors.Errorf("acquire job: check provisioner key: %w", err)
+	} else if deleted {
+		s.Logger.Warn(ctx, "provisioner key deleted, rejecting job acquisition",
+			slog.F("provisioner_key_id", s.KeyID))
+		s.TerminateSession()
+		return nil, xerrors.Errorf("acquire job: %w", ErrProvisionerKeyDeleted)
+	}
 	// Since AcquireJob blocks until a job is available, we set a long (5s by default) timeout.  This allows back-level
 	// provisioner daemons to gracefully shut down within a few seconds, but keeps them from rapidly polling the
 	// database.
 	acqCtx, acqCancel := context.WithTimeout(ctx, s.acquireJobLongPollDur)
 	defer acqCancel()
-	job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags)
+	job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags, s.KeyID)
 	if database.IsQueryCanceledError(err) {
 		s.Logger.Debug(ctx, "successful cancel")
 		return &proto.AcquiredJob{}, nil
+	}
+	if errors.Is(err, ErrProvisionerKeyDeleted) {
+		s.Logger.Warn(ctx, "provisioner key deleted, rejecting job acquisition",
+			slog.F("provisioner_key_id", s.KeyID))
+		s.TerminateSession()
 	}
 	if err != nil {
 		return nil, xerrors.Errorf("acquire job: %w", err)
 	}
 	s.Logger.Debug(ctx, "locked job from database", slog.F("job_id", job.ID))
-	return s.acquireProtoJob(ctx, job)
+	s.jobStarted(job.ID)
+	pj, err := s.acquireProtoJob(ctx, job)
+	if err != nil {
+		s.jobFinished(job.ID)
+		return nil, err
+	}
+	return pj, nil
 }
 
 type jobAndErr struct {
@@ -367,6 +497,14 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 			retErr = closeErr
 		}
 	}()
+	if deleted, err := s.keyDeleted(streamCtx); err != nil {
+		return xerrors.Errorf("acquire job: check provisioner key: %w", err)
+	} else if deleted {
+		s.Logger.Warn(streamCtx, "provisioner key deleted, rejecting job acquisition",
+			slog.F("provisioner_key_id", s.KeyID))
+		s.TerminateSession()
+		return xerrors.Errorf("acquire job: %w", ErrProvisionerKeyDeleted)
+	}
 	acqCtx, acqCancel := context.WithCancel(streamCtx)
 	defer acqCancel()
 	recvCh := make(chan error, 1)
@@ -376,7 +514,7 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 	}()
 	jec := make(chan jobAndErr, 1)
 	go func() {
-		job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags)
+		job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags, s.KeyID)
 		jec <- jobAndErr{job: job, err: err}
 	}()
 	var recvErr error
@@ -397,67 +535,93 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		}
 		return nil
 	}
+	if errors.Is(je.err, ErrProvisionerKeyDeleted) {
+		s.Logger.Warn(streamCtx, "provisioner key deleted, rejecting job acquisition",
+			slog.F("provisioner_key_id", s.KeyID))
+		s.TerminateSession()
+	}
 	if je.err != nil {
 		return xerrors.Errorf("acquire job: %w", je.err)
 	}
 	logger := s.Logger.With(slog.F("job_id", je.job.ID))
 	logger.Debug(streamCtx, "locked job from database")
+	s.jobStarted(je.job.ID)
 
 	if recvErr != nil {
 		logger.Error(streamCtx, "recv error and failed to cancel acquire job", slog.Error(recvErr))
 		// Well, this is awkward.  We hit an error receiving from the stream, but didn't cancel before we locked a job
 		// in the database.  We need to mark this job as failed so the end user can retry if they want to.
-		now := s.timeNow()
-		err := s.Database.UpdateProvisionerJobWithCompleteByID(
-			//nolint:gocritic // Provisionerd has specific authz rules.
-			dbauthz.AsProvisionerd(context.Background()),
-			database.UpdateProvisionerJobWithCompleteByIDParams{
-				ID: je.job.ID,
-				CompletedAt: sql.NullTime{
-					Time:  now,
-					Valid: true,
-				},
-				UpdatedAt: now,
-				Error: sql.NullString{
-					String: "connection to provisioner daemon broken",
-					Valid:  true,
-				},
-				ErrorCode: sql.NullString{},
-			})
-		if err != nil {
-			logger.Error(streamCtx, "error updating failed job", slog.Error(err))
-		}
+		s.failAcquiredJob(logger, je.job.ID, "connection to provisioner daemon broken")
+		s.jobFinished(je.job.ID)
 		return recvErr
 	}
 
 	pj, err := s.acquireProtoJob(streamCtx, je.job)
 	if err != nil {
+		// acquireProtoJob marks the job failed itself.
+		s.jobFinished(je.job.ID)
 		return err
 	}
 	err = stream.Send(pj)
 	if err != nil {
 		s.Logger.Error(streamCtx, "failed to send job", slog.Error(err))
+		// The job was locked but never delivered, so mark it failed instead of
+		// leaving it assigned to a worker that does not have it.
+		s.failAcquiredJob(logger, je.job.ID, "connection to provisioner daemon broken")
+		s.jobFinished(je.job.ID)
 		return err
 	}
 	return nil
 }
 
-func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJob) (*proto.AcquiredJob, error) {
-	// Marks the acquired job as failed with the error message provided.
-	failJob := func(errorMessage string) error {
-		err := s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-			ID: job.ID,
+// failAcquiredJob marks a job that was claimed but never delivered to the
+// daemon as failed. It uses a fresh context so the update succeeds even when
+// the session context is canceled.
+func (s *server) failAcquiredJob(logger slog.Logger, jobID uuid.UUID, message string) {
+	now := s.timeNow()
+	err := s.Database.UpdateProvisionerJobWithCompleteByID(
+		//nolint:gocritic // Provisionerd has specific authz rules.
+		dbauthz.AsProvisionerd(context.Background()),
+		database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID: jobID,
 			CompletedAt: sql.NullTime{
-				Time:  s.timeNow(),
+				Time:  now,
 				Valid: true,
 			},
+			UpdatedAt: now,
 			Error: sql.NullString{
-				String: errorMessage,
+				String: message,
 				Valid:  true,
 			},
-			ErrorCode: job.ErrorCode,
-			UpdatedAt: s.timeNow(),
+			ErrorCode: sql.NullString{},
 		})
+	if err != nil {
+		logger.Error(s.lifecycleCtx, "error updating failed job", slog.Error(err))
+	}
+}
+
+func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJob) (*proto.AcquiredJob, error) {
+	// Marks the acquired job as failed with the error message provided. The
+	// update runs on a fresh context so it succeeds even when the session
+	// context is canceled; otherwise the claimed job would stay assigned to
+	// this worker until the job reaper.
+	failJob := func(errorMessage string) error {
+		err := s.Database.UpdateProvisionerJobWithCompleteByID(
+			//nolint:gocritic // Provisionerd has specific authz rules.
+			dbauthz.AsProvisionerd(context.Background()),
+			database.UpdateProvisionerJobWithCompleteByIDParams{
+				ID: job.ID,
+				CompletedAt: sql.NullTime{
+					Time:  s.timeNow(),
+					Valid: true,
+				},
+				Error: sql.NullString{
+					String: errorMessage,
+					Valid:  true,
+				},
+				ErrorCode: job.ErrorCode,
+				UpdatedAt: s.timeNow(),
+			})
 		if err != nil {
 			return xerrors.Errorf("update provisioner job: %w", err)
 		}
@@ -1385,6 +1549,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		s.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
 		return nil, xerrors.Errorf("publish end of job logs: %w", err)
 	}
+	s.jobFinished(jobID)
 	return &proto.Empty{}, nil
 }
 
@@ -1702,6 +1867,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 	}
 
 	s.Logger.Debug(ctx, "stage CompleteJob done", slog.F("job_id", jobID))
+	s.jobFinished(jobID)
 	return &proto.Empty{}, nil
 }
 
@@ -2179,7 +2345,8 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			taskAppID    uuid.NullUUID
 			taskAgentID  uuid.NullUUID
 		)
-		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 {
+		// Agents and their apps are only inserted when the workspace is running.
+		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 && workspaceBuild.Transition == database.WorkspaceTransitionStart {
 			task := tasks[0]
 			if task == nil {
 				return xerrors.Errorf("update ai task: task is nil")
@@ -2869,7 +3036,15 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		agentNames = make(map[string]struct{})
 		appSlugs   = make(map[string]struct{})
 	)
-	for _, prAgent := range protoResource.Agents {
+
+	// Agents can't connect to compute that these transitions tore down, so any
+	// agent Terraform still reports for them would only surface as unhealthy.
+	protoAgents := protoResource.Agents
+	if transition == database.WorkspaceTransitionStop || transition == database.WorkspaceTransitionDelete {
+		protoAgents = nil
+	}
+
+	for _, prAgent := range protoAgents {
 		// Similar logic is duplicated in terraform/resources.go.
 		if prAgent.Name == "" {
 			return xerrors.Errorf("agent name cannot be empty")

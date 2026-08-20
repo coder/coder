@@ -9,6 +9,7 @@ import {
 	MonitorIcon,
 	PowerIcon,
 	RouteIcon,
+	SearchIcon,
 	ServerIcon,
 	TerminalIcon,
 	WrenchIcon,
@@ -38,11 +39,13 @@ export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	start_workspace: PowerIcon,
 	chat_summarized: BotIcon,
 	list_agents: BotIcon,
+	list_subagent_models: BotIcon,
 	thinking: LightbulbIcon,
 	propose_plan: RouteIcon,
 	ask_user_question: BadgeQuestionMarkIcon,
 	advisor: CompassIcon,
 	computer: MonitorIcon,
+	find_tools: SearchIcon,
 };
 
 export const ToolIcon: React.FC<{

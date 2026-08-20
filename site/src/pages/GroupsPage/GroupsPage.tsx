@@ -1,22 +1,23 @@
-import { PlusIcon } from "lucide-react";
 import { type FC, useEffect } from "react";
 import { useQuery } from "react-query";
-import { Link as RouterLink } from "react-router";
+import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
-	groupsByOrganization,
 	organizationGroupsAISpend,
+	paginatedGroupsByOrganization,
 } from "#/api/queries/groups";
 import { organizationsPermissions } from "#/api/queries/organizations";
-import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { useFilter } from "#/components/Filter/Filter";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
@@ -24,20 +25,27 @@ import { useGroupsSettings } from "./GroupsPageProvider";
 import { GroupsPageView, joinGroupsSpend } from "./GroupsPageView";
 
 const GroupsPage: FC = () => {
+	const { permissions: authPermissions } = useAuthenticated();
 	const { template_rbac: groupsEnabled, aibridge } = useFeatureVisibility();
 	const { organization, showOrganizations } = useGroupsSettings();
 	const aibridgeVisible = Boolean(aibridge);
-	const groupsQuery = useQuery({
-		...groupsByOrganization(organization?.name ?? ""),
-		enabled: Boolean(organization),
+	const [searchParams, setSearchParams] = useSearchParams();
+	const groupsQuery = usePaginatedQuery({
+		...paginatedGroupsByOrganization(organization?.name ?? "", searchParams),
+		enabled: Boolean(groupsEnabled && organization),
 	});
-	const groupIds = groupsQuery.data?.map((group) => group.id) ?? [];
+	const filter = useFilter({
+		searchParams,
+		onSearchParamsChange: setSearchParams,
+		onUpdate: groupsQuery.goToFirstPage,
+	});
+	const groupIds = groupsQuery.data?.groups.map((group) => group.id) ?? [];
 	const groupsSpendQuery = useQuery({
 		...organizationGroupsAISpend(organization?.name ?? "", groupIds),
 		enabled: aibridgeVisible && Boolean(organization) && groupIds.length > 0,
 	});
 	const groupsWithSpend = joinGroupsSpend(
-		groupsQuery.data,
+		groupsQuery.data?.groups,
 		groupsSpendQuery.data,
 	);
 	const permissionsQuery = useQuery({
@@ -111,15 +119,6 @@ const GroupsPage: FC = () => {
 						{showOrganizations ? "organization" : "deployment"}.
 					</SettingsHeaderDescription>
 				</SettingsHeader>
-
-				{groupsEnabled && permissions.createGroup && (
-					<Button asChild>
-						<RouterLink to="create">
-							<PlusIcon className="size-icon-sm" />
-							Create group
-						</RouterLink>
-					</Button>
-				)}
 			</div>
 
 			<GroupsPageView
@@ -128,6 +127,9 @@ const GroupsPage: FC = () => {
 				canCreateGroup={permissions.createGroup}
 				groupsEnabled={groupsEnabled}
 				showAIBudget={aibridgeVisible}
+				filterProps={{ filter }}
+				groupsQuery={groupsQuery}
+				permissions={authPermissions}
 			/>
 		</div>
 	);

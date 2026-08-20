@@ -12,7 +12,7 @@ import {
 } from "#/testHelpers/entities";
 import { pixelWithTablet } from "#/testHelpers/pixel";
 import { withDashboardProvider } from "#/testHelpers/storybook";
-import type { TemplateFilterState } from "./TemplatesPage";
+import type { TemplateFilterState } from "./TemplatesFilter";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const defaultFilterProps = getDefaultFilterProps<TemplateFilterState>({

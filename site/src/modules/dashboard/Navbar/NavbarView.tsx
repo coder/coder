@@ -12,8 +12,8 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
-import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "#/modules/notifications/NotificationsInbox/NotificationsInbox";
+import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import { getPrereleaseFlag } from "#/utils/buildInfo";
 import { cn } from "#/utils/cn";
 import {
@@ -206,12 +206,7 @@ type TasksNavItemProps = {
 };
 
 const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
-	const { metadata } = useEmbeddedMetadata();
-	const canSeeTasks = Boolean(
-		metadata["tasks-tab-visible"].value ||
-			process.env.NODE_ENV === "development" ||
-			process.env.STORYBOOK,
-	);
+	const canSeeTasks = useAITasksEnabled();
 	const filter: TypesGen.TasksFilter = {
 		owner: user.username,
 	};
