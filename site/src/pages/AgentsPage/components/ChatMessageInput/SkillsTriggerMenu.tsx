@@ -256,7 +256,7 @@ export const SkillsTriggerMenu = ({
 			)}
 			<PopoverContent
 				align="start"
-				side="bottom"
+				side="top"
 				className="w-80 overflow-hidden p-1 mobile-full-width-dropdown mobile-full-width-dropdown-above-composer"
 				onMouseDown={(event) => event.preventDefault()}
 				onOpenAutoFocus={(event) => event.preventDefault()}

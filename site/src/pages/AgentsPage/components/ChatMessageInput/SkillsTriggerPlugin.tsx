@@ -9,6 +9,7 @@ import {
 	KEY_ENTER_COMMAND,
 	KEY_ESCAPE_COMMAND,
 	KEY_TAB_COMMAND,
+	type LexicalEditor,
 	type NodeKey,
 } from "lexical";
 import { useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
@@ -56,6 +57,38 @@ const currentCaretRect = (): CaretAnchorRect | null => {
 	}
 
 	if (Number.isNaN(rect.top)) {
+		return null;
+	}
+
+	return {
+		top: rect.top,
+		left: rect.left,
+		height: rect.height,
+	};
+};
+
+// Anchors the menu to the slash character itself so it stays put
+// while the user types the query, instead of following the caret.
+const slashAnchorRect = (
+	editor: LexicalEditor,
+	trigger: Omit<ActiveSkillsTrigger, "anchorRect">,
+): CaretAnchorRect | null => {
+	const element = editor.getElementByKey(trigger.nodeKey);
+	const textNode = element?.firstChild;
+	if (!textNode || textNode.nodeType !== Node.TEXT_NODE) {
+		return null;
+	}
+
+	const textLength = textNode.textContent?.length ?? 0;
+	if (trigger.slashOffset >= textLength) {
+		return null;
+	}
+
+	const range = document.createRange();
+	range.setStart(textNode, trigger.slashOffset);
+	range.setEnd(textNode, trigger.slashOffset + 1);
+	const rect = range.getBoundingClientRect();
+	if ((rect.width === 0 && rect.height === 0) || Number.isNaN(rect.top)) {
 		return null;
 	}
 
@@ -148,7 +181,7 @@ export const SkillsTriggerPlugin = ({
 
 		onTriggerChange({
 			...trigger,
-			anchorRect: currentCaretRect(),
+			anchorRect: slashAnchorRect(editor, trigger) ?? currentCaretRect(),
 		});
 	});
 
@@ -193,11 +226,19 @@ export const SkillsTriggerPlugin = ({
 		if (!open) {
 			return false;
 		}
-		event?.preventDefault();
 		const skill = selectedIndex >= 0 ? skills[selectedIndex] : undefined;
-		if (skill) {
-			onSkillSelect(skill);
+		if (!skill) {
+			// Nothing is selectable (e.g. the trailing token is a filesystem
+			// path, not a skill): dismiss the menu and let the same keypress
+			// fall through to the submit handler.
+			dismissedTriggerRef.current = editor
+				.getEditorState()
+				.read(() => activeTriggerFromSelection());
+			onTriggerChange(null);
+			return false;
 		}
+		event?.preventDefault();
+		onSkillSelect(skill);
 		return true;
 	});
 

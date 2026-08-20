@@ -240,3 +240,17 @@ export const SelectsCommandByClick: Story = {
 		expect(args.onSelect).toHaveBeenCalledWith(compactCommandItem);
 	},
 };
+
+// The menu opens above its anchor on desktop, matching the mobile
+// pinned-above-composer placement (CODAGT-956).
+export const OpensAboveAnchor: Story = {
+	args: {
+		anchorRect: { top: 400, left: 80, height: 20 },
+	},
+	play: async () => {
+		const item = await findVisibleText("/reviewer");
+		const content = item.closest("[data-side]");
+		expect(content).not.toBeNull();
+		expect(content).toHaveAttribute("data-side", "top");
+	},
+};

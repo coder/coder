@@ -102,7 +102,7 @@ export const EmptySkills: Story = {
 	},
 };
 
-export const FilteredEmptyKeepsMenuOpen: Story = {
+export const FilteredEmptyEnterClosesAndSubmits: Story = {
 	args: {
 		onEnter: fn(),
 	},
@@ -112,8 +112,57 @@ export const FilteredEmptyKeepsMenuOpen: Story = {
 			await findVisibleText("No personal skills match that query."),
 		).toBeDefined();
 		await userEvent.keyboard("{Enter}");
-		expect(args.onEnter).not.toHaveBeenCalled();
+		expect(args.onEnter).toHaveBeenCalledTimes(1);
+		await expectNoVisibleText("No personal skills match that query.");
 		expect(editor.textContent).toBe("/zzzz");
+	},
+};
+
+// A trailing absolute path is not a skill query; Enter must close the
+// no-match menu and submit the prompt in the same keypress (CODAGT-956).
+export const TrailingPathEnterSubmits: Story = {
+	args: {
+		slashCommands: [COMPACT_SLASH_COMMAND],
+		onEnter: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const editor = await typeInEditor(canvasElement, "check /var/log/syslog");
+		expect(
+			await findVisibleText("No personal skills match that query."),
+		).toBeDefined();
+		await userEvent.keyboard("{Enter}");
+		expect(args.onEnter).toHaveBeenCalledTimes(1);
+		await expectNoVisibleText("No personal skills match that query.");
+		expect(editor.textContent).toBe("check /var/log/syslog");
+	},
+};
+
+// The menu anchors where "/" was typed and must not follow the caret
+// as the query grows.
+export const MenuStaysAnchoredWhileTyping: Story = {
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/re");
+		const item = await findVisibleText("/reviewer");
+		const wrapper = item.closest<HTMLElement>(
+			"[data-radix-popper-content-wrapper]",
+		);
+		expect(wrapper).not.toBeNull();
+		if (!wrapper) return;
+		const before = wrapper.getBoundingClientRect();
+		await userEvent.keyboard("view");
+		await findVisibleText("/reviewer");
+		// Headless runs do not fire floating-ui's layout-shift tracking,
+		// so force a reposition through its resize listener, then hold
+		// the position stable long enough to catch a moved anchor.
+		window.dispatchEvent(new Event("resize"));
+		for (let frame = 0; frame < 30; frame++) {
+			const rect = wrapper.getBoundingClientRect();
+			expect({ top: rect.top, left: rect.left }).toEqual({
+				top: before.top,
+				left: before.left,
+			});
+			await new Promise((resolve) => requestAnimationFrame(resolve));
+		}
 	},
 };
 
