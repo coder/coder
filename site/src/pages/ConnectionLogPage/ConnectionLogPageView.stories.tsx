@@ -17,6 +17,7 @@ import {
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import { pixelWithTablet } from "#/testHelpers/pixel";
+import { docs } from "#/utils/docs";
 import { ConnectionLogPageView } from "./ConnectionLogPageView";
 
 type FilterProps = ComponentProps<typeof ConnectionLogPageView>["filterProps"];
@@ -98,8 +99,11 @@ export const NotVisible: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const cta = canvas.getByRole("link", { name: "Learn about Premium" });
+		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+		await expect(
+			canvas.getByRole("link", { name: /Read the docs/ }),
+		).toHaveAttribute("href", docs("/admin/monitoring/connection-logs"));
 	},
 };
 
@@ -115,7 +119,7 @@ export const NotVisibleWithoutLicenseAccess: Story = {
 			canvas.getByText(/contact your deployment administrator/i),
 		).toBeVisible();
 		await expect(
-			canvas.queryByRole("link", { name: "Learn about Premium" }),
+			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
 	},
 };

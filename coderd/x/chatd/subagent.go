@@ -419,38 +419,6 @@ func (p *Server) resolvePersonalModelOverride(
 	return modelConfig, true, nil
 }
 
-func withResolvedReasoningEffort(
-	modelConfig database.ChatModelConfig,
-	reasoningEffort *string,
-) database.ChatModelConfig {
-	if reasoningEffort == nil {
-		return modelConfig
-	}
-	callConfig := codersdk.ChatModelCallConfig{}
-	if len(modelConfig.Options) > 0 {
-		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
-			return modelConfig
-		}
-	}
-	resolvedEffort := chatprovider.ResolveReasoningEffort(
-		reasoningEffort,
-		callConfig.ReasoningEffort,
-	)
-	if resolvedEffort == nil {
-		return modelConfig
-	}
-	callConfig.ReasoningEffort = &codersdk.ChatModelReasoningEffortConfig{
-		Default: resolvedEffort,
-		Max:     resolvedEffort,
-	}
-	options, err := json.Marshal(callConfig)
-	if err != nil {
-		return modelConfig
-	}
-	modelConfig.Options = options
-	return modelConfig
-}
-
 func (p *Server) resolveSubagentModelConfigID(
 	ctx context.Context,
 	ownerID uuid.UUID,
@@ -1205,7 +1173,7 @@ func (p *Server) resolveExploreToolSnapshot(
 ) ([]uuid.UUID, error) {
 	inheritedMCPServerIDs := []uuid.UUID{}
 	if len(parent.MCPServerIDs) > 0 {
-		configs, err := p.db.GetMCPServerConfigsByIDs(ctx, parent.MCPServerIDs)
+		configs, err := enabledMCPServerConfigsForChatOrg(ctx, p.db, parent.OrganizationID, parent.MCPServerIDs)
 		if err != nil {
 			return nil, xerrors.Errorf("get parent MCP server configs for chat %s: %w", parent.ID, err)
 		}
@@ -1284,7 +1252,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
 	}
-	childSystemPrompt := SanitizePromptText(opts.systemPrompt)
+	childSystemPrompt := codersdk.SanitizePromptText(opts.systemPrompt)
 	// Resolve the deployment prompt before opening the transaction so
 	// child chat creation does not hold one DB connection while waiting
 	// for another pool checkout.

@@ -37,7 +37,7 @@ type githubProvider struct {
 	repositorySSHPathPattern *regexp.Regexp
 }
 
-func newGitHub(apiBaseURL string, httpClient *http.Client, clock quartz.Clock) *githubProvider {
+func newGitHub(apiBaseURL string, httpClient *http.Client, clock quartz.Clock) (Provider, error) {
 	if apiBaseURL == "" {
 		apiBaseURL = defaultGitHubAPIBaseURL
 	}
@@ -72,7 +72,7 @@ func newGitHub(apiBaseURL string, httpClient *http.Client, clock quartz.Clock) *
 		repositorySSHPathPattern: regexp.MustCompile(
 			`^(?:ssh://)?git@` + escapedHost + `[:/]([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?$`,
 		),
-	}
+	}, nil
 }
 
 // deriveWebBaseURL converts a GitHub API base URL to the
@@ -412,12 +412,13 @@ func (g *githubProvider) decodeJSON(
 	// changed, which is cheaper than a full body and does not count
 	// against the primary REST rate limit.
 	cacheKey := responseCacheKey(requestURL, token)
-	var cachedBody []byte
-	if g.cache != nil {
-		if etag, body, ok := g.cache.load(cacheKey); ok {
-			req.Header.Set("If-None-Match", etag)
-			cachedBody = body
-		}
+	var (
+		cachedBody []byte
+		haveCached bool
+	)
+	if etag, body, ok := g.cache.load(cacheKey); ok {
+		req.Header.Set("If-None-Match", etag)
+		cachedBody, haveCached = body, true
 	}
 
 	resp, err := g.httpClient.Do(req)
@@ -427,7 +428,7 @@ func (g *githubProvider) decodeJSON(
 	defer resp.Body.Close()
 
 	// Nothing changed since the cached response: reuse the stored body.
-	if resp.StatusCode == http.StatusNotModified && cachedBody != nil {
+	if resp.StatusCode == http.StatusNotModified && haveCached {
 		if err := json.Unmarshal(cachedBody, dest); err != nil {
 			return xerrors.Errorf("decode cached github response: %w", err)
 		}
@@ -457,14 +458,13 @@ func (g *githubProvider) decodeJSON(
 		return xerrors.Errorf("read github response: %w", err)
 	}
 
-	// Cache the validator so the next poll can be made conditional.
-	if g.cache != nil {
-		g.cache.store(cacheKey, resp.Header.Get("ETag"), body)
-	}
-
 	if err := json.Unmarshal(body, dest); err != nil {
 		return xerrors.Errorf("decode github response: %w", err)
 	}
+
+	// Only cache bodies we could successfully decode, so a malformed
+	// response does not poison the cache.
+	g.cache.store(cacheKey, resp.Header.Get("ETag"), body)
 	return nil
 }
 

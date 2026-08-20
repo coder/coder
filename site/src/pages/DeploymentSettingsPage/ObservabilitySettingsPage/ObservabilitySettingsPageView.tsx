@@ -1,11 +1,6 @@
 import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
-import {
-	Badges,
-	EnterpriseBadge,
-	PremiumBadge,
-} from "#/components/Badges/Badges";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -19,17 +14,19 @@ import OptionsTable from "../OptionsTable";
 type ObservabilitySettingsPageViewProps = {
 	options: SerpentOption[];
 	featureAuditLogEnabled: boolean;
-	isPremium: boolean;
+	canViewPremium: boolean;
 };
 
 export const ObservabilitySettingsPageView: FC<
 	ObservabilitySettingsPageViewProps
-> = ({ options, featureAuditLogEnabled, isPremium }) => {
+> = ({ options, featureAuditLogEnabled, canViewPremium }) => {
 	return (
 		<div className="flex flex-col gap-12">
 			<div>
 				<SettingsHeader
-					actions={<SettingsHeaderDocsLink href={docs("/admin/monitoring")} />}
+					actions={
+						<SettingsHeaderDocsLink href={docs("/admin/security/audit-logs")} />
+					}
 				>
 					<SettingsHeaderTitle>Observability</SettingsHeaderTitle>
 				</SettingsHeader>
@@ -43,22 +40,22 @@ export const ObservabilitySettingsPageView: FC<
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				{featureAuditLogEnabled || isPremium ? (
-					<Badges>{isPremium ? <PremiumBadge /> : <EnterpriseBadge />}</Badges>
+				{featureAuditLogEnabled ? (
+					<OptionsTable
+						options={options.filter((o) => o.name === "Audit Logs Retention")}
+					/>
 				) : (
-					<Alert severity="info" actions={<PremiumBadge />}>
-						Audit logging lets auditors monitor user operations across your
-						deployment. It requires a Premium license.{" "}
-						<a
-							href={docs("/admin/security/audit-logs")}
-							target="_blank"
-							rel="noreferrer"
-							className="text-content-link font-medium"
-						>
-							Read the Audit Logs documentation
-						</a>
-						.
-					</Alert>
+					<PaywallPremium
+						message="Audit Logging"
+						description="Monitor user operations across your deployment."
+						features={[
+							"Track user actions across deployment",
+							"Observe developer and agent activity",
+							"Configurable audit log retention period",
+							"Support compliance and security reviews",
+						]}
+						canViewPremium={canViewPremium}
+					/>
 				)}
 			</div>
 

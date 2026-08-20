@@ -1,10 +1,30 @@
+import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import type { FC } from "react";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
-import { ChatPageTimeline } from "./ChatPageContent";
+import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
+
+// These stories cover transcript rendering, so history paging stays idle.
+const StoryChatPageTimeline: FC<{
+	store: ReturnType<typeof createChatStore>;
+}> = ({ store }) => (
+	<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+		<ChatPageTimeline
+			store={store}
+			persistedError={undefined}
+			hasMoreMessages={false}
+			isFetchingMoreMessages={false}
+			isHydratingMessages={false}
+			hasFetchMoreError={false}
+			onFetchMoreMessages={async () => {}}
+		/>
+	</MessageScroller.Provider>
+);
 
 const meta = {
 	title: "pages/AgentsPage/ChatPageContent",
@@ -14,6 +34,48 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const CHAT_ID = "chat-page-content-stories";
+
+// Renders only the composer half of the chat page. chatId and
+// organizationId stay undefined so the prompt-history and draft
+// attachment queries stay disabled.
+const StoryChatPageInput: FC<{
+	store: ReturnType<typeof createChatStore>;
+	onInterrupt?: () => void;
+}> = ({ store, onInterrupt }) => (
+	<div className="mx-auto w-full max-w-3xl p-4">
+		<ChatPageInput
+			organizationId={undefined}
+			store={store}
+			compressionThreshold={undefined}
+			onSend={fn()}
+			sendShortcut="enter"
+			onDeleteQueuedMessage={fn()}
+			onPromoteQueuedMessage={fn()}
+			onInterrupt={onInterrupt ?? fn()}
+			isInputDisabled={false}
+			isSendPending={false}
+			isInterruptPending={false}
+			hasModelOptions
+			selectedModel="model-config-1"
+			onModelChange={fn()}
+			modelOptions={[
+				{
+					id: "model-config-1",
+					provider: "openai",
+					model: "gpt-4o",
+					displayName: "GPT-4o",
+				},
+			]}
+			modelSelectorPlaceholder="Select model"
+			canConfigureAgentSetup={false}
+			isEditing={false}
+			onCancelHistoryEdit={fn()}
+			workspaceOptions={[]}
+			selectedWorkspaceId={null}
+			isWorkspaceLoading={false}
+		/>
+	</div>
+);
 
 const buildMessage = (
 	id: number,
@@ -26,6 +88,27 @@ const buildMessage = (
 	role,
 	content,
 });
+
+// Matches the backend I1 state: an interruption has been requested
+// and the stream has already been torn down, so the store holds no
+// stream state while the chat status is still "interrupting".
+const buildInterruptingStore = () => {
+	const store = createChatStore();
+	store.replaceMessages([
+		buildMessage(1, "user", [{ type: "text", text: "Refactor the module" }]),
+	]);
+	store.setQueuedMessages([
+		{
+			...MockChatQueuedMessage,
+			id: 2,
+			chat_id: CHAT_ID,
+			content: [{ type: "text", text: "Also rename the helpers" }],
+			created_at: new Date(FIXTURE_NOW).toISOString(),
+		},
+	]);
+	store.setChatStatus("interrupting");
+	return store;
+};
 
 const buildThinkingSpacerStore = () => {
 	const store = createChatStore();
@@ -49,7 +132,7 @@ export const SpacerVisibleWhenNotStreaming: Story = {
 	render: () => {
 		const store = buildThinkingSpacerStore();
 
-		return <ChatPageTimeline store={store} persistedError={undefined} />;
+		return <StoryChatPageTimeline store={store} />;
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -76,7 +159,7 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 
 		return (
 			<ChatWorkspaceContext value={{ workspaceId: "workspace-1" }}>
-				<ChatPageTimeline store={store} persistedError={undefined} />
+				<StoryChatPageTimeline store={store} />
 			</ChatWorkspaceContext>
 		);
 	},
@@ -85,6 +168,51 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 		expect(canvas.getByText("Creating workspace…")).toBeInTheDocument();
 		expect(canvas.queryByText("Created workspace")).toBeNull();
 		expect(canvas.getByText("Loading build logs…")).toBeInTheDocument();
+	},
+};
+
+// Matches the fixed terminal error path.
+const errorClearsStreamStore = createChatStore();
+export const ErrorClearsStreamingTool: Story = {
+	render: () => {
+		errorClearsStreamStore.resetTransientState();
+		errorClearsStreamStore.replaceMessages([
+			buildMessage(1, "user", [{ type: "text", text: "Create a workspace" }]),
+		]);
+		errorClearsStreamStore.setChatStatus("running");
+		errorClearsStreamStore.applyMessagePart({
+			type: "tool-call",
+			tool_call_id: "create-workspace-call",
+			tool_name: "create_workspace",
+			args: { name: "dev" },
+		});
+
+		return (
+			<ChatWorkspaceContext value={{ workspaceId: "workspace-1" }}>
+				<StoryChatPageTimeline store={errorClearsStreamStore} />
+			</ChatWorkspaceContext>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Creating workspace…")).toBeInTheDocument();
+
+		errorClearsStreamStore.batch(() => {
+			errorClearsStreamStore.applyServerChatStatus("error");
+			errorClearsStreamStore.setStreamError({
+				kind: "generic",
+				message: "The chat session ended unexpectedly.",
+			});
+			errorClearsStreamStore.clearStreamState();
+		});
+
+		await waitFor(() => {
+			expect(canvas.queryByText("Creating workspace…")).toBeNull();
+		});
+		expect(canvas.getByText("Request failed")).toBeInTheDocument();
+		expect(
+			canvas.getByText("The chat session ended unexpectedly."),
+		).toBeInTheDocument();
 	},
 };
 
@@ -99,7 +227,7 @@ export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 			buildMessage(4, "user", [{ type: "text", text: "Thanks!" }]),
 		]);
 
-		return <ChatPageTimeline store={store} persistedError={undefined} />;
+		return <StoryChatPageTimeline store={store} />;
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -137,12 +265,71 @@ export const MergedMessagesRenderInIDOrder: Story = {
 			batched(2, "assistant", "bravo"),
 		]);
 
-		return <ChatPageTimeline store={store} persistedError={undefined} />;
+		return <StoryChatPageTimeline store={store} />;
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByTestId("conversation-timeline")).toHaveTextContent(
 			/alpha[\s\S]*bravo[\s\S]*charlie[\s\S]*delta/,
 		);
+	},
+};
+
+// Interrupting is busy without stream state; interrupt retries are
+// rejected by the backend, so Stop stays present but disabled.
+const interruptingOnInterrupt = fn();
+export const InterruptingShowsBusyComposer: Story = {
+	render: () => {
+		const store = buildInterruptingStore();
+		return (
+			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+				<div className="flex h-full flex-col">
+					<ChatPageTimeline
+						store={store}
+						persistedError={undefined}
+						hasMoreMessages={false}
+						isFetchingMoreMessages={false}
+						isHydratingMessages={false}
+						hasFetchMoreError={false}
+						onFetchMoreMessages={async () => {}}
+					/>
+					<StoryChatPageInput
+						store={store}
+						onInterrupt={interruptingOnInterrupt}
+					/>
+				</div>
+			</MessageScroller.Provider>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Also rename the helpers")).toBeInTheDocument();
+		expect(canvas.getByRole("button", { name: "Stop" })).toBeDisabled();
+		expect(canvas.getByRole("status")).toHaveTextContent(
+			"Interrupting. Waiting for the agent to stop.",
+		);
+		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
+		expect(canvas.getByText("Interrupting")).toBeInTheDocument();
+		expect(canvas.queryByText("Thinking")).toBeNull();
+
+		await userEvent.click(
+			canvas.getByRole("textbox", { name: "Chat message" }),
+		);
+		await userEvent.keyboard("{Escape}");
+		expect(interruptingOnInterrupt).not.toHaveBeenCalled();
+	},
+};
+
+export const RunningShowsBusyComposer: Story = {
+	render: () => {
+		const store = buildInterruptingStore();
+		store.setChatStatus("running");
+		return <StoryChatPageInput store={store} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Also rename the helpers")).toBeInTheDocument();
+		expect(canvas.getByRole("button", { name: "Stop" })).toBeEnabled();
+		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
 	},
 };

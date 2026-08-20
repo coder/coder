@@ -43,6 +43,7 @@ import {
 } from "#/testHelpers/storybook";
 import GroupMembersPage from "./GroupMembersPage";
 import GroupPage from "./GroupPage";
+import GroupSettingsPage from "./GroupSettingsPage";
 
 const meta: Meta<typeof GroupPage> = {
 	title: "pages/OrganizationGroupsPage/GroupPage",
@@ -205,6 +206,47 @@ export const NoUpdatePermission: Story = {
 			}),
 			permissionsQuery({ canUpdateGroup: false }),
 		],
+	},
+};
+
+/**
+ * The settings page is reachable by direct URL even when the settings tab is
+ * hidden. Without group:update, it must render the permission dialog instead
+ * of the editable form.
+ */
+export const SettingsWithoutUpdatePermission: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					organization: MockDefaultOrganization.name,
+					groupName: MockGroupWithoutMembers.name,
+				},
+			},
+			routing: reactRouterOutlet(
+				{ path: "/organizations/:organization/groups/:groupName/settings" },
+				<GroupSettingsPage />,
+			),
+		}),
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({
+				users: MockGroup.members,
+				count: MockGroup.members.length,
+			}),
+			permissionsQuery({ canUpdateGroup: false }),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(document.body);
+		await expect(
+			await body.findByText("You don't have permission to view this page"),
+		).toBeInTheDocument();
+		// The editable budget/name form is never rendered.
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("button", { name: "Save" }),
+		).not.toBeInTheDocument();
 	},
 };
 

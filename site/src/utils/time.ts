@@ -31,11 +31,13 @@ type DateTimeInput = Date | string | number | Dayjs | null | undefined;
 export const DATE_FORMAT = {
 	ISO_DATE: "YYYY-MM-DD",
 	ISO_DATETIME: "YYYY-MM-DD HH:mm:ss",
+	ISO_DATETIME_MINUTE: "YYYY-MM-DD HH:mm",
 	FULL_DATE: "MMMM D, YYYY",
 	MEDIUM_DATE: "MMM D, YYYY",
 	FULL_DATETIME: "MMMM D, YYYY h:mm A",
 	SHORT_DATE: "MM/DD/YYYY",
 	TIME_24H: "HH:mm:ss",
+	TIME_24H_MINUTE: "HH:mm",
 	TIME_12H: "h:mm A",
 	UTC_OFFSET: "Z",
 } as const;

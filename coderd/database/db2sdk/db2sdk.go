@@ -1725,6 +1725,28 @@ func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error
 	return filtered, nil
 }
 
+func AIModelPrices(dbPrices []database.AIModelPrice) []codersdk.AIModelPrice {
+	out := make([]codersdk.AIModelPrice, 0, len(dbPrices))
+	for _, dbPrice := range dbPrices {
+		out = append(out, AIModelPrice(dbPrice))
+	}
+	return out
+}
+
+func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
+	return codersdk.AIModelPrice{
+		Provider:        dbPrice.Provider,
+		Model:           dbPrice.Model,
+		InputPrice:      nullInt64Ptr(dbPrice.InputPrice),
+		OutputPrice:     nullInt64Ptr(dbPrice.OutputPrice),
+		CacheReadPrice:  nullInt64Ptr(dbPrice.CacheReadPrice),
+		CacheWritePrice: nullInt64Ptr(dbPrice.CacheWritePrice),
+		Source:          codersdk.AIModelPriceSource(dbPrice.Source),
+		CreatedAt:       dbPrice.CreatedAt,
+		UpdatedAt:       dbPrice.UpdatedAt,
+	}
+}
+
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
 	if !v.Valid {
 		return nil
@@ -1882,6 +1904,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 				OrganizationID: row.OrganizationID,
 				Name:           row.Name,
 				MimeType:       row.Mimetype,
+				SizeBytes:      row.SizeBytes,
 				CreatedAt:      row.CreatedAt,
 			})
 		}

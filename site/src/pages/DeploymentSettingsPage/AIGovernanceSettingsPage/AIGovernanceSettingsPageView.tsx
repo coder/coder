@@ -31,7 +31,7 @@ export const AIGovernanceSettingsPageView: FC<
 			<div>
 				<SettingsHeader
 					actions={
-						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-gateway")} />
+						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-governance")} />
 					}
 				>
 					<SettingsHeaderTitle hierarchy="secondary" level="h2">

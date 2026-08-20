@@ -19,8 +19,10 @@ test("setup deployment", async ({ page }) => {
 	await page.getByLabel("Password").fill(users.owner.password);
 	await page.getByTestId("create").click();
 
-	await expectUrl(page).toHavePathName("/templates");
-	await page.getByTestId("button-select-template").isVisible();
+	await expectUrl(page).toHavePathName("/templates/new/builder");
+	await expect(
+		page.getByRole("heading", { name: "Create new template" }),
+	).toBeVisible();
 
 	for (const user of Object.values(users)) {
 		// Already created as first user

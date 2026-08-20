@@ -84,9 +84,8 @@ func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 	return t.base.RoundTrip(cloned)
 }
 
-// ValidateAIGatewayProviderModel rejects slash-namespaced models on
-// OpenRouter-like providers typed as openai, where the provider type
-// strips the vendor prefix.
+// ValidateAIGatewayProviderModel rejects slash-namespaced models when an
+// OpenRouter-like gateway is configured with the OpenAI provider type.
 func ValidateAIGatewayProviderModel(provider database.AIProvider, model string) error {
 	if provider.Type != database.AIProviderTypeOpenai {
 		return nil
@@ -166,11 +165,7 @@ func (p *Server) newModel(
 	}
 
 	config := fantasyConfigForAIBridge(route.Provider.Type)
-	callConfig, err := parseModelConfigOptions(req.ConfigOptions)
-	if err != nil {
-		return chatprovider.Model{}, err
-	}
-	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, callConfig)
+	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.CallConfig)
 	return newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
@@ -178,7 +173,7 @@ func (p *Server) newModel(
 		req.UserAgent,
 		extraHeaders,
 		&http.Client{Transport: baseRT},
-		callConfig.OpenAIConfig,
+		req.CallConfig.OpenAIConfig,
 	)
 }
 

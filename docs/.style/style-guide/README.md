@@ -7,7 +7,7 @@ For decisions about what belongs in the docs and what doesn't, refer to [`conten
 Each rule on the linked pages is a policy decision the Coder docs team has made.
 Where a Vale rule already enforces the policy, the rule name is listed in a parenthetical so you can reproduce the warning locally.
 Where the rule is documentation-only, the parenthetical says so.
-The doctrine for adding Vale rules lives in [`README.md`](../README.md).
+The doctrine for adding Vale rules lives in the [Vale doctrine README](../README.md).
 
 ## How to use this guide
 
@@ -44,22 +44,23 @@ Each sentence sits on its own Markdown source line.
 Sentences aren't split across lines, and lines don't wrap to a fixed column width.
 
 The rendered Markdown joins lines inside a paragraph back together, so the source line breaks don't appear in the rendered output.
-Reviewers reading the diff do encounter them, and they make diffs land cleanly at the sentence level.
+Reviewers reading the diff do encounter them, and the per-sentence lines make diffs land cleanly at the sentence level.
 
 `markdownlint`'s `MD013` (line length) is already disabled, so the convention is editorial.
-Editors that auto-wrap on save should be configured to leave the source alone.
+Configure editors that auto-wrap on save to leave the source alone.
 
 #### Incremental adoption
 
 The Coder docs corpus predates this convention.
-Much of the existing prose still wraps to a fixed column width or runs on a single long line, and some paragraphs on the other pages of this style guide still carry semantic line breaks (sembr) from earlier commits in this PR.
+Much of the existing prose still wraps to a fixed column width or runs on a single long line.
+Some paragraphs on the other pages of this style guide still carry semantic line breaks (sembr) from earlier commits.
 The convention is adopted incrementally.
 
-When a contributor edits any line inside a paragraph, the entire paragraph is reformatted to one sentence per line as part of the same edit.
+A contributor who edits any line inside a paragraph reformats the entire paragraph to one sentence per line as part of the same edit.
 The contributor doesn't reformat surrounding paragraphs they didn't otherwise touch.
 
 For this rule, a bullet item, a numbered list entry, and a blockquote line are each their own paragraph.
-Headings, fenced code blocks, and tables are out of scope: headings are single lines by convention, code blocks render their source verbatim, and table rows are governed by `markdown-table-formatter`.
+Headings, fenced code blocks, and tables are out of scope: headings are single lines by convention, code blocks render their source verbatim, and `markdown-table-formatter` governs table rows.
 
 ### The style guide doesn't use "see" for navigation
 
@@ -78,7 +79,7 @@ Each enabled rule lands via a dedicated PR that:
 2. Adds the rule line in `.vale.ini` at the rule author's chosen severity.
 3. Adds the corresponding section to the appropriate subpage of this guide.
 
-Severity is a deliberate per-rule choice from the three-tier ladder:
+Severity is a deliberate per-rule choice among 3 tiers:
 
 - `error` blocks merge in CI.
   Use for hard policy where any violation is wrong.
@@ -87,7 +88,7 @@ Severity is a deliberate per-rule choice from the three-tier ladder:
 - `suggestion` surfaces a `notice` annotation.
   Use for soft guidance where the right fix is contextual.
 
-The full doctrine, including the false-positive policy, lives in [`README.md`](../README.md).
+The full doctrine, including the false-positive policy, lives in the [Vale doctrine README](../README.md).
 This guide is itself exempt from the Coder rules: it demonstrates the violations those rules ban, so the repo-root `.vale.ini` clears `BasedOnStyles` for `docs/.style/style-guide/**`.
 Zero baseline is measured over `docs/` excluding `docs/.style/style-guide/`.
 Run `make lint/prose` to reproduce the baseline locally.

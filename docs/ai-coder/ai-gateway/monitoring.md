@@ -25,6 +25,9 @@ Each process exports metrics for the traffic that it handles:
 
 Refer to [provider configuration](./providers.md) for the provider reload lifecycle these metrics describe.
 
+The `provider` label is the provider instance name.
+Some metrics use the explicit `provider_name` or `provider_type` labels for clarity.
+
 | Metric                                                             | Type      | Labels                                                                     | Purpose                                                                                                                                            |
 |--------------------------------------------------------------------|-----------|----------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
 | `coder_ai_gateway_interceptions_total`                             | counter   | `client`, `initiator_id`, `method`, `model`, `provider`, `route`, `status` | Intercepted requests.                                                                                                                              |
@@ -54,12 +57,12 @@ Budget enforcement runs in `coderd`.
 Cost control metrics are exported only from the `coderd` Prometheus listener.
 Standalone replicas do not export them.
 
-| Metric                                                             | Type      | Labels              | Purpose                                                                                  |
-|--------------------------------------------------------------------|-----------|---------------------|------------------------------------------------------------------------------------------|
-| `coder_ai_gateway_cost_control_blocked_requests_total`             | counter   | `group_id`          | AI requests blocked because the initiator's budget was exceeded.                         |
-| `coder_ai_gateway_cost_control_blocked_users`                      | gauge     | `group_id`          | Users currently over their AI budget.                                                    |
-| `coder_ai_gateway_cost_control_enforcement_duration_seconds`       | histogram | `outcome`           | Duration of AI budget enforcement checks. `outcome` is `allowed`, `blocked`, or `error`. |
-| `coder_ai_gateway_cost_control_unpriced_token_usage_records_total` | counter   | `model`, `provider` | Recorded token-usage records for which no model price was found.                         |
+| Metric                                                             | Type      | Labels                               | Purpose                                                                                                                                                                                                                            |
+|--------------------------------------------------------------------|-----------|--------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `coder_ai_gateway_cost_control_blocked_requests_total`             | counter   | `group_id`                           | AI requests blocked because the initiator's budget was exceeded.                                                                                                                                                                   |
+| `coder_ai_gateway_cost_control_blocked_users`                      | gauge     | `group_id`                           | Users currently over their AI budget.                                                                                                                                                                                              |
+| `coder_ai_gateway_cost_control_enforcement_duration_seconds`       | histogram | `outcome`                            | Duration of AI budget enforcement checks. `outcome` is `allowed`, `blocked`, or `error`.                                                                                                                                           |
+| `coder_ai_gateway_cost_control_unpriced_token_usage_records_total` | counter   | `model`, `provider`, `provider_type` | Recorded token-usage records for which no model price was found. `provider` is the provider instance name, and `provider_type` is the configured type the price is keyed on, or `unknown` when the provider could not be resolved. |
 
 ### AI Gateway Proxy metrics
 
@@ -194,32 +197,36 @@ curl -X GET "https://coder.example.com/api/v2/ai-gateway/sessions" \
 
 Available query filters:
 
-- `client` - Filter by client name.
-  <details>
-  <summary>Possible <code>client</code> values</summary>
-
-  > [!NOTE]
-  > Client classification is done on best effort basis using the `User-Agent` header;
-  not all clients send these headers in an easily-identifiable manner.
-
-  - `Claude Code`
-  - `Codex`
-  - `Zed`
-  - `GitHub Copilot (VS Code)`
-  - `GitHub Copilot (CLI)`
-  - `Kilo Code`
-  - `Coder Agents`
-  - `Mux`
-  - `Cursor`
-  - `OpenCode`
-  - `Unknown`
-
-  </details><br>
+- `client` - Filter by client name. Possible values are listed below.
 - `initiator` - Filter by user ID or username
 - `provider` - Filter by AI provider (e.g., `openai`, `anthropic`)
 - `model` - Filter by model name
 - `started_after` - Filter sessions after a timestamp
 - `started_before` - Filter sessions before a timestamp
+
+<details>
+<summary>Possible <code>client</code> values</summary>
+
+> [!NOTE]
+> Client classification is done on best effort basis using the `User-Agent` header;
+> not all clients send these headers in an easily-identifiable manner.
+
+- `Claude Code`
+- `Codex`
+- `Zed`
+- `GitHub Copilot (VS Code)`
+- `GitHub Copilot (CLI)`
+- `Kilo Code`
+- `Roo Code`
+- `Coder Agents`
+- `Mux`
+- `Cursor`
+- `OpenCode`
+- `Charm Crush`
+- `Junie`
+- `Unknown`
+
+</details>
 
 Refer to the [API documentation](../../reference/api/aigateway.md) for full details.
 

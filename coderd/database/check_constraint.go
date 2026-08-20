@@ -43,7 +43,11 @@ const (
 	CheckGroupsChatSpendLimitMicrosCheck                     CheckConstraint = "groups_chat_spend_limit_micros_check"                      // groups
 	CheckMcpServerConfigsAuthTypeCheck                       CheckConstraint = "mcp_server_configs_auth_type_check"                        // mcp_server_configs
 	CheckMcpServerConfigsAvailabilityCheck                   CheckConstraint = "mcp_server_configs_availability_check"                     // mcp_server_configs
+	CheckMcpServerConfigsGroupAclIsObject                    CheckConstraint = "mcp_server_configs_group_acl_is_object"                    // mcp_server_configs
 	CheckMcpServerConfigsTransportCheck                      CheckConstraint = "mcp_server_configs_transport_check"                        // mcp_server_configs
+	CheckMcpServerConfigsUserAclIsObject                     CheckConstraint = "mcp_server_configs_user_acl_is_object"                     // mcp_server_configs
+	CheckOauth2ProviderAppCodesScopeNotEmpty                 CheckConstraint = "oauth2_provider_app_codes_scope_not_empty"                 // oauth2_provider_app_codes
+	CheckOauth2ProviderAppTokensScopeNotEmpty                CheckConstraint = "oauth2_provider_app_tokens_scope_not_empty"                // oauth2_provider_app_tokens
 	CheckOauth2ProviderAppsClientTypeCheck                   CheckConstraint = "oauth2_provider_apps_client_type_check"                    // oauth2_provider_apps
 	CheckMaxProvisionerLogsLength                            CheckConstraint = "max_provisioner_logs_length"                               // provisioner_jobs
 	CheckNatsPortValidTcp                                    CheckConstraint = "nats_port_valid_tcp"                                       // replicas
@@ -55,6 +59,7 @@ const (
 	CheckTelemetryLockEventTypeConstraint                    CheckConstraint = "telemetry_lock_event_type_constraint"                      // telemetry_locks
 	CheckValidationMonotonicOrder                            CheckConstraint = "validation_monotonic_order"                                // template_version_parameters
 	CheckUsageEventTypeCheck                                 CheckConstraint = "usage_event_type_check"                                    // usage_events
+	CheckUsageEventsAgentRuntimeHourAligned                  CheckConstraint = "usage_events_agent_runtime_hour_aligned"                   // usage_events
 	CheckUserAIBudgetOverridesSpendLimitMicrosCheck          CheckConstraint = "user_ai_budget_overrides_spend_limit_micros_check"         // user_ai_budget_overrides
 	CheckUserAIProviderKeysAPIKeyCheck                       CheckConstraint = "user_ai_provider_keys_api_key_check"                       // user_ai_provider_keys
 	CheckUserSecretsEnabledRequiresTarget                    CheckConstraint = "user_secrets_enabled_requires_target"                      // user_secrets

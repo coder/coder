@@ -352,6 +352,47 @@ export interface AIGatewayKey {
  */
 export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
 
+// From codersdk/aimodelprices.go
+/**
+ * AIModelPrice is a per-model token price used by AI Gateway to compute the
+ * cost of an interception.
+ *
+ * Prices are integer micro-units per million tokens, so 1000000 is $1.00 per
+ * million tokens. A nil price means the price is not known, which the cost
+ * calculation treats the same as zero. Distinguish that from an explicit 0,
+ * which declares the model free of charge.
+ */
+export interface AIModelPrice {
+	readonly provider: string;
+	readonly model: string;
+	readonly input_price: number | null;
+	readonly output_price: number | null;
+	readonly cache_read_price: number | null;
+	readonly cache_write_price: number | null;
+	readonly source: AIModelPriceSource;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/aimodelprices.go
+export type AIModelPriceSource = "custom" | "default";
+
+export const AIModelPriceSources: AIModelPriceSource[] = ["custom", "default"];
+
+// From codersdk/aimodelprices.go
+/**
+ * AIModelPriceUpsert is one model's prices in an upsert request. It carries
+ * only the writable fields of AIModelPrice.
+ */
+export interface AIModelPriceUpsert {
+	readonly provider: string;
+	readonly model: string;
+	readonly input_price: number | null;
+	readonly output_price: number | null;
+	readonly cache_read_price: number | null;
+	readonly cache_write_price: number | null;
+}
+
 // From codersdk/aiproviders.go
 /**
  * AIProvider represents an AI provider configuration row as returned
@@ -714,6 +755,12 @@ export type APIKeyScope =
 	| "license:create"
 	| "license:delete"
 	| "license:read"
+	| "mcp_server_config:*"
+	| "mcp_server_config:create"
+	| "mcp_server_config:delete"
+	| "mcp_server_config:read"
+	| "mcp_server_config:share"
+	| "mcp_server_config:update"
 	| "notification_message:*"
 	| "notification_message:create"
 	| "notification_message:delete"
@@ -954,6 +1001,12 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"license:create",
 	"license:delete",
 	"license:read",
+	"mcp_server_config:*",
+	"mcp_server_config:create",
+	"mcp_server_config:delete",
+	"mcp_server_config:read",
+	"mcp_server_config:share",
+	"mcp_server_config:update",
 	"notification_message:*",
 	"notification_message:create",
 	"notification_message:delete",
@@ -1944,6 +1997,11 @@ export interface Chat {
 	 * Nil when the chat has no pinned context yet.
 	 */
 	readonly context?: ChatContext;
+	/**
+	 * QueuedForCapacity reports that the chat is waiting for a concurrent
+	 * agent slot. Single-chat reads derive it; list responses leave it false.
+	 */
+	readonly queued_for_capacity?: boolean;
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**
@@ -2440,6 +2498,19 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 
 // From codersdk/chats.go
 /**
+ * ChatFileDownloadURLResponse contains a short-lived URL for downloading a chat file.
+ */
+export interface ChatFileDownloadURLResponse {
+	readonly url: string;
+	readonly expires_at: string;
+	readonly sha256: string;
+	readonly size_bytes: number;
+	readonly name: string;
+	readonly mime_type: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatFileMetadata contains lightweight metadata about a file
  * associated with a chat, excluding the file content itself.
  */
@@ -2449,6 +2520,7 @@ export interface ChatFileMetadata {
 	readonly organization_id: string;
 	readonly name: string;
 	readonly mime_type: string;
+	readonly size_bytes: number;
 	readonly created_at: string;
 }
 
@@ -2844,6 +2916,7 @@ export interface ChatModelGoogleSafetySetting {
  */
 export interface ChatModelGoogleThinkingConfig {
 	readonly thinking_budget?: number;
+	readonly thinking_level?: string;
 	readonly include_thoughts?: boolean;
 }
 
@@ -3673,12 +3746,12 @@ export const ConnectionLogStatuses: ConnectionLogStatus[] = [
 export interface ConnectionLogWebInfo {
 	readonly user_agent: string;
 	/**
-	 * User is omitted if the connection event was from an unauthenticated user.
+	 * User is omitted if the connection event was unauthenticated.
 	 */
 	readonly user: User | null;
 	readonly slug_or_port: string;
 	/**
-	 * StatusCode is the HTTP status code of the request.
+	 * StatusCode is the HTTP status code or tunnel authorization outcome.
 	 */
 	readonly status_code: number;
 }
@@ -4381,6 +4454,7 @@ export interface CryptoKey {
 
 // From codersdk/deployment.go
 export type CryptoKeyFeature =
+	| "chat_files_token"
 	| "nats_ca"
 	| "oidc_convert"
 	| "tailnet_resume"
@@ -4388,6 +4462,7 @@ export type CryptoKeyFeature =
 	| "workspace_apps_token";
 
 export const CryptoKeyFeatures: CryptoKeyFeature[] = [
+	"chat_files_token",
 	"nats_ca",
 	"oidc_convert",
 	"tailnet_resume",
@@ -4721,7 +4796,7 @@ export interface DeploymentValues {
 	readonly additional_csp_policy?: string;
 	readonly workspace_hostname_suffix?: string;
 	readonly workspace_prebuilds?: PrebuildsConfig;
-	readonly hide_ai_tasks?: boolean;
+	readonly enable_ai_tasks?: boolean;
 	readonly ai?: AIConfig;
 	readonly stats_collection?: StatsCollectionConfig;
 	readonly template_builder?: TemplateBuilderConfig;
@@ -4951,6 +5026,7 @@ export type Experiment =
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
+	| "mcp-tool-search"
 	| "nats_pubsub"
 	| "notifications"
 	| "oauth2"
@@ -4966,6 +5042,7 @@ export const Experiments: Experiment[] = [
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",
+	"mcp-tool-search",
 	"nats_pubsub",
 	"notifications",
 	"oauth2",
@@ -5034,6 +5111,12 @@ export interface ExternalAuthConfig {
 	readonly auth_url: string;
 	readonly token_url: string;
 	readonly validate_url: string;
+	/**
+	 * RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
+	 * situations where the OAuth callback domain is different from the ACCESS_URL
+	 * domain. The path component is ignored.
+	 */
+	readonly redirect_url: string;
 	readonly revoke_url: string;
 	readonly app_install_url: string;
 	readonly app_installations_url: string;
@@ -5146,14 +5229,18 @@ export interface ExternalAuthUser {
 export interface Feature {
 	readonly entitlement: Entitlement;
 	readonly enabled: boolean;
+	/**
+	 * Limit is the maximum value the license grants for the feature, in the
+	 * feature's own unit. For FeatureAgentRuntimeHours, an enabled feature
+	 * with Limit omitted means the license grants unlimited runtime hours.
+	 */
 	readonly limit?: number;
 	/**
 	 * SoftLimit is the advisory warning threshold that accompanies Limit for
 	 * features whose license carries it. For these features, Limit carries
-	 * the purchased allocation.
-	 *
-	 * Only certain features set this field:
-	 * - FeatureAgentRuntimeHours
+	 * the purchased allocation; an unlimited allocation has no thresholds,
+	 * so SoftLimit is omitted alongside the omitted Limit. Only
+	 * FeatureAgentRuntimeHours sets this field.
 	 */
 	readonly soft_limit?: number;
 	/**
@@ -5162,18 +5249,30 @@ export interface Feature {
 	 * features that use these thresholds.
 	 */
 	readonly hard_limit?: number;
+	/**
+	 * Actual is the usage measured against Limit, when known: a
+	 * point-in-time count for most features, or usage accumulated over
+	 * UsagePeriod for features that set one. Its unit matches Limit's;
+	 * FeatureAgentRuntimeHours reports whole hours floored from the
+	 * recorded milliseconds, with the precise value available in
+	 * ActualMs. FeatureAgentRuntimeHours usage can trail by roughly one
+	 * hour because the current hour is not emitted, plus the entitlement
+	 * refresh interval.
+	 */
 	readonly actual?: number;
+	/**
+	 * ActualMs is the precise usage backing Actual, in milliseconds, for
+	 * features measured in time. It has the same freshness as Actual.
+	 * Only FeatureAgentRuntimeHours sets this field.
+	 */
+	readonly actual_ms?: number;
 	/**
 	 * UsagePeriod denotes that the usage is a counter that accumulates over
 	 * this period (and most likely resets with the issuance of the next
-	 * license).
-	 *
-	 * These dates are determined from the license that this entitlement comes
-	 * from, see enterprise/coderd/license/license.go.
-	 *
-	 * Only certain features set these fields:
-	 * - FeatureManagedAgentLimit
-	 * - FeatureAgentRuntimeHours
+	 * license). These dates are determined from the license that this
+	 * entitlement comes from, see enterprise/coderd/license/license.go.
+	 * Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this
+	 * field.
 	 */
 	readonly usage_period?: UsagePeriod;
 }
@@ -5723,6 +5822,28 @@ export const LicenseAIGovernanceOverLimitWarningText =
 	"Your organization is using %d of %d AI Governance add-on seats (%d over the limit).";
 
 // From codersdk/licenses.go
+export const LicenseAgentRuntimeHoursAllocationReachedWarningText =
+	"Your deployment has used %d of the %d Coder Agent runtime hours included in the current license term.";
+
+// From codersdk/licenses.go
+export const LicenseAgentRuntimeHoursClaimsIgnoredWarningText =
+	"A license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of that license is unaffected. Check the coderd logs for the affected license and claims, and contact support to have the license re-issued.";
+
+// From codersdk/licenses.go
+/**
+ * The dashboard's LicenseBanner matches this text's pre-placeholder
+ * prefix to render it muted and without a sales link, so the license
+ * warning texts must stay pairwise distinct before their first
+ * placeholder. See TestLicenseAgentRuntimeHoursWarningTexts.
+ */
+export const LicenseAgentRuntimeHoursSoftLimitWarningText =
+	"Your deployment is approaching its Coder Agent runtime hours allocation: %d of the %d hours included in the current license term are used, at or above the advisory soft limit of %d hours.";
+
+// From codersdk/licenses.go
+export const LicenseAgentRuntimeUsageUnavailableErrorText =
+	"Unable to determine Coder Agent runtime usage. Reported runtime hours are unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details.";
+
+// From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
 
 // From codersdk/licenses.go
@@ -5843,6 +5964,7 @@ export interface LoginWithPasswordResponse {
  */
 export interface MCPServerConfig {
 	readonly id: string;
+	readonly organization_id: string;
 	readonly display_name: string;
 	readonly slug: string;
 	readonly description: string;
@@ -5895,6 +6017,37 @@ export interface MCPServerConfig {
 
 // From codersdk/mcp.go
 /**
+ * MCPServerConfigACL is the resolved access control list of an MCP server
+ * config.
+ */
+export interface MCPServerConfigACL {
+	readonly users: readonly MCPServerConfigUser[];
+	readonly groups: readonly MCPServerConfigGroup[];
+}
+
+// From codersdk/mcp.go
+/**
+ * MCPServerConfigGroup is a group entry in an MCP server config ACL.
+ */
+export interface MCPServerConfigGroup extends Group {
+	readonly role: MCPServerConfigRole;
+}
+
+// From codersdk/mcp.go
+export type MCPServerConfigRole = "" | "read";
+
+export const MCPServerConfigRoles: MCPServerConfigRole[] = ["", "read"];
+
+// From codersdk/mcp.go
+/**
+ * MCPServerConfigUser is a user entry in an MCP server config ACL.
+ */
+export interface MCPServerConfigUser extends MinimalUser {
+	readonly role: MCPServerConfigRole;
+}
+
+// From codersdk/mcp.go
+/**
  * MCPServerOAuth2DisconnectResponse reports whether the removed token
  * was also revoked at the OAuth provider.
  */
@@ -5928,6 +6081,12 @@ export interface MatchedProvisioners {
 	 */
 	readonly most_recently_seen?: string;
 }
+
+// From codersdk/aimodelprices.go
+/**
+ * MaxAIModelPricesBytes bounds an upsert request body.
+ */
+export const MaxAIModelPricesBytes = 1048576; // 1 MiB
 
 // From codersdk/aibridge.go
 /**
@@ -6426,6 +6585,11 @@ export interface OAuth2ClientRegistrationResponse {
 	readonly registration_client_uri: string;
 }
 
+// From codersdk/oauth2.go
+export type OAuth2ClientType = "confidential" | "public";
+
+export const OAuth2ClientTypes: OAuth2ClientType[] = ["confidential", "public"];
+
 // From codersdk/deployment.go
 export interface OAuth2Config {
 	readonly github: OAuth2GithubConfig;
@@ -6758,7 +6922,7 @@ export interface OIDCConfig {
 	/**
 	 * RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
 	 * situations where the OIDC callback domain is different from the ACCESS_URL
-	 * domain.
+	 * domain. The path component is ignored.
 	 */
 	readonly redirect_url: string;
 	readonly auto_repair_links: boolean;
@@ -7637,6 +7801,7 @@ export type RBACResource =
 	| "idpsync_settings"
 	| "inbox_notification"
 	| "license"
+	| "mcp_server_config"
 	| "notification_message"
 	| "notification_preference"
 	| "notification_template"
@@ -7690,6 +7855,7 @@ export const RBACResources: RBACResource[] = [
 	"idpsync_settings",
 	"inbox_notification",
 	"license",
+	"mcp_server_config",
 	"notification_message",
 	"notification_preference",
 	"notification_template",
@@ -7831,6 +7997,7 @@ export type ResourceType =
 	| "ai_seat"
 	| "api_key"
 	| "chat"
+	| "chat_instruction_settings"
 	| "convert_login"
 	| "custom_role"
 	| "git_ssh_key"
@@ -7841,6 +8008,7 @@ export type ResourceType =
 	| "idp_sync_settings_organization"
 	| "idp_sync_settings_role"
 	| "license"
+	| "mcp_server_config"
 	| "notification_template"
 	| "notifications_settings"
 	| "oauth2_provider_app"
@@ -7869,6 +8037,7 @@ export const ResourceTypes: ResourceType[] = [
 	"ai_seat",
 	"api_key",
 	"chat",
+	"chat_instruction_settings",
 	"convert_login",
 	"custom_role",
 	"git_ssh_key",
@@ -7879,6 +8048,7 @@ export const ResourceTypes: ResourceType[] = [
 	"idp_sync_settings_organization",
 	"idp_sync_settings_role",
 	"license",
+	"mcp_server_config",
 	"notification_template",
 	"notifications_settings",
 	"oauth2_provider_app",
@@ -9645,6 +9815,17 @@ export interface UpdateInboxNotificationReadStatusResponse {
 
 // From codersdk/mcp.go
 /**
+ * UpdateMCPServerConfigACLRequest is a sparse update of an MCP server
+ * config ACL: only the listed principals change, and
+ * MCPServerConfigRoleDeleted removes an entry.
+ */
+export interface UpdateMCPServerConfigACLRequest {
+	readonly user_roles?: Record<string, MCPServerConfigRole>;
+	readonly group_roles?: Record<string, MCPServerConfigRole>;
+}
+
+// From codersdk/mcp.go
+/**
  * UpdateMCPServerConfigRequest is the request to update an MCP server config.
  */
 export interface UpdateMCPServerConfigRequest {
@@ -10066,6 +10247,15 @@ export interface UploadChatFileResponse {
  */
 export interface UploadResponse {
 	readonly hash: string;
+}
+
+// From codersdk/aimodelprices.go
+/**
+ * UpsertAIModelPricesRequest sets prices for the listed models. Models absent
+ * from the request are left untouched.
+ */
+export interface UpsertAIModelPricesRequest {
+	readonly prices: readonly AIModelPriceUpsert[];
 }
 
 // From codersdk/aibridge.go

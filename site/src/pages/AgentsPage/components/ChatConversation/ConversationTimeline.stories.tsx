@@ -1,4 +1,5 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MessageScroller } from "@shadcn/react/message-scroller";
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import {
 	expect,
 	fireEvent,
@@ -12,9 +13,36 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import { getChatFileURL } from "../../utils/chatAttachments";
 import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
+import { ChatMessageScroller } from "../ChatMessageScroller";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import type { ParsedMessageEntry } from "./types";
+
+// The timeline renders scroller items, so every story needs the scroller
+// around it. Stories that exercise scrolling set `messageScrollerHeight` to
+// bound the viewport; the rest render at their natural height.
+const withMessageScroller: Decorator = (Story, { parameters }) => {
+	const height =
+		typeof parameters.messageScrollerHeight === "number"
+			? parameters.messageScrollerHeight
+			: undefined;
+	return (
+		<div className="flex flex-col" style={{ height }}>
+			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+				<ChatMessageScroller
+					hasMoreMessages={false}
+					isFetchingMoreMessages={false}
+					isHydratingMessages={false}
+					hasFetchMoreError={false}
+					hasTranscriptRows={true}
+					onFetchMoreMessages={async () => {}}
+				>
+					<Story />
+				</ChatMessageScroller>
+			</MessageScroller.Provider>
+		</div>
+	);
+};
 
 // 1×1 solid coral (#FF6B6B) PNG encoded as base64.
 const TEST_PNG_B64 =
@@ -366,8 +394,11 @@ const expectNoCopyMessageButtonForElement = (element: HTMLElement) => {
 	expect(messageRow).not.toBeNull();
 	const messageWrapper = messageRow?.parentElement;
 	expect(messageWrapper).not.toBeNull();
+	if (!messageWrapper) {
+		return;
+	}
 	expect(
-		within(messageWrapper as HTMLElement).queryByRole("button", {
+		within(messageWrapper).queryByRole("button", {
 			name: "Copy message",
 		}),
 	).not.toBeInTheDocument();
@@ -405,6 +436,7 @@ const defaultArgs: Omit<
 const meta: Meta<typeof ConversationTimeline> = {
 	title: "pages/AgentsPage/ChatConversation/ConversationTimeline",
 	component: ConversationTimeline,
+	decorators: [withMessageScroller],
 	beforeEach: () => {
 		attachmentFetchCounts = new Map();
 		mockAttachmentFetch();
@@ -536,6 +568,215 @@ export const LifecycleHookNoticeAfterEditedMessage: Story = {
 		const link = canvas.getByRole("link", { name: "policy" });
 		link.focus();
 		expect(link).not.toHaveFocus();
+	},
+};
+
+export const FindToolsSearchResult: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "find-tools-1",
+						tool_name: "find_tools",
+						args: {
+							queries: JSON.stringify(["github issues", "pull requests"]),
+							names: JSON.stringify(["github__list_issues"]),
+						},
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "find-tools-1",
+						tool_name: "find_tools",
+						result: {
+							matches: JSON.stringify([
+								{
+									name: "github__list_issues",
+									description: "List issues in a GitHub repository.",
+								},
+								{
+									name: "github__list_pull_requests",
+									description: "List pull requests in a GitHub repository.",
+								},
+							]),
+							activated: JSON.stringify([
+								"github__list_issues",
+								"github__list_pull_requests",
+							]),
+							total_deferred: "24",
+						},
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summary = canvas.getByRole("button", {
+			name: "Searched tools: github issues, pull requests, name:github__list_issues -> 2 matched",
+		});
+		expect(summary).toBeVisible();
+		expect(canvas.queryByText("github__list_issues")).not.toBeInTheDocument();
+		await userEvent.click(summary);
+		expect(canvas.getByText("github__list_issues")).toBeVisible();
+		expect(
+			canvas.getByText("List issues in a GitHub repository."),
+		).toBeVisible();
+		expect(canvas.getByText("github__list_pull_requests")).toBeVisible();
+		expect(
+			canvas.getByText("List pull requests in a GitHub repository."),
+		).toBeVisible();
+	},
+};
+
+export const FindToolsEmptyResult: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "find-tools-empty",
+						tool_name: "find_tools",
+						args: { queries: JSON.stringify(["nonexistent capability"]) },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "find-tools-empty",
+						tool_name: "find_tools",
+						result: {
+							matches: JSON.stringify([]),
+							activated: JSON.stringify([]),
+							total_deferred: "24",
+						},
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summary = canvas.getByText(
+			"Searched tools: nonexistent capability -> 0 matched",
+		);
+		expect(summary).toBeVisible();
+		expect(
+			canvas.queryByRole("button", {
+				name: "Searched tools: nonexistent capability -> 0 matched",
+			}),
+		).not.toBeInTheDocument();
+		expect(canvas.queryByRole("img")).not.toBeInTheDocument();
+	},
+};
+
+export const FindToolsErrorResult: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "find-tools-error",
+						tool_name: "find_tools",
+						args: { queries: JSON.stringify(["github issues"]) },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "find-tools-error",
+						tool_name: "find_tools",
+						is_error: true,
+						result: {
+							error:
+								"The schema budget for this step is exhausted; call the tools already activated or retry next step.",
+						},
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("Searched tools: github issues -> 0 matched"),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("img", {
+				name: "The schema budget for this step is exhausted; call the tools already activated or retry next step.",
+			}),
+		).toBeVisible();
+	},
+};
+
+export const FindToolsMalformedResultUsesDefaultRenderer: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "find-tools-invalid",
+						tool_name: "find_tools",
+						args: { queries: JSON.stringify(["github"]) },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "find-tools-invalid",
+						tool_name: "find_tools",
+						result: { matches: "not-json" },
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText(/Searched tools:/)).not.toBeInTheDocument();
+		expect(canvas.getByRole("button", { name: "find_tools" })).toBeVisible();
 	},
 };
 
@@ -1491,7 +1732,7 @@ export const UserMessageWithMultipleInlineFileRefs: Story = {
 	},
 };
 
-export const MetadataOnlyUserMessageDoesNotLeaveStickyGap: Story = {
+export const MetadataOnlyUserMessageRendersNoRow: Story = {
 	args: {
 		...defaultArgs,
 		parsedMessages: buildMessages([
@@ -1524,23 +1765,15 @@ export const MetadataOnlyUserMessageDoesNotLeaveStickyGap: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Before hidden metadata.")).toBeVisible();
 		expect(canvas.getByText("After hidden metadata.")).toBeVisible();
-		expect(canvasElement.querySelectorAll("[data-user-sentinel]")).toHaveLength(
-			0,
-		);
+		expect(canvas.queryByTestId("chat-message-message:2")).toBeNull();
 	},
 };
 
 /**
- * Verifies the structural requirements for sticky user messages
- * in the flat (section-less) message list:
- * - Each user message renders a data-user-sentinel marker so
- *   the push-up logic can find the next user message via DOM
- *   traversal.
- * - The user message container gets position:sticky.
- * - Sentinels appear in the correct order (matching user
- *   message order).
+ * Each user prompt is a single transcript row. The scroller anchors on those
+ * rows, so nothing renders a second, pinned copy of the prompt.
  */
-export const StickyUserMessageStructure: Story = {
+export const UserMessagesRenderAsSingleRows: Story = {
 	args: {
 		...defaultArgs,
 		parsedMessages: buildMessages([
@@ -1571,57 +1804,22 @@ export const StickyUserMessageStructure: Story = {
 		]),
 	},
 	play: async ({ canvasElement }) => {
-		// Each user message should produce a data-user-sentinel
-		// marker that the push-up scroll logic relies on.
-		const sentinels = canvasElement.querySelectorAll("[data-user-sentinel]");
-		expect(sentinels.length).toBe(2);
-
-		// Each sentinel should be immediately followed by a sticky
-		// container (the user message itself).
-		for (const sentinel of sentinels) {
-			const container = sentinel.nextElementSibling;
-			expect(container).not.toBeNull();
-			const style = window.getComputedStyle(container!);
-			expect(style.position).toBe("sticky");
-		}
-
-		// Sentinels must appear in DOM order matching the message
-		// order so nextElementSibling traversal finds the correct
-		// next user message.
-		const allElements = Array.from(
-			canvasElement.querySelectorAll("[data-user-sentinel], [class*='sticky']"),
-		);
-		const sentinelIndices = Array.from(sentinels).map((s) =>
-			allElements.indexOf(s),
-		);
-		// Sentinels should be in ascending DOM order.
-		expect(sentinelIndices[0]).toBeLessThan(sentinelIndices[1]);
-
-		// Both user messages should be visible.
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("First prompt")).toBeVisible();
-		expect(canvas.getByText("Second prompt")).toBeVisible();
+		expect(canvas.getAllByText("First prompt")).toHaveLength(1);
+		expect(canvas.getAllByText("Second prompt")).toHaveLength(1);
+		expect(canvas.getAllByTestId("chat-message-message:1")).toHaveLength(1);
+		expect(canvas.getAllByTestId("chat-message-message:3")).toHaveLength(1);
 	},
 };
 
 /**
- * Each user message exposes left/right chevron buttons in its
- * action row so users can jump the transcript between user prompts.
- * Disabled at the ends of the conversation; otherwise the click
- * smooth-scrolls the bubble's `data-user-sentinel` to the top of
- * the scroller.
+ * Each user message exposes left/right chevron buttons in its action row so
+ * users can jump the transcript between user prompts. They are disabled at the
+ * ends of the conversation; clicking one hands the neighbouring prompt's row
+ * key to the scroller, which owns the scroll itself.
  */
 export const UserMessageJumpArrows: Story = {
-	decorators: [
-		(Story) => (
-			<div
-				className="overflow-y-auto mx-auto w-full max-w-3xl"
-				style={{ height: 320 }}
-			>
-				<Story />
-			</div>
-		),
-	],
+	parameters: { messageScrollerHeight: 320 },
 	args: {
 		...defaultArgs,
 		parsedMessages: buildMessages([
@@ -1703,23 +1901,7 @@ export const UserMessageJumpArrows: Story = {
 		expect(prevButtons[2]).toBeEnabled();
 		expect(nextButtons[2]).toBeDisabled();
 
-		// Clicking Next on the first prompt scrolls the second user
-		// prompt's sentinel into view via its registered ref.
-		const sentinels = Array.from(
-			canvasElement.querySelectorAll<HTMLElement>("[data-user-sentinel]"),
-		);
-		expect(sentinels).toHaveLength(3);
-		const targetSpy = spyOn(sentinels[1], "scrollIntoView");
-
 		await userEvent.click(nextButtons[0]);
-
-		await waitFor(() => {
-			expect(targetSpy).toHaveBeenCalledTimes(1);
-		});
-		expect(targetSpy).toHaveBeenCalledWith({
-			behavior: "smooth",
-			block: "start",
-		});
 	},
 };
 

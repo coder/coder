@@ -1,4 +1,8 @@
 import {
+	MessageScroller,
+	useMessageScroller,
+} from "@shadcn/react/message-scroller";
+import {
 	type FC,
 	useEffect,
 	useEffectEvent,
@@ -36,9 +40,11 @@ import {
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	getOpenChatPollInterval,
 	interruptChat,
 	invalidateChatEntity,
 	mcpServerConfigs,
+	openChat,
 	patchChatEntity,
 	promoteChatQueuedMessage,
 	updateChatPlanMode,
@@ -61,6 +67,7 @@ import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
+import { useIsBelowLgViewport } from "#/hooks/useIsBelowLgViewport";
 import {
 	getDefaultOrganizationName,
 	useDashboard,
@@ -69,6 +76,7 @@ import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
+import { getWorkspaceAgents } from "#/utils/workspace";
 import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
 	AgentChatPageLoadingView,
@@ -125,7 +133,33 @@ import {
 /** localStorage key controlling whether the right panel is visible. */
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 
+/**
+ * Below the `lg` breakpoint, chat and the right panel are mutually
+ * exclusive, so a panel left open on a wide window would hide chat as
+ * soon as the window narrows. This suppresses the panel while narrow
+ * without touching the persisted preference: widening restores the
+ * panel, and an explicit user action (clearSuppression) overrides it.
+ */
+export function useRightPanelNarrowSuppression(): {
+	suppressed: boolean;
+	clearSuppression: () => void;
+} {
+	const isBelowLg = useIsBelowLgViewport();
+	const [suppressed, setSuppressed] = useState(isBelowLg);
+	const [prevIsBelowLg, setPrevIsBelowLg] = useState(isBelowLg);
+	// Render-time state adjustment on breakpoint crossings; see
+	// https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+	if (isBelowLg !== prevIsBelowLg) {
+		setPrevIsBelowLg(isBelowLg);
+		setSuppressed(isBelowLg);
+	}
+	return { suppressed, clearSuppression: () => setSuppressed(false) };
+}
+
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+
+const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
+
 class CompactCommandPendingError extends Error {}
 
 /** @internal Exported for testing. */
@@ -338,10 +372,9 @@ export const settlePromotedQueueHead = async (
 	);
 };
 
-export async function submitEditAndScroll({
+export async function submitEdit({
 	editMessage,
 	editArgs,
-	scrollToBottom,
 	onError,
 }: {
 	editMessage: (args: {
@@ -354,7 +387,6 @@ export async function submitEditAndScroll({
 		optimisticMessage?: TypesGen.ChatMessage;
 		req: TypesGen.EditChatMessageRequest;
 	};
-	scrollToBottom: (() => void) | null | undefined;
 	onError: (error: unknown) => void;
 }): Promise<void> {
 	try {
@@ -363,13 +395,6 @@ export async function submitEditAndScroll({
 		onError(error);
 		throw error;
 	}
-	// Scroll after the mutation resolves so the optimistic
-	// truncation and server reconciliation have already been
-	// applied to the DOM. Scrolling before this point causes
-	// the sticky user message to cycle through prior messages
-	// as the IntersectionObserver reacts to rapid layout
-	// shifts between the old and truncated content.
-	scrollToBottom?.();
 }
 
 /** @internal Exported for testing. */
@@ -450,6 +475,7 @@ export const isWatchedWorkspaceViewUnchanged = (
 	const prevApps = prevAgent?.apps ?? [];
 	const nextApps = nextAgent?.apps ?? [];
 	return (
+		prev.latest_build.id === next.latest_build.id &&
 		prev.latest_build.status === next.latest_build.status &&
 		prev.health.healthy === next.health.healthy &&
 		prev.name === next.name &&
@@ -467,6 +493,24 @@ export const isWatchedWorkspaceViewUnchanged = (
 			);
 		})
 	);
+};
+
+/**
+ * True when a running workspace has agents but the chat's agent ID is absent
+ * from the latest build (stale after a rebuild, or not yet persisted). Chat
+ * reads can return a repaired ID, so callers should refetch the chat.
+ *
+ * @internal Exported for testing.
+ */
+export const isChatAgentBindingUnresolved = (
+	workspace: TypesGen.Workspace | undefined,
+	chatAgentId: string | undefined,
+): boolean => {
+	if (!workspace || workspace.latest_build.status !== "running") {
+		return false;
+	}
+	const agents = getWorkspaceAgents(workspace);
+	return agents.length > 0 && !agents.some((agent) => agent.id === chatAgentId);
 };
 
 const buildAttachmentMediaTypes = (
@@ -489,12 +533,10 @@ export function useConversationEditingState(deps: {
 		attachments?: readonly PendingAttachment[],
 		editedMessageID?: number,
 	) => Promise<void>;
-	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	inputValueRef: React.RefObject<string>;
 }) {
-	const { chatID, onSend, onDeleteQueuedMessage, chatInputRef, inputValueRef } =
-		deps;
+	const { chatID, onSend, chatInputRef, inputValueRef } = deps;
 	const draftStorageKey = chatID
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
@@ -580,53 +622,6 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// -- Queue editing state --
-	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
-		number | null
-	>(null);
-	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] =
-		useState<ParsedDraft | null>(null);
-
-	const handleStartQueueEdit = (
-		id: number,
-		text: string,
-		fileBlocks: readonly ChatMessagePart[],
-	) => {
-		if (editingQueuedMessageID === null) {
-			const currentEditorState = draftStorageKey
-				? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
-				: undefined;
-			setDraftBeforeQueueEdit({
-				text: inputValueRef.current,
-				editorState: currentEditorState,
-			});
-		}
-		setEditingQueuedMessageID(id);
-		setDraftState({
-			editorInitialValue: text,
-			initialEditorState: undefined,
-		});
-		serializedEditorStateRef.current = undefined;
-		setRemountKey((k) => k + 1);
-		inputValueRef.current = text;
-		setEditingFileBlocks(fileBlocks);
-	};
-
-	const handleCancelQueueEdit = () => {
-		const savedText = draftBeforeQueueEdit?.text ?? "";
-		const savedState = draftBeforeQueueEdit?.editorState;
-		setDraftState({
-			editorInitialValue: savedText,
-			initialEditorState: savedState,
-		});
-		serializedEditorStateRef.current = savedState;
-		setRemountKey((k) => k + 1);
-		inputValueRef.current = savedText;
-		setEditingQueuedMessageID(null);
-		setDraftBeforeQueueEdit(null);
-		setEditingFileBlocks([]);
-	};
-
 	// Clears the composer for an in-flight history edit and
 	// returns a rollback function that restores the editing draft
 	// if the send fails.
@@ -655,10 +650,7 @@ export function useConversationEditingState(deps: {
 	};
 
 	// Clears all input and editing state after a successful send.
-	const finalizeSuccessfulSend = (
-		editedMessageID: number | undefined,
-		queueEditID: number | null,
-	) => {
+	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
 		chatInputRef.current?.clear();
 		if (!isMobileViewport()) {
 			chatInputRef.current?.focus();
@@ -672,23 +664,15 @@ export function useConversationEditingState(deps: {
 			setDraftBeforeHistoryEdit(null);
 			setEditingFileBlocks([]);
 		}
-		if (queueEditID !== null) {
-			setEditingQueuedMessageID(null);
-			setDraftBeforeQueueEdit(null);
-			setEditingFileBlocks([]);
-			void onDeleteQueuedMessage(queueEditID);
-		}
 	};
 
-	// Wraps the parent onSend to clear local input/editing state
-	// and handle queue-edit deletion.
+	// Wraps the parent onSend to clear local input/editing state.
 	const handleSendFromInput = async (
 		message: string,
 		attachments?: readonly PendingAttachment[],
 	) => {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
-		const queueEditID = editingQueuedMessageID;
 		const sendPromise = onSend(message, attachments, editedMessageID);
 
 		// For history edits, clear input immediately and prepare
@@ -708,7 +692,7 @@ export function useConversationEditingState(deps: {
 			throw error;
 		}
 
-		finalizeSuccessfulSend(editedMessageID, queueEditID);
+		finalizeSuccessfulSend(editedMessageID);
 	};
 
 	const handleContentChange = (
@@ -719,11 +703,9 @@ export function useConversationEditingState(deps: {
 		inputValueRef.current = content;
 		serializedEditorStateRef.current = serializedEditorState;
 
-		// Don't overwrite the persisted draft while editing a
-		// history or queued message, the original draft (possibly
-		// containing file-reference chips) is saved in React state
-		// and should survive a cancel.
-		if (editingMessageId !== null || editingQueuedMessageID !== null) {
+		// Don't overwrite the persisted draft while editing a history message.
+		// The original draft is saved in React state and should survive a cancel.
+		if (editingMessageId !== null) {
 			return;
 		}
 
@@ -766,9 +748,6 @@ export function useConversationEditingState(deps: {
 		editingFileBlocks,
 		handleEditUserMessage,
 		handleCancelHistoryEdit,
-		editingQueuedMessageID,
-		handleStartQueueEdit,
-		handleCancelQueueEdit,
 		handleSendFromInput,
 		handleContentChange,
 		handleLoadingDraftChange,
@@ -882,7 +861,6 @@ const AgentChatPage: FC = () => {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onChatReady,
-		scrollContainerRef,
 	} = useOutletContext<AgentsPageOutletContext>();
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
@@ -891,7 +869,6 @@ const AgentChatPage: FC = () => {
 	const [selectedModel, setSelectedModel] = useState("");
 	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
 	const isEditReasoningEffortDirtyRef = useRef(false);
-	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
@@ -904,23 +881,48 @@ const AgentChatPage: FC = () => {
 	// Right panel open/closed state is owned here so the loading
 	// skeleton and the loaded view share the same layout, preventing
 	// a horizontal shift when data arrives.
-	const [showSidebarPanel, setShowSidebarPanel] = useState(() => {
+	const [sidebarPanelPreference, setSidebarPanelPreference] = useState(() => {
 		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
 	});
-	const handleSetShowSidebarPanel = (
-		next: boolean | ((prev: boolean) => boolean),
-	) => {
-		setShowSidebarPanel((prev) => {
-			const value = typeof next === "function" ? next(prev) : next;
-			localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(value));
-			return value;
-		});
+	const { suppressed: panelSuppressedOnNarrow, clearSuppression } =
+		useRightPanelNarrowSuppression();
+	// Canonical panel visibility: the persisted preference gated by the
+	// narrow-viewport suppression. Only this derived value may be
+	// rendered or handed to children; the raw preference stays local.
+	const showSidebarPanel = sidebarPanelPreference && !panelSuppressedOnNarrow;
+
+	const handleSetShowSidebarPanel = (next: boolean) => {
+		clearSuppression();
+		setSidebarPanelPreference(next);
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(next));
 	};
 
 	const chatQuery = useQuery({
-		...chat(agentId ?? ""),
+		...openChat(agentId ?? ""),
 		enabled: Boolean(agentId),
+		// Poll while the chat runs (this override replaces openChat's
+		// interval, and queued_for_capacity depends on the poll) or while
+		// the binding is unresolved: repair happens on chat reads and watch
+		// events cannot be relied on for retries because an idle workspace
+		// publishes none.
+		refetchInterval: ({ state }) => {
+			const openPollMs = getOpenChatPollInterval(state.data);
+			if (openPollMs !== false) {
+				return openPollMs;
+			}
+			const workspaceId = state.data?.workspace_id;
+			const workspace = workspaceId
+				? queryClient.getQueryData<TypesGen.Workspace>(
+						workspaceByIdKey(workspaceId),
+					)
+				: undefined;
+			return isChatAgentBindingUnresolved(workspace, state.data?.agent_id)
+				? AGENT_BINDING_REPAIR_POLL_MS
+				: false;
+		},
+		refetchIntervalInBackground: false,
 	});
+	const chatOrganizationId = chatQuery.data?.organization_id ?? "";
 	const chatMessagesQuery = useInfiniteQuery({
 		...chatMessagesForInfiniteScroll(agentId ?? ""),
 		enabled: Boolean(agentId),
@@ -948,7 +950,14 @@ const AgentChatPage: FC = () => {
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const preferencesQuery = useQuery(preferenceSettings());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
-	const mcpServersQuery = useQuery(mcpServerConfigs());
+	const mcpServersQuery = useQuery({
+		...mcpServerConfigs(chatOrganizationId),
+		enabled: Boolean(chatOrganizationId),
+	});
+	const isDefaultChatOrganization = organizations.some(
+		(organization) =>
+			organization.id === chatOrganizationId && organization.is_default,
+	);
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
 		workspacesQuery.data?.workspaces ?? [],
@@ -967,7 +976,9 @@ const AgentChatPage: FC = () => {
 
 	const handleMCPSelectionChange = (ids: string[]) => {
 		setSelectedMCPServerIds(ids);
-		saveMCPSelection(ids);
+		if (chatOrganizationId) {
+			saveMCPSelection(chatOrganizationId, ids);
+		}
 	};
 
 	const handleMCPAuthComplete = (_serverId: string) => {
@@ -1002,6 +1013,7 @@ const AgentChatPage: FC = () => {
 		chatModelsQuery.data,
 	);
 
+	const agentBindingRefetchKeyRef = useRef<string | undefined>(undefined);
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
 	const applyWatchedWorkspaceUpdate = useEffectEvent(
@@ -1022,6 +1034,18 @@ const AgentChatPage: FC = () => {
 					return next;
 				},
 			);
+			// Refetch once per chat/build/binding key for immediate repair
+			// after a rebuild; the chat query's refetchInterval owns retries
+			// when repair fails, so the latch never blocks recovery.
+			if (!agentId || !isChatAgentBindingUnresolved(next, chatAgentId)) {
+				return;
+			}
+			const refetchKey = `${agentId}:${next.latest_build.id}:${chatAgentId ?? ""}`;
+			if (agentBindingRefetchKeyRef.current === refetchKey) {
+				return;
+			}
+			agentBindingRefetchKeyRef.current = refetchKey;
+			void invalidateChatEntity(queryClient, agentId);
 		},
 	);
 	useEffect(() => {
@@ -1109,7 +1133,13 @@ const AgentChatPage: FC = () => {
 			return chatRecord.mcp_server_ids;
 		}
 		// Check for a previously saved selection in localStorage.
-		const saved = getSavedMCPSelection(mcpServers);
+		const saved = chatOrganizationId
+			? getSavedMCPSelection(
+					chatOrganizationId,
+					mcpServers,
+					isDefaultChatOrganization,
+				)
+			: null;
 		if (saved !== null) {
 			return saved;
 		}
@@ -1240,8 +1270,10 @@ const AgentChatPage: FC = () => {
 	};
 
 	const aiGatewayDisabled = !useAIGatewayEnabled();
+	const { scrollToEnd } = useMessageScroller();
 	const {
 		store,
+		isHydratingMessages,
 		acceptServerChatStatus,
 		clearStreamError,
 		setCacheQueuedMessages,
@@ -1447,7 +1479,6 @@ const AgentChatPage: FC = () => {
 	const editing = useConversationEditingState({
 		chatID: agentId,
 		onSend: handleSend,
-		onDeleteQueuedMessage: handleDeleteQueuedMessage,
 		chatInputRef,
 		inputValueRef,
 	});
@@ -1636,12 +1667,11 @@ const AgentChatPage: FC = () => {
 
 		// "/compact" on its own (no attachments or file references)
 		// requests a manual context compaction instead of sending a
-		// message. Only new sends are intercepted; history and queued
-		// edits keep their original meaning, and a personal or workspace
+		// message. Only new sends are intercepted; history edits keep their
+		// original meaning, and a personal or workspace
 		// skill named "compact" takes precedence so the command cannot shadow it.
 		const isExactCompactSubmission =
 			editedMessageID === undefined &&
-			editing.editingQueuedMessageID === null &&
 			content.length === 1 &&
 			content[0].type === "text" &&
 			content[0].text?.trim() ===
@@ -1652,6 +1682,7 @@ const AgentChatPage: FC = () => {
 			);
 			throw new CompactCommandPendingError();
 		}
+
 		if (isExactCompactSubmission && compactCommandResolution === "available") {
 			// Optimistically show the running state before awaiting so
 			// a fast compaction cannot race this write: the worker's
@@ -1662,7 +1693,6 @@ const AgentChatPage: FC = () => {
 			clearStreamError();
 			store.clearStreamState();
 			store.setChatStatus("running");
-			scrollToBottomRef.current?.();
 			try {
 				await compact();
 			} catch (error) {
@@ -1715,14 +1745,13 @@ const AgentChatPage: FC = () => {
 				store.setChatStatus("running");
 				store.clearStreamState();
 			});
-			await submitEditAndScroll({
+			await submitEdit({
 				editMessage,
 				editArgs: {
 					messageId: editedMessageID,
 					optimisticMessage,
 					req: request,
 				},
-				scrollToBottom: scrollToBottomRef.current,
 				onError: (error) => {
 					restoreOptimisticRequestSnapshot(store, previousSnapshot);
 					handleRequestError(error);
@@ -1731,6 +1760,7 @@ const AgentChatPage: FC = () => {
 					void invalidateChatEntity(queryClient, agentId);
 				},
 			});
+			scrollToEnd({ behavior: "smooth" });
 			if (editSelectedModelConfigID) {
 				localStorage.setItem(
 					lastModelConfigIDStorageKey,
@@ -1745,10 +1775,7 @@ const AgentChatPage: FC = () => {
 			content,
 			model_config_id: selectedModelConfigID,
 			reasoning_effort: effectiveReasoningEffort,
-			mcp_server_ids:
-				effectiveMCPServerIds.length > 0
-					? [...effectiveMCPServerIds]
-					: undefined,
+			mcp_server_ids: [...effectiveMCPServerIds],
 			...(planModeSwitch !== undefined
 				? {
 						plan_mode:
@@ -1758,7 +1785,6 @@ const AgentChatPage: FC = () => {
 		};
 		clearChatErrorReason(agentId);
 		clearStreamError();
-		scrollToBottomRef.current?.();
 
 		// An errored-chat send may promote the queue head that existed when the request began.
 		const queuedMessagesBeforeSend = store.getSnapshot().queuedMessages;
@@ -1973,6 +1999,8 @@ const AgentChatPage: FC = () => {
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}
 			store={store}
+			initialChatStatus={chatQuery.data.status}
+			initialMessages={chatMessagesList ?? []}
 			editing={{ ...editing, handleEditUserMessage }}
 			effectiveSelectedModel={effectiveSelectedModel}
 			setSelectedModel={setSelectedModel}
@@ -2035,29 +2063,37 @@ const AgentChatPage: FC = () => {
 			isPinned={(chatRecord?.pin_order ?? 0) > 0}
 			isChildChat={parentChatID !== undefined}
 			urlTransform={urlTransform}
-			scrollContainerRef={scrollContainerRef}
-			scrollToBottomRef={scrollToBottomRef}
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
+			isHydratingMessages={isHydratingMessages}
+			hasFetchMoreError={chatMessagesQuery.isFetchNextPageError}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
-			messageCount={storeMessageCount}
 			desktopChatId={desktopEnabled ? agentId : undefined}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={effectiveMCPServerIds}
 			onMCPSelectionChange={handleMCPSelectionChange}
 			onMCPAuthComplete={handleMCPAuthComplete}
 			chatContext={chatQuery.data?.context}
+			queuedForCapacity={chatQuery.data?.queued_for_capacity ?? false}
 			workspaceSkills={workspaceSkillsFromChat(chatQuery.data)}
 		/>
 	);
 };
 
-// Keyed wrapper so that navigating between agents (changing the
-// :agentId param) fully remounts the component, resetting all
-// internal state (drafts, editing, queries) cleanly.
+// Keyed so that navigating between agents (changing the :agentId param)
+// fully remounts the component, resetting all internal state (drafts,
+// editing, queries, scroller) cleanly.
 const KeyedAgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
-	return <AgentChatPage key={agentId} />;
+	return (
+		<MessageScroller.Provider
+			key={agentId}
+			autoScroll
+			defaultScrollPosition="end"
+		>
+			<AgentChatPage />
+		</MessageScroller.Provider>
+	);
 };
 
 export default KeyedAgentChatPage;
