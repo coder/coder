@@ -27,8 +27,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/trialer"
@@ -213,6 +215,26 @@ func (api *API) postTrialLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// Reported here rather than from the browser so that a conversion is only
+	// counted when a license was actually issued.
+	source := req.Source
+	if !source.Valid() {
+		source = codersdk.PremiumFunnelSourceDirect
+	}
+	api.Telemetry.Report(&telemetry.Snapshot{
+		PremiumFunnelEvents: []telemetry.PremiumFunnelEvent{
+			{
+				ID:            uuid.New(),
+				EventType:     telemetry.PremiumFunnelEventTrialSignup,
+				Source:        string(source),
+				AttributionID: req.AttributionID,
+				UserID:        httpmw.APIKey(r).UserID,
+				CreatedAt:     dbtime.Now(),
+			},
+		},
+	})
+
 	httpapi.Write(ctx, rw, http.StatusCreated, lic)
 }
 

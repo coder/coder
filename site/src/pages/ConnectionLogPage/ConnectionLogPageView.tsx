@@ -10,12 +10,12 @@ import {
 	PaginationContainer,
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
 import { Table, TableBody } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { ConnectionLogFilter } from "./ConnectionLogFilter";
@@ -90,7 +90,8 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 					</PaginationContainer>
 				</>
 			) : (
-				<PaywallPremium
+				<PremiumPaywall
+					source="connection_log"
 					message="Connection logs"
 					description="Track every SSH, IDE & port-forward connection."
 					features={[

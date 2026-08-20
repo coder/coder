@@ -5,13 +5,13 @@ import {
 	DisabledBadge,
 	EnabledBadge,
 } from "#/components/Badges/Badges";
-import { PaywallSmall } from "#/components/Paywall/PaywallSmall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { PremiumPaywallSmall } from "#/modules/paywall/PremiumPaywallSmall";
 import {
 	deploymentGroupHasParent,
 	useDeploymentOptions,
@@ -76,7 +76,8 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 					{featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
 				</Badges>
 				{!featureBrowserOnlyEnabled ? (
-					<PaywallSmall
+					<PremiumPaywallSmall
+						source="browser_only"
 						message="Browser-Only Connections"
 						description="Block all workspace access via SSH, port forward, and other
 						non-browser connections."

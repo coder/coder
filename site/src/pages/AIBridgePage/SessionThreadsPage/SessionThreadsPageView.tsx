@@ -6,13 +6,13 @@ import type {
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
-import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
@@ -62,7 +62,12 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	onBackClicked,
 }) => {
 	if (!isAISessionsEntitled) {
-		return <PaywallAIGovernance variant="sessions" />;
+		return (
+			<PremiumPaywallAIGovernance
+				variant="sessions"
+				source="aibridge_session_threads"
+			/>
+		);
 	}
 
 	if (!isAISessionsEnabled) {

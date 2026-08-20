@@ -1,7 +1,6 @@
 import type { FC } from "react";
 import type { Region } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -18,6 +17,7 @@ import {
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { ProxyRow } from "./WorkspaceProxyRow";
@@ -61,7 +61,8 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 			</SettingsHeader>
 
 			{showPaywall ? (
-				<PaywallPremium
+				<PremiumPaywall
+					source="workspace_proxies"
 					message="Workspace Proxies"
 					description="Provide low-latency connections for geo-distributed teams."
 					features={[
