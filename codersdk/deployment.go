@@ -749,7 +749,7 @@ type DeploymentValues struct {
 	AdditionalCSPPolicy                     serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
 	WorkspaceHostnameSuffix                 serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 	Prebuilds                               PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
-	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
+	EnableAITasks                           serpent.Bool                         `json:"enable_ai_tasks,omitempty" typescript:",notnull"`
 	AI                                      AIConfig                             `json:"ai,omitempty"`
 	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
 	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
@@ -4320,14 +4320,17 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      true,
 		},
 		{
-			Name:        "Hide AI Tasks",
-			Description: "Hide AI tasks from the dashboard.",
-			Flag:        "hide-ai-tasks",
-			Env:         "CODER_HIDE_AI_TASKS",
+			Name:        "Enable AI Tasks",
+			Description: "Enable Coder Tasks. When unset, the Tasks routes are not served, the Tasks UI and its URLs are unavailable, the task RBAC permissions are stripped from built-in roles, and the CLI task commands are hidden.",
+			Flag:        "enable-ai-tasks",
+			Env:         "CODER_ENABLE_AI_TASKS",
 			Default:     "false",
-			Value:       &c.HideAITasks,
-			Group:       &deploymentGroupClient,
-			YAML:        "hideAITasks",
+			Value:       &c.EnableAITasks,
+			YAML:        "enableAITasks",
+			// Hidden keeps Tasks out of the generated CLI and configuration
+			// reference documentation while the feature is withdrawn from the
+			// product.
+			Hidden: true,
 		},
 		// Chat Options
 		{
@@ -5398,6 +5401,7 @@ const (
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
 	ExperimentOAuth2                    Experiment = "oauth2"                      // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
+	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
@@ -5451,6 +5455,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceUsage,
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
+	ExperimentMCPToolSearch,
 	ExperimentNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentWorkspaceCapableLicensing,
@@ -5692,6 +5697,7 @@ const (
 	//nolint:gosec // This denotes a type of key, not a literal.
 	CryptoKeyFeatureWorkspaceAppsToken CryptoKeyFeature = "workspace_apps_token"
 	CryptoKeyFeatureOIDCConvert        CryptoKeyFeature = "oidc_convert"
+	CryptoKeyFeatureChatFilesToken     CryptoKeyFeature = "chat_files_token"
 	CryptoKeyFeatureTailnetResume      CryptoKeyFeature = "tailnet_resume"
 	// CryptoKeyFeatureNATSCA is the CA that signs NATS cluster mTLS leaf
 	// certificates. Its secret is a PEM cert+key bundle (not a hex secret like

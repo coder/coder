@@ -369,9 +369,15 @@ export interface AIModelPrice {
 	readonly output_price: number | null;
 	readonly cache_read_price: number | null;
 	readonly cache_write_price: number | null;
+	readonly source: AIModelPriceSource;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
+
+// From codersdk/aimodelprices.go
+export type AIModelPriceSource = "custom" | "default";
+
+export const AIModelPriceSources: AIModelPriceSource[] = ["custom", "default"];
 
 // From codersdk/aimodelprices.go
 /**
@@ -749,6 +755,12 @@ export type APIKeyScope =
 	| "license:create"
 	| "license:delete"
 	| "license:read"
+	| "mcp_server_config:*"
+	| "mcp_server_config:create"
+	| "mcp_server_config:delete"
+	| "mcp_server_config:read"
+	| "mcp_server_config:share"
+	| "mcp_server_config:update"
 	| "notification_message:*"
 	| "notification_message:create"
 	| "notification_message:delete"
@@ -989,6 +1001,12 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"license:create",
 	"license:delete",
 	"license:read",
+	"mcp_server_config:*",
+	"mcp_server_config:create",
+	"mcp_server_config:delete",
+	"mcp_server_config:read",
+	"mcp_server_config:share",
+	"mcp_server_config:update",
 	"notification_message:*",
 	"notification_message:create",
 	"notification_message:delete",
@@ -1979,6 +1997,11 @@ export interface Chat {
 	 * Nil when the chat has no pinned context yet.
 	 */
 	readonly context?: ChatContext;
+	/**
+	 * QueuedForCapacity reports that the chat is waiting for a concurrent
+	 * agent slot. Single-chat reads derive it; list responses leave it false.
+	 */
+	readonly queued_for_capacity?: boolean;
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**
@@ -2475,6 +2498,19 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 
 // From codersdk/chats.go
 /**
+ * ChatFileDownloadURLResponse contains a short-lived URL for downloading a chat file.
+ */
+export interface ChatFileDownloadURLResponse {
+	readonly url: string;
+	readonly expires_at: string;
+	readonly sha256: string;
+	readonly size_bytes: number;
+	readonly name: string;
+	readonly mime_type: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatFileMetadata contains lightweight metadata about a file
  * associated with a chat, excluding the file content itself.
  */
@@ -2484,6 +2520,7 @@ export interface ChatFileMetadata {
 	readonly organization_id: string;
 	readonly name: string;
 	readonly mime_type: string;
+	readonly size_bytes: number;
 	readonly created_at: string;
 }
 
@@ -2879,6 +2916,7 @@ export interface ChatModelGoogleSafetySetting {
  */
 export interface ChatModelGoogleThinkingConfig {
 	readonly thinking_budget?: number;
+	readonly thinking_level?: string;
 	readonly include_thoughts?: boolean;
 }
 
@@ -3708,12 +3746,12 @@ export const ConnectionLogStatuses: ConnectionLogStatus[] = [
 export interface ConnectionLogWebInfo {
 	readonly user_agent: string;
 	/**
-	 * User is omitted if the connection event was from an unauthenticated user.
+	 * User is omitted if the connection event was unauthenticated.
 	 */
 	readonly user: User | null;
 	readonly slug_or_port: string;
 	/**
-	 * StatusCode is the HTTP status code of the request.
+	 * StatusCode is the HTTP status code or tunnel authorization outcome.
 	 */
 	readonly status_code: number;
 }
@@ -4416,6 +4454,7 @@ export interface CryptoKey {
 
 // From codersdk/deployment.go
 export type CryptoKeyFeature =
+	| "chat_files_token"
 	| "nats_ca"
 	| "oidc_convert"
 	| "tailnet_resume"
@@ -4423,6 +4462,7 @@ export type CryptoKeyFeature =
 	| "workspace_apps_token";
 
 export const CryptoKeyFeatures: CryptoKeyFeature[] = [
+	"chat_files_token",
 	"nats_ca",
 	"oidc_convert",
 	"tailnet_resume",
@@ -4756,7 +4796,7 @@ export interface DeploymentValues {
 	readonly additional_csp_policy?: string;
 	readonly workspace_hostname_suffix?: string;
 	readonly workspace_prebuilds?: PrebuildsConfig;
-	readonly hide_ai_tasks?: boolean;
+	readonly enable_ai_tasks?: boolean;
 	readonly ai?: AIConfig;
 	readonly stats_collection?: StatsCollectionConfig;
 	readonly template_builder?: TemplateBuilderConfig;
@@ -4986,6 +5026,7 @@ export type Experiment =
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
+	| "mcp-tool-search"
 	| "nats_pubsub"
 	| "notifications"
 	| "oauth2"
@@ -5001,6 +5042,7 @@ export const Experiments: Experiment[] = [
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",
+	"mcp-tool-search",
 	"nats_pubsub",
 	"notifications",
 	"oauth2",
@@ -5922,6 +5964,7 @@ export interface LoginWithPasswordResponse {
  */
 export interface MCPServerConfig {
 	readonly id: string;
+	readonly organization_id: string;
 	readonly display_name: string;
 	readonly slug: string;
 	readonly description: string;
@@ -5970,6 +6013,37 @@ export interface MCPServerConfig {
 	 * Per-user state (populated for non-admin requests).
 	 */
 	readonly auth_connected: boolean;
+}
+
+// From codersdk/mcp.go
+/**
+ * MCPServerConfigACL is the resolved access control list of an MCP server
+ * config.
+ */
+export interface MCPServerConfigACL {
+	readonly users: readonly MCPServerConfigUser[];
+	readonly groups: readonly MCPServerConfigGroup[];
+}
+
+// From codersdk/mcp.go
+/**
+ * MCPServerConfigGroup is a group entry in an MCP server config ACL.
+ */
+export interface MCPServerConfigGroup extends Group {
+	readonly role: MCPServerConfigRole;
+}
+
+// From codersdk/mcp.go
+export type MCPServerConfigRole = "" | "read";
+
+export const MCPServerConfigRoles: MCPServerConfigRole[] = ["", "read"];
+
+// From codersdk/mcp.go
+/**
+ * MCPServerConfigUser is a user entry in an MCP server config ACL.
+ */
+export interface MCPServerConfigUser extends MinimalUser {
+	readonly role: MCPServerConfigRole;
 }
 
 // From codersdk/mcp.go
@@ -6510,6 +6584,11 @@ export interface OAuth2ClientRegistrationResponse {
 	readonly registration_access_token: string;
 	readonly registration_client_uri: string;
 }
+
+// From codersdk/oauth2.go
+export type OAuth2ClientType = "confidential" | "public";
+
+export const OAuth2ClientTypes: OAuth2ClientType[] = ["confidential", "public"];
 
 // From codersdk/deployment.go
 export interface OAuth2Config {
@@ -7722,6 +7801,7 @@ export type RBACResource =
 	| "idpsync_settings"
 	| "inbox_notification"
 	| "license"
+	| "mcp_server_config"
 	| "notification_message"
 	| "notification_preference"
 	| "notification_template"
@@ -7775,6 +7855,7 @@ export const RBACResources: RBACResource[] = [
 	"idpsync_settings",
 	"inbox_notification",
 	"license",
+	"mcp_server_config",
 	"notification_message",
 	"notification_preference",
 	"notification_template",
@@ -7916,6 +7997,7 @@ export type ResourceType =
 	| "ai_seat"
 	| "api_key"
 	| "chat"
+	| "chat_instruction_settings"
 	| "convert_login"
 	| "custom_role"
 	| "git_ssh_key"
@@ -7926,6 +8008,7 @@ export type ResourceType =
 	| "idp_sync_settings_organization"
 	| "idp_sync_settings_role"
 	| "license"
+	| "mcp_server_config"
 	| "notification_template"
 	| "notifications_settings"
 	| "oauth2_provider_app"
@@ -7954,6 +8037,7 @@ export const ResourceTypes: ResourceType[] = [
 	"ai_seat",
 	"api_key",
 	"chat",
+	"chat_instruction_settings",
 	"convert_login",
 	"custom_role",
 	"git_ssh_key",
@@ -7964,6 +8048,7 @@ export const ResourceTypes: ResourceType[] = [
 	"idp_sync_settings_organization",
 	"idp_sync_settings_role",
 	"license",
+	"mcp_server_config",
 	"notification_template",
 	"notifications_settings",
 	"oauth2_provider_app",
@@ -9726,6 +9811,17 @@ export interface UpdateInboxNotificationReadStatusRequest {
 export interface UpdateInboxNotificationReadStatusResponse {
 	readonly notification: InboxNotification;
 	readonly unread_count: number;
+}
+
+// From codersdk/mcp.go
+/**
+ * UpdateMCPServerConfigACLRequest is a sparse update of an MCP server
+ * config ACL: only the listed principals change, and
+ * MCPServerConfigRoleDeleted removes an entry.
+ */
+export interface UpdateMCPServerConfigACLRequest {
+	readonly user_roles?: Record<string, MCPServerConfigRole>;
+	readonly group_roles?: Record<string, MCPServerConfigRole>;
 }
 
 // From codersdk/mcp.go

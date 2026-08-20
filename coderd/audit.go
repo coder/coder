@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -501,6 +503,18 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			api.Logger.Error(ctx, "unable to fetch chat", slog.Error(err))
 		}
 		return false
+	case database.ResourceTypeMCPServerConfig:
+		// MCP server configs are hard-deleted, so a 404 means deleted.
+		_, err := api.Database.GetMCPServerConfigByID(ctx, alog.AuditLog.ResourceID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return true
+		}
+		// Config reads are org-scoped, so an auditor can lack read on
+		// the config's organization. That is not worth logging.
+		if err != nil && !dbauthz.IsNotAuthorizedError(err) {
+			api.Logger.Error(ctx, "unable to fetch mcp server config", slog.Error(err))
+		}
+		return false
 	case database.ResourceTypeUserSecret:
 		_, err := api.Database.GetUserSecretByID(ctx, alog.AuditLog.ResourceID)
 		if xerrors.Is(err, sql.ErrNoRows) {
@@ -604,6 +618,30 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		// Chats are surfaced at /agents/{id}. They are owner-scoped but
 		// not username-scoped in the URL like workspaces or tasks.
 		return fmt.Sprintf("/agents/%s", alog.AuditLog.ResourceID)
+	case database.ResourceTypeMCPServerConfig:
+		// Mutation-only administrators may lack read access, so fetch
+		// with system access; the explicit checks below authorize.
+		//nolint:gocritic // The requester is authorized against the fetched config right below.
+		config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), alog.AuditLog.ResourceID)
+		if err != nil {
+			return ""
+		}
+		actor, ok := dbauthz.ActorFromContext(ctx)
+		if !ok {
+			return ""
+		}
+		// The MCP settings page admits anyone who can manage the
+		// config, so emit the link only for callers it will accept.
+		if err := api.HTTPAuth.Authorizer.Authorize(ctx, actor, policy.ActionUpdate, config.RBACObject()); err != nil {
+			if err := api.HTTPAuth.Authorizer.Authorize(ctx, actor, policy.ActionDelete, config.RBACObject()); err != nil {
+				return ""
+			}
+		}
+		organization, err := api.Database.GetOrganizationByID(ctx, alog.AuditLog.OrganizationID)
+		if err != nil {
+			return ""
+		}
+		return fmt.Sprintf("/ai/settings/mcp-servers/%s?org=%s", alog.AuditLog.ResourceID, url.QueryEscape(organization.Name))
 	case database.ResourceTypeUserSecret:
 		// TODO(PLAT-102): point at the user secrets management page once
 		// it ships. Until then, the audit row links nowhere.

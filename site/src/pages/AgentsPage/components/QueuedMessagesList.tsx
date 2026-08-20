@@ -3,11 +3,10 @@ import {
 	CornerDownLeftIcon,
 	ImageIcon,
 	InfoIcon,
-	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
-import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
+import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -21,32 +20,24 @@ interface QueuedMessagesListProps {
 	messages: readonly ChatQueuedMessage[];
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
-	onEdit?: (
-		id: number,
-		text: string,
-		fileBlocks: readonly ChatMessagePart[],
-	) => void;
-	editingMessageID?: number | null;
 	className?: string;
 }
 
 interface QueuedMessageInfo {
 	displayText: string;
-	rawText: string;
 	attachmentCount: number;
-	fileBlocks: readonly ChatMessagePart[];
 	hookNotices: string[];
 }
 
 export const getQueuedMessageInfo = (
 	message: ChatQueuedMessage,
 ): QueuedMessageInfo => {
-	const fileBlocks: ChatMessagePart[] = [];
+	let attachmentCount = 0;
 	const textParts: string[] = [];
 	const hookNotices: string[] = [];
 	for (const part of message.content) {
 		if (part.type === "file") {
-			fileBlocks.push(part);
+			attachmentCount++;
 		} else if (part.type === "text" && part.text?.trim()) {
 			textParts.push(part.text);
 		} else if (part.type === "hook-notice" && part.text?.trim()) {
@@ -57,9 +48,7 @@ export const getQueuedMessageInfo = (
 
 	return {
 		displayText: rawText || "[Queued message]",
-		rawText,
-		attachmentCount: fileBlocks.length,
-		fileBlocks,
+		attachmentCount,
 		hookNotices,
 	};
 };
@@ -68,21 +57,12 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	messages,
 	onDelete,
 	onPromote,
-	onEdit,
-	editingMessageID = null,
 	className,
 }) => {
 	const items = messages.map((message) => {
-		const { displayText, rawText, attachmentCount, fileBlocks, hookNotices } =
+		const { displayText, attachmentCount, hookNotices } =
 			getQueuedMessageInfo(message);
-		return {
-			id: message.id,
-			displayText,
-			rawText,
-			attachmentCount,
-			fileBlocks,
-			hookNotices,
-		};
+		return { id: message.id, displayText, attachmentCount, hookNotices };
 	});
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
@@ -178,22 +158,15 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 			)}
 		>
 			{visibleItems.map((item, index) => {
-				const isEditing = item.id === editingMessageID;
 				const isFirst = index === 0;
 				const isItemBusy = busyItem !== null && busyItem.id === item.id;
 				const isHovered = hoveredID === item.id;
-				// Show actions when: first and nothing else hovered,
-				// or this item is hovered, or being edited.
-				const showActions =
-					isEditing || isHovered || (isFirst && hoveredID === null);
+				const showActions = isHovered || (isFirst && hoveredID === null);
 
 				return (
 					<div
 						key={item.id}
-						className={cn(
-							"my-1 opacity-40 hover:opacity-80 transition-opacity",
-							isEditing && "rounded-lg opacity-100 ring-2 ring-content-link/40",
-						)}
+						className="my-1 opacity-40 transition-opacity hover:opacity-80"
 						onMouseEnter={() => setHoveredID(item.id)}
 						onMouseLeave={() =>
 							setHoveredID((current) => (current === item.id ? null : current))
@@ -247,25 +220,6 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 									showActions ? "opacity-100" : "opacity-0",
 								)}
 							>
-								{onEdit && (
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<Button
-												variant="subtle"
-												size="icon"
-												aria-label="Edit"
-												disabled={isBusy}
-												onClick={() =>
-													onEdit(item.id, item.rawText, item.fileBlocks)
-												}
-												className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
-											>
-												<PencilIcon className="size-3.5" />
-											</Button>
-										</TooltipTrigger>
-										<TooltipContent side="top">Edit</TooltipContent>
-									</Tooltip>
-								)}
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Button

@@ -40,9 +40,11 @@ import {
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	getOpenChatPollInterval,
 	interruptChat,
 	invalidateChatEntity,
 	mcpServerConfigs,
+	openChat,
 	patchChatEntity,
 	promoteChatQueuedMessage,
 	updateChatPlanMode,
@@ -508,12 +510,10 @@ export function useConversationEditingState(deps: {
 		attachments?: readonly PendingAttachment[],
 		editedMessageID?: number,
 	) => Promise<void>;
-	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	inputValueRef: React.RefObject<string>;
 }) {
-	const { chatID, onSend, onDeleteQueuedMessage, chatInputRef, inputValueRef } =
-		deps;
+	const { chatID, onSend, chatInputRef, inputValueRef } = deps;
 	const draftStorageKey = chatID
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
@@ -599,53 +599,6 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// -- Queue editing state --
-	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
-		number | null
-	>(null);
-	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] =
-		useState<ParsedDraft | null>(null);
-
-	const handleStartQueueEdit = (
-		id: number,
-		text: string,
-		fileBlocks: readonly ChatMessagePart[],
-	) => {
-		if (editingQueuedMessageID === null) {
-			const currentEditorState = draftStorageKey
-				? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
-				: undefined;
-			setDraftBeforeQueueEdit({
-				text: inputValueRef.current,
-				editorState: currentEditorState,
-			});
-		}
-		setEditingQueuedMessageID(id);
-		setDraftState({
-			editorInitialValue: text,
-			initialEditorState: undefined,
-		});
-		serializedEditorStateRef.current = undefined;
-		setRemountKey((k) => k + 1);
-		inputValueRef.current = text;
-		setEditingFileBlocks(fileBlocks);
-	};
-
-	const handleCancelQueueEdit = () => {
-		const savedText = draftBeforeQueueEdit?.text ?? "";
-		const savedState = draftBeforeQueueEdit?.editorState;
-		setDraftState({
-			editorInitialValue: savedText,
-			initialEditorState: savedState,
-		});
-		serializedEditorStateRef.current = savedState;
-		setRemountKey((k) => k + 1);
-		inputValueRef.current = savedText;
-		setEditingQueuedMessageID(null);
-		setDraftBeforeQueueEdit(null);
-		setEditingFileBlocks([]);
-	};
-
 	// Clears the composer for an in-flight history edit and
 	// returns a rollback function that restores the editing draft
 	// if the send fails.
@@ -674,10 +627,7 @@ export function useConversationEditingState(deps: {
 	};
 
 	// Clears all input and editing state after a successful send.
-	const finalizeSuccessfulSend = (
-		editedMessageID: number | undefined,
-		queueEditID: number | null,
-	) => {
+	const finalizeSuccessfulSend = (editedMessageID: number | undefined) => {
 		chatInputRef.current?.clear();
 		if (!isMobileViewport()) {
 			chatInputRef.current?.focus();
@@ -691,23 +641,15 @@ export function useConversationEditingState(deps: {
 			setDraftBeforeHistoryEdit(null);
 			setEditingFileBlocks([]);
 		}
-		if (queueEditID !== null) {
-			setEditingQueuedMessageID(null);
-			setDraftBeforeQueueEdit(null);
-			setEditingFileBlocks([]);
-			void onDeleteQueuedMessage(queueEditID);
-		}
 	};
 
-	// Wraps the parent onSend to clear local input/editing state
-	// and handle queue-edit deletion.
+	// Wraps the parent onSend to clear local input/editing state.
 	const handleSendFromInput = async (
 		message: string,
 		attachments?: readonly PendingAttachment[],
 	) => {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
-		const queueEditID = editingQueuedMessageID;
 		const sendPromise = onSend(message, attachments, editedMessageID);
 
 		// For history edits, clear input immediately and prepare
@@ -727,7 +669,7 @@ export function useConversationEditingState(deps: {
 			throw error;
 		}
 
-		finalizeSuccessfulSend(editedMessageID, queueEditID);
+		finalizeSuccessfulSend(editedMessageID);
 	};
 
 	const handleContentChange = (
@@ -738,11 +680,9 @@ export function useConversationEditingState(deps: {
 		inputValueRef.current = content;
 		serializedEditorStateRef.current = serializedEditorState;
 
-		// Don't overwrite the persisted draft while editing a
-		// history or queued message, the original draft (possibly
-		// containing file-reference chips) is saved in React state
-		// and should survive a cancel.
-		if (editingMessageId !== null || editingQueuedMessageID !== null) {
+		// Don't overwrite the persisted draft while editing a history message.
+		// The original draft is saved in React state and should survive a cancel.
+		if (editingMessageId !== null) {
 			return;
 		}
 
@@ -785,9 +725,6 @@ export function useConversationEditingState(deps: {
 		editingFileBlocks,
 		handleEditUserMessage,
 		handleCancelHistoryEdit,
-		editingQueuedMessageID,
-		handleStartQueueEdit,
-		handleCancelQueueEdit,
 		handleSendFromInput,
 		handleContentChange,
 		handleLoadingDraftChange,
@@ -936,12 +873,18 @@ const AgentChatPage: FC = () => {
 	};
 
 	const chatQuery = useQuery({
-		...chat(agentId ?? ""),
+		...openChat(agentId ?? ""),
 		enabled: Boolean(agentId),
-		// Poll while the binding is unresolved: repair happens on chat reads
-		// and watch events cannot be relied on for retries because an idle
-		// workspace publishes none.
+		// Poll while the chat runs (this override replaces openChat's
+		// interval, and queued_for_capacity depends on the poll) or while
+		// the binding is unresolved: repair happens on chat reads and watch
+		// events cannot be relied on for retries because an idle workspace
+		// publishes none.
 		refetchInterval: ({ state }) => {
+			const openPollMs = getOpenChatPollInterval(state.data);
+			if (openPollMs !== false) {
+				return openPollMs;
+			}
 			const workspaceId = state.data?.workspace_id;
 			const workspace = workspaceId
 				? queryClient.getQueryData<TypesGen.Workspace>(
@@ -954,6 +897,7 @@ const AgentChatPage: FC = () => {
 		},
 		refetchIntervalInBackground: false,
 	});
+	const chatOrganizationId = chatQuery.data?.organization_id ?? "";
 	const chatMessagesQuery = useInfiniteQuery({
 		...chatMessagesForInfiniteScroll(agentId ?? ""),
 		enabled: Boolean(agentId),
@@ -981,7 +925,14 @@ const AgentChatPage: FC = () => {
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const preferencesQuery = useQuery(preferenceSettings());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
-	const mcpServersQuery = useQuery(mcpServerConfigs());
+	const mcpServersQuery = useQuery({
+		...mcpServerConfigs(chatOrganizationId),
+		enabled: Boolean(chatOrganizationId),
+	});
+	const isDefaultChatOrganization = organizations.some(
+		(organization) =>
+			organization.id === chatOrganizationId && organization.is_default,
+	);
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
 		workspacesQuery.data?.workspaces ?? [],
@@ -1000,7 +951,9 @@ const AgentChatPage: FC = () => {
 
 	const handleMCPSelectionChange = (ids: string[]) => {
 		setSelectedMCPServerIds(ids);
-		saveMCPSelection(ids);
+		if (chatOrganizationId) {
+			saveMCPSelection(chatOrganizationId, ids);
+		}
 	};
 
 	const handleMCPAuthComplete = (_serverId: string) => {
@@ -1155,7 +1108,13 @@ const AgentChatPage: FC = () => {
 			return chatRecord.mcp_server_ids;
 		}
 		// Check for a previously saved selection in localStorage.
-		const saved = getSavedMCPSelection(mcpServers);
+		const saved = chatOrganizationId
+			? getSavedMCPSelection(
+					chatOrganizationId,
+					mcpServers,
+					isDefaultChatOrganization,
+				)
+			: null;
 		if (saved !== null) {
 			return saved;
 		}
@@ -1495,7 +1454,6 @@ const AgentChatPage: FC = () => {
 	const editing = useConversationEditingState({
 		chatID: agentId,
 		onSend: handleSend,
-		onDeleteQueuedMessage: handleDeleteQueuedMessage,
 		chatInputRef,
 		inputValueRef,
 	});
@@ -1684,12 +1642,11 @@ const AgentChatPage: FC = () => {
 
 		// "/compact" on its own (no attachments or file references)
 		// requests a manual context compaction instead of sending a
-		// message. Only new sends are intercepted; history and queued
-		// edits keep their original meaning, and a personal or workspace
+		// message. Only new sends are intercepted; history edits keep their
+		// original meaning, and a personal or workspace
 		// skill named "compact" takes precedence so the command cannot shadow it.
 		const isExactCompactSubmission =
 			editedMessageID === undefined &&
-			editing.editingQueuedMessageID === null &&
 			content.length === 1 &&
 			content[0].type === "text" &&
 			content[0].text?.trim() ===
@@ -1699,14 +1656,6 @@ const AgentChatPage: FC = () => {
 				"Checking whether /compact is available. Try again in a moment.",
 			);
 			throw new CompactCommandPendingError();
-		}
-
-		// Sends and /compact are an explicit ask to be at the live edge,
-		// even one that appends no visible prompt. History edits scroll
-		// only after the mutation succeeds, so a rejected edit cannot
-		// pull a reader of older history to the live edge.
-		if (editedMessageID === undefined) {
-			scrollToEnd({ behavior: "smooth" });
 		}
 
 		if (isExactCompactSubmission && compactCommandResolution === "available") {
@@ -2103,6 +2052,7 @@ const AgentChatPage: FC = () => {
 			onMCPSelectionChange={handleMCPSelectionChange}
 			onMCPAuthComplete={handleMCPAuthComplete}
 			chatContext={chatQuery.data?.context}
+			queuedForCapacity={chatQuery.data?.queued_for_capacity ?? false}
 			workspaceSkills={workspaceSkillsFromChat(chatQuery.data)}
 		/>
 	);

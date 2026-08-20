@@ -56,7 +56,7 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 		),
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, e error) {
 			if _, ok := errors.AsType[*http.MaxBytesError](e); ok {
-				writeRequestBodyTooLarge(rw)
+				writeRequestBodyTooLarge(req.Context(), rw)
 			} else {
 				logger.Warn(req.Context(), "reverse proxy error", slog.Error(e), slog.F("path", req.URL.Path))
 				http.Error(rw, "upstream proxy error", http.StatusBadGateway)

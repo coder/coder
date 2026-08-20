@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
 	MockFailedWorkspace,
 	MockTaskWorkspace,
@@ -97,9 +97,17 @@ export const FilledWrong: Story = {
 
 		await userEvent.type(confirm, "wrong-name");
 		await userEvent.tab();
-		await expect(
-			body.getByText("wrong-name does not match the name of this workspace"),
-		).toBeVisible();
+		// The validation error renders asynchronously after blur, so wait for
+		// visibility instead of asserting it once.
+		await waitFor(
+			() =>
+				expect(
+					body.getByText(
+						"wrong-name does not match the name of this workspace",
+					),
+				).toBeVisible(),
+			{ timeout: 5_000 },
+		);
 		await expect(body.getByRole("button", { name: "Delete" })).toBeDisabled();
 	},
 };

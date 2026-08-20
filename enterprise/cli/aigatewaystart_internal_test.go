@@ -592,6 +592,7 @@ func TestAIGatewayStart_InheritedOptions(t *testing.T) {
 
 	// Groups the gateway sources options from.
 	sourceGroups := map[string]struct{}{
+		"Config":     {},
 		"Logging":    {},
 		"Tracing":    {},
 		"AI Gateway": {},
