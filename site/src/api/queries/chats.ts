@@ -204,23 +204,6 @@ export const addChildToParentInCache = (
 		});
 		return changed ? next : chats;
 	});
-	// Mirror the insertion into the parent's entity cache so the chat
-	// detail page sees new family members without a refetch.
-	queryClient.setQueryData<TypesGen.Chat | undefined>(
-		chatEntityKey(parentId),
-		(cachedParent) => {
-			if (
-				!cachedParent ||
-				cachedParent.children?.some((ch) => ch.id === child.id)
-			) {
-				return cachedParent;
-			}
-			return {
-				...cachedParent,
-				children: [child, ...(cachedParent.children ?? [])],
-			};
-		},
-	);
 };
 
 /**
@@ -669,44 +652,6 @@ export const mergeWatchedChatIntoCaches = (
 			return mergeCachedChat(cachedChat);
 		},
 	);
-	// The parent's entity cache embeds child snapshots too (the chat
-	// detail page reads family state from it), so merge the child there
-	// as well, not only in the infinite-list caches. A child missing
-	// from the cached parent (its `created` event was lost to a socket
-	// disconnect) is appended so later child events still repair the
-	// family; archive removals cannot be resurrected this way because
-	// children only emit these events while their family is live.
-	if (watchedChat.parent_chat_id) {
-		queryClient.setQueryData<TypesGen.Chat | undefined>(
-			chatEntityKey(watchedChat.parent_chat_id),
-			(cachedParent) => {
-				if (!cachedParent) {
-					return cachedParent;
-				}
-				const children = cachedParent.children ?? [];
-				if (!children.some((child) => child.id === watchedChat.id)) {
-					return {
-						...cachedParent,
-						children: [watchedChat, ...children],
-					};
-				}
-				let changed = false;
-				const nextChildren = children.map((child) => {
-					if (child.id !== watchedChat.id) {
-						return child;
-					}
-					const merged = mergeCachedChat(child);
-					if (merged !== child) {
-						changed = true;
-					}
-					return merged;
-				});
-				return changed
-					? { ...cachedParent, children: nextChildren }
-					: cachedParent;
-			},
-		);
-	}
 };
 
 const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
@@ -775,32 +720,6 @@ export const invalidateChatEntity = (
 		queryKey: chatEntityKey(chatId),
 		exact: true,
 	});
-
-/**
- * Invalidates the root chat's entity and every loaded child entity of
- * its family. Archive operations cascade server-side over the whole
- * family, so after a partial archive-and-delete failure each mounted
- * family member must refetch its own entity.
- */
-export const invalidateChatFamilyEntities = (
-	queryClient: QueryClient,
-	rootChatId: string,
-) => {
-	const entities = queryClient.getQueriesData<TypesGen.Chat>({
-		queryKey: chatEntitiesFamilyKey,
-	});
-	return Promise.all(
-		entities
-			.filter(
-				([, chat]) =>
-					chat !== undefined &&
-					(chat.id === rootChatId || chat.parent_chat_id === rootChatId),
-			)
-			.map(([queryKey]) =>
-				queryClient.invalidateQueries({ queryKey, exact: true }),
-			),
-	);
-};
 
 export const invalidateChatListQueries = (queryClient: QueryClient) =>
 	queryClient.invalidateQueries({

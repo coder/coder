@@ -30,7 +30,6 @@ import {
 	invalidateChatCostTree,
 	invalidateChatDiffContents,
 	invalidateChatEntity,
-	invalidateChatFamilyEntities,
 	invalidateChatListQueries,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
@@ -82,7 +81,6 @@ import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
-	ArchiveAndDeleteError,
 	archiveChatAndDeleteWorkspace,
 	notifyArchiveAndDeleteFailed,
 	notifyDeleteQueueState,
@@ -112,6 +110,13 @@ export interface AgentsPageOutletContext {
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	isArchiving: boolean;
 	archivingChatId: string | undefined;
+	/**
+	 * The active chat's children from the chat list cache, which watch
+	 * events keep fresh. The entity cache's embedded children are only a
+	 * fetch-time snapshot, so gating archive actions on them could leave
+	 * the actions disabled after a child finishes.
+	 */
+	activeChatChildren: readonly TypesGen.Chat[] | undefined;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
 	/** Opens the shared rename dialog so both menus drive the same instance. */
 	onOpenRenameDialog?: (chat: TypesGen.Chat) => void;
@@ -309,7 +314,7 @@ const AgentsPageLayout: FC = () => {
 			clearPersistedSidebarTabId(chatId);
 			clearPersistedRightPanelState(chatId);
 			void invalidateChatListQueries(queryClient);
-			void invalidateChatFamilyEntities(queryClient, chatId);
+			void invalidateChatEntity(queryClient, chatId);
 			void invalidateChatsByWorkspace(queryClient);
 			void invalidateChatSearches(queryClient);
 			void invalidateWorkspaceMutationQueries(queryClient, {
@@ -334,22 +339,11 @@ const AgentsPageLayout: FC = () => {
 			// The archive may have committed server-side even when the
 			// request appeared to fail (transport errors), and on delete
 			// failures the chat stays archived; refetch every chat
-			// collection and every loaded family entity (the archive
-			// cascades over children, and a mounted child page reads its
-			// own entity) so all caches converge on the server.
+			// collection so all caches converge on the server.
 			void invalidateChatListQueries(queryClient);
-			void invalidateChatFamilyEntities(queryClient, chatId);
+			void invalidateChatEntity(queryClient, chatId);
 			void invalidateChatsByWorkspace(queryClient);
 			void invalidateChatSearches(queryClient);
-			// A failed delete may still have committed server-side (lost
-			// response, late 5xx), so refresh workspace state too. On
-			// archive-step failures the delete never ran.
-			if (error instanceof ArchiveAndDeleteError && error.step === "delete") {
-				void invalidateWorkspaceMutationQueries(queryClient, {
-					organizationName,
-					username: user.username,
-				});
-			}
 		},
 	});
 	const [pendingArchiveAndDelete, setPendingArchiveAndDelete] = useState<{
@@ -621,16 +615,6 @@ const AgentsPageLayout: FC = () => {
 					// the fallback title.
 					void cancelChatListRefetches(queryClient);
 					void cancelLoadedChatEntityRefetch(queryClient, updatedChat.id);
-					// Child events also write into the parent's embedded
-					// children, so cancel the parent's in-flight entity
-					// refetch too; a response issued before this event could
-					// otherwise overwrite the newer child state.
-					if (updatedChat.parent_chat_id) {
-						void cancelLoadedChatEntityRefetch(
-							queryClient,
-							updatedChat.parent_chat_id,
-						);
-					}
 
 					if (chatEvent.kind === "created") {
 						if (updatedChat.parent_chat_id) {
@@ -698,15 +682,6 @@ const AgentsPageLayout: FC = () => {
 				void invalidateChatListQueries(queryClient);
 				void invalidateChatsByWorkspace(queryClient);
 				void invalidateChatSearches(queryClient);
-				// The watch stream does not replay events missed while
-				// disconnected, so refetch the open chat's entity: its
-				// embedded child snapshots gate the archive actions and a
-				// child created during the gap may emit no further events
-				// for its whole run.
-				const activeChatId = activeChatIDRef.current;
-				if (activeChatId) {
-					void invalidateChatEntity(queryClient, activeChatId);
-				}
 			},
 		});
 	}, [queryClient]);
@@ -763,6 +738,7 @@ const AgentsPageLayout: FC = () => {
 		requestReorderPinnedAgent,
 		isArchiving,
 		archivingChatId,
+		activeChatChildren: chatList.find((c) => c.id === agentId)?.children,
 		onOpenRenameDialog: setChatPendingRename,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed: handleToggleSidebarCollapsed,

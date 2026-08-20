@@ -29,8 +29,8 @@ const chatStatusAllowsArchive = (
 
 // Archive cascades atomically over the whole family, so the backend
 // rejects it when any child is still active, not just the root. Children
-// are embedded on chat records (depth capped at 1); a null array from
-// stale caches stays fail-open like an unknown status.
+// are embedded on chat records (depth capped at 1); a missing children
+// array stays fail-open like an unknown status.
 export const chatFamilyAllowsArchive = (
 	status: TypesGen.ChatStatus | null | undefined,
 	children: readonly TypesGen.Chat[] | null | undefined,

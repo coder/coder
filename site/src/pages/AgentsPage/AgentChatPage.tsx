@@ -897,6 +897,7 @@ const AgentChatPage: FC = () => {
 		requestUnpinAgent,
 		isArchiving,
 		archivingChatId,
+		activeChatChildren,
 		onOpenRenameDialog,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
@@ -2088,7 +2089,7 @@ const AgentChatPage: FC = () => {
 			isPinned={(chatRecord?.pin_order ?? 0) > 0}
 			isChildChat={parentChatID !== undefined}
 			isArchiveBlocked={
-				!chatFamilyAllowsArchive(liveChatStatus, chatRecord?.children)
+				!chatFamilyAllowsArchive(liveChatStatus, activeChatChildren)
 			}
 			urlTransform={urlTransform}
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
