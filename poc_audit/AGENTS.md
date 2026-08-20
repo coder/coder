@@ -71,6 +71,12 @@ on something or you have simply not read the part that answers it.
   `workspace_agent` credential is issued, stored, and tracked, with the policy
   goals any fix must satisfy. Recommendations for work after the proof of
   concept, none of it scheduled.
+- [Implementation Patterns](implementation_patterns.md). How journals are
+  shaped and what the schema is made to enforce rather than merely document:
+  entry identifiers, line numbering, denormalization across lines, and which
+  values are written once. Also where the existing implementation and this
+  corpus are misaligned. Read it before arguing about schema, because most of
+  that argument has already happened here.
 - [Work Breakdown](work_breakdown.md). The coding work decomposed into work
   packages, each sized so that completing it produces a passing acceptance
   test. Each package lists its PoC cheats.

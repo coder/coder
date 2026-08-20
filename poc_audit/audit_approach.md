@@ -514,14 +514,6 @@ The confusion is not hypothetical: without a rename the two systems read as one
 system in two states of completeness, and a reader encountering both will assume
 the newer is meant to replace the older. No replacement name is proposed here.
 
-### The two history tables are a different case
-
-`user_status_changes` and `user_deleted` are already in the category of this
-approach, though they were built ad hoc for one entity. **They should eventually
-be incorporated into it.** What they do today may not match the eventual design
-in detail, but the new system should be able to do everything they currently do,
-consistently and on principle rather than case by case.
-
 ## Derived
 
 Reasoning built on the positions above. Offered for challenge.
