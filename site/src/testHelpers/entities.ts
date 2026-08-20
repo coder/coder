@@ -648,7 +648,7 @@ export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
-export const MockTasksTabVisible: boolean = false;
+export const MockAITasksEnabled: boolean = false;
 export const MockAIGatewayEnabled: boolean = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
@@ -2701,6 +2701,20 @@ export const mockApiError = ({
 	},
 });
 
+export const MockAgentRuntimeHoursFeature: TypesGen.Feature = {
+	enabled: true,
+	entitlement: "entitled",
+	limit: 1000,
+	soft_limit: 850,
+	actual: 400,
+	actual_ms: 400 * 3_600_000,
+	usage_period: {
+		issued_at: "June 1, 2026",
+		start: "June 1, 2026",
+		end: "May 31, 2027",
+	},
+};
+
 export const MockEntitlements: TypesGen.Entitlements = {
 	errors: [],
 	warnings: [],
@@ -3366,6 +3380,10 @@ export const MockPermissions: Permissions = {
 	editAnyGroups: true,
 	editAnySettings: true,
 	viewAnyIdpSyncSettings: true,
+	viewAnyMCPServerConfigs: true,
+	createAnyMCPServerConfig: true,
+	updateAnyMCPServerConfig: true,
+	deleteAnyMCPServerConfig: true,
 	viewAnyMembers: true,
 	viewAnyAIBridgeInterception: true,
 	viewAnyAIProvider: true,
@@ -3403,6 +3421,10 @@ export const MockNoPermissions: Permissions = {
 	editAnyGroups: false,
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
+	viewAnyMCPServerConfigs: false,
+	createAnyMCPServerConfig: false,
+	updateAnyMCPServerConfig: false,
+	deleteAnyMCPServerConfig: false,
 	viewAnyMembers: false,
 	viewAnyAIBridgeInterception: false,
 	viewAnyAIProvider: false,
@@ -3430,6 +3452,10 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	viewProvisionerJobs: true,
 	viewIdpSyncSettings: true,
 	editIdpSyncSettings: true,
+	viewMCPServerConfigs: true,
+	createMCPServerConfig: true,
+	updateMCPServerConfig: true,
+	deleteMCPServerConfig: true,
 };
 
 export const MockNoOrganizationPermissions: OrganizationPermissions = {
@@ -3448,6 +3474,10 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	viewProvisionerJobs: false,
 	viewIdpSyncSettings: false,
 	editIdpSyncSettings: false,
+	viewMCPServerConfigs: false,
+	createMCPServerConfig: false,
+	updateMCPServerConfig: false,
+	deleteMCPServerConfig: false,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {

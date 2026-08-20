@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { getDefaultMCPSelection, MCPServerPicker } from "./MCPServerPicker";
@@ -118,6 +118,7 @@ const meta: Meta<typeof MCPServerPicker> = {
 	title: "pages/AgentsPage/MCPServerPicker",
 	component: MCPServerPicker,
 	args: {
+		organizationId: "org-1",
 		onSelectionChange: fn(),
 		onAuthComplete: fn(),
 	},
@@ -180,6 +181,22 @@ export const OAuthNeedsAuth: Story = {
 	args: {
 		servers: [githubServer],
 		selectedServerIds: [githubServer.id],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(null);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "MCP servers" }));
+		await userEvent.click(
+			body.getByRole("button", { name: "Authenticate with GitHub" }),
+		);
+		expect(window.open).toHaveBeenCalledWith(
+			"/api/experimental/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
+			"_blank",
+			"width=900,height=600",
+		);
 	},
 };
 

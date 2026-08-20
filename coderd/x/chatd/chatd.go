@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -1203,19 +1204,29 @@ type PromoteQueuedResult struct {
 	PromotedMessage database.ChatMessage
 }
 
-// enforceForcedMCPServerIDs appends the ID of every enabled Force On
-// MCP server config missing from ids. Force On availability is a
-// server-side policy: callers must not be able to exclude such
-// servers by stripping IDs from a request (Cure53 CDM-02-010). The
-// forced set is read with daemon scope because regular users cannot
-// read MCP server configs directly.
-func enforceForcedMCPServerIDs(ctx context.Context, store database.Store, ids []uuid.UUID) ([]uuid.UUID, error) {
-	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
-	forced, err := store.GetForcedMCPServerConfigs(dbauthz.AsChatd(ctx))
+// forcedMCPServerConfigsForOwner filters enabled Force On configs
+// through the chat owner's ACL so availability cannot widen access.
+func forcedMCPServerConfigsForOwner(ctx context.Context, store database.Store, organizationID, ownerID uuid.UUID) ([]database.MCPServerConfig, error) {
+	owner, _, err := httpmw.UserRBACSubject(ctx, store, ownerID, rbac.ScopeAll)
+	if err != nil {
+		return nil, xerrors.Errorf("load chat owner authorization: %w", err)
+	}
+	forced, err := store.GetForcedMCPServerConfigsByOrganization(dbauthz.As(ctx, owner), organizationID)
+	if err != nil {
+		return nil, xerrors.Errorf("get forced MCP server configs: %w", err)
+	}
+	return forced, nil
+}
+
+// enforceForcedMCPServerIDs appends owner-readable Force On config IDs
+// missing from ids so callers cannot exclude such servers by stripping
+// IDs from a request (Cure53 CDM-02-010).
+func enforceForcedMCPServerIDs(ctx context.Context, store database.Store, organizationID, ownerID uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
+	forced, err := forcedMCPServerConfigsForOwner(ctx, store, organizationID, ownerID)
 	if err != nil {
 		// Fail closed: proceeding without the forced set would
 		// silently bypass a security policy.
-		return nil, xerrors.Errorf("get forced MCP server configs: %w", err)
+		return nil, err
 	}
 	merged := slices.Clone(ids)
 	if merged == nil {
@@ -1258,7 +1269,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// Force On MCP servers are enforced server-side so a caller
 	// cannot exclude them by stripping IDs from the request
 	// (Cure53 CDM-02-010).
-	enforcedMCPServerIDs, err := enforceForcedMCPServerIDs(ctx, p.db, opts.MCPServerIDs)
+	enforcedMCPServerIDs, err := enforceForcedMCPServerIDs(ctx, p.db, opts.OrganizationID, opts.OwnerID, opts.MCPServerIDs)
 	if err != nil {
 		return database.Chat{}, err
 	}
@@ -1516,7 +1527,7 @@ func (p *Server) SendMessage(
 				// Force On MCP servers are enforced server-side so a
 				// caller cannot remove them by tampering with the
 				// update (Cure53 CDM-02-010).
-				enforcedIDs, enforceErr := enforceForcedMCPServerIDs(ctx, store, *requestedMCPServerIDs)
+				enforcedIDs, enforceErr := enforceForcedMCPServerIDs(ctx, store, lockedChat.OrganizationID, lockedChat.OwnerID, *requestedMCPServerIDs)
 				if enforceErr != nil {
 					return enforceErr
 				}
@@ -5227,10 +5238,10 @@ func (p *Server) refreshMCPTokenIfNeeded(
 		expiry = sql.NullTime{Time: result.Expiry, Valid: true}
 	}
 
-	//nolint:gocritic // Chatd needs system-level write access to
-	// persist the refreshed OAuth2 token for the user.
+	// The chatd subject has no personal-write access; persist the
+	// refresh as a subject scoped to this token's owner.
 	updated, err := p.db.UpdateMCPServerUserTokenFromRefresh(
-		dbauthz.AsSystemRestricted(ctx),
+		dbauthz.AsChatdTokenOwner(ctx, tok.UserID),
 		database.UpdateMCPServerUserTokenFromRefreshParams{
 			ID:                tok.ID,
 			UpdatedAt:         tok.UpdatedAt,
@@ -5245,9 +5256,8 @@ func (p *Server) refreshMCPTokenIfNeeded(
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			// A disconnect or re-authentication can win the optimistic update.
-			//nolint:gocritic // Reading the winning token requires system access.
 			current, readErr := p.db.GetMCPServerUserToken(
-				dbauthz.AsSystemRestricted(ctx),
+				ctx,
 				database.GetMCPServerUserTokenParams{
 					MCPServerConfigID: tok.MCPServerConfigID,
 					UserID:            tok.UserID,
@@ -5304,10 +5314,10 @@ func (p *Server) markMCPTokenRefreshFailure(
 		slog.Error(refreshErr),
 	)
 
-	//nolint:gocritic // Chatd needs system-level write access to
-	// persist the refresh failure for the user.
+	// The chatd subject has no personal-write access; persist the
+	// failure as a subject scoped to this token's owner.
 	marked, err := p.db.MarkMCPServerUserTokenRefreshFailure(
-		dbauthz.AsSystemRestricted(ctx),
+		dbauthz.AsChatdTokenOwner(ctx, tok.UserID),
 		database.MarkMCPServerUserTokenRefreshFailureParams{
 			ID:                        tok.ID,
 			UpdatedAt:                 tok.UpdatedAt,
@@ -5322,10 +5332,8 @@ func (p *Server) markMCPTokenRefreshFailure(
 		// Optimistic lock miss: a concurrent request refreshed or
 		// replaced the token after we read it, so our failure is
 		// stale. Use the winner's row instead.
-		//nolint:gocritic // Chatd needs system-level read access to
-		// load the concurrently updated token.
 		current, readErr := p.db.GetMCPServerUserToken(
-			dbauthz.AsSystemRestricted(ctx),
+			ctx,
 			database.GetMCPServerUserTokenParams{
 				MCPServerConfigID: tok.MCPServerConfigID,
 				UserID:            tok.UserID,

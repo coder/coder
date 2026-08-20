@@ -749,7 +749,7 @@ type DeploymentValues struct {
 	AdditionalCSPPolicy                     serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
 	WorkspaceHostnameSuffix                 serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 	Prebuilds                               PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
-	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
+	EnableAITasks                           serpent.Bool                         `json:"enable_ai_tasks,omitempty" typescript:",notnull"`
 	AI                                      AIConfig                             `json:"ai,omitempty"`
 	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
 	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
@@ -4320,14 +4320,17 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      true,
 		},
 		{
-			Name:        "Hide AI Tasks",
-			Description: "Hide AI tasks from the dashboard.",
-			Flag:        "hide-ai-tasks",
-			Env:         "CODER_HIDE_AI_TASKS",
+			Name:        "Enable AI Tasks",
+			Description: "Enable Coder Tasks. When unset, the Tasks routes are not served, the Tasks UI and its URLs are unavailable, the task RBAC permissions are stripped from built-in roles, and the CLI task commands are hidden.",
+			Flag:        "enable-ai-tasks",
+			Env:         "CODER_ENABLE_AI_TASKS",
 			Default:     "false",
-			Value:       &c.HideAITasks,
-			Group:       &deploymentGroupClient,
-			YAML:        "hideAITasks",
+			Value:       &c.EnableAITasks,
+			YAML:        "enableAITasks",
+			// Hidden keeps Tasks out of the generated CLI and configuration
+			// reference documentation while the feature is withdrawn from the
+			// product.
+			Hidden: true,
 		},
 		// Chat Options
 		{
