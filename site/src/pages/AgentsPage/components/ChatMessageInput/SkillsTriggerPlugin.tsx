@@ -256,12 +256,6 @@ export const SkillsTriggerPlugin = ({
 		}
 		const skill = selectedIndex >= 0 ? skills[selectedIndex] : undefined;
 		if (!skill) {
-			// A still-loading source may yet produce matches, so keep
-			// consuming Enter until every source resolves.
-			if (skillsLoading) {
-				event?.preventDefault();
-				return true;
-			}
 			return false;
 		}
 		event?.preventDefault();
