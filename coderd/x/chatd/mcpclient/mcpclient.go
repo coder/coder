@@ -85,6 +85,32 @@ func ConnectAll(
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
 ) ([]fantasy.AgentTool, func()) {
+	return connectAllWithHooks(
+		ctx, logger, configs, tokens, userID, oidcSrc, coderHeaders,
+		connectTimeout, connectHooks{},
+	)
+}
+
+// connectHooks carries test-only instrumentation for connect
+// internals. The zero value is used in production.
+type connectHooks struct {
+	// reaperDone, when non-nil, is called after an abandoned
+	// connect goroutine's late result has been drained and any
+	// late session closed.
+	reaperDone func()
+}
+
+func connectAllWithHooks(
+	ctx context.Context,
+	logger slog.Logger,
+	configs []database.MCPServerConfig,
+	tokens []database.MCPServerUserToken,
+	userID uuid.UUID,
+	oidcSrc UserOIDCTokenSource,
+	coderHeaders map[string]string,
+	timeout time.Duration,
+	hooks connectHooks,
+) ([]fantasy.AgentTool, func()) {
 	// Index tokens by server config ID so auth header
 	// construction is O(1) per server.
 	tokensByConfigID := make(
@@ -101,14 +127,20 @@ func ConnectAll(
 	)
 
 	// Build cleanup eagerly so it always closes any sessions
-	// that connected, even if a later connection fails.
+	// that connected, even if a later connection fails. Each
+	// close runs in a detached goroutine: the sessions are
+	// discarded either way, and Close on a server that stopped
+	// responding mid-turn can block until the transport abandons
+	// the connection (the SDK detaches the request context), which
+	// must not stall the generation loop at step boundaries.
 	cleanup := func() {
 		mu.Lock()
-		defer mu.Unlock()
-		for _, s := range sessions {
-			_ = s.Close()
-		}
+		toClose := sessions
 		sessions = nil
+		mu.Unlock()
+		for _, s := range toClose {
+			go func() { _ = s.Close() }()
+		}
 	}
 
 	var eg errgroup.Group
@@ -120,6 +152,7 @@ func ConnectAll(
 		eg.Go(func() error {
 			serverTools, session, connectErr := connectOne(
 				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
+				timeout, hooks,
 			)
 			if connectErr != nil {
 				logger.Warn(ctx,
@@ -211,6 +244,8 @@ func connectOne(
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
+	timeout time.Duration,
+	hooks connectHooks,
 ) ([]fantasy.AgentTool, *mcp.ClientSession, error) {
 	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
 
@@ -250,21 +285,60 @@ func connectOne(
 	// The timeout covers the entire connect+list sequence, not
 	// each phase individually. The SDK negotiates the protocol
 	// version during Connect; the session outlives connectCtx.
-	connectCtx, cancel := context.WithTimeout(
-		ctx, connectTimeout,
-	)
+	connectCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	session, err := mcpClient.Connect(connectCtx, tr, nil)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("connect: %w", err)
+	// Run the connect+list sequence in a goroutine and enforce the
+	// budget externally. The SDK's streamable transport detaches
+	// the context after starting HTTP requests, and its error-path
+	// session.Close blocks on those detached requests, so a
+	// black-holed server can block Connect far past connectCtx's
+	// deadline. The select below guarantees the caller gets an
+	// answer within the budget regardless.
+	type connectResult struct {
+		session *mcp.ClientSession
+		tools   *mcp.ListToolsResult
+		err     error
 	}
+	resCh := make(chan connectResult, 1)
+	go func() {
+		session, err := mcpClient.Connect(connectCtx, tr, nil)
+		if err != nil {
+			resCh <- connectResult{err: xerrors.Errorf("connect: %w", err)}
+			return
+		}
+		toolsResult, err := session.ListTools(connectCtx, nil)
+		if err != nil {
+			_ = session.Close()
+			resCh <- connectResult{err: xerrors.Errorf("list tools: %w", err)}
+			return
+		}
+		resCh <- connectResult{session: session, tools: toolsResult}
+	}()
 
-	toolsResult, err := session.ListTools(connectCtx, nil)
-	if err != nil {
-		_ = session.Close()
-		return nil, nil, xerrors.Errorf("list tools: %w", err)
+	var res connectResult
+	select {
+	case res = <-resCh:
+	case <-connectCtx.Done():
+		// Abandon the wedged goroutine; it exits once the
+		// transport's dial or response-header timeout fires. The
+		// reaper drains its late result and closes any session
+		// that still materialized so nothing leaks. It must not
+		// hold locks or block the caller.
+		go func() {
+			if late := <-resCh; late.session != nil {
+				_ = late.session.Close()
+			}
+			if hooks.reaperDone != nil {
+				hooks.reaperDone()
+			}
+		}()
+		return nil, nil, xerrors.Errorf("connect: %w", connectCtx.Err())
 	}
+	if res.err != nil {
+		return nil, nil, res.err
+	}
+	session, toolsResult := res.session, res.tools
 
 	var tools []fantasy.AgentTool
 	for _, mcpTool := range toolsResult.Tools {
