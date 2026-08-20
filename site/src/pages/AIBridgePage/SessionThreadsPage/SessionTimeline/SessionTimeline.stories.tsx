@@ -203,6 +203,10 @@ export const SearchFiltersToolCalls: Story = {
 			(await canvas.findAllByText("read_file")).length,
 		).toBeGreaterThan(0);
 		await expect(canvas.queryByText("write_file")).not.toBeInTheDocument();
+		// The loop header counts the matching calls (1), not the thread total (2).
+		const toolCallRow = canvas.getByText("Tool calls").parentElement;
+		await expect(toolCallRow).toHaveTextContent("1");
+		await expect(toolCallRow).not.toHaveTextContent("2");
 	},
 };
 

@@ -465,7 +465,9 @@ const ThreadItem: FC<ThreadItemProps> = ({
 						<AgenticLoopTable
 							className="lg:max-w-64 flex-1 my-3 mx-2"
 							duration={durationInMs}
-							toolCalls={toolCalls}
+							toolCalls={
+								matchedToolCallIds?.size ? matchedToolCallIds.size : toolCalls
+							}
 						/>
 					</div>
 
