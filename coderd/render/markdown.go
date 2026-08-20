@@ -113,11 +113,29 @@ func PlaintextFromMarkdown(markdown string) (string, error) {
 	return strings.TrimSpace(output), nil
 }
 
+// notificationExtensions omits Autolink so that a bare URL in an untrusted label
+// value cannot become a live anchor. Notification body templates link with
+// explicit [label](url) syntax, which Autolink does not affect.
+const notificationExtensions = (parser.CommonExtensions | parser.HardLineBreak) & ^parser.Autolink
+
 func HTMLFromMarkdown(markdown string) string {
-	p := parser.NewWithExtensions(parser.CommonExtensions | parser.HardLineBreak) // Added HardLineBreak.
+	return renderHTML(markdown, parser.CommonExtensions|parser.HardLineBreak) // Added HardLineBreak.
+}
+
+// HTMLFromNotificationMarkdown converts a rendered notification body to HTML.
+// Unlike HTMLFromMarkdown it does not autolink bare URLs, because notification
+// bodies interpolate attacker-controlled label values.
+func HTMLFromNotificationMarkdown(markdown string) string {
+	return renderHTML(markdown, notificationExtensions)
+}
+
+func renderHTML(markdown string, extensions parser.Extensions) string {
+	p := parser.NewWithExtensions(extensions)
 	doc := p.Parse([]byte(markdown))
 	renderer := html.NewRenderer(html.RendererOptions{
-		Flags: html.CommonFlags | html.SkipHTML,
+		// Safelink restricts generated hrefs to trusted schemes, which keeps
+		// javascript: and data: out of rendered output.
+		Flags: html.CommonFlags | html.SkipHTML | html.Safelink,
 	})
 	return string(bytes.TrimSpace(gomarkdown.Render(doc, renderer)))
 }

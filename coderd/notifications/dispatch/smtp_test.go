@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"testing"
 
@@ -626,6 +627,136 @@ func TestSMTPEnvelopeAndHeaders(t *testing.T) {
 			// Verify header From preserves the display name.
 			require.Contains(t, msg.Contents, fmt.Sprintf("From: %s\r\n", tc.expectedHeaderFrom),
 				"Email From header should preserve the display name if present")
+
+			require.NoError(t, srv.Shutdown(ctx))
+			wg.Wait()
+		})
+	}
+}
+
+// TestSMTPSubjectHeader asserts that a rendered subject cannot terminate the
+// Subject header and inject another one, and that a non-ASCII subject is
+// RFC 2047 encoded rather than transmitted as raw 8-bit.
+func TestSMTPSubjectHeader(t *testing.T) {
+	t.Parallel()
+
+	const (
+		hello = "localhost"
+		to    = "bob@bob.com"
+		body  = "This is the body"
+	)
+
+	tests := []struct {
+		name string
+		// title is the rendered title template handed to the dispatcher.
+		title string
+		// wantSubject, when set, is the exact Subject header value.
+		wantSubject string
+		// wantSubjectContains are substrings the single Subject line must hold.
+		// Used where the plaintext renderer decorates the value and pinning the
+		// exact output would make the test about glamour rather than the header.
+		wantSubjectContains []string
+		// wantAbsent must not appear anywhere in the transmitted message.
+		wantAbsent string
+	}{
+		{
+			name:        "plain subject",
+			title:       "This is the subject",
+			wantSubject: "This is the subject",
+		},
+		{
+			name: "newline cannot inject a header",
+			// PlaintextFromMarkdown preserves the paragraph break, so this
+			// reaches the header writer containing newlines.
+			title:               "Innocent subject\n\nBcc: attacker@example.com",
+			wantSubjectContains: []string{"Innocent subject", "Bcc: attacker@example.com"},
+			wantAbsent:          "\r\nBcc:",
+		},
+		{
+			name:        "non-ascii subject is encoded",
+			title:       "Konto gelöscht",
+			wantSubject: "=?utf-8?q?Konto_gel=C3=B6scht?=",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+			cfg := codersdk.NotificationsEmailConfig{
+				Hello: serpent.String(hello),
+				From:  serpent.String("system@coder.com"),
+			}
+
+			backend := smtptest.NewBackend(smtptest.Config{AuthMechanisms: []string{}})
+			srv, listen, err := smtptest.CreateMockSMTPServer(backend, false)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				assert.ErrorIs(t, srv.Shutdown(ctx), smtp.ErrServerClosed)
+			})
+
+			var hp serpent.HostPort
+			require.NoError(t, hp.Set(listen.Addr().String()))
+			cfg.Smarthost = serpent.String(hp.String())
+
+			handler := dispatch.NewSMTPHandler(cfg, logger.Named("smtp"))
+
+			var wg sync.WaitGroup
+			wg.Go(func() {
+				assert.NoError(t, srv.Serve(listen))
+			})
+
+			require.Eventually(t, func() bool {
+				cl, err := smtptest.PingClient(listen, false, false)
+				if err != nil {
+					return false
+				}
+				_ = cl.Close()
+				return true
+			}, testutil.WaitShort, testutil.IntervalFast)
+
+			payload := types.MessagePayload{
+				Version:   "1.0",
+				UserEmail: to,
+				Labels:    make(map[string]string),
+			}
+
+			dispatchFn, err := handler.Dispatcher(payload, tc.title, body, helpers())
+			require.NoError(t, err)
+
+			retryable, err := dispatchFn(ctx, uuid.New())
+			require.NoError(t, err)
+			require.False(t, retryable)
+
+			msg := backend.LastMessage()
+			require.NotNil(t, msg)
+
+			// Assertions are scoped to the header block. A blank line ends it;
+			// anything after that is body content, which this test is not about.
+			headers, _, found := strings.Cut(msg.Contents, "\r\n\r\n")
+			require.True(t, found, "message has no header/body separator")
+
+			// The header must occupy exactly one line, whatever the value held.
+			require.Equal(t, 1, strings.Count(headers, "Subject: "),
+				"exactly one Subject header must be present")
+			_, after, found := strings.Cut(headers, "Subject: ")
+			require.True(t, found, "no Subject header in %q", headers)
+			subject, _, found := strings.Cut(after, "\r\n")
+			require.True(t, found, "Subject header is not CRLF terminated")
+
+			if tc.wantSubject != "" {
+				require.Equal(t, tc.wantSubject, subject)
+			}
+			for _, want := range tc.wantSubjectContains {
+				require.Contains(t, subject, want)
+			}
+			if tc.wantAbsent != "" {
+				require.NotContains(t, headers, tc.wantAbsent,
+					"a value must not be able to inject an additional header")
+			}
 
 			require.NoError(t, srv.Shutdown(ctx))
 			wg.Wait()
