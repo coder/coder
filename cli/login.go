@@ -584,62 +584,57 @@ func openURL(inv *serpent.Invocation, urlToOpen string) error {
 }
 
 // collectFirstUserTrialInfo fills in any trial info fields that were not
-// already supplied via CLI flags or environment variables by prompting for
-// them. In non-interactive environments (for example automation scripts)
-// there is no input to read, so a prompt fails with io.EOF. Rather than
-// surfacing that cryptic error, collectFirstUserTrialInfo returns a message
-// naming the flag and environment variable that must be set instead.
+// already supplied via CLI flags or environment variables.
+//
+// In a non-interactive environment (for example an automation script) there
+// is no input to prompt against. Some prompts surface that as an io.EOF, but
+// the country and developers selects run through bubbletea, which swallows
+// io.EOF and would block forever waiting for input that never arrives.
+// To avoid hanging, non-interactivity is decided up front via isTTYIn: when
+// there is no TTY, every missing field is reported in a single actionable
+// error naming the flag and environment variable to set, instead of
+// prompting.
 func collectFirstUserTrialInfo(inv *serpent.Invocation, info *codersdk.CreateFirstUserTrialInfo) error {
-	textFields := []struct {
-		name  string
-		flag  string
-		env   string
-		value *string
+	fields := []struct {
+		flag   string
+		env    string
+		value  *string
+		prompt func(*serpent.Invocation) (string, error)
 	}{
-		{"firstName", "first-user-trial-first-name", "CODER_FIRST_USER_TRIAL_FIRST_NAME", &info.FirstName},
-		{"lastName", "first-user-trial-last-name", "CODER_FIRST_USER_TRIAL_LAST_NAME", &info.LastName},
-		{"phoneNumber", "first-user-trial-phone-number", "CODER_FIRST_USER_TRIAL_PHONE_NUMBER", &info.PhoneNumber},
-		{"jobTitle", "first-user-trial-job-title", "CODER_FIRST_USER_TRIAL_JOB_TITLE", &info.JobTitle},
-		{"companyName", "first-user-trial-company-name", "CODER_FIRST_USER_TRIAL_COMPANY_NAME", &info.CompanyName},
+		{"first-user-trial-first-name", "CODER_FIRST_USER_TRIAL_FIRST_NAME", &info.FirstName, func(inv *serpent.Invocation) (string, error) { return promptTrialInfo(inv, "firstName") }},
+		{"first-user-trial-last-name", "CODER_FIRST_USER_TRIAL_LAST_NAME", &info.LastName, func(inv *serpent.Invocation) (string, error) { return promptTrialInfo(inv, "lastName") }},
+		{"first-user-trial-phone-number", "CODER_FIRST_USER_TRIAL_PHONE_NUMBER", &info.PhoneNumber, func(inv *serpent.Invocation) (string, error) { return promptTrialInfo(inv, "phoneNumber") }},
+		{"first-user-trial-job-title", "CODER_FIRST_USER_TRIAL_JOB_TITLE", &info.JobTitle, func(inv *serpent.Invocation) (string, error) { return promptTrialInfo(inv, "jobTitle") }},
+		{"first-user-trial-company-name", "CODER_FIRST_USER_TRIAL_COMPANY_NAME", &info.CompanyName, func(inv *serpent.Invocation) (string, error) { return promptTrialInfo(inv, "companyName") }},
+		{"first-user-trial-country", "CODER_FIRST_USER_TRIAL_COUNTRY", &info.Country, promptCountry},
+		{"first-user-trial-developers", "CODER_FIRST_USER_TRIAL_DEVELOPERS", &info.Developers, promptDevelopers},
 	}
-	for _, f := range textFields {
+
+	if !isTTYIn(inv) {
+		var missing []string
+		for _, f := range fields {
+			if *f.value == "" {
+				missing = append(missing, fmt.Sprintf("--%s (or %s)", f.flag, f.env))
+			}
+		}
+		if len(missing) > 0 {
+			return xerrors.Errorf("--first-user-trial requires trial info that cannot be prompted for in a non-interactive environment; set %s", strings.Join(missing, ", "))
+		}
+		return nil
+	}
+
+	for _, f := range fields {
 		if *f.value != "" {
 			continue
 		}
-		value, err := promptTrialInfo(inv, f.name)
+		value, err := f.prompt(inv)
 		if err != nil {
-			return trialInfoPromptError(err, f.flag, f.env)
+			return err
 		}
 		*f.value = value
 	}
 
-	if info.Country == "" {
-		country, err := promptCountry(inv)
-		if err != nil {
-			return trialInfoPromptError(err, "first-user-trial-country", "CODER_FIRST_USER_TRIAL_COUNTRY")
-		}
-		info.Country = country
-	}
-
-	if info.Developers == "" {
-		developers, err := promptDevelopers(inv)
-		if err != nil {
-			return trialInfoPromptError(err, "first-user-trial-developers", "CODER_FIRST_USER_TRIAL_DEVELOPERS")
-		}
-		info.Developers = developers
-	}
-
 	return nil
-}
-
-// trialInfoPromptError converts an EOF from an interactive trial-info prompt
-// into an actionable error naming the flag and environment variable to set.
-// Other errors are returned unchanged.
-func trialInfoPromptError(err error, flag, env string) error {
-	if errors.Is(err, io.EOF) {
-		return xerrors.Errorf("--%s (or %s) is required when --first-user-trial is set in a non-interactive environment", flag, env)
-	}
-	return err
 }
 
 func promptTrialInfo(inv *serpent.Invocation, fieldName string) (string, error) {

@@ -283,6 +283,7 @@ func TestLogin(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		inv, _ := clitest.New(
 			t, "login", client.URL.String(),
+			"--force-tty",
 			"--first-user-username", coderdtest.FirstUserParams.Username,
 			"--first-user-full-name", coderdtest.FirstUserParams.Name,
 			"--first-user-email", coderdtest.FirstUserParams.Email,
@@ -325,6 +326,7 @@ func TestLogin(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		inv, _ := clitest.New(
 			t, "login", client.URL.String(),
+			"--force-tty",
 			"--first-user-username", coderdtest.FirstUserParams.Username,
 			"--first-user-email", coderdtest.FirstUserParams.Email,
 			"--first-user-password", coderdtest.FirstUserParams.Password,
@@ -462,11 +464,47 @@ func TestLogin(t *testing.T) {
 		)
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		// No PTY is attached and the trial info flags are missing, so the
-		// command must fail fast instead of blocking on an EOF prompt.
+		// command must fail fast instead of blocking on a prompt that can
+		// never receive input.
 		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
+		require.ErrorContains(t, err, "non-interactive")
+		// Every missing field must be reported in a single error.
 		require.ErrorContains(t, err, "--first-user-trial-first-name")
 		require.ErrorContains(t, err, "CODER_FIRST_USER_TRIAL_FIRST_NAME")
+		require.ErrorContains(t, err, "--first-user-trial-developers")
+		require.ErrorContains(t, err, "CODER_FIRST_USER_TRIAL_DEVELOPERS")
+	})
+
+	t.Run("InitialUserTrialNonInteractiveMissingSelectInfo", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		// Supply every text field but omit the two select-backed fields
+		// (country and developers). These go through bubbletea, which
+		// swallows io.EOF and would otherwise hang forever; they must
+		// instead produce the same actionable error as the text fields.
+		inv, _ := clitest.New(
+			t, "login", client.URL.String(),
+			"--first-user-username", coderdtest.FirstUserParams.Username,
+			"--first-user-full-name", coderdtest.FirstUserParams.Name,
+			"--first-user-email", coderdtest.FirstUserParams.Email,
+			"--first-user-password", coderdtest.FirstUserParams.Password,
+			"--first-user-trial",
+			"--first-user-trial-first-name", coderdtest.TrialUserParams.FirstName,
+			"--first-user-trial-last-name", coderdtest.TrialUserParams.LastName,
+			"--first-user-trial-phone-number", coderdtest.TrialUserParams.PhoneNumber,
+			"--first-user-trial-job-title", coderdtest.TrialUserParams.JobTitle,
+			"--first-user-trial-company-name", coderdtest.TrialUserParams.CompanyName,
+		)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "--first-user-trial-country")
+		require.ErrorContains(t, err, "CODER_FIRST_USER_TRIAL_COUNTRY")
+		require.ErrorContains(t, err, "--first-user-trial-developers")
+		require.ErrorContains(t, err, "CODER_FIRST_USER_TRIAL_DEVELOPERS")
+		// The satisfied text fields must not be named as missing.
+		require.NotContains(t, err.Error(), "--first-user-trial-first-name")
 	})
 
 	t.Run("InitialUserTTYConfirmPasswordFailAndReprompt", func(t *testing.T) {
