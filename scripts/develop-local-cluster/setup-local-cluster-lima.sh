@@ -222,9 +222,17 @@ checkout_coder() {
 }
 
 install_repo_tools() {
-	log "Installing repository-pinned Go, Node.js, pnpm, Helm, and kind"
+	log "Installing repository-pinned build tools"
 	mise trust mise.toml
-	mise install --locked go node pnpm helm kind
+	mise install --locked \
+		go \
+		node \
+		pnpm \
+		helm \
+		kind \
+		protoc \
+		protoc-gen-go \
+		go:storj.io/drpc/cmd/protoc-gen-go-drpc
 	eval "$(mise activate bash)"
 
 	printf 'available: Go (%s)\n' "$(go version)"
@@ -232,6 +240,9 @@ install_repo_tools() {
 	printf 'available: pnpm (%s)\n' "$(pnpm --version)"
 	printf 'available: Helm (%s)\n' "$(helm version --short)"
 	printf 'available: kind (%s)\n' "$(kind version)"
+	printf 'available: protoc (%s)\n' "$(protoc --version)"
+	printf 'available: protoc-gen-go (%s)\n' "$(protoc-gen-go --version)"
+	printf 'available: protoc-gen-go-drpc\n'
 }
 
 cluster_command() {
