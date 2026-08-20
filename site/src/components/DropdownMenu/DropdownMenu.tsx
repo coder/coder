@@ -55,6 +55,24 @@ export const DropdownMenuItem: React.FC<DropdownMenuItemProps> = ({
 	);
 };
 
+export const DropdownMenuCheckboxItem: React.FC<
+	React.ComponentPropsWithRef<typeof DropdownMenuPrimitive.CheckboxItem>
+> = ({ className, children, ...props }) => {
+	return (
+		<DropdownMenuPrimitive.CheckboxItem
+			className={cn(menuItemClass, "relative pr-8", className)}
+			{...props}
+		>
+			{children}
+			<span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
+				<DropdownMenuPrimitive.ItemIndicator>
+					<CheckIcon className="size-4" />
+				</DropdownMenuPrimitive.ItemIndicator>
+			</span>
+		</DropdownMenuPrimitive.CheckboxItem>
+	);
+};
+
 export const DropdownMenuRadioItem: React.FC<
 	React.ComponentPropsWithRef<typeof DropdownMenuPrimitive.RadioItem>
 > = ({ className, children, ...props }) => {

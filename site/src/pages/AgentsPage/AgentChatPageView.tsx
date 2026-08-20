@@ -63,11 +63,16 @@ import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import {
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
+	getPersistedVisibleSingletonTabs,
 	savePersistedDefaultTerminalHidden,
 	savePersistedRightPanelTabs,
+	savePersistedVisibleSingletonTabs,
 } from "./utils/rightPanelTabStorage";
 import {
+	isSingletonRightPanelTabId,
 	type PortSelection,
+	type SingletonRightPanelTabId,
+	singletonRightPanelTabIds,
 	type UserRightPanelTab,
 	validateUserRightPanelTabs,
 } from "./utils/rightPanelTabs";
@@ -439,6 +444,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	>(() => getPersistedRightPanelTabs(agentId));
 	const [defaultTerminalHidden, setDefaultTerminalHiddenState] =
 		useState<boolean>(() => getPersistedDefaultTerminalHidden(agentId));
+	const [visibleSingletonTabs, setVisibleSingletonTabsState] = useState<
+		SingletonRightPanelTabId[]
+	>(() => getPersistedVisibleSingletonTabs(agentId));
 	const [pendingTabId, setPendingTabId] = useState<string | null>(null);
 
 	const setSidebarTabId = (tabId: string) => {
@@ -460,16 +468,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		}
 	}, [agentId, defaultTerminalHidden, isArchived]);
 
-	const handleOpenDesktop = () => {
-		onSetShowSidebarPanel(true);
-		setPendingTabId(null);
-		setSidebarTabId("desktop");
-	};
-
-	const desktopPanelCtx = {
-		desktopChatId,
-		onOpenDesktop: desktopChatId ? handleOpenDesktop : undefined,
-	};
+	useEffect(() => {
+		if (!isArchived) {
+			savePersistedVisibleSingletonTabs(agentId, visibleSingletonTabs);
+		}
+	}, [agentId, isArchived, visibleSingletonTabs]);
 
 	const shouldShowSidebar = showSidebarPanel;
 
@@ -502,14 +505,28 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	})();
 
 	// Desktop is only available when the workspace and agent are ready;
-	// include it in the tab list on that same condition to avoid selecting
-	// "desktop" when no desktop panel is rendered.
+	// offer it as a singleton panel on that same condition to avoid
+	// selecting "desktop" when no desktop panel is rendered.
 	const availableDesktopChatId =
 		workspace && workspaceAgent ? desktopChatId : undefined;
 
 	const availableBrowserApp = workspace
 		? getAgentBrowserApp(workspaceAgent)
 		: undefined;
+
+	// Singleton panels the user can show or hide from the add-tab dropdown.
+	const singletonTabSupport: Record<SingletonRightPanelTabId, boolean> = {
+		browser: availableBrowserApp !== undefined,
+		desktop: availableDesktopChatId !== undefined,
+		debug: debugLoggingEnabled === true,
+	};
+	const supportedSingletonTabs = singletonRightPanelTabIds.filter(
+		(tabId) => singletonTabSupport[tabId],
+	);
+	// A saved choice survives a panel losing support, so the tab returns
+	// once the workspace, app, or debug setting is available again.
+	const isSingletonTabShown = (tabId: SingletonRightPanelTabId) =>
+		singletonTabSupport[tabId] && visibleSingletonTabs.includes(tabId);
 
 	const validatedUserRightPanelTabs = validateUserRightPanelTabs(
 		userRightPanelTabs,
@@ -526,9 +543,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const builtInSidebarTabConfigs = [
 		{ id: "summary", label: "Summary" },
 		{ id: "git", label: "Git" },
-		...(debugLoggingEnabled ? [{ id: "debug", label: "Debug" }] : []),
-		...(availableBrowserApp ? [{ id: "browser", label: "Browser" }] : []),
-		...(availableDesktopChatId ? [{ id: "desktop", label: "Desktop" }] : []),
+		...(isSingletonTabShown("debug") ? [{ id: "debug", label: "Debug" }] : []),
+		...(isSingletonTabShown("browser")
+			? [{ id: "browser", label: "Browser" }]
+			: []),
+		...(isSingletonTabShown("desktop")
+			? [{ id: "desktop", label: "Desktop" }]
+			: []),
 		...(hasBuiltInTerminal ? [{ id: "terminal", label: "Terminal" }] : []),
 	];
 	// Dense terminal numbering: position among unlabeled terminal tabs,
@@ -558,16 +579,30 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		}),
 	];
 	const sidebarTabIds = sidebarTabConfigs.map((tab) => tab.id);
-	const effectiveSidebarTabId = getEffectiveTabId(
-		sidebarTabIds,
-		sidebarTabId,
-		availableDesktopChatId,
-	);
+	const effectiveSidebarTabId = getEffectiveTabId(sidebarTabIds, sidebarTabId);
 
 	const activateRightPanelTab = (tabId: string) => {
 		onSetShowSidebarPanel(true);
 		setPendingTabId(null);
 		setSidebarTabId(tabId);
+	};
+
+	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
+		setVisibleSingletonTabsState((currentTabIds) =>
+			currentTabIds.includes(tabId) ? currentTabIds : [...currentTabIds, tabId],
+		);
+		activateRightPanelTab(tabId);
+	};
+
+	const handleOpenDesktop = () => {
+		showSingletonTab("desktop");
+	};
+
+	const desktopPanelCtx = {
+		desktopChatId,
+		// Only offer the action when the panel can render, which keeps a tool
+		// action from selecting a Desktop tab that the tab list omits.
+		onOpenDesktop: availableDesktopChatId ? handleOpenDesktop : undefined,
 	};
 
 	// Ignore late readiness from a tab the user already navigated past.
@@ -789,6 +824,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 		if (tabId === "terminal") {
 			setDefaultTerminalHiddenState(true);
+		} else if (isSingletonRightPanelTabId(tabId)) {
+			setVisibleSingletonTabsState((currentTabIds) =>
+				currentTabIds.filter((id) => id !== tabId),
+			);
 		} else {
 			setUserRightPanelTabsState((currentTabs) =>
 				currentTabs.filter((tab) => tab.id !== tabId),
@@ -805,9 +844,21 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		}
 	};
 
+	const handleToggleSingletonTab = (tabId: SingletonRightPanelTabId) => {
+		if (!singletonTabSupport[tabId]) {
+			return;
+		}
+		if (isSingletonTabShown(tabId)) {
+			handleCloseTab(tabId);
+			return;
+		}
+		showSingletonTab(tabId);
+	};
+
 	const sidebarTabs = sidebarTabConfigs.map((tab) => {
 		const isCloseable =
 			tab.id === "terminal" ||
+			isSingletonRightPanelTabId(tab.id) ||
 			validatedUserRightPanelTabs.some((userTab) => userTab.id === tab.id);
 		return {
 			id: tab.id,
@@ -1038,6 +1089,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									agent={workspaceAgent}
 									host={wildcardHostname}
 									isRunning={workspace?.latest_build.status === "running"}
+									supportedSingletonTabs={supportedSingletonTabs}
+									visibleSingletonTabs={supportedSingletonTabs.filter((tabId) =>
+										isSingletonTabShown(tabId),
+									)}
+									onToggleSingletonTab={handleToggleSingletonTab}
 									onNewTerminal={handleAddTerminalTab}
 									onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
 									onOpenCommandApp={handleOpenCommandAppTab}

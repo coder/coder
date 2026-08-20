@@ -43,6 +43,7 @@ import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
 import type { ModelSelectorOption } from "./components/ChatElements";
+import { visibleSingletonTabsStorageKeyPrefix } from "./utils/rightPanelTabStorage";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 
 // ---------------------------------------------------------------------------
@@ -1737,7 +1738,32 @@ const mockAgentWithBrowserApp: TypesGen.WorkspaceAgent = {
 	apps: [...MockWorkspaceAgent.apps, mockAgentBrowserApp],
 };
 
+const singletonTabsStorageKey = `${visibleSingletonTabsStorageKeyPrefix}${AGENT_ID}`;
+
+/**
+ * Singleton panels start hidden, so a story that needs a visible Browser,
+ * Desktop, or Debug tab seeds the per-chat storage entry before mount.
+ */
+const seedVisibleSingletonTabs = (tabIds: readonly string[]) => {
+	localStorage.setItem(singletonTabsStorageKey, JSON.stringify(tabIds));
+	return () => {
+		localStorage.removeItem(singletonTabsStorageKey);
+	};
+};
+
+const clearVisibleSingletonTabs = () => {
+	localStorage.removeItem(singletonTabsStorageKey);
+	return () => {
+		localStorage.removeItem(singletonTabsStorageKey);
+	};
+};
+
+const openAddPanelMenu = async (canvas: ReturnType<typeof within>) => {
+	await userEvent.click(canvas.getByLabelText("Add panel"));
+};
+
 export const BrowserTabForHealthyAgentBrowserApp: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1768,6 +1794,7 @@ export const BrowserTabForHealthyAgentBrowserApp: Story = {
 };
 
 export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1873,6 +1900,221 @@ export const PreservesUnavailableBrowserTab: Story = {
 		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
 
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBe("browser");
+	},
+};
+
+const renderWithSingletonSupport = () => (
+	<StoryAgentChatPageView
+		showSidebarPanel
+		debugLoggingEnabled
+		workspace={MockWorkspace}
+		workspaceAgent={mockAgentWithBrowserApp}
+		desktopChatId={AGENT_ID}
+		sshCommand="ssh coder.workspace"
+	/>
+);
+
+/**
+ * A new chat shows no singleton panel. The dropdown offers every supported
+ * panel as an unchecked toggle.
+ */
+export const SingletonPanelsHiddenByDefault: Story = {
+	beforeEach: clearVisibleSingletonTabs,
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
+		expect(tabLabels).toEqual(["Summary", "Git", "Terminal"]);
+
+		await openAddPanelMenu(canvas);
+		for (const label of ["Browser", "Desktop", "Debug"]) {
+			const item = await body.findByRole("menuitemcheckbox", { name: label });
+			expect(item).toHaveAttribute("aria-checked", "false");
+		}
+	},
+};
+
+/**
+ * Toggling a dropdown entry shows the panel, activates it, and gives it a
+ * close control. Toggling the same entry again hides the panel.
+ */
+export const TogglesSingletonPanelFromDropdown: Story = {
+	beforeEach: clearVisibleSingletonTabs,
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Browser" }),
+		);
+
+		const browserTab = await canvas.findByRole("tab", { name: "Browser" });
+		await waitFor(() => {
+			expect(browserTab).toHaveAttribute("aria-selected", "true");
+		});
+		expect(
+			canvas.getByRole("button", { name: "Close Browser tab" }),
+		).toBeVisible();
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe('["browser"]');
+
+		await openAddPanelMenu(canvas);
+		expect(
+			await body.findByRole("menuitemcheckbox", { name: "Browser" }),
+		).toHaveAttribute("aria-checked", "true");
+
+		// Select another tab first: closing the active singleton selects a
+		// neighbor, and "Closes Active Singleton Panel" covers that path.
+		await userEvent.keyboard("{Escape}");
+		// The open menu marks the rest of the page aria-hidden, so wait for it
+		// to close before reaching a tab.
+		await waitFor(() => {
+			expect(
+				body.queryByRole("menuitemcheckbox", { name: "Browser" }),
+			).toBeNull();
+		});
+		await userEvent.click(canvas.getByRole("tab", { name: "Git" }));
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Browser" }),
+		);
+		await waitFor(() => {
+			expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
+		});
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe("[]");
+	},
+};
+
+/**
+ * The X control on a visible singleton tab removes the panel, unchecks the
+ * dropdown entry, and selects the neighboring tab.
+ */
+export const ClosesActiveSingletonPanel: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser", "debug"]),
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		const debugTab = await canvas.findByRole("tab", { name: "Debug" });
+		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
+		expect(tabLabels).toEqual([
+			"Summary",
+			"Git",
+			"Debug",
+			"Browser",
+			"Terminal",
+		]);
+
+		await userEvent.click(debugTab);
+		await waitFor(() => {
+			expect(debugTab).toHaveAttribute("aria-selected", "true");
+		});
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Close Debug tab" }),
+		);
+
+		await waitFor(() => {
+			expect(canvas.queryByRole("tab", { name: "Debug" })).toBeNull();
+		});
+		// Closing the active tab selects the tab that took its position.
+		expect(canvas.getByRole("tab", { name: "Browser" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe('["browser"]');
+
+		await openAddPanelMenu(canvas);
+		expect(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		).toHaveAttribute("aria-checked", "false");
+	},
+};
+
+/** A singleton panel never appears twice, however often the user shows it. */
+export const ReopenedSingletonPanelStaysSingle: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["debug"]),
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Debug" });
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		);
+		await waitFor(() => {
+			expect(canvas.queryByRole("tab", { name: "Debug" })).toBeNull();
+		});
+
+		await openAddPanelMenu(canvas);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
+		);
+		await canvas.findByRole("tab", { name: "Debug" });
+
+		expect(canvas.getAllByRole("tab", { name: "Debug" })).toHaveLength(1);
+	},
+};
+
+/**
+ * A saved panel returns on the next mount. This proves the per-chat entry
+ * drives visibility instead of component state alone.
+ */
+export const RestoresPersistedSingletonPanel: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["desktop"]),
+	render: renderWithSingletonSupport,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await canvas.findByRole("tab", { name: "Desktop" });
+		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
+		expect(canvas.queryByRole("tab", { name: "Debug" })).toBeNull();
+	},
+};
+
+/**
+ * An unsupported panel appears in neither the dropdown nor the tab list,
+ * even when storage still holds the saved choice from an earlier session.
+ */
+export const HidesUnsupportedSingletonPanels: Story = {
+	beforeEach: () => seedVisibleSingletonTabs(["browser", "desktop", "debug"]),
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
+		expect(tabLabels).toEqual(["Summary", "Git", "Terminal"]);
+
+		await openAddPanelMenu(canvas);
+		await body.findByText("New Terminal");
+		for (const label of ["Browser", "Desktop", "Debug"]) {
+			expect(body.queryByRole("menuitemcheckbox", { name: label })).toBeNull();
+		}
+
+		// The saved choice survives the loss of support.
+		expect(localStorage.getItem(singletonTabsStorageKey)).toBe(
+			'["browser","desktop","debug"]',
+		);
 	},
 };
 
