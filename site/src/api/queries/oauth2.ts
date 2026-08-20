@@ -29,7 +29,7 @@ export const getGitHubDeviceFlowCallback = (code: string, state: string) => {
 	};
 };
 
-export function oauth2AppsKey(req: TypesGen.OAuth2ProviderAppFilter) {
+function oauth2AppsKey(req: TypesGen.OAuth2ProviderAppFilter) {
 	return [...oauth2ProviderAppsKey, req] as const;
 }
 

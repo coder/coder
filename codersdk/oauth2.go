@@ -68,7 +68,7 @@ func (c *Client) OAuth2ProviderApps(ctx context.Context, filter OAuth2ProviderAp
 		return OAuth2ProviderAppsResponse{}, ReadBodyAsError(res)
 	}
 	var resp OAuth2ProviderAppsResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // OAuth2ProviderApp returns an application configured to authenticate using
