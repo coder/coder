@@ -1,23 +1,11 @@
 import dayjs from "dayjs";
 
-/**
- * A quick-pick option shown at the top of the picker dropdown. Presets
- * are relative to "now" so consumers can re-resolve them on refresh
- * instead of persisting frozen timestamps.
- */
 export interface QuickPreset {
 	id: string;
 	label: string;
 	range: (now: Date) => { start: Date; end: Date };
 }
 
-/**
- * The committed picker value. Boundaries are always concrete local
- * Dates; send them to the API in UTC (Date.toISOString). Quick picks
- * resolve to dates at selection time and record their id purely so the
- * trigger can keep rendering the preset label; the id is display
- * metadata and must not be sent to the backend.
- */
 export interface DateTimeRangeValue {
 	start: Date;
 	end: Date;
@@ -65,9 +53,7 @@ interface ClockTime {
 const TIME_PATTERN = /^(\d{1,2}):([0-5]\d)(?::([0-5]\d))?$/;
 
 /**
- * Parses a 12-hour clock string such as "12:00:00", "9:30", or
- * "09:30:15". Seconds are optional and default to zero. Returns null
- * for anything that is not a valid 12-hour time.
+ * Parses a 12-hour clock string. Seconds are optional and default to zero.
  */
 export const parseClockTime = (text: string): ClockTime | null => {
 	const match = TIME_PATTERN.exec(text.trim());
@@ -114,10 +100,7 @@ export const toClockFields = (
 };
 
 /**
- * Summarizes a custom range for the trigger button, favoring the most
- * compact form: "April 12, 9:00 AM - 11:00 AM" for intra-day ranges,
- * "April 10-16", "Mar 28 - Apr 2", or a fully qualified pair when the
- * years differ.
+ * Summarizes a custom range to the most compact form.
  */
 export const formatCustomLabel = (start: Date, end: Date): string => {
 	const from = dayjs(start);

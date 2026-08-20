@@ -1,11 +1,6 @@
 /**
- * A date-and-time range picker with quick picks. The dropdown opens as
- * a plain list of relative presets; the calendar and time fields stay
- * hidden until "Custom range" is chosen. Composed from the project's
- * Calendar, Popover, Select, and Button primitives.
- *
- * Frontend-only: the emitted value is always resolved dates (see
- * DateTimeRangeValue); consumers convert to UTC at the API boundary.
+ * A date-and-time range picker with quick picks. The calendar and time fields stay
+ * hidden until "Custom range" is chosen.
  */
 
 import { CalendarIcon, CheckIcon, ChevronDownIcon } from "lucide-react";
@@ -124,8 +119,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 		setOpen(false);
 	};
 
-	// Roving focus for the quick-pick radiogroup: arrows move between
-	// options, Tab leaves the group from the selected item.
+	// Roving focus for the quick-pick radiogroup.
 	const handleQuickPickKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
 		const isNext = event.key === "ArrowDown" || event.key === "ArrowRight";
 		const isPrevious = event.key === "ArrowUp" || event.key === "ArrowLeft";
@@ -147,8 +141,6 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 
 	const parsedFrom = parseClockTime(timeFields.from);
 	const parsedTo = parseClockTime(timeFields.to);
-	// Invalid text always blocks Apply, but the message waits for blur so
-	// it does not flash while a partially typed time is still in flight.
 	const fromTimeError =
 		timeFields.fromTouched && parsedFrom === null ? INVALID_TIME_MESSAGE : null;
 	const toTimeError =
@@ -158,8 +150,6 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 		selection?.from && parsedFrom
 			? combineDateTime(selection.from, parsedFrom, timeFields.fromMeridiem)
 			: null;
-	// A lone calendar click is a valid single-day range: the To boundary
-	// falls back to the From day until a second day is picked.
 	const draftEnd =
 		selection?.from && parsedTo
 			? combineDateTime(
@@ -175,8 +165,6 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	const canApply =
 		draftStart !== null && draftEnd !== null && rangeError === null;
 
-	// A single message overlaid on the calendar keeps the popover size
-	// stable; inline errors would grow the panel and shift the layout.
 	const errorMessage = fromTimeError ?? toTimeError ?? rangeError;
 
 	// Toast-style dismissal: each message hides after a timeout but is
