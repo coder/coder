@@ -94,8 +94,8 @@ through `2026-07-28`, does not issue `Mcp-Session-Id` headers, and answers
 `GET` and `DELETE` with `405 Method Not Allowed` (there is no standalone
 server-event stream or explicit session termination, both permitted by the
 specification). The server exposes tools only; MCP resources, prompts,
-structured tool output, elicitation, and the MCP Tasks extension (which is
-unrelated to Coder's task reporting tool) are not implemented.
+structured tool output, elicitation, and the MCP Tasks extension are not
+implemented.
 
 ### Prerequisites
 
