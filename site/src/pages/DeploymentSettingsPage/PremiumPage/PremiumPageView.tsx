@@ -19,7 +19,7 @@ type PremiumPageViewProps = {
 	onSubmit: (request: TypesGen.CreateTrialLicenseRequest) => void;
 	isSubmitting: boolean;
 	error?: unknown;
-}
+};
 
 export const PremiumPageView: FC<PremiumPageViewProps> = ({
 	hasLicense,

@@ -1,14 +1,12 @@
 # This exercises the real premium trial signup flow against v2-licensor.coder.com
-# This depends on a live external production service; it runs nightly (plus manual dispatch)
-# to avoid load on and false leads through that service.
+# This runs a seperate playwright test suite configured for additional connectivity
+# This depends on a live external production service; it runs on dispatch and test changes
 name: premium-trial-e2e
 on:
-  schedule:
-    # Nightly at an off-peak minute, distinct from nightly-gauntlet's 4AM run.
-    - cron: "17 5 * * *"
+  workflow_dispatch:
   pull_request:
     paths:
-      - site/e2e/tests/deployment/premiumTrial.spec.ts
+      - 'site/e2e/tests/deployment/premiumTrial.spec.ts'
 
 permissions:
   contents: read
@@ -79,44 +77,3 @@ jobs:
           path: ./site/e2e/test-results/debug.log
           retention-days: 7
 
-  notify-slack-on-failure:
-    needs:
-      - test-e2e-premium-trial
-    runs-on: ubuntu-latest
-    if: failure()
-
-    steps:
-      - name: Send Slack notification
-        run: |
-          ESCAPED_PROMPT=$(printf "%s" "<@U09LQ75AHKR> $BLINK_CI_FAILURE_PROMPT" | jq -Rsa .)
-          curl -X POST -H 'Content-type: application/json' \
-          --data '{
-            "blocks": [
-              {
-                "type": "header",
-                "text": {
-                  "type": "plain_text",
-                  "text": "❌ Premium trial e2e failed",
-                  "emoji": true
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*View failure:* <'"${RUN_URL}"'|Click here>"
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": '"$ESCAPED_PROMPT"'
-                }
-              }
-            ]
-          }' "${SLACK_WEBHOOK}"
-        env:
-          SLACK_WEBHOOK: ${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}
-          RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          BLINK_CI_FAILURE_PROMPT: ${{ vars.BLINK_CI_FAILURE_PROMPT }}
