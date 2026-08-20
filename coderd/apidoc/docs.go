@@ -86,6 +86,17 @@ const docTemplate = `{
                         "description": "Only return prices for this model",
                         "name": "model",
                         "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "default",
+                            "custom",
+                            "all"
+                        ],
+                        "type": "string",
+                        "description": "Only return prices from this source, or all to return every price a model holds",
+                        "name": "source",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -16191,11 +16202,25 @@ const docTemplate = `{
                 "provider": {
                     "type": "string"
                 },
+                "source": {
+                    "$ref": "#/definitions/codersdk.AIModelPriceSource"
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
                 }
             }
+        },
+        "codersdk.AIModelPriceSource": {
+            "type": "string",
+            "enum": [
+                "default",
+                "custom"
+            ],
+            "x-enum-varnames": [
+                "AIModelPriceSourceDefault",
+                "AIModelPriceSourceCustom"
+            ]
         },
         "codersdk.AIModelPriceUpsert": {
             "type": "object",

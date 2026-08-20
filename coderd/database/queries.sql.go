@@ -2862,9 +2862,11 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 }
 
 const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel :one
-SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
+SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source
 FROM ai_model_prices
 WHERE provider = $1 AND model = $2
+ORDER BY CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
+LIMIT 1
 `
 
 type GetAIModelPriceByProviderModelParams struct {
@@ -2872,6 +2874,8 @@ type GetAIModelPriceByProviderModelParams struct {
 	Model    string `db:"model" json:"model"`
 }
 
+// Returns the price in effect for the model, preferring a custom price over
+// the price book.
 func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error) {
 	row := q.db.QueryRowContext(ctx, getAIModelPriceByProviderModel, arg.Provider, arg.Model)
 	var i AIModelPrice
@@ -2884,35 +2888,57 @@ func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg Get
 		&i.CacheWritePrice,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Source,
 	)
 	return i, err
 }
 
 const getAIModelPrices = `-- name: GetAIModelPrices :many
-SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
+SELECT DISTINCT ON (
+    provider,
+    model,
+    CASE WHEN $1::text = 'all' THEN source::text ELSE '' END
+) provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source
 FROM ai_model_prices
     -- Filter by provider
 WHERE CASE
-        WHEN $1::text != '' THEN
-            provider = $1
+        WHEN $2::text != '' THEN
+            provider = $2
         ELSE true
     END
     -- Filter by model
     AND CASE
-        WHEN $2::text != '' THEN
-            model = $2
+        WHEN $3::text != '' THEN
+            model = $3
         ELSE true
     END
-ORDER BY provider, model
+    -- Filter by source
+    AND CASE
+        WHEN $1::text NOT IN ('', 'all') THEN
+            source = $1::ai_model_price_source
+        ELSE true
+    END
+ORDER BY
+    provider ASC,
+    model ASC,
+    CASE WHEN $1::text = 'all' THEN source::text ELSE '' END ASC,
+    CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
 `
 
 type GetAIModelPricesParams struct {
+	Source   string `db:"source" json:"source"`
 	Provider string `db:"provider" json:"provider"`
 	Model    string `db:"model" json:"model"`
 }
 
+// Returns the price in effect for each model, preferring a custom price over
+// the price book. Filtering by source narrows the rows considered first, so a
+// model carrying both prices reports the one from the named source.
+// The source 'all' reports every row instead. It joins the DISTINCT ON key, so
+// each source forms its own group and nothing collapses. Every other source
+// contributes the same constant, leaving the key as (provider, model).
 func (q *sqlQuerier) GetAIModelPrices(ctx context.Context, arg GetAIModelPricesParams) ([]AIModelPrice, error) {
-	rows, err := q.db.QueryContext(ctx, getAIModelPrices, arg.Provider, arg.Model)
+	rows, err := q.db.QueryContext(ctx, getAIModelPrices, arg.Source, arg.Provider, arg.Model)
 	if err != nil {
 		return nil, err
 	}
@@ -2929,6 +2955,7 @@ func (q *sqlQuerier) GetAIModelPrices(ctx context.Context, arg GetAIModelPricesP
 			&i.CacheWritePrice,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Source,
 		); err != nil {
 			return nil, err
 		}
@@ -3498,7 +3525,7 @@ func (q *sqlQuerier) IncrementUserAIDailySpend(ctx context.Context, arg Incremen
 
 const upsertAIModelPrices = `-- name: UpsertAIModelPrices :exec
 INSERT INTO ai_model_prices (
-	provider, model, input_price, output_price, cache_read_price, cache_write_price
+	provider, model, input_price, output_price, cache_read_price, cache_write_price, source
 )
 SELECT
 	elem->>'provider',
@@ -3506,9 +3533,10 @@ SELECT
 	(elem->>'input_price')::bigint,
 	(elem->>'output_price')::bigint,
 	(elem->>'cache_read_price')::bigint,
-	(elem->>'cache_write_price')::bigint
-FROM jsonb_array_elements($1::jsonb) AS elem
-ON CONFLICT (provider, model) DO UPDATE SET
+	(elem->>'cache_write_price')::bigint,
+	$1::ai_model_price_source
+FROM jsonb_array_elements($2::jsonb) AS elem
+ON CONFLICT (provider, model, source) DO UPDATE SET
 	input_price       = EXCLUDED.input_price,
 	output_price      = EXCLUDED.output_price,
 	cache_read_price  = EXCLUDED.cache_read_price,
@@ -3527,14 +3555,20 @@ WHERE (
 )
 `
 
-// Upsert a batch of (provider, model) rows from a JSON array. Each element
-// must have provider, model, and the four price fields; null prices are
-// written as SQL NULL.
-// A conflicting row is only rewritten when a price differs, so updated_at
-// records when a price last changed. Prices are nullable and a NULL on
-// either side counts as a difference.
-func (q *sqlQuerier) UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error {
-	_, err := q.db.ExecContext(ctx, upsertAIModelPrices, seed)
+type UpsertAIModelPricesParams struct {
+	Source AIModelPriceSource `db:"source" json:"source"`
+	Seed   json.RawMessage    `db:"seed" json:"seed"`
+}
+
+// Upsert a batch of model prices from a JSON array, all recorded under the
+// given source. Each element must have provider, model, and the four price
+// fields, and null prices are written as SQL NULL.
+// Each source keeps its own row, so the price book and a custom price never
+// overwrite each other. A conflicting row is only rewritten when a price
+// differs, so updated_at records when a price last changed. Prices are
+// nullable and a NULL on either side counts as a difference.
+func (q *sqlQuerier) UpsertAIModelPrices(ctx context.Context, arg UpsertAIModelPricesParams) error {
+	_, err := q.db.ExecContext(ctx, upsertAIModelPrices, arg.Source, arg.Seed)
 	return err
 }
 

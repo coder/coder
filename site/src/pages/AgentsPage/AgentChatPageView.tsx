@@ -167,7 +167,7 @@ interface AgentChatPageViewProps {
 	// Right panel state (owned by the parent so loading and
 	// loaded views share the same layout).
 	showSidebarPanel: boolean;
-	onSetShowSidebarPanel: (next: boolean | ((prev: boolean) => boolean)) => void;
+	onSetShowSidebarPanel: (next: boolean) => void;
 
 	// Sidebar content data.
 	prNumber: number | undefined;
@@ -429,7 +429,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
 	);
-	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
+	// Expansion must never outlive the panel: when narrow-viewport
+	// suppression or an explicit close hides the panel, gate expansion
+	// off (rather than resetting it) so it is restored with the panel.
+	const visualExpanded =
+		showSidebarPanel && (dragVisualExpanded ?? isRightPanelExpanded);
 
 	const [sidebarTabId, setSidebarTabIdState] = useState<string | null>(() =>
 		getPersistedSidebarTabId(agentId),
@@ -872,7 +876,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								parentChat={parentChat}
 								panel={{
 									showSidebarPanel,
-									onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
+									onToggleSidebar: () =>
+										onSetShowSidebarPanel(!showSidebarPanel),
 								}}
 								onArchiveAgent={handleArchiveAgentAction}
 								onUnarchiveAgent={handleUnarchiveAgentAction}
@@ -1021,7 +1026,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					</div>
 					<RightPanel
 						isOpen={shouldShowSidebar}
-						isExpanded={isRightPanelExpanded}
+						isExpanded={showSidebarPanel && isRightPanelExpanded}
 						onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 						onClose={() => onSetShowSidebarPanel(false)}
 						onVisualExpandedChange={setDragVisualExpanded}
