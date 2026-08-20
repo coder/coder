@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { focusManager } from "react-query";
+import { expect, screen, spyOn, within } from "storybook/test";
+import { API } from "#/api/api";
 import {
 	type Entitlements,
 	LicenseAgentRuntimeHoursAllocationReachedWarningText,
@@ -17,9 +19,16 @@ import {
 	MockDefaultOrganization,
 	MockEntitlements,
 	MockExperiments,
+	MockPermissions,
+	MockUserOwner,
 } from "#/testHelpers/entities";
+import { withAuthProvider } from "#/testHelpers/storybook";
 import { docs } from "#/utils/docs";
-import { DashboardContext, type DashboardValue } from "../DashboardProvider";
+import {
+	DashboardContext,
+	DashboardProvider,
+	type DashboardValue,
+} from "../DashboardProvider";
 import { formatLicenseMessage, LicenseBanner } from "./LicenseBanner";
 import { LicenseBannerView } from "./LicenseBannerView";
 
@@ -425,6 +434,46 @@ export const UsagePublishingFailing: Story = {
 		await expect(
 			canvas.queryByRole("link", { name: /Contact sales@coder\.com/i }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const UsagePublishingRefreshesOnFocus: Story = {
+	decorators: [withAuthProvider],
+	parameters: {
+		user: MockUserOwner,
+		permissions: MockPermissions,
+	},
+	beforeEach: () => {
+		spyOn(API, "getEntitlements")
+			.mockResolvedValueOnce({ ...MockEntitlements, warnings: [] })
+			.mockResolvedValue({
+				...MockEntitlements,
+				warnings: [LicenseUsagePublishingFailingWarningText],
+			});
+		spyOn(API, "getExperiments").mockResolvedValue(MockExperiments);
+		spyOn(API, "getAppearance").mockResolvedValue(MockAppearanceConfig);
+		spyOn(API, "getBuildInfo").mockResolvedValue(MockBuildInfo);
+		spyOn(API, "getOrganizations").mockResolvedValue([MockDefaultOrganization]);
+		return () => focusManager.setFocused(undefined);
+	},
+	render: () => (
+		<DashboardProvider>
+			<main aria-label="Dashboard ready" />
+			<LicenseBanner />
+		</DashboardProvider>
+	),
+	play: async () => {
+		await screen.findByRole("main", { name: "Dashboard ready" });
+		await expect(
+			screen.queryByText(LicenseUsagePublishingFailingWarningText),
+		).not.toBeInTheDocument();
+
+		focusManager.setFocused(false);
+		focusManager.setFocused(true);
+
+		await expect(
+			await screen.findByText(LicenseUsagePublishingFailingWarningText),
+		).toBeVisible();
 	},
 };
 
