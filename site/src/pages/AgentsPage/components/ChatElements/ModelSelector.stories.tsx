@@ -194,6 +194,34 @@ export const Disabled: Story = {
 	},
 };
 
+// Form-style call sites (settings pages) stretch the trigger with
+// w-full + justify-between; the provider icon and label must stay
+// adjacent instead of the label floating to the center.
+export const FormFieldTriggerKeepsIconAndLabelAdjacent: Story = {
+	args: {
+		options: allModels,
+		value: "anthropic/claude-sonnet-4",
+		className:
+			"h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm",
+	},
+	decorators: [
+		(Story) => (
+			<div className="w-[30rem]">
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const icon = canvas.getByTestId("model-selector-trigger-icon");
+		const label = canvas.getByText("Claude Sonnet 4");
+		const gap =
+			label.getBoundingClientRect().left - icon.getBoundingClientRect().right;
+		expect(gap).toBeGreaterThanOrEqual(0);
+		expect(gap).toBeLessThan(12);
+	},
+};
+
 // ---------------------------------------------------------------------------
 // Multiple providers (grouped)
 // ---------------------------------------------------------------------------

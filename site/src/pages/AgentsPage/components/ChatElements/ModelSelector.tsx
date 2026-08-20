@@ -168,16 +168,21 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					)}
 					onTouchStart={onTriggerTouchStart}
 				>
-					{selectedModel && (
-						<span data-testid="model-selector-trigger-icon">
-							<ProviderIcon
-								provider={selectedModel.provider}
-								icon={selectedModel.providerIcon}
-								className="size-3 shrink-0"
-							/>
-						</span>
-					)}
-					<span className="truncate">{triggerLabel}</span>
+					{/* The icon and label form one flex child so call sites that
+					   override the trigger with justify-between keep them adjacent
+					   instead of stretching the label away from the icon. */}
+					<span className="flex min-w-0 items-center gap-1">
+						{selectedModel && (
+							<span data-testid="model-selector-trigger-icon">
+								<ProviderIcon
+									provider={selectedModel.provider}
+									icon={selectedModel.providerIcon}
+									className="size-3 shrink-0"
+								/>
+							</span>
+						)}
+						<span className="truncate">{triggerLabel}</span>
+					</span>
 					<ChevronDownIcon open={open} />
 				</Button>
 			</PopoverTrigger>
