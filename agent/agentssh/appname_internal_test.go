@@ -13,7 +13,7 @@ func TestExtractAppName(t *testing.T) {
 	envWith := func(value string) []string {
 		return []string{
 			"FOO=bar",
-			fmt.Sprintf("%s=%s", MagicSessionTypeEnvironmentVariable, value),
+			fmt.Sprintf("%s=%s", AppNameEnvironmentVariable, value),
 			"BAZ=qux",
 		}
 	}
@@ -28,14 +28,14 @@ func TestExtractAppName(t *testing.T) {
 		{"VSCode", envWith("vscode"), "vscode"},
 		{"JetBrainsLegacyCasing", envWith("JetBrains"), "jetbrains"},
 		{"UnknownTypeNormalized", envWith("Cursor-Nightly"), "cursor_nightly"},
-		{"LastInstanceWins", append(envWith("vscode"), MagicSessionTypeEnvironmentVariable+"=cursor"), "cursor"},
+		{"LastInstanceWins", append(envWith("vscode"), AppNameEnvironmentVariable+"=cursor"), "cursor"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			appName, _, filteredEnv := extractAppName(tc.env)
 			require.Equal(t, tc.want, appName)
 			for _, kv := range filteredEnv {
-				require.NotContains(t, kv, MagicSessionTypeEnvironmentVariable+"=")
+				require.NotContains(t, kv, AppNameEnvironmentVariable+"=")
 			}
 		})
 	}

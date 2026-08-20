@@ -55,9 +55,11 @@ const (
 )
 
 const (
-	// MagicSessionTypeEnvironmentVariable is used to track the purpose behind an SSH connection.
-	// This is stripped from any commands being executed, and is counted towards connection stats.
-	MagicSessionTypeEnvironmentVariable = "CODER_SSH_SESSION_TYPE"
+	// AppNameEnvironmentVariable carries the name of the app opening an SSH
+	// connection. This is stripped from any commands being executed, and is
+	// counted towards connection stats. The value keeps its original spelling
+	// so existing clients keep working.
+	AppNameEnvironmentVariable = "CODER_SSH_SESSION_TYPE"
 	// ContainerEnvironmentVariable is used to specify the target container for an SSH connection.
 	// This is stripped from any commands being executed.
 	// Only available if CODER_AGENT_DEVCONTAINERS_ENABLE=true.
@@ -339,11 +341,11 @@ func (s *Server) SessionCounts() map[string]int64 {
 
 func extractAppName(env []string) (appName, rawAppName string, filteredEnv []string) {
 	for _, kv := range env {
-		if !strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable) {
+		if !strings.HasPrefix(kv, AppNameEnvironmentVariable) {
 			continue
 		}
 
-		rawAppName = strings.TrimPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
+		rawAppName = strings.TrimPrefix(kv, AppNameEnvironmentVariable+"=")
 		// Keep going, we'll use the last instance of the env.
 	}
 
@@ -355,7 +357,7 @@ func extractAppName(env []string) (appName, rawAppName string, filteredEnv []str
 	}
 
 	return appName, rawAppName, slices.DeleteFunc(env, func(kv string) bool {
-		return strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
+		return strings.HasPrefix(kv, AppNameEnvironmentVariable+"=")
 	})
 }
 
