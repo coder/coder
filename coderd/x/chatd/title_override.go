@@ -60,10 +60,10 @@ func (p *Server) resolveTitleGenerationModelOverride(
 	ctx context.Context,
 	chat database.Chat,
 	modelOpts modelBuildOptions,
-) (database.ChatModelConfig, chatprovider.Model, aiGatewayModelRoute, bool, error) {
+) (resolvedModelCall, bool, error) {
 	raw, err := readTitleGenerationModelOverride(ctx, p.db)
 	if err != nil {
-		return database.ChatModelConfig{}, chatprovider.Model{}, aiGatewayModelRoute{}, false, xerrors.Errorf(
+		return resolvedModelCall{}, false, xerrors.Errorf(
 			"read title generation model override: %w",
 			err,
 		)
@@ -81,30 +81,24 @@ func (p *Server) resolveTitleGenerationModelOverride(
 		modelOverrideFailureModeHard,
 	)
 	if err != nil {
-		return database.ChatModelConfig{}, chatprovider.Model{}, aiGatewayModelRoute{}, overrideSet, err
+		return resolvedModelCall{}, overrideSet, err
 	}
 	if !overrideSet {
-		return database.ChatModelConfig{}, chatprovider.Model{}, aiGatewayModelRoute{}, false, nil
+		return resolvedModelCall{}, false, nil
 	}
-	modelConfig = withResolvedReasoningEffort(modelConfig, overrideEffort)
-
-	//nolint:gocritic // Title overrides need chatd-scoped provider reads for user-owned chats.
-	route, err := p.resolveModelRouteForConfig(dbauthz.AsChatd(ctx), chat.OwnerID, modelConfig)
+	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
+		purpose:          "title",
+		chat:             chat,
+		explicitConfig:   &modelConfig,
+		requestedEffort:  overrideEffort,
+		chatdScopedRoute: true,
+		buildOptions:     modelOpts,
+	})
 	if err != nil {
-		return database.ChatModelConfig{}, chatprovider.Model{}, aiGatewayModelRoute{}, true, err
-	}
-	model, err := p.newModel(ctx, modelClientRequest{
-		Chat:          chat,
-		ModelName:     modelConfig.Model,
-		UserAgent:     chatprovider.UserAgent(),
-		ExtraHeaders:  chatprovider.CoderHeaders(chat),
-		ConfigOptions: modelConfig.Options,
-	}, route, modelOpts)
-	if err != nil {
-		return database.ChatModelConfig{}, chatprovider.Model{}, aiGatewayModelRoute{}, true, xerrors.Errorf(
+		return resolvedModelCall{}, true, xerrors.Errorf(
 			"create title generation model override: %w",
 			err,
 		)
 	}
-	return modelConfig, model, route, true, nil
+	return resolved, true, nil
 }
