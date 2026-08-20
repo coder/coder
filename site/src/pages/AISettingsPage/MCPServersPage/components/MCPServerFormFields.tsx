@@ -30,7 +30,8 @@ interface MCPServerFormFieldsProps {
 	isDisabled: boolean;
 	canSubmit: boolean;
 	isEditing: boolean;
-	onCancel: () => void;
+	canSelectUserOIDC: boolean;
+	onCancel?: () => void;
 	showDetails: boolean;
 	setShowDetails: (open: boolean) => void;
 	showAuth: boolean;
@@ -45,6 +46,7 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 	isDisabled,
 	canSubmit,
 	isEditing,
+	canSelectUserOIDC,
 	onCancel,
 	showDetails,
 	setShowDetails,
@@ -178,6 +180,7 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 							form={form}
 							formId={formId}
 							disabled={isDisabled}
+							canSelectUserOIDC={canSelectUserOIDC}
 						/>
 					</CollapsibleSection>
 
@@ -198,14 +201,16 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 				</div>
 
 				<div className="flex justify-end gap-4">
-					<Button
-						variant="outline"
-						type="button"
-						onClick={onCancel}
-						disabled={isDisabled}
-					>
-						Cancel
-					</Button>
+					{onCancel && (
+						<Button
+							variant="outline"
+							type="button"
+							onClick={onCancel}
+							disabled={isDisabled}
+						>
+							Cancel
+						</Button>
+					)}
 					<Button disabled={!canSubmit} type="submit">
 						<Spinner loading={isSaving} />
 						{isEditing ? "Update server" : "Add server"}

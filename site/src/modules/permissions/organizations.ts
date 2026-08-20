@@ -115,6 +115,34 @@ export const organizationPermissionChecks = (organizationId: string) =>
 			},
 			action: "update",
 		},
+		viewMCPServerConfigs: {
+			object: {
+				resource_type: "mcp_server_config",
+				organization_id: organizationId,
+			},
+			action: "read",
+		},
+		createMCPServerConfig: {
+			object: {
+				resource_type: "mcp_server_config",
+				organization_id: organizationId,
+			},
+			action: "create",
+		},
+		updateMCPServerConfig: {
+			object: {
+				resource_type: "mcp_server_config",
+				organization_id: organizationId,
+			},
+			action: "update",
+		},
+		deleteMCPServerConfig: {
+			object: {
+				resource_type: "mcp_server_config",
+				organization_id: organizationId,
+			},
+			action: "delete",
+		},
 	}) as const satisfies Record<string, AuthorizationCheck>;
 
 /**

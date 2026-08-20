@@ -22,6 +22,7 @@ const (
 	ClientRoo         Client = "Roo Code"
 	ClientCursor      Client = "Cursor"
 	ClientOpenCode    Client = "OpenCode"
+	ClientJunie       Client = "Junie"
 	ClientUnknown     Client = "Unknown"
 )
 
@@ -58,6 +59,8 @@ func GuessClient(r *http.Request) Client {
 		return ClientCursor
 	case strings.HasPrefix(userAgent, "opencode/"):
 		return ClientOpenCode
+	case strings.HasPrefix(userAgent, "junie:"):
+		return ClientJunie
 	}
 	return ClientUnknown
 }

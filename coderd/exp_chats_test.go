@@ -570,6 +570,249 @@ func TestPostChats(t *testing.T) {
 		}))
 	})
 
+	t.Run("MCPServerIDsCrossOrgRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		defaultOrgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: firstUser.OrganizationID,
+			Enabled:        true,
+		})
+
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID, rbac.ScopedRoleAgentsAccess(secondOrg.ID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: secondOrg.ID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "chat with a default-org MCP server",
+				},
+			},
+			MCPServerIDs: []uuid.UUID{defaultOrgConfig.ID},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "One or more MCP server IDs are invalid or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid IDs: "+defaultOrgConfig.ID.String(), sdkErr.Detail)
+	})
+
+	t.Run("MCPServerIDsDuplicatesNormalized", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		orgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: secondOrg.ID,
+			Enabled:        true,
+		})
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID, rbac.ScopedRoleAgentsAccess(secondOrg.ID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: secondOrg.ID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "chat with a duplicated MCP server ID",
+				},
+			},
+			MCPServerIDs: []uuid.UUID{orgConfig.ID, orgConfig.ID},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []uuid.UUID{orgConfig.ID}, chat.MCPServerIDs)
+
+		_, err = memberClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "update to a duplicated MCP server ID",
+				},
+			},
+			MCPServerIDs: &[]uuid.UUID{orgConfig.ID, orgConfig.ID},
+		})
+		require.NoError(t, err)
+
+		storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, []uuid.UUID{orgConfig.ID}, storedChat.MCPServerIDs)
+	})
+
+	t.Run("MCPServerIDsDisabledConfigRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		enabledCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: firstUser.OrganizationID,
+			Enabled:        true,
+		})
+		disabledCfg, err := client.Client.UpdateMCPServerConfig(ctx, enabledCfg.OrganizationID, enabledCfg.ID, codersdk.UpdateMCPServerConfigRequest{
+			Enabled: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		_, err = memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "chat with a disabled MCP server",
+				},
+			},
+			MCPServerIDs: []uuid.UUID{disabledCfg.ID},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "One or more MCP server IDs are invalid or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid IDs: "+disabledCfg.ID.String(), sdkErr.Detail)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "chat without MCP servers",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = memberClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "selecting the disabled config",
+				},
+			},
+			MCPServerIDs: &[]uuid.UUID{disabledCfg.ID},
+		})
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "One or more MCP server IDs are invalid or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid IDs: "+disabledCfg.ID.String(), sdkErr.Detail)
+	})
+
+	t.Run("MCPServerIDsPersistedDisabledStillSendable", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		cfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: firstUser.OrganizationID,
+			Enabled:        true,
+		})
+
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "chat with a server that is disabled later",
+				},
+			},
+			MCPServerIDs: []uuid.UUID{cfg.ID},
+		})
+		require.NoError(t, err)
+
+		_, err = client.Client.UpdateMCPServerConfig(ctx, cfg.OrganizationID, cfg.ID, codersdk.UpdateMCPServerConfigRequest{
+			Enabled: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+
+		// The frontend resubmits the persisted selection on every
+		// send, so a server disabled after selection must not block
+		// the send.
+		_, err = memberClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "still sendable after the server was disabled",
+				},
+			},
+			MCPServerIDs: &[]uuid.UUID{cfg.ID},
+		})
+		require.NoError(t, err)
+
+		storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, []uuid.UUID{cfg.ID}, storedChat.MCPServerIDs)
+
+		secondCfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: firstUser.OrganizationID,
+			Enabled:        true,
+		})
+		_, err = client.Client.UpdateMCPServerConfig(ctx, secondCfg.OrganizationID, secondCfg.ID, codersdk.UpdateMCPServerConfigRequest{
+			Enabled: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+
+		_, err = memberClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "adding another disabled server is rejected",
+				},
+			},
+			MCPServerIDs: &[]uuid.UUID{cfg.ID, secondCfg.ID},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "One or more MCP server IDs are invalid or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid IDs: "+secondCfg.ID.String(), sdkErr.Detail)
+	})
+
+	t.Run("MCPServerIDsThirdOrgRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		thirdOrg := dbgen.Organization(t, db, database.Organization{})
+		thirdOrgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: thirdOrg.ID,
+			Enabled:        true,
+		})
+
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID, rbac.ScopedRoleAgentsAccess(secondOrg.ID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: secondOrg.ID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "chat with a third-org MCP server",
+				},
+			},
+			MCPServerIDs: []uuid.UUID{thirdOrgConfig.ID},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "One or more MCP server IDs are invalid or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid IDs: "+thirdOrgConfig.ID.String(), sdkErr.Detail)
+	})
+
 	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
 		t.Parallel()
 
@@ -841,27 +1084,6 @@ func TestPostChats(t *testing.T) {
 					"unexpected per-chat system prompt in messages")
 			}
 		}
-	})
-
-	t.Run("PerChatSystemPromptTooLong", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
-
-		longPrompt := strings.Repeat("a", 10001)
-		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: user.OrganizationID, Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "hello",
-				},
-			},
-			SystemPrompt: longPrompt,
-		})
-		requireSDKError(t, err, http.StatusBadRequest)
 	})
 
 	t.Run("WorkspaceNotAccessible", func(t *testing.T) {
@@ -1163,7 +1385,7 @@ func TestChats_ForceOnMCPServerEnforced(t *testing.T) {
 	_ = createChatModelConfig(t, client)
 
 	// An admin marks an MCP server as Force On.
-	forced, err := client.Client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	forced, err := client.Client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:   "Forced Server",
 		Slug:          "forced-server",
 		Transport:     "streamable_http",

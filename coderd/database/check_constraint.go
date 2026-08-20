@@ -43,7 +43,9 @@ const (
 	CheckGroupsChatSpendLimitMicrosCheck                     CheckConstraint = "groups_chat_spend_limit_micros_check"                      // groups
 	CheckMcpServerConfigsAuthTypeCheck                       CheckConstraint = "mcp_server_configs_auth_type_check"                        // mcp_server_configs
 	CheckMcpServerConfigsAvailabilityCheck                   CheckConstraint = "mcp_server_configs_availability_check"                     // mcp_server_configs
+	CheckMcpServerConfigsGroupAclIsObject                    CheckConstraint = "mcp_server_configs_group_acl_is_object"                    // mcp_server_configs
 	CheckMcpServerConfigsTransportCheck                      CheckConstraint = "mcp_server_configs_transport_check"                        // mcp_server_configs
+	CheckMcpServerConfigsUserAclIsObject                     CheckConstraint = "mcp_server_configs_user_acl_is_object"                     // mcp_server_configs
 	CheckOauth2ProviderAppCodesScopeNotEmpty                 CheckConstraint = "oauth2_provider_app_codes_scope_not_empty"                 // oauth2_provider_app_codes
 	CheckOauth2ProviderAppTokensScopeNotEmpty                CheckConstraint = "oauth2_provider_app_tokens_scope_not_empty"                // oauth2_provider_app_tokens
 	CheckOauth2ProviderAppsClientTypeCheck                   CheckConstraint = "oauth2_provider_apps_client_type_check"                    // oauth2_provider_apps
