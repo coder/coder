@@ -1289,6 +1289,46 @@ export const CompactionAndTitleGenerationBadges: Story = {
 	},
 };
 
+export const NonChatTurnKindShownWithFirstMessage: Story = {
+	parameters: {
+		queries: [
+			{
+				key: chatDebugRunsKey(CHAT_ID),
+				data: [
+					buildRunSummary({
+						id: "run-title-with-label",
+						kind: "title_generation",
+						status: "error",
+						model: "gpt-4o-mini",
+						summary: { first_message: "Summarize my workspace" },
+					}),
+					buildRunSummary({
+						id: "run-turn-with-label",
+						kind: "chat_turn",
+						status: "completed",
+						summary: { first_message: "Fix the login bug" },
+					}),
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// A failed title generation with a first_message label must
+		// still identify itself by kind so it is distinguishable from
+		// a failed chat turn.
+		const titleRun = await canvas.findByRole("button", {
+			name: /Summarize my workspace/i,
+		});
+		await expect(within(titleRun).getByText("Title Generation")).toBeVisible();
+		// Chat turns keep their metadata kind-free.
+		const chatRun = await canvas.findByRole("button", {
+			name: /Fix the login bug/i,
+		});
+		expect(within(chatRun).queryByText("Chat Turn")).toBeNull();
+	},
+};
+
 export const LongRawPayloads: Story = {
 	parameters: {
 		queries: [

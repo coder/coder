@@ -97,7 +97,16 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 	// Step count from detail or summary.
 	const stepCount = steps.length > 0 ? steps.length : summaryVm.stepCount;
 	const durationLabel = getDurationLabel(run.started_at, run.finished_at);
+	// Non-chat-turn runs (title generation, quickgen, compaction)
+	// usually carry a first_message label that hides the kind, so
+	// surface the kind in the metadata; otherwise a failed title
+	// generation is indistinguishable from a failed chat turn.
+	const kindLabel =
+		run.kind !== "chat_turn" && summaryVm.primaryLabel.trim()
+			? getRunKindLabel(run.kind)
+			: undefined;
 	const metadataItems = [
+		kindLabel,
 		modelLabel || undefined,
 		stepCount !== undefined && stepCount > 0
 			? `${stepCount} ${stepCount === 1 ? "step" : "steps"}`
