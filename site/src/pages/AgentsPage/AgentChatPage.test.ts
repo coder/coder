@@ -1437,7 +1437,7 @@ describe("useRightPanelNarrowSuppression", () => {
 					dispatchEvent: vi.fn(() => true),
 					addListener: vi.fn(),
 					removeListener: vi.fn(),
-				} as MediaQueryList;
+				} satisfies MediaQueryList;
 			}),
 		});
 		return {

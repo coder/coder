@@ -1642,6 +1642,15 @@ export const NarrowViewportShowsChatOverOpenPanel: Story = {
 		expect(
 			canvas.queryByRole("tab", { name: "Summary" }),
 		).not.toBeInTheDocument();
+
+		// Explicitly toggling the panel while narrow clears the suppression.
+		const messagesRegion = canvas.getByRole("region", { name: "Messages" });
+		const user = userEvent.setup();
+		await user.click(canvas.getByRole("button", { name: "Toggle panel" }));
+		await waitFor(() => {
+			expect(canvas.getByRole("tab", { name: "Summary" })).toBeVisible();
+		});
+		expect(messagesRegion.checkVisibility()).toBe(false);
 	},
 };
 
