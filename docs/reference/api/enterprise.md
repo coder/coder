@@ -1404,13 +1404,13 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 ### Parameters
 
-| Name       | In    | Type         | Required | Description                                             |
-|------------|-------|--------------|----------|---------------------------------------------------------|
-| `user_id`  | query | string       | false    | Filter by applications authorized for a user            |
-| `q`        | query | string       | false    | Search query filter by application name or callback URL |
-| `limit`    | query | integer      | false    | Page limit                                              |
-| `offset`   | query | integer      | false    | Page offset                                             |
-| `after_id` | query | string(uuid) | false    | After ID for cursor pagination                          |
+| Name       | In    | Type         | Required | Description                                                                         |
+|------------|-------|--------------|----------|-------------------------------------------------------------------------------------|
+| `user_id`  | query | string       | false    | Filter by applications authorized for a user                                        |
+| `q`        | query | string       | false    | Search query filter. Bare terms match name or callback URL. Supports search:<term>. |
+| `limit`    | query | integer      | false    | Page limit                                                                          |
+| `offset`   | query | integer      | false    | Page offset                                                                         |
+| `after_id` | query | string(uuid) | false    | After ID for cursor pagination                                                      |
 
 ### Example responses
 
