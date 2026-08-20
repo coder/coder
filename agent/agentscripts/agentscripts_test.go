@@ -2,6 +2,7 @@ package agentscripts_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -19,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
@@ -89,6 +91,64 @@ func TestExecuteCreatesMissingLogDir(t *testing.T) {
 	exists, err := afero.Exists(fs, logPath)
 	require.NoError(t, err)
 	require.True(t, exists, "expected log file to be created at %s", logPath)
+}
+
+func TestExecuteLogFileSetupFailure(t *testing.T) {
+	t.Parallel()
+
+	// A log path whose parent directory cannot be created must still surface
+	// the failure in the workspace dashboard.
+	fs := afero.NewOsFs()
+	logger := testutil.Logger(t)
+	s, err := agentssh.NewServer(context.Background(), logger, prometheus.NewRegistry(), fs, agentexec.DefaultExecer, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = s.Close()
+	})
+
+	fLogger := newFakeScriptLogger()
+	runner := agentscripts.New(agentscripts.Options{
+		LogDir:      t.TempDir(),
+		DataDirBase: t.TempDir(),
+		Logger:      logger,
+		SSHServer:   s,
+		Filesystem:  fs,
+		GetScriptLogger: func(uuid.UUID) agentscripts.ScriptLogger {
+			return fLogger
+		},
+	})
+	defer runner.Close()
+
+	// An ancestor of the log path is a regular file, so MkdirAll fails.
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	require.NoError(t, os.WriteFile(blocker, []byte("x"), 0o600))
+	logPath := filepath.Join(blocker, "sub", "install.log")
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	aAPI := agenttest.NewFakeAgentAPI(t, logger, nil, nil)
+	err = runner.Init([]codersdk.WorkspaceAgentScript{{
+		LogSourceID: uuid.New(),
+		LogPath:     logPath,
+		Script:      "echo hello",
+	}}, aAPI.ScriptCompleted)
+	require.NoError(t, err)
+
+	err = runner.Execute(ctx, agentscripts.ExecuteAllScripts)
+	require.Error(t, err)
+
+	// The failure is written to the script's log stream.
+	log := testutil.TryReceive(ctx, t, fLogger.logs)
+	require.Equal(t, codersdk.LogLevelError, log.Level)
+	require.Contains(t, log.Output, "failed to set up script logging")
+
+	// Close joins the goroutine that records the completion timing.
+	require.NoError(t, runner.Close())
+
+	// The failure is recorded as an exit failure, not silently dropped.
+	timings := aAPI.GetTimings()
+	require.Len(t, timings, 1)
+	require.NotZero(t, timings[0].ExitCode)
+	require.Equal(t, proto.Timing_EXIT_FAILURE, timings[0].Status)
 }
 
 func TestEnv(t *testing.T) {
