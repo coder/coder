@@ -116,8 +116,7 @@ New integrations are always in progress. Open an issue to request one. Contribut
 - [**Coder Registry**](https://registry.coder.com): Templates, modules, and integrations for common development environments
 - [**VS Code Extension**](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote): Open any Coder workspace in VS Code with a single click
 - [**JetBrains Toolbox Plugin**](https://plugins.jetbrains.com/plugin/26968-coder): Open any Coder workspace from JetBrains Toolbox with a single click
-- [**JetBrains Gateway Plugin**](https://plugins.jetbrains.com/plugin/19620-coder): Open any Coder workspace in JetBrains Gateway with a single click
-- [**Dev Containers**](https://github.com/coder/envbuilder): Build development environments using `devcontainer.json` on Docker, Kubernetes, and OpenShift
+- [**Dev Containers**](https://coder.com/docs/user-guides/devcontainers): Build development environments using `devcontainer.json` on Docker, Kubernetes, and OpenShift
 - [**Kubernetes Log Stream**](https://github.com/coder/coder-logstream-kube): Stream Kubernetes Pod events to the Coder startup logs
 - [**Self-Hosted VS Code Extension Marketplace**](https://github.com/coder/code-marketplace): A private extension marketplace that works in restricted or airgapped networks integrating with [code-server](https://github.com/coder/code-server).
 - [**GitHub Actions**](https://github.com/marketplace/actions/setup-coder): An action to set up the Coder CLI in GitHub workflows
