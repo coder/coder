@@ -62,18 +62,21 @@ The bootstrap script:
 
 1. Installs missing base packages such as Git, Make, OpenSSL, jq, zstd, and vim.
 2. Installs checksum-pinned mise, kubectl, and k9s.
-3. Adds `~/.local/bin` and mise activation to `~/.bashrc` for future shells.
+3. Adds `~/.local/bin` and the mise shims directory to `PATH` in `~/.profile` and `~/.bashrc` for future login and interactive shells.
 4. Uses mise to install the repository-pinned Go, Node.js, pnpm, Helm, kind, Terraform, Protocol Buffers, and SQL generation tools, then marks committed generated files as fresh so a new clone does not regenerate them during the first build.
 5. Clones or updates Coder in `~/src/coder` and checks out `pawel/develop-local-cluster` by default.
 6. Runs `develop-local-cluster.sh` to deploy PostgreSQL and Coder.
 7. Adds the license before deploying the Premium provisioner and AI Gateway components.
 8. When mTLS is enabled, generates certificates, configures AI Gateway to use Coder's HTTPS service, and verifies client certificate enforcement.
 
-The script cannot modify the environment of the shell that launched it. After the first run, either start a new shell or load the configured environment in the current shell:
+The script cannot modify the environment of the shell that launched it. After the first run, either start a new shell or load both directly installed and mise-managed tools in the current shell:
 
 ```console
-source "$HOME/.bashrc"
+export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+cd "$HOME/src/coder"
 ```
+
+The working directory matters for mise-managed tools because the pinned versions are selected from the repository's `mise.toml`.
 
 Common bootstrap overrides:
 

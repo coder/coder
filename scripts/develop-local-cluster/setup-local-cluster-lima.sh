@@ -130,23 +130,22 @@ install_mise() {
 }
 
 configure_shell_path() {
-	local bashrc="${HOME}/.bashrc"
+	local file
 	local marker="# Coder local cluster development tools"
 
-	if grep -Fqx "${marker}" "${bashrc}" 2>/dev/null; then
-		printf 'already configured: developer tool PATH in %s\n' "${bashrc}"
-		return
-	fi
+	for file in "${HOME}/.profile" "${HOME}/.bashrc"; do
+		if grep -Fqx "${marker}" "${file}" 2>/dev/null; then
+			printf 'already configured: developer tool PATH in %s\n' "${file}"
+			continue
+		fi
 
-	log "Configuring developer tool PATH in ${bashrc}"
-	cat >>"${bashrc}" <<'EOF'
+		log "Configuring developer tool PATH in ${file}"
+		cat >>"${file}" <<'EOF'
 
 # Coder local cluster development tools
-export PATH="${HOME}/.local/bin:${PATH}"
-if command -v mise >/dev/null 2>&1; then
-	eval "$(mise activate bash)"
-fi
+export PATH="${HOME}/.local/bin:${HOME}/.local/share/mise/shims:${PATH}"
 EOF
+	done
 }
 
 install_kubectl() {
@@ -253,10 +252,14 @@ install_repo_tools() {
 		kind \
 		terraform \
 		protoc \
-		protoc-gen-go \
+		protoc-gen-go
+	eval "$(mise activate bash)"
+
+	# Go-backed mise tools invoke go during installation, so install them only
+	# after the repository-pinned Go version is active.
+	mise install --locked \
 		go:storj.io/drpc/cmd/protoc-gen-go-drpc \
 		go:github.com/coder/sqlc/cmd/sqlc
-	eval "$(mise activate bash)"
 
 	printf 'available: Go (%s)\n' "$(go version)"
 	printf 'available: Node.js (%s)\n' "$(node --version)"
@@ -555,7 +558,7 @@ main() {
 
 	log "Local cluster is ready"
 	cluster_command info
-	printf 'Load developer tools in the current shell with: source %q\n' "${HOME}/.bashrc"
+	printf 'Load developer tools in the current shell with: export PATH=%q\n' "${HOME}/.local/bin:${HOME}/.local/share/mise/shims:${PATH}"
 	printf 'Open k9s with: k9s --context %s\n' "${context}"
 	printf 'Remove everything with: cd %q && ./scripts/develop-local-cluster.sh --cluster-name %q down\n' \
 		"${CODER_REPO_DIR}" "${CODER_DEV_CLUSTER_NAME}"
