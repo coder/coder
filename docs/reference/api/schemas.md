@@ -10674,9 +10674,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                     |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_keys`, `ai_governance`, `aibridge_session_threads`, `aibridge_sessions`, `appearance`, `audit_log`, `browser_only`, `connection_log`, `custom_roles`, `direct`, `groups`, `idp_org_sync`, `idp_sync`, `multiple_organizations`, `observability`, `provisioner_keys`, `provisioners`, `template_permissions`, `workspace_proxies` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                      |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_keys`, `ai_governance`, `aibridge_session_threads`, `aibridge_sessions`, `appearance`, `audit_log`, `browser_only`, `connection_log`, `custom_roles`, `direct`, `external_auth`, `groups`, `idp_org_sync`, `idp_sync`, `multiple_organizations`, `observability`, `provisioner_keys`, `provisioners`, `template_permissions`, `workspace_proxies` |
 
 ## codersdk.PremiumFunnelVariant
 
