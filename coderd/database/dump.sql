@@ -3527,7 +3527,8 @@ CREATE TABLE templates (
     cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL,
     disable_module_cache boolean DEFAULT false NOT NULL,
     time_til_autostop_notify bigint DEFAULT 0 NOT NULL,
-    agents_allowed boolean DEFAULT true NOT NULL
+    agents_allowed boolean DEFAULT true NOT NULL,
+    allow_workspace_renames boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -3553,6 +3554,8 @@ COMMENT ON COLUMN templates.use_classic_parameter_flow IS 'Determines whether to
 COMMENT ON COLUMN templates.time_til_autostop_notify IS 'How long before the workspace autostop deadline to send a reminder notification, in nanoseconds. 0 disables the notification.';
 
 COMMENT ON COLUMN templates.agents_allowed IS 'Whether Coder Agents can create workspaces using this template.';
+
+COMMENT ON COLUMN templates.allow_workspace_renames IS 'Whether workspaces built from this template may be renamed. Renaming can be destructive for templates whose Terraform references the workspace name.';
 
 CREATE VIEW template_with_names AS
  SELECT templates.id,
@@ -3588,6 +3591,7 @@ CREATE VIEW template_with_names AS
     templates.disable_module_cache,
     templates.time_til_autostop_notify,
     templates.agents_allowed,
+    templates.allow_workspace_renames,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,

@@ -77,6 +77,49 @@ automatically updated on the next startup.
 
 ![Template update policies](../../../images/templates/update-policies.png)
 
+## Workspace renaming
+
+Workspace renaming is disabled by default on every template.
+Enable it per template, once you have confirmed that a rename won't destroy anything.
+
+Terraform exposes the workspace name as `data.coder_workspace.me.name`.
+If a template uses that value in an attribute Terraform can't change in place, renaming the workspace makes Terraform destroy the resource and create a new one on the next build.
+When that resource is the home volume, the developer loses their data.
+
+Other uses of the name are harmless.
+A Kubernetes label or an environment variable changes without replacing anything.
+Coder can't tell the two cases apart, so the decision stays with the template admin.
+
+### Check whether your template is safe to rename
+
+Search the template for uses of the workspace name:
+
+```shell
+grep -rn 'coder_workspace\.[a-z_]*\.name' .
+```
+
+For each result, ask whether Terraform would replace the resource if that value changed.
+Attributes such as a volume name, a disk name, or an instance name usually force replacement.
+Labels, tags, and environment variables usually don't.
+
+If a resource would be replaced, reference an immutable identifier instead, such as `data.coder_workspace.me.id`.
+Refer to [Resource persistence](../extending-templates/resource-persistence.md) for the full set of practices.
+
+### Enable renaming for a template
+
+1. Go to the template, then select **Settings**.
+1. On the **General** page, under **Operations**, select **Allow users to rename their workspaces**.
+1. Select **Save**.
+
+Developers can then rename a workspace from the workspace's **Settings** page, or with `coder rename`.
+
+While the setting is off, the workspace name field is disabled and the API rejects renames.
+
+> [!WARNING]
+> The deployment-wide `CODER_ALLOW_WORKSPACE_RENAMES` option is deprecated.
+> While it is set, renaming is enabled for every template in the deployment, and the per-template setting can't turn it off.
+> Unset it, then enable renaming on the templates that need it.
+
 ## Delete templates
 
 You can delete a template using both the coder CLI and UI. Only

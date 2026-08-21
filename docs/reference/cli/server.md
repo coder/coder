@@ -1360,17 +1360,6 @@ Allow users to set their own quiet hours schedule for workspaces to stop in (dep
 
 The renderer to use when opening a web terminal. Valid values are 'canvas', 'webgl', or 'dom'.
 
-### --allow-workspace-renames
-
-|             |                                             |
-|-------------|---------------------------------------------|
-| Type        | <code>bool</code>                           |
-| Environment | <code>$CODER_ALLOW_WORKSPACE_RENAMES</code> |
-| YAML        | <code>allowWorkspaceRenames</code>          |
-| Default     | <code>false</code>                          |
-
-Allow users to rename their workspaces. WARNING: Renaming a workspace can cause Terraform resources that depend on the workspace name to be destroyed and recreated, potentially causing data loss. Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.
-
 ### --health-check-refresh
 
 |             |                                                |

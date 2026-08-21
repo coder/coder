@@ -133,6 +133,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.DisableModuleCache,
 			&i.TimeTilAutostopNotify,
 			&i.AgentsAllowed,
+			&i.AllowWorkspaceRenames,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,

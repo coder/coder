@@ -22,15 +22,6 @@ Deprecated options are listed at the end of each section.
 
 ## General
 
-### Allow workspace renames
-
-Allow users to rename their workspaces. WARNING: Renaming a workspace can cause Terraform resources that depend on the workspace name to be destroyed and recreated, potentially causing data loss. Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.
-
-- Environment variable: `CODER_ALLOW_WORKSPACE_RENAMES`
-- CLI flag: [`--allow-workspace-renames`](../../reference/cli/server.md#--allow-workspace-renames)
-- YAML key: `allowWorkspaceRenames`
-- Default value: `false`
-
 ### Cache directory
 
 The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd. This directory is NOT safe to be configured as a shared directory across coderd/provisionerd replicas.

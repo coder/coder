@@ -134,6 +134,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"disable_module_cache":              ActionTrack,
 		"time_til_autostop_notify":          ActionTrack,
 		"agents_allowed":                    ActionTrack,
+		"allow_workspace_renames":           ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,

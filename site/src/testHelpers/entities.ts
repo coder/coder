@@ -963,6 +963,7 @@ export const MockTemplate: TypesGen.Template = {
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
 	disable_module_cache: false,
+	allow_workspace_renames: false,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {
