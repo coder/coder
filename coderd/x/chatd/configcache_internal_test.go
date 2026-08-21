@@ -16,6 +16,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -25,17 +27,17 @@ import (
 type stubChatConfigStore struct {
 	database.Store
 
-	getAIProviders            func(context.Context) ([]database.AIProvider, error)
-	getChatModelConfigByID    func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
-	getDefaultChatModelConfig func(context.Context) (database.ChatModelConfig, error)
-	getUserChatCustomPrompt   func(context.Context, uuid.UUID) (string, error)
-	getChatAdvisorConfig      func(context.Context) (string, error)
+	getAIProviders                           func(context.Context) ([]database.AIProvider, error)
+	getChatModelConfigByID                   func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
+	getEnabledChatModelConfigsByOrganization func(context.Context, uuid.UUID) ([]database.GetEnabledChatModelConfigsByOrganizationRow, error)
+	getUserChatCustomPrompt                  func(context.Context, uuid.UUID) (string, error)
+	getChatAdvisorConfig                     func(context.Context) (string, error)
 
-	enabledProvidersCalls  atomic.Int32
-	modelConfigByIDCalls   atomic.Int32
-	defaultModelConfigCall atomic.Int32
-	userPromptCalls        atomic.Int32
-	advisorConfigCalls     atomic.Int32
+	enabledProvidersCalls atomic.Int32
+	modelConfigByIDCalls  atomic.Int32
+	effectiveConfigCalls  syncmap.Map[uuid.UUID, *atomic.Int32]
+	userPromptCalls       atomic.Int32
+	advisorConfigCalls    atomic.Int32
 }
 
 func (s *stubChatConfigStore) GetAIProviders(ctx context.Context, _ database.GetAIProvidersParams) ([]database.AIProvider, error) {
@@ -54,12 +56,33 @@ func (s *stubChatConfigStore) GetChatModelConfigByID(ctx context.Context, id uui
 	return s.getChatModelConfigByID(ctx, id)
 }
 
-func (s *stubChatConfigStore) GetDefaultChatModelConfig(ctx context.Context) (database.ChatModelConfig, error) {
-	s.defaultModelConfigCall.Add(1)
-	if s.getDefaultChatModelConfig == nil {
-		panic("unexpected GetDefaultChatModelConfig call")
+func (s *stubChatConfigStore) GetEnabledChatModelConfigsByOrganization(
+	ctx context.Context,
+	organizationID uuid.UUID,
+) ([]database.GetEnabledChatModelConfigsByOrganizationRow, error) {
+	counter, _ := s.effectiveConfigCalls.LoadOrStore(organizationID, &atomic.Int32{})
+	counter.Add(1)
+	if s.getEnabledChatModelConfigsByOrganization == nil {
+		panic("unexpected GetEnabledChatModelConfigsByOrganization call")
 	}
-	return s.getDefaultChatModelConfig(ctx)
+	return s.getEnabledChatModelConfigsByOrganization(ctx, organizationID)
+}
+
+func (s *stubChatConfigStore) effectiveConfigCallCount(organizationID uuid.UUID) int32 {
+	counter, ok := s.effectiveConfigCalls.Load(organizationID)
+	if !ok {
+		return 0
+	}
+	return counter.Load()
+}
+
+func (s *stubChatConfigStore) totalEffectiveConfigCalls() int32 {
+	var total int32
+	s.effectiveConfigCalls.Range(func(_ uuid.UUID, counter *atomic.Int32) bool {
+		total += counter.Load()
+		return true
+	})
+	return total
 }
 
 func (s *stubChatConfigStore) GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error) {
@@ -169,7 +192,7 @@ func TestConfigCache_ModelConfigByID_CacheHit(t *testing.T) {
 	require.Equal(t, int32(1), store.modelConfigByIDCalls.Load())
 }
 
-func TestConfigCache_ModelConfigByID_ClonesOptionsForCache(t *testing.T) {
+func TestConfigCache_ModelConfigByID_ClonesMutableFieldsForCache(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -178,6 +201,12 @@ func TestConfigCache_ModelConfigByID_ClonesOptionsForCache(t *testing.T) {
 	const options = `{"temperature":0.1}`
 	config := testChatModelConfig(configID, "model-a")
 	config.Options = []byte(options)
+	config.GroupACL = database.ChatACL{
+		"group": {Permissions: []policy.Action{policy.ActionRead, policy.ActionUpdate}},
+	}
+	config.UserACL = database.ChatACL{
+		"user": {Permissions: []policy.Action{policy.ActionRead, policy.ActionDelete}},
+	}
 	store := &stubChatConfigStore{
 		getChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 			return config, nil
@@ -189,17 +218,38 @@ func TestConfigCache_ModelConfigByID_ClonesOptionsForCache(t *testing.T) {
 	first, err := cache.ModelConfigByID(ctx, configID)
 	require.NoError(t, err)
 	first.Options[0] = 'x' // mutate singleflight return
+	groupEntry := first.GroupACL["group"]
+	groupEntry.Permissions[0] = policy.ActionDelete
+	first.GroupACL["group"] = groupEntry
+	delete(first.GroupACL, "group")
+	userEntry := first.UserACL["user"]
+	userEntry.Permissions[0] = policy.ActionUpdate
+	first.UserACL["user"] = userEntry
+	first.UserACL["first-mutation"] = database.ChatACLEntry{}
 
 	// Second call is a cache hit.
 	second, err := cache.ModelConfigByID(ctx, configID)
 	require.NoError(t, err)
 	require.Equal(t, options, string(second.Options))
+	require.Equal(t, config.GroupACL, second.GroupACL)
+	require.Equal(t, config.UserACL, second.UserACL)
+	require.Equal(t, []policy.Action{policy.ActionRead, policy.ActionUpdate}, second.GroupACL["group"].Permissions)
+	require.Equal(t, []policy.Action{policy.ActionRead, policy.ActionDelete}, second.UserACL["user"].Permissions)
 	second.Options[0] = 'y' // mutate cache-hit return
+	groupEntry = second.GroupACL["group"]
+	groupEntry.Permissions[1] = policy.ActionDelete
+	second.GroupACL["group"] = groupEntry
+	second.GroupACL["second-mutation"] = database.ChatACLEntry{}
+	delete(second.UserACL, "user")
 
-	// Third call is another cache hit — must be unaffected.
+	// Third call is another cache hit. It must be unaffected.
 	third, err := cache.ModelConfigByID(ctx, configID)
 	require.NoError(t, err)
 	require.Equal(t, options, string(third.Options))
+	require.Equal(t, config.GroupACL, third.GroupACL)
+	require.Equal(t, config.UserACL, third.UserACL)
+	require.Equal(t, []policy.Action{policy.ActionRead, policy.ActionUpdate}, third.GroupACL["group"].Permissions)
+	require.Equal(t, []policy.Action{policy.ActionRead, policy.ActionDelete}, third.UserACL["user"].Permissions)
 }
 
 func TestConfigCache_ModelConfigByID_NotFound(t *testing.T) {
@@ -231,30 +281,89 @@ func TestConfigCache_InvalidateModelConfig_CascadesToDefault(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	clock := quartz.NewMock(t)
 	configID := uuid.New()
+	orgID := uuid.New()
 	config := testChatModelConfig(configID, "model-a")
 	store := &stubChatConfigStore{}
 	store.getChatModelConfigByID = func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 		return config, nil
 	}
-	store.getDefaultChatModelConfig = func(context.Context) (database.ChatModelConfig, error) {
-		call := store.defaultModelConfigCall.Load()
-		return testChatModelConfig(uuid.New(), fmt.Sprintf("default-model-%d", call)), nil
+	store.getEnabledChatModelConfigsByOrganization = func(_ context.Context, organizationID uuid.UUID) ([]database.GetEnabledChatModelConfigsByOrganizationRow, error) {
+		call := store.effectiveConfigCallCount(organizationID)
+		config := testChatModelConfig(uuid.New(), fmt.Sprintf("default-model-%d", call))
+		config.IsDefault = true
+		return []database.GetEnabledChatModelConfigsByOrganizationRow{{
+			ChatModelConfig: config,
+		}}, nil
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
 	_, err := cache.ModelConfigByID(ctx, configID)
 	require.NoError(t, err)
-	firstDefault, err := cache.DefaultModelConfig(ctx)
+	firstDefault, err := cache.DefaultModelConfig(ctx, orgID)
 	require.NoError(t, err)
 
 	cache.InvalidateModelConfig(configID)
-	require.Nil(t, cache.defaultModelConfig)
-
-	secondDefault, err := cache.DefaultModelConfig(ctx)
+	secondDefault, err := cache.DefaultModelConfig(ctx, orgID)
 	require.NoError(t, err)
 
 	require.NotEqual(t, firstDefault, secondDefault)
-	require.Equal(t, int32(2), store.defaultModelConfigCall.Load())
+	require.Equal(t, int32(2), store.effectiveConfigCallCount(orgID))
+}
+
+func TestConfigCache_DefaultModelConfig_PerOrgKeying(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	orgA := uuid.New()
+	orgB := uuid.New()
+	store := &stubChatConfigStore{}
+	store.getEnabledChatModelConfigsByOrganization = func(_ context.Context, organizationID uuid.UUID) ([]database.GetEnabledChatModelConfigsByOrganizationRow, error) {
+		config := testChatModelConfig(uuid.New(), "default-"+organizationID.String())
+		config.IsDefault = true
+		return []database.GetEnabledChatModelConfigsByOrganizationRow{{
+			ChatModelConfig: config,
+		}}, nil
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	defaultA, err := cache.DefaultModelConfig(ctx, orgA)
+	require.NoError(t, err)
+	defaultB, err := cache.DefaultModelConfig(ctx, orgB)
+	require.NoError(t, err)
+	require.NotEqual(t, defaultA.ID, defaultB.ID)
+
+	defaultAAgain, err := cache.DefaultModelConfig(ctx, orgA)
+	require.NoError(t, err)
+	require.Equal(t, defaultA, defaultAAgain)
+	require.Equal(t, int32(1), store.effectiveConfigCallCount(orgA))
+	require.Equal(t, int32(1), store.effectiveConfigCallCount(orgB))
+
+	cache.InvalidateModelConfig(uuid.New())
+	_, err = cache.DefaultModelConfig(ctx, orgA)
+	require.NoError(t, err)
+	_, err = cache.DefaultModelConfig(ctx, orgB)
+	require.NoError(t, err)
+	require.Equal(t, int32(2), store.effectiveConfigCallCount(orgA))
+	require.Equal(t, int32(2), store.effectiveConfigCallCount(orgB))
+}
+
+func TestConfigCache_DefaultModelConfig_NoEffectiveDefault(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	store := &stubChatConfigStore{
+		getEnabledChatModelConfigsByOrganization: func(context.Context, uuid.UUID) ([]database.GetEnabledChatModelConfigsByOrganizationRow, error) {
+			return []database.GetEnabledChatModelConfigsByOrganizationRow{{
+				ChatModelConfig: testChatModelConfig(uuid.New(), "non-default"),
+			}}, nil
+		},
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	_, err := cache.DefaultModelConfig(ctx, uuid.New())
+	require.ErrorIs(t, err, sql.ErrNoRows)
 }
 
 func TestConfigCache_UserPrompt_NegativeCaching(t *testing.T) {
@@ -585,21 +694,26 @@ func TestConfigCache_InvalidateProviders_CascadesToDefaultModelConfig(t *testing
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	clock := quartz.NewMock(t)
+	orgID := uuid.New()
 	store := &stubChatConfigStore{}
-	store.getDefaultChatModelConfig = func(context.Context) (database.ChatModelConfig, error) {
-		call := store.defaultModelConfigCall.Load()
-		return testChatModelConfig(uuid.New(), fmt.Sprintf("default-model-%d", call)), nil
+	store.getEnabledChatModelConfigsByOrganization = func(_ context.Context, organizationID uuid.UUID) ([]database.GetEnabledChatModelConfigsByOrganizationRow, error) {
+		call := store.effectiveConfigCallCount(organizationID)
+		config := testChatModelConfig(uuid.New(), fmt.Sprintf("default-model-%d", call))
+		config.IsDefault = true
+		return []database.GetEnabledChatModelConfigsByOrganizationRow{{
+			ChatModelConfig: config,
+		}}, nil
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	first, err := cache.DefaultModelConfig(ctx)
+	first, err := cache.DefaultModelConfig(ctx, orgID)
 	require.NoError(t, err)
 	cache.InvalidateProviders()
-	second, err := cache.DefaultModelConfig(ctx)
+	second, err := cache.DefaultModelConfig(ctx, orgID)
 	require.NoError(t, err)
 
 	require.NotEqual(t, first, second)
-	require.Equal(t, int32(2), store.defaultModelConfigCall.Load())
+	require.Equal(t, int32(2), store.effectiveConfigCallCount(orgID))
 }
 
 func TestConfigCache_InvalidateProviders_BlocksStaleInFlightModelConfig(t *testing.T) {
@@ -732,6 +846,7 @@ func TestConfigCache_CallerCancellation(t *testing.T) {
 
 	configID := uuid.New()
 	userID := uuid.New()
+	defaultOrgID := uuid.New()
 
 	methods := []cacheMethod{
 		{
@@ -798,30 +913,34 @@ func TestConfigCache_CallerCancellation(t *testing.T) {
 			name: "DefaultModelConfig",
 			setupBlocked: func(store *stubChatConfigStore, started, release chan struct{}) {
 				var once sync.Once
-				store.getDefaultChatModelConfig = func(ctx context.Context) (database.ChatModelConfig, error) {
+				store.getEnabledChatModelConfigsByOrganization = func(ctx context.Context, _ uuid.UUID) ([]database.GetEnabledChatModelConfigsByOrganizationRow, error) {
 					once.Do(func() { close(started) })
 					select {
 					case <-ctx.Done():
-						return database.ChatModelConfig{}, ctx.Err()
+						return nil, ctx.Err()
 					case <-release:
-						return testChatModelConfig(uuid.New(), "default"), nil
+						config := testChatModelConfig(uuid.New(), "default")
+						config.IsDefault = true
+						return []database.GetEnabledChatModelConfigsByOrganizationRow{{
+							ChatModelConfig: config,
+						}}, nil
 					}
 				}
 			},
 			setupCtxSensitive: func(store *stubChatConfigStore, started chan struct{}) {
 				var once sync.Once
-				store.getDefaultChatModelConfig = func(ctx context.Context) (database.ChatModelConfig, error) {
+				store.getEnabledChatModelConfigsByOrganization = func(ctx context.Context, _ uuid.UUID) ([]database.GetEnabledChatModelConfigsByOrganizationRow, error) {
 					once.Do(func() { close(started) })
 					<-ctx.Done()
-					return database.ChatModelConfig{}, ctx.Err()
+					return nil, ctx.Err()
 				}
 			},
 			call: func(ctx context.Context, cache *chatConfigCache) error {
-				_, err := cache.DefaultModelConfig(ctx)
+				_, err := cache.DefaultModelConfig(ctx, defaultOrgID)
 				return err
 			},
 			storeCalls: func(store *stubChatConfigStore) int32 {
-				return store.defaultModelConfigCall.Load()
+				return store.totalEffectiveConfigCalls()
 			},
 		},
 		{

@@ -14,7 +14,8 @@ FROM
     chat_model_configs
 WHERE
     is_default = TRUE
-    AND deleted = FALSE;
+    AND deleted = FALSE
+    AND organization_id = @organization_id::uuid;
 
 -- name: GetChatModelConfigs :many
 SELECT
@@ -41,6 +42,26 @@ JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
     cmc.enabled = TRUE
+    AND cmc.deleted = FALSE
+    AND ap.enabled = TRUE
+    AND ap.deleted = FALSE
+ORDER BY
+    ap.type::text ASC,
+    cmc.model ASC,
+    cmc.updated_at DESC,
+    cmc.id DESC;
+
+-- name: GetEnabledChatModelConfigsByOrganization :many
+SELECT
+    sqlc.embed(cmc),
+    ap.type::text AS provider
+FROM
+    chat_model_configs cmc
+JOIN
+    ai_providers ap ON ap.id = cmc.ai_provider_id
+WHERE
+    cmc.organization_id = @organization_id::uuid
+    AND cmc.enabled = TRUE
     AND cmc.deleted = FALSE
     AND ap.enabled = TRUE
     AND ap.deleted = FALSE
@@ -77,7 +98,10 @@ INSERT INTO chat_model_configs (
     context_limit,
     compression_threshold,
     options,
-    ai_provider_id
+    ai_provider_id,
+    organization_id,
+    group_acl,
+    user_acl
 ) VALUES (
     @model::text,
     @display_name::text,
@@ -88,7 +112,10 @@ INSERT INTO chat_model_configs (
     @context_limit::bigint,
     @compression_threshold::integer,
     @options::jsonb,
-    sqlc.narg('ai_provider_id')::uuid
+    sqlc.narg('ai_provider_id')::uuid,
+    @organization_id::uuid,
+    @group_acl,
+    @user_acl
 )
 RETURNING
     *;
@@ -121,7 +148,8 @@ SET
     updated_at = NOW()
 WHERE
     is_default = TRUE
-    AND deleted = FALSE;
+    AND deleted = FALSE
+    AND organization_id = @organization_id::uuid;
 
 -- name: DeleteChatModelConfigByID :one
 UPDATE

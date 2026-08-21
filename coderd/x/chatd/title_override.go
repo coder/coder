@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/google/uuid"
@@ -74,13 +75,18 @@ func (p *Server) resolveTitleGenerationModelOverride(
 		titleGenerationOverrideContext,
 		raw,
 		chat.OwnerID,
-		p.resolveModelConfigAndNormalizedProvider,
+		func(ctx context.Context, modelConfigID uuid.UUID) (database.ChatModelConfig, string, error) {
+			return p.resolveModelConfigForOrganization(ctx, chat.OrganizationID, modelConfigID)
+		},
 		func(ctx context.Context, ownerID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {
 			return p.resolveUserProviderAPIKeys(ctx, ownerID, aiProviderID)
 		},
 		modelOverrideFailureModeHard,
 	)
 	if err != nil {
+		if errors.Is(err, errModelConfigOutsideOrganization) {
+			return resolvedModelCall{}, false, err
+		}
 		return resolvedModelCall{}, overrideSet, err
 	}
 	if !overrideSet {
