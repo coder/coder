@@ -30,7 +30,13 @@ type NewAIAgent struct {
 	// AuthorizationID identifies the grant made to this AI agent at creation.
 	AuthorizationID uuid.UUID
 
-	Credential string
+	// CredentialID identifies the credential issued at creation, and is not
+	// derived from the authenticator.
+	CredentialID uuid.UUID
+
+	// Authenticator is what the AI agent possesses and controls. This is the
+	// only time it can be had.
+	Authenticator string
 }
 
 // CreateAIAgent creates an AI agent, issues it a credential, and returns both.
@@ -44,15 +50,10 @@ type NewAIAgent struct {
 // the effect are both rows in one transaction, the ordering problem that
 // reconciliation exists to resolve does not arise.
 //
-// Creation and the grant of authorization are two events and take two entries,
-// in two journals, because they are two different things happening to two
-// different entities. Both are written in this transaction, so nothing is left
-// to reconcile between them.
-//
-// Issuing the credential is not journaled. Credential lifecycle is out of
-// scope for the proof of concept, which reproduces P7 in
-// poc_audit/security_findings.md on purpose and for now, and there is no
-// credential journal to write to yet.
+// Creation, the grant of authorization, and the issuance of a credential are
+// three events and take three entries, in three journals, because they are
+// three different things happening to three different entities. All are
+// written in this transaction, so nothing is left to reconcile between them.
 //
 // store may be a transaction handle. Given one, this joins it and commits
 // nothing itself, so that creation can be made atomic with work that is not
@@ -123,10 +124,19 @@ func CreateAIAgent(ctx context.Context, store database.Store, params CreateAIAge
 		// it follows the authority it lets its holder exercise, just as that
 		// authority follows the party it was conferred on. A credential issued
 		// before either would evidence something that did not yet exist.
-		created.Credential, err = IssueCredential(ctx, tx, Ref{Type: TypeAIAgent, ID: created.ID})
+		//
+		// Its actor is the owner, for the same reason the grant's is: the
+		// order that brought the AI agent into existence is what issues this
+		// too, and a relaying workspace_agent issues nothing.
+		issued, err := IssueCredential(ctx, tx, IssueCredentialParams{
+			Holder: Ref{Type: TypeAIAgent, ID: created.ID},
+			Actor:  Ref{Type: TypeUser, ID: params.OwnerID},
+		})
 		if err != nil {
 			return xerrors.Errorf("issue credential: %w", err)
 		}
+		created.CredentialID = issued.ID
+		created.Authenticator = issued.Authenticator
 		return nil
 	}, nil)
 	if err != nil {

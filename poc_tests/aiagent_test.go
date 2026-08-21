@@ -1,8 +1,6 @@
 package poctests_test
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -177,16 +175,18 @@ func TestAIAgentIdentity(t *testing.T) {
 		// The credential reached the executable. It is compared by digest
 		// because the executable does not print it: standard output becomes a
 		// log the control plane stores, and a credential does not belong there.
-		credentials, err := db.GetValidCredentialsByActor(systemCtx, database.GetValidCredentialsByActorParams{
-			ActorType: string(entity.TypeAIAgent),
-			Actor:     id,
+		credentials, err := db.GetValidCredentialsByHolder(systemCtx, database.GetValidCredentialsByHolderParams{
+			HolderType: string(entity.TypeAIAgent),
+			HolderID:   id,
 		})
 		require.NoError(t, err)
 		require.Len(t, credentials, 1, "creation should issue exactly one credential")
 
-		stored := sha256.Sum256([]byte(credentials[0].Password))
-		require.Equal(t, hex.EncodeToString(stored[:]), reportedCredentialDigest(t, scriptLog),
-			"the credential the executable received should be the one on record")
+		// The ledger holds the digest rather than the authenticator, so the
+		// comparison is direct: what is on record against what the executable
+		// received, hashed the same way.
+		require.Equal(t, credentials[0].CredentialValue, reportedCredentialDigest(t, scriptLog),
+			"the authenticator the executable received should be the one on record")
 	})
 
 	// The probe is what a real workspace will run, so its failure handling is

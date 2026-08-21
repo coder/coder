@@ -575,6 +575,7 @@ type sqlcQuerier interface {
 	// at write time, not here.
 	GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
+	GetCredentialLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (CredentialLifecycleLedger, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
 	GetCryptoKeys(ctx context.Context) ([]CryptoKey, error)
 	GetCryptoKeysByFeature(ctx context.Context, feature CryptoKeyFeature) ([]CryptoKey, error)
@@ -1004,9 +1005,13 @@ type sqlcQuerier interface {
 	// to look up references to actions. eg. a user could build a workspace
 	// for another user, then be deleted... we still want them to appear!
 	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
-	// Many, because an actor may hold more than one valid credential while a
-	// rotation overlaps.
-	GetValidCredentialsByActor(ctx context.Context, arg GetValidCredentialsByActorParams) ([]ValidCredential, error)
+	// Every credential currently valid for one holder. More than one may be valid
+	// at a time, so that a rotation can overlap rather than leaving an interval
+	// with none.
+	//
+	// State only. Expiry is not considered here: nothing writes expires_at yet, and
+	// evaluating it belongs to the work package that does.
+	GetValidCredentialsByHolder(ctx context.Context, arg GetValidCredentialsByHolderParams) ([]CredentialLifecycleLedger, error)
 	GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]WebpushSubscription, error)
 	GetWebpushVAPIDKeys(ctx context.Context) (GetWebpushVAPIDKeysRow, error)
 	GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (GetWorkspaceACLByIDRow, error)
@@ -1182,6 +1187,17 @@ type sqlcQuerier interface {
 	// sequence) and an explicit created_by reference. Use this when the
 	// queued-message creator differs from the chat owner.
 	InsertChatQueuedMessageWithCreator(ctx context.Context, arg InsertChatQueuedMessageWithCreatorParams) (ChatQueuedMessage, error)
+	// Line 0 carries the entry level values. recording_date is absent from this
+	// statement on purpose: the column default supplies it, so no caller can
+	// supply, override, or backdate it.
+	InsertCredentialLifecycleJournalFirstLine(ctx context.Context, arg InsertCredentialLifecycleJournalFirstLineParams) (CredentialLifecycleJournal, error)
+	// NOT LIVE CODE. Nothing calls this. It is here to show what a line after the
+	// first looks like, since the proof of concept writes no multiline entry:
+	// rotation, the case that needs one, is out of scope. It deserves a unit test
+	// of its own and does not have one, so treat it as documentation rather than
+	// as a tested path. In production this would rot; this is not production.
+	InsertCredentialLifecycleJournalSubsequentLine(ctx context.Context, arg InsertCredentialLifecycleJournalSubsequentLineParams) (CredentialLifecycleJournal, error)
+	InsertCredentialLifecycleLedgerRow(ctx context.Context, arg InsertCredentialLifecycleLedgerRowParams) (CredentialLifecycleLedger, error)
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
@@ -1241,7 +1257,6 @@ type sqlcQuerier interface {
 	InsertUserGroupsByID(ctx context.Context, arg InsertUserGroupsByIDParams) ([]uuid.UUID, error)
 	InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error)
 	InsertUserSkill(ctx context.Context, arg InsertUserSkillParams) (UserSkill, error)
-	InsertValidCredential(ctx context.Context, arg InsertValidCredentialParams) (ValidCredential, error)
 	InsertVolumeResourceMonitor(ctx context.Context, arg InsertVolumeResourceMonitorParams) (WorkspaceAgentVolumeResourceMonitor, error)
 	// Inserts or updates a webpush subscription. The (user_id, endpoint) pair
 	// is unique; re-subscribing the same endpoint replaces the keys instead of
@@ -1373,6 +1388,8 @@ type sqlcQuerier interface {
 	// column default cannot serve, allocating per row where the lines of an entry
 	// must agree.
 	NextAuthorizationLifecycleJournalEntryID(ctx context.Context) (int64, error)
+	// One call per entry, whose value every line of that entry then carries.
+	NextCredentialLifecycleJournalEntryID(ctx context.Context) (int64, error)
 	OIDCClaimFieldValues(ctx context.Context, arg OIDCClaimFieldValuesParams) ([]string, error)
 	// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
 	// This query is used to generate the list of available sync fields for idp sync settings.
@@ -1399,6 +1416,9 @@ type sqlcQuerier interface {
 	// Sets the target queued message's position to one less than the
 	// current minimum position for that chat, moving it to the head.
 	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
+	// Posting a revocation. Conditioned on the posting reference the caller expects
+	// to find, so that two concurrent posters cannot both believe they succeeded.
+	RevokeCredential(ctx context.Context, arg RevokeCredentialParams) (CredentialLifecycleLedger, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Marks chat-origin AI agent identities deleted when their chat no longer
 	// exists (retention purge hard-deletes chats; ai_agents.origin_id has no

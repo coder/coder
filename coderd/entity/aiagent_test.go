@@ -34,14 +34,15 @@ func TestCreateAIAgent(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, created.ID, "creation should mint an identity")
-		require.NotEmpty(t, created.Credential, "creation should issue a credential")
+		require.NotEmpty(t, created.Authenticator, "creation should issue a credential")
+		require.NotEqual(t, uuid.Nil, created.CredentialID, "the credential should be identified")
 
 		id := created.ID
 		agent, err := db.GetEntityAIAgentByID(ctx, id)
 		require.NoError(t, err, "the minted identity should name a row")
 		require.Equal(t, owner.ID, agent.OwnerID, "the AI agent should belong to its principal")
 
-		verified, err := entity.VerifyCredential(ctx, db, entity.Ref{Type: entity.TypeAIAgent, ID: id}, created.Credential)
+		verified, err := entity.VerifyCredential(ctx, db, entity.Ref{Type: entity.TypeAIAgent, ID: id}, created.Authenticator)
 		require.NoError(t, err)
 		require.True(t, verified, "the credential handed back should verify")
 
@@ -140,9 +141,9 @@ func TestCreateAIAgent(t *testing.T) {
 		require.ErrorIs(t, err, sql.ErrNoRows,
 			"the AI agent should roll back with the entry accounting for it")
 
-		credentials, err := db.GetValidCredentialsByActor(ctx, database.GetValidCredentialsByActorParams{
-			ActorType: string(entity.TypeAIAgent),
-			Actor:     id,
+		credentials, err := db.GetValidCredentialsByHolder(ctx, database.GetValidCredentialsByHolderParams{
+			HolderType: string(entity.TypeAIAgent),
+			HolderID:   id,
 		})
 		require.NoError(t, err)
 		require.Empty(t, credentials, "the credential should roll back with the rest")

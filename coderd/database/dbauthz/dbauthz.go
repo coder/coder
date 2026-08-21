@@ -3776,6 +3776,13 @@ func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetC
 	return q.db.GetAuthorizedConnectionLogsOffset(ctx, arg, prep)
 }
 
+func (q *querier) GetCredentialLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.CredentialLifecycleLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.CredentialLifecycleLedger{}, err
+	}
+	return q.db.GetCredentialLifecycleLedgerRowByID(ctx, id)
+}
+
 func (q *querier) GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg database.GetCryptoKeyByFeatureAndSequenceParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -5431,14 +5438,11 @@ func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]databas
 	return q.db.GetUsersByIDs(ctx, ids)
 }
 
-// GetValidCredentialsByActor returns stored credentials, so it is guarded like
-// the rest of this family: system permission only, which nothing inside a
-// workspace holds. Coarse, and to be revisited for production.
-func (q *querier) GetValidCredentialsByActor(ctx context.Context, arg database.GetValidCredentialsByActorParams) ([]database.ValidCredential, error) {
+func (q *querier) GetValidCredentialsByHolder(ctx context.Context, arg database.GetValidCredentialsByHolderParams) ([]database.CredentialLifecycleLedger, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
-	return q.db.GetValidCredentialsByActor(ctx, arg)
+	return q.db.GetValidCredentialsByHolder(ctx, arg)
 }
 
 func (q *querier) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
@@ -6264,6 +6268,27 @@ func (q *querier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg da
 	return q.db.InsertChatQueuedMessageWithCreator(ctx, arg)
 }
 
+func (q *querier) InsertCredentialLifecycleJournalFirstLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalFirstLineParams) (database.CredentialLifecycleJournal, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.CredentialLifecycleJournal{}, err
+	}
+	return q.db.InsertCredentialLifecycleJournalFirstLine(ctx, arg)
+}
+
+func (q *querier) InsertCredentialLifecycleJournalSubsequentLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalSubsequentLineParams) (database.CredentialLifecycleJournal, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.CredentialLifecycleJournal{}, err
+	}
+	return q.db.InsertCredentialLifecycleJournalSubsequentLine(ctx, arg)
+}
+
+func (q *querier) InsertCredentialLifecycleLedgerRow(ctx context.Context, arg database.InsertCredentialLifecycleLedgerRowParams) (database.CredentialLifecycleLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.CredentialLifecycleLedger{}, err
+	}
+	return q.db.InsertCredentialLifecycleLedgerRow(ctx, arg)
+}
+
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -6668,13 +6693,6 @@ func (q *querier) InsertUserSkill(ctx context.Context, arg database.InsertUserSk
 		return database.UserSkill{}, err
 	}
 	return q.db.InsertUserSkill(ctx, arg)
-}
-
-func (q *querier) InsertValidCredential(ctx context.Context, arg database.InsertValidCredentialParams) (database.ValidCredential, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.ValidCredential{}, err
-	}
-	return q.db.InsertValidCredential(ctx, arg)
 }
 
 func (q *querier) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
@@ -7198,6 +7216,16 @@ func (q *querier) NextAuthorizationLifecycleJournalEntryID(ctx context.Context) 
 	return q.db.NextAuthorizationLifecycleJournalEntryID(ctx)
 }
 
+// NextCredentialLifecycleJournalEntryID is guarded by ResourceSystem for the
+// same reason as the rest of this family: writing to a journal is the control
+// plane's act, not that of anything holding a workspace-scoped credential.
+func (q *querier) NextCredentialLifecycleJournalEntryID(ctx context.Context) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.NextCredentialLifecycleJournalEntryID(ctx)
+}
+
 func (q *querier) OIDCClaimFieldValues(ctx context.Context, args database.OIDCClaimFieldValuesParams) ([]string, error) {
 	resource := rbac.ResourceIdpsyncSettings
 	if args.OrganizationID != uuid.Nil {
@@ -7304,6 +7332,13 @@ func (q *querier) ReorderChatQueuedMessageToHead(ctx context.Context, arg databa
 	}
 	_ = chat
 	return q.db.ReorderChatQueuedMessageToHead(ctx, arg)
+}
+
+func (q *querier) RevokeCredential(ctx context.Context, arg database.RevokeCredentialParams) (database.CredentialLifecycleLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.CredentialLifecycleLedger{}, err
+	}
+	return q.db.RevokeCredential(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {

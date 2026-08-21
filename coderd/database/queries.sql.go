@@ -14772,6 +14772,284 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 	return items, nil
 }
 
+const getCredentialLifecycleLedgerRowByID = `-- name: GetCredentialLifecycleLedgerRowByID :one
+SELECT
+	id, holder_type, holder_id, credential_type, credential_value, state, expires_at, posting_reference
+FROM
+	credential_lifecycle_ledger
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) GetCredentialLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (CredentialLifecycleLedger, error) {
+	row := q.db.QueryRowContext(ctx, getCredentialLifecycleLedgerRowByID, id)
+	var i CredentialLifecycleLedger
+	err := row.Scan(
+		&i.ID,
+		&i.HolderType,
+		&i.HolderID,
+		&i.CredentialType,
+		&i.CredentialValue,
+		&i.State,
+		&i.ExpiresAt,
+		&i.PostingReference,
+	)
+	return i, err
+}
+
+const getValidCredentialsByHolder = `-- name: GetValidCredentialsByHolder :many
+SELECT
+	id, holder_type, holder_id, credential_type, credential_value, state, expires_at, posting_reference
+FROM
+	credential_lifecycle_ledger
+WHERE
+	holder_type = $1
+	AND holder_id = $2
+	AND state = 'valid'
+`
+
+type GetValidCredentialsByHolderParams struct {
+	HolderType string    `db:"holder_type" json:"holder_type"`
+	HolderID   uuid.UUID `db:"holder_id" json:"holder_id"`
+}
+
+// Every credential currently valid for one holder. More than one may be valid
+// at a time, so that a rotation can overlap rather than leaving an interval
+// with none.
+//
+// State only. Expiry is not considered here: nothing writes expires_at yet, and
+// evaluating it belongs to the work package that does.
+func (q *sqlQuerier) GetValidCredentialsByHolder(ctx context.Context, arg GetValidCredentialsByHolderParams) ([]CredentialLifecycleLedger, error) {
+	rows, err := q.db.QueryContext(ctx, getValidCredentialsByHolder, arg.HolderType, arg.HolderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CredentialLifecycleLedger
+	for rows.Next() {
+		var i CredentialLifecycleLedger
+		if err := rows.Scan(
+			&i.ID,
+			&i.HolderType,
+			&i.HolderID,
+			&i.CredentialType,
+			&i.CredentialValue,
+			&i.State,
+			&i.ExpiresAt,
+			&i.PostingReference,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertCredentialLifecycleJournalFirstLine = `-- name: InsertCredentialLifecycleJournalFirstLine :one
+INSERT INTO
+	credential_lifecycle_journal (
+		entry_id,
+		line,
+		effective_date,
+		actor_type,
+		actor,
+		event,
+		subject
+	)
+VALUES
+	($1, 0, $2, $3, $4, $5, $6) RETURNING entry_id, line, recording_date, effective_date, actor_type, actor, event, subject
+`
+
+type InsertCredentialLifecycleJournalFirstLineParams struct {
+	EntryID       int64          `db:"entry_id" json:"entry_id"`
+	EffectiveDate sql.NullTime   `db:"effective_date" json:"effective_date"`
+	ActorType     sql.NullString `db:"actor_type" json:"actor_type"`
+	Actor         uuid.NullUUID  `db:"actor" json:"actor"`
+	Event         string         `db:"event" json:"event"`
+	Subject       uuid.UUID      `db:"subject" json:"subject"`
+}
+
+// Line 0 carries the entry level values. recording_date is absent from this
+// statement on purpose: the column default supplies it, so no caller can
+// supply, override, or backdate it.
+func (q *sqlQuerier) InsertCredentialLifecycleJournalFirstLine(ctx context.Context, arg InsertCredentialLifecycleJournalFirstLineParams) (CredentialLifecycleJournal, error) {
+	row := q.db.QueryRowContext(ctx, insertCredentialLifecycleJournalFirstLine,
+		arg.EntryID,
+		arg.EffectiveDate,
+		arg.ActorType,
+		arg.Actor,
+		arg.Event,
+		arg.Subject,
+	)
+	var i CredentialLifecycleJournal
+	err := row.Scan(
+		&i.EntryID,
+		&i.Line,
+		&i.RecordingDate,
+		&i.EffectiveDate,
+		&i.ActorType,
+		&i.Actor,
+		&i.Event,
+		&i.Subject,
+	)
+	return i, err
+}
+
+const insertCredentialLifecycleJournalSubsequentLine = `-- name: InsertCredentialLifecycleJournalSubsequentLine :one
+INSERT INTO
+	credential_lifecycle_journal (
+		entry_id,
+		line,
+		recording_date,
+		effective_date,
+		actor_type,
+		actor,
+		event,
+		subject
+	)
+VALUES
+	($1, $2, NULL, NULL, NULL, NULL, $3, $4) RETURNING entry_id, line, recording_date, effective_date, actor_type, actor, event, subject
+`
+
+type InsertCredentialLifecycleJournalSubsequentLineParams struct {
+	EntryID int64     `db:"entry_id" json:"entry_id"`
+	Line    int16     `db:"line" json:"line"`
+	Event   string    `db:"event" json:"event"`
+	Subject uuid.UUID `db:"subject" json:"subject"`
+}
+
+// NOT LIVE CODE. Nothing calls this. It is here to show what a line after the
+// first looks like, since the proof of concept writes no multiline entry:
+// rotation, the case that needs one, is out of scope. It deserves a unit test
+// of its own and does not have one, so treat it as documentation rather than
+// as a tested path. In production this would rot; this is not production.
+func (q *sqlQuerier) InsertCredentialLifecycleJournalSubsequentLine(ctx context.Context, arg InsertCredentialLifecycleJournalSubsequentLineParams) (CredentialLifecycleJournal, error) {
+	row := q.db.QueryRowContext(ctx, insertCredentialLifecycleJournalSubsequentLine,
+		arg.EntryID,
+		arg.Line,
+		arg.Event,
+		arg.Subject,
+	)
+	var i CredentialLifecycleJournal
+	err := row.Scan(
+		&i.EntryID,
+		&i.Line,
+		&i.RecordingDate,
+		&i.EffectiveDate,
+		&i.ActorType,
+		&i.Actor,
+		&i.Event,
+		&i.Subject,
+	)
+	return i, err
+}
+
+const insertCredentialLifecycleLedgerRow = `-- name: InsertCredentialLifecycleLedgerRow :one
+INSERT INTO
+	credential_lifecycle_ledger (
+		id,
+		holder_type,
+		holder_id,
+		credential_type,
+		credential_value,
+		state,
+		expires_at,
+		posting_reference
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, holder_type, holder_id, credential_type, credential_value, state, expires_at, posting_reference
+`
+
+type InsertCredentialLifecycleLedgerRowParams struct {
+	ID               uuid.UUID    `db:"id" json:"id"`
+	HolderType       string       `db:"holder_type" json:"holder_type"`
+	HolderID         uuid.UUID    `db:"holder_id" json:"holder_id"`
+	CredentialType   string       `db:"credential_type" json:"credential_type"`
+	CredentialValue  string       `db:"credential_value" json:"credential_value"`
+	State            string       `db:"state" json:"state"`
+	ExpiresAt        sql.NullTime `db:"expires_at" json:"expires_at"`
+	PostingReference int64        `db:"posting_reference" json:"posting_reference"`
+}
+
+func (q *sqlQuerier) InsertCredentialLifecycleLedgerRow(ctx context.Context, arg InsertCredentialLifecycleLedgerRowParams) (CredentialLifecycleLedger, error) {
+	row := q.db.QueryRowContext(ctx, insertCredentialLifecycleLedgerRow,
+		arg.ID,
+		arg.HolderType,
+		arg.HolderID,
+		arg.CredentialType,
+		arg.CredentialValue,
+		arg.State,
+		arg.ExpiresAt,
+		arg.PostingReference,
+	)
+	var i CredentialLifecycleLedger
+	err := row.Scan(
+		&i.ID,
+		&i.HolderType,
+		&i.HolderID,
+		&i.CredentialType,
+		&i.CredentialValue,
+		&i.State,
+		&i.ExpiresAt,
+		&i.PostingReference,
+	)
+	return i, err
+}
+
+const nextCredentialLifecycleJournalEntryID = `-- name: NextCredentialLifecycleJournalEntryID :one
+SELECT
+	nextval('credential_lifecycle_journal_entry_seq')::bigint
+`
+
+// One call per entry, whose value every line of that entry then carries.
+func (q *sqlQuerier) NextCredentialLifecycleJournalEntryID(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, nextCredentialLifecycleJournalEntryID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const revokeCredential = `-- name: RevokeCredential :one
+UPDATE
+	credential_lifecycle_ledger
+SET
+	state = 'invalid',
+	posting_reference = $2
+WHERE
+	id = $1
+	AND posting_reference = $3 RETURNING id, holder_type, holder_id, credential_type, credential_value, state, expires_at, posting_reference
+`
+
+type RevokeCredentialParams struct {
+	ID                 uuid.UUID `db:"id" json:"id"`
+	PostingReference   int64     `db:"posting_reference" json:"posting_reference"`
+	PostingReference_2 int64     `db:"posting_reference_2" json:"posting_reference_2"`
+}
+
+// Posting a revocation. Conditioned on the posting reference the caller expects
+// to find, so that two concurrent posters cannot both believe they succeeded.
+func (q *sqlQuerier) RevokeCredential(ctx context.Context, arg RevokeCredentialParams) (CredentialLifecycleLedger, error) {
+	row := q.db.QueryRowContext(ctx, revokeCredential, arg.ID, arg.PostingReference, arg.PostingReference_2)
+	var i CredentialLifecycleLedger
+	err := row.Scan(
+		&i.ID,
+		&i.HolderType,
+		&i.HolderID,
+		&i.CredentialType,
+		&i.CredentialValue,
+		&i.State,
+		&i.ExpiresAt,
+		&i.PostingReference,
+	)
+	return i, err
+}
+
 const deleteCryptoKey = `-- name: DeleteCryptoKey :one
 UPDATE crypto_keys
 SET secret = NULL, secret_key_id = NULL
@@ -33147,66 +33425,6 @@ func (q *sqlQuerier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (
 	row := q.db.QueryRowContext(ctx, validateUserIDs, pq.Array(userIds))
 	var i ValidateUserIDsRow
 	err := row.Scan(pq.Array(&i.InvalidUserIds), &i.Ok)
-	return i, err
-}
-
-const getValidCredentialsByActor = `-- name: GetValidCredentialsByActor :many
-SELECT
-	actor_type, actor, password
-FROM
-	valid_credentials
-WHERE
-	actor_type = $1
-	AND actor = $2
-`
-
-type GetValidCredentialsByActorParams struct {
-	ActorType string    `db:"actor_type" json:"actor_type"`
-	Actor     uuid.UUID `db:"actor" json:"actor"`
-}
-
-// Many, because an actor may hold more than one valid credential while a
-// rotation overlaps.
-func (q *sqlQuerier) GetValidCredentialsByActor(ctx context.Context, arg GetValidCredentialsByActorParams) ([]ValidCredential, error) {
-	rows, err := q.db.QueryContext(ctx, getValidCredentialsByActor, arg.ActorType, arg.Actor)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ValidCredential
-	for rows.Next() {
-		var i ValidCredential
-		if err := rows.Scan(&i.ActorType, &i.Actor, &i.Password); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const insertValidCredential = `-- name: InsertValidCredential :one
-INSERT INTO
-	valid_credentials (actor_type, actor, password)
-VALUES
-	($1, $2, $3) RETURNING actor_type, actor, password
-`
-
-type InsertValidCredentialParams struct {
-	ActorType string    `db:"actor_type" json:"actor_type"`
-	Actor     uuid.UUID `db:"actor" json:"actor"`
-	Password  string    `db:"password" json:"password"`
-}
-
-func (q *sqlQuerier) InsertValidCredential(ctx context.Context, arg InsertValidCredentialParams) (ValidCredential, error) {
-	row := q.db.QueryRowContext(ctx, insertValidCredential, arg.ActorType, arg.Actor, arg.Password)
-	var i ValidCredential
-	err := row.Scan(&i.ActorType, &i.Actor, &i.Password)
 	return i, err
 }
 

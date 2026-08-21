@@ -59,6 +59,6 @@ func (a *AIAgentAPI) CreateAIAgent(ctx context.Context, _ *agentproto.CreateAIAg
 
 	return &agentproto.CreateAIAgentResponse{
 		Id:         created.ID[:],
-		Credential: []byte(created.Credential),
+		Credential: []byte(created.Authenticator),
 	}, nil
 }

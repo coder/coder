@@ -1985,6 +1985,14 @@ func (m queryMetricsStore) GetConnectionLogsOffset(ctx context.Context, arg data
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetCredentialLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.CredentialLifecycleLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCredentialLifecycleLedgerRowByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetCredentialLifecycleLedgerRowByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCredentialLifecycleLedgerRowByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg database.GetCryptoKeyByFeatureAndSequenceParams) (database.CryptoKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetCryptoKeyByFeatureAndSequence(ctx, arg)
@@ -3553,11 +3561,11 @@ func (m queryMetricsStore) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) (
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetValidCredentialsByActor(ctx context.Context, arg database.GetValidCredentialsByActorParams) ([]database.ValidCredential, error) {
+func (m queryMetricsStore) GetValidCredentialsByHolder(ctx context.Context, arg database.GetValidCredentialsByHolderParams) ([]database.CredentialLifecycleLedger, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetValidCredentialsByActor(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetValidCredentialsByActor").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetValidCredentialsByActor").Inc()
+	r0, r1 := m.s.GetValidCredentialsByHolder(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetValidCredentialsByHolder").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetValidCredentialsByHolder").Inc()
 	return r0, r1
 }
 
@@ -4329,6 +4337,30 @@ func (m queryMetricsStore) InsertChatQueuedMessageWithCreator(ctx context.Contex
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertCredentialLifecycleJournalFirstLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalFirstLineParams) (database.CredentialLifecycleJournal, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertCredentialLifecycleJournalFirstLine(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertCredentialLifecycleJournalFirstLine").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialLifecycleJournalFirstLine").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertCredentialLifecycleJournalSubsequentLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalSubsequentLineParams) (database.CredentialLifecycleJournal, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertCredentialLifecycleJournalSubsequentLine(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertCredentialLifecycleJournalSubsequentLine").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialLifecycleJournalSubsequentLine").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertCredentialLifecycleLedgerRow(ctx context.Context, arg database.InsertCredentialLifecycleLedgerRowParams) (database.CredentialLifecycleLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertCredentialLifecycleLedgerRow(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertCredentialLifecycleLedgerRow").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialLifecycleLedgerRow").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertCryptoKey(ctx, arg)
@@ -4694,14 +4726,6 @@ func (m queryMetricsStore) InsertUserSkill(ctx context.Context, arg database.Ins
 	r0, r1 := m.s.InsertUserSkill(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertUserSkill").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertUserSkill").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) InsertValidCredential(ctx context.Context, arg database.InsertValidCredentialParams) (database.ValidCredential, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertValidCredential(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertValidCredential").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertValidCredential").Inc()
 	return r0, r1
 }
 
@@ -5113,6 +5137,14 @@ func (m queryMetricsStore) NextAuthorizationLifecycleJournalEntryID(ctx context.
 	return r0, r1
 }
 
+func (m queryMetricsStore) NextCredentialLifecycleJournalEntryID(ctx context.Context) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.NextCredentialLifecycleJournalEntryID(ctx)
+	m.queryLatencies.WithLabelValues("NextCredentialLifecycleJournalEntryID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "NextCredentialLifecycleJournalEntryID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) OIDCClaimFieldValues(ctx context.Context, arg database.OIDCClaimFieldValuesParams) ([]string, error) {
 	start := time.Now()
 	r0, r1 := m.s.OIDCClaimFieldValues(ctx, arg)
@@ -5198,6 +5230,14 @@ func (m queryMetricsStore) ReorderChatQueuedMessageToHead(ctx context.Context, a
 	r0, r1 := m.s.ReorderChatQueuedMessageToHead(ctx, arg)
 	m.queryLatencies.WithLabelValues("ReorderChatQueuedMessageToHead").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReorderChatQueuedMessageToHead").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) RevokeCredential(ctx context.Context, arg database.RevokeCredentialParams) (database.CredentialLifecycleLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.RevokeCredential(ctx, arg)
+	m.queryLatencies.WithLabelValues("RevokeCredential").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RevokeCredential").Inc()
 	return r0, r1
 }
 

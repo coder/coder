@@ -6541,14 +6541,6 @@ type UserStatusChange struct {
 	ChangedAt time.Time  `db:"changed_at" json:"changed_at"`
 }
 
-// Credentials that are currently valid. Membership is validity: revoking a credential deletes its row, and the credential journal holds the history including when that happened. There is deliberately no key. An actor may hold more than one valid credential at a time, so that rotation can overlap rather than requiring a moment with no valid credential.
-type ValidCredential struct {
-	ActorType string    `db:"actor_type" json:"actor_type"`
-	Actor     uuid.UUID `db:"actor" json:"actor"`
-	// A plaintext password. This is a proof of concept cheat, enumerated with the others under PoC cheats in poc_audit/work_breakdown.md. The mandates in poc_audit/security_findings.md require that only a non reversible form of a credential be stored, and this violates that deliberately and temporarily.
-	Password string `db:"password" json:"password"`
-}
-
 // Visible fields of users are allowed to be joined with other tables for including context of other resources.
 type VisibleUser struct {
 	ID        uuid.UUID `db:"id" json:"id"`

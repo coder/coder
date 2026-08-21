@@ -59,15 +59,21 @@ maturity and this says provenance, and the two vary independently. The existing
 
 ### Credential
 
-**Stub**, with the schema built.
+**Built**, carrying proof of concept cheats.
 
-The tables exist to the current patterns. The code does not use them yet: it
-stores a plaintext password in a table that predates the patterns and is to be
-removed, and verifies by comparing every candidate for a holder.
+Issuance and revocation write to the journal and post to the ledger. A password
+is kept as an unsalted SHA-256 digest in hex, so nothing presentable is at rest.
+The table that predated the patterns is dropped.
 
-- `coderd/database/migrations/000577_credential_lifecycle.up.sql`, the schema.
-- `coderd/entity/credential.go` and
-  `coderd/database/migrations/000575_valid_credentials.up.sql`, the stub.
+This closes **P7** in `poc_audit/security_findings.md`, which held that
+credential events had no auditability. The cheats that remain are the null
+credential type, whose always-validates path is real code, and the absence of
+any expiry evaluation, which belongs to the work package that will write
+expiries.
+
+- `coderd/database/migrations/000577_credential_lifecycle.up.sql`
+- `coderd/database/queries/credentiallifecycle.sql`
+- `coderd/entity/credential.go`
 
 ### AI agent
 
