@@ -745,6 +745,14 @@ func ConfigWorkspaces() regosql.ConvertConfig {
 	}
 }
 
+// ConfigChatModelConfigs uses a resource converter so SQL filters qualify
+// chat model config columns consistently with GetChatModelConfigs.
+func ConfigChatModelConfigs() regosql.ConvertConfig {
+	return regosql.ConvertConfig{
+		VariableConverter: regosql.ChatModelConfigConverter(),
+	}
+}
+
 func Compile(cfg regosql.ConvertConfig, pa *PartialAuthorizer) (AuthorizeFilter, error) {
 	root, err := regosql.ConvertRegoAst(cfg, pa.partialQueries)
 	if err != nil {

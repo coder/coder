@@ -707,6 +707,12 @@ export type APIKeyScope =
 	| "chat:*"
 	| "chat:create"
 	| "chat:delete"
+	| "chat_model_config:*"
+	| "chat_model_config:create"
+	| "chat_model_config:delete"
+	| "chat_model_config:read"
+	| "chat_model_config:share"
+	| "chat_model_config:update"
 	| "chat:read"
 	| "chat:share"
 	| "chat:update"
@@ -953,6 +959,12 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat:*",
 	"chat:create",
 	"chat:delete",
+	"chat_model_config:*",
+	"chat_model_config:create",
+	"chat_model_config:delete",
+	"chat_model_config:read",
+	"chat_model_config:share",
+	"chat_model_config:update",
 	"chat:read",
 	"chat:share",
 	"chat:update",
@@ -7885,6 +7897,7 @@ export type RBACResource =
 	| "boundary_log"
 	| "boundary_usage"
 	| "chat"
+	| "chat_model_config"
 	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
@@ -7939,6 +7952,7 @@ export const RBACResources: RBACResource[] = [
 	"boundary_log",
 	"boundary_usage",
 	"chat",
+	"chat_model_config",
 	"connection_log",
 	"crypto_key",
 	"debug_info",
@@ -8093,6 +8107,7 @@ export type ResourceType =
 	| "api_key"
 	| "chat"
 	| "chat_instruction_settings"
+	| "chat_model_config"
 	| "convert_login"
 	| "custom_role"
 	| "git_ssh_key"
@@ -8133,6 +8148,7 @@ export const ResourceTypes: ResourceType[] = [
 	"api_key",
 	"chat",
 	"chat_instruction_settings",
+	"chat_model_config",
 	"convert_login",
 	"custom_role",
 	"git_ssh_key",

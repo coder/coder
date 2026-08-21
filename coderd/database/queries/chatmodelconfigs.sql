@@ -26,6 +26,8 @@ LEFT JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
     cmc.deleted = FALSE
+    -- Authorize Filter clause will be injected below in GetAuthorizedChatModelConfigs
+    -- @authorize_filter
 ORDER BY
     ap.type::text ASC,
     cmc.model ASC,
@@ -133,6 +135,20 @@ SET
     compression_threshold = @compression_threshold::integer,
     options = @options::jsonb,
     ai_provider_id = sqlc.narg('ai_provider_id')::uuid,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+    AND deleted = FALSE
+RETURNING
+    *;
+
+-- name: UpdateChatModelConfigACLByID :one
+UPDATE
+    chat_model_configs
+SET
+    group_acl = @group_acl,
+    user_acl = @user_acl,
+    updated_by = sqlc.narg('updated_by')::uuid,
     updated_at = NOW()
 WHERE
     id = @id::uuid

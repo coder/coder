@@ -2458,7 +2458,7 @@ func (p *Server) RegenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 ) (database.Chat, error) {
-	// Reuse chatd's scoped auth context for deployment-config lookups while
+	// Reuse chatd's scoped auth context for chat model config reads while
 	// keeping chat ownership authorization at the HTTP layer.
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
