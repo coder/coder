@@ -330,11 +330,17 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 	// Keeping logic consistent with chat completions
 	// Input includes cache read and cache write tokens, so subtract both here to
 	// reflect actual uncached input token usage.
-	inputNonCacheTokens := max(0,
-		usage.InputTokens-
-			usage.InputTokensDetails.CachedTokens-
-			usage.InputTokensDetails.CacheWriteTokens,
-	)
+	inputNonCacheTokens := usage.InputTokens -
+		usage.InputTokensDetails.CachedTokens -
+		usage.InputTokensDetails.CacheWriteTokens
+	if inputNonCacheTokens < 0 {
+		i.logger.Warn(ctx, "cache token counts exceed input token count",
+			slog.F("input_tokens", usage.InputTokens),
+			slog.F("cache_read_input_tokens", usage.InputTokensDetails.CachedTokens),
+			slog.F("cache_write_input_tokens", usage.InputTokensDetails.CacheWriteTokens),
+		)
+		inputNonCacheTokens = 0
+	}
 
 	var metadata recorder.Metadata
 	if response.ServiceTier != "" {
