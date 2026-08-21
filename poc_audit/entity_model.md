@@ -564,8 +564,11 @@ inventing.
 | `valid` | `expire`   | `invalid` | observed  |
 | `valid` | `lapse`    | `invalid` | observed  |
 
-**`issue` and `revoke` are both in scope** for the proof of concept. Revocation
-will need something written to demonstrate it.
+**`issue`, `revoke`, and `expire` are all in scope** for the proof of concept.
+Revocation needs something written to demonstrate it. Expiry earns its place by
+costing little on top of what is being built anyway and showing more for that
+cost than most of what was considered beside it, and it brings the sweep and its
+system actor in with it.
 
 #### An expiry is a maximum time of validity
 

@@ -310,10 +310,24 @@ this package.
 
 ### Acceptance tests
 
-Undecided, and they should be written before the implementation is. The WP1
-test is extended to assert that the grant of authorization is recorded, which is
-the smallest thing that cannot pass under the present code.
+Mostly undecided, and they should be written before the implementation is. The
+WP1 test is extended to assert that the grant of authorization is recorded,
+which is the smallest thing that cannot pass under the present code.
+
+**One is required regardless: a unit test exercising the termination of an AI
+agent.** Whether termination is wired into the running system during the proof
+of concept is undecided, and this test does not wait on that answer. It exists
+so that whoever wires it in finds it works the first time, and it is the only
+thing that makes the `lapse` transitions of the other two machines reachable,
+since both fire on an AI agent reaching `retired`.
 
 ### PoC cheats
 
 Not yet enumerated. They will be, before this package is called complete.
+
+## WP3. Credential expiry
+
+Not yet written. Covers the sweep and its three triggers, the fixed system
+actor, the clock check on the verification path, and the optional enqueue. The
+expiry column itself lands with the credential schema rather than here, so this
+package changes no schema.

@@ -148,6 +148,20 @@ a query take a later line's values from line `0`.
 site is left to remember which statement to use. The constraints catch a
 violation where it is made, but they do not make the rule easy to follow.
 
+### Event constants are qualified by the machine they belong to
+
+`revoke` and `lapse` each name a transition in two machines. One journal per
+entity keeps them apart in the database, so nothing collides there. Constants in
+code would collide, and are qualified by the entity whose machine they belong
+to.
+
+**Qualify by default, including where a name is currently unique.** Dropping a
+qualifier later is easy and adding one to a name already in use is not. More
+importantly, a shared constant asserts that two transitions are the same kind of
+event. Whether a credential's `lapse` and an authorization's `lapse` are one
+kind or two is a specific to general question nowhere near ripe, and a naming
+choice should not settle it by accident.
+
 ### A reference standing where a foreign key would stand is a pair
 
 Wherever a column refers to an entity that could be of more than one kind, it
