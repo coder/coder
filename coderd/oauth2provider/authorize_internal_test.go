@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 )
 
-func TestValidateRequestedScope(t *testing.T) {
+func TestNegotiateScope(t *testing.T) {
 	t.Parallel()
 
 	// Every scope name below is either in rbac.IsExternalScope's curated
@@ -272,7 +272,7 @@ func TestValidateRequestedScope(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := validateRequestedScope(test.requested, test.appScope)
+			got, err := negotiateScope(test.requested, test.appScope)
 			if test.wantErr != nil {
 				require.ErrorIs(t, err, test.wantErr)
 				assert.Empty(t, got, "a rejected request must not return a persistable scope")

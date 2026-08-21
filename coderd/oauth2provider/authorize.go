@@ -25,9 +25,9 @@ import (
 	"github.com/coder/coder/v2/site"
 )
 
-// Rejection reasons from validateRequestedScope. They are sentinels rather
-// than inline messages so a caller, and the tests, can tell which check
-// failed without matching on message text.
+// Rejection reasons from negotiateScope. They are sentinels rather than inline
+// messages so a caller, and the tests, can tell which check failed without
+// matching on message text.
 //
 // Each is wrapped with the offending value ahead of it, because xerrors only
 // wraps without repeating the sentinel's own text when %w is the final verb.
@@ -75,16 +75,16 @@ func canonicalScopes(names []string) []string {
 //
 // A whitespace-only allowlist is deliberately not this state. It is a
 // configured value that grants nothing, so it falls through to
-// validateRequestedScope's filtered-to-empty rejection instead of the
-// unrestricted fallback.
+// negotiateScope's filtered-to-empty rejection instead of the unrestricted
+// fallback.
 func noScopeAllowlist(appScope sql.NullString) bool {
 	return !appScope.Valid || appScope.String == ""
 }
 
-// validateRequestedScope negotiates the scope the authorization code will
-// carry. Every requested name must be in the external scope catalog (RFC 6749
-// §4.1.2.1 invalid_scope), and the request must be covered by the app's
-// configured allowlist.
+// negotiateScope decides the scope the authorization code will carry. Every
+// requested name must be in the external scope catalog (RFC 6749 §4.1.2.1
+// invalid_scope), and the request must be covered by the app's configured
+// allowlist.
 //
 // What each branch returns:
 //
@@ -104,7 +104,7 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 // []string, and it is never empty alongside a nil error. Its names are
 // canonical api_key_scope spellings and carry no duplicates, so the value can
 // be stored as that enum without further rewriting.
-func validateRequestedScope(requested []string, appScope sql.NullString) (string, error) {
+func negotiateScope(requested []string, appScope sql.NullString) (string, error) {
 	// Only names in the external scope catalog (rbac.IsExternalScope) are
 	// user-requestable. That is a curation, not a validity check: RBAC can
 	// expand internal-only names such as debug_info:read just fine, and the
@@ -329,7 +329,7 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 		// renders at all, the POST side to persist the result. The two
 		// negotiate the same query string, since the consent form posts back
 		// to this URL.
-		if _, err := validateRequestedScope(params.scope, app.Scope); err != nil {
+		if _, err := negotiateScope(params.scope, app.Scope); err != nil {
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusBadRequest,
 				HideStatus:  false,
@@ -423,7 +423,7 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 			return
 		}
 
-		grantedScope, err := validateRequestedScope(params.scope, app.Scope)
+		grantedScope, err := negotiateScope(params.scope, app.Scope)
 		if err != nil {
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest,
 				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
