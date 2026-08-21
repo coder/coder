@@ -3657,213 +3657,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-----------------|---------|----------|--------------|-------------|
 | `budget_tokens` | integer | false    |              |             |
 
-## codersdk.ChatModelAvailabilityResponse
-
-```json
-{
-  "models": [
-    {
-      "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
-      "compression_threshold": 0,
-      "context_limit": 0,
-      "created_at": "2019-08-24T14:15:22Z",
-      "display_name": "string",
-      "enabled": true,
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "is_default": true,
-      "model": "string",
-      "model_config": {
-        "frequency_penalty": 0,
-        "max_output_tokens": 0,
-        "openai_config": {
-          "use_responses_api": true
-        },
-        "presence_penalty": 0,
-        "provider_options": {
-          "anthropic": {
-            "allowed_domains": [
-              "string"
-            ],
-            "blocked_domains": [
-              "string"
-            ],
-            "context_1m_enabled": true,
-            "disable_parallel_tool_use": true,
-            "send_reasoning": true,
-            "thinking": {
-              "budget_tokens": 0
-            },
-            "thinking_display": "string",
-            "web_search_enabled": true
-          },
-          "google": {
-            "cached_content": "string",
-            "safety_settings": [
-              {
-                "category": "string",
-                "threshold": "string"
-              }
-            ],
-            "thinking_config": {
-              "include_thoughts": true,
-              "thinking_budget": 0,
-              "thinking_level": "string"
-            },
-            "threshold": "string",
-            "web_search_enabled": true
-          },
-          "openai": {
-            "allowed_domains": [
-              "string"
-            ],
-            "include": [
-              "string"
-            ],
-            "instructions": "string",
-            "log_probs": true,
-            "logit_bias": {
-              "property1": 0,
-              "property2": 0
-            },
-            "max_completion_tokens": 0,
-            "max_tool_calls": 0,
-            "metadata": {
-              "property1": null,
-              "property2": null
-            },
-            "parallel_tool_calls": true,
-            "prediction": {
-              "property1": null,
-              "property2": null
-            },
-            "prompt_cache_key": "string",
-            "reasoning_summary": "string",
-            "safety_identifier": "string",
-            "search_context_size": "string",
-            "service_tier": "string",
-            "store": true,
-            "strict_json_schema": true,
-            "structured_outputs": true,
-            "text_verbosity": "string",
-            "top_log_probs": 0,
-            "user": "string",
-            "web_search_enabled": true
-          },
-          "openaicompat": {
-            "user": "string"
-          },
-          "openrouter": {
-            "extra_body": {
-              "property1": null,
-              "property2": null
-            },
-            "include_usage": true,
-            "log_probs": true,
-            "logit_bias": {
-              "property1": 0,
-              "property2": 0
-            },
-            "parallel_tool_calls": true,
-            "provider": {
-              "allow_fallbacks": true,
-              "data_collection": "string",
-              "ignore": [
-                "string"
-              ],
-              "only": [
-                "string"
-              ],
-              "order": [
-                "string"
-              ],
-              "quantizations": [
-                "string"
-              ],
-              "require_parameters": true,
-              "sort": "string"
-            },
-            "reasoning": {
-              "enabled": true,
-              "exclude": true,
-              "max_tokens": 0
-            },
-            "user": "string"
-          },
-          "vercel": {
-            "extra_body": {
-              "property1": null,
-              "property2": null
-            },
-            "logit_bias": {
-              "property1": 0,
-              "property2": 0
-            },
-            "logprobs": true,
-            "parallel_tool_calls": true,
-            "providerOptions": {
-              "models": [
-                "string"
-              ],
-              "order": [
-                "string"
-              ]
-            },
-            "reasoning": {
-              "enabled": true,
-              "exclude": true,
-              "max_tokens": 0
-            },
-            "top_logprobs": 0,
-            "user": "string"
-          }
-        },
-        "reasoning_effort": {
-          "default": "string",
-          "max": "string"
-        },
-        "temperature": 0,
-        "top_k": 0,
-        "top_p": 0
-      },
-      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "reasoning_efforts": [
-        "string"
-      ],
-      "updated_at": "2019-08-24T14:15:22Z"
-    }
-  ],
-  "providers": [
-    {
-      "available": true,
-      "models": [
-        {
-          "display_name": "string",
-          "id": "string",
-          "model": "string",
-          "provider": "string"
-        }
-      ],
-      "provider": "string",
-      "unavailable_reason": "missing_api_key"
-    }
-  ],
-  "unsupported_providers": [
-    {
-      "display_name": "string",
-      "provider": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                                                   |
-|-------------------------|-------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------|
-| `models`                | array of [codersdk.ChatModel](#codersdkchatmodel)                             | false    |              | Models contains the effective runtime model configs for the requested organization. Each config belongs to that organization. |
-| `providers`             | array of [codersdk.ChatModelProvider](#codersdkchatmodelprovider)             | false    |              |                                                                                                                               |
-| `unsupported_providers` | array of [codersdk.ChatUnsupportedProvider](#codersdkchatunsupportedprovider) | false    |              | Unsupported providers lists configured providers the Agents harness cannot use, so the UI can explain the empty state.        |
-
 ## codersdk.ChatModelCallConfig
 
 ```json
@@ -4035,26 +3828,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `temperature`       | number                                                                             | false    |              |             |
 | `top_k`             | integer                                                                            | false    |              |             |
 | `top_p`             | number                                                                             | false    |              |             |
-
-## codersdk.ChatModelCatalogEntry
-
-```json
-{
-  "display_name": "string",
-  "id": "string",
-  "model": "string",
-  "provider": "string"
-}
-```
-
-### Properties
-
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `display_name` | string | false    |              |             |
-| `id`           | string | false    |              |             |
-| `model`        | string | false    |              |             |
-| `provider`     | string | false    |              |             |
 
 ## codersdk.ChatModelGoogleProviderOptions
 
@@ -4314,38 +4087,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `reasoning`           | [codersdk.ChatModelReasoningOptions](#codersdkchatmodelreasoningoptions)     | false    |              |             |
 | `user`                | string                                                                       | false    |              |             |
 
-## codersdk.ChatModelProvider
-
-```json
-{
-  "available": true,
-  "models": [
-    {
-      "display_name": "string",
-      "id": "string",
-      "model": "string",
-      "provider": "string"
-    }
-  ],
-  "provider": "string",
-  "unavailable_reason": "missing_api_key"
-}
-```
-
-### Properties
-
-| Name                 | Type                                                                                       | Required | Restrictions | Description |
-|----------------------|--------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `available`          | boolean                                                                                    | false    |              |             |
-| `models`             | array of [codersdk.ChatModelCatalogEntry](#codersdkchatmodelcatalogentry)                  | false    |              |             |
-| `provider`           | string                                                                                     | false    |              |             |
-| `unavailable_reason` | [codersdk.ChatModelProviderUnavailableReason](#codersdkchatmodelproviderunavailablereason) | false    |              |             |
-
 ## codersdk.ChatModelProviderDescriptor
 
 ```json
 {
   "allow_user_api_key": true,
+  "available": true,
   "display_name": "string",
   "enabled": true,
   "has_api_key": true,
@@ -4353,23 +4100,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "has_user_api_key": true,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "type": "string"
+  "type": "string",
+  "unavailable_reason": "missing_api_key"
 }
 ```
 
 ### Properties
 
-| Name                    | Type    | Required | Restrictions | Description |
-|-------------------------|---------|----------|--------------|-------------|
-| `allow_user_api_key`    | boolean | false    |              |             |
-| `display_name`          | string  | false    |              |             |
-| `enabled`               | boolean | false    |              |             |
-| `has_api_key`           | boolean | false    |              |             |
-| `has_effective_api_key` | boolean | false    |              |             |
-| `has_user_api_key`      | boolean | false    |              |             |
-| `icon`                  | string  | false    |              |             |
-| `id`                    | string  | false    |              |             |
-| `type`                  | string  | false    |              |             |
+| Name                    | Type                                                                                       | Required | Restrictions | Description |
+|-------------------------|--------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `allow_user_api_key`    | boolean                                                                                    | false    |              |             |
+| `available`             | boolean                                                                                    | false    |              |             |
+| `display_name`          | string                                                                                     | false    |              |             |
+| `enabled`               | boolean                                                                                    | false    |              |             |
+| `has_api_key`           | boolean                                                                                    | false    |              |             |
+| `has_effective_api_key` | boolean                                                                                    | false    |              |             |
+| `has_user_api_key`      | boolean                                                                                    | false    |              |             |
+| `icon`                  | string                                                                                     | false    |              |             |
+| `id`                    | string                                                                                     | false    |              |             |
+| `type`                  | string                                                                                     | false    |              |             |
+| `unavailable_reason`    | [codersdk.ChatModelProviderUnavailableReason](#codersdkchatmodelproviderunavailablereason) | false    |              |             |
 
 ## codersdk.ChatModelProviderOptions
 
@@ -11560,6 +11310,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "providers": [
     {
       "allow_user_api_key": true,
+      "available": true,
       "display_name": "string",
       "enabled": true,
       "has_api_key": true,
@@ -11567,7 +11318,14 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "has_user_api_key": true,
       "icon": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "type": "string"
+      "type": "string",
+      "unavailable_reason": "missing_api_key"
+    }
+  ],
+  "unsupported_providers": [
+    {
+      "display_name": "string",
+      "provider": "string"
     }
   ]
 }
@@ -11575,10 +11333,11 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name        | Type                                                                                  | Required | Restrictions | Description |
-|-------------|---------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `models`    | array of [codersdk.ChatModel](#codersdkchatmodel)                                     | false    |              |             |
-| `providers` | array of [codersdk.ChatModelProviderDescriptor](#codersdkchatmodelproviderdescriptor) | false    |              |             |
+| Name                    | Type                                                                                  | Required | Restrictions | Description |
+|-------------------------|---------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `models`                | array of [codersdk.ChatModel](#codersdkchatmodel)                                     | false    |              |             |
+| `providers`             | array of [codersdk.ChatModelProviderDescriptor](#codersdkchatmodelproviderdescriptor) | false    |              |             |
+| `unsupported_providers` | array of [codersdk.ChatUnsupportedProvider](#codersdkchatunsupportedprovider)         | false    |              |             |
 
 ## codersdk.OrganizationGroupAISpend
 

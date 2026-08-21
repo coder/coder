@@ -10,7 +10,7 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
-import { chatModelAvailability, chatModels } from "#/api/queries/chats";
+import { chatModels } from "#/api/queries/chats";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import {
 	MockDefaultOrganization,
@@ -48,11 +48,11 @@ const meta: Meta<typeof OrganizationModelsLayout> = {
 		queries: [
 			{
 				key: chatModels(MockDefaultOrganization.id).queryKey,
-				data: { models: [], providers: [] },
+				data: { models: [], providers: [], unsupported_providers: [] },
 			},
 			{
 				key: chatModels(MockOrganization2.id).queryKey,
-				data: { models: [], providers: [] },
+				data: { models: [], providers: [], unsupported_providers: [] },
 			},
 			{
 				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
@@ -152,15 +152,11 @@ export const InvalidRequestedOrganizationDeniesAdd: Story = {
 		queries: [
 			{
 				key: chatModels(MockDefaultOrganization.id).queryKey,
-				data: { models: [], providers: [] },
+				data: { models: [], providers: [], unsupported_providers: [] },
 			},
 			{
 				key: chatModels(MockOrganization2.id).queryKey,
-				data: { models: [], providers: [] },
-			},
-			{
-				key: chatModelAvailability(MockDefaultOrganization.id).queryKey,
-				data: { providers: [], unsupported_providers: [] },
+				data: { models: [], providers: [], unsupported_providers: [] },
 			},
 			{
 				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
@@ -192,7 +188,7 @@ export const SingleAccessibleOrganizationHidesPicker: Story = {
 		queries: [
 			{
 				key: chatModels(MockDefaultOrganization.id).queryKey,
-				data: { models: [], providers: [] },
+				data: { models: [], providers: [], unsupported_providers: [] },
 			},
 			{
 				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
@@ -221,11 +217,11 @@ export const DuplicateDisplayNamesAreDisambiguated: Story = {
 		queries: [
 			{
 				key: chatModels(MockDefaultOrganization.id).queryKey,
-				data: { models: [], providers: [] },
+				data: { models: [], providers: [], unsupported_providers: [] },
 			},
 			{
 				key: chatModels(duplicateNameOrganization.id).queryKey,
-				data: { models: [], providers: [] },
+				data: { models: [], providers: [], unsupported_providers: [] },
 			},
 			{
 				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
@@ -260,11 +256,11 @@ export const PermissionLoadingShowsLoader: Story = {
 		queries: [
 			{
 				key: chatModels(MockDefaultOrganization.id).queryKey,
-				data: { models: [], providers: [] },
+				data: { models: [], providers: [], unsupported_providers: [] },
 			},
 			{
 				key: chatModels(MockOrganization2.id).queryKey,
-				data: { models: [], providers: [] },
+				data: { models: [], providers: [], unsupported_providers: [] },
 			},
 		],
 	},
@@ -287,11 +283,11 @@ export const PermissionLoadErrorShowsAlert: Story = {
 		queries: [
 			{
 				key: chatModels(MockDefaultOrganization.id).queryKey,
-				data: { models: [], providers: [] },
+				data: { models: [], providers: [], unsupported_providers: [] },
 			},
 			{
 				key: chatModels(MockOrganization2.id).queryKey,
-				data: { models: [], providers: [] },
+				data: { models: [], providers: [], unsupported_providers: [] },
 			},
 		],
 	},

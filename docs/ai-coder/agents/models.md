@@ -148,7 +148,7 @@ Members with model share permission can grant model read access to members and g
 5. Add or remove organization members and groups.
 6. Select **Save**.
 
-Coder applies the complete member and group list when you save.
+Coder applies the member and group changes when you save.
 Removing all entries clears the model's access list, so members without another read grant lose access on their next request.
 
 ### Model visibility and runtime availability

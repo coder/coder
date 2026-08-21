@@ -2887,24 +2887,6 @@ export interface ChatModelAnthropicThinkingOptions {
 
 // From codersdk/chats.go
 /**
- * ChatModelAvailabilityResponse is the catalog returned from chat model discovery.
- */
-export interface ChatModelAvailabilityResponse {
-	/**
-	 * Models contains the effective runtime model configs for the requested
-	 * organization. Each config belongs to that organization.
-	 */
-	readonly models?: readonly ChatModel[];
-	readonly providers: readonly ChatModelProvider[];
-	/**
-	 * UnsupportedProviders lists configured providers the Agents harness
-	 * cannot use, so the UI can explain the empty state.
-	 */
-	readonly unsupported_providers: readonly ChatUnsupportedProvider[];
-}
-
-// From codersdk/chats.go
-/**
  * ChatModelCallConfig configures per-call model behavior defaults.
  */
 export interface ChatModelCallConfig {
@@ -2917,19 +2899,6 @@ export interface ChatModelCallConfig {
 	readonly reasoning_effort?: ChatModelReasoningEffortConfig;
 	readonly openai_config?: ChatModelOpenAIConfig;
 	readonly provider_options?: ChatModelProviderOptions;
-}
-
-// From codersdk/chats.go
-/**
- * ChatModelCatalogEntry is the runtime catalog view of a model. Its ID is the
- * synthetic catalog identity `provider:model` built by canonicalModelID, not
- * the chat_model_configs row UUID that ChatModel.ID carries.
- */
-export interface ChatModelCatalogEntry {
-	readonly id: string;
-	readonly provider: string;
-	readonly model: string;
-	readonly display_name: string;
 }
 
 // From codersdk/chats.go
@@ -3070,17 +3039,6 @@ export interface ChatModelOverrideResponse {
 
 // From codersdk/chats.go
 /**
- * ChatModelProvider represents provider availability and model results.
- */
-export interface ChatModelProvider {
-	readonly provider: string;
-	readonly available: boolean;
-	readonly unavailable_reason?: ChatModelProviderUnavailableReason;
-	readonly models: readonly ChatModelCatalogEntry[];
-}
-
-// From codersdk/chats.go
-/**
  * ChatModelProviderDescriptor is the redacted view of an AI provider carried
  * on the org model collection response. It carries only the capability
  * metadata the Models UI needs; key material, base URLs, and headers are
@@ -3097,6 +3055,8 @@ export interface ChatModelProviderDescriptor {
 	readonly has_user_api_key: boolean;
 	readonly has_effective_api_key: boolean;
 	readonly allow_user_api_key: boolean;
+	readonly available: boolean;
+	readonly unavailable_reason?: ChatModelProviderUnavailableReason;
 }
 
 // From codersdk/chats.go
@@ -7060,6 +7020,7 @@ export interface Organization extends MinimalOrganization {
 export interface OrganizationChatModelsResponse {
 	readonly models: readonly ChatModel[];
 	readonly providers: readonly ChatModelProviderDescriptor[];
+	readonly unsupported_providers: readonly ChatUnsupportedProvider[];
 }
 
 // From codersdk/aibridge.go

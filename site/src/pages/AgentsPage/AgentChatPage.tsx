@@ -33,7 +33,7 @@ import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
 	chatMessagesForInfiniteScroll,
-	chatModelAvailability,
+	chatModels,
 	chatQueueConvergence,
 	compactChat,
 	createChatMessage,
@@ -50,7 +50,6 @@ import {
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
-	userChatProviderConfigs,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
@@ -941,15 +940,12 @@ const AgentChatPage: FC = () => {
 	});
 	const workspace = workspaceQuery.data;
 
-	const availableModelsQuery = useQuery(
-		chatModelAvailability(chatOrganizationId),
-	);
-	const models = availableModelsQuery.data?.models ?? [];
+	const modelsQuery = useQuery(chatModels(chatOrganizationId));
+	const models = modelsQuery.data?.models ?? [];
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
-	const userProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const preferencesQuery = useQuery(preferenceSettings());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
@@ -993,26 +989,20 @@ const AgentChatPage: FC = () => {
 		isModelCatalogLoading,
 		modelCatalog,
 		hasConfiguredModels,
-	} = resolveModelSelector(
-		chatOrganizationId,
-		availableModelsQuery,
-		userProviderConfigsQuery,
-	);
+	} = resolveModelSelector(chatOrganizationId, modelsQuery);
 	const isModelDataPending = chatOrganizationId === "" || isModelCatalogLoading;
 	const providerCount =
 		permissions.editDeploymentConfig &&
 		chatProviderConfigsQuery.data &&
-		availableModelsQuery.data
+		modelsQuery.data
 			? countConfiguredProviderConfigs(
 					chatProviderConfigsQuery.data,
-					availableModelsQuery.data,
+					modelsQuery.data,
 				)
 			: undefined;
-	const modelCount = availableModelsQuery.data
-		? modelOptions.length
-		: undefined;
+	const modelCount = modelsQuery.data ? modelOptions.length : undefined;
 	const unsupportedProviderNames = getUnsupportedProviderNames(
-		availableModelsQuery.data,
+		modelsQuery.data,
 	);
 
 	const agentBindingRefetchKeyRef = useRef<string | undefined>(undefined);
@@ -1367,10 +1357,8 @@ const AgentChatPage: FC = () => {
 	const hasModelOptions = modelOptions.length > 0;
 	const hasResolvedModelData =
 		!isModelDataPending &&
-		availableModelsQuery.data !== undefined &&
-		availableModelsQuery.error == null &&
-		userProviderConfigsQuery.data !== undefined &&
-		userProviderConfigsQuery.error == null;
+		modelsQuery.data !== undefined &&
+		modelsQuery.error == null;
 	const hasUnavailableHistoricalModel =
 		hasResolvedModelData &&
 		isUnavailableHistoricalModelID(chatLastModelConfigID, modelOptions);
@@ -2040,9 +2028,7 @@ const AgentChatPage: FC = () => {
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
-			modelCatalogError={
-				availableModelsQuery.error ?? userProviderConfigsQuery.error
-			}
+			modelCatalogError={modelsQuery.error}
 			unavailableModelNotice={unavailableModelNotice}
 			reasoningEffort={effectiveReasoningEffort}
 			onReasoningEffortChange={(value) => {

@@ -1443,41 +1443,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/organizations/{organization}/chats/models/available": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "List available chat models in an organization",
-                "operationId": "list-chat-model-availability",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization name or ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatModelAvailabilityResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/experimental/organizations/{organization}/chats/models/{model}": {
             "get": {
                 "produces": [
@@ -19061,31 +19026,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ChatModelAvailabilityResponse": {
-            "type": "object",
-            "properties": {
-                "models": {
-                    "description": "Models contains the effective runtime model configs for the requested\norganization. Each config belongs to that organization.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatModel"
-                    }
-                },
-                "providers": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatModelProvider"
-                    }
-                },
-                "unsupported_providers": {
-                    "description": "UnsupportedProviders lists configured providers the Agents harness\ncannot use, so the UI can explain the empty state.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatUnsupportedProvider"
-                    }
-                }
-            }
-        },
         "codersdk.ChatModelCallConfig": {
             "type": "object",
             "properties": {
@@ -19115,23 +19055,6 @@ const docTemplate = `{
                 },
                 "top_p": {
                     "type": "number"
-                }
-            }
-        },
-        "codersdk.ChatModelCatalogEntry": {
-            "type": "object",
-            "properties": {
-                "display_name": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "model": {
-                    "type": "string"
-                },
-                "provider": {
-                    "type": "string"
                 }
             }
         },
@@ -19357,30 +19280,13 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ChatModelProvider": {
-            "type": "object",
-            "properties": {
-                "available": {
-                    "type": "boolean"
-                },
-                "models": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatModelCatalogEntry"
-                    }
-                },
-                "provider": {
-                    "type": "string"
-                },
-                "unavailable_reason": {
-                    "$ref": "#/definitions/codersdk.ChatModelProviderUnavailableReason"
-                }
-            }
-        },
         "codersdk.ChatModelProviderDescriptor": {
             "type": "object",
             "properties": {
                 "allow_user_api_key": {
+                    "type": "boolean"
+                },
+                "available": {
                     "type": "boolean"
                 },
                 "display_name": {
@@ -19407,6 +19313,9 @@ const docTemplate = `{
                 },
                 "type": {
                     "type": "string"
+                },
+                "unavailable_reason": {
+                    "$ref": "#/definitions/codersdk.ChatModelProviderUnavailableReason"
                 }
             }
         },
@@ -24116,6 +24025,12 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatModelProviderDescriptor"
+                    }
+                },
+                "unsupported_providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatUnsupportedProvider"
                     }
                 }
             }

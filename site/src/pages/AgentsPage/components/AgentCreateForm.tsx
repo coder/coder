@@ -3,11 +3,7 @@ import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
-import {
-	chatModelAvailability,
-	mcpServerConfigs,
-	userChatProviderConfigs,
-} from "#/api/queries/chats";
+import { chatModels, mcpServerConfigs } from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
@@ -275,23 +271,18 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			localStorage.removeItem(selectedWorkspaceIdStorageKey);
 		}
 	}, [selectedWorkspaceId]);
-	const availableModelsQuery = useQuery(chatModelAvailability(organizationId));
-	const availableModelConfigs = availableModelsQuery.data?.models ?? [];
+	const modelsQuery = useQuery(chatModels(organizationId));
+	const availableModelConfigs = modelsQuery.data?.models ?? [];
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: canConfigureAgentSetup,
 	});
-	const userProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const {
 		options: modelOptions,
 		isModelCatalogLoading,
 		modelCatalog,
 		hasConfiguredModels,
-	} = resolveModelSelector(
-		organizationId,
-		availableModelsQuery,
-		userProviderConfigsQuery,
-	);
+	} = resolveModelSelector(organizationId, modelsQuery);
 	const modelConfigs = availableModelConfigs;
 	/*
 	 * Model precedence: user click > root override (specific model) > root
@@ -393,19 +384,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		hasUserFixableModelProviders,
 	});
 	const providerCount =
-		canConfigureAgentSetup &&
-		chatProviderConfigsQuery.data &&
-		availableModelsQuery.data
+		canConfigureAgentSetup && chatProviderConfigsQuery.data && modelsQuery.data
 			? countConfiguredProviderConfigs(
 					chatProviderConfigsQuery.data,
-					availableModelsQuery.data,
+					modelsQuery.data,
 				)
 			: undefined;
-	const modelCount = availableModelsQuery.data
-		? modelOptions.length
-		: undefined;
+	const modelCount = modelsQuery.data ? modelOptions.length : undefined;
 	const unsupportedProviderNames = getUnsupportedProviderNames(
-		availableModelsQuery.data,
+		modelsQuery.data,
 	);
 
 	const effectiveMCPServerIds = (() => {
@@ -584,16 +571,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{permittedOrgsQuery.error != null && (
 						<ErrorAlert error={permittedOrgsQuery.error} />
 					)}
-					{availableModelsQuery.error != null && (
-						<ErrorAlert error={availableModelsQuery.error} />
-					)}
-					{userProviderConfigsQuery.error != null && (
-						<ErrorAlert error={userProviderConfigsQuery.error} />
+					{modelsQuery.error != null && (
+						<ErrorAlert error={modelsQuery.error} />
 					)}
 					{organizationId !== "" &&
-						availableModelsQuery.data !== undefined &&
-						availableModelsQuery.error == null &&
-						userProviderConfigsQuery.error == null &&
+						modelsQuery.data !== undefined &&
+						modelsQuery.error == null &&
 						!isModelCatalogLoading &&
 						!hasModelOptions && (
 							<Alert severity="warning">

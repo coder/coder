@@ -40,7 +40,6 @@ import {
 	chatModel,
 	chatModelACL,
 	chatModelACLKey,
-	chatModelAvailabilityKey,
 	chatModelKey,
 	chatPromptsKey,
 	chatSearch,
@@ -261,7 +260,6 @@ describe("chat model query factories", () => {
 			chatModelACLKey(organizationId, modelId),
 			chatModelKey(organizationId, modelId),
 			organizationChatModelsKey(organizationId),
-			chatModelAvailabilityKey(organizationId),
 			["authorization", "models"],
 			["organizations", [organizationId], "permissions"],
 		] as const;

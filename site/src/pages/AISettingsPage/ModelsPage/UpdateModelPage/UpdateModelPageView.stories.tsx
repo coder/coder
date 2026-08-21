@@ -2,11 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useLocation } from "react-router";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import {
-	chatModel,
-	chatModelAvailability,
-	chatModels,
-} from "#/api/queries/chats";
+import { chatModel, chatModels } from "#/api/queries/chats";
 import {
 	MockDefaultOrganization,
 	MockOrganizationPermissions,
@@ -223,11 +219,8 @@ export const DuplicateNavigatesToStructuralAddPath: Story = {
 				data: {
 					models: [mockGPT5],
 					providers: [MockOpenAIProviderState.providerDescriptor],
+					unsupported_providers: [],
 				},
-			},
-			{
-				key: chatModelAvailability(MockDefaultOrganization.id).queryKey,
-				data: { providers: [], unsupported_providers: [] },
 			},
 		],
 	},
