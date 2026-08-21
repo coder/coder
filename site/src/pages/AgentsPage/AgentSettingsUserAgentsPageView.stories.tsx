@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModelConfig } from "#/testHelpers/chatModels";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	AgentSettingsUserAgentsPageView,
 	type AgentSettingsUserAgentsPageViewProps,
@@ -14,9 +14,9 @@ const UNAVAILABLE_WARNING =
 	"The saved model is unavailable and will be ignored until you choose a valid model override.";
 
 const buildModelConfig = (
-	overrides: Partial<TypesGen.ChatModelConfig> = {},
-): TypesGen.ChatModelConfig => ({
-	...MockChatModelConfig,
+	overrides: Partial<TypesGen.ChatModel> = {},
+): TypesGen.ChatModel => ({
+	...MockChatModel,
 	id: "model-default",
 	model: "gpt-4.1-mini",
 	display_name: "GPT 4.1 Mini",
@@ -94,7 +94,7 @@ const inaccessibleModelConfig = buildModelConfig({
 	display_name: "Bedrock Claude",
 });
 
-const modelConfigs = [
+const models = [
 	defaultModelConfig,
 	claudeModelConfig,
 	reasoningModelConfig,
@@ -157,8 +157,8 @@ const buildArgs = (
 	isRetryingOverrides: false,
 	isLoadingOverrides: false,
 	modelOptions,
-	modelConfigs,
-	modelConfigsError: undefined,
+	models,
+	modelsError: undefined,
 	isLoadingModels: false,
 	onSaveRootModelOverride: fn(),
 	isSavingRootModelOverride: false,
@@ -559,9 +559,9 @@ export const UnavailableSavedModels: Story = {
 	},
 };
 
-export const ModelConfigsError: Story = {
+export const ModelsError: Story = {
 	args: buildArgs({
-		modelConfigsError: new Error("Failed to load model configs."),
+		modelsError: new Error("Failed to load models."),
 		overridesData: buildOverridesResponse({
 			root: buildOverride("root", {
 				mode: "model",
@@ -593,7 +593,7 @@ export const ModelConfigsError: Story = {
 
 		for (const section of [rootSection, generalSection, exploreSection]) {
 			expect(
-				within(section).getByText("Failed to load model configs."),
+				within(section).getByText("Failed to load models."),
 			).toBeInTheDocument();
 			expect(
 				within(section).getByRole("combobox", { name: /behavior/i }),

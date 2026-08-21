@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
-	chatModelConfigs,
+	chatModelAvailability,
 	chatModels,
 	updateUserChatPersonalModelOverride,
 	userChatPersonalModelOverrides,
@@ -14,8 +14,8 @@ import { resolveModelSelector } from "./utils/modelOptions";
 const AgentSettingsUserAgentsPage: FC = () => {
 	const queryClient = useQueryClient();
 	const overridesQuery = useQuery(userChatPersonalModelOverrides());
-	const chatModelsQuery = useQuery(chatModels());
-	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const chatModelAvailabilityQuery = useQuery(chatModelAvailability());
+	const modelsQuery = useQuery(chatModels());
 	const providerConfigsQuery = useQuery(userChatProviderConfigs());
 	const saveRootModelOverrideMutation = useMutation(
 		updateUserChatPersonalModelOverride(queryClient),
@@ -27,11 +27,11 @@ const AgentSettingsUserAgentsPage: FC = () => {
 		updateUserChatPersonalModelOverride(queryClient),
 	);
 	const { options: modelOptions, isModelCatalogLoading } = resolveModelSelector(
-		modelConfigsQuery,
-		chatModelsQuery,
+		modelsQuery,
+		chatModelAvailabilityQuery,
 		providerConfigsQuery,
 	);
-	const modelConfigsError = modelConfigsQuery.error ?? chatModelsQuery.error;
+	const modelsError = modelsQuery.error ?? chatModelAvailabilityQuery.error;
 
 	const saveModelOverride = (
 		context: TypesGen.ChatPersonalModelOverrideContext,
@@ -55,8 +55,8 @@ const AgentSettingsUserAgentsPage: FC = () => {
 			isRetryingOverrides={overridesQuery.isFetching}
 			isLoadingOverrides={overridesQuery.isLoading}
 			modelOptions={modelOptions}
-			modelConfigs={modelConfigsQuery.data ?? []}
-			modelConfigsError={modelConfigsError}
+			models={modelsQuery.data ?? []}
+			modelsError={modelsError}
 			isLoadingModels={isModelCatalogLoading}
 			onSaveRootModelOverride={saveModelOverride(
 				"root",

@@ -57,11 +57,11 @@ import {
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
 
-const defaultModelConfigID = "model-config-1";
+const defaultModelID = "model-config-1";
 
-const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
+const defaultModels: TypesGen.ChatModel[] = [
 	{
-		id: defaultModelConfigID,
+		id: defaultModelID,
 		ai_provider_id: "provider-openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -97,7 +97,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	owner_id: "owner-1",
 	owner_username: "owner",
 	owner_name: undefined,
-	last_model_config_id: defaultModelConfigs[0].id,
+	last_model_config_id: defaultModels[0].id,
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	...overrides,
@@ -119,11 +119,11 @@ const AgentsRouteElement = () => (
 			model_config_id: "",
 			is_malformed: false,
 		}}
-		modelConfigsData={[]}
+		models={[]}
 		providerInfoByID={new Map()}
-		modelConfigsError={undefined}
-		isLoadingModelConfigs={false}
-		isFetchingModelConfigs={false}
+		modelsError={undefined}
+		isLoadingModels={false}
+		isFetchingModels={false}
 		onSaveTitleGenerationModel={fn()}
 		isSavingTitleGenerationModel={false}
 		isSaveTitleGenerationModelError={false}
@@ -347,7 +347,7 @@ const meta: Meta<typeof AgentsPageLayout> = {
 			custom_prompt: "",
 		});
 		// Mocks for child route pages that fetch their own data.
-		spyOn(API.experimental, "getChatModels").mockResolvedValue({
+		spyOn(API.experimental, "getChatModelAvailability").mockResolvedValue({
 			providers: [
 				{
 					provider: "openai",
@@ -364,9 +364,9 @@ const meta: Meta<typeof AgentsPageLayout> = {
 			],
 			unsupported_providers: [],
 		});
-		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
+		spyOn(API.experimental, "getChatModels").mockResolvedValue([
 			{
-				id: defaultModelConfigID,
+				id: defaultModelID,
 				ai_provider_id: "provider-openai",
 				model: "gpt-4o",
 				display_name: "GPT-4o",
@@ -423,7 +423,7 @@ const meta: Meta<typeof AgentsPageLayout> = {
 			API.experimental,
 			"updateUserChatCompactionThreshold",
 		).mockResolvedValue({
-			model_config_id: defaultModelConfigID,
+			model_config_id: defaultModelID,
 			threshold_percent: 70,
 		});
 		spyOn(
@@ -1047,7 +1047,7 @@ const watchedChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...MockChat,
 	id: WATCHED_CHAT_ID,
 	title: "Watched agent",
-	last_model_config_id: defaultModelConfigID,
+	last_model_config_id: defaultModelID,
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	...overrides,

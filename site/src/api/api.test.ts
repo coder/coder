@@ -435,14 +435,14 @@ describe("api.ts", () => {
 		it.each<[string, () => Promise<unknown>, unknown]>([
 			[
 				"/api/experimental/chats/models",
-				() => API.experimental.getChatModels(),
+				() => API.experimental.getChatModelAvailability(),
 				{
 					providers: [],
 				},
 			],
 			[
 				"/api/experimental/chats/model-configs",
-				() => API.experimental.getChatModelConfigs(),
+				() => API.experimental.getChatModels(),
 				[],
 			],
 		])("returns response data for %s", async (path, request, responseData) => {
@@ -459,11 +459,11 @@ describe("api.ts", () => {
 		it.each<[string, () => Promise<unknown>]>([
 			[
 				"/api/experimental/chats/models",
-				() => API.experimental.getChatModels(),
+				() => API.experimental.getChatModelAvailability(),
 			],
 			[
 				"/api/experimental/chats/model-configs",
-				() => API.experimental.getChatModelConfigs(),
+				() => API.experimental.getChatModels(),
 			],
 		])("rethrows axios errors for %s", async (path, request) => {
 			const expectedError = new Error("request failed");

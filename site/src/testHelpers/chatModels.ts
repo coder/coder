@@ -1,12 +1,12 @@
 import type {
 	AIModelPrice,
-	ChatModelConfig,
+	ChatModel,
 	ChatModelProvider,
 	ChatProviderConfig,
 } from "#/api/typesGenerated";
 import { MOCK_TIMESTAMP } from "./chatEntities";
 
-export const MockChatModelConfig: ChatModelConfig = {
+export const MockChatModel: ChatModel = {
 	id: "model-1",
 	ai_provider_id: "provider-1",
 	model: "gpt-5",

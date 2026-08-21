@@ -83,7 +83,7 @@ func TestChatTools(t *testing.T) {
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
-	defaultModelConfig := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, "")
+	defaultModelConfig := coderdtest.CreateOpenAICompatChatModel(t, expClient, "")
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 	tb, err := toolsdk.NewDeps(client)
@@ -464,7 +464,7 @@ func TestChatTools(t *testing.T) {
 			}
 			return chattest.OpenAINonStreamingResponse(`{"title": "Await Test"}`)
 		})
-		blockingModel := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, blockingURL)
+		blockingModel := coderdtest.CreateOpenAICompatChatModel(t, expClient, blockingURL)
 		awaitFile, err := expClient.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "await.txt", bytes.NewReader([]byte("await evidence")))
 		require.NoError(t, err)
 		running, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -544,7 +544,7 @@ func TestChatTools(t *testing.T) {
 			}
 			return chattest.OpenAINonStreamingResponse(`{"title": "Shared Await Test"}`)
 		})
-		sharedBlockingModel := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, sharedBlockingURL)
+		sharedBlockingModel := coderdtest.CreateOpenAICompatChatModel(t, expClient, sharedBlockingURL)
 		sharedRunning, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
 			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Wait for shared release."}},
@@ -621,7 +621,7 @@ func TestChatTools(t *testing.T) {
 			}
 			return chattest.OpenAINonStreamingResponse(`{"title": "Await Timeout Test"}`)
 		})
-		timeoutModel := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, timeoutURL)
+		timeoutModel := coderdtest.CreateOpenAICompatChatModel(t, expClient, timeoutURL)
 		busy, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
 			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Stay busy."}},
@@ -664,7 +664,7 @@ func TestChatTools(t *testing.T) {
 	t.Run("ListChatModelConfigsSkipsDisabledProviders", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		disabledProviderConfig := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, chattest.OpenAI(t))
+		disabledProviderConfig := coderdtest.CreateOpenAICompatChatModel(t, expClient, chattest.OpenAI(t))
 		provider, err := client.UpdateAIProvider(ctx, disabledProviderConfig.AIProviderID.String(), codersdk.UpdateAIProviderRequest{
 			Enabled: ptr.Ref(false),
 		})
@@ -684,7 +684,7 @@ func TestChatTools(t *testing.T) {
 	t.Run("ListChatModelConfigsSkipsDeletedProviders", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		deletedProviderConfig := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, chattest.OpenAI(t))
+		deletedProviderConfig := coderdtest.CreateOpenAICompatChatModel(t, expClient, chattest.OpenAI(t))
 		err := client.DeleteAIProvider(ctx, deletedProviderConfig.AIProviderID.String())
 		require.NoError(t, err)
 
@@ -713,7 +713,7 @@ func TestChatTools(t *testing.T) {
 			}
 			return chattest.OpenAINonStreamingResponse(`{"title": "Interrupt Test"}`)
 		})
-		blockingModelConfig := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, blockingURL)
+		blockingModelConfig := coderdtest.CreateOpenAICompatChatModel(t, expClient, blockingURL)
 
 		created, err := testTool(t, toolsdk.CreateChat, tb, toolsdk.CreateChatArgs{
 			Prompt:        "Block forever.",

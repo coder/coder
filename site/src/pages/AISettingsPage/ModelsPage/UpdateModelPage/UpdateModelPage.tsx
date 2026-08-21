@@ -5,10 +5,10 @@ import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
-	chatModelConfigs,
+	chatModelAvailability,
 	chatModels,
-	deleteChatModelConfig,
-	updateChatModelConfig,
+	deleteChatModel,
+	updateChatModel,
 } from "#/api/queries/chats";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -24,29 +24,29 @@ const UpdateModelPage: FC = () => {
 	const queryClient = useQueryClient();
 
 	const providerConfigsQuery = useQuery(chatProviderConfigs());
-	const modelConfigsQuery = useQuery(chatModelConfigs());
-	const modelCatalogQuery = useQuery(chatModels());
+	const modelsQuery = useQuery(chatModels());
+	const modelCatalogQuery = useQuery(chatModelAvailability());
 
-	const updateMutation = useMutation(updateChatModelConfig(queryClient));
-	const deleteMutation = useMutation(deleteChatModelConfig(queryClient));
+	const updateMutation = useMutation(updateChatModel(queryClient));
+	const deleteMutation = useMutation(deleteChatModel(queryClient));
 
 	const providerStates = useMemo(
 		() =>
 			deriveProviderStates(
-				modelConfigsQuery.data ?? [],
+				modelsQuery.data ?? [],
 				providerConfigsQuery.data,
 				modelCatalogQuery.data,
 			),
-		[modelConfigsQuery.data, providerConfigsQuery.data, modelCatalogQuery.data],
+		[modelsQuery.data, providerConfigsQuery.data, modelCatalogQuery.data],
 	);
 
 	const isLoading =
 		providerConfigsQuery.isLoading ||
-		modelConfigsQuery.isLoading ||
+		modelsQuery.isLoading ||
 		modelCatalogQuery.isLoading;
 
-	const model = modelConfigsQuery.data?.find((m) => m.id === modelId);
-	const currentDefaultModel = modelConfigsQuery.data?.find((m) => m.is_default);
+	const model = modelsQuery.data?.find((m) => m.id === modelId);
+	const currentDefaultModel = modelsQuery.data?.find((m) => m.is_default);
 	const [providerKeyOverride, setProviderKeyOverride] = useState<string | null>(
 		null,
 	);
@@ -54,9 +54,7 @@ const UpdateModelPage: FC = () => {
 		(providerKeyOverride
 			? providerStates.find((ps) => ps.key === providerKeyOverride)
 			: undefined) ??
-		providerStates.find((ps) =>
-			ps.modelConfigs.some((m) => m.id === modelId),
-		) ??
+		providerStates.find((ps) => ps.models.some((m) => m.id === modelId)) ??
 		null;
 
 	return (
@@ -82,7 +80,7 @@ const UpdateModelPage: FC = () => {
 					onUpdateModel={async (id, req) => {
 						try {
 							const updated = await updateMutation.mutateAsync({
-								modelConfigId: id,
+								modelId: id,
 								req,
 							});
 							toast.success(
@@ -114,7 +112,7 @@ const UpdateModelPage: FC = () => {
 					}}
 					onToggleEnabled={(enabled) => {
 						updateMutation.mutate(
-							{ modelConfigId: model.id, req: { enabled } },
+							{ modelId: model.id, req: { enabled } },
 							{
 								onSuccess: () => {
 									toast.success(

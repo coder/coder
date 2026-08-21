@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModelConfig } from "#/testHelpers/chatModels";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	CoderAgentsPageView,
 	type CoderAgentsPageViewProps,
@@ -15,9 +15,9 @@ const TITLE_UNAVAILABLE_SAVED_MODEL_WARNING =
 	"The selected model is currently unavailable. Title generation will be skipped until you choose another model or clear this setting.";
 
 const buildModelConfig = (
-	overrides: Partial<TypesGen.ChatModelConfig>,
-): TypesGen.ChatModelConfig => ({
-	...MockChatModelConfig,
+	overrides: Partial<TypesGen.ChatModel>,
+): TypesGen.ChatModel => ({
+	...MockChatModel,
 	id: "model-default",
 	model: "gpt-4.1-mini",
 	display_name: "GPT 4.1 Mini",
@@ -121,7 +121,7 @@ const providerDisabledModelConfig = buildModelConfig({
 	context_limit: 128_000,
 });
 
-const allModelConfigs: TypesGen.ChatModelConfig[] = [
+const allModels: TypesGen.ChatModel[] = [
 	generalModelConfig,
 	claudeSonnetModelConfig,
 	advisorReasoningModelConfig,
@@ -173,11 +173,11 @@ const buildArgs = (
 	titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData(),
 	compactionModelOverrideData: buildOverrideData("compaction"),
 	exploreModelOverrideData: buildOverrideData("explore"),
-	modelConfigsData: allModelConfigs,
+	models: allModels,
 	providerInfoByID,
-	modelConfigsError: undefined,
-	isLoadingModelConfigs: false,
-	isFetchingModelConfigs: false,
+	modelsError: undefined,
+	isLoadingModels: false,
+	isFetchingModels: false,
 	onSaveGeneralModelOverride: fn(),
 	isSavingGeneralModelOverride: false,
 	isSaveGeneralModelOverrideError: false,

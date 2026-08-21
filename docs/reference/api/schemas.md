@@ -3393,7 +3393,42 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
 | `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
 
-## codersdk.ChatModel
+## codersdk.ChatModelAvailabilityResponse
+
+```json
+{
+  "providers": [
+    {
+      "available": true,
+      "models": [
+        {
+          "display_name": "string",
+          "id": "string",
+          "model": "string",
+          "provider": "string"
+        }
+      ],
+      "provider": "string",
+      "unavailable_reason": "missing_api_key"
+    }
+  ],
+  "unsupported_providers": [
+    {
+      "display_name": "string",
+      "provider": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                                            |
+|-------------------------|-------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------|
+| `providers`             | array of [codersdk.ChatModelProvider](#codersdkchatmodelprovider)             | false    |              |                                                                                                                        |
+| `unsupported_providers` | array of [codersdk.ChatUnsupportedProvider](#codersdkchatunsupportedprovider) | false    |              | Unsupported providers lists configured providers the Agents harness cannot use, so the UI can explain the empty state. |
+
+## codersdk.ChatModelCatalogEntry
 
 ```json
 {
@@ -3436,7 +3471,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name                 | Type                                                                                       | Required | Restrictions | Description |
 |----------------------|--------------------------------------------------------------------------------------------|----------|--------------|-------------|
 | `available`          | boolean                                                                                    | false    |              |             |
-| `models`             | array of [codersdk.ChatModel](#codersdkchatmodel)                                          | false    |              |             |
+| `models`             | array of [codersdk.ChatModelCatalogEntry](#codersdkchatmodelcatalogentry)                  | false    |              |             |
 | `provider`           | string                                                                                     | false    |              |             |
 | `unavailable_reason` | [codersdk.ChatModelProviderUnavailableReason](#codersdkchatmodelproviderunavailablereason) | false    |              |             |
 
@@ -3453,41 +3488,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)                                                   |
 |------------------------------------------------------------|
 | `fetch_failed`, `missing_api_key`, `user_api_key_required` |
-
-## codersdk.ChatModelsResponse
-
-```json
-{
-  "providers": [
-    {
-      "available": true,
-      "models": [
-        {
-          "display_name": "string",
-          "id": "string",
-          "model": "string",
-          "provider": "string"
-        }
-      ],
-      "provider": "string",
-      "unavailable_reason": "missing_api_key"
-    }
-  ],
-  "unsupported_providers": [
-    {
-      "display_name": "string",
-      "provider": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                                            |
-|-------------------------|-------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------|
-| `providers`             | array of [codersdk.ChatModelProvider](#codersdkchatmodelprovider)             | false    |              |                                                                                                                        |
-| `unsupported_providers` | array of [codersdk.ChatUnsupportedProvider](#codersdkchatunsupportedprovider) | false    |              | Unsupported providers lists configured providers the Agents harness cannot use, so the UI can explain the empty state. |
 
 ## codersdk.ChatPlanMode
 

@@ -4,8 +4,8 @@ import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
 	chatAdvisorConfig,
 	chatComputerUseProvider,
-	chatModelConfigs,
 	chatModelOverride,
+	chatModels,
 	chatPersonalModelOverridesAdminSettings,
 	updateChatAdvisorConfig,
 	updateChatComputerUseProvider,
@@ -57,7 +57,7 @@ const CoderAgentsPage: FC = () => {
 		...chatModelOverride(compactionOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
-	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const modelsQuery = useQuery(chatModels());
 	const advisorConfigQuery = useQuery({
 		...chatAdvisorConfig(),
 		enabled: canEditDeploymentConfig && showAdvisorSettings,
@@ -121,16 +121,14 @@ const CoderAgentsPage: FC = () => {
 				titleGenerationModelOverrideData={titleGenerationModelQuery.data}
 				compactionModelOverrideData={compactionModelQuery.data}
 				exploreModelOverrideData={exploreModelOverrideQuery.data}
-				modelConfigsData={modelConfigsQuery.data}
+				models={modelsQuery.data}
 				providerInfoByID={providerInfoByID}
-				modelConfigsError={
-					modelConfigsQuery.error ?? providerConfigsQuery.error
+				modelsError={modelsQuery.error ?? providerConfigsQuery.error}
+				isLoadingModels={
+					modelsQuery.isLoading || providerConfigsQuery.isLoading
 				}
-				isLoadingModelConfigs={
-					modelConfigsQuery.isLoading || providerConfigsQuery.isLoading
-				}
-				isFetchingModelConfigs={
-					modelConfigsQuery.isFetching || providerConfigsQuery.isFetching
+				isFetchingModels={
+					modelsQuery.isFetching || providerConfigsQuery.isFetching
 				}
 				onSaveGeneralModelOverride={saveGeneralModelOverrideMutation.mutate}
 				isSavingGeneralModelOverride={

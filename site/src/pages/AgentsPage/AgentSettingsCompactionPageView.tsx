@@ -4,27 +4,27 @@ import { SectionHeader } from "./components/SectionHeader";
 import { UserCompactionThresholdSettings } from "./components/UserCompactionThresholdSettings";
 
 export interface AgentSettingsCompactionPageViewProps {
-	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
+	models: TypesGen.ChatModel[] | undefined;
 	providerTypeByID: ReadonlyMap<string, string>;
-	modelConfigsError: unknown;
-	isLoadingModelConfigs: boolean;
+	modelsError: unknown;
+	isLoadingModels: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
 	isThresholdsLoading: boolean;
 	thresholdsError: unknown;
 	onSaveThreshold: (
-		modelConfigId: string,
+		modelId: string,
 		thresholdPercent: number,
 	) => Promise<unknown>;
-	onResetThreshold: (modelConfigId: string) => Promise<unknown>;
+	onResetThreshold: (modelId: string) => Promise<unknown>;
 }
 
 export const AgentSettingsCompactionPageView: FC<
 	AgentSettingsCompactionPageViewProps
 > = ({
-	modelConfigsData,
+	models,
 	providerTypeByID,
-	modelConfigsError,
-	isLoadingModelConfigs,
+	modelsError,
+	isLoadingModels,
 	thresholds,
 	isThresholdsLoading,
 	thresholdsError,
@@ -38,10 +38,10 @@ export const AgentSettingsCompactionPageView: FC<
 				description="Customize when conversations with models are automatically compacted."
 			/>
 			<UserCompactionThresholdSettings
-				modelConfigs={modelConfigsData ?? []}
+				models={models ?? []}
 				providerTypeByID={providerTypeByID}
-				modelConfigsError={modelConfigsError}
-				isLoadingModelConfigs={isLoadingModelConfigs}
+				modelsError={modelsError}
+				isLoadingModels={isLoadingModels}
 				thresholds={thresholds}
 				isThresholdsLoading={isThresholdsLoading}
 				thresholdsError={thresholdsError}

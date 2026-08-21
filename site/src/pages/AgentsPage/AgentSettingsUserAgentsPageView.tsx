@@ -17,8 +17,8 @@ export interface AgentSettingsUserAgentsPageViewProps {
 	isRetryingOverrides?: boolean;
 	isLoadingOverrides: boolean;
 	modelOptions: readonly ModelSelectorOption[];
-	modelConfigs: readonly TypesGen.ChatModelConfig[];
-	modelConfigsError: unknown;
+	models: readonly TypesGen.ChatModel[];
+	modelsError: unknown;
 	isLoadingModels: boolean;
 	onSaveRootModelOverride: SavePersonalOverride;
 	isSavingRootModelOverride: boolean;
@@ -40,8 +40,8 @@ export const AgentSettingsUserAgentsPageView: FC<
 	isRetryingOverrides = false,
 	isLoadingOverrides,
 	modelOptions,
-	modelConfigs,
-	modelConfigsError,
+	models,
+	modelsError,
 	isLoadingModels,
 	onSaveRootModelOverride,
 	isSavingRootModelOverride,
@@ -93,8 +93,8 @@ export const AgentSettingsUserAgentsPageView: FC<
 				description="Choose the model behavior for new root agents."
 				overrideData={overridesData?.root}
 				modelOptions={modelOptions}
-				modelConfigs={modelConfigs}
-				modelConfigsError={modelConfigsError}
+				models={models}
+				modelsError={modelsError}
 				isLoading={isLoading}
 				onSave={onSaveRootModelOverride}
 				isSaving={isSavingRootModelOverride}
@@ -109,8 +109,8 @@ export const AgentSettingsUserAgentsPageView: FC<
 				overrideData={overridesData?.general}
 				deploymentDefault={overridesData?.deployment_defaults.general}
 				modelOptions={modelOptions}
-				modelConfigs={modelConfigs}
-				modelConfigsError={modelConfigsError}
+				models={models}
+				modelsError={modelsError}
 				isLoading={isLoading}
 				onSave={onSaveGeneralModelOverride}
 				isSaving={isSavingGeneralModelOverride}
@@ -125,8 +125,8 @@ export const AgentSettingsUserAgentsPageView: FC<
 				overrideData={overridesData?.explore}
 				deploymentDefault={overridesData?.deployment_defaults.explore}
 				modelOptions={modelOptions}
-				modelConfigs={modelConfigs}
-				modelConfigsError={modelConfigsError}
+				models={models}
+				modelsError={modelsError}
 				isLoading={isLoading}
 				onSave={onSaveExploreModelOverride}
 				isSaving={isSavingExploreModelOverride}

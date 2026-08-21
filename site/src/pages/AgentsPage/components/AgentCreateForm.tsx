@@ -128,7 +128,7 @@ interface AgentCreateFormProps {
 	isCreating: boolean;
 	createError: unknown;
 	canCreateChat: boolean;
-	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
+	modelCatalog: TypesGen.ChatModelAvailabilityResponse | null | undefined;
 	modelOptions: readonly ChatModelOption[];
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
@@ -136,8 +136,8 @@ interface AgentCreateFormProps {
 	unsupportedProviderNames?: readonly string[];
 	aiGatewayDisabled?: boolean;
 	isModelCatalogLoading: boolean;
-	modelConfigs: readonly TypesGen.ChatModelConfig[];
-	isModelConfigsLoading: boolean;
+	models: readonly TypesGen.ChatModel[];
+	isModelsLoading: boolean;
 	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
 	isPersonalModelOverridesLoading?: boolean;
 	workspaceCount: number | undefined;
@@ -159,9 +159,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	modelCount,
 	unsupportedProviderNames,
 	aiGatewayDisabled,
-	modelConfigs,
+	models,
 	isModelCatalogLoading,
-	isModelConfigsLoading,
+	isModelsLoading,
 	rootPersonalModelOverride,
 	isPersonalModelOverridesLoading = false,
 	workspaceCount: _workspaceCount,
@@ -190,8 +190,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? initialLastModelConfigID
 			: "";
 	const defaultModelID = (() => {
-		const defaultModelConfig = Array.isArray(modelConfigs)
-			? modelConfigs.find((config) => config.is_default)
+		const defaultModelConfig = Array.isArray(models)
+			? models.find((config) => config.is_default)
 			: undefined;
 		if (!defaultModelConfig) {
 			return "";
@@ -392,7 +392,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		if (!initialLastModelConfigID) {
 			return;
 		}
-		if (isModelCatalogLoading || isModelConfigsLoading) {
+		if (isModelCatalogLoading || isModelsLoading) {
 			return;
 		}
 		if (lastUsedModelID) {
@@ -402,7 +402,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	}, [
 		initialLastModelConfigID,
 		isModelCatalogLoading,
-		isModelConfigsLoading,
+		isModelsLoading,
 		lastUsedModelID,
 	]);
 

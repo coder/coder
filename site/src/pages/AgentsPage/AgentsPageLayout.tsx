@@ -24,7 +24,7 @@ import {
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
-	chatModelConfigs,
+	chatModelAvailability,
 	chatModels,
 	infiniteChats,
 	invalidateChatCostTree,
@@ -89,7 +89,7 @@ import {
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
 import {
-	getModelOptionsFromConfigs,
+	getModelOptionsFromModels,
 	providerInfoByIDFromUserConfigs,
 } from "./utils/modelOptions";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
@@ -236,8 +236,8 @@ const AgentsPageLayout: FC = () => {
 	// model info alongside each chat. Child routes that need models
 	// subscribe to the same queries independently, and react-query
 	// deduplicates the requests.
+	const chatModelAvailabilityQuery = useQuery(chatModelAvailability());
 	const chatModelsQuery = useQuery(chatModels());
-	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const chatProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(),
@@ -388,9 +388,9 @@ const AgentsPageLayout: FC = () => {
 		},
 	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-	const catalogModelOptions = getModelOptionsFromConfigs(
-		chatModelConfigsQuery.data,
+	const catalogModelOptions = getModelOptionsFromModels(
 		chatModelsQuery.data,
+		chatModelAvailabilityQuery.data,
 		providerInfoByIDFromUserConfigs(chatProviderConfigsQuery.data),
 	);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
@@ -769,7 +769,7 @@ const AgentsPageLayout: FC = () => {
 						currentUserId={user.id}
 						chatErrorReasons={sidebarChatErrorReasons}
 						modelOptions={catalogModelOptions}
-						modelConfigs={chatModelConfigsQuery.data ?? []}
+						models={chatModelsQuery.data ?? []}
 						onArchiveAgent={requestArchiveAgent}
 						onUnarchiveAgent={requestUnarchiveAgent}
 						onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
