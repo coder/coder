@@ -8010,6 +8010,7 @@ export type ResourceType =
 	| "api_key"
 	| "chat"
 	| "chat_instruction_settings"
+	| "chat_memory"
 	| "convert_login"
 	| "custom_role"
 	| "git_ssh_key"
@@ -8051,6 +8052,7 @@ export const ResourceTypes: ResourceType[] = [
 	"api_key",
 	"chat",
 	"chat_instruction_settings",
+	"chat_memory",
 	"convert_login",
 	"custom_role",
 	"git_ssh_key",

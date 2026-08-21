@@ -1,7 +1,5 @@
 -- Enum additions to resource_type and api_key_scope are intentionally not
 -- reverted because Postgres cannot drop enum values safely.
-DROP TRIGGER IF EXISTS trigger_upsert_user_memories ON user_memories;
-DROP FUNCTION IF EXISTS insert_user_memory_fail_if_user_deleted;
 
 -- Restore the previous body of delete_deleted_user_resources() from
 -- migration 000503 (without the user_memories cleanup).
@@ -50,9 +48,9 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trigger_user_memories_per_user_limit ON user_memories;
-DROP FUNCTION IF EXISTS enforce_user_memories_per_user_limit();
-DROP TRIGGER IF EXISTS trigger_chat_memories_per_root_chat_limit ON chat_memories;
-DROP FUNCTION IF EXISTS enforce_chat_memories_per_root_chat_limit();
+DROP TRIGGER IF EXISTS trigger_user_memories_insert_invariants ON user_memories;
+DROP FUNCTION IF EXISTS enforce_user_memories_insert_invariants();
+DROP TRIGGER IF EXISTS trigger_chat_memories_insert_invariants ON chat_memories;
+DROP FUNCTION IF EXISTS enforce_chat_memories_insert_invariants();
 DROP TABLE user_memories;
 DROP TABLE chat_memories;

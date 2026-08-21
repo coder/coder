@@ -2,6 +2,7 @@ package database_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"testing"
@@ -16,6 +17,12 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+var invalidMemoryPaths = []string{
+	"", "no-extension", "dir/", "/absolute.md", "a//b.md",
+	"trailing/.md", "spaces in path.md", "note.txt",
+	"./local.md", "../escape.md", "dir/./local.md", "dir/../escape.md",
+}
+
 func TestAgentMemorySchemaConstants(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -26,8 +33,8 @@ func TestAgentMemorySchemaConstants(t *testing.T) {
 	_, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 
 	for trigger, limit := range map[string]int{
-		"enforce_user_memories_per_user_limit":      100,
-		"enforce_chat_memories_per_root_chat_limit": 100,
+		"enforce_user_memories_insert_invariants": 100,
+		"enforce_chat_memories_insert_invariants": 100,
 	} {
 		var triggerDef string
 		err := sqlDB.QueryRowContext(ctx,
@@ -72,7 +79,6 @@ func TestUserMemories(t *testing.T) {
 
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 
-	// insertMemory creates a memory row owned by the given user.
 	insertMemory := func(ctx context.Context, userID uuid.UUID, path string) (database.UserMemory, error) {
 		return db.InsertUserMemory(ctx, database.InsertUserMemoryParams{
 			ID:      uuid.New(),
@@ -86,11 +92,7 @@ func TestUserMemories(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		user := dbgen.User(t, db, database.User{})
-		for _, invalid := range []string{
-			"", "no-extension", "dir/", "/absolute.md", "a//b.md",
-			"trailing/.md", "spaces in path.md", "note.txt",
-			"./local.md", "../escape.md", "dir/./local.md", "dir/../escape.md",
-		} {
+		for _, invalid := range invalidMemoryPaths {
 			_, err := insertMemory(ctx, user.ID, invalid)
 			require.Error(t, err, "path %q should be rejected", invalid)
 			var pqErr *pq.Error
@@ -176,6 +178,47 @@ func TestUserMemories(t *testing.T) {
 		_, err = insertMemory(ctx, user.ID, "keep.md")
 		require.NoError(t, err)
 
+		_, err = db.UpdateUserMemoryByUserIDAndPath(ctx, database.UpdateUserMemoryByUserIDAndPathParams{
+			UserID:  user.ID,
+			Path:    "root.md",
+			Content: strings.Repeat("a", 65537),
+		})
+		require.Error(t, err)
+		var pqErr *pq.Error
+		require.ErrorAs(t, err, &pqErr)
+		require.Equal(t, "user_memories_content_size", pqErr.Constraint)
+
+		_, err = db.RenameUserMemoryByUserIDAndPath(ctx, database.RenameUserMemoryByUserIDAndPathParams{
+			UserID:  user.ID,
+			OldPath: "root.md",
+			NewPath: "../escape.md",
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &pqErr)
+		require.Equal(t, "user_memories_path_format", pqErr.Constraint)
+
+		_, err = db.RenameUserMemoryByUserIDAndPath(ctx, database.RenameUserMemoryByUserIDAndPathParams{
+			UserID:  user.ID,
+			OldPath: "root.md",
+			NewPath: "keep.md",
+		})
+		require.Error(t, err)
+		require.True(t, database.IsUniqueViolation(err, database.UniqueUserMemoriesUserIDPathIndex))
+
+		_, err = db.UpdateUserMemoryByUserIDAndPath(ctx, database.UpdateUserMemoryByUserIDAndPathParams{
+			UserID:  user.ID,
+			Path:    "missing.md",
+			Content: "updated",
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		_, err = db.RenameUserMemoryByUserIDAndPath(ctx, database.RenameUserMemoryByUserIDAndPathParams{
+			UserID:  user.ID,
+			OldPath: "missing.md",
+			NewPath: "new.md",
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
 		updated, err := db.UpdateUserMemoryByUserIDAndPath(ctx, database.UpdateUserMemoryByUserIDAndPathParams{
 			UserID:  user.ID,
 			Path:    "root.md",
@@ -198,6 +241,13 @@ func TestUserMemories(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, renamed.ID, deleted.ID)
+
+		deletedByEmptyPrefix, err := db.DeleteUserMemoriesByUserIDAndPathPrefix(ctx, database.DeleteUserMemoriesByUserIDAndPathPrefixParams{
+			UserID:     user.ID,
+			PathPrefix: "",
+		})
+		require.NoError(t, err)
+		require.Empty(t, deletedByEmptyPrefix)
 
 		deletedMany, err := db.DeleteUserMemoriesByUserIDAndPathPrefix(ctx, database.DeleteUserMemoriesByUserIDAndPathPrefixParams{
 			UserID:     user.ID,
@@ -321,6 +371,75 @@ func TestUserMemories(t *testing.T) {
 		require.ErrorAs(t, err, &pqErr)
 		require.Equal(t, "user_memories_per_user_limit", pqErr.Constraint)
 	})
+
+	t.Run("ConcurrentInsertPerUserLimit", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		limited := dbgen.User(t, db, database.User{})
+		for i := range 99 {
+			_, err := insertMemory(ctx, limited.ID, fmt.Sprintf("memory-%03d.md", i))
+			require.NoError(t, err)
+		}
+
+		limitTx, err := sqlDB.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		committed := false
+		t.Cleanup(func() {
+			if !committed {
+				_ = limitTx.Rollback()
+			}
+		})
+		_, err = limitTx.ExecContext(ctx, `
+			INSERT INTO user_memories (id, user_id, path, content)
+			VALUES ($1, $2, 'memory-099.md', 'content')
+		`, uuid.New(), limited.ID)
+		require.NoError(t, err)
+
+		insertConn, err := sqlDB.Conn(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = insertConn.Close() })
+
+		var insertPID int
+		err = insertConn.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&insertPID)
+		require.NoError(t, err)
+
+		insertResult := make(chan error, 1)
+		go func() {
+			_, err := insertConn.ExecContext(ctx, `
+				INSERT INTO user_memories (id, user_id, path, content)
+				VALUES ($1, $2, 'one-too-many.md', 'content')
+			`, uuid.New(), limited.ID)
+			insertResult <- err
+		}()
+
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			var lockWaits int
+			err := sqlDB.QueryRowContext(ctx, `
+				SELECT count(*)
+				FROM pg_stat_activity
+				WHERE pid = $1 AND wait_event_type = 'Lock'
+			`, insertPID).Scan(&lockWaits)
+			return err == nil && lockWaits == 1
+		}, testutil.IntervalFast, "wait for the second memory insert to block on the user row")
+		require.NoError(t, ctx.Err(), "waiting for the second memory insert")
+
+		require.NoError(t, limitTx.Commit())
+		committed = true
+
+		select {
+		case err := <-insertResult:
+			require.Error(t, err)
+			var pqErr *pq.Error
+			require.ErrorAs(t, err, &pqErr)
+			require.Equal(t, "user_memories_per_user_limit", pqErr.Constraint)
+		case <-ctx.Done():
+			require.Failf(t, "memory insert did not finish", "context ended: %v", ctx.Err())
+		}
+
+		list, err := db.ListUserMemoriesByUserID(ctx, limited.ID)
+		require.NoError(t, err)
+		require.Len(t, list, 100)
+	})
 }
 
 func TestChatMemories(t *testing.T) {
@@ -331,7 +450,6 @@ func TestChatMemories(t *testing.T) {
 
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 
-	// insertMemory creates a memory row owned by the given root chat.
 	insertMemory := func(ctx context.Context, rootChatID uuid.UUID, path string) (database.ChatMemory, error) {
 		return db.InsertChatMemory(ctx, database.InsertChatMemoryParams{
 			ID:         uuid.New(),
@@ -345,13 +463,29 @@ func TestChatMemories(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		chat := insertTestChat(t, db)
-		for _, invalid := range []string{"invalid path.md", "../escape.md"} {
+		for _, invalid := range invalidMemoryPaths {
 			_, err := insertMemory(ctx, chat.ID, invalid)
 			require.Error(t, err, "path %q should be rejected", invalid)
 			var pqErr *pq.Error
 			require.ErrorAs(t, err, &pqErr)
 			require.Equal(t, "chat_memories_path_format", pqErr.Constraint)
 		}
+	})
+
+	t.Run("ContentSizeRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat := insertTestChat(t, db)
+		_, err := db.InsertChatMemory(ctx, database.InsertChatMemoryParams{
+			ID:         uuid.New(),
+			RootChatID: chat.ID,
+			Path:       "big.md",
+			Content:    strings.Repeat("a", 65537),
+		})
+		require.Error(t, err)
+		var pqErr *pq.Error
+		require.ErrorAs(t, err, &pqErr)
+		require.Equal(t, "chat_memories_content_size", pqErr.Constraint)
 	})
 
 	t.Run("SubagentChatRejected", func(t *testing.T) {
@@ -426,6 +560,47 @@ func TestChatMemories(t *testing.T) {
 		_, err = insertMemory(ctx, chat.ID, "scratch.md")
 		require.NoError(t, err)
 
+		_, err = db.UpdateChatMemoryByRootChatIDAndPath(ctx, database.UpdateChatMemoryByRootChatIDAndPathParams{
+			RootChatID: chat.ID,
+			Path:       "scratch.md",
+			Content:    strings.Repeat("a", 65537),
+		})
+		require.Error(t, err)
+		var pqErr *pq.Error
+		require.ErrorAs(t, err, &pqErr)
+		require.Equal(t, "chat_memories_content_size", pqErr.Constraint)
+
+		_, err = db.RenameChatMemoryByRootChatIDAndPath(ctx, database.RenameChatMemoryByRootChatIDAndPathParams{
+			RootChatID: chat.ID,
+			OldPath:    "scratch.md",
+			NewPath:    "../escape.md",
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &pqErr)
+		require.Equal(t, "chat_memories_path_format", pqErr.Constraint)
+
+		_, err = db.RenameChatMemoryByRootChatIDAndPath(ctx, database.RenameChatMemoryByRootChatIDAndPathParams{
+			RootChatID: chat.ID,
+			OldPath:    "scratch.md",
+			NewPath:    "notes/decisions.md",
+		})
+		require.Error(t, err)
+		require.True(t, database.IsUniqueViolation(err, database.UniqueChatMemoriesRootChatIDPathIndex))
+
+		_, err = db.UpdateChatMemoryByRootChatIDAndPath(ctx, database.UpdateChatMemoryByRootChatIDAndPathParams{
+			RootChatID: chat.ID,
+			Path:       "missing.md",
+			Content:    "updated",
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		_, err = db.RenameChatMemoryByRootChatIDAndPath(ctx, database.RenameChatMemoryByRootChatIDAndPathParams{
+			RootChatID: chat.ID,
+			OldPath:    "missing.md",
+			NewPath:    "new.md",
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
 		updated, err := db.UpdateChatMemoryByRootChatIDAndPath(ctx, database.UpdateChatMemoryByRootChatIDAndPathParams{
 			RootChatID: chat.ID,
 			Path:       "scratch.md",
@@ -448,6 +623,13 @@ func TestChatMemories(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, renamed.ID, deleted.ID)
+
+		deletedByEmptyPrefix, err := db.DeleteChatMemoriesByRootChatIDAndPathPrefix(ctx, database.DeleteChatMemoriesByRootChatIDAndPathPrefixParams{
+			RootChatID: chat.ID,
+			PathPrefix: "",
+		})
+		require.NoError(t, err)
+		require.Empty(t, deletedByEmptyPrefix)
 
 		deletedMany, err := db.DeleteChatMemoriesByRootChatIDAndPathPrefix(ctx, database.DeleteChatMemoriesByRootChatIDAndPathPrefixParams{
 			RootChatID: chat.ID,
@@ -494,7 +676,6 @@ func TestChatMemories(t *testing.T) {
 	})
 }
 
-// insertTestChat creates a minimal chat row that memory rows can reference.
 func insertTestChat(t *testing.T, db database.Store) database.Chat {
 	t.Helper()
 	org := dbgen.Organization(t, db, database.Organization{})

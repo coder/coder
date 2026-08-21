@@ -165,6 +165,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.UserMemory:
 		return typed.Path
+	case database.ChatMemory:
+		return typed.Path
 	case database.ChatInstructionSettings:
 		return typed.Name
 	default:
@@ -272,6 +274,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.UserMemory:
 		return typed.ID
+	case database.ChatMemory:
+		return typed.ID
 	case database.ChatInstructionSettings:
 		// Fixed ID per setting; see ChatInstructionSettings IDs.
 		return typed.ID
@@ -354,6 +358,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeUserSkill
 	case database.UserMemory:
 		return database.ResourceTypeUserMemory
+	case database.ChatMemory:
+		return database.ResourceTypeChatMemory
 	case database.ChatInstructionSettings:
 		return database.ResourceTypeChatInstructionSettings
 	default:
@@ -452,6 +458,9 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.UserMemory:
 		// User memories are global to the user across organizations.
 		return false
+	case database.ChatMemory:
+		// Chat memories inherit their root chat's organization.
+		return true
 	case database.ChatInstructionSettings:
 		// Deployment settings, not scoped to any organization.
 		return false

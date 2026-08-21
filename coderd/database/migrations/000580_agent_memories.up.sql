@@ -39,27 +39,37 @@ COMMENT ON TABLE chat_memories IS 'Agent memory documents owned by a root chat a
 
 CREATE UNIQUE INDEX chat_memories_root_chat_id_path_idx ON chat_memories (root_chat_id, path);
 
--- Enforces the per-user memory cap at the schema level so the invariant
--- survives any future refactor of InsertUserMemory.
-CREATE FUNCTION enforce_user_memories_per_user_limit() RETURNS trigger
+-- Locking the user row serializes the count check and user soft deletion
+-- without conflicting with foreign key validation on other child tables.
+CREATE FUNCTION enforce_user_memories_insert_invariants() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
+    user_deleted boolean;
     memory_count int;
     memory_limit constant int := 100;
 BEGIN
-    -- Serialize memory-cap checks per user so concurrent inserts cannot all
-    -- observe the same pre-insert count and exceed the hard limit.
-    PERFORM 1
+    SELECT deleted INTO user_deleted
     FROM users
     WHERE id = NEW.user_id
-    FOR UPDATE;
+    FOR NO KEY UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN NEW;
+    END IF;
+
+    IF user_deleted THEN
+        RAISE EXCEPTION 'cannot create user_memory for deleted user %', NEW.user_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_memory_user_deleted';
+    END IF;
 
     SELECT count(*) INTO memory_count
     FROM user_memories
     WHERE user_id = NEW.user_id;
     IF memory_count >= memory_limit THEN
-        RAISE EXCEPTION 'user has reached the memory limit'
+        RAISE EXCEPTION 'user % has reached the user_memories limit of % (current count %)',
+            NEW.user_id, memory_limit, memory_count
             USING ERRCODE = 'check_violation',
                   CONSTRAINT = 'user_memories_per_user_limit';
     END IF;
@@ -67,13 +77,14 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER trigger_user_memories_per_user_limit
+CREATE TRIGGER trigger_user_memories_insert_invariants
 BEFORE INSERT ON user_memories
 FOR EACH ROW
-EXECUTE PROCEDURE enforce_user_memories_per_user_limit();
+EXECUTE PROCEDURE enforce_user_memories_insert_invariants();
 
--- Requires a root chat and enforces its memory cap at the schema level.
-CREATE FUNCTION enforce_chat_memories_per_root_chat_limit() RETURNS trigger
+-- Locking the chat row serializes the count check without conflicting with
+-- foreign key validation on other child tables.
+CREATE FUNCTION enforce_chat_memories_insert_invariants() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -81,46 +92,40 @@ DECLARE
     referenced_root_chat_id uuid;
     memory_count int;
     memory_limit constant int := 100;
-    check_limit boolean;
 BEGIN
-    -- Serialize memory-cap checks per root chat so concurrent inserts cannot
-    -- all observe the same pre-insert count and exceed the hard limit.
     SELECT parent_chat_id, root_chat_id
     INTO chat_parent_id, referenced_root_chat_id
     FROM chats
     WHERE id = NEW.root_chat_id
-    FOR UPDATE;
+    FOR NO KEY UPDATE;
 
-    IF FOUND AND (chat_parent_id IS NOT NULL OR referenced_root_chat_id IS NOT NULL) THEN
-        RAISE EXCEPTION 'chat memory must reference a root chat'
+    IF NOT FOUND THEN
+        RETURN NEW;
+    END IF;
+
+    IF chat_parent_id IS NOT NULL OR referenced_root_chat_id IS NOT NULL THEN
+        RAISE EXCEPTION 'chat % is not a root chat', NEW.root_chat_id
             USING ERRCODE = 'check_violation',
                   CONSTRAINT = 'chat_memory_root_chat_required';
     END IF;
 
-    IF TG_OP = 'INSERT' THEN
-        check_limit := true;
-    ELSE
-        check_limit := NEW.root_chat_id IS DISTINCT FROM OLD.root_chat_id;
-    END IF;
-
-    IF check_limit THEN
-        SELECT count(*) INTO memory_count
-        FROM chat_memories
-        WHERE root_chat_id = NEW.root_chat_id;
-        IF memory_count >= memory_limit THEN
-            RAISE EXCEPTION 'chat has reached the memory limit'
-                USING ERRCODE = 'check_violation',
-                      CONSTRAINT = 'chat_memories_per_root_chat_limit';
-        END IF;
+    SELECT count(*) INTO memory_count
+    FROM chat_memories
+    WHERE root_chat_id = NEW.root_chat_id;
+    IF memory_count >= memory_limit THEN
+        RAISE EXCEPTION 'chat % has reached the chat_memories limit of % (current count %)',
+            NEW.root_chat_id, memory_limit, memory_count
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'chat_memories_per_root_chat_limit';
     END IF;
     RETURN NEW;
 END;
 $$;
 
-CREATE TRIGGER trigger_chat_memories_per_root_chat_limit
-BEFORE INSERT OR UPDATE OF root_chat_id ON chat_memories
+CREATE TRIGGER trigger_chat_memories_insert_invariants
+BEFORE INSERT ON chat_memories
 FOR EACH ROW
-EXECUTE PROCEDURE enforce_chat_memories_per_root_chat_limit();
+EXECUTE PROCEDURE enforce_chat_memories_insert_invariants();
 
 -- Extend the soft-delete cleanup trigger to also wipe user_memories.
 -- user_memories.user_id has ON DELETE CASCADE, but Coder soft-deletes
@@ -177,38 +182,10 @@ BEGIN
 END;
 $$;
 
--- Prevent adding new user_memories for soft-deleted users.
--- Lock the user row before checking so a concurrent soft delete either
--- cleans up this memory or commits first and causes this write to fail.
-CREATE FUNCTION insert_user_memory_fail_if_user_deleted() RETURNS trigger
-    LANGUAGE plpgsql
-AS $$
-DECLARE
-    user_deleted boolean;
-BEGIN
-    SELECT deleted INTO user_deleted
-    FROM users
-    WHERE id = NEW.user_id
-    FOR UPDATE;
-    IF FOUND AND user_deleted THEN
-        RAISE EXCEPTION 'Cannot create user_memory for deleted user'
-            USING ERRCODE = 'check_violation',
-                  CONSTRAINT = 'user_memory_user_deleted';
-    END IF;
-    RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER trigger_upsert_user_memories
-    BEFORE INSERT OR UPDATE ON user_memories
-    FOR EACH ROW
-EXECUTE PROCEDURE insert_user_memory_fail_if_user_deleted();
-
--- Adds the user memory audit resource type.
 ALTER TYPE resource_type ADD VALUE IF NOT EXISTS 'user_memory';
+ALTER TYPE resource_type ADD VALUE IF NOT EXISTS 'chat_memory';
 
--- Adds API key scopes for managing user memories. Chat memories are
--- authorized through the root chat's existing chat scopes.
+-- Chat memories are authorized through the root chat's existing chat scopes.
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'user_memory:create';
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'user_memory:read';
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'user_memory:update';

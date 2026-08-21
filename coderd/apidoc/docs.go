@@ -24735,6 +24735,7 @@ const docTemplate = `{
                 "user_secret",
                 "user_skill",
                 "user_memory",
+                "chat_memory",
                 "chat_instruction_settings"
             ],
             "x-enum-varnames": [
@@ -24776,6 +24777,7 @@ const docTemplate = `{
                 "ResourceTypeUserSecret",
                 "ResourceTypeUserSkill",
                 "ResourceTypeUserMemory",
+                "ResourceTypeChatMemory",
                 "ResourceTypeChatInstructionSettings"
             ]
         },

@@ -148,9 +148,9 @@ func (q *querier) authorizeContext(ctx context.Context, action policy.Action, ob
 	return nil
 }
 
-// authorizeChatMemoryUpdate authorizes chat memory mutations by requiring
+// authorizeChatMemoryMutation authorizes chat memory mutations by requiring
 // update permission on the root chat that owns the memory rows.
-func (q *querier) authorizeChatMemoryUpdate(ctx context.Context, rootChatID uuid.UUID) error {
+func (q *querier) authorizeChatMemoryMutation(ctx context.Context, rootChatID uuid.UUID) error {
 	chat, err := q.db.GetChatByID(ctx, rootChatID)
 	if err != nil {
 		return err
@@ -2229,14 +2229,14 @@ func (q *querier) DeleteChatDebugDataByChatID(ctx context.Context, arg database.
 
 func (q *querier) DeleteChatMemoriesByRootChatIDAndPathPrefix(ctx context.Context, arg database.DeleteChatMemoriesByRootChatIDAndPathPrefixParams) ([]database.ChatMemory, error) {
 	// Chat memories are owned by the root chat; mutations require update on it.
-	if err := q.authorizeChatMemoryUpdate(ctx, arg.RootChatID); err != nil {
+	if err := q.authorizeChatMemoryMutation(ctx, arg.RootChatID); err != nil {
 		return nil, err
 	}
 	return q.db.DeleteChatMemoriesByRootChatIDAndPathPrefix(ctx, arg)
 }
 
 func (q *querier) DeleteChatMemoryByRootChatIDAndPath(ctx context.Context, arg database.DeleteChatMemoryByRootChatIDAndPathParams) (database.ChatMemory, error) {
-	if err := q.authorizeChatMemoryUpdate(ctx, arg.RootChatID); err != nil {
+	if err := q.authorizeChatMemoryMutation(ctx, arg.RootChatID); err != nil {
 		return database.ChatMemory{}, err
 	}
 	return q.db.DeleteChatMemoryByRootChatIDAndPath(ctx, arg)
@@ -6169,7 +6169,7 @@ func (q *querier) InsertChatFile(ctx context.Context, arg database.InsertChatFil
 }
 
 func (q *querier) InsertChatMemory(ctx context.Context, arg database.InsertChatMemoryParams) (database.ChatMemory, error) {
-	if err := q.authorizeChatMemoryUpdate(ctx, arg.RootChatID); err != nil {
+	if err := q.authorizeChatMemoryMutation(ctx, arg.RootChatID); err != nil {
 		return database.ChatMemory{}, err
 	}
 	return q.db.InsertChatMemory(ctx, arg)
@@ -7246,7 +7246,7 @@ func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveU
 }
 
 func (q *querier) RenameChatMemoryByRootChatIDAndPath(ctx context.Context, arg database.RenameChatMemoryByRootChatIDAndPathParams) (database.ChatMemory, error) {
-	if err := q.authorizeChatMemoryUpdate(ctx, arg.RootChatID); err != nil {
+	if err := q.authorizeChatMemoryMutation(ctx, arg.RootChatID); err != nil {
 		return database.ChatMemory{}, err
 	}
 	return q.db.RenameChatMemoryByRootChatIDAndPath(ctx, arg)
@@ -7625,7 +7625,7 @@ func (q *querier) UpdateChatMCPServerIDs(ctx context.Context, arg database.Updat
 }
 
 func (q *querier) UpdateChatMemoryByRootChatIDAndPath(ctx context.Context, arg database.UpdateChatMemoryByRootChatIDAndPathParams) (database.ChatMemory, error) {
-	if err := q.authorizeChatMemoryUpdate(ctx, arg.RootChatID); err != nil {
+	if err := q.authorizeChatMemoryMutation(ctx, arg.RootChatID); err != nil {
 		return database.ChatMemory{}, err
 	}
 	return q.db.UpdateChatMemoryByRootChatIDAndPath(ctx, arg)

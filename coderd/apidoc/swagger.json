@@ -22689,6 +22689,7 @@
 				"user_secret",
 				"user_skill",
 				"user_memory",
+				"chat_memory",
 				"chat_instruction_settings"
 			],
 			"x-enum-varnames": [
@@ -22730,6 +22731,7 @@
 				"ResourceTypeUserSecret",
 				"ResourceTypeUserSkill",
 				"ResourceTypeUserMemory",
+				"ResourceTypeChatMemory",
 				"ResourceTypeChatInstructionSettings"
 			]
 		},

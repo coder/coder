@@ -5136,7 +5136,10 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 
 const deleteChatMemoriesByRootChatIDAndPathPrefix = `-- name: DeleteChatMemoriesByRootChatIDAndPathPrefix :many
 DELETE FROM chat_memories
-WHERE root_chat_id = $1 AND starts_with(path, $2::text)
+WHERE
+    root_chat_id = $1
+    AND octet_length($2::text) > 0
+    AND starts_with(path, $2::text)
 RETURNING id, root_chat_id, path, content, created_at, updated_at
 `
 
@@ -30212,7 +30215,10 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 
 const deleteUserMemoriesByUserIDAndPathPrefix = `-- name: DeleteUserMemoriesByUserIDAndPathPrefix :many
 DELETE FROM user_memories
-WHERE user_id = $1 AND starts_with(path, $2::text)
+WHERE
+    user_id = $1
+    AND octet_length($2::text) > 0
+    AND starts_with(path, $2::text)
 RETURNING id, user_id, path, content, created_at, updated_at
 `
 

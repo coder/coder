@@ -51,5 +51,8 @@ RETURNING *;
 
 -- name: DeleteChatMemoriesByRootChatIDAndPathPrefix :many
 DELETE FROM chat_memories
-WHERE root_chat_id = @root_chat_id AND starts_with(path, @path_prefix::text)
+WHERE
+    root_chat_id = @root_chat_id
+    AND octet_length(@path_prefix::text) > 0
+    AND starts_with(path, @path_prefix::text)
 RETURNING *;

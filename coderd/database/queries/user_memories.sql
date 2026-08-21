@@ -51,5 +51,8 @@ RETURNING *;
 
 -- name: DeleteUserMemoriesByUserIDAndPathPrefix :many
 DELETE FROM user_memories
-WHERE user_id = @user_id AND starts_with(path, @path_prefix::text)
+WHERE
+    user_id = @user_id
+    AND octet_length(@path_prefix::text) > 0
+    AND starts_with(path, @path_prefix::text)
 RETURNING *;

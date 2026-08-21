@@ -34,5 +34,6 @@ SELECT
 	'2026-08-20 00:00:00+00',
 	'2026-08-20 00:00:00+00'
 FROM chats
+WHERE parent_chat_id IS NULL AND root_chat_id IS NULL
 ORDER BY created_at, id
 LIMIT 1;
