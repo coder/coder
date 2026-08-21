@@ -1,4 +1,5 @@
 import type { FC, ReactNode } from "react";
+import { Link as RouterLink } from "react-router";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
@@ -54,13 +55,10 @@ export const QueuedForCapacityCallout: FC<QueuedForCapacityCalloutProps> = ({
 	} else if (canManageLicenses) {
 		action = (
 			<>
-				<Link
-					href="https://coder.com/trial"
-					target="_blank"
-					rel="noreferrer"
-					size="sm"
-				>
-					Start an unlimited trial
+				<Link asChild showExternalIcon={false} size="sm">
+					<RouterLink to="/deployment/premium">
+						Start an unlimited trial
+					</RouterLink>
 				</Link>{" "}
 				or{" "}
 				<Link
