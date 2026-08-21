@@ -549,6 +549,43 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Report a premium paywall click
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/deployment/premium-funnel-events \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/deployment/premium-funnel-events`
+
+> Body parameter
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "source": "aibridge_session_threads",
+  "variant": "premium"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                               | Required | Description          |
+|--------|------|------------------------------------------------------------------------------------|----------|----------------------|
+| `body` | body | [codersdk.PremiumFunnelEventRequest](schemas.md#codersdkpremiumfunneleventrequest) | true     | Premium funnel event |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get entitlements
 
 ### Code samples
@@ -1354,6 +1391,7 @@ curl -X POST http://coder-server:8080/api/v2/licenses/trial \
 
 ```json
 {
+  "attribution_id": "6f882a62-1d45-46e1-b5f4-0abfea127010",
   "company_name": "Acme Corp",
   "country": "United States",
   "developers": "string",
@@ -1361,7 +1399,8 @@ curl -X POST http://coder-server:8080/api/v2/licenses/trial \
   "first_name": "Jane",
   "job_title": "Engineering Manager",
   "last_name": "Doe",
-  "phone_number": "+14155552671"
+  "phone_number": "+14155552671",
+  "source": "aibridge_session_threads"
 }
 ```
 
