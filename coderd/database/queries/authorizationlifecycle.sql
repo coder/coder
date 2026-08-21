@@ -71,9 +71,9 @@ WHERE
 	id = $1;
 
 -- name: GetAuthorizationLifecycleJournalEntriesBySubject :many
--- Entries about one authorization, ordered as they were made. Bounded for the
--- same reason as the AI agent journal: a lifecycle is a state machine without
--- cycles, so one subject's entries are bounded by the sequences it allows.
+-- Entries about one authorization, ordered as they were made. Unlike the AI
+-- agent's, this machine has no cycle, so one subject's entries are bounded by
+-- the sequences it allows and the limit only caps what a caller will take.
 -- Callers pass one more than they will accept, so receiving it tells them the
 -- set was larger.
 SELECT
@@ -87,3 +87,27 @@ ORDER BY
 	line
 LIMIT
 	$2;
+
+-- name: GetAuthorizationLifecycleLedgerRowsByAgent :many
+-- Every authorization held by one agent, whatever its state.
+--
+-- This exists for `lapse`. When an AI agent reaches `retired`, every
+-- authorization naming it as agent must reach `terminated`. Where the
+-- retirement is ours to record the two go in one transaction, arising
+-- together. Where it is not, an end of life nothing reported has to be found
+-- by a sweep instead. See "What the existence of the parties requires" in
+-- poc_audit/entity_model.md. Neither route performs the transition yet, so no
+-- production code calls this.
+--
+-- Unlike the credential equivalent it does not filter to the live rows, since
+-- both callers have to tell an authorization that already ended from one they
+-- must end.
+SELECT
+	*
+FROM
+	authorization_lifecycle_ledger
+WHERE
+	agent_type = $1
+	AND agent_id = $2
+ORDER BY
+	posting_reference;

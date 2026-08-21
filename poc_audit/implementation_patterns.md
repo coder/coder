@@ -277,6 +277,13 @@ validity itself, at the moment it decides.
 
 ### Sweeps have three triggers, and never run on the read path
 
+**A sweep covers an end of life that is not, or cannot be, reliably reported.**
+An expiry is the clearest case and the one worked through below, nothing being
+present to report it at the moment it falls due. A lapse is the same problem by
+another route: where the event ending a party is ours to record, the lapse goes
+in the same transaction and no sweep is wanted, and where it is not, only a
+sweep will find it.
+
 The entries recording expiries are written by a sweep, not by whatever noticed
 the credential was expired. Three ways of starting one are wanted, and all three
 are out of band:

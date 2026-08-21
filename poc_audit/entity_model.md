@@ -506,13 +506,15 @@ supporting reconstitution later costs no migration.
 | From      | Transition | To        | Kind      |
 |-----------|------------|-----------|-----------|
 | none      | `create`   | `active`  | commanded |
+| `active`  | `transfer` | `active`  | commanded |
 | `active`  | `finish`   | `retired` | observed  |
 | `active`  | `kill`     | `retired` | commanded |
 | `active`  | `suspend`  | `dormant` | commanded |
 | `dormant` | `resume`   | `active`  | commanded |
 | `dormant` | `retire`   | `retired` | commanded |
 
-**The proof of concept machine is the first three rows.**
+**The proof of concept machine is the first four rows**, and implements all but
+`transfer`, which nothing performs yet.
 
 Actors are given by way of illustration, the machine not depending on them.
 `create` records the delegating principal. `kill` records the owner who
@@ -549,15 +551,49 @@ left to be worked out by each reader.
 | From     | Transition | To        | Kind      |
 |----------|------------|-----------|-----------|
 | none     | `create`   | `active`  | commanded |
+| `active` | `transfer` | `active`  | commanded |
 | `active` | `finish`   | `retired` | observed  |
 | `active` | `kill`     | `retired` | commanded |
 
 Three things to notice, none of which the derivation makes obvious. `retired`
-is reached two ways and left none, so it is the only terminal state and the
-machine has no cycles at all. `active` is entered exactly once, at creation,
-which means an identity that has been retired is never reused. And `dormant`
-is absent from the machine while present in the enum, so any code that switches
-exhaustively over the enum must handle a state that cannot occur.
+is reached two ways and left none, so it is the only terminal state and an
+identity that reaches it is never reused. `active` is where an AI agent spends
+its life, entered once at creation and left once at retirement, with `transfer`
+returning it to itself. And `dormant` is absent from the machine while present
+in the enum, so any code switching exhaustively over the enum must handle a
+state that cannot occur.
+
+**`transfer` makes the machine cyclic, and something depended on its not
+being.** An entity's entries were held to be bounded by the sequences an acyclic
+machine allows, which is what justified reading them under a limit and treating
+an overflow as an error. A self transition removes that bound: ownership may
+change any number of times. The limit survives as an expectation about how often
+that happens rather than as a property of the machine, and it should be read
+that way wherever it is relied on.
+
+#### Ownership is not authorization
+
+An AI agent's **owner** is the principal it belongs to. Its **authorization** is
+what it may do and on whose behalf. Today the two coincide closely enough to
+look like one fact, and they are not.
+
+They agree only coarsely, and only over the overlap of their lifespans. Every
+owned AI agent is authorized and every authorized one is owned, which holds
+right up until an AI agent exists outside that overlap.
+
+A prebuilt AI agent is the case that pulls them apart. It is **owned by the
+prebuild actor when created and authorized for nothing at all**. Ownership
+transfers later, and the authorization that follows is granted by the new owner,
+not by the party that owned it first. At creation there is an owner and no
+authorization; after transfer the owner has changed while the identity has not.
+
+So the ledger keeps an owner of its own, and it is not a copy of the
+authorization's principal.
+
+**An owner is an actor, so it is always a `(type, identifier)` pair.** The
+prebuilt case is what makes that more than caution: the prebuild actor is a
+system actor, so the owner position holds something other than a user on the
+first day it matters.
 
 #### How the AI agent machine is read
 
@@ -574,6 +610,12 @@ after the fact.
 
 `kill` arises when a party ends the process deliberately, whether the owner
 commanding it or a provisioner draining a host.
+
+`transfer` arises when an AI agent's owner changes. It is commanded, and its
+actor is whoever commanded it. Nothing performs it yet, and the case it exists
+for is the prebuilt AI agent described under ownership above: created owned by
+the prebuild actor, transferred later, and authorized by the owner it acquires
+rather than the one it began with.
 
 `suspend` and `resume` are reserved with `dormant` and have no interpretation
 yet, since nothing reconstitutes an AI agent.

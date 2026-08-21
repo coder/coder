@@ -884,6 +884,268 @@ func (q *sqlQuerier) UpdateEncryptedAIProviderSettings(ctx context.Context, arg 
 	return i, err
 }
 
+const getAIAgentLifecycleEntriesBySubject = `-- name: GetAIAgentLifecycleEntriesBySubject :many
+SELECT
+	entry_id, line, recording_date, effective_date, actor_type, actor, event, subject
+FROM
+	ai_agent_lifecycle_journal
+WHERE
+	subject = $1
+ORDER BY
+	entry_id,
+	line
+LIMIT
+	$2
+`
+
+type GetAIAgentLifecycleEntriesBySubjectParams struct {
+	Subject uuid.UUID `db:"subject" json:"subject"`
+	Limit   int32     `db:"limit" json:"limit"`
+}
+
+// Entries about one AI agent, ordered as they were made. This machine has a
+// cycle, `transfer` being a self-transition, so one subject can accumulate
+// entries without limit and the bound is one the caller chooses rather than one
+// the machine guarantees. Callers pass one more than they will accept, so
+// receiving it tells them the set was larger.
+func (q *sqlQuerier) GetAIAgentLifecycleEntriesBySubject(ctx context.Context, arg GetAIAgentLifecycleEntriesBySubjectParams) ([]AIAgentLifecycleJournal, error) {
+	rows, err := q.db.QueryContext(ctx, getAIAgentLifecycleEntriesBySubject, arg.Subject, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIAgentLifecycleJournal
+	for rows.Next() {
+		var i AIAgentLifecycleJournal
+		if err := rows.Scan(
+			&i.EntryID,
+			&i.Line,
+			&i.RecordingDate,
+			&i.EffectiveDate,
+			&i.ActorType,
+			&i.Actor,
+			&i.Event,
+			&i.Subject,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIAgentLifecycleLedgerRowByID = `-- name: GetAIAgentLifecycleLedgerRowByID :one
+SELECT
+	id, owner_type, owner_id, state, posting_reference
+FROM
+	ai_agent_lifecycle_ledger
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) GetAIAgentLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (AIAgentLifecycleLedger, error) {
+	row := q.db.QueryRowContext(ctx, getAIAgentLifecycleLedgerRowByID, id)
+	var i AIAgentLifecycleLedger
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerType,
+		&i.OwnerID,
+		&i.State,
+		&i.PostingReference,
+	)
+	return i, err
+}
+
+const insertAIAgentLifecycleJournalFirstLine = `-- name: InsertAIAgentLifecycleJournalFirstLine :one
+INSERT INTO
+	ai_agent_lifecycle_journal (
+		entry_id,
+		line,
+		effective_date,
+		actor_type,
+		actor,
+		event,
+		subject
+	)
+VALUES
+	($1, 0, $2, $3, $4, $5, $6) RETURNING entry_id, line, recording_date, effective_date, actor_type, actor, event, subject
+`
+
+type InsertAIAgentLifecycleJournalFirstLineParams struct {
+	EntryID       int64          `db:"entry_id" json:"entry_id"`
+	EffectiveDate sql.NullTime   `db:"effective_date" json:"effective_date"`
+	ActorType     sql.NullString `db:"actor_type" json:"actor_type"`
+	Actor         uuid.NullUUID  `db:"actor" json:"actor"`
+	Event         string         `db:"event" json:"event"`
+	Subject       uuid.UUID      `db:"subject" json:"subject"`
+}
+
+// Line 0 carries the entry level values. recording_date is absent from this
+// statement on purpose: the column default supplies it, so no caller can
+// supply, override, or backdate it.
+func (q *sqlQuerier) InsertAIAgentLifecycleJournalFirstLine(ctx context.Context, arg InsertAIAgentLifecycleJournalFirstLineParams) (AIAgentLifecycleJournal, error) {
+	row := q.db.QueryRowContext(ctx, insertAIAgentLifecycleJournalFirstLine,
+		arg.EntryID,
+		arg.EffectiveDate,
+		arg.ActorType,
+		arg.Actor,
+		arg.Event,
+		arg.Subject,
+	)
+	var i AIAgentLifecycleJournal
+	err := row.Scan(
+		&i.EntryID,
+		&i.Line,
+		&i.RecordingDate,
+		&i.EffectiveDate,
+		&i.ActorType,
+		&i.Actor,
+		&i.Event,
+		&i.Subject,
+	)
+	return i, err
+}
+
+const insertAIAgentLifecycleJournalSubsequentLine = `-- name: InsertAIAgentLifecycleJournalSubsequentLine :one
+INSERT INTO
+	ai_agent_lifecycle_journal (
+		entry_id,
+		line,
+		recording_date,
+		effective_date,
+		actor_type,
+		actor,
+		event,
+		subject
+	)
+VALUES
+	($1, $2, NULL, NULL, NULL, NULL, $3, $4) RETURNING entry_id, line, recording_date, effective_date, actor_type, actor, event, subject
+`
+
+type InsertAIAgentLifecycleJournalSubsequentLineParams struct {
+	EntryID int64     `db:"entry_id" json:"entry_id"`
+	Line    int16     `db:"line" json:"line"`
+	Event   string    `db:"event" json:"event"`
+	Subject uuid.UUID `db:"subject" json:"subject"`
+}
+
+// NOT LIVE CODE. Nothing calls this. It is here to show what a line after the
+// first looks like, since the proof of concept writes no multiline entry for an
+// AI agent. It deserves a unit test of its own and does not have one, so treat
+// it as documentation rather than as a tested path. In production this would
+// rot; this is not production.
+func (q *sqlQuerier) InsertAIAgentLifecycleJournalSubsequentLine(ctx context.Context, arg InsertAIAgentLifecycleJournalSubsequentLineParams) (AIAgentLifecycleJournal, error) {
+	row := q.db.QueryRowContext(ctx, insertAIAgentLifecycleJournalSubsequentLine,
+		arg.EntryID,
+		arg.Line,
+		arg.Event,
+		arg.Subject,
+	)
+	var i AIAgentLifecycleJournal
+	err := row.Scan(
+		&i.EntryID,
+		&i.Line,
+		&i.RecordingDate,
+		&i.EffectiveDate,
+		&i.ActorType,
+		&i.Actor,
+		&i.Event,
+		&i.Subject,
+	)
+	return i, err
+}
+
+const insertAIAgentLifecycleLedgerRow = `-- name: InsertAIAgentLifecycleLedgerRow :one
+INSERT INTO
+	ai_agent_lifecycle_ledger (
+		id,
+		owner_type,
+		owner_id,
+		state,
+		posting_reference
+	)
+VALUES
+	($1, $2, $3, $4, $5) RETURNING id, owner_type, owner_id, state, posting_reference
+`
+
+type InsertAIAgentLifecycleLedgerRowParams struct {
+	ID               uuid.UUID `db:"id" json:"id"`
+	OwnerType        string    `db:"owner_type" json:"owner_type"`
+	OwnerID          uuid.UUID `db:"owner_id" json:"owner_id"`
+	State            string    `db:"state" json:"state"`
+	PostingReference int64     `db:"posting_reference" json:"posting_reference"`
+}
+
+func (q *sqlQuerier) InsertAIAgentLifecycleLedgerRow(ctx context.Context, arg InsertAIAgentLifecycleLedgerRowParams) (AIAgentLifecycleLedger, error) {
+	row := q.db.QueryRowContext(ctx, insertAIAgentLifecycleLedgerRow,
+		arg.ID,
+		arg.OwnerType,
+		arg.OwnerID,
+		arg.State,
+		arg.PostingReference,
+	)
+	var i AIAgentLifecycleLedger
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerType,
+		&i.OwnerID,
+		&i.State,
+		&i.PostingReference,
+	)
+	return i, err
+}
+
+const nextAIAgentLifecycleJournalEntryID = `-- name: NextAIAgentLifecycleJournalEntryID :one
+SELECT
+	nextval('ai_agent_lifecycle_journal_entry_seq')::bigint
+`
+
+// One call per entry, whose value every line of that entry then carries.
+func (q *sqlQuerier) NextAIAgentLifecycleJournalEntryID(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, nextAIAgentLifecycleJournalEntryID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const retireAIAgent = `-- name: RetireAIAgent :one
+UPDATE
+	ai_agent_lifecycle_ledger
+SET
+	state = 'retired',
+	posting_reference = $2
+WHERE
+	id = $1
+	AND posting_reference = $3 RETURNING id, owner_type, owner_id, state, posting_reference
+`
+
+type RetireAIAgentParams struct {
+	ID                 uuid.UUID `db:"id" json:"id"`
+	PostingReference   int64     `db:"posting_reference" json:"posting_reference"`
+	PostingReference_2 int64     `db:"posting_reference_2" json:"posting_reference_2"`
+}
+
+// Posting a retirement. Conditioned on the posting reference the caller expects
+// to find, so that two concurrent posters cannot both believe they succeeded.
+func (q *sqlQuerier) RetireAIAgent(ctx context.Context, arg RetireAIAgentParams) (AIAgentLifecycleLedger, error) {
+	row := q.db.QueryRowContext(ctx, retireAIAgent, arg.ID, arg.PostingReference, arg.PostingReference_2)
+	var i AIAgentLifecycleLedger
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerType,
+		&i.OwnerID,
+		&i.State,
+		&i.PostingReference,
+	)
+	return i, err
+}
+
 const getAIAgentByOrigin = `-- name: GetAIAgentByOrigin :one
 SELECT user_id, owner_user_id, origin_type, origin_id, created_at, deleted
 FROM ai_agents
@@ -5561,9 +5823,9 @@ type GetAuthorizationLifecycleJournalEntriesBySubjectParams struct {
 	Limit   int32     `db:"limit" json:"limit"`
 }
 
-// Entries about one authorization, ordered as they were made. Bounded for the
-// same reason as the AI agent journal: a lifecycle is a state machine without
-// cycles, so one subject's entries are bounded by the sequences it allows.
+// Entries about one authorization, ordered as they were made. Unlike the AI
+// agent's, this machine has no cycle, so one subject's entries are bounded by
+// the sequences it allows and the limit only caps what a caller will take.
 // Callers pass one more than they will accept, so receiving it tells them the
 // set was larger.
 func (q *sqlQuerier) GetAuthorizationLifecycleJournalEntriesBySubject(ctx context.Context, arg GetAuthorizationLifecycleJournalEntriesBySubjectParams) ([]AuthorizationLifecycleJournal, error) {
@@ -5621,6 +5883,68 @@ func (q *sqlQuerier) GetAuthorizationLifecycleLedgerRowByID(ctx context.Context,
 		&i.PostingReference,
 	)
 	return i, err
+}
+
+const getAuthorizationLifecycleLedgerRowsByAgent = `-- name: GetAuthorizationLifecycleLedgerRowsByAgent :many
+SELECT
+	id, principal_type, principal_id, agent_type, agent_id, scope, state, posting_reference
+FROM
+	authorization_lifecycle_ledger
+WHERE
+	agent_type = $1
+	AND agent_id = $2
+ORDER BY
+	posting_reference
+`
+
+type GetAuthorizationLifecycleLedgerRowsByAgentParams struct {
+	AgentType string    `db:"agent_type" json:"agent_type"`
+	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
+}
+
+// Every authorization held by one agent, whatever its state.
+//
+// This exists for `lapse`. When an AI agent reaches `retired`, every
+// authorization naming it as agent must reach `terminated`. Where the
+// retirement is ours to record the two go in one transaction, arising
+// together. Where it is not, an end of life nothing reported has to be found
+// by a sweep instead. See "What the existence of the parties requires" in
+// poc_audit/entity_model.md. Neither route performs the transition yet, so no
+// production code calls this.
+//
+// Unlike the credential equivalent it does not filter to the live rows, since
+// both callers have to tell an authorization that already ended from one they
+// must end.
+func (q *sqlQuerier) GetAuthorizationLifecycleLedgerRowsByAgent(ctx context.Context, arg GetAuthorizationLifecycleLedgerRowsByAgentParams) ([]AuthorizationLifecycleLedger, error) {
+	rows, err := q.db.QueryContext(ctx, getAuthorizationLifecycleLedgerRowsByAgent, arg.AgentType, arg.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AuthorizationLifecycleLedger
+	for rows.Next() {
+		var i AuthorizationLifecycleLedger
+		if err := rows.Scan(
+			&i.ID,
+			&i.PrincipalType,
+			&i.PrincipalID,
+			&i.AgentType,
+			&i.AgentID,
+			&i.Scope,
+			&i.State,
+			&i.PostingReference,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertAuthorizationLifecycleJournalFirstLine = `-- name: InsertAuthorizationLifecycleJournalFirstLine :one
@@ -15334,142 +15658,6 @@ AND
 func (q *sqlQuerier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	_, err := q.db.ExecContext(ctx, revokeDBCryptKey, activeKeyDigest)
 	return err
-}
-
-const getEntityAIAgentByID = `-- name: GetEntityAIAgentByID :one
-SELECT
-	id, owner_id
-FROM
-	entity_ai_agents
-WHERE
-	id = $1
-`
-
-func (q *sqlQuerier) GetEntityAIAgentByID(ctx context.Context, id uuid.UUID) (EntityAIAgent, error) {
-	row := q.db.QueryRowContext(ctx, getEntityAIAgentByID, id)
-	var i EntityAIAgent
-	err := row.Scan(&i.ID, &i.OwnerID)
-	return i, err
-}
-
-const insertEntityAIAgent = `-- name: InsertEntityAIAgent :one
-INSERT INTO
-	entity_ai_agents (id, owner_id)
-VALUES
-	($1, $2) RETURNING id, owner_id
-`
-
-type InsertEntityAIAgentParams struct {
-	ID      uuid.UUID `db:"id" json:"id"`
-	OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
-}
-
-func (q *sqlQuerier) InsertEntityAIAgent(ctx context.Context, arg InsertEntityAIAgentParams) (EntityAIAgent, error) {
-	row := q.db.QueryRowContext(ctx, insertEntityAIAgent, arg.ID, arg.OwnerID)
-	var i EntityAIAgent
-	err := row.Scan(&i.ID, &i.OwnerID)
-	return i, err
-}
-
-const getLifecycleEntriesBySubject = `-- name: GetLifecycleEntriesBySubject :many
-SELECT
-	id, recorded_at, event, subject_type, subject, actor_type, actor
-FROM
-	entity_journal
-WHERE
-	subject_type = $1
-	AND subject = $2
-ORDER BY
-	id
-LIMIT
-	$3
-`
-
-type GetLifecycleEntriesBySubjectParams struct {
-	SubjectType string    `db:"subject_type" json:"subject_type"`
-	Subject     uuid.UUID `db:"subject" json:"subject"`
-	Limit       int32     `db:"limit" json:"limit"`
-}
-
-// Entries about one entity, which is what makes the limit meaningful. A
-// lifecycle is a state machine without cycles, so one entity's entries are
-// bounded by the sequences that machine allows. Callers pass one entry more
-// than they will accept, so that receiving it tells them the set was larger
-// than that.
-func (q *sqlQuerier) GetLifecycleEntriesBySubject(ctx context.Context, arg GetLifecycleEntriesBySubjectParams) ([]EntityJournal, error) {
-	rows, err := q.db.QueryContext(ctx, getLifecycleEntriesBySubject, arg.SubjectType, arg.Subject, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []EntityJournal
-	for rows.Next() {
-		var i EntityJournal
-		if err := rows.Scan(
-			&i.ID,
-			&i.RecordedAt,
-			&i.Event,
-			&i.SubjectType,
-			&i.Subject,
-			&i.ActorType,
-			&i.Actor,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const insertEntityJournalEntry = `-- name: InsertEntityJournalEntry :one
-INSERT INTO
-	entity_journal (
-		recorded_at,
-		event,
-		subject_type,
-		subject,
-		actor_type,
-		actor
-	)
-VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING id, recorded_at, event, subject_type, subject, actor_type, actor
-`
-
-type InsertEntityJournalEntryParams struct {
-	RecordedAt  time.Time `db:"recorded_at" json:"recorded_at"`
-	Event       string    `db:"event" json:"event"`
-	SubjectType string    `db:"subject_type" json:"subject_type"`
-	Subject     uuid.UUID `db:"subject" json:"subject"`
-	ActorType   string    `db:"actor_type" json:"actor_type"`
-	Actor       uuid.UUID `db:"actor" json:"actor"`
-}
-
-func (q *sqlQuerier) InsertEntityJournalEntry(ctx context.Context, arg InsertEntityJournalEntryParams) (EntityJournal, error) {
-	row := q.db.QueryRowContext(ctx, insertEntityJournalEntry,
-		arg.RecordedAt,
-		arg.Event,
-		arg.SubjectType,
-		arg.Subject,
-		arg.ActorType,
-		arg.Actor,
-	)
-	var i EntityJournal
-	err := row.Scan(
-		&i.ID,
-		&i.RecordedAt,
-		&i.Event,
-		&i.SubjectType,
-		&i.Subject,
-		&i.ActorType,
-		&i.Actor,
-	)
-	return i, err
 }
 
 const deleteExternalAuthLink = `-- name: DeleteExternalAuthLink :exec

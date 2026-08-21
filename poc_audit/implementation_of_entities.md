@@ -77,53 +77,24 @@ expiries.
 
 ### AI agent
 
-**Stub**, and carrying proof of concept cheats.
+**Built.**
 
-One journal shared with every entity rather than one of its own, a single
-timestamp where two are required, a row identifier where an entry identifier
-and a line are required, no lines at all, and a ledger with no state column.
+Its own journal and ledger. Creation, finish, and kill are implemented, with
+`transfer` present in the machine and performed by nothing. The ledger carries a
+state, the entry precedes the posting it produces, and the pair is encapsulated
+so a caller cannot write one without the other.
 
-- `coderd/entity/aiagent.go`, `coderd/entity/journal.go`, and
-  `coderd/entity/read.go`
-- `coderd/database/migrations/000571_entity_journal.up.sql`
-- `coderd/database/migrations/000573_entity_ai_agents.up.sql`
+Creation records the **owner** as actor, a relaying `workspace_agent` commanding
+nothing. The owner is kept as a pair, because ownership is not authorization and
+an owner may be a system actor.
 
-### Where lifecycle events are observable in existing code
+The stub that preceded this is gone: one journal shared by every entity, one
+timestamp, a row identifier serving as an entry identifier, no lines, and no
+state column.
 
-Six points in code already reached by the events this work wants to record.
-Each is in coderd, inside a request handler or a transaction, so none needs new
-plumbing to reach. None of them journals anything today; each writes a row
-directly.
-
-| Event                    | Function                        | File                                              |
-|--------------------------|---------------------------------|---------------------------------------------------|
-| AI agent created         | `Create`                        | `coderd/aiagentidentity/aiagentidentity.go`       |
-| AI agent revoked         | `revokeWorkspaceOrigin`         | `coderd/aiagentidentity/workspace.go`             |
-| AI agent revoked         | `revokeAIAgentIdentity`         | `coderd/provisionerdserver/provisionerdserver.go` |
-| Sandbox created          | `postWorkspaceAgentAISandbox`   | `coderd/aisandboxes.go`                           |
-| Sandbox deleted          | `deleteWorkspaceAgentAISandbox` | `coderd/aisandboxes.go`                           |
-| Session opened or closed | `postAISandboxSession`          | `coderd/aisandboxaudit.go`                        |
-
-**The activity session already begins where it should.** `agent/confine`'s
-supervisor builds the namespace and its redirect rules, then forks the child,
-and stamps the start in the fork's start callback. So the moment recorded is the
-one where the capacities exist and the thing able to use them has just begun,
-which is what an activity session is meant to mark.
-
-**An end is reported, and cannot be relied on.** The supervisor re-posts the
-same session with an end time once the child returns, a convention the agent SDK
-documents. That post is best effort and only happens if the child started and
-the supervisor survived to send it, so a killed workspace or a crashed
-supervisor leaves the session open with nothing to notice. The prompt path is
-real and lapse is what covers its absence, which is the same arrangement the
-credential sweep has.
-
-**Jon's session is not this work's session.** `ai_sandbox_sessions` names four
-parties, a reporter agent, a confined agent, an AI agent, and a sponsor user,
-where the convention here allows two; and it is bounded by one child process
-execution where an AI agent's session is bounded by the lifespans of its
-participants. The two may be reconciled later. Treating them as one thing under
-two names would be the easiest mistake available here.
+- `coderd/database/migrations/000579_ai_agent_lifecycle.up.sql`
+- `coderd/database/queries/aiagentlifecycle.sql`
+- `coderd/entity/aiagent.go`
 
 ### User
 

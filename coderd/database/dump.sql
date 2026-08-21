@@ -1495,6 +1495,46 @@ $$;
 
 COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv.';
 
+CREATE TABLE ai_agent_lifecycle_journal (
+    entry_id bigint NOT NULL,
+    line smallint NOT NULL,
+    recording_date timestamp with time zone DEFAULT now(),
+    effective_date timestamp with time zone DEFAULT now(),
+    actor_type text,
+    actor uuid,
+    event text NOT NULL,
+    subject uuid NOT NULL,
+    CONSTRAINT ai_agent_lifecycle_journal_actor_on_first_line CHECK (((line = 0) = (actor IS NOT NULL))),
+    CONSTRAINT ai_agent_lifecycle_journal_actor_type_on_first_line CHECK (((line = 0) = (actor_type IS NOT NULL))),
+    CONSTRAINT ai_agent_lifecycle_journal_effective_date_on_first_line CHECK (((line = 0) = (effective_date IS NOT NULL))),
+    CONSTRAINT ai_agent_lifecycle_journal_line_non_negative CHECK ((line >= 0)),
+    CONSTRAINT ai_agent_lifecycle_journal_recording_date_on_first_line CHECK (((line = 0) = (recording_date IS NOT NULL)))
+);
+
+COMMENT ON TABLE ai_agent_lifecycle_journal IS 'Journal of persistent state changes to AI agent identities. One journal per entity: sharing one would assert that two lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.';
+
+COMMENT ON COLUMN ai_agent_lifecycle_journal.effective_date IS 'When the event occurred, which for an observed transition may be long before it was recorded. A process that finished on a Tuesday and was noticed on a Friday has its finish recorded on the Friday and dated the Tuesday. It is the earlier of the event time and the recording time, which keeps it from ever claiming the journal foresaw something.';
+
+CREATE SEQUENCE ai_agent_lifecycle_journal_entry_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+CREATE TABLE ai_agent_lifecycle_ledger (
+    id uuid NOT NULL,
+    owner_type text NOT NULL,
+    owner_id uuid NOT NULL,
+    state text NOT NULL,
+    posting_reference bigint NOT NULL,
+    CONSTRAINT ai_agent_lifecycle_ledger_state CHECK ((state = ANY (ARRAY['active'::text, 'dormant'::text, 'retired'::text])))
+);
+
+COMMENT ON TABLE ai_agent_lifecycle_ledger IS 'Current state of each AI agent identity. Three absences are deliberate. There is no workspace or sandbox reference, because an AI agent''s identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema merging them forecloses reconstituting an AI agent from a previous session. There is no creation time, because the journal records when this row came to exist and a second copy could disagree with the first.';
+
+COMMENT ON COLUMN ai_agent_lifecycle_ledger.state IS 'dormant is reserved for future use and is unreachable in the machine the proof of concept implements, which has active and retired only. It is in the enum now so that supporting reconstitution later costs no migration, which means code switching exhaustively over these values must handle a state that cannot occur.';
+
 CREATE TABLE ai_agents (
     user_id uuid NOT NULL,
     owner_user_id uuid NOT NULL,
@@ -2523,34 +2563,6 @@ COMMENT ON COLUMN dbcrypt_keys.created_at IS 'The time at which the key was crea
 COMMENT ON COLUMN dbcrypt_keys.revoked_at IS 'The time at which the key was revoked.';
 
 COMMENT ON COLUMN dbcrypt_keys.test IS 'A column used to test the encryption.';
-
-CREATE TABLE entity_ai_agents (
-    id uuid NOT NULL,
-    owner_id uuid NOT NULL
-);
-
-COMMENT ON TABLE entity_ai_agents IS 'Identities of AI agents. Three absences are deliberate. There is no workspace or sandbox reference, because an AI agent''s identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema that merges them forecloses reconstituting an AI agent from a previous session. There is no creation time, because the journal records when this row came to exist and duplicating it here would create a second answer that can disagree with the first.';
-
-CREATE TABLE entity_journal (
-    id bigint NOT NULL,
-    recorded_at timestamp with time zone NOT NULL,
-    event text NOT NULL,
-    subject_type text NOT NULL,
-    subject uuid NOT NULL,
-    actor_type text NOT NULL,
-    actor uuid NOT NULL
-);
-
-COMMENT ON TABLE entity_journal IS 'Journal of persistent state changes to entities, against which the state of the world can be reconciled. Distinct from audit_logs, which is a separate mechanism recording requests.';
-
-CREATE SEQUENCE entity_journal_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-ALTER SEQUENCE entity_journal_id_seq OWNED BY entity_journal.id;
 
 CREATE TABLE external_auth_links (
     provider_id text NOT NULL,
@@ -4477,8 +4489,6 @@ ALTER TABLE ONLY chat_queued_messages ALTER COLUMN id SET DEFAULT nextval('chat_
 
 ALTER TABLE ONLY chat_usage_limit_config ALTER COLUMN id SET DEFAULT nextval('chat_usage_limit_config_id_seq'::regclass);
 
-ALTER TABLE ONLY entity_journal ALTER COLUMN id SET DEFAULT nextval('entity_journal_id_seq'::regclass);
-
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
@@ -4493,6 +4503,12 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY ai_agent_lifecycle_journal
+    ADD CONSTRAINT ai_agent_lifecycle_journal_pkey PRIMARY KEY (entry_id, line);
+
+ALTER TABLE ONLY ai_agent_lifecycle_ledger
+    ADD CONSTRAINT ai_agent_lifecycle_ledger_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY ai_agents
     ADD CONSTRAINT ai_agents_pkey PRIMARY KEY (user_id);
@@ -4619,12 +4635,6 @@ ALTER TABLE ONLY dbcrypt_keys
 
 ALTER TABLE ONLY dbcrypt_keys
     ADD CONSTRAINT dbcrypt_keys_revoked_key_digest_key UNIQUE (revoked_key_digest);
-
-ALTER TABLE ONLY entity_ai_agents
-    ADD CONSTRAINT entity_ai_agents_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY entity_journal
-    ADD CONSTRAINT entity_journal_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
@@ -4944,6 +4954,12 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
+CREATE INDEX ai_agent_lifecycle_journal_actor_idx ON ai_agent_lifecycle_journal USING btree (actor_type, actor) WHERE (actor IS NOT NULL);
+
+CREATE INDEX ai_agent_lifecycle_journal_subject_idx ON ai_agent_lifecycle_journal USING btree (subject);
+
+CREATE INDEX ai_agent_lifecycle_ledger_owner_idx ON ai_agent_lifecycle_ledger USING btree (owner_type, owner_id);
+
 CREATE UNIQUE INDEX ai_gateway_keys_hashed_secret_idx ON ai_gateway_keys USING btree (hashed_secret);
 
 CREATE UNIQUE INDEX ai_gateway_keys_name_idx ON ai_gateway_keys USING btree (lower(name));
@@ -5155,12 +5171,6 @@ CREATE INDEX idx_connection_logs_workspace_owner_id ON connection_logs USING btr
 CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 
 CREATE UNIQUE INDEX idx_custom_roles_name_lower_organization_id ON custom_roles USING btree (lower(name), COALESCE(organization_id, '00000000-0000-0000-0000-000000000000'::uuid));
-
-CREATE INDEX idx_entity_journal_actor ON entity_journal USING btree (actor_type, actor, id);
-
-COMMENT ON INDEX idx_entity_journal_actor IS 'Supports no query at present. It is kept for forensic investigation, which asks what one actor did across many entities rather than what happened to one entity. That is beyond the scope of the proof of concept, so nothing reads by actor yet. Note that such a query cannot borrow the per entity bound the by subject read relies on: one actor can act on unboundedly many entities.';
-
-CREATE INDEX idx_entity_journal_subject ON entity_journal USING btree (subject_type, subject, id);
 
 CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USING btree (user_id, read_at);
 
@@ -5561,9 +5571,6 @@ ALTER TABLE ONLY connection_logs
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
-
-ALTER TABLE ONLY entity_ai_agents
-    ADD CONSTRAINT entity_ai_agents_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
 
 ALTER TABLE ONLY chat_debug_steps
     ADD CONSTRAINT fk_chat_debug_steps_run_chat FOREIGN KEY (run_id, chat_id) REFERENCES chat_debug_runs(id, chat_id) ON DELETE CASCADE;

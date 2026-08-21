@@ -5,26 +5,21 @@
 // poc_audit/audit_approach.md for the approach the journal implements.
 package entity
 
-import (
-	"context"
+import "github.com/google/uuid"
 
-	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
-)
-
-// Type names the kind of entity an identifier refers to. It says which table
-// holds the primary key, standing in for a foreign key into a union of the
-// identity tables that SQL cannot express.
+// Type names a kind of entity that can act, and the values together are the
+// actor type set. What defines the set is the capacity to act; that it is
+// closed is a property of it rather than its name.
 //
-// The set is closed and AppendEntry refuses anything outside it. A type naming
-// no table produces an entry whose subject can never be resolved, which breaks
-// the journal's only link to the world.
+// An actor is named by a (type, identifier) pair, because an identifier alone
+// cannot say which identity table holds it and SQL cannot declare a key into a
+// union of those tables. The type carries what the schema cannot. A subject
+// needs no such pair, one journal per entity meaning the table already says
+// what kind its subjects are.
 //
-// One set serves both roles. Every type below can be an actor or a subject: a
-// workspace_agent acts, and its own creation is something that happens to it.
+// A value outside the set names no table, so an entry carrying one names an
+// actor nothing can resolve, which severs the journal's link to the party
+// responsible. The lifecycle functions refuse them.
 //
 // Post proof of concept: the column has no CHECK constraint holding the set
 // closed. That is deliberate, since every new type would then need a
@@ -58,63 +53,7 @@ type Ref struct {
 	ID   uuid.UUID
 }
 
-// Event names a persistent state change. The vocabulary is open text for now.
+// Event names a persistent state change. Each machine qualifies its own
+// constants, since revoke and lapse each name a transition in two of them and a
+// shared constant would assert that two transitions are the same kind of event.
 type Event string
-
-const EventCreated Event = "created"
-
-// Entry is an element of the journal. It records that an event happened to a
-// subject, and which actor brought it about.
-//
-// It carries one actor rather than a principal and an agent. Delegation is
-// authorized in advance and recorded separately, so an entry needs only the
-// actor behind the action. That also keeps a single shape for the case where
-// the actor is a user acting for themselves.
-type Entry struct {
-	Event   Event
-	Subject Ref
-	Actor   Ref
-}
-
-// AppendEntry writes one entry to the journal. Lifecycle functions call it
-// rather than inserting inline, so that an entry and the state change it
-// accounts for can commit together. That they do so is a convention recorded
-// in DIRECTORY.md, which this function does not enforce and cannot.
-//
-// store may be a transaction handle, in which case the entry commits with
-// whatever else that transaction carries.
-//
-// This is not production quality and is not trying to be. The validation a
-// real implementation would need is deliberately absent, and deliberately not
-// specified here either: writing that specification now would fix decisions
-// the proof of concept has not earned. Callers are otherwise trusted to hand
-// it well formed entries.
-//
-// The types are the one exception, and are checked because they are not
-// really input validation. A type is the stand in for a foreign key, so a bad
-// one severs the entry from the thing it is about, and nothing downstream can
-// detect that or recover from it.
-//
-// Nothing here checks that the actor differs from the subject. An entity
-// acting on itself is ordinary, as when a user deletes their own account, and
-// the entry records the actor that acted. The rule that an entity may not
-// write entries about itself is about authorship rather than about the actor,
-// and it is enforced by authorization: appending requires system permission,
-// which an entity's own credential does not carry.
-func AppendEntry(ctx context.Context, store database.Store, entry Entry) (database.EntityJournal, error) {
-	if !entry.Subject.Type.Valid() {
-		return database.EntityJournal{}, xerrors.Errorf("subject type %q names no kind of entity", entry.Subject.Type)
-	}
-	if !entry.Actor.Type.Valid() {
-		return database.EntityJournal{}, xerrors.Errorf("actor type %q names no kind of entity", entry.Actor.Type)
-	}
-
-	return store.InsertEntityJournalEntry(ctx, database.InsertEntityJournalEntryParams{
-		RecordedAt:  dbtime.Now(),
-		Event:       string(entry.Event),
-		SubjectType: string(entry.Subject.Type),
-		Subject:     entry.Subject.ID,
-		ActorType:   string(entry.Actor.Type),
-		Actor:       entry.Actor.ID,
-	})
-}

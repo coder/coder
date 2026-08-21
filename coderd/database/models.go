@@ -4808,6 +4808,29 @@ type AIAgent struct {
 	Deleted     bool          `db:"deleted" json:"deleted"`
 }
 
+// Journal of persistent state changes to AI agent identities. One journal per entity: sharing one would assert that two lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.
+type AIAgentLifecycleJournal struct {
+	EntryID       int64        `db:"entry_id" json:"entry_id"`
+	Line          int16        `db:"line" json:"line"`
+	RecordingDate sql.NullTime `db:"recording_date" json:"recording_date"`
+	// When the event occurred, which for an observed transition may be long before it was recorded. A process that finished on a Tuesday and was noticed on a Friday has its finish recorded on the Friday and dated the Tuesday. It is the earlier of the event time and the recording time, which keeps it from ever claiming the journal foresaw something.
+	EffectiveDate sql.NullTime   `db:"effective_date" json:"effective_date"`
+	ActorType     sql.NullString `db:"actor_type" json:"actor_type"`
+	Actor         uuid.NullUUID  `db:"actor" json:"actor"`
+	Event         string         `db:"event" json:"event"`
+	Subject       uuid.UUID      `db:"subject" json:"subject"`
+}
+
+// Current state of each AI agent identity. Three absences are deliberate. There is no workspace or sandbox reference, because an AI agent's identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema merging them forecloses reconstituting an AI agent from a previous session. There is no creation time, because the journal records when this row came to exist and a second copy could disagree with the first.
+type AIAgentLifecycleLedger struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	OwnerType string    `db:"owner_type" json:"owner_type"`
+	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
+	// dormant is reserved for future use and is unreachable in the machine the proof of concept implements, which has active and retired only. It is in the enum now so that supporting reconstitution later costs no migration, which means code switching exhaustively over these values must handle a state that cannot occur.
+	State            string `db:"state" json:"state"`
+	PostingReference int64  `db:"posting_reference" json:"posting_reference"`
+}
+
 // Audit log of requests intercepted by AI Bridge
 type AIBridgeInterception struct {
 	ID uuid.UUID `db:"id" json:"id"`
@@ -5536,23 +5559,6 @@ type DBCryptKey struct {
 	RevokedAt sql.NullTime `db:"revoked_at" json:"revoked_at"`
 	// A column used to test the encryption.
 	Test string `db:"test" json:"test"`
-}
-
-// Identities of AI agents. Three absences are deliberate. There is no workspace or sandbox reference, because an AI agent's identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema that merges them forecloses reconstituting an AI agent from a previous session. There is no creation time, because the journal records when this row came to exist and duplicating it here would create a second answer that can disagree with the first.
-type EntityAIAgent struct {
-	ID      uuid.UUID `db:"id" json:"id"`
-	OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
-}
-
-// Journal of persistent state changes to entities, against which the state of the world can be reconciled. Distinct from audit_logs, which is a separate mechanism recording requests.
-type EntityJournal struct {
-	ID          int64     `db:"id" json:"id"`
-	RecordedAt  time.Time `db:"recorded_at" json:"recorded_at"`
-	Event       string    `db:"event" json:"event"`
-	SubjectType string    `db:"subject_type" json:"subject_type"`
-	Subject     uuid.UUID `db:"subject" json:"subject"`
-	ActorType   string    `db:"actor_type" json:"actor_type"`
-	Actor       uuid.UUID `db:"actor" json:"actor"`
 }
 
 type ExternalAuthLink struct {

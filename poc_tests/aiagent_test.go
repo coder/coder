@@ -150,27 +150,64 @@ func TestAIAgentIdentity(t *testing.T) {
 		scriptLog := readScriptLog(scriptLogPath)
 		id := mintedAIAgentID(t, scriptLog)
 
-		aiAgent, err := db.GetEntityAIAgentByID(systemCtx, id)
+		aiAgent, err := db.GetAIAgentLifecycleLedgerRowByID(systemCtx, id)
 		require.NoError(t, err, "the returned identity should name a row")
+		require.Equal(t, string(entity.TypeUser), aiAgent.OwnerType)
 		require.Equal(t, user.UserID, aiAgent.OwnerID,
 			"the AI agent should belong to the owner of the workspace it was created in")
+		require.Equal(t, entity.AIAgentStateActive, aiAgent.State)
 
 		// The journal accounts for that row. Until the AI agent table landed
 		// every entry pointed at nothing, so this is what makes the journal a
 		// record of the world rather than of itself.
-		entries, err := entity.LifecycleEntriesBySubject(systemCtx, testutil.Logger(t), db, entity.Ref{
-			Type: entity.TypeAIAgent,
-			ID:   id,
+		entries, err := db.GetAIAgentLifecycleEntriesBySubject(systemCtx, database.GetAIAgentLifecycleEntriesBySubjectParams{
+			Subject: id,
+			Limit:   10,
 		})
 		require.NoError(t, err)
 		require.Len(t, entries, 1, "one creation should produce one entry")
 
 		got := entries[0]
-		require.Equal(t, "created", got.Event)
-		require.Equal(t, "workspace_agent", got.ActorType)
-		require.Equal(t, r.Agents[0].ID, got.Actor,
-			"the entry should name the workspace_agent coderd authenticated")
-		require.NotZero(t, got.RecordedAt)
+		require.Equal(t, string(entity.EventAIAgentCreate), got.Event)
+		require.Equal(t, string(entity.TypeUser), got.ActorType.String,
+			"creation is commanded by the owner, not by the workspace_agent that relayed it")
+		require.Equal(t, user.UserID, got.Actor.UUID)
+		require.True(t, got.RecordingDate.Valid)
+		require.Equal(t, got.EntryID, aiAgent.PostingReference,
+			"the ledger row should name the entry that posted to it")
+
+		// The grant. Creation confers authority as well as identity, and the
+		// authorization is the only one of the three entities whose identifier
+		// never leaves coderd, so it is reached through the agent it was
+		// granted over rather than by identifier.
+		grants, err := db.GetAuthorizationLifecycleLedgerRowsByAgent(systemCtx, database.GetAuthorizationLifecycleLedgerRowsByAgentParams{
+			AgentType: string(entity.TypeAIAgent),
+			AgentID:   id,
+		})
+		require.NoError(t, err)
+		require.Len(t, grants, 1, "creation should confer exactly one authorization")
+
+		grant := grants[0]
+		require.Equal(t, string(entity.TypeUser), grant.PrincipalType)
+		require.Equal(t, user.UserID, grant.PrincipalID,
+			"the principal is the owner, whose order brought the agent about")
+		require.Equal(t, entity.UniversalScope, grant.Scope, "the proof of concept grants universally")
+		require.Equal(t, entity.StateActive, grant.State)
+
+		grantEntries, err := db.GetAuthorizationLifecycleJournalEntriesBySubject(systemCtx, database.GetAuthorizationLifecycleJournalEntriesBySubjectParams{
+			Subject: grant.ID,
+			Limit:   10,
+		})
+		require.NoError(t, err)
+		require.Len(t, grantEntries, 1, "a grant is one entry")
+
+		grantEntry := grantEntries[0]
+		require.Equal(t, string(entity.EventGrant), grantEntry.Event)
+		require.Equal(t, string(entity.TypeUser), grantEntry.ActorType.String,
+			"a grant is an act of the principal")
+		require.Equal(t, user.UserID, grantEntry.Actor.UUID)
+		require.Equal(t, grantEntry.EntryID, grant.PostingReference,
+			"the ledger row should name the entry that posted to it")
 
 		// The credential reached the executable. It is compared by digest
 		// because the executable does not print it: standard output becomes a

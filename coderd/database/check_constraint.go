@@ -6,6 +6,12 @@ type CheckConstraint string
 
 // CheckConstraint enums.
 const (
+	CheckAIAgentLifecycleJournalActorOnFirstLine               CheckConstraint = "ai_agent_lifecycle_journal_actor_on_first_line"               // ai_agent_lifecycle_journal
+	CheckAIAgentLifecycleJournalActorTypeOnFirstLine           CheckConstraint = "ai_agent_lifecycle_journal_actor_type_on_first_line"          // ai_agent_lifecycle_journal
+	CheckAIAgentLifecycleJournalEffectiveDateOnFirstLine       CheckConstraint = "ai_agent_lifecycle_journal_effective_date_on_first_line"      // ai_agent_lifecycle_journal
+	CheckAIAgentLifecycleJournalLineNonNegative                CheckConstraint = "ai_agent_lifecycle_journal_line_non_negative"                 // ai_agent_lifecycle_journal
+	CheckAIAgentLifecycleJournalRecordingDateOnFirstLine       CheckConstraint = "ai_agent_lifecycle_journal_recording_date_on_first_line"      // ai_agent_lifecycle_journal
+	CheckAIAgentLifecycleLedgerState                           CheckConstraint = "ai_agent_lifecycle_ledger_state"                              // ai_agent_lifecycle_ledger
 	CheckAIGatewayKeysHashedSecretCheck                        CheckConstraint = "ai_gateway_keys_hashed_secret_check"                          // ai_gateway_keys
 	CheckAIGatewayKeysNameCheck                                CheckConstraint = "ai_gateway_keys_name_check"                                   // ai_gateway_keys
 	CheckAIGatewayKeysSecretPrefixCheck                        CheckConstraint = "ai_gateway_keys_secret_prefix_check"                          // ai_gateway_keys

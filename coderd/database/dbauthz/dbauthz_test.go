@@ -488,16 +488,6 @@ func (s *MethodTestSuite) TestAIAgents() {
 		dbm.EXPECT().UpdateAIAgentDeleted(gomock.Any(), arg).Return(agent, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdate).Returns(agent)
 	}))
-	s.Run("InsertEntityAIAgent", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.InsertEntityAIAgentParams{ID: uuid.New(), OwnerID: uuid.New()}
-		dbm.EXPECT().InsertEntityAIAgent(gomock.Any(), arg).Return(database.EntityAIAgent{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
-	}))
-	s.Run("GetEntityAIAgentByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		id := uuid.New()
-		dbm.EXPECT().GetEntityAIAgentByID(gomock.Any(), id).Return(database.EntityAIAgent{}, nil).AnyTimes()
-		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
-	}))
 }
 
 // TestAuthorizationLifecycle covers the authorization journal and ledger, the
@@ -547,12 +537,80 @@ func (s *MethodTestSuite) TestAuthorizationLifecycle() {
 		dbm.EXPECT().GetAuthorizationLifecycleLedgerRowByID(gomock.Any(), id).Return(database.AuthorizationLifecycleLedger{}, nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("GetAuthorizationLifecycleLedgerRowsByAgent", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetAuthorizationLifecycleLedgerRowsByAgentParams{
+			AgentType: "ai_agent",
+			AgentID:   uuid.New(),
+		}
+		dbm.EXPECT().GetAuthorizationLifecycleLedgerRowsByAgent(gomock.Any(), arg).Return([]database.AuthorizationLifecycleLedger{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("GetAuthorizationLifecycleJournalEntriesBySubject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetAuthorizationLifecycleJournalEntriesBySubjectParams{
 			Subject: uuid.New(),
 			Limit:   10,
 		}
 		dbm.EXPECT().GetAuthorizationLifecycleJournalEntriesBySubject(gomock.Any(), arg).Return([]database.AuthorizationLifecycleJournal{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+}
+
+// TestAIAgentLifecycle covers the AI agent journal and ledger.
+func (s *MethodTestSuite) TestAIAgentLifecycle() {
+	s.Run("NextAIAgentLifecycleJournalEntryID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().NextAIAgentLifecycleJournalEntryID(gomock.Any()).Return(int64(1), nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("InsertAIAgentLifecycleJournalFirstLine", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertAIAgentLifecycleJournalFirstLineParams{
+			EntryID:       1,
+			EffectiveDate: sql.NullTime{Time: dbtime.Now(), Valid: true},
+			ActorType:     sql.NullString{String: "user", Valid: true},
+			Actor:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			Event:         "create",
+			Subject:       uuid.New(),
+		}
+		dbm.EXPECT().InsertAIAgentLifecycleJournalFirstLine(gomock.Any(), arg).Return(database.AIAgentLifecycleJournal{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("InsertAIAgentLifecycleJournalSubsequentLine", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertAIAgentLifecycleJournalSubsequentLineParams{
+			EntryID: 1,
+			Line:    1,
+			Event:   "kill",
+			Subject: uuid.New(),
+		}
+		dbm.EXPECT().InsertAIAgentLifecycleJournalSubsequentLine(gomock.Any(), arg).Return(database.AIAgentLifecycleJournal{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("InsertAIAgentLifecycleLedgerRow", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertAIAgentLifecycleLedgerRowParams{
+			ID:               uuid.New(),
+			OwnerType:        "user",
+			OwnerID:          uuid.New(),
+			State:            "active",
+			PostingReference: 1,
+		}
+		dbm.EXPECT().InsertAIAgentLifecycleLedgerRow(gomock.Any(), arg).Return(database.AIAgentLifecycleLedger{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetAIAgentLifecycleLedgerRowByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().GetAIAgentLifecycleLedgerRowByID(gomock.Any(), id).Return(database.AIAgentLifecycleLedger{}, nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("RetireAIAgent", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.RetireAIAgentParams{
+			ID:                 uuid.New(),
+			PostingReference:   2,
+			PostingReference_2: 1,
+		}
+		dbm.EXPECT().RetireAIAgent(gomock.Any(), arg).Return(database.AIAgentLifecycleLedger{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("GetAIAgentLifecycleEntriesBySubject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetAIAgentLifecycleEntriesBySubjectParams{Subject: uuid.New(), Limit: 10}
+		dbm.EXPECT().GetAIAgentLifecycleEntriesBySubject(gomock.Any(), arg).Return([]database.AIAgentLifecycleJournal{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 }
@@ -619,32 +677,6 @@ func (s *MethodTestSuite) TestCredentialLifecycle() {
 		}
 		dbm.EXPECT().RevokeCredential(gomock.Any(), arg).Return(database.CredentialLifecycleLedger{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
-	}))
-}
-
-// TestEntityJournal covers the journal described in coderd/entity/DIRECTORY.md.
-// It is a separate mechanism from the audit logs tested below, and shares no
-// code with them.
-func (s *MethodTestSuite) TestEntityJournal() {
-	s.Run("InsertEntityJournalEntry", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.InsertEntityJournalEntryParams{
-			Event:       "created",
-			SubjectType: "ai_agent",
-			Subject:     uuid.New(),
-			ActorType:   "workspace_agent",
-			Actor:       uuid.New(),
-		}
-		dbm.EXPECT().InsertEntityJournalEntry(gomock.Any(), arg).Return(database.EntityJournal{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
-	}))
-	s.Run("GetLifecycleEntriesBySubject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetLifecycleEntriesBySubjectParams{
-			SubjectType: "ai_agent",
-			Subject:     uuid.New(),
-			Limit:       10,
-		}
-		dbm.EXPECT().GetLifecycleEntriesBySubject(gomock.Any(), arg).Return([]database.EntityJournal{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 }
 

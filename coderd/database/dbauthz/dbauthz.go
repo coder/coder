@@ -2815,6 +2815,20 @@ func (q *querier) GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (dat
 	return q.db.GetAIAgentByUserID(ctx, userID)
 }
 
+func (q *querier) GetAIAgentLifecycleEntriesBySubject(ctx context.Context, arg database.GetAIAgentLifecycleEntriesBySubjectParams) ([]database.AIAgentLifecycleJournal, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIAgentLifecycleEntriesBySubject(ctx, arg)
+}
+
+func (q *querier) GetAIAgentLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AIAgentLifecycleLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.AIAgentLifecycleLedger{}, err
+	}
+	return q.db.GetAIAgentLifecycleLedgerRowByID(ctx, id)
+}
+
 func (q *querier) GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]database.GetAIAgentsByOwnerIDRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, rbac.ResourceUserObject(ownerUserID)); err != nil {
 		return nil, err
@@ -3169,6 +3183,13 @@ func (q *querier) GetAuthorizationLifecycleLedgerRowByID(ctx context.Context, id
 		return database.AuthorizationLifecycleLedger{}, err
 	}
 	return q.db.GetAuthorizationLifecycleLedgerRowByID(ctx, id)
+}
+
+func (q *querier) GetAuthorizationLifecycleLedgerRowsByAgent(ctx context.Context, arg database.GetAuthorizationLifecycleLedgerRowsByAgentParams) ([]database.AuthorizationLifecycleLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetAuthorizationLifecycleLedgerRowsByAgent(ctx, arg)
 }
 
 func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
@@ -3888,13 +3909,6 @@ func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MC
 	return q.db.GetEnabledMCPServerConfigs(ctx)
 }
 
-func (q *querier) GetEntityAIAgentByID(ctx context.Context, id uuid.UUID) (database.EntityAIAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.EntityAIAgent{}, err
-	}
-	return q.db.GetEntityAIAgentByID(ctx, id)
-}
-
 // GetExternalAgentTokensByTemplateID is used for scaletesting purposes; the
 // scaletest agentfake path calls this query directly via a connection to the
 // database. There is no production code path that uses this method, and it is
@@ -4154,13 +4168,6 @@ func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
 		return q.db.GetLicenses(ctx)
 	}
 	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
-}
-
-func (q *querier) GetLifecycleEntriesBySubject(ctx context.Context, arg database.GetLifecycleEntriesBySubjectParams) ([]database.EntityJournal, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetLifecycleEntriesBySubject(ctx, arg)
 }
 
 func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
@@ -6037,6 +6044,27 @@ func (q *querier) InsertAIAgent(ctx context.Context, arg database.InsertAIAgentP
 	return q.db.InsertAIAgent(ctx, arg)
 }
 
+func (q *querier) InsertAIAgentLifecycleJournalFirstLine(ctx context.Context, arg database.InsertAIAgentLifecycleJournalFirstLineParams) (database.AIAgentLifecycleJournal, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.AIAgentLifecycleJournal{}, err
+	}
+	return q.db.InsertAIAgentLifecycleJournalFirstLine(ctx, arg)
+}
+
+func (q *querier) InsertAIAgentLifecycleJournalSubsequentLine(ctx context.Context, arg database.InsertAIAgentLifecycleJournalSubsequentLineParams) (database.AIAgentLifecycleJournal, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.AIAgentLifecycleJournal{}, err
+	}
+	return q.db.InsertAIAgentLifecycleJournalSubsequentLine(ctx, arg)
+}
+
+func (q *querier) InsertAIAgentLifecycleLedgerRow(ctx context.Context, arg database.InsertAIAgentLifecycleLedgerRowParams) (database.AIAgentLifecycleLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.AIAgentLifecycleLedger{}, err
+	}
+	return q.db.InsertAIAgentLifecycleLedgerRow(ctx, arg)
+}
+
 func (q *querier) InsertAIAgentUser(ctx context.Context, arg database.InsertAIAgentUserParams) (database.User, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUser); err != nil {
 		return database.User{}, err
@@ -6352,32 +6380,6 @@ func (q *querier) InsertDeploymentID(ctx context.Context, value string) error {
 		return err
 	}
 	return q.db.InsertDeploymentID(ctx, value)
-}
-
-// InsertEntityAIAgent is guarded by ResourceSystem for the same reason as the
-// journal: an entity's own credential is workspace-scoped and carries no
-// system permission, so nothing inside a workspace can create an AI agent
-// directly. The control plane does it on their behalf. Coarse, and to be
-// revisited for production.
-func (q *querier) InsertEntityAIAgent(ctx context.Context, arg database.InsertEntityAIAgentParams) (database.EntityAIAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.EntityAIAgent{}, err
-	}
-	return q.db.InsertEntityAIAgent(ctx, arg)
-}
-
-// InsertEntityJournalEntry is guarded by ResourceSystem, which is coarse: it
-// does not tell appending to the journal apart from other internal writes.
-// It is chosen for a property that outweighs that for now. An entity's own
-// credential is scoped to its workspace and carries no system permission, so
-// an entity cannot append entries. Only the control plane can, which makes
-// "an entity may not write entries about itself" a rule the database enforces
-// rather than one code is trusted to follow. Revisit for production.
-func (q *querier) InsertEntityJournalEntry(ctx context.Context, arg database.InsertEntityJournalEntryParams) (database.EntityJournal, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.EntityJournal{}, err
-	}
-	return q.db.InsertEntityJournalEntry(ctx, arg)
 }
 
 func (q *querier) InsertExternalAuthLink(ctx context.Context, arg database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
@@ -7206,6 +7208,16 @@ func (q *querier) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg 
 	return q.db.MarkMCPServerUserTokenRefreshFailure(ctx, arg)
 }
 
+// NextAIAgentLifecycleJournalEntryID is guarded by ResourceSystem for the same
+// reason as the rest of this family: writing to a journal is the control
+// plane's act, not that of anything holding a workspace-scoped credential.
+func (q *querier) NextAIAgentLifecycleJournalEntryID(ctx context.Context) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.NextAIAgentLifecycleJournalEntryID(ctx)
+}
+
 // NextAuthorizationLifecycleJournalEntryID is guarded by ResourceSystem for the same
 // reason as the rest of this family: writing to a journal is the control
 // plane's act, not that of anything holding a workspace-scoped credential.
@@ -7332,6 +7344,13 @@ func (q *querier) ReorderChatQueuedMessageToHead(ctx context.Context, arg databa
 	}
 	_ = chat
 	return q.db.ReorderChatQueuedMessageToHead(ctx, arg)
+}
+
+func (q *querier) RetireAIAgent(ctx context.Context, arg database.RetireAIAgentParams) (database.AIAgentLifecycleLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.AIAgentLifecycleLedger{}, err
+	}
+	return q.db.RetireAIAgent(ctx, arg)
 }
 
 func (q *querier) RevokeCredential(ctx context.Context, arg database.RevokeCredentialParams) (database.CredentialLifecycleLedger, error) {

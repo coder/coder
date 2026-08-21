@@ -305,6 +305,13 @@ type sqlcQuerier interface {
 	// "identity was revoked" (deleted = true) and fail closed on the latter.
 	GetAIAgentByOriginIncludingDeleted(ctx context.Context, arg GetAIAgentByOriginIncludingDeletedParams) (AIAgent, error)
 	GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (AIAgent, error)
+	// Entries about one AI agent, ordered as they were made. This machine has a
+	// cycle, `transfer` being a self-transition, so one subject can accumulate
+	// entries without limit and the bound is one the caller chooses rather than one
+	// the machine guarantees. Callers pass one more than they will accept, so
+	// receiving it tells them the set was larger.
+	GetAIAgentLifecycleEntriesBySubject(ctx context.Context, arg GetAIAgentLifecycleEntriesBySubjectParams) ([]AIAgentLifecycleJournal, error)
+	GetAIAgentLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (AIAgentLifecycleLedger, error)
 	GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]GetAIAgentsByOwnerIDRow, error)
 	// AI Gateway cost for one chat tree: the root chat plus every subagent
 	// beneath it. The spawning chat's ID is recorded as the interception session
@@ -415,13 +422,27 @@ type sqlcQuerier interface {
 	// the STOP build is executing, allowing shutdown scripts to authenticate (see
 	// issue #19467).
 	GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error)
-	// Entries about one authorization, ordered as they were made. Bounded for the
-	// same reason as the AI agent journal: a lifecycle is a state machine without
-	// cycles, so one subject's entries are bounded by the sequences it allows.
+	// Entries about one authorization, ordered as they were made. Unlike the AI
+	// agent's, this machine has no cycle, so one subject's entries are bounded by
+	// the sequences it allows and the limit only caps what a caller will take.
 	// Callers pass one more than they will accept, so receiving it tells them the
 	// set was larger.
 	GetAuthorizationLifecycleJournalEntriesBySubject(ctx context.Context, arg GetAuthorizationLifecycleJournalEntriesBySubjectParams) ([]AuthorizationLifecycleJournal, error)
 	GetAuthorizationLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (AuthorizationLifecycleLedger, error)
+	// Every authorization held by one agent, whatever its state.
+	//
+	// This exists for `lapse`. When an AI agent reaches `retired`, every
+	// authorization naming it as agent must reach `terminated`. Where the
+	// retirement is ours to record the two go in one transaction, arising
+	// together. Where it is not, an end of life nothing reported has to be found
+	// by a sweep instead. See "What the existence of the parties requires" in
+	// poc_audit/entity_model.md. Neither route performs the transition yet, so no
+	// production code calls this.
+	//
+	// Unlike the credential equivalent it does not filter to the live rows, since
+	// both callers have to tell an authorization that already ended from one they
+	// must end.
+	GetAuthorizationLifecycleLedgerRowsByAgent(ctx context.Context, arg GetAuthorizationLifecycleLedgerRowsByAgentParams) ([]AuthorizationLifecycleLedger, error)
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	// Must stay semantically in sync with GetActiveUsersAuthorizationRoles
@@ -598,7 +619,6 @@ type sqlcQuerier interface {
 	GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetEnabledChatModelConfigs(ctx context.Context) ([]GetEnabledChatModelConfigsRow, error)
 	GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
-	GetEntityAIAgentByID(ctx context.Context, id uuid.UUID) (EntityAIAgent, error)
 	// GetExternalAgentTokensByTemplateID returns the auth tokens for all
 	// non-deleted external agents on the latest build of every running workspace
 	// of the given template. "Running" means the latest build has
@@ -686,12 +706,6 @@ type sqlcQuerier interface {
 	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
 	GetLicenses(ctx context.Context) ([]License, error)
-	// Entries about one entity, which is what makes the limit meaningful. A
-	// lifecycle is a state machine without cycles, so one entity's entries are
-	// bounded by the sequences that machine allows. Callers pass one entry more
-	// than they will accept, so that receiving it tells them the set was larger
-	// than that.
-	GetLifecycleEntriesBySubject(ctx context.Context, arg GetLifecycleEntriesBySubjectParams) ([]EntityJournal, error)
 	GetLogoURL(ctx context.Context) (string, error)
 	GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (MCPServerConfig, error)
 	GetMCPServerConfigBySlug(ctx context.Context, slug string) (MCPServerConfig, error)
@@ -1120,6 +1134,17 @@ type sqlcQuerier interface {
 	// The day parameter is normalized to its UTC calendar day before storage.
 	IncrementUserAIDailySpend(ctx context.Context, arg IncrementUserAIDailySpendParams) (AIUserDailySpend, error)
 	InsertAIAgent(ctx context.Context, arg InsertAIAgentParams) (AIAgent, error)
+	// Line 0 carries the entry level values. recording_date is absent from this
+	// statement on purpose: the column default supplies it, so no caller can
+	// supply, override, or backdate it.
+	InsertAIAgentLifecycleJournalFirstLine(ctx context.Context, arg InsertAIAgentLifecycleJournalFirstLineParams) (AIAgentLifecycleJournal, error)
+	// NOT LIVE CODE. Nothing calls this. It is here to show what a line after the
+	// first looks like, since the proof of concept writes no multiline entry for an
+	// AI agent. It deserves a unit test of its own and does not have one, so treat
+	// it as documentation rather than as a tested path. In production this would
+	// rot; this is not production.
+	InsertAIAgentLifecycleJournalSubsequentLine(ctx context.Context, arg InsertAIAgentLifecycleJournalSubsequentLineParams) (AIAgentLifecycleJournal, error)
+	InsertAIAgentLifecycleLedgerRow(ctx context.Context, arg InsertAIAgentLifecycleLedgerRowParams) (AIAgentLifecycleLedger, error)
 	InsertAIAgentUser(ctx context.Context, arg InsertAIAgentUserParams) (User, error)
 	InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error)
 	InsertAIBridgeModelThought(ctx context.Context, arg InsertAIBridgeModelThoughtParams) (AIBridgeModelThought, error)
@@ -1203,8 +1228,6 @@ type sqlcQuerier interface {
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
 	InsertDERPMeshKey(ctx context.Context, value string) error
 	InsertDeploymentID(ctx context.Context, value string) error
-	InsertEntityAIAgent(ctx context.Context, arg InsertEntityAIAgentParams) (EntityAIAgent, error)
-	InsertEntityJournalEntry(ctx context.Context, arg InsertEntityJournalEntryParams) (EntityJournal, error)
 	InsertExternalAuthLink(ctx context.Context, arg InsertExternalAuthLinkParams) (ExternalAuthLink, error)
 	InsertFile(ctx context.Context, arg InsertFileParams) (File, error)
 	InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error)
@@ -1384,6 +1407,8 @@ type sqlcQuerier interface {
 	// request refreshed or replaced the token since it was read, this
 	// update matches zero rows and returns sql.ErrNoRows.
 	MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg MarkMCPServerUserTokenRefreshFailureParams) (MCPServerUserToken, error)
+	// One call per entry, whose value every line of that entry then carries.
+	NextAIAgentLifecycleJournalEntryID(ctx context.Context) (int64, error)
 	// One call per entry, whose value every line of that entry then carries. A
 	// column default cannot serve, allocating per row where the lines of an entry
 	// must agree.
@@ -1416,6 +1441,9 @@ type sqlcQuerier interface {
 	// Sets the target queued message's position to one less than the
 	// current minimum position for that chat, moving it to the head.
 	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
+	// Posting a retirement. Conditioned on the posting reference the caller expects
+	// to find, so that two concurrent posters cannot both believe they succeeded.
+	RetireAIAgent(ctx context.Context, arg RetireAIAgentParams) (AIAgentLifecycleLedger, error)
 	// Posting a revocation. Conditioned on the posting reference the caller expects
 	// to find, so that two concurrent posters cannot both believe they succeeded.
 	RevokeCredential(ctx context.Context, arg RevokeCredentialParams) (CredentialLifecycleLedger, error)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -12,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -26,11 +28,9 @@ func TestCreateAIAgent(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		owner := dbgen.User(t, db, database.User{})
-		actor := entity.Ref{Type: entity.TypeWorkspaceAgent, ID: uuid.New()}
 
 		created, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
-			OwnerID: owner.ID,
-			Actor:   actor,
+			Owner: entity.Ref{Type: entity.TypeUser, ID: owner.ID},
 		})
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, created.ID, "creation should mint an identity")
@@ -38,9 +38,11 @@ func TestCreateAIAgent(t *testing.T) {
 		require.NotEqual(t, uuid.Nil, created.CredentialID, "the credential should be identified")
 
 		id := created.ID
-		agent, err := db.GetEntityAIAgentByID(ctx, id)
-		require.NoError(t, err, "the minted identity should name a row")
-		require.Equal(t, owner.ID, agent.OwnerID, "the AI agent should belong to its principal")
+		row, err := db.GetAIAgentLifecycleLedgerRowByID(ctx, id)
+		require.NoError(t, err, "the minted identity should name a ledger row")
+		require.Equal(t, string(entity.TypeUser), row.OwnerType)
+		require.Equal(t, owner.ID, row.OwnerID, "the AI agent should belong to its principal")
+		require.Equal(t, entity.AIAgentStateActive, row.State)
 
 		verified, err := entity.VerifyCredential(ctx, db, entity.Ref{Type: entity.TypeAIAgent, ID: id}, created.Authenticator)
 		require.NoError(t, err)
@@ -50,19 +52,18 @@ func TestCreateAIAgent(t *testing.T) {
 		require.Len(t, entries, 1, "creation should write exactly one entry")
 
 		got := entries[0]
-		require.Equal(t, string(entity.EventCreated), got.Event)
-		require.Equal(t, string(entity.TypeAIAgent), got.SubjectType)
+		require.EqualValues(t, 0, got.Line, "the only line of an entry is line zero")
+		require.Equal(t, string(entity.EventAIAgentCreate), got.Event)
 		require.Equal(t, id, got.Subject, "the entry should name the agent that was created")
-		require.Equal(t, string(entity.TypeWorkspaceAgent), got.ActorType)
-		require.Equal(t, actor.ID, got.Actor, "the entry should name the actor that brought it about")
-		require.NotZero(t, got.RecordedAt)
-		require.NotZero(t, got.ID, "entries need distinct identifiers")
+		require.Equal(t, string(entity.TypeUser), got.ActorType.String,
+			"creation is commanded by the owner, not by a relaying workspace_agent")
+		require.Equal(t, owner.ID, got.Actor.UUID)
+		require.True(t, got.RecordingDate.Valid, "line zero carries the recording date")
+		require.True(t, got.EffectiveDate.Valid, "line zero carries the effective date")
+		require.Equal(t, got.EntryID, row.PostingReference,
+			"the ledger row should name the entry that posted to it")
 	})
 
-	// The convention is that a lifecycle function joins the caller's
-	// transaction when given one, so that creation can be made atomic with
-	// work that is not creation. The observable consequence is that the entry
-	// rolls back with the caller, which is what this checks.
 	t.Run("GrantsAuthorizationToTheOwner", func(t *testing.T) {
 		t.Parallel()
 
@@ -70,11 +71,9 @@ func TestCreateAIAgent(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		owner := dbgen.User(t, db, database.User{})
-		relay := entity.Ref{Type: entity.TypeWorkspaceAgent, ID: uuid.New()}
 
 		created, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
-			OwnerID: owner.ID,
-			Actor:   relay,
+			Owner: entity.Ref{Type: entity.TypeUser, ID: owner.ID},
 		})
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, created.AuthorizationID, "creation should grant authorization")
@@ -108,6 +107,10 @@ func TestCreateAIAgent(t *testing.T) {
 			"the ledger row should name the entry that posted to it")
 	})
 
+	// The convention is that a lifecycle function joins the caller's
+	// transaction when given one, so that creation can be made atomic with
+	// work that is not creation. The observable consequence is that the entry
+	// rolls back with the caller, which is what this checks.
 	t.Run("JoinsTheCallersTransaction", func(t *testing.T) {
 		t.Parallel()
 
@@ -121,8 +124,7 @@ func TestCreateAIAgent(t *testing.T) {
 		err := db.InTx(func(tx database.Store) error {
 			var err error
 			created, err := entity.CreateAIAgent(ctx, tx, entity.CreateAIAgentParams{
-				OwnerID: owner.ID,
-				Actor:   entity.Ref{Type: entity.TypeWorkspaceAgent, ID: uuid.New()},
+				Owner: entity.Ref{Type: entity.TypeUser, ID: owner.ID},
 			})
 			if err != nil {
 				return err
@@ -137,7 +139,7 @@ func TestCreateAIAgent(t *testing.T) {
 
 		// The row and its entry commit together or not at all, so neither
 		// should have survived.
-		_, err = db.GetEntityAIAgentByID(ctx, id)
+		_, err = db.GetAIAgentLifecycleLedgerRowByID(ctx, id)
 		require.ErrorIs(t, err, sql.ErrNoRows,
 			"the AI agent should roll back with the entry accounting for it")
 
@@ -156,28 +158,117 @@ func TestCreateAIAgent(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		_, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
-			Actor: entity.Ref{Type: entity.TypeWorkspaceAgent, ID: uuid.New()},
+			Owner: entity.Ref{Type: entity.TypeUser, ID: uuid.Nil},
 		})
-		require.ErrorContains(t, err, "owner")
+		require.ErrorContains(t, err, "belongs to a principal")
 	})
 
-	t.Run("RejectsAnEntryWithNoActor", func(t *testing.T) {
+	t.Run("RejectsAnOwnerOfAnUnknownKind", func(t *testing.T) {
 		t.Parallel()
 
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		_, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{})
-		require.ErrorContains(t, err, "actor")
+		_, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
+			Owner: entity.Ref{Type: "sandbox", ID: uuid.New()},
+		})
+		require.ErrorContains(t, err, "names no kind of entity")
 	})
 }
 
-func entriesFor(ctx context.Context, t *testing.T, db database.Store, id uuid.UUID) []database.EntityJournal {
+// Nothing in the running system retires an AI agent yet, and whether anything
+// will during the proof of concept is undecided. This exists so that whoever
+// wires it in finds it works the first time, and because it is the only thing
+// that makes the lapse transitions of the other two machines reachable at all.
+func TestRetireAIAgent(t *testing.T) {
+	t.Parallel()
+
+	newAgent := func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, entity.Ref) {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		owner := entity.Ref{Type: entity.TypeUser, ID: user.ID}
+		created, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{Owner: owner})
+		require.NoError(t, err)
+		return created.ID, owner
+	}
+
+	// finish and kill reach the same state, so the entry is the only thing
+	// that says which happened. That is the whole reason they are two
+	// transitions rather than one.
+	for _, tc := range []struct {
+		name  string
+		event entity.Event
+	}{
+		{"Finish", entity.EventAIAgentFinish},
+		{"Kill", entity.EventAIAgentKill},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			id, owner := newAgent(t, ctx, db)
+
+			before, err := db.GetAIAgentLifecycleLedgerRowByID(ctx, id)
+			require.NoError(t, err)
+
+			// An observed transition may be recorded long after it happened,
+			// so the effective date is given and is not the recording date.
+			happened := dbtime.Now().Add(-time.Hour)
+			require.NoError(t, entity.RetireAIAgent(ctx, db, id, tc.event, owner, happened))
+
+			after, err := db.GetAIAgentLifecycleLedgerRowByID(ctx, id)
+			require.NoError(t, err)
+			require.Equal(t, entity.AIAgentStateRetired, after.State,
+				"the row remains; a ledger keeps its retired rows")
+			require.NotEqual(t, before.PostingReference, after.PostingReference,
+				"the row should name the entry that retired it")
+
+			entries := entriesFor(ctx, t, db, id)
+			require.Len(t, entries, 2, "creation and retirement")
+			got := entries[1]
+			require.Equal(t, string(tc.event), got.Event,
+				"which way it ended is carried by the transition, the state being the same either way")
+			require.Equal(t, after.PostingReference, got.EntryID)
+			require.WithinDuration(t, happened, got.EffectiveDate.Time, time.Second,
+				"the effective date is when it happened, not when it was recorded")
+			require.True(t, got.RecordingDate.Time.After(got.EffectiveDate.Time),
+				"a late entry records an earlier event")
+		})
+	}
+
+	t.Run("RetiredIsTerminal", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		id, owner := newAgent(t, ctx, db)
+
+		require.NoError(t, entity.RetireAIAgent(ctx, db, id, entity.EventAIAgentFinish, owner, time.Time{}))
+		require.ErrorContains(t,
+			entity.RetireAIAgent(ctx, db, id, entity.EventAIAgentKill, owner, time.Time{}),
+			"already retired")
+	})
+
+	t.Run("RejectsAnEventThatDoesNotRetire", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		id, owner := newAgent(t, ctx, db)
+
+		require.ErrorContains(t,
+			entity.RetireAIAgent(ctx, db, id, entity.EventAIAgentCreate, owner, time.Time{}),
+			"does not retire")
+	})
+}
+
+func entriesFor(ctx context.Context, t *testing.T, db database.Store, id uuid.UUID) []database.AIAgentLifecycleJournal {
 	t.Helper()
 
-	entries, err := entity.LifecycleEntriesBySubject(ctx, testutil.Logger(t), db, entity.Ref{
-		Type: entity.TypeAIAgent,
-		ID:   id,
+	entries, err := db.GetAIAgentLifecycleEntriesBySubject(ctx, database.GetAIAgentLifecycleEntriesBySubjectParams{
+		Subject: id,
+		Limit:   10,
 	})
 	require.NoError(t, err)
 	return entries

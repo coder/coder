@@ -7,6 +7,8 @@ type UniqueConstraint string
 // UniqueConstraint enums.
 const (
 	UniqueAgentStatsPkey                                      UniqueConstraint = "agent_stats_pkey"                                                // ALTER TABLE ONLY workspace_agent_stats ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
+	UniqueAIAgentLifecycleJournalPkey                         UniqueConstraint = "ai_agent_lifecycle_journal_pkey"                                 // ALTER TABLE ONLY ai_agent_lifecycle_journal ADD CONSTRAINT ai_agent_lifecycle_journal_pkey PRIMARY KEY (entry_id, line);
+	UniqueAIAgentLifecycleLedgerPkey                          UniqueConstraint = "ai_agent_lifecycle_ledger_pkey"                                  // ALTER TABLE ONLY ai_agent_lifecycle_ledger ADD CONSTRAINT ai_agent_lifecycle_ledger_pkey PRIMARY KEY (id);
 	UniqueAIAgentsPkey                                        UniqueConstraint = "ai_agents_pkey"                                                  // ALTER TABLE ONLY ai_agents ADD CONSTRAINT ai_agents_pkey PRIMARY KEY (user_id);
 	UniqueAIGatewayKeysPkey                                   UniqueConstraint = "ai_gateway_keys_pkey"                                            // ALTER TABLE ONLY ai_gateway_keys ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 	UniqueAIModelPricesPkey                                   UniqueConstraint = "ai_model_prices_pkey"                                            // ALTER TABLE ONLY ai_model_prices ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
@@ -49,8 +51,6 @@ const (
 	UniqueDbcryptKeysActiveKeyDigestKey                       UniqueConstraint = "dbcrypt_keys_active_key_digest_key"                              // ALTER TABLE ONLY dbcrypt_keys ADD CONSTRAINT dbcrypt_keys_active_key_digest_key UNIQUE (active_key_digest);
 	UniqueDbcryptKeysPkey                                     UniqueConstraint = "dbcrypt_keys_pkey"                                               // ALTER TABLE ONLY dbcrypt_keys ADD CONSTRAINT dbcrypt_keys_pkey PRIMARY KEY (number);
 	UniqueDbcryptKeysRevokedKeyDigestKey                      UniqueConstraint = "dbcrypt_keys_revoked_key_digest_key"                             // ALTER TABLE ONLY dbcrypt_keys ADD CONSTRAINT dbcrypt_keys_revoked_key_digest_key UNIQUE (revoked_key_digest);
-	UniqueEntityAIAgentsPkey                                  UniqueConstraint = "entity_ai_agents_pkey"                                           // ALTER TABLE ONLY entity_ai_agents ADD CONSTRAINT entity_ai_agents_pkey PRIMARY KEY (id);
-	UniqueEntityJournalPkey                                   UniqueConstraint = "entity_journal_pkey"                                             // ALTER TABLE ONLY entity_journal ADD CONSTRAINT entity_journal_pkey PRIMARY KEY (id);
 	UniqueFilesHashCreatedByKey                               UniqueConstraint = "files_hash_created_by_key"                                       // ALTER TABLE ONLY files ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
 	UniqueFilesPkey                                           UniqueConstraint = "files_pkey"                                                      // ALTER TABLE ONLY files ADD CONSTRAINT files_pkey PRIMARY KEY (id);
 	UniqueGitAuthLinksProviderIDUserIDKey                     UniqueConstraint = "git_auth_links_provider_id_user_id_key"                          // ALTER TABLE ONLY external_auth_links ADD CONSTRAINT git_auth_links_provider_id_user_id_key UNIQUE (provider_id, user_id);

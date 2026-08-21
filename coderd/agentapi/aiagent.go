@@ -31,10 +31,10 @@ type AIAgentAPI struct {
 // them while authenticating, so the request has no need to state them and no
 // way to state them more reliably.
 //
-// The entry names the workspace_agent as the actor, since it is the party that
-// made the request and the only one authenticated on this connection. Telling
-// apart the party that asked from the party that relayed needs data these
-// calls do not yet carry.
+// The entry names the owner as the actor. Creation is commanded, and what
+// commands it is the order that brought the AI agent about; a workspace_agent
+// relaying that order creates nothing. The owner is as reliably known as the
+// relay is, both being resolved from the same authenticated connection.
 func (a *AIAgentAPI) CreateAIAgent(ctx context.Context, _ *agentproto.CreateAIAgentRequest) (*agentproto.CreateAIAgentResponse, error) {
 	// Appending to the journal requires system permission, which this
 	// connection's subject does not hold: it is scoped to one workspace. That
@@ -44,8 +44,7 @@ func (a *AIAgentAPI) CreateAIAgent(ctx context.Context, _ *agentproto.CreateAIAg
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 
 	created, err := entity.CreateAIAgent(systemCtx, a.Database, entity.CreateAIAgentParams{
-		OwnerID: a.OwnerID,
-		Actor:   entity.Ref{Type: entity.TypeWorkspaceAgent, ID: a.AgentID},
+		Owner: entity.Ref{Type: entity.TypeUser, ID: a.OwnerID},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create AI agent: %w", err)
@@ -55,7 +54,7 @@ func (a *AIAgentAPI) CreateAIAgent(ctx context.Context, _ *agentproto.CreateAIAg
 	a.Log.Debug(ctx, "created AI agent",
 		slog.F("ai_agent_id", created.ID),
 		slog.F("workspace_id", a.WorkspaceID),
-		slog.F("agent_id", a.AgentID))
+		slog.F("ws_agent_id", a.AgentID))
 
 	return &agentproto.CreateAIAgentResponse{
 		Id:         created.ID[:],
