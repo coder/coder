@@ -281,7 +281,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		: undefined;
 	const effectiveRootPersonalModelOverride =
 		organizationRootPersonalModelOverride;
-	const isPersonalModelOverridesLoading = personalModelOverridesQuery.isLoading;
+	// A failed overrides fetch must keep the form blocked: submitting with an
+	// undefined override would send a catalog fallback as an explicit
+	// model_config_id, silently bypassing the user's saved root override.
+	const isPersonalModelOverridesUnresolved =
+		organizationId !== "" && personalModelOverridesQuery.data === undefined;
 	const availableModelConfigs = modelsQuery.data?.models ?? [];
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
@@ -584,6 +588,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{modelsQuery.error != null && (
 						<ErrorAlert error={modelsQuery.error} />
 					)}
+					{personalModelOverridesQuery.error != null && (
+						<ErrorAlert error={personalModelOverridesQuery.error} />
+					)}
 					{mcpServersQuery.error != null && (
 						<ErrorAlert error={mcpServersQuery.error} />
 					)}
@@ -635,7 +642,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							// Sending before adoption would omit persisted files not yet restored.
 							!organizationAdopted ||
 							workspaceValidationPending ||
-							isPersonalModelOverridesLoading ||
+							isPersonalModelOverridesUnresolved ||
 							isMCPSelectionUnresolved ||
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)

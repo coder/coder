@@ -85,44 +85,58 @@ WHERE key IN (
     'agents_chat_compaction_model_override'
 );
 
-WITH advisor AS (
-    SELECT
-        sc.value::jsonb AS blob,
-        (
-            SELECT (sc.value::jsonb ->> 'model_config_id')::uuid
-            WHERE sc.value::jsonb ->> 'model_config_id'
-                ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
-        ) AS config_id
-    FROM site_configs sc
-    WHERE sc.key = 'agents_advisor_config'
-      AND trim(sc.value) != ''
-      AND sc.value::jsonb ? 'model_config_id'
-)
-INSERT INTO chat_organization_model_overrides
-    (organization_id, context, model_config_id, reasoning_effort)
-SELECT
-    o.id,
-    'advisor',
-    a.config_id,
-    NULLIF(trim(a.blob ->> 'reasoning_effort'), '')
-FROM advisor a
-CROSS JOIN organizations o
-WHERE o.is_default
-  AND a.config_id IS NOT NULL
-  AND a.config_id != '00000000-0000-0000-0000-000000000000'::uuid
-  AND EXISTS (
-      SELECT 1
-      FROM chat_model_configs cmc
-      WHERE cmc.id = a.config_id
-        AND cmc.organization_id = o.id
-        AND NOT cmc.deleted
-  )
-ON CONFLICT ON CONSTRAINT chat_organization_model_overrides_organization_id_context_key
-DO NOTHING;
+-- The advisor config is stored as unrestricted text, so a malformed value is
+-- representable and a bare ::jsonb cast would abort the migration. Parse it
+-- inside an exception handler (pg_input_is_valid needs PostgreSQL 16) and
+-- leave a malformed row untouched.
+DO $$
+DECLARE
+    raw text;
+    blob jsonb;
+    config_id uuid;
+BEGIN
+    SELECT value INTO raw FROM site_configs WHERE key = 'agents_advisor_config';
+    IF raw IS NULL THEN
+        RETURN;
+    END IF;
+    BEGIN
+        blob := raw::jsonb;
+    EXCEPTION WHEN others THEN
+        RETURN;
+    END;
+    IF jsonb_typeof(blob) != 'object' THEN
+        RETURN;
+    END IF;
 
-UPDATE site_configs
-SET value = (value::jsonb - 'model_config_id' - 'reasoning_effort')::text
-WHERE key = 'agents_advisor_config';
+    IF blob ->> 'model_config_id'
+        ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' THEN
+        config_id := (blob ->> 'model_config_id')::uuid;
+        INSERT INTO chat_organization_model_overrides
+            (organization_id, context, model_config_id, reasoning_effort)
+        SELECT
+            o.id,
+            'advisor',
+            config_id,
+            NULLIF(trim(blob ->> 'reasoning_effort'), '')
+        FROM organizations o
+        WHERE o.is_default
+          AND config_id != '00000000-0000-0000-0000-000000000000'::uuid
+          AND EXISTS (
+              SELECT 1
+              FROM chat_model_configs cmc
+              WHERE cmc.id = config_id
+                AND cmc.organization_id = o.id
+                AND NOT cmc.deleted
+          )
+        ON CONFLICT ON CONSTRAINT chat_organization_model_overrides_organization_id_context_key
+        DO NOTHING;
+    END IF;
+
+    UPDATE site_configs
+    SET value = (blob - 'model_config_id' - 'reasoning_effort')::text
+    WHERE key = 'agents_advisor_config';
+END;
+$$;
 
 WITH parsed AS (
     SELECT

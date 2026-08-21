@@ -256,6 +256,13 @@ const meta: Meta<typeof AgentCreateForm> = {
 	beforeEach: () => {
 		localStorage.clear();
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
+		// Stories that replace parameters.queries lose the seeded overrides
+		// entry above; resolve the API for any organization so the send gate
+		// (blocked until overrides resolve) does not stall unrelated stories.
+		spyOn(
+			API.experimental,
+			"getUserChatPersonalModelOverrides",
+		).mockResolvedValue(buildPersonalModelOverridesResponse());
 	},
 };
 
@@ -977,6 +984,41 @@ export const LoadingPersonalModelOverrides: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("textbox")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
+	},
+};
+
+export const FailedPersonalModelOverridesBlocksSend: Story = {
+	args: {
+		...defaultArgs,
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getUserChatPersonalModelOverrides",
+		).mockRejectedValue(new Error("failed to load personal overrides"));
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: defaultModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// A failed override fetch must keep sending blocked: submitting would
+		// pass a catalog fallback as an explicit model, silently bypassing the
+		// user's saved root override.
+		await canvas.findAllByText(/failed to load personal overrides/i);
 		await expect(canvas.getByRole("textbox")).toHaveAttribute(
 			"aria-disabled",
 			"true",
