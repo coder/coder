@@ -11,10 +11,10 @@ import { Button } from "#/components/Button/Button";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
@@ -103,7 +103,8 @@ export const CreateOrganizationPageView: FC<
 				</div>
 				{!isEntitled ? (
 					<div className="mx-auto w-full max-w-4xl">
-						<PaywallPremium
+						<PremiumPaywall
+							source="multiple_organizations"
 							message="Organizations"
 							description="Run isolated business units on one deployment, each with its own users, templates, provisioners, and infrastructure."
 							features={[

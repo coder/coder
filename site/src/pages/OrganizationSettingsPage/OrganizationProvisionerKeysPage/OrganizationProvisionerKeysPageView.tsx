@@ -6,7 +6,6 @@ import {
 	ProvisionerKeyIDUserAuth,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -22,6 +21,7 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { ProvisionerKeyRow } from "./ProvisionerKeyRow";
@@ -61,7 +61,8 @@ export const OrganizationProvisionerKeysPageView: FC<
 			</SettingsHeader>
 
 			{showPaywall ? (
-				<PaywallPremium
+				<PremiumPaywall
+					source="provisioner_keys"
 					message="Provisioners"
 					description="Scoped authentication keys for org provisioners."
 					features={[

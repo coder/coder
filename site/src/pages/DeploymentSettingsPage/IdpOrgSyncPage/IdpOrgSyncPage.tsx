@@ -8,7 +8,6 @@ import {
 	patchOrganizationSyncSettings,
 } from "#/api/queries/idpsync";
 import { Loader } from "#/components/Loader/Loader";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -18,6 +17,7 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { ExportPolicyButton } from "./ExportPolicyButton";
@@ -86,7 +86,8 @@ const IdpOrgSyncPage: FC = () => {
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 				{!isIdpSyncEnabled ? (
-					<PaywallPremium
+					<PremiumPaywall
+						source="idp_org_sync"
 						message="IdP Organization Sync"
 						description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder."
 						features={[

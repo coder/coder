@@ -13,7 +13,6 @@ import {
 } from "#/api/queries/organizations";
 import { organizationRoles } from "#/api/queries/roles";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -23,6 +22,7 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
@@ -135,7 +135,8 @@ const IdpSyncPage: FC = () => {
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 			{!isIdpSyncEnabled ? (
-				<PaywallPremium
+				<PremiumPaywall
+					source="idp_sync"
 					message="IdP Sync"
 					description="Auto-sync groups & roles from your IdP."
 					features={[

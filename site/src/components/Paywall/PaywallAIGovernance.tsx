@@ -1,4 +1,5 @@
 import { PaywallSmall } from "#/components/Paywall/PaywallSmall";
+import type { PaywallProps } from "./Paywall";
 
 type PaywallAIGovernanceVariant = "governance" | "sessions";
 
@@ -26,12 +27,13 @@ const PAYWALL_AIGOVERNANCE_COPY: Record<
 	},
 };
 
-type PaywallAIGovernanceProps = {
+type PaywallAIGovernanceProps = Pick<PaywallProps, "onCTAClick"> & {
 	variant?: PaywallAIGovernanceVariant;
 };
 
 const PaywallAIGovernance = ({
 	variant = "governance",
+	onCTAClick,
 }: PaywallAIGovernanceProps) => {
 	const { description, features } = PAYWALL_AIGOVERNANCE_COPY[variant];
 
@@ -41,6 +43,7 @@ const PaywallAIGovernance = ({
 			canViewPremium
 			description={description}
 			features={features}
+			onCTAClick={onCTAClick}
 		/>
 	);
 };
