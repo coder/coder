@@ -1648,14 +1648,15 @@ func TestChatsTelemetry(t *testing.T) {
 		ContextLimit: 200000,
 	})
 
-	// Create a second model config to test full dump.
+	org2 := dbgen.Organization(t, db, database.Organization{})
 	modelCfg2 := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		AIProviderID: uuid.NullUUID{UUID: openaiProvider.ID, Valid: true},
-		Model:        "gpt-4o",
-		DisplayName:  "GPT-4o",
+		AIProviderID:   uuid.NullUUID{UUID: openaiProvider.ID, Valid: true},
+		OrganizationID: org2.ID,
+		Model:          "gpt-4o",
+		DisplayName:    "GPT-4o",
 	})
 
-	// Create a soft-deleted model config — should NOT appear in telemetry.
+	// Soft-deleted model configurations must not appear in telemetry.
 	deletedCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		AIProviderID: uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
 		Model:        "claude-deleted",
@@ -1814,9 +1815,7 @@ func TestChatsTelemetry(t *testing.T) {
 		ProviderResponseID: sql.NullString{String: "resp-3", Valid: true},
 	})
 
-	// Insert a soft-deleted message on root chat with large token values.
-	// This acts as "poison" — if the deleted filter is missing, totals
-	// will be inflated and assertions below will fail.
+	// Large token values expose a missing soft-delete filter in the totals.
 	poisonMsg := dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:              rootChat.ID,
 		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
@@ -1854,6 +1853,7 @@ func TestChatsTelemetry(t *testing.T) {
 	// Root chat assertions.
 	assert.Equal(t, rootChat.ID, foundRoot.ID)
 	assert.Equal(t, user.ID, foundRoot.OwnerID)
+	assert.Equal(t, org.ID, foundRoot.OrganizationID)
 	assert.Equal(t, "running", foundRoot.Status)
 	assert.False(t, foundRoot.HasParent)
 	assert.Nil(t, foundRoot.RootChatID)
@@ -1935,6 +1935,7 @@ func TestChatsTelemetry(t *testing.T) {
 
 	cfg1, ok := configMap[modelCfg.ID]
 	require.True(t, ok)
+	assert.Equal(t, org.ID, cfg1.OrganizationID)
 	assert.Equal(t, "anthropic", cfg1.Provider)
 	assert.Equal(t, "claude-sonnet-4-20250514", cfg1.Model)
 	assert.Equal(t, int64(200000), cfg1.ContextLimit)
@@ -1943,6 +1944,7 @@ func TestChatsTelemetry(t *testing.T) {
 
 	cfg2, ok := configMap[modelCfg2.ID]
 	require.True(t, ok)
+	assert.Equal(t, org2.ID, cfg2.OrganizationID)
 	assert.Equal(t, "openai", cfg2.Provider)
 	assert.Equal(t, "gpt-4o", cfg2.Model)
 	assert.Equal(t, int64(128000), cfg2.ContextLimit)
