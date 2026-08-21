@@ -7640,9 +7640,9 @@ func TestAsChatd(t *testing.T) {
 			}
 		}
 
-		// Organization access uses the narrow default organization reader.
+		// Organization read is temporarily needed for the pre-cutover default-org fallback.
 		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceOrganization)
-		require.Error(t, err, "organization read should be denied")
+		require.NoError(t, err, "organization read should be allowed")
 	})
 
 	t.Run("DeniedActions", func(t *testing.T) {
@@ -7663,11 +7663,6 @@ func TestAsChatd(t *testing.T) {
 		// Cannot access provisioner daemons.
 		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceProvisionerDaemon)
 		require.Error(t, err, "provisioner daemon read should be denied")
-
-		// Cannot access organizations; MCP server config resolution is
-		// strictly org-scoped and needs no organization reads.
-		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceOrganization)
-		require.Error(t, err, "organization read should be denied")
 	})
 }
 
