@@ -77,6 +77,7 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 					features={[
 						"Authenticate without shared secrets",
 						"Works inside coderd or standalone",
+						"Independently scale, rotate, or revoke keys per deployment",
 					]}
 					canViewPremium={permissions.viewAllLicenses}
 				/>

@@ -64,7 +64,7 @@ export const AppearanceSettingsPageView: FC<
 				<PremiumPaywall
 					source="appearance"
 					message="Appearance"
-					description="Customize branding and announcement banners for your deployment."
+					description="Configure branding and announcement banners for your deployment."
 					features={[
 						"Custom application name and logo",
 						"Site-wide announcement banners for updates",
