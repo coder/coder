@@ -1,4 +1,3 @@
-import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
 import { cn } from "#/utils/cn";
@@ -13,10 +12,9 @@ import {
 	PREMIUM_DEFAULT_HERO,
 	PREMIUM_FEATURES,
 	PREMIUM_PAGE_PATH,
-	PREMIUM_PRICING_LINK,
 } from "./Paywall";
 
-const DEFAULT_HERO_SUBTITLE = "Start a 30-day trial today.";
+const DEFAULT_HERO_SUBTITLE = "Start an unlimited 30-day trial today";
 
 const PaywallPremiumHeader: FC<React.ComponentProps<"div">> = ({
 	children,
@@ -88,15 +86,6 @@ const PaywallPremium = ({
 					<h3 className="m-0 font-semibold text-base leading-relaxed text-content-primary">
 						{description}
 					</h3>
-					<a
-						href={PREMIUM_PRICING_LINK}
-						target="_blank"
-						rel="noreferrer"
-						className="mt-4 inline-flex items-center gap-1.5 text-sm text-content-link underline underline-offset-2"
-					>
-						Learn more about premium
-						<ExternalLinkIcon aria-hidden="true" className="size-icon-sm" />
-					</a>
 				</div>
 				<PaywallFeatures className="flex-1 px-0" aria-label={message}>
 					{features.map((feature) => (

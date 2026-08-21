@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/aibridge/prices/pricebook"
 )
 
 func TestCompare(t *testing.T) {
@@ -14,23 +16,23 @@ func TestCompare(t *testing.T) {
 
 	cases := []struct {
 		name        string
-		old         []priceRow
-		new         []priceRow
+		old         []pricebook.Row
+		new         []pricebook.Row
 		wantAdded   []string
 		wantRemoved []string
 		wantChanged []string
 	}{
 		{
 			name: "identical",
-			old:  []priceRow{row("anthropic", "claude", 1, 2)},
-			new:  []priceRow{row("anthropic", "claude", 1, 2)},
+			old:  []pricebook.Row{row("anthropic", "claude", 1, 2)},
+			new:  []pricebook.Row{row("anthropic", "claude", 1, 2)},
 		},
 		{
 			name: "added",
-			old: []priceRow{
+			old: []pricebook.Row{
 				row("anthropic", "claude", 1, 2),
 			},
-			new: []priceRow{
+			new: []pricebook.Row{
 				row("anthropic", "claude", 1, 2),
 				row("openai", "gpt", 3, 4),
 			},
@@ -38,30 +40,30 @@ func TestCompare(t *testing.T) {
 		},
 		{
 			name: "removed",
-			old: []priceRow{
+			old: []pricebook.Row{
 				row("anthropic", "claude", 1, 2),
 				row("openai", "gpt", 3, 4),
 			},
-			new: []priceRow{
+			new: []pricebook.Row{
 				row("anthropic", "claude", 1, 2),
 			},
 			wantRemoved: []string{"openai/gpt"},
 		},
 		{
 			name:        "changed",
-			old:         []priceRow{row("anthropic", "claude", 1, 2)},
-			new:         []priceRow{row("anthropic", "claude", 1, 5)},
+			old:         []pricebook.Row{row("anthropic", "claude", 1, 2)},
+			new:         []pricebook.Row{row("anthropic", "claude", 1, 5)},
 			wantChanged: []string{"anthropic/claude"},
 		},
 		{
 			// Every price field participates, not just input and output.
 			name: "cache price changed",
-			old: []priceRow{{
+			old: []pricebook.Row{{
 				Provider:       "anthropic",
 				Model:          "claude",
 				CacheReadPrice: int64Ptr(1),
 			}},
-			new: []priceRow{{
+			new: []pricebook.Row{{
 				Provider:       "anthropic",
 				Model:          "claude",
 				CacheReadPrice: int64Ptr(2),
@@ -71,11 +73,11 @@ func TestCompare(t *testing.T) {
 		{
 			// A previously missing price becoming populated is a change.
 			name: "price set",
-			old: []priceRow{{
+			old: []pricebook.Row{{
 				Provider: "anthropic",
 				Model:    "claude",
 			}},
-			new: []priceRow{{
+			new: []pricebook.Row{{
 				Provider:   "anthropic",
 				Model:      "claude",
 				InputPrice: int64Ptr(1),
@@ -85,10 +87,10 @@ func TestCompare(t *testing.T) {
 		{
 			// A model whose price becomes null is a change, not a removal.
 			name: "price unset",
-			old: []priceRow{
+			old: []pricebook.Row{
 				row("anthropic", "claude", 1, 2),
 			},
-			new: []priceRow{{
+			new: []pricebook.Row{{
 				Provider:   "anthropic",
 				Model:      "claude",
 				InputPrice: int64Ptr(1),
@@ -98,11 +100,11 @@ func TestCompare(t *testing.T) {
 		{
 			// Zero is a populated price, distinct from an absent one.
 			name: "null becomes zero",
-			old: []priceRow{{
+			old: []pricebook.Row{{
 				Provider: "openai",
 				Model:    "gpt",
 			}},
-			new: []priceRow{{
+			new: []pricebook.Row{{
 				Provider:   "openai",
 				Model:      "gpt",
 				InputPrice: int64Ptr(0),
@@ -112,12 +114,12 @@ func TestCompare(t *testing.T) {
 		{
 			// Zero is a real price, distinct from an absent one.
 			name: "zero is not null",
-			old: []priceRow{{
+			old: []pricebook.Row{{
 				Provider:   "openai",
 				Model:      "gpt",
 				InputPrice: int64Ptr(0),
 			}},
-			new: []priceRow{{
+			new: []pricebook.Row{{
 				Provider: "openai",
 				Model:    "gpt",
 			}},
@@ -126,11 +128,11 @@ func TestCompare(t *testing.T) {
 		{
 			// Same model identifier under two providers must not collide.
 			name: "same model different providers",
-			old: []priceRow{
+			old: []pricebook.Row{
 				row("anthropic", "shared", 1, 2),
 				row("openai", "shared", 1, 2),
 			},
-			new: []priceRow{
+			new: []pricebook.Row{
 				row("anthropic", "shared", 1, 2),
 				row("openai", "shared", 9, 2),
 			},
@@ -138,11 +140,11 @@ func TestCompare(t *testing.T) {
 		},
 		{
 			name: "added removed and changed together",
-			old: []priceRow{
+			old: []pricebook.Row{
 				row("anthropic", "old-model", 1, 2),
 				row("openai", "gpt", 3, 4),
 			},
-			new: []priceRow{
+			new: []pricebook.Row{
 				row("anthropic", "new-model", 5, 6),
 				row("openai", "gpt", 3, 7),
 			},
@@ -167,7 +169,7 @@ func TestCompare(t *testing.T) {
 func TestCompareSortsDeterministically(t *testing.T) {
 	t.Parallel()
 
-	newRows := []priceRow{
+	newRows := []pricebook.Row{
 		row("openai", "b", 1, 1),
 		row("anthropic", "z", 1, 1),
 		row("anthropic", "a", 1, 1),
@@ -184,8 +186,8 @@ func TestRender(t *testing.T) {
 		t.Parallel()
 
 		out := render(compare(
-			[]priceRow{row("anthropic", "claude", 1, 2)},
-			[]priceRow{row("anthropic", "claude", 1, 2)},
+			[]pricebook.Row{row("anthropic", "claude", 1, 2)},
+			[]pricebook.Row{row("anthropic", "claude", 1, 2)},
 		))
 		require.Equal(t, `## Price book changes
 
@@ -197,11 +199,11 @@ No price changes.
 		t.Parallel()
 
 		out := render(compare(
-			[]priceRow{
+			[]pricebook.Row{
 				row("anthropic", "gone", 1, 2),
 				row("openai", "gpt", 1, 2),
 			},
-			[]priceRow{
+			[]pricebook.Row{
 				row("anthropic", "fresh", 3, 4),
 				row("openai", "gpt", 2, 3),
 			},
@@ -285,8 +287,8 @@ func TestRun(t *testing.T) {
 	})
 }
 
-func row(provider, model string, input, output int64) priceRow {
-	return priceRow{
+func row(provider, model string, input, output int64) pricebook.Row {
+	return pricebook.Row{
 		Provider:    provider,
 		Model:       model,
 		InputPrice:  int64Ptr(input),
@@ -294,7 +296,7 @@ func row(provider, model string, input, output int64) priceRow {
 	}
 }
 
-func names(keys []modelKey) []string {
+func names(keys []pricebook.Key) []string {
 	if len(keys) == 0 {
 		return nil
 	}
