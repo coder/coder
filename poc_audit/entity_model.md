@@ -114,6 +114,80 @@ to it and which do not. The convention adopted here is below.
 **Claimant.** A party whose identity is not yet established, and which becomes a
 subscriber once it is. See below: an AI agent is never one.
 
+### What is an entity, and which things are
+
+**Everything whose lifecycle needs journaling is an entity.** Two consequences
+decide most hard cases. An entity **need not be an actor**: a sandbox is one and
+does not act, an authorization is one and cannot. And an entity **need not be
+material**: an authorization is purely institutional, which is what the question
+of origin above is for.
+
+Corpus maturity has three levels. `named` means the term is defined and glossed
+and no more. `modelled` means identity, lifecycle, and relations to other
+entities are stated. `settled` means modelled, plus how the machine is read,
+plus the reconciliations it generates. How much of an entity exists in code is a
+separate question, answered in
+[Implementation of Entities](implementation_of_entities.md) and nowhere here.
+
+| Entity            | Corpus  |
+|-------------------|---------|
+| Authorization     | settled |
+| Credential        | settled |
+| AI agent          | settled |
+| Sandbox           | named   |
+| Session           | named   |
+| User              | named   |
+| `workspace_agent` | named   |
+| Workspace         | named   |
+| coderd            | named   |
+
+A session's lifecycle is not journaled today and should become so. coderd's may
+never need to be; see the Open section.
+
+**coderd is identified by a fixed singleton.** One identifier denotes any
+process running an instance of coderd, and no attempt is made to tell one
+embodiment apart from another.
+
+**The control plane is not the same thing as coderd**, though the two are used
+interchangeably today. A coderd is a process; the control plane is a category of
+such processes. That category is unmodelled, and the singleton is what papers
+over the difference until it is modelled.
+
+**System actor is a category of entity, not an entity.** coderd, service
+accounts, the identity that creates prebuilt workspaces, the provisioner, and
+the **custodian** are all system actors. The custodian is the one that runs
+periodically and records what the passage of time has made true, expiries among
+them. It fills the **sweeper** role, and a sweep is a reconciliation.
+
+**Derived, and needing discussion rather than settled.** Only one stands: a
+**run**, the ephemeral execution of an AI agent, distinct from its durable
+identity. It is declined for now and listed as a candidate.
+
+### The negative space around entities
+
+A list of things that are **not** entities, kept for as long as it is useful and
+no longer. Ideally the corpus becomes clear enough that a reader works this out
+unaided, and this section is scaffolding toward that rather than part of the
+finished shape. Its present use is to hold conclusions reached about the status
+of unfinished things, so that each is reached once.
+
+**Roles.** Principal, agent, claimant, subscriber, verifier, relying party,
+recorder, auditor, reconciler, sweeper. An entity takes a role on for the
+duration of an interaction; a role has no identity and no lifecycle. Actor is
+**not** in this list, being a kind of entity rather than a role.
+
+**Events and transitions.** `create`, `grant`, `revoke`. They are what a journal
+records, not what it is about.
+
+**Attributes and facts about entities.** An expiry, a scope, a state. An
+expiration is a fact about a credential rather than a thing with a life.
+
+**Records and the mechanisms holding them.** Journal, ledger, entry, log, audit
+trail. These are removed from entities by at least one step: a record is derived
+from the activity of entities, so it is downstream of them rather than one of
+them. An audit trail is removed by at least two, being a collection of records
+under the reading the audit approach gives it.
+
 ### Identifiers in source code
 
 The terminology rules above govern prose and rendered text. They are
@@ -291,8 +365,36 @@ A second restriction holds at present, that a session has exactly **two**
 participants. So a session is described by two `(type, identifier)` pairs. That
 is narrower than the same-participants rule requires and may be relaxed later.
 
-For an AI agent, one participant is the AI agent and the other is the sandbox
-holding its embodiment, and the session is bounded by that sandbox's lifespan.
+The **participants rule** says who takes part, and is the same for every session
+here.
+
+| Kind          | Participants                 |
+|---------------|------------------------------|
+| An AI agent's | The AI agent and its sandbox |
+| A sweep       | The custodian and coderd     |
+
+The second is the pattern for tracking the activity of any background system
+actor: the actor and whatever contains it.
+
+**A session's bounds are constraints, not definitions.** A session cannot
+outlive either participant, because a session is a relationship and a
+relationship cannot survive a party to it. So an AI agent's session is bounded
+by the agent's lifespan and by its sandbox's, both at once, ending with
+whichever comes first. The two do not compete, and neither defines the session.
+
+That is the rule the authorization machine states for the parties to an agency
+relation and the credential machine for a holder, arriving here a third time.
+
+**What delimits a session is its own transitions.** Constraint is not
+delimitation: two sessions may share participants, so participant existence
+cannot say where one ends and the next begins. A session is therefore opened and
+closed by command, and a participant ceasing to exist forces it closed as an
+observed transition.
+
+So a session machine needs both kinds of transition, which is the shape the
+other three machines already have. A sweep's session is the simple case, opened
+and closed by the command that starts and stops the sweep, its participants
+outliving it comfortably.
 
 The point of having sessions at all, at this stage, is that **an AI agent's
 logged activity is always subordinate to one**. An action is recorded as
@@ -795,7 +897,7 @@ making the grant, and no such actor exists yet.
 
 Reasoning built on the positions above. Offered for challenge.
 
-### Occupancy is a relationship with its own lifecycle
+### Occupancy belongs to the lifecycle of the occupant
 
 If a sandbox can hold different actors over its life, and an AI agent can
 outlive or move between sandboxes, then which sandbox holds which actor cannot
@@ -804,9 +906,15 @@ actor reference on the sandbox, records only the present and silently loses
 history when it changes. That is precisely the assumption the identity
 independence position forbids.
 
-What the position implies instead is a distinct representation of occupancy
-with its own start and end, so that several may exist for one AI agent over
-time and none may exist at a given moment.
+What the position implies instead is a representation of occupancy with its own
+start and end, so that several may exist for one AI agent over time and none may
+exist at a given moment.
+
+**That does not make occupancy an entity.** It is a relationship tracked with
+the lifecycle of the **content**, not of the container and not of itself. A
+container's lifecycle is born empty, at least conceptually, so it has nothing to
+say about what it holds; the occupant is what enters and leaves, and occupancy
+is the relationship the occupant has with whatever contains it.
 
 This is structurally the same problem as P5 in
 `poc_audit/security_findings.md`, where a one to one column for the
@@ -956,8 +1064,11 @@ it. That code is not in its final form and is to be brought into conformance.
   what holds the door open meanwhile.
 - **Naming.** What the AI agent entity is called in the schema and in the audit
   `resource_type` enum, given that `agent` collides with `workspace_agent`.
-- **coderd's identity.** Whether the control plane is modelled as an actor
-  entity with an identity of its own, or remains implicit as it is today.
+- **A journal for coderd.** coderd is an entity, settled below. Whether its
+  lifecycle is ever journaled is not. It would become worth doing once the rest
+  of the system is modelled explicitly enough that coderd's process lifetime is
+  visible and salient to other activity, and until then it is an ambient
+  singleton.
 - **A system actor for grants nobody makes.** Creating a user is a grant with no
   human principal behind it, so recording one needs a party to stand as the
   grantor. Service accounts may serve, but they have not been investigated, and

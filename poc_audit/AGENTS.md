@@ -77,6 +77,10 @@ on something or you have simply not read the part that answers it.
   values are written once. Also where the existing implementation and this
   corpus are misaligned. Read it before arguing about schema, because most of
   that argument has already happened here.
+- [Implementation of Entities](implementation_of_entities.md). How much of each
+  entity exists in code and where that code is. The entity corpus refers to
+  implementation only through this file, and no more finely than an entity, so
+  that citations into code have one place to rot rather than many.
 - [Work Breakdown](work_breakdown.md). The coding work decomposed into work
   packages, each sized so that completing it produces a passing acceptance
   test. Each package lists its PoC cheats.
