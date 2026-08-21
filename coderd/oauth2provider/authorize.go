@@ -42,12 +42,15 @@ var (
 	// errNoGrantableScope is returned when every entry of the app's allowlist
 	// falls outside the catalog, leaving nothing the app can be granted. The
 	// request is not at fault here and may have carried no scope at all, so
-	// the message names the registered list and the only remedy, which is
-	// re-registering the app.
-	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; re-register the app with supported scopes")
-	// errScopeNotAllowed is returned for a catalog scope the app's allowlist
-	// does not cover.
-	errScopeNotAllowed = xerrors.New("scope is not in this app's allowed scope list")
+	// the message names the registered list and points at the remedy without
+	// prescribing a route to it: an admin edits the app, and a dynamically
+	// registered client updates itself through RFC 7592.
+	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; change the app's registered scopes to supported ones")
+	// errScopeNotAllowed is returned for a catalog scope whose permissions the
+	// app's allowlist does not cover. Phrased as coverage rather than list
+	// membership, because a scope absent from the allowlist by name is still
+	// granted when a listed composite already confers it.
+	errScopeNotAllowed = xerrors.New("scope requests permissions beyond this app's allowed scopes")
 	// errCoverageUndecidable is returned when the allowlist and the request
 	// cannot be compared at all. That is a deployment-side condition, not
 	// something the client can correct by asking differently, and the

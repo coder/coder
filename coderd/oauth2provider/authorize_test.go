@@ -3,6 +3,7 @@ package oauth2provider_test
 import (
 	"context"
 	"database/sql"
+	"html"
 	htmltemplate "html/template"
 	"io"
 	"net/http"
@@ -378,7 +379,10 @@ var (
 // change; this helper is rewritten there.
 //
 // The body is returned because reading it consumes it, so a caller asserting
-// anything further has to work from this copy.
+// anything further has to work from this copy. It is returned unescaped: the
+// GET side's HTML template renders an apostrophe as &#39;, and the reasons
+// contain apostrophes, so a caller matching on what the reason says would
+// otherwise have to know which of the two handlers answered it.
 func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) string {
 	t.Helper()
 
@@ -386,7 +390,7 @@ func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) s
 	require.Empty(t, resp.Header.Get("Location"),
 		"a rejected request must not be redirected anywhere, least of all with a code")
 
-	body := readBody(t, resp)
+	body := html.UnescapeString(readBody(t, resp))
 	require.Contains(t, body, wantReason,
 		"the rejection must come from the branch this case covers")
 	return body
