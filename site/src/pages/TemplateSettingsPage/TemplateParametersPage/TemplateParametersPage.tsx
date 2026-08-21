@@ -83,8 +83,8 @@ const TemplateParametersPage: FC = () => {
 						await saveMutation.mutateAsync(useClassicParameterFlow);
 						toast.success(
 							useClassicParameterFlow
-								? "Dynamic parameters disabled."
-								: "Dynamic parameters enabled.",
+								? "Classic parameter flow enabled."
+								: "Classic parameter flow disabled.",
 						);
 					} catch {
 						// The mutation records the error, and the view renders it above

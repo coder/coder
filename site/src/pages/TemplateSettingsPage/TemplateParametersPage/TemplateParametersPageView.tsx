@@ -2,6 +2,7 @@ import type { FC } from "react";
 import { useRef, useState } from "react";
 import type { TemplateVersion } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
@@ -75,34 +76,42 @@ export const TemplateParametersPageView: FC<
 				<Checkbox
 					id="use_classic_parameter_flow"
 					name="use_classic_parameter_flow"
-					checked={!useClassicParameterFlow}
+					checked={useClassicParameterFlow}
 					onCheckedChange={(checked) => {
-						onChangeClassicParameterFlow(checked !== true);
+						onChangeClassicParameterFlow(checked === true);
 					}}
 					disabled={!canUpdate || isSaving}
 				/>
-				<Label htmlFor="use_classic_parameter_flow">
-					<StackLabel>
-						Enable dynamic parameters for workspace creation (recommended)
-						<StackLabelHelperText>
-							<span>
-								The dynamic workspace form allows you to design your template
-								with additional form types and identity-aware conditional
-								parameters. This is the default option for new templates. The
-								classic workspace creation flow will be deprecated in a future
-								release.
-							</span>
-							<Link
-								className="text-xs"
-								href={docs(
-									"/admin/templates/extending-templates/dynamic-parameters",
-								)}
-							>
-								Learn more
-							</Link>
-						</StackLabelHelperText>
-					</StackLabel>
-				</Label>
+				<StackLabel>
+					<Label htmlFor="use_classic_parameter_flow">
+						<span className="flex flex-row items-center gap-2">
+							Use the classic parameter flow
+							<Badge size="sm" variant="warning">
+								Deprecated
+							</Badge>
+						</span>
+					</Label>
+					<StackLabelHelperText>
+						The classic flow is deprecated and will be removed in a future
+						release. Dynamic parameters are the default, and let you design the
+						workspace form with additional form types and identity-aware
+						conditional parameters. Turn this on only if the template does not
+						work with dynamic parameters yet.
+					</StackLabelHelperText>
+					{/*
+					 * Outside the label. A link nested in a label both navigates and
+					 * activates the control, so clicking it would silently flip the
+					 * setting on the way out.
+					 */}
+					<Link
+						className="self-start text-xs"
+						href={docs(
+							"/admin/templates/extending-templates/dynamic-parameters",
+						)}
+					>
+						Learn more
+					</Link>
+				</StackLabel>
 				<Spinner size="sm" className="mt-0.5" loading={isSaving} />
 			</div>
 

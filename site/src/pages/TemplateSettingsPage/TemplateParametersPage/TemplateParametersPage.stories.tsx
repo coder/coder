@@ -77,7 +77,7 @@ const confirmRefresh = async (canvasElement: HTMLElement) => {
 	await user.click(dialog.getByRole("button", { name: "Refresh" }));
 };
 
-export const DisablesDynamicParameters: Story = {
+export const OptsIntoClassicParameters: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
@@ -87,9 +87,9 @@ export const DisablesDynamicParameters: Story = {
 		).mockResolvedValue(MockTemplate);
 
 		const checkbox = await canvas.findByRole("checkbox", {
-			name: /enable dynamic parameters for workspace creation/i,
+			name: /use the classic parameter flow/i,
 		});
-		await expect(checkbox).toBeChecked();
+		await expect(checkbox).not.toBeChecked();
 		await user.click(checkbox);
 
 		await waitFor(() =>
@@ -97,7 +97,7 @@ export const DisablesDynamicParameters: Story = {
 				use_classic_parameter_flow: true,
 			}),
 		);
-		await within(document.body).findByText("Dynamic parameters disabled.");
+		await within(document.body).findByText("Classic parameter flow enabled.");
 	},
 };
 

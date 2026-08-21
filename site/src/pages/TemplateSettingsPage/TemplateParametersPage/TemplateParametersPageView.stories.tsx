@@ -20,11 +20,24 @@ const meta: Meta<typeof TemplateParametersPageView> = {
 export default meta;
 type Story = StoryObj<typeof TemplateParametersPageView>;
 
-export const DynamicParameters: Story = {};
+export const DynamicParameters: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("checkbox", { name: /use the classic parameter flow/i }),
+		).not.toBeChecked();
+	},
+};
 
 export const ClassicParameters: Story = {
 	args: {
 		useClassicParameterFlow: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("checkbox", { name: /use the classic parameter flow/i }),
+		).toBeChecked();
 	},
 };
 
@@ -51,7 +64,7 @@ export const NoPermission: Story = {
 		).toBeDisabled();
 		await expect(
 			canvas.getByRole("checkbox", {
-				name: /enable dynamic parameters for workspace creation/i,
+				name: /use the classic parameter flow/i,
 			}),
 		).toBeDisabled();
 	},
@@ -65,19 +78,28 @@ export const Failed: Story = {
 	},
 };
 
-export const TogglesDynamicParameters: Story = {
+export const OptsIntoClassicParameters: Story = {
 	parameters: { pixel: { exclude: true } },
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
 		const checkbox = canvas.getByRole("checkbox", {
-			name: /enable dynamic parameters for workspace creation/i,
+			name: /use the classic parameter flow/i,
 		});
-		await expect(checkbox).toBeChecked();
+		await expect(checkbox).not.toBeChecked();
 
 		await user.click(checkbox);
 		await expect(args.onChangeClassicParameterFlow).toHaveBeenCalledWith(true);
+	},
+};
+
+export const DocsLinkIsNotPartOfTheLabel: Story = {
+	parameters: { pixel: { exclude: true } },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const link = canvas.getByRole("link", { name: /learn more/i });
+		await expect(link.closest("label")).toBeNull();
 	},
 };
 
