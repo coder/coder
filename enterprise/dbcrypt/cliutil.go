@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -130,6 +131,10 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 				}
 			}
 
+			if err := rewriteMCPServerUserTokens(ctx, log, cryptTx, uid, ciphers[0].HexDigest()); err != nil {
+				return err
+			}
+
 			return nil
 		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
@@ -207,6 +212,13 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 			return xerrors.Errorf("update user ai provider key id=%s ai_provider_id=%s user_id=%s: %w", key.ID, key.AIProviderID, key.UserID, err)
 		}
 		log.Debug(ctx, "encrypted user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+	}
+
+	if err := rewriteCryptoKeys(ctx, log, cryptDB, sqlDB, ciphers[0].HexDigest()); err != nil {
+		return err
+	}
+	if err := rewriteMCPServerConfigs(ctx, log, cryptDB, ciphers[0].HexDigest()); err != nil {
+		return err
 	}
 
 	// Revoke old keys
@@ -338,6 +350,10 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 				log.Debug(ctx, "decrypted gitsshkey", slog.F("user_id", uid), slog.F("current", idx+1))
 			}
 
+			if err := rewriteMCPServerUserTokens(ctx, log, tx, uid, ""); err != nil {
+				return err
+			}
+
 			return nil
 		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
@@ -408,6 +424,13 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		log.Debug(ctx, "decrypted user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1))
 	}
 
+	if err := rewriteCryptoKeys(ctx, log, cryptDB, sqlDB, ""); err != nil {
+		return err
+	}
+	if err := rewriteMCPServerConfigs(ctx, log, cryptDB, ""); err != nil {
+		return err
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -447,6 +470,23 @@ UPDATE ai_providers
 	WHERE settings_key_id IS NOT NULL;
 DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
+UPDATE crypto_keys
+	SET secret = NULL,
+		secret_key_id = NULL
+	WHERE secret_key_id IS NOT NULL;
+UPDATE mcp_server_configs
+	SET oauth2_client_secret = '',
+		oauth2_client_secret_key_id = NULL,
+		api_key_value = '',
+		api_key_value_key_id = NULL,
+		custom_headers = '',
+		custom_headers_key_id = NULL
+	WHERE oauth2_client_secret_key_id IS NOT NULL
+		OR api_key_value_key_id IS NOT NULL
+		OR custom_headers_key_id IS NOT NULL;
+DELETE FROM mcp_server_user_tokens
+	WHERE access_token_key_id IS NOT NULL
+		OR refresh_token_key_id IS NOT NULL;
 COMMIT;
 `
 
@@ -478,4 +518,200 @@ func Delete(ctx context.Context, log slog.Logger, sqlDB *sql.DB) error {
 	}
 
 	return nil
+}
+
+// rewriteCryptoKeys re-encrypts every crypto_keys.secret under the primary
+// cipher, or writes plaintext when digest is empty (Decrypt). secret_key_id
+// is a FK to dbcrypt_keys.active_key_digest, so leftover values block revoke.
+func rewriteCryptoKeys(ctx context.Context, log slog.Logger, cryptDB database.Store, sqlDB *sql.DB, digest string) error {
+	keys, err := cryptDB.GetCryptoKeys(ctx)
+	if err != nil {
+		return xerrors.Errorf("get crypto keys: %w", err)
+	}
+	action := "encrypting"
+	if digest == "" {
+		action = "decrypting"
+	}
+	log.Info(ctx, action+" crypto keys", slog.F("key_count", len(keys)))
+	for idx, key := range keys {
+		if digest != "" && key.SecretKeyID.Valid && key.SecretKeyID.String == digest {
+			log.Debug(ctx, "skipping crypto key", slog.F("feature", key.Feature), slog.F("sequence", key.Sequence), slog.F("current", idx+1), slog.F("cipher", digest))
+			continue
+		}
+		if digest == "" && !key.SecretKeyID.Valid {
+			log.Debug(ctx, "skipping crypto key", slog.F("feature", key.Feature), slog.F("sequence", key.Sequence), slog.F("current", idx+1))
+			continue
+		}
+		if err := updateCryptoKeySecret(ctx, cryptDB, sqlDB, key); err != nil {
+			return err
+		}
+		log.Debug(ctx, "updated crypto key", slog.F("feature", key.Feature), slog.F("sequence", key.Sequence), slog.F("current", idx+1))
+	}
+	return nil
+}
+
+// updateCryptoKeySecret writes one crypto_keys row's secret and
+// secret_key_id. encryptField is a no-op when the primary cipher digest is
+// empty, so the same helper both re-encrypts (Rotate) and stores plaintext
+// (Decrypt). There is no store update for these columns.
+func updateCryptoKeySecret(ctx context.Context, crypt database.Store, sqlDB *sql.DB, key database.CryptoKey) error {
+	dbc, ok := crypt.(*dbCrypt)
+	if !ok {
+		return xerrors.Errorf("developer error: dbcrypt store is not *dbCrypt")
+	}
+	if !key.Secret.Valid {
+		return nil
+	}
+	secret := key.Secret.String
+	var digest sql.NullString
+	if err := dbc.encryptField(&secret, &digest); err != nil {
+		return xerrors.Errorf("encrypt crypto key feature=%s sequence=%d: %w", key.Feature, key.Sequence, err)
+	}
+	var digestArg any
+	if digest.Valid {
+		digestArg = digest.String
+	}
+	_, err := sqlDB.ExecContext(ctx, `
+		UPDATE crypto_keys
+		SET secret = $1, secret_key_id = $2
+		WHERE feature = $3 AND sequence = $4
+	`, secret, digestArg, key.Feature, key.Sequence)
+	if err != nil {
+		return xerrors.Errorf("update crypto key feature=%s sequence=%d: %w", key.Feature, key.Sequence, err)
+	}
+	return nil
+}
+
+// rewriteMCPServerConfigs re-encrypts or decrypts every MCP server config's
+// secret columns. oauth2_client_secret_key_id, api_key_value_key_id, and
+// custom_headers_key_id all FK to dbcrypt_keys.active_key_digest.
+func rewriteMCPServerConfigs(ctx context.Context, log slog.Logger, cryptDB database.Store, digest string) error {
+	cfgs, err := allMCPServerConfigs(ctx, cryptDB)
+	if err != nil {
+		return err
+	}
+	action := "encrypting"
+	if digest == "" {
+		action = "decrypting"
+	}
+	log.Info(ctx, action+" mcp server configs", slog.F("config_count", len(cfgs)))
+	for idx, cfg := range cfgs {
+		if digest != "" && mcpServerConfigEncryptedWith(cfg, digest) {
+			log.Debug(ctx, "skipping mcp server config", slog.F("mcp_server_config_id", cfg.ID), slog.F("current", idx+1), slog.F("cipher", digest))
+			continue
+		}
+		if digest == "" && !mcpServerConfigHasKeyID(cfg) {
+			log.Debug(ctx, "skipping mcp server config", slog.F("mcp_server_config_id", cfg.ID), slog.F("current", idx+1))
+			continue
+		}
+		if _, err := cryptDB.UpdateMCPServerConfig(ctx, mcpServerConfigUpdateParams(cfg)); err != nil {
+			return xerrors.Errorf("update mcp server config id=%s: %w", cfg.ID, err)
+		}
+		log.Debug(ctx, "updated mcp server config", slog.F("mcp_server_config_id", cfg.ID), slog.F("current", idx+1))
+	}
+	return nil
+}
+
+func allMCPServerConfigs(ctx context.Context, store database.Store) ([]database.MCPServerConfig, error) {
+	var all []database.MCPServerConfig
+	for _, deleted := range []bool{false, true} {
+		orgs, err := store.GetOrganizations(ctx, database.GetOrganizationsParams{Deleted: deleted})
+		if err != nil {
+			return nil, xerrors.Errorf("get organizations deleted=%t: %w", deleted, err)
+		}
+		for _, org := range orgs {
+			cfgs, err := store.GetMCPServerConfigsByOrganization(ctx, org.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get mcp server configs org=%s: %w", org.ID, err)
+			}
+			all = append(all, cfgs...)
+		}
+	}
+	return all, nil
+}
+
+func mcpServerConfigHasKeyID(cfg database.MCPServerConfig) bool {
+	return cfg.OAuth2ClientSecretKeyID.Valid || cfg.APIKeyValueKeyID.Valid || cfg.CustomHeadersKeyID.Valid
+}
+
+func mcpServerConfigEncryptedWith(cfg database.MCPServerConfig, digest string) bool {
+	return (!cfg.OAuth2ClientSecretKeyID.Valid || cfg.OAuth2ClientSecretKeyID.String == digest) &&
+		(!cfg.APIKeyValueKeyID.Valid || cfg.APIKeyValueKeyID.String == digest) &&
+		(!cfg.CustomHeadersKeyID.Valid || cfg.CustomHeadersKeyID.String == digest)
+}
+
+func mcpServerConfigUpdateParams(cfg database.MCPServerConfig) database.UpdateMCPServerConfigParams {
+	updatedBy := cfg.UpdatedBy.UUID
+	if !cfg.UpdatedBy.Valid {
+		updatedBy = cfg.CreatedBy.UUID
+	}
+	return database.UpdateMCPServerConfigParams{
+		DisplayName:             cfg.DisplayName,
+		Slug:                    cfg.Slug,
+		Description:             cfg.Description,
+		IconURL:                 cfg.IconURL,
+		Transport:               cfg.Transport,
+		Url:                     cfg.Url,
+		AuthType:                cfg.AuthType,
+		OAuth2ClientID:          cfg.OAuth2ClientID,
+		OAuth2ClientSecret:      cfg.OAuth2ClientSecret,
+		OAuth2ClientSecretKeyID: sql.NullString{},
+		OAuth2AuthURL:           cfg.OAuth2AuthURL,
+		OAuth2TokenURL:          cfg.OAuth2TokenURL,
+		OAuth2RevocationURL:     cfg.OAuth2RevocationURL,
+		OAuth2Scopes:            cfg.OAuth2Scopes,
+		APIKeyHeader:            cfg.APIKeyHeader,
+		APIKeyValue:             cfg.APIKeyValue,
+		APIKeyValueKeyID:        sql.NullString{},
+		CustomHeaders:           cfg.CustomHeaders,
+		CustomHeadersKeyID:      sql.NullString{},
+		ToolAllowList:           cfg.ToolAllowList,
+		ToolDenyList:            cfg.ToolDenyList,
+		Availability:            cfg.Availability,
+		Enabled:                 cfg.Enabled,
+		ModelIntent:             cfg.ModelIntent,
+		AllowInPlanMode:         cfg.AllowInPlanMode,
+		ForwardCoderHeaders:     cfg.ForwardCoderHeaders,
+		UpdatedBy:               updatedBy,
+		ID:                      cfg.ID,
+	}
+}
+
+// rewriteMCPServerUserTokens re-encrypts or decrypts one user's MCP OAuth
+// tokens. access_token_key_id and refresh_token_key_id FK to
+// dbcrypt_keys.active_key_digest.
+func rewriteMCPServerUserTokens(ctx context.Context, log slog.Logger, store database.Store, uid uuid.UUID, digest string) error {
+	tokens, err := store.GetMCPServerUserTokensByUserID(ctx, uid)
+	if err != nil {
+		return xerrors.Errorf("get mcp server user tokens for user %s: %w", uid, err)
+	}
+	for _, tok := range tokens {
+		if digest != "" && mcpServerUserTokenEncryptedWith(tok, digest) {
+			log.Debug(ctx, "skipping mcp server user token", slog.F("user_id", uid), slog.F("mcp_server_config_id", tok.MCPServerConfigID), slog.F("cipher", digest))
+			continue
+		}
+		if digest == "" && !tok.AccessTokenKeyID.Valid && !tok.RefreshTokenKeyID.Valid {
+			log.Debug(ctx, "skipping mcp server user token", slog.F("user_id", uid), slog.F("mcp_server_config_id", tok.MCPServerConfigID))
+			continue
+		}
+		if _, err := store.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
+			MCPServerConfigID: tok.MCPServerConfigID,
+			UserID:            tok.UserID,
+			AccessToken:       tok.AccessToken,
+			AccessTokenKeyID:  sql.NullString{},
+			RefreshToken:      tok.RefreshToken,
+			RefreshTokenKeyID: sql.NullString{},
+			TokenType:         tok.TokenType,
+			Expiry:            tok.Expiry,
+		}); err != nil {
+			return xerrors.Errorf("update mcp server user token user_id=%s config_id=%s: %w", tok.UserID, tok.MCPServerConfigID, err)
+		}
+		log.Debug(ctx, "updated mcp server user token", slog.F("user_id", uid), slog.F("mcp_server_config_id", tok.MCPServerConfigID))
+	}
+	return nil
+}
+
+func mcpServerUserTokenEncryptedWith(tok database.MCPServerUserToken, digest string) bool {
+	return (!tok.AccessTokenKeyID.Valid || tok.AccessTokenKeyID.String == digest) &&
+		(!tok.RefreshTokenKeyID.Valid || tok.RefreshTokenKeyID.String == digest)
 }
