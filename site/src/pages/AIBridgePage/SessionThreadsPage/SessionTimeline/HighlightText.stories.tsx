@@ -16,7 +16,7 @@ type Story = StoryObj<typeof HighlightText>;
 
 export const Matches: Story = {
 	play: async ({ canvas }) => {
-		await expect(canvas.getAllByText(/relay/i)).toHaveLength(2);
+		await expect(canvas.getAllByText(/^relay$/i)).toHaveLength(2);
 	},
 };
 
