@@ -3255,3 +3255,153 @@ func mustJSON(t *testing.T, v any) []byte {
 	require.NoError(t, err)
 	return raw
 }
+
+func TestMigration000583ChatModelOverrideOrgScope(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 583
+
+	db := testSQLDB(t)
+	next, err := migrations.Stepper(db)
+	require.NoError(t, err)
+	last := uint(0)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			break
+		}
+		last = version
+	}
+	require.GreaterOrEqual(t, last, uint(migrationVersion))
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	upSQL, err := os.ReadFile("000583_chat_model_override_org_scope.up.sql")
+	require.NoError(t, err)
+	downSQL, err := os.ReadFile("000583_chat_model_override_org_scope.down.sql")
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	userID := uuid.New()
+	providerID := uuid.New()
+	modelID := uuid.New()
+
+	var orgID uuid.UUID
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT id FROM organizations WHERE is_default = true").Scan(&orgID))
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, $2, $3, $4, $5, $5, 'active', '{}', 'password')`,
+		userID, "model-override-"+userID.String(), userID.String()+"@example.com", []byte{}, now)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO ai_providers (id, type, name, enabled, base_url, created_at, updated_at)
+		VALUES ($1, 'openai', $2, true, 'https://example.com', $3, $3)`,
+		providerID, "model-override-"+providerID.String(), now)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO chat_model_configs (
+			id, model, display_name, enabled, is_default, deleted,
+			context_limit, compression_threshold, ai_provider_id, organization_id,
+			group_acl, user_acl, created_at, updated_at
+		) VALUES ($1, $2, $2, true, false, false, 128000, 70, $3, $4, '{}', '{}', $5, $5)`,
+		modelID, "model-override-"+modelID.String(), providerID, orgID, now)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO site_configs (key, value) VALUES
+			('agents_chat_general_model_override', $1),
+			('agents_advisor_config', $2)
+		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+		modelID.String()+":high",
+		fmt.Sprintf(`{"enabled":true,"max_uses_per_run":2,"model_config_id":%q,"reasoning_effort":"low"}`, modelID))
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO user_configs (user_id, key, value) VALUES
+			($1, 'chat_personal_model_override:root', $2),
+			($1, 'chat_personal_model_override:general', 'chat_default')`,
+		userID, "model:"+modelID.String()+":max")
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+
+	var orgModelID uuid.UUID
+	var orgEffort sql.NullString
+	require.NoError(t, db.QueryRowContext(ctx, `
+		SELECT model_config_id, reasoning_effort
+		FROM chat_organization_model_overrides
+		WHERE organization_id = $1 AND context = 'general'`, orgID).Scan(&orgModelID, &orgEffort))
+	require.Equal(t, modelID, orgModelID)
+	require.Equal(t, sql.NullString{String: "high", Valid: true}, orgEffort)
+
+	var advisorModelID uuid.UUID
+	var advisorEffort sql.NullString
+	require.NoError(t, db.QueryRowContext(ctx, `
+		SELECT model_config_id, reasoning_effort
+		FROM chat_organization_model_overrides
+		WHERE organization_id = $1 AND context = 'advisor'`, orgID).Scan(&advisorModelID, &advisorEffort))
+	require.Equal(t, modelID, advisorModelID)
+	require.Equal(t, sql.NullString{String: "low", Valid: true}, advisorEffort)
+
+	var mode string
+	var userModelID uuid.UUID
+	var userEffort sql.NullString
+	require.NoError(t, db.QueryRowContext(ctx, `
+		SELECT mode, model_config_id, reasoning_effort
+		FROM chat_user_model_overrides
+		WHERE user_id = $1 AND organization_id = $2 AND context = 'root'`, userID, orgID).
+		Scan(&mode, &userModelID, &userEffort))
+	require.Equal(t, "model", mode)
+	require.Equal(t, modelID, userModelID)
+	require.Equal(t, sql.NullString{String: "max", Valid: true}, userEffort)
+
+	var advisorConfig string
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT value FROM site_configs WHERE key = 'agents_advisor_config'").Scan(&advisorConfig))
+	require.JSONEq(t, `{"enabled":true,"max_uses_per_run":2}`, advisorConfig)
+
+	var legacyCount int
+	require.NoError(t, db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM site_configs
+		WHERE key = 'agents_chat_general_model_override'`).Scan(&legacyCount))
+	require.Zero(t, legacyCount)
+	require.NoError(t, db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM user_configs
+		WHERE user_id = $1 AND key LIKE 'chat\_personal\_model\_override:%'`, userID).Scan(&legacyCount))
+	require.Zero(t, legacyCount)
+
+	otherOrgID := uuid.New()
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO organizations (
+			id, name, display_name, description, created_at, updated_at,
+			is_default, default_org_member_roles
+		) VALUES ($1, $2, $2, '', $3, $3, false, '{}')`,
+		otherOrgID, "model-override-"+otherOrgID.String(), now)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO chat_organization_model_overrides (organization_id, context, model_config_id)
+		VALUES ($1, 'explore', $2)`, otherOrgID, modelID)
+	require.Error(t, err)
+	require.True(t, database.IsForeignKeyViolation(err))
+
+	_, err = db.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	var value string
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT value FROM site_configs WHERE key = 'agents_chat_general_model_override'").Scan(&value))
+	require.Equal(t, modelID.String()+":high", value)
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT value FROM user_configs WHERE user_id = $1 AND key = 'chat_personal_model_override:root'", userID).Scan(&value))
+	require.Equal(t, "model:"+modelID.String()+":max", value)
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT value FROM site_configs WHERE key = 'agents_advisor_config'").Scan(&value))
+	require.JSONEq(t, fmt.Sprintf(
+		`{"enabled":true,"max_uses_per_run":2,"model_config_id":%q,"reasoning_effort":"low"}`,
+		modelID), value)
+}
