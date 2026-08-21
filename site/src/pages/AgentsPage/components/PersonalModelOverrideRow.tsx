@@ -288,8 +288,6 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 				<ModelOverrideAlerts
 					isUnavailableSavedModel={isUnavailableSavedModel}
 					unavailableMessage="The saved model is unavailable and will be ignored until you choose a valid model override."
-					isMalformedOverride={false}
-					malformedMessage=""
 					modelsError={modelsError}
 				>
 					{isInvalidRootDeploymentDefault && (

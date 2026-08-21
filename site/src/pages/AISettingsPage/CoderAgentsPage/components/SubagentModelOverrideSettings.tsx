@@ -172,8 +172,6 @@ export const SubagentModelOverrideSettings: FC<
 				<ModelOverrideAlerts
 					isUnavailableSavedModel={isUnavailableSavedModel}
 					unavailableMessage={unavailableModelWarning}
-					isMalformedOverride={false}
-					malformedMessage=""
 					modelsError={modelsError}
 				/>
 			</div>

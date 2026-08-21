@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import {
 	CoderAgentsPageView,
@@ -47,12 +47,25 @@ export default meta;
 type Story = StoryObj<typeof CoderAgentsPageView>;
 
 export const Default: Story = {
-	play: async ({ canvasElement }) => {
+	args: { onSaveAdvisorConfig: fn() },
+	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		await expect(
 			canvas.getAllByRole("link", { name: "Defaults & overrides" })[0],
 		).toBeVisible();
 		await expect(canvas.getByText("Advisor")).toBeVisible();
+		const maxUses = canvas.getByRole("spinbutton", { name: "Uses / turn" });
+		await userEvent.clear(maxUses);
+		await userEvent.type(maxUses, "7");
+		const save = canvas.getByRole("button", { name: "Save" });
+		await waitFor(() => expect(save).toBeEnabled());
+		await userEvent.click(save);
+		await waitFor(() => {
+			expect(args.onSaveAdvisorConfig).toHaveBeenCalledWith(
+				{ max_uses_per_run: 7, max_output_tokens: 2048 },
+				expect.anything(),
+			);
+		});
 	},
 };
 
