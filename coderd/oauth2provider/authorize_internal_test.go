@@ -7,9 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 )
@@ -272,7 +274,8 @@ func TestNegotiateScope(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := negotiateScope(test.requested, test.appScope)
+			app := database.OAuth2ProviderApp{ID: uuid.New(), Scope: test.appScope}
+			got, err := negotiateScope(t.Context(), slogtest.Make(t, nil), app, test.requested)
 			if test.wantErr != nil {
 				require.ErrorIs(t, err, test.wantErr)
 				assert.Empty(t, got, "a rejected request must not return a persistable scope")
