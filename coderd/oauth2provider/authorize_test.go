@@ -168,21 +168,14 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, scopeInCatalog, persistedCodeScope(ctx, t, db, resp))
 	})
 
-	// Apps with no configured allowlist keep today's unrestricted behavior. The persisted value is asserted literally, since '' is what the
-	// column's CHECK would reject.
-	t.Run("NoAllowlistStaysUnrestricted", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		app := seedApp(t, sql.NullString{})
-		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "")
-		defer resp.Body.Close()
-
-		require.Equal(t, string(database.ApiKeyScopeCoderAll), persistedCodeScope(ctx, t, db, resp))
-	})
-
 	// NULL (admin-created apps) and '' (DCR apps that sent no scope) are one
 	// "no allowlist configured" state and must behave identically.
+	//
+	// This also carries the backward-compatibility guarantee: an app with no
+	// allowlist keeps the unrestricted grant it had before scope enforcement
+	// existed. The value is asserted literally rather than as "not empty",
+	// since '' is what the column's CHECK would reject and coder:all is what
+	// the pre-enforcement grant amounted to.
 	t.Run("NullAndEmptyAllowlistBehaveIdentically", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
