@@ -2270,6 +2270,7 @@ func ConvertChat(dbChat database.GetChatsUpdatedAfterRow) Chat {
 	c := Chat{
 		ID:                dbChat.ID,
 		OwnerID:           dbChat.OwnerID,
+		OrganizationID:    dbChat.OrganizationID,
 		CreatedAt:         dbChat.CreatedAt,
 		UpdatedAt:         dbChat.UpdatedAt,
 		Status:            string(dbChat.Status),
@@ -2319,12 +2320,13 @@ func ConvertChatMessageSummary(dbRow database.GetChatMessageSummariesPerChatRow)
 // telemetry ChatModelConfig.
 func ConvertChatModelConfig(dbRow database.GetChatModelConfigsForTelemetryRow) ChatModelConfig {
 	return ChatModelConfig{
-		ID:           dbRow.ID,
-		Provider:     dbRow.Provider,
-		Model:        dbRow.Model,
-		ContextLimit: dbRow.ContextLimit,
-		Enabled:      dbRow.Enabled,
-		IsDefault:    dbRow.IsDefault,
+		ID:             dbRow.ID,
+		OrganizationID: dbRow.OrganizationID,
+		Provider:       dbRow.Provider,
+		Model:          dbRow.Model,
+		ContextLimit:   dbRow.ContextLimit,
+		Enabled:        dbRow.Enabled,
+		IsDefault:      dbRow.IsDefault,
 	}
 }
 
@@ -2577,6 +2579,7 @@ type BoundaryUsageSummary struct {
 type Chat struct {
 	ID                uuid.UUID  `json:"id"`
 	OwnerID           uuid.UUID  `json:"owner_id"`
+	OrganizationID    uuid.UUID  `json:"organization_id"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
 	Status            string     `json:"status"`
@@ -2612,12 +2615,14 @@ type ChatMessageSummary struct {
 // ChatModelConfig contains model configuration metadata for
 // telemetry. Sensitive fields like API keys are excluded.
 type ChatModelConfig struct {
-	ID           uuid.UUID `json:"id"`
-	Provider     string    `json:"provider"`
-	Model        string    `json:"model"`
-	ContextLimit int64     `json:"context_limit"`
-	Enabled      bool      `json:"enabled"`
-	IsDefault    bool      `json:"is_default"`
+	ID             uuid.UUID `json:"id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	Provider       string    `json:"provider"`
+	Model          string    `json:"model"`
+	ContextLimit   int64     `json:"context_limit"`
+	Enabled        bool      `json:"enabled"`
+	// Each organization has at most one default configuration.
+	IsDefault bool `json:"is_default"`
 }
 
 // ChatDiffStatusSummary contains aggregate PR counts across all
