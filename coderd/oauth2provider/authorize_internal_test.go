@@ -32,16 +32,18 @@ func TestNegotiateScope(t *testing.T) {
 	noAllowlist := sql.NullString{}
 	emptyAllowlist := sql.NullString{String: "", Valid: true}
 
-	// wantErr names the branch a rejection must come from. The three reasons
-	// are separately reachable and separately meaningful, so asserting only
-	// that some error occurred would let a refactor route one branch through
-	// another unnoticed.
+	// wantErr names the branch a rejection must come from. The reasons are
+	// separately reachable and separately meaningful, so asserting only that
+	// some error occurred would let a refactor route one branch through
+	// another unnoticed. wantErrText, where set, additionally pins what the
+	// person reading error_description is shown.
 	tests := []struct {
-		name      string
-		requested []string
-		appScope  sql.NullString
-		want      string
-		wantErr   error
+		name        string
+		requested   []string
+		appScope    sql.NullString
+		want        string
+		wantErr     error
+		wantErrText string
 	}{
 		{
 			name:      "UnknownRequestedScopeRejected",
@@ -208,10 +210,16 @@ func TestNegotiateScope(t *testing.T) {
 			// A whitespace-only allowlist is a configured value that grants
 			// nothing, not an unset one, so it rejects rather than falling
 			// back to unrestricted.
-			name:      "WhitespaceOnlyAllowlistRejected",
-			requested: nil,
-			appScope:  sql.NullString{String: "   ", Valid: true},
-			wantErr:   errNoGrantableScope,
+			//
+			// The rendered text is pinned because this is the one allowlist
+			// whose entries all vanish before the message is built: naming the
+			// filter's input rather than the stored value would show the app
+			// owner an empty string where their configuration should be.
+			name:        "WhitespaceOnlyAllowlistRejected",
+			requested:   nil,
+			appScope:    sql.NullString{String: "   ", Valid: true},
+			wantErr:     errNoGrantableScope,
+			wantErrText: `"   "`,
 		},
 		{
 			// rbac.IsExternalScope accepts `all` as a backward-compatible
@@ -286,6 +294,10 @@ func TestNegotiateScope(t *testing.T) {
 				// errors.Is.
 				assert.Equal(t, 1, strings.Count(err.Error(), test.wantErr.Error()),
 					"the rejection reason must appear once, not doubled by the wrap")
+				if test.wantErrText != "" {
+					assert.Contains(t, err.Error(), test.wantErrText,
+						"the rejection must name the value the app owner has to change")
+				}
 				return
 			}
 			require.NoError(t, err)

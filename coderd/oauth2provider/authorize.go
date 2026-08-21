@@ -163,9 +163,11 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 		// filter above handles, and it must not share the no-allowlist
 		// branch's fallback.
 		//
-		// Named with the pre-filter list, since that is what was registered
-		// and what the app owner has to change.
-		return "", xerrors.Errorf("%q: %w", strings.Join(allowed, " "), errNoGrantableScope)
+		// Named with the stored value verbatim, since that is what was
+		// registered and what the app owner has to change. Rejoining the
+		// filter's input instead would render a whitespace-only allowlist as
+		// "", naming nothing for the one configuration that most needs it.
+		return "", xerrors.Errorf("%q: %w", app.Scope.String, errNoGrantableScope)
 	}
 	// Canonicalized so both sides expand: rbac.ExpandScope knows `coder:all`
 	// and not the `all` alias that IsExternalScope accepts.
