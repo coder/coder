@@ -64,9 +64,10 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 		const el = contentRef.current;
 		if (!el) return;
 
-		const observer = new ResizeObserver(() => {
-			setFullHeight(el.scrollHeight);
-		});
+		const measure = () => setFullHeight(el.scrollHeight);
+		measure();
+
+		const observer = new ResizeObserver(measure);
 		observer.observe(el);
 
 		return () => observer.disconnect();
