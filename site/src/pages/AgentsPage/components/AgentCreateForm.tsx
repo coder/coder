@@ -3,7 +3,11 @@ import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
-import { chatModels, mcpServerConfigs } from "#/api/queries/chats";
+import {
+	chatModels,
+	mcpServerConfigs,
+	userChatPersonalModelOverrides,
+} from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
@@ -148,7 +152,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	canConfigureAgentSetup,
 	aiGatewayDisabled,
 	rootPersonalModelOverride,
-	isPersonalModelOverridesLoading = false,
 	workspaceCount: _workspaceCount,
 	workspaceOptions,
 	workspacesError,
@@ -272,6 +275,18 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	}, [selectedWorkspaceId]);
 	const modelsQuery = useQuery(chatModels(organizationId));
+	const personalModelOverridesQuery = useQuery(
+		userChatPersonalModelOverrides(organizationId),
+	);
+	const organizationRootPersonalModelOverride = personalModelOverridesQuery.data
+		?.enabled
+		? personalModelOverridesQuery.data.root
+		: undefined;
+	const effectiveRootPersonalModelOverride =
+		organizationRootPersonalModelOverride ?? rootPersonalModelOverride;
+	const isPersonalModelOverridesLoading =
+		personalModelOverridesQuery.isLoading &&
+		rootPersonalModelOverride === undefined;
 	const availableModelConfigs = modelsQuery.data?.models ?? [];
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
@@ -299,19 +314,19 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		organizationId,
 	);
 	const isUsableRootPersonalOverride =
-		rootPersonalModelOverride?.is_set === true &&
-		!rootPersonalModelOverride.is_malformed;
+		effectiveRootPersonalModelOverride?.is_set === true;
 	const rootOverrideModelID =
 		isUsableRootPersonalOverride &&
-		rootPersonalModelOverride.mode === "model" &&
+		effectiveRootPersonalModelOverride.mode === "model" &&
 		modelOptions.some(
-			(option) => option.id === rootPersonalModelOverride.model_config_id,
+			(option) =>
+				option.id === effectiveRootPersonalModelOverride.model_config_id,
 		)
-			? rootPersonalModelOverride.model_config_id
+			? effectiveRootPersonalModelOverride.model_config_id
 			: "";
 	const isRootOverrideChatDefault =
 		isUsableRootPersonalOverride &&
-		rootPersonalModelOverride.mode === "chat_default";
+		effectiveRootPersonalModelOverride.mode === "chat_default";
 	const rootOverrideDisplayModelID = isRootOverrideChatDefault
 		? defaultModelID || (modelOptions[0]?.id ?? "")
 		: rootOverrideModelID;
@@ -348,7 +363,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// override applies to its own model even after a manual re-select.
 	const rootOverrideReasoningEffort =
 		selectedModel === rootOverrideModelID
-			? rootPersonalModelOverride?.reasoning_effort
+			? effectiveRootPersonalModelOverride?.reasoning_effort
 			: undefined;
 	const persistedReasoningEffort = (() => {
 		const stored = getReasoningEffortForModel(selectedModel);

@@ -17,7 +17,6 @@ export interface MutationCallbacks {
 interface ModelOverrideData {
 	readonly model_config_id: string;
 	readonly reasoning_effort?: string;
-	readonly is_malformed: boolean;
 }
 
 interface UpdateModelOverrideRequest {
@@ -65,7 +64,6 @@ export const SubagentModelOverrideSettings: FC<
 }) => {
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	const hasLoadedModelOverride = modelOverrideData !== undefined;
-	const isMalformedOverride = modelOverrideData?.is_malformed ?? false;
 	const enabledModelOptions = enabledModels.map((modelConfig) => {
 		const providerInfo = providerInfoByID.get(modelConfig.ai_provider_id);
 		const reasoningEffort = modelConfig.model_config?.reasoning_effort;
@@ -111,8 +109,7 @@ export const SubagentModelOverrideSettings: FC<
 	});
 	const isFormDisabled =
 		disabled || isSaving || isLoading || !hasLoadedModelOverride;
-	const canSave =
-		hasLoadedModelOverride && !disabled && (form.dirty || isMalformedOverride);
+	const canSave = hasLoadedModelOverride && !disabled && form.dirty;
 
 	const selectedModelOption = enabledModelOptions.find(
 		(option) => option.id === form.values.model_config_id,
@@ -175,8 +172,8 @@ export const SubagentModelOverrideSettings: FC<
 				<ModelOverrideAlerts
 					isUnavailableSavedModel={isUnavailableSavedModel}
 					unavailableMessage={unavailableModelWarning}
-					isMalformedOverride={isMalformedOverride}
-					malformedMessage="The saved override is malformed and is being treated as unset. Click Save to clear it."
+					isMalformedOverride={false}
+					malformedMessage=""
 					modelsError={modelsError}
 				/>
 			</div>

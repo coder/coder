@@ -113,12 +113,10 @@ const AgentsRouteElement = () => (
 		exploreModelOverrideData={{
 			context: "explore",
 			model_config_id: "",
-			is_malformed: false,
 		}}
 		titleGenerationModelOverrideData={{
 			context: "title_generation",
 			model_config_id: "",
-			is_malformed: false,
 		}}
 		models={[]}
 		providerInfoByID={new Map()}
@@ -302,32 +300,27 @@ const meta: Meta<typeof AgentsPageLayout> = {
 				mode: "deployment_default",
 				model_config_id: "",
 				is_set: false,
-				is_malformed: false,
 			},
 			general: {
 				context: "general",
 				mode: "deployment_default",
 				model_config_id: "",
 				is_set: false,
-				is_malformed: false,
 			},
 			explore: {
 				context: "explore",
 				mode: "deployment_default",
 				model_config_id: "",
 				is_set: false,
-				is_malformed: false,
 			},
 			deployment_defaults: {
 				general: {
 					context: "general",
 					model_config_id: "",
-					is_malformed: false,
 				},
 				explore: {
 					context: "explore",
 					model_config_id: "",
-					is_malformed: false,
 				},
 			},
 		});

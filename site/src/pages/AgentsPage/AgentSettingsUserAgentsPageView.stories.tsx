@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
+import { MockDefaultOrganization } from "#/testHelpers/entities";
 import {
 	AgentSettingsUserAgentsPageView,
 	type AgentSettingsUserAgentsPageViewProps,
@@ -34,7 +35,6 @@ const buildOverride = (
 	mode: context === "root" ? "chat_default" : "deployment_default",
 	model_config_id: "",
 	is_set: false,
-	is_malformed: false,
 	...overrides,
 });
 
@@ -44,7 +44,6 @@ const buildDeploymentDefault = (
 ): TypesGen.ChatModelOverrideResponse => ({
 	context,
 	model_config_id: "",
-	is_malformed: false,
 	...overrides,
 });
 
@@ -160,8 +159,11 @@ const buildArgs = (
 	models,
 	modelsError: undefined,
 	isLoadingModels: false,
-	isDefaultOrganizationUnresolved: false,
-	hasNoAvailableDefaultOrgModels: false,
+	organizations: [MockDefaultOrganization],
+	selectedOrganization: MockDefaultOrganization,
+	onSelectOrganization: fn(),
+	isOrganizationUnresolved: false,
+	hasNoOrganizationModels: false,
 	onSaveRootModelOverride: fn(),
 	isSavingRootModelOverride: false,
 	isSaveRootModelOverrideError: false,
@@ -228,10 +230,10 @@ export const EnabledWithNoSavedValues: Story = {
 
 		expect(rootSection).toHaveTextContent("Chat default: GPT 4.1 Mini");
 		expect(generalSection).toHaveTextContent(
-			"Deployment default: Claude Sonnet 4",
+			"Organization default: Claude Sonnet 4",
 		);
 		expect(exploreSection).toHaveTextContent(
-			"Deployment default: Claude Sonnet 4",
+			"Organization default: Claude Sonnet 4",
 		);
 
 		for (const section of [rootSection, generalSection, exploreSection]) {
@@ -299,7 +301,7 @@ export const EnabledWithSavedValues: Story = {
 		await selectOption(
 			generalSection,
 			canvasElement,
-			"General subagent model behavior, Deployment default: Claude Sonnet 4",
+			"General subagent model behavior, Organization default: Claude Sonnet 4",
 			/Chat default/i,
 		);
 		await userEvent.click(
@@ -425,11 +427,7 @@ export const SavedLowReasoningEffort: Story = {
 
 export const MalformedSavedValues: Story = {
 	args: buildArgs({
-		overridesData: buildOverridesResponse({
-			root: buildOverride("root", { is_malformed: true }),
-			general: buildOverride("general", { is_malformed: true }),
-			explore: buildOverride("explore", { is_malformed: true }),
-		}),
+		overridesData: buildOverridesResponse({}),
 	}),
 	play: async ({ canvasElement, args }) => {
 		const rootSection = await getSection(canvasElement, "Root agent model");
@@ -468,19 +466,16 @@ export const MalformedEmptyModelSavedValues: Story = {
 				mode: "model",
 				model_config_id: "",
 				is_set: true,
-				is_malformed: true,
 			}),
 			general: buildOverride("general", {
 				mode: "model",
 				model_config_id: "",
 				is_set: true,
-				is_malformed: true,
 			}),
 			explore: buildOverride("explore", {
 				mode: "model",
 				model_config_id: "",
 				is_set: true,
-				is_malformed: true,
 			}),
 		}),
 	}),
@@ -496,8 +491,8 @@ export const MalformedEmptyModelSavedValues: Story = {
 		);
 
 		expect(rootSection).toHaveTextContent("Chat default");
-		expect(generalSection).toHaveTextContent("Deployment default");
-		expect(exploreSection).toHaveTextContent("Deployment default");
+		expect(generalSection).toHaveTextContent("Organization default");
+		expect(exploreSection).toHaveTextContent("Organization default");
 
 		for (const section of [rootSection, generalSection, exploreSection]) {
 			expect(within(section).getByText(MALFORMED_WARNING)).toBeInTheDocument();
@@ -612,7 +607,7 @@ export const ModelsError: Story = {
 			generalSection,
 			canvasElement,
 			"General subagent model behavior, Claude Sonnet 4",
-			/Deployment default/i,
+			/Organization default/i,
 		);
 		await selectOption(
 			exploreSection,
@@ -622,7 +617,7 @@ export const ModelsError: Story = {
 		);
 
 		expect(rootSection).toHaveTextContent("Chat default");
-		expect(generalSection).toHaveTextContent("Deployment default");
+		expect(generalSection).toHaveTextContent("Organization default");
 		expect(exploreSection).toHaveTextContent("Chat default");
 	},
 };
@@ -700,16 +695,16 @@ export const SaveErrorState: Story = {
 	},
 };
 
-export const NoAvailableDefaultOrgModels: Story = {
+export const NoAvailableOrganizationModels: Story = {
 	args: buildArgs({
-		hasNoAvailableDefaultOrgModels: true,
+		hasNoOrganizationModels: true,
 		modelOptions: [],
 		models: [disabledModelConfig],
 	}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByText(/default organization has no available chat models/i),
+			canvas.getByText(/selected organization has no available chat models/i),
 		).toBeInTheDocument();
 		const rootSection = await getSection(canvasElement, "Root agent model");
 		const generalSection = await getSection(
@@ -733,7 +728,7 @@ export const NoAvailableDefaultOrgModels: Story = {
 
 export const DefaultOrganizationUnresolved: Story = {
 	args: buildArgs({
-		isDefaultOrganizationUnresolved: true,
+		isOrganizationUnresolved: true,
 		modelOptions: [],
 		models: [],
 	}),

@@ -142,14 +142,15 @@ func resolveAdvisorModelOverrideForTest(
 	ctx context.Context,
 	p *Server,
 	chat database.Chat,
-	cfg codersdk.AdvisorConfig,
+	modelConfigID uuid.UUID,
+	reasoningEffort *string,
 	maxOutputTokens int64,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (resolvedModelCall, bool, error) {
 	if store, ok := p.db.(*advisorOverrideStubStore); ok {
-		store.advisorModelConfigID = cfg.ModelConfigID
-		store.advisorReasoningEffort = cfg.ReasoningEffort
+		store.advisorModelConfigID = modelConfigID
+		store.advisorReasoningEffort = reasoningEffort
 	}
 	return p.resolveAdvisorModelOverride(ctx, chat, maxOutputTokens, modelOpts, logger)
 }
@@ -194,13 +195,14 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 
 	logger := slog.Make()
 
-	requireChatModel := func(t *testing.T, p *Server, advisorCfg codersdk.AdvisorConfig) {
+	requireChatModel := func(t *testing.T, p *Server, modelConfigID uuid.UUID) {
 		t.Helper()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		resolved, ok, err := resolveAdvisorModelOverrideForTest(ctx,
 			p,
 			database.Chat{},
-			advisorCfg,
+			modelConfigID,
+			nil,
 			advisorTestMaxOutputTokens,
 			modelBuildOptions{},
 			logger,
@@ -217,7 +219,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		store := &advisorOverrideStubStore{}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		requireChatModel(t, p, codersdk.AdvisorConfig{})
+		requireChatModel(t, p, uuid.Nil)
 	})
 
 	t.Run("ConfigLookupErrorUsesChatModel", func(t *testing.T) {
@@ -230,7 +232,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		requireChatModel(t, p, codersdk.AdvisorConfig{ModelConfigID: uuid.New()})
+		requireChatModel(t, p, uuid.New())
 	})
 
 	// Covers the sql.ErrNoRows branch separately from the generic-error
@@ -249,7 +251,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		requireChatModel(t, p, codersdk.AdvisorConfig{ModelConfigID: uuid.New()})
+		requireChatModel(t, p, uuid.New())
 	})
 
 	t.Run("ForeignOrgConfigUsesChatModel", func(t *testing.T) {
@@ -272,7 +274,8 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		resolved, ok, err := resolveAdvisorModelOverrideForTest(ctx,
 			p,
 			database.Chat{OrganizationID: chatOrgID},
-			codersdk.AdvisorConfig{ModelConfigID: configID},
+			configID,
+			nil,
 			advisorTestMaxOutputTokens,
 			modelBuildOptions{},
 			logger,
@@ -301,7 +304,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		requireChatModel(t, p, codersdk.AdvisorConfig{ModelConfigID: configID})
+		requireChatModel(t, p, configID)
 	})
 
 	t.Run("InvalidOptionsJSONWithLinkedProviderUsesChatModel", func(t *testing.T) {
@@ -322,7 +325,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		requireChatModel(t, p, codersdk.AdvisorConfig{ModelConfigID: configID})
+		requireChatModel(t, p, configID)
 	})
 
 	t.Run("MissingProviderKeyUsesChatModel", func(t *testing.T) {
@@ -354,7 +357,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		requireChatModel(t, p, codersdk.AdvisorConfig{ModelConfigID: configID})
+		requireChatModel(t, p, configID)
 	})
 
 	t.Run("SuccessReturnsOverrideModelAndConfig", func(t *testing.T) {
@@ -393,10 +396,8 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		resolved, ok, err := resolveAdvisorModelOverrideForTest(ctx,
 			p,
 			database.Chat{},
-			codersdk.AdvisorConfig{
-				ModelConfigID:   configID,
-				ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
-			},
+			configID,
+			ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
 			advisorTestMaxOutputTokens,
 			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 			logger,
@@ -453,7 +454,8 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		resolved, ok, err := resolveAdvisorModelOverrideForTest(ctx,
 			p,
 			database.Chat{},
-			codersdk.AdvisorConfig{ModelConfigID: configID},
+			configID,
+			nil,
 			advisorTestMaxOutputTokens,
 			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 			logger,
@@ -498,7 +500,8 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 	resolved, ok, err := resolveAdvisorModelOverrideForTest(ctx,
 		p,
 		database.Chat{ID: uuid.New()},
-		codersdk.AdvisorConfig{ModelConfigID: configID},
+		configID,
+		nil,
 		advisorTestMaxOutputTokens,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 		slog.Make(),

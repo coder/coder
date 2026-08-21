@@ -1472,14 +1472,6 @@ func (m queryMetricsStore) GetChatByIDForUpdate(ctx context.Context, id uuid.UUI
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatCompactionModelOverride(ctx context.Context) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatCompactionModelOverride(ctx)
-	m.queryLatencies.WithLabelValues("GetChatCompactionModelOverride").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCompactionModelOverride").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatComputerUseProvider(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatComputerUseProvider(ctx)
@@ -1560,14 +1552,6 @@ func (m queryMetricsStore) GetChatDiffStatusesByChatIDs(ctx context.Context, cha
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatExploreModelOverride(ctx context.Context) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatExploreModelOverride(ctx)
-	m.queryLatencies.WithLabelValues("GetChatExploreModelOverride").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatExploreModelOverride").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatFamilyIDsByRootID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatFamilyIDsByRootID(ctx, id)
@@ -1613,14 +1597,6 @@ func (m queryMetricsStore) GetChatGatewayAPIKey(ctx context.Context, arg databas
 	r0, r1 := m.s.GetChatGatewayAPIKey(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetChatGatewayAPIKey").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatGatewayAPIKey").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatGeneralModelOverride(ctx)
-	m.queryLatencies.WithLabelValues("GetChatGeneralModelOverride").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatGeneralModelOverride").Inc()
 	return r0, r1
 }
 
@@ -1829,14 +1805,6 @@ func (m queryMetricsStore) GetChatSystemPromptConfig(ctx context.Context) (datab
 	r0, r1 := m.s.GetChatSystemPromptConfig(ctx)
 	m.queryLatencies.WithLabelValues("GetChatSystemPromptConfig").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatSystemPromptConfig").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetChatTitleGenerationModelOverride(ctx context.Context) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatTitleGenerationModelOverride(ctx)
-	m.queryLatencies.WithLabelValues("GetChatTitleGenerationModelOverride").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatTitleGenerationModelOverride").Inc()
 	return r0, r1
 }
 
@@ -3349,14 +3317,6 @@ func (m queryMetricsStore) GetUserChatDebugLoggingEnabled(ctx context.Context, u
 	r0, r1 := m.s.GetUserChatDebugLoggingEnabled(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetUserChatDebugLoggingEnabled").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserChatDebugLoggingEnabled").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetUserChatPersonalModelOverride(ctx context.Context, arg database.GetUserChatPersonalModelOverrideParams) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserChatPersonalModelOverride(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetUserChatPersonalModelOverride").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserChatPersonalModelOverride").Inc()
 	return r0, r1
 }
 
@@ -4896,14 +4856,6 @@ func (m queryMetricsStore) ListUserChatCompactionThresholds(ctx context.Context,
 	return r0, r1
 }
 
-func (m queryMetricsStore) ListUserChatPersonalModelOverrides(ctx context.Context, userID uuid.UUID) ([]database.ListUserChatPersonalModelOverridesRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.ListUserChatPersonalModelOverrides(ctx, userID)
-	m.queryLatencies.WithLabelValues("ListUserChatPersonalModelOverrides").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListUserChatPersonalModelOverrides").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.ListUserSecretsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListUserSecrets(ctx, userID)
@@ -6328,14 +6280,6 @@ func (m queryMetricsStore) UpsertChatAutoArchiveDays(ctx context.Context, autoAr
 	return r0
 }
 
-func (m queryMetricsStore) UpsertChatCompactionModelOverride(ctx context.Context, value string) error {
-	start := time.Now()
-	r0 := m.s.UpsertChatCompactionModelOverride(ctx, value)
-	m.queryLatencies.WithLabelValues("UpsertChatCompactionModelOverride").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatCompactionModelOverride").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) UpsertChatComputerUseProvider(ctx context.Context, provider string) error {
 	start := time.Now()
 	r0 := m.s.UpsertChatComputerUseProvider(ctx, provider)
@@ -6382,22 +6326,6 @@ func (m queryMetricsStore) UpsertChatDiffStatusReference(ctx context.Context, ar
 	m.queryLatencies.WithLabelValues("UpsertChatDiffStatusReference").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatDiffStatusReference").Inc()
 	return r0, r1
-}
-
-func (m queryMetricsStore) UpsertChatExploreModelOverride(ctx context.Context, value string) error {
-	start := time.Now()
-	r0 := m.s.UpsertChatExploreModelOverride(ctx, value)
-	m.queryLatencies.WithLabelValues("UpsertChatExploreModelOverride").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatExploreModelOverride").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
-	start := time.Now()
-	r0 := m.s.UpsertChatGeneralModelOverride(ctx, value)
-	m.queryLatencies.WithLabelValues("UpsertChatGeneralModelOverride").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatGeneralModelOverride").Inc()
-	return r0
 }
 
 func (m queryMetricsStore) UpsertChatHeartbeat(ctx context.Context, arg database.UpsertChatHeartbeatParams) error {
@@ -6453,14 +6381,6 @@ func (m queryMetricsStore) UpsertChatSystemPrompt(ctx context.Context, value str
 	r0 := m.s.UpsertChatSystemPrompt(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertChatSystemPrompt").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatSystemPrompt").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error {
-	start := time.Now()
-	r0 := m.s.UpsertChatTitleGenerationModelOverride(ctx, value)
-	m.queryLatencies.WithLabelValues("UpsertChatTitleGenerationModelOverride").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatTitleGenerationModelOverride").Inc()
 	return r0
 }
 
@@ -6661,14 +6581,6 @@ func (m queryMetricsStore) UpsertUserChatDebugLoggingEnabled(ctx context.Context
 	r0 := m.s.UpsertUserChatDebugLoggingEnabled(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertUserChatDebugLoggingEnabled").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertUserChatDebugLoggingEnabled").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) UpsertUserChatPersonalModelOverride(ctx context.Context, arg database.UpsertUserChatPersonalModelOverrideParams) error {
-	start := time.Now()
-	r0 := m.s.UpsertUserChatPersonalModelOverride(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertUserChatPersonalModelOverride").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertUserChatPersonalModelOverride").Inc()
 	return r0
 }
 

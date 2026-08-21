@@ -3,10 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
-import {
-	createChat,
-	userChatPersonalModelOverrides,
-} from "#/api/queries/chats";
+import { createChat } from "#/api/queries/chats";
 import { preferenceSettings } from "#/api/queries/users";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -32,10 +29,6 @@ const AgentCreatePage: FC = () => {
 	const navigate = useNavigate();
 	const { permissions } = useAuthenticated();
 	const aiGatewayDisabled = !useAIGatewayEnabled();
-
-	const personalModelOverridesQuery = useQuery(
-		userChatPersonalModelOverrides(),
-	);
 	const preferencesQuery = useQuery(preferenceSettings());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
@@ -83,10 +76,6 @@ const AgentCreatePage: FC = () => {
 		});
 	};
 
-	const rootPersonalModelOverride = personalModelOverridesQuery.data?.enabled
-		? personalModelOverridesQuery.data.root
-		: undefined;
-
 	const handleChimeToggle = () => {
 		const next = !chimeEnabled;
 		setChimeEnabledState(next);
@@ -128,8 +117,6 @@ const AgentCreatePage: FC = () => {
 				canCreateChat={permissions.createChat}
 				canConfigureAgentSetup={permissions.editDeploymentConfig}
 				aiGatewayDisabled={aiGatewayDisabled}
-				rootPersonalModelOverride={rootPersonalModelOverride}
-				isPersonalModelOverridesLoading={personalModelOverridesQuery.isLoading}
 				workspaceCount={workspacesQuery.data?.count}
 				workspaceOptions={workspacesQuery.data?.workspaces ?? []}
 				workspacesError={workspacesQuery.error}
