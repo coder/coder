@@ -271,11 +271,9 @@ const (
 )
 
 // AllOAuth2TokenEndpointAuthMethods returns every token endpoint auth method
-// registration accepts. Valid() is defined in terms of it, so what
-// registration accepts cannot drift from what this function reports.
+// registration accepts. Valid() checks against it, so the two cannot drift.
 //
-// See AdvertisedOAuth2TokenEndpointAuthMethods for the set discovery
-// publishes, which is bounded by what the token endpoint honors.
+// See AdvertisedOAuth2TokenEndpointAuthMethods for what discovery publishes.
 func AllOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
 	return []OAuth2TokenEndpointAuthMethod{
 		OAuth2TokenEndpointAuthMethodClientSecretBasic,
@@ -286,15 +284,10 @@ func AllOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
 
 // AdvertisedOAuth2TokenEndpointAuthMethods returns the token endpoint auth
 // methods published in discovery metadata (RFC 8414
-// token_endpoint_auth_methods_supported). It returns everything registration
-// accepts, because the token endpoint honors all of it.
-//
-// The two remain separate functions because they answer different questions.
-// AllOAuth2TokenEndpointAuthMethods is what Valid() enforces on a registration
-// request; this is what the token endpoint will accept at exchange time.
-// Advertising a method the token endpoint rejects would tell a conforming
-// client the server accepts an exchange it does not, so a method withheld
-// there must be withheld here too.
+// token_endpoint_auth_methods_supported). It is separate from
+// AllOAuth2TokenEndpointAuthMethods so a method the token endpoint stops
+// honoring can be dropped from discovery without also being rejected at
+// registration.
 func AdvertisedOAuth2TokenEndpointAuthMethods() []OAuth2TokenEndpointAuthMethod {
 	return AllOAuth2TokenEndpointAuthMethods()
 }
@@ -306,9 +299,8 @@ func (m OAuth2TokenEndpointAuthMethod) Valid() bool {
 // OAuth2ClientType is how a client authenticates at the token endpoint
 // (RFC 7591 §2, OAuth 2.1 §2.1). A confidential client authenticates with a
 // secret; a public client authenticates with PKCE alone. It is derived from
-// the requested token_endpoint_auth_method and stored on the app. A
-// follow-up PR wires the token endpoint to read it when deciding whether to
-// require a client secret.
+// the requested token_endpoint_auth_method, stored on the app, and read by
+// the token endpoint to decide whether a client secret is required.
 type OAuth2ClientType string
 
 const (
