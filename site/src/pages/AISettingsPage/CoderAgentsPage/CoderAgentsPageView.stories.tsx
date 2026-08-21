@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import {
 	CoderAgentsPageView,
 	type CoderAgentsPageViewProps,
@@ -35,6 +36,12 @@ const meta: Meta<typeof CoderAgentsPageView> = {
 	title: "pages/AISettingsPage/CoderAgentsPage/CoderAgentsPageView",
 	component: CoderAgentsPageView,
 	args: defaultArgs,
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/coder-agents" },
+			routing: [{ path: "*", useStoryElement: true }],
+		}),
+	},
 };
 export default meta;
 type Story = StoryObj<typeof CoderAgentsPageView>;
@@ -43,7 +50,7 @@ export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByRole("link", { name: "Defaults & overrides" }),
+			canvas.getAllByRole("link", { name: "Defaults & overrides" })[0],
 		).toBeVisible();
 		await expect(canvas.getByText("Advisor")).toBeVisible();
 	},

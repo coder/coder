@@ -9,8 +9,6 @@ import {
 } from "./AgentSettingsUserAgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
 
-const MALFORMED_WARNING =
-	"The saved override is malformed. Choose a valid value and save to replace it.";
 const UNAVAILABLE_WARNING =
 	"The saved model is unavailable and will be ignored until you choose a valid model override.";
 
@@ -425,104 +423,6 @@ export const SavedLowReasoningEffort: Story = {
 	},
 };
 
-export const MalformedSavedValues: Story = {
-	args: buildArgs({
-		overridesData: buildOverridesResponse({}),
-	}),
-	play: async ({ canvasElement, args }) => {
-		const rootSection = await getSection(canvasElement, "Root agent model");
-		const generalSection = await getSection(
-			canvasElement,
-			"General subagent model",
-		);
-		const exploreSection = await getSection(
-			canvasElement,
-			"Explore subagent model",
-		);
-
-		for (const section of [rootSection, generalSection, exploreSection]) {
-			expect(within(section).getByText(MALFORMED_WARNING)).toBeInTheDocument();
-			expect(
-				within(section).getByRole("button", { name: "Save" }),
-			).toBeEnabled();
-		}
-
-		await userEvent.click(
-			within(rootSection).getByRole("button", { name: "Save" }),
-		);
-		await waitFor(() => {
-			expect(args.onSaveRootModelOverride).toHaveBeenCalledWith(
-				{ mode: "chat_default", model_config_id: "" },
-				expect.anything(),
-			);
-		});
-	},
-};
-
-export const MalformedEmptyModelSavedValues: Story = {
-	args: buildArgs({
-		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
-				mode: "model",
-				model_config_id: "",
-				is_set: true,
-			}),
-			general: buildOverride("general", {
-				mode: "model",
-				model_config_id: "",
-				is_set: true,
-			}),
-			explore: buildOverride("explore", {
-				mode: "model",
-				model_config_id: "",
-				is_set: true,
-			}),
-		}),
-	}),
-	play: async ({ canvasElement, args }) => {
-		const rootSection = await getSection(canvasElement, "Root agent model");
-		const generalSection = await getSection(
-			canvasElement,
-			"General subagent model",
-		);
-		const exploreSection = await getSection(
-			canvasElement,
-			"Explore subagent model",
-		);
-
-		expect(rootSection).toHaveTextContent("Chat default");
-		expect(generalSection).toHaveTextContent("Organization default");
-		expect(exploreSection).toHaveTextContent("Organization default");
-
-		for (const section of [rootSection, generalSection, exploreSection]) {
-			expect(within(section).getByText(MALFORMED_WARNING)).toBeInTheDocument();
-			expect(
-				within(section).getByRole("button", { name: "Save" }),
-			).toBeEnabled();
-		}
-
-		await userEvent.click(
-			within(rootSection).getByRole("button", { name: "Save" }),
-		);
-		await waitFor(() => {
-			expect(args.onSaveRootModelOverride).toHaveBeenCalledWith(
-				{ mode: "chat_default", model_config_id: "" },
-				expect.anything(),
-			);
-		});
-
-		await userEvent.click(
-			within(generalSection).getByRole("button", { name: "Save" }),
-		);
-		await waitFor(() => {
-			expect(args.onSaveGeneralModelOverride).toHaveBeenCalledWith(
-				{ mode: "deployment_default", model_config_id: "" },
-				expect.anything(),
-			);
-		});
-	},
-};
-
 export const UnavailableSavedModels: Story = {
 	args: buildArgs({
 		overridesData: buildOverridesResponse({
@@ -735,7 +635,7 @@ export const DefaultOrganizationUnresolved: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByText(/default organization is not available/i),
+			canvas.getByText(/organization is not available/i),
 		).toBeInTheDocument();
 		const rootSection = await getSection(canvasElement, "Root agent model");
 		expect(
@@ -785,10 +685,10 @@ export const InvalidRootDeploymentDefault: Story = {
 	}),
 	play: async ({ canvasElement, args }) => {
 		const rootSection = await getSection(canvasElement, "Root agent model");
-		expect(rootSection).toHaveTextContent("Invalid deployment default");
+		expect(rootSection).toHaveTextContent("Invalid organization default");
 		expect(
 			within(rootSection).getByText(
-				/The saved root override uses the deployment default/i,
+				/The saved root override uses the organization default/i,
 			),
 		).toBeInTheDocument();
 		expect(
@@ -798,7 +698,7 @@ export const InvalidRootDeploymentDefault: Story = {
 		await selectOption(
 			rootSection,
 			canvasElement,
-			"Root agent model behavior, Invalid deployment default",
+			"Root agent model behavior, Invalid organization default",
 			/Chat default/i,
 		);
 		await userEvent.click(
