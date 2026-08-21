@@ -650,7 +650,6 @@ export const CostEstimateShowsLoadingWhileDebouncePending: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			canvas.getByRole("button", { name: /cost estimate/i }),
 		);
@@ -659,7 +658,7 @@ export const CostEstimateShowsLoadingWhileDebouncePending: Story = {
 			"claude-haiku",
 		);
 		await userEvent.click(
-			await body.findByRole("option", { name: /claude haiku 4\.5/i }),
+			await screen.findByRole("option", { name: /claude haiku 4\.5/i }),
 		);
 		await waitForPriceLoading(canvas);
 		// The catalog price must not render while the lookup is pending.

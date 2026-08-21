@@ -762,6 +762,8 @@ export const ImportSecretsParseError: Story = {
 			new File(["GOOD=1\nbad line"], "secrets.env"),
 		);
 
+		// findByText retries only DOM presence, so a one-shot toBeVisible can
+		// catch the dialog mid fade-in at opacity 0. Retry visibility itself.
 		await waitFor(() =>
 			expect(dialog.getByText("Failed to parse secrets file.")).toBeVisible(),
 		);
