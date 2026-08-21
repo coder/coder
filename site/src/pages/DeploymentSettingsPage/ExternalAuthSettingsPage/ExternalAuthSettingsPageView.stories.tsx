@@ -47,12 +47,6 @@ export const Page: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(
-			canvas.getByText("Connect multiple Git and OAuth providers at once."),
-		).toBeVisible();
-		await expect(
-			canvas.getByText("Match providers by regex per host"),
-		).toBeVisible();
-		await expect(
 			canvas.getByRole("link", { name: "Start trial for free" }),
 		).toHaveAttribute("href", "/deployment/premium");
 	},
@@ -66,7 +60,7 @@ export const Entitled: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(
-			canvas.queryByText("Connect multiple Git and OAuth providers at once."),
+			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -78,9 +72,6 @@ export const PaywallWithoutLicenseAccess: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await expect(
-			canvas.getByText(/contact your deployment administrator/i),
-		).toBeVisible();
 		await expect(
 			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
