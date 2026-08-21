@@ -56,6 +56,7 @@ import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
+	getDefaultOrganizationId,
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
@@ -157,6 +158,7 @@ const AgentsPageLayout: FC = () => {
 	const { permissions, user } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
+	const defaultOrganizationId = getDefaultOrganizationId(organizations);
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 
 	const [sidebarFilters, setSidebarFilters] = getAgentSidebarFilters(
@@ -225,7 +227,7 @@ const AgentsPageLayout: FC = () => {
 		organizations.map((organization) => organization.id),
 	);
 	const personalModelOverridesQuery = useQuery(
-		userChatPersonalModelOverrides(),
+		userChatPersonalModelOverrides(defaultOrganizationId),
 	);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>

@@ -13,11 +13,14 @@ import {
 	getOrganizationLabel,
 	OrganizationAutocomplete,
 } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { LinkTabs, LinkTabsList, TabLink } from "#/components/Tabs/Tabs";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import NotFoundPage from "#/pages/NotFoundPage/NotFoundPage";
 import {
 	modelOrganizationSearchParam,
 	OrganizationModelsContext,
+	organizationModelDefaultsPath,
+	organizationModelsPath,
 	selectModelOrganization,
 	useAccessibleModelOrganizations,
 } from "./organizationModels";
@@ -91,6 +94,29 @@ const OrganizationModelsLayout: FC = () => {
 						/>
 					</div>
 				)}
+				<LinkTabs
+					active={
+						location.pathname.endsWith("/defaults") ? "defaults" : "models"
+					}
+				>
+					<LinkTabsList>
+						<TabLink
+							value="models"
+							to={organizationModelsPath(activeOrganization, searchParams)}
+						>
+							Models
+						</TabLink>
+						<TabLink
+							value="defaults"
+							to={organizationModelDefaultsPath(
+								activeOrganization,
+								searchParams,
+							)}
+						>
+							Defaults & overrides
+						</TabLink>
+					</LinkTabsList>
+				</LinkTabs>
 				{accessibleOrganizations.length > 1 && (
 					<div>
 						<OrganizationAutocomplete

@@ -3598,23 +3598,25 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getChatModelOverride = async (
-		context: TypesGen.ChatModelOverrideContext,
-	): Promise<TypesGen.ChatModelOverrideResponse> => {
-		const response = await this.axios.get<TypesGen.ChatModelOverrideResponse>(
-			`/api/experimental/chats/config/model-override/${encodeURIComponent(context)}`,
+	getOrganizationChatModelOverrides = async (
+		organizationId: string,
+	): Promise<TypesGen.ChatModelOverridesResponse> => {
+		const response = await this.axios.get<TypesGen.ChatModelOverridesResponse>(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/model-overrides`,
 		);
 		return response.data;
 	};
 
-	updateChatModelOverride = async (
+	updateOrganizationChatModelOverride = async (
+		organizationId: string,
 		context: TypesGen.ChatModelOverrideContext,
 		req: TypesGen.UpdateChatModelOverrideRequest,
-	): Promise<void> => {
-		await this.axios.put(
-			`/api/experimental/chats/config/model-override/${encodeURIComponent(context)}`,
+	): Promise<TypesGen.ChatModelOverrideResponse> => {
+		const response = await this.axios.put<TypesGen.ChatModelOverrideResponse>(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/model-overrides/${encodeURIComponent(context)}`,
 			req,
 		);
+		return response.data;
 	};
 
 	getChatPersonalModelOverridesAdminSettings =
@@ -3668,21 +3670,25 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getUserChatPersonalModelOverrides =
-		async (): Promise<TypesGen.UserChatPersonalModelOverridesResponse> => {
-			const response =
-				await this.axios.get<TypesGen.UserChatPersonalModelOverridesResponse>(
-					"/api/experimental/chats/config/user-personal-model-overrides",
-				);
-			return response.data;
-		};
+	getUserChatPersonalModelOverrides = async (
+		organizationId: string,
+		user: string,
+	): Promise<TypesGen.UserChatPersonalModelOverridesResponse> => {
+		const response =
+			await this.axios.get<TypesGen.UserChatPersonalModelOverridesResponse>(
+				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(user)}/chats/model-overrides`,
+			);
+		return response.data;
+	};
 
 	updateUserChatPersonalModelOverride = async (
+		organizationId: string,
+		user: string,
 		context: TypesGen.ChatPersonalModelOverrideContext,
 		req: TypesGen.UpdateUserChatPersonalModelOverrideRequest,
 	): Promise<void> => {
 		await this.axios.put(
-			`/api/experimental/chats/config/user-personal-model-overrides/${encodeURIComponent(context)}`,
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(user)}/chats/model-overrides/${encodeURIComponent(context)}`,
 			req,
 		);
 	};

@@ -3193,13 +3193,6 @@ func (q *querier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (datab
 	return fetch(q.log, q.auth, q.db.GetChatByIDForUpdate)(ctx, id)
 }
 
-func (q *querier) GetChatCompactionModelOverride(ctx context.Context) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return "", err
-	}
-	return q.db.GetChatCompactionModelOverride(ctx)
-}
-
 func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error) {
 	// The computer-use provider is a deployment-wide runtime chat setting
 	// read by authenticated chat users and chatd. Feature and experiment
@@ -3325,13 +3318,6 @@ func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uu
 	return q.db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
 }
 
-func (q *querier) GetChatExploreModelOverride(ctx context.Context) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return "", err
-	}
-	return q.db.GetChatExploreModelOverride(ctx)
-}
-
 func (q *querier) GetChatFamilyIDsByRootID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
 	// This is a read-only query: it returns the chat IDs that belong
 	// to a family. Authorize as Read against the root chat. The
@@ -3433,13 +3419,6 @@ func (q *querier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]dat
 
 func (q *querier) GetChatGatewayAPIKey(ctx context.Context, arg database.GetChatGatewayAPIKeyParams) (database.APIKey, error) {
 	return fetch(q.log, q.auth, q.db.GetChatGatewayAPIKey)(ctx, arg)
-}
-
-func (q *querier) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return "", err
-	}
-	return q.db.GetChatGeneralModelOverride(ctx)
 }
 
 func (q *querier) GetChatHeartbeat(ctx context.Context, arg database.GetChatHeartbeatParams) (database.ChatHeartbeat, error) {
@@ -3689,13 +3668,6 @@ func (q *querier) GetChatSystemPromptConfig(ctx context.Context) (database.GetCh
 		return database.GetChatSystemPromptConfigRow{}, ErrNoActor
 	}
 	return q.db.GetChatSystemPromptConfig(ctx)
-}
-
-func (q *querier) GetChatTitleGenerationModelOverride(ctx context.Context) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return "", err
-	}
-	return q.db.GetChatTitleGenerationModelOverride(ctx)
 }
 
 func (q *querier) GetChatUserModelOverride(ctx context.Context, arg database.GetChatUserModelOverrideParams) (database.ChatUserModelOverride, error) {
@@ -5277,17 +5249,6 @@ func (q *querier) GetUserChatDebugLoggingEnabled(ctx context.Context, userID uui
 		return false, err
 	}
 	return q.db.GetUserChatDebugLoggingEnabled(ctx, userID)
-}
-
-func (q *querier) GetUserChatPersonalModelOverride(ctx context.Context, arg database.GetUserChatPersonalModelOverrideParams) (string, error) {
-	u, err := q.db.GetUserByID(ctx, arg.UserID)
-	if err != nil {
-		return "", err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
-		return "", err
-	}
-	return q.db.GetUserChatPersonalModelOverride(ctx, arg)
 }
 
 func (q *querier) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
@@ -7027,17 +6988,6 @@ func (q *querier) ListUserChatCompactionThresholds(ctx context.Context, userID u
 		return nil, err
 	}
 	return q.db.ListUserChatCompactionThresholds(ctx, userID)
-}
-
-func (q *querier) ListUserChatPersonalModelOverrides(ctx context.Context, userID uuid.UUID) ([]database.ListUserChatPersonalModelOverridesRow, error) {
-	u, err := q.db.GetUserByID(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
-		return nil, err
-	}
-	return q.db.ListUserChatPersonalModelOverrides(ctx, userID)
 }
 
 func (q *querier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.ListUserSecretsRow, error) {
@@ -9038,13 +8988,6 @@ func (q *querier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays
 	return q.db.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
 }
 
-func (q *querier) UpsertChatCompactionModelOverride(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertChatCompactionModelOverride(ctx, value)
-}
-
 func (q *querier) UpsertChatComputerUseProvider(ctx context.Context, provider string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
@@ -9095,20 +9038,6 @@ func (q *querier) UpsertChatDiffStatusReference(ctx context.Context, arg databas
 		return database.ChatDiffStatus{}, err
 	}
 	return q.db.UpsertChatDiffStatusReference(ctx, arg)
-}
-
-func (q *querier) UpsertChatExploreModelOverride(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertChatExploreModelOverride(ctx, value)
-}
-
-func (q *querier) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertChatGeneralModelOverride(ctx, value)
 }
 
 func (q *querier) UpsertChatHeartbeat(ctx context.Context, arg database.UpsertChatHeartbeatParams) error {
@@ -9163,13 +9092,6 @@ func (q *querier) UpsertChatSystemPrompt(ctx context.Context, value string) erro
 		return err
 	}
 	return q.db.UpsertChatSystemPrompt(ctx, value)
-}
-
-func (q *querier) UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertChatTitleGenerationModelOverride(ctx, value)
 }
 
 func (q *querier) UpsertChatUserModelOverride(ctx context.Context, arg database.UpsertChatUserModelOverrideParams) error {
@@ -9389,17 +9311,6 @@ func (q *querier) UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg dat
 		return err
 	}
 	return q.db.UpsertUserChatDebugLoggingEnabled(ctx, arg)
-}
-
-func (q *querier) UpsertUserChatPersonalModelOverride(ctx context.Context, arg database.UpsertUserChatPersonalModelOverrideParams) error {
-	u, err := q.db.GetUserByID(ctx, arg.UserID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
-		return err
-	}
-	return q.db.UpsertUserChatPersonalModelOverride(ctx, arg)
 }
 
 func (q *querier) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {

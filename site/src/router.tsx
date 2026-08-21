@@ -436,6 +436,9 @@ const AISettingsGatewayKeysPage = lazy(
 const AISettingsModelsPage = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/ModelsPage"),
 );
+const AISettingsModelDefaultsPage = lazy(
+	() => import("./pages/AISettingsPage/ModelsPage/DefaultsPage/DefaultsPage"),
+);
 const AISettingsOrganizationModelsLayout = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/OrganizationModelsLayout"),
 );
@@ -745,6 +748,10 @@ export const router = createBrowserRouter(
 							element={<AISettingsOrganizationModelsLayout />}
 						>
 							<Route index element={<AISettingsModelsPage />} />
+							<Route
+								path="defaults"
+								element={<AISettingsModelDefaultsPage />}
+							/>
 							<Route path="add" element={<AISettingsAddModelPage />} />
 							<Route path=":modelId" element={<AISettingsUpdateModelPage />} />
 						</Route>

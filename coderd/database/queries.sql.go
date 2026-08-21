@@ -6708,57 +6708,6 @@ func (q *sqlQuerier) DeleteChatOrganizationModelOverride(ctx context.Context, ar
 	return err
 }
 
-const getChatCompactionModelOverride = `-- name: GetChatCompactionModelOverride :one
-SELECT COALESCE((
-    SELECT model_config_id::text || COALESCE(':' || reasoning_effort, '')
-    FROM chat_organization_model_overrides omo
-    JOIN organizations o ON o.id = omo.organization_id
-    WHERE o.is_default AND omo.context = 'compaction'
-), '')::text AS model_config_id
-`
-
-func (q *sqlQuerier) GetChatCompactionModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatCompactionModelOverride)
-	var model_config_id string
-	err := row.Scan(&model_config_id)
-	return model_config_id, err
-}
-
-const getChatExploreModelOverride = `-- name: GetChatExploreModelOverride :one
-SELECT COALESCE((
-    SELECT model_config_id::text || COALESCE(':' || reasoning_effort, '')
-    FROM chat_organization_model_overrides omo
-    JOIN organizations o ON o.id = omo.organization_id
-    WHERE o.is_default AND omo.context = 'explore'
-), '')::text AS model_config_id
-`
-
-func (q *sqlQuerier) GetChatExploreModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatExploreModelOverride)
-	var model_config_id string
-	err := row.Scan(&model_config_id)
-	return model_config_id, err
-}
-
-const getChatGeneralModelOverride = `-- name: GetChatGeneralModelOverride :one
-
-SELECT COALESCE((
-    SELECT model_config_id::text || COALESCE(':' || reasoning_effort, '')
-    FROM chat_organization_model_overrides omo
-    JOIN organizations o ON o.id = omo.organization_id
-    WHERE o.is_default AND omo.context = 'general'
-), '')::text AS model_config_id
-`
-
-// Compatibility methods keep the current runtime compiling until it adopts
-// the organization-aware query surface. They read and write the default org.
-func (q *sqlQuerier) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatGeneralModelOverride)
-	var model_config_id string
-	err := row.Scan(&model_config_id)
-	return model_config_id, err
-}
-
 const getChatOrganizationModelOverride = `-- name: GetChatOrganizationModelOverride :one
 SELECT id, organization_id, context, model_config_id, reasoning_effort
 FROM chat_organization_model_overrides
@@ -6818,22 +6767,6 @@ func (q *sqlQuerier) GetChatOrganizationModelOverrides(ctx context.Context, orga
 		return nil, err
 	}
 	return items, nil
-}
-
-const getChatTitleGenerationModelOverride = `-- name: GetChatTitleGenerationModelOverride :one
-SELECT COALESCE((
-    SELECT model_config_id::text || COALESCE(':' || reasoning_effort, '')
-    FROM chat_organization_model_overrides omo
-    JOIN organizations o ON o.id = omo.organization_id
-    WHERE o.is_default AND omo.context = 'title_generation'
-), '')::text AS model_config_id
-`
-
-func (q *sqlQuerier) GetChatTitleGenerationModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatTitleGenerationModelOverride)
-	var model_config_id string
-	err := row.Scan(&model_config_id)
-	return model_config_id, err
 }
 
 const getChatUserModelOverride = `-- name: GetChatUserModelOverride :one
@@ -6909,156 +6842,6 @@ func (q *sqlQuerier) GetChatUserModelOverrides(ctx context.Context, arg GetChatU
 	return items, nil
 }
 
-const getUserChatPersonalModelOverride = `-- name: GetUserChatPersonalModelOverride :one
-SELECT (CASE
-    WHEN umo.mode IN ('chat_default', 'deployment_default') THEN umo.mode
-    ELSE 'model:' || umo.model_config_id::text || COALESCE(':' || umo.reasoning_effort, '')
-END)::text AS personal_model_override
-FROM chat_user_model_overrides umo
-JOIN organizations o ON o.id = umo.organization_id
-WHERE umo.user_id = $1
-  AND o.is_default
-  AND umo.context = substring($2::text FROM 'chat_personal_model_override:(.*)')
-`
-
-type GetUserChatPersonalModelOverrideParams struct {
-	UserID uuid.UUID `db:"user_id" json:"user_id"`
-	Key    string    `db:"key" json:"key"`
-}
-
-func (q *sqlQuerier) GetUserChatPersonalModelOverride(ctx context.Context, arg GetUserChatPersonalModelOverrideParams) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserChatPersonalModelOverride, arg.UserID, arg.Key)
-	var personal_model_override string
-	err := row.Scan(&personal_model_override)
-	return personal_model_override, err
-}
-
-const listUserChatPersonalModelOverrides = `-- name: ListUserChatPersonalModelOverrides :many
-SELECT
-    ('chat_personal_model_override:' || umo.context)::text AS key,
-    (CASE
-        WHEN umo.mode IN ('chat_default', 'deployment_default') THEN umo.mode
-        ELSE 'model:' || umo.model_config_id::text || COALESCE(':' || umo.reasoning_effort, '')
-    END)::text AS value
-FROM chat_user_model_overrides umo
-JOIN organizations o ON o.id = umo.organization_id
-WHERE umo.user_id = $1
-  AND o.is_default
-ORDER BY key
-`
-
-type ListUserChatPersonalModelOverridesRow struct {
-	Key   string `db:"key" json:"key"`
-	Value string `db:"value" json:"value"`
-}
-
-func (q *sqlQuerier) ListUserChatPersonalModelOverrides(ctx context.Context, userID uuid.UUID) ([]ListUserChatPersonalModelOverridesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUserChatPersonalModelOverrides, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListUserChatPersonalModelOverridesRow
-	for rows.Next() {
-		var i ListUserChatPersonalModelOverridesRow
-		if err := rows.Scan(&i.Key, &i.Value); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const upsertChatCompactionModelOverride = `-- name: UpsertChatCompactionModelOverride :exec
-WITH input AS (
-    SELECT
-        o.id AS organization_id,
-        CASE WHEN trim($1::text) = '' THEN NULL ELSE split_part(trim($1::text), ':', 1)::uuid END AS model_config_id,
-        NULLIF(split_part(trim($1::text), ':', 2), '') AS reasoning_effort
-    FROM organizations o
-    WHERE o.is_default
-), deleted AS (
-    DELETE FROM chat_organization_model_overrides omo
-    USING input i
-    WHERE omo.organization_id = i.organization_id
-      AND omo.context = 'compaction'
-      AND i.model_config_id IS NULL
-)
-INSERT INTO chat_organization_model_overrides (organization_id, context, model_config_id, reasoning_effort)
-SELECT organization_id, 'compaction', model_config_id, reasoning_effort
-FROM input
-WHERE model_config_id IS NOT NULL
-ON CONFLICT ON CONSTRAINT chat_organization_model_overrides_organization_id_context_key
-DO UPDATE SET model_config_id = EXCLUDED.model_config_id, reasoning_effort = EXCLUDED.reasoning_effort
-`
-
-func (q *sqlQuerier) UpsertChatCompactionModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatCompactionModelOverride, value)
-	return err
-}
-
-const upsertChatExploreModelOverride = `-- name: UpsertChatExploreModelOverride :exec
-WITH input AS (
-    SELECT
-        o.id AS organization_id,
-        CASE WHEN trim($1::text) = '' THEN NULL ELSE split_part(trim($1::text), ':', 1)::uuid END AS model_config_id,
-        NULLIF(split_part(trim($1::text), ':', 2), '') AS reasoning_effort
-    FROM organizations o
-    WHERE o.is_default
-), deleted AS (
-    DELETE FROM chat_organization_model_overrides omo
-    USING input i
-    WHERE omo.organization_id = i.organization_id
-      AND omo.context = 'explore'
-      AND i.model_config_id IS NULL
-)
-INSERT INTO chat_organization_model_overrides (organization_id, context, model_config_id, reasoning_effort)
-SELECT organization_id, 'explore', model_config_id, reasoning_effort
-FROM input
-WHERE model_config_id IS NOT NULL
-ON CONFLICT ON CONSTRAINT chat_organization_model_overrides_organization_id_context_key
-DO UPDATE SET model_config_id = EXCLUDED.model_config_id, reasoning_effort = EXCLUDED.reasoning_effort
-`
-
-func (q *sqlQuerier) UpsertChatExploreModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatExploreModelOverride, value)
-	return err
-}
-
-const upsertChatGeneralModelOverride = `-- name: UpsertChatGeneralModelOverride :exec
-WITH input AS (
-    SELECT
-        o.id AS organization_id,
-        CASE WHEN trim($1::text) = '' THEN NULL ELSE split_part(trim($1::text), ':', 1)::uuid END AS model_config_id,
-        NULLIF(split_part(trim($1::text), ':', 2), '') AS reasoning_effort
-    FROM organizations o
-    WHERE o.is_default
-), deleted AS (
-    DELETE FROM chat_organization_model_overrides omo
-    USING input i
-    WHERE omo.organization_id = i.organization_id
-      AND omo.context = 'general'
-      AND i.model_config_id IS NULL
-)
-INSERT INTO chat_organization_model_overrides (organization_id, context, model_config_id, reasoning_effort)
-SELECT organization_id, 'general', model_config_id, reasoning_effort
-FROM input
-WHERE model_config_id IS NOT NULL
-ON CONFLICT ON CONSTRAINT chat_organization_model_overrides_organization_id_context_key
-DO UPDATE SET model_config_id = EXCLUDED.model_config_id, reasoning_effort = EXCLUDED.reasoning_effort
-`
-
-func (q *sqlQuerier) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatGeneralModelOverride, value)
-	return err
-}
-
 const upsertChatOrganizationModelOverride = `-- name: UpsertChatOrganizationModelOverride :exec
 INSERT INTO chat_organization_model_overrides
     (organization_id, context, model_config_id, reasoning_effort)
@@ -7083,34 +6866,6 @@ func (q *sqlQuerier) UpsertChatOrganizationModelOverride(ctx context.Context, ar
 		arg.ModelConfigID,
 		arg.ReasoningEffort,
 	)
-	return err
-}
-
-const upsertChatTitleGenerationModelOverride = `-- name: UpsertChatTitleGenerationModelOverride :exec
-WITH input AS (
-    SELECT
-        o.id AS organization_id,
-        CASE WHEN trim($1::text) = '' THEN NULL ELSE split_part(trim($1::text), ':', 1)::uuid END AS model_config_id,
-        NULLIF(split_part(trim($1::text), ':', 2), '') AS reasoning_effort
-    FROM organizations o
-    WHERE o.is_default
-), deleted AS (
-    DELETE FROM chat_organization_model_overrides omo
-    USING input i
-    WHERE omo.organization_id = i.organization_id
-      AND omo.context = 'title_generation'
-      AND i.model_config_id IS NULL
-)
-INSERT INTO chat_organization_model_overrides (organization_id, context, model_config_id, reasoning_effort)
-SELECT organization_id, 'title_generation', model_config_id, reasoning_effort
-FROM input
-WHERE model_config_id IS NOT NULL
-ON CONFLICT ON CONSTRAINT chat_organization_model_overrides_organization_id_context_key
-DO UPDATE SET model_config_id = EXCLUDED.model_config_id, reasoning_effort = EXCLUDED.reasoning_effort
-`
-
-func (q *sqlQuerier) UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatTitleGenerationModelOverride, value)
 	return err
 }
 
@@ -7143,57 +6898,6 @@ func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg Upsert
 		arg.ModelConfigID,
 		arg.ReasoningEffort,
 	)
-	return err
-}
-
-const upsertUserChatPersonalModelOverride = `-- name: UpsertUserChatPersonalModelOverride :exec
-WITH input AS (
-    SELECT
-        $1::uuid AS user_id,
-        o.id AS organization_id,
-        substring($2::text FROM 'chat_personal_model_override:(.*)') AS context,
-        trim($3::text) AS value,
-        CASE
-            WHEN split_part(trim($3::text), ':', 1) = 'model'
-                THEN split_part(trim($3::text), ':', 2)::uuid
-            ELSE NULL
-        END AS model_config_id
-    FROM organizations o
-    WHERE o.is_default
-), deleted AS (
-    DELETE FROM chat_user_model_overrides umo
-    USING input i
-    WHERE umo.user_id = i.user_id
-      AND umo.organization_id = i.organization_id
-      AND umo.context = i.context
-      AND i.value = ''
-)
-INSERT INTO chat_user_model_overrides
-    (user_id, organization_id, context, mode, model_config_id, reasoning_effort)
-SELECT
-    user_id,
-    organization_id,
-    context,
-    CASE WHEN value IN ('chat_default', 'deployment_default') THEN value ELSE 'model' END,
-    model_config_id,
-    CASE WHEN split_part(value, ':', 1) = 'model' THEN NULLIF(split_part(value, ':', 3), '') ELSE NULL END
-FROM input
-WHERE value != ''
-ON CONFLICT ON CONSTRAINT chat_user_model_overrides_user_organization_context_key
-DO UPDATE SET
-    mode = EXCLUDED.mode,
-    model_config_id = EXCLUDED.model_config_id,
-    reasoning_effort = EXCLUDED.reasoning_effort
-`
-
-type UpsertUserChatPersonalModelOverrideParams struct {
-	UserID uuid.UUID `db:"user_id" json:"user_id"`
-	Key    string    `db:"key" json:"key"`
-	Value  string    `db:"value" json:"value"`
-}
-
-func (q *sqlQuerier) UpsertUserChatPersonalModelOverride(ctx context.Context, arg UpsertUserChatPersonalModelOverrideParams) error {
-	_, err := q.db.ExecContext(ctx, upsertUserChatPersonalModelOverride, arg.UserID, arg.Key, arg.Value)
 	return err
 }
 

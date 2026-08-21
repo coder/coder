@@ -175,7 +175,6 @@ const buildRootPersonalModelOverride = (
 	mode: "chat_default",
 	model_config_id: "",
 	is_set: true,
-	is_malformed: false,
 	...overrides,
 });
 
@@ -330,7 +329,6 @@ export const RootOverrideMissingFromCatalog: Story = {
 			mode: "model",
 			model_config_id: "model-does-not-exist",
 			is_set: true,
-			is_malformed: false,
 		}),
 	},
 	play: async ({ canvasElement, args }) => {
@@ -339,32 +337,6 @@ export const RootOverrideMissingFromCatalog: Story = {
 			canvas.getByRole("combobox", { name: "GPT-4o" }),
 		).toBeInTheDocument();
 		await submitMessage(canvasElement, "create with missing root model");
-		await waitFor(() => {
-			expect(args.onCreateChat).toHaveBeenCalled();
-		});
-		expect(getCreateOptions(args.onCreateChat).model).toBe(modelID);
-	},
-};
-
-export const MalformedRootOverrideUsesDefaultModel: Story = {
-	args: {
-		...defaultArgs,
-		onCreateChat: fn().mockResolvedValue(undefined),
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "model",
-			model_config_id: claudeModelConfigID,
-			is_malformed: true,
-		}),
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("combobox", { name: "GPT-4o" }),
-		).toBeInTheDocument();
-		expect(
-			canvas.queryByRole("combobox", { name: "Claude Sonnet 4" }),
-		).not.toBeInTheDocument();
-		await submitMessage(canvasElement, "create with malformed root model");
 		await waitFor(() => {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});

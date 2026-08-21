@@ -2378,14 +2378,20 @@ type AgentsComputerUseTelemetry struct {
 	ProviderSource string `json:"provider_source"`
 }
 
+// AgentsAdvisorOverrideTelemetry describes one organization's advisor model override.
+type AgentsAdvisorOverrideTelemetry struct {
+	OrganizationID string `json:"organization_id"`
+	Provider       string `json:"provider"`
+	Model          string `json:"model"`
+}
+
 // AgentsAdvisorTelemetry is the value shape for the advisor entry in
 // Deployment.AgentsExperiments.
 type AgentsAdvisorTelemetry struct {
-	Enabled         bool   `json:"enabled"`
-	MaxUsesPerRun   int    `json:"max_uses_per_run"`
-	MaxOutputTokens int64  `json:"max_output_tokens"`
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
+	Enabled         bool                             `json:"enabled"`
+	MaxUsesPerRun   int                              `json:"max_uses_per_run"`
+	MaxOutputTokens int64                            `json:"max_output_tokens"`
+	Overrides       []AgentsAdvisorOverrideTelemetry `json:"overrides"`
 }
 
 // CollectAgentsVirtualDesktop collects the virtual_desktop entry in
@@ -2421,9 +2427,8 @@ func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMess
 // Deployment.AgentsExperiments.
 func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
 	payload := AgentsAdvisorTelemetry{
-		Enabled:  opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
-		Provider: AgentsExperimentUnknown,
-		Model:    AgentsExperimentUnknown,
+		Enabled:   opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
+		Overrides: []AgentsAdvisorOverrideTelemetry{},
 	}
 	var cfg codersdk.AdvisorConfig
 	raw, err := opts.Database.GetChatAdvisorConfig(ctx)
@@ -2434,8 +2439,37 @@ func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
 	} else {
 		payload.MaxUsesPerRun = max(cfg.MaxUsesPerRun, 0)
 		payload.MaxOutputTokens = max(cfg.MaxOutputTokens, 0)
-		payload.Provider, payload.Model = advisorModelTelemetry(ctx, opts.Database, opts.Logger, cfg.ModelConfigID)
 	}
+
+	organizations, err := opts.Database.GetOrganizations(ctx, database.GetOrganizationsParams{})
+	if err != nil {
+		opts.Logger.Warn(ctx, "get organizations for advisor telemetry", slog.Error(err))
+	} else {
+		for _, organization := range organizations {
+			if organization.Deleted {
+				continue
+			}
+			override, err := opts.Database.GetChatOrganizationModelOverride(ctx, database.GetChatOrganizationModelOverrideParams{
+				OrganizationID: organization.ID,
+				Context:        string(codersdk.ChatModelOverrideContextAdvisor),
+			})
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			if err != nil {
+				opts.Logger.Warn(ctx, "get chat advisor model override for telemetry",
+					slog.F("organization_id", organization.ID), slog.Error(err))
+				continue
+			}
+			provider, model := advisorModelTelemetry(ctx, opts.Database, opts.Logger, override.ModelConfigID)
+			payload.Overrides = append(payload.Overrides, AgentsAdvisorOverrideTelemetry{
+				OrganizationID: organization.ID.String(),
+				Provider:       provider,
+				Model:          model,
+			})
+		}
+	}
+
 	val, err := json.Marshal(payload)
 	if err != nil {
 		opts.Logger.Warn(ctx, "marshal agent advisor telemetry", slog.Error(err))
@@ -2445,10 +2479,6 @@ func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
 }
 
 func advisorModelTelemetry(ctx context.Context, db database.Store, log slog.Logger, id uuid.UUID) (provider string, model string) {
-	if id == uuid.Nil {
-		return AgentsExperimentAdvisorReuseChatModel, AgentsExperimentAdvisorReuseChatModel
-	}
-
 	cfg, err := db.GetEnabledChatModelConfigByID(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		// An inactive override; the runtime falls back to the chat model.

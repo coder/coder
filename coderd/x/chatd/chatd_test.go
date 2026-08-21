@@ -5775,7 +5775,11 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				Max:     &effort,
 			},
 		})
-		require.NoError(t, db.UpsertChatCompactionModelOverride(ctx, overrideModel.ID.String()))
+		require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+			OrganizationID: overrideModel.OrganizationID,
+			Context:        string(codersdk.ChatModelOverrideContextCompaction),
+			ModelConfigID:  overrideModel.ID,
+		}))
 		return overrideModel
 	}
 
