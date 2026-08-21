@@ -28,15 +28,17 @@ export const Default: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"16,264.3 / 20,000",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
-		const manageUsage = canvas.getByRole("link", { name: "Manage usage" });
-		await expect(manageUsage).toHaveAttribute("href", "/deployment/groups");
-		const agentSettings = canvas.getByRole("link", { name: "Agent settings" });
-		await expect(agentSettings).toHaveAttribute(
+		await expect(
+			canvas.queryByRole("link", { name: "Manage usage" }),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: "View docs" }),
+		).toHaveAttribute(
 			"href",
-			"/ai/settings/coder-agents",
+			expect.stringContaining("/ai-coder/agents/licensing-usage"),
 		);
 	},
 };
@@ -59,13 +61,13 @@ export const TooltipInteractions: Story = {
 				await expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
 			});
 		});
-		await step("open the Concurrent chats tooltip on hover", async () => {
+		await step("open the Concurrent agents tooltip on hover", async () => {
 			await userEvent.hover(
-				canvas.getByRole("button", { name: "Concurrent chats information" }),
+				canvas.getByRole("button", { name: "Concurrent agents information" }),
 			);
 			await waitFor(async () => {
 				await expect(screen.getByRole("tooltip")).toHaveTextContent(
-					"Number of Coder Agents chats that can run at the same time.",
+					"Number of agents that can run at the same time.",
 				);
 			});
 		});
@@ -81,7 +83,7 @@ export const UnlimitedAllocation: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"Unlimited",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 	},
@@ -112,7 +114,7 @@ export const SoftLimitReached: Story = {
 		await expect(canvas.getByRole("status")).toHaveTextContent(
 			"Approaching hours limit",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 	},
@@ -128,7 +130,7 @@ export const Exceeded: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"21,000.0 / 20,000",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 		await expect(canvas.queryByRole("status")).not.toBeInTheDocument();
@@ -145,16 +147,16 @@ export const HardLimitExceeded: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"25,000.0 / 20,000",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"5",
 		);
 		await expect(canvas.getByRole("status")).toHaveTextContent("Limit reached");
 		await userEvent.hover(
-			canvas.getByRole("button", { name: "Concurrent chats information" }),
+			canvas.getByRole("button", { name: "Concurrent agents information" }),
 		);
 		await waitFor(async () => {
 			await expect(screen.getByRole("tooltip")).toHaveTextContent(
-				"Number of Coder Agents chats that can run at the same time. You've reached your limit: concurrent chats are now capped at 5 (down from unlimited).",
+				"Number of agents that can run at the same time. You've reached your limit: concurrent chats are now capped at 5 (down from unlimited).",
 			);
 		});
 	},
@@ -168,7 +170,7 @@ export const NoAllocation: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			getMetricValue(canvas, "Max concurrent chats"),
+			getMetricValue(canvas, "Max concurrent agents"),
 		).toHaveTextContent("5");
 		await expect(
 			canvas.queryByText(/Agent hours used/),
