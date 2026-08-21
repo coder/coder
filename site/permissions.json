@@ -154,5 +154,25 @@
 	"createChat": {
 		"object": { "resource_type": "chat", "any_org": true, "owner_id": "me" },
 		"action": "create"
+	},
+	"viewAnyChatModelConfig": {
+		"object": { "resource_type": "chat_model_config", "any_org": true },
+		"action": "read"
+	},
+	"createAnyChatModelConfig": {
+		"object": { "resource_type": "chat_model_config", "any_org": true },
+		"action": "create"
+	},
+	"editAnyChatModelConfig": {
+		"object": { "resource_type": "chat_model_config", "any_org": true },
+		"action": "update"
+	},
+	"deleteAnyChatModelConfig": {
+		"object": { "resource_type": "chat_model_config", "any_org": true },
+		"action": "delete"
+	},
+	"shareAnyChatModelConfig": {
+		"object": { "resource_type": "chat_model_config", "any_org": true },
+		"action": "share"
 	}
 }

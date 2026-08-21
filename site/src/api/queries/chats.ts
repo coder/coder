@@ -12,6 +12,7 @@ import {
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
+import { authorizationKey } from "./authCheck";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -2163,28 +2164,39 @@ export const deleteUserCompactionThreshold = (queryClient: QueryClient) => ({
 	},
 });
 
-export const chatModelAvailabilityKey = [
-	...chatConfigKey,
-	"models",
-	"catalog",
-] as const;
+const chatModelsKey = [...chatConfigKey, "models"] as const;
 
-export const chatModelAvailability = () => ({
-	queryKey: chatModelAvailabilityKey,
-	queryFn: (): Promise<TypesGen.ChatModelAvailabilityResponse> =>
-		API.experimental.getChatModelAvailability(),
+export const organizationChatModelsKey = (organizationId: string) =>
+	[...chatModelsKey, organizationId] as const;
+
+export const chatModelKey = (organizationId: string, modelId: string) =>
+	[...organizationChatModelsKey(organizationId), "model", modelId] as const;
+
+export const chatModel = (organizationId: string, modelId: string) => ({
+	queryKey: chatModelKey(organizationId, modelId),
+	queryFn: (): Promise<TypesGen.ChatModel> =>
+		API.experimental.getChatModel(organizationId, modelId),
+	enabled: organizationId !== "" && modelId !== "",
 });
 
-export const chatModelsKey = [
-	...chatConfigKey,
-	"models",
-	"definitions",
-] as const;
+const CHAT_MODELS_STALE_MS = 30_000;
 
-export const chatModels = () => ({
-	queryKey: chatModelsKey,
-	queryFn: (): Promise<TypesGen.ChatModel[]> =>
-		API.experimental.getChatModels(),
+export const chatModels = (organizationId: string) => ({
+	queryKey: organizationChatModelsKey(organizationId),
+	queryFn: (): Promise<TypesGen.OrganizationChatModelsResponse> =>
+		API.experimental.getChatModels(organizationId),
+	enabled: organizationId !== "",
+	staleTime: CHAT_MODELS_STALE_MS,
+});
+
+export const chatModelAvailabilityKey = (organizationId: string) =>
+	[...organizationChatModelsKey(organizationId), "available"] as const;
+
+export const chatModelAvailability = (organizationId: string) => ({
+	queryKey: chatModelAvailabilityKey(organizationId),
+	queryFn: (): Promise<TypesGen.ChatModelAvailabilityResponse> =>
+		API.experimental.getChatModelAvailability(organizationId),
+	enabled: organizationId !== "",
 });
 
 export const userChatProviderConfigsKey = [
@@ -2223,7 +2235,7 @@ export const upsertUserChatProviderKey = (queryClient: QueryClient) => ({
 			queryClient.invalidateQueries({
 				queryKey: userChatProviderConfigsKey,
 			}),
-			queryClient.invalidateQueries({ queryKey: chatModelAvailabilityKey }),
+			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
 		]);
 	},
 });
@@ -2236,16 +2248,20 @@ export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
 			queryClient.invalidateQueries({
 				queryKey: userChatProviderConfigsKey,
 			}),
-			queryClient.invalidateQueries({ queryKey: chatModelAvailabilityKey }),
+			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
 		]);
 	},
 });
 
-const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
-	await Promise.all([
-		queryClient.invalidateQueries({ queryKey: chatModelsKey }),
-		queryClient.invalidateQueries({ queryKey: chatModelAvailabilityKey }),
-	]);
+const invalidateChatConfigurationQueries = async (
+	queryClient: QueryClient,
+	organizationId?: string,
+) => {
+	await queryClient.invalidateQueries({
+		queryKey: organizationId
+			? organizationChatModelsKey(organizationId)
+			: chatModelsKey,
+	});
 };
 
 // Called after AI provider mutations so open model pickers refresh.
@@ -2258,31 +2274,114 @@ export const invalidateChatProviderDependentQueries = async (
 	]);
 };
 
+type CreateChatModelMutationArgs = {
+	organizationId: string;
+	req: TypesGen.CreateChatModelRequest;
+};
+
 export const createChatModel = (queryClient: QueryClient) => ({
-	mutationFn: (req: TypesGen.CreateChatModelRequest) =>
-		API.experimental.createChatModel(req),
-	onSuccess: async () => {
-		await invalidateChatConfigurationQueries(queryClient);
+	mutationFn: ({ organizationId, req }: CreateChatModelMutationArgs) =>
+		API.experimental.createChatModel(organizationId, req),
+	onSuccess: async (
+		_model: TypesGen.ChatModel,
+		variables: CreateChatModelMutationArgs,
+	) => {
+		await invalidateChatConfigurationQueries(
+			queryClient,
+			variables.organizationId,
+		);
 	},
 });
 
 type UpdateChatModelMutationArgs = {
+	organizationId: string;
 	modelId: string;
 	req: TypesGen.UpdateChatModelRequest;
 };
 
 export const updateChatModel = (queryClient: QueryClient) => ({
-	mutationFn: ({ modelId, req }: UpdateChatModelMutationArgs) =>
-		API.experimental.updateChatModel(modelId, req),
-	onSuccess: async () => {
-		await invalidateChatConfigurationQueries(queryClient);
+	mutationFn: ({ organizationId, modelId, req }: UpdateChatModelMutationArgs) =>
+		API.experimental.updateChatModel(organizationId, modelId, req),
+	onSuccess: async (
+		_model: TypesGen.ChatModel,
+		variables: UpdateChatModelMutationArgs,
+	) => {
+		await invalidateChatConfigurationQueries(
+			queryClient,
+			variables.organizationId,
+		);
 	},
 });
 
+export const chatModelACLKey = (organizationId: string, modelId: string) =>
+	[...chatModelKey(organizationId, modelId), "acl"] as const;
+
+export const chatModelACL = (organizationId: string, modelId: string) => ({
+	queryKey: chatModelACLKey(organizationId, modelId),
+	queryFn: (): Promise<TypesGen.ChatModelACL> =>
+		API.experimental.getChatModelACL(organizationId, modelId),
+	enabled: organizationId !== "" && modelId !== "",
+});
+
+type UpdateChatModelACLMutationArgs = {
+	organizationId: string;
+	modelId: string;
+	req: TypesGen.UpdateChatModelACLRequest;
+};
+
+export const updateChatModelACL = (queryClient: QueryClient) => ({
+	mutationFn: ({
+		organizationId,
+		modelId,
+		req,
+	}: UpdateChatModelACLMutationArgs) =>
+		API.experimental.updateChatModelACL(organizationId, modelId, req),
+	onSuccess: async (
+		_data: unknown,
+		variables: UpdateChatModelACLMutationArgs,
+	) => {
+		const { organizationId, modelId } = variables;
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: chatModelACLKey(organizationId, modelId),
+				exact: true,
+			}),
+			queryClient.invalidateQueries({
+				queryKey: chatModelKey(organizationId, modelId),
+				exact: true,
+			}),
+			queryClient.invalidateQueries({
+				queryKey: organizationChatModelsKey(organizationId),
+				exact: true,
+			}),
+			queryClient.invalidateQueries({
+				queryKey: chatModelAvailabilityKey(organizationId),
+				exact: true,
+			}),
+			queryClient.invalidateQueries({ queryKey: authorizationKey }),
+			queryClient.invalidateQueries({
+				predicate: ({ queryKey }) =>
+					queryKey[0] === "organizations" &&
+					queryKey[2] === "permissions" &&
+					(queryKey[1] as readonly string[]).includes(organizationId),
+			}),
+		]);
+	},
+});
+
+type DeleteChatModelMutationArgs = {
+	organizationId: string;
+	modelId: string;
+};
+
 export const deleteChatModel = (queryClient: QueryClient) => ({
-	mutationFn: (modelId: string) => API.experimental.deleteChatModel(modelId),
-	onSuccess: async () => {
-		await invalidateChatConfigurationQueries(queryClient);
+	mutationFn: ({ organizationId, modelId }: DeleteChatModelMutationArgs) =>
+		API.experimental.deleteChatModel(organizationId, modelId),
+	onSuccess: async (_data: unknown, variables: DeleteChatModelMutationArgs) => {
+		await invalidateChatConfigurationQueries(
+			queryClient,
+			variables.organizationId,
+		);
 	},
 });
 

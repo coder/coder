@@ -58,8 +58,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 		visibleChatIDs,
 		normalizedSearch,
 		expandedById,
-		modelOptions,
-		models,
+		modelConfigs,
 		chatErrorReasons,
 		activeChatId,
 		isArchiving,
@@ -82,8 +81,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 	const isDelegatedExecuting = isDelegated && chat.status === "running";
 	const modelName = getModelDisplayName(
 		chat.last_model_config_id,
-		models,
-		modelOptions,
+		modelConfigs,
 	);
 	const errorReason =
 		chat.status === "error"

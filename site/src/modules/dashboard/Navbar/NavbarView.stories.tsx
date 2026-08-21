@@ -3,7 +3,7 @@ import { expect, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type { TasksFilter } from "#/api/typesGenerated";
 import { AuthProvider } from "#/contexts/auth/AuthProvider";
-import { AISettingsIndexRedirect } from "#/router";
+import { AISettingsIndexRedirect } from "#/pages/AISettingsPage/AISettingsIndexRedirect";
 import {
 	MockBuildInfo,
 	MockNoPermissions,

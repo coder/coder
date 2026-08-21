@@ -160,6 +160,8 @@ const buildArgs = (
 	models,
 	modelsError: undefined,
 	isLoadingModels: false,
+	isDefaultOrganizationUnresolved: false,
+	hasNoDefaultOrgModels: false,
 	onSaveRootModelOverride: fn(),
 	isSavingRootModelOverride: false,
 	isSaveRootModelOverrideError: false,
@@ -695,6 +697,42 @@ export const SaveErrorState: Story = {
 				"Failed to save general subagent model override.",
 			),
 		).toBeInTheDocument();
+	},
+};
+
+export const NoDefaultOrgModels: Story = {
+	args: buildArgs({
+		hasNoDefaultOrgModels: true,
+		modelOptions: [],
+		models: [],
+	}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(/default organization has no available chat models/i),
+		).toBeInTheDocument();
+		const rootSection = await getSection(canvasElement, "Root agent model");
+		expect(
+			within(rootSection).getByRole("button", { name: "Save" }),
+		).toBeDisabled();
+	},
+};
+
+export const DefaultOrganizationUnresolved: Story = {
+	args: buildArgs({
+		isDefaultOrganizationUnresolved: true,
+		modelOptions: [],
+		models: [],
+	}),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(/default organization is not available/i),
+		).toBeInTheDocument();
+		const rootSection = await getSection(canvasElement, "Root agent model");
+		expect(
+			within(rootSection).getByRole("button", { name: "Save" }),
+		).toBeDisabled();
 	},
 };
 
