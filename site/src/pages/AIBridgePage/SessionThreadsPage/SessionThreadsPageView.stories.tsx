@@ -85,7 +85,7 @@ export const SearchFiltersEvents: Story = {
 
 		await userEvent.clear(input);
 		await userEvent.type(input, "npmjs.org");
-		await canvas.findByText("1 match");
+		await canvas.findByRole("button", { name: "1 match" });
 		await expect(
 			canvas.getByRole("button", {
 				name: /registry\.npmjs\.org\/lodash/i,
@@ -125,12 +125,15 @@ export const SearchMatchCount: Story = {
 			name: /search session events/i,
 		});
 
+		const count = canvas.getByTestId("search-match-count");
 		const status = canvas.getByRole("status");
-		await expect(status).not.toBeVisible();
+		await expect(count).not.toBeVisible();
+		await expect(status).toBeEmptyDOMElement();
 
 		await userEvent.type(input, "list_directory");
 		await waitFor(() => expect(status).toHaveTextContent("1 match"));
-		await expect(status).toBeVisible();
+		await expect(count).toHaveTextContent("1 match");
+		await expect(count).toBeVisible();
 	},
 };
 

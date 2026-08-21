@@ -96,6 +96,9 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 		networkCalls,
 		debouncedQuery,
 	);
+	const searchMatchLabel = `${searchMatches.toLocaleString("en-US")} ${
+		searchMatches === 1 ? "match" : "matches"
+	}`;
 
 	return (
 		<>
@@ -121,11 +124,12 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 							aria-label="Search session events"
 						/>
 						<p
+							aria-hidden
+							data-testid="search-match-count"
 							className={cn(
 								"m-0 text-sm font-normal text-content-secondary text-right",
 								!isSearching && "opacity-0",
 							)}
-							role="status"
 						>
 							{isSearching ? (
 								<>
@@ -136,6 +140,9 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 								"\u00a0"
 							)}
 						</p>
+						<span className="sr-only" role="status">
+							{isSearching ? searchMatchLabel : ""}
+						</span>
 					</div>
 				)}
 			</nav>
