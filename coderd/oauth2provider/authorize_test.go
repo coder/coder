@@ -355,13 +355,15 @@ func persistedCodeScope(ctx context.Context, t *testing.T, db database.Store, re
 	return code.Scope
 }
 
-// Fragments of the rejection reasons in authorize.go, each unique to one
-// branch. The transport carries only the rendered description, so these pin
-// over the wire what errors.Is pins in the package's own tests.
-const (
-	reasonUnknownScope     = "unknown or unsupported scope"
-	reasonNoGrantableScope = "none of the scopes registered for this app are supported"
-	reasonScopeNotAllowed  = "not in this app's allowed scope list"
+// The rejection reasons from authorize.go, each unique to one branch. The
+// transport carries only the rendered description, so these pin over the wire
+// what errors.Is pins in the package's own tests. They are bound to the
+// sentinels rather than re-typed as substrings, so rewording one cannot leave
+// a case asserting on text no branch produces any more.
+var (
+	reasonUnknownScope     = oauth2provider.ReasonUnknownScope
+	reasonNoGrantableScope = oauth2provider.ReasonNoGrantableScope
+	reasonScopeNotAllowed  = oauth2provider.ReasonScopeNotAllowed
 )
 
 // requireInvalidScope asserts that a rejected request is refused rather than

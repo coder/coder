@@ -313,6 +313,17 @@ func requirePersistableScope(t *testing.T, scope string) {
 	}
 }
 
+// Rejection reasons handed to the package's black-box tests, which sit in
+// oauth2provider_test and so cannot reach the sentinels themselves. They
+// assert on what reaches the client, and the sentinel text is what reaches
+// it, so binding here beats re-typing the strings over there: a rewording
+// then moves both together instead of silently unpinning the branch mapping.
+var (
+	ReasonUnknownScope     = errUnknownScope.Error()
+	ReasonNoGrantableScope = errNoGrantableScope.Error()
+	ReasonScopeNotAllowed  = errScopeNotAllowed.Error()
+)
+
 func TestNoScopeAllowlist(t *testing.T) {
 	t.Parallel()
 
