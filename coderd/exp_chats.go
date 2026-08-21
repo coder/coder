@@ -675,28 +675,7 @@ func lookupEnabledChatModelConfigByID(
 	db database.Store,
 	id uuid.UUID,
 ) (database.ChatModelConfig, error) {
-	//nolint:gocritic // Validation lookup uses AsChatd to check model
-	// availability independently of the caller's read permissions.
-	return db.GetEnabledChatModelConfigByID(dbauthz.AsChatd(ctx), id)
-}
-
-func lookupEnabledDefaultOrgChatModelConfigByID(
-	ctx context.Context,
-	db database.Store,
-	id uuid.UUID,
-) (database.ChatModelConfig, error) {
-	modelConfig, err := lookupEnabledChatModelConfigByID(ctx, db, id)
-	if err != nil {
-		return database.ChatModelConfig{}, err
-	}
-	defaultOrg, err := defaultOrganizationForChatModelConfigs(ctx, db)
-	if err != nil {
-		return database.ChatModelConfig{}, err
-	}
-	if modelConfig.OrganizationID != defaultOrg.ID {
-		return database.ChatModelConfig{}, sql.ErrNoRows
-	}
-	return modelConfig, nil
+	return db.GetEnabledChatModelConfigByID(ctx, id)
 }
 
 func parseChatModelCallConfig(options json.RawMessage) (*codersdk.ChatModelCallConfig, error) {
@@ -749,6 +728,7 @@ func validateChatModelOverrideEffort(
 func validateChatModelOverride(
 	ctx context.Context,
 	db database.Store,
+	organizationID uuid.UUID,
 	id *uuid.UUID,
 	effort *string,
 ) (int, *codersdk.Response) {
@@ -765,7 +745,10 @@ func validateChatModelOverride(
 			Message: "Invalid model_config_id.",
 		}
 	}
-	modelConfig, err := lookupEnabledDefaultOrgChatModelConfigByID(ctx, db, *id)
+	modelConfig, err := lookupEnabledChatModelConfigByID(ctx, db, *id)
+	if err == nil && modelConfig.OrganizationID != organizationID {
+		err = sql.ErrNoRows
+	}
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return http.StatusBadRequest, &codersdk.Response{
@@ -1010,7 +993,8 @@ func (api *API) chatPersonalModelOverrideDeploymentDefaults(
 type userChatModelAvailability struct {
 	configuredProviders  []chatprovider.ConfiguredProvider
 	configuredModels     []chatprovider.ConfiguredModel
-	enabledModels        []database.GetEnabledChatModelConfigsByOrganizationRow
+	enabledModels        []database.ChatModelConfig
+	providerTypeByID     map[uuid.UUID]string
 	providerStatus       map[string]chatprovider.ProviderAvailability
 	providerStatusByID   map[uuid.UUID]chatprovider.ProviderAvailability
 	enabledProviderNames map[string]struct{}
@@ -1030,23 +1014,40 @@ const (
 	chatModelConfigUnavailableOutsideOrganization     chatModelConfigUnavailableReason = "outside_organization"
 )
 
+func defaultOrganizationID(
+	ctx context.Context,
+	db database.Store,
+) (uuid.UUID, error) {
+	//nolint:gocritic // Runtime configuration must be independent of caller permissions.
+	organization, err := db.GetDefaultOrganization(dbauthz.AsChatd(ctx))
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return organization.ID, nil
+}
+
 // getUserChatProviderAvailability returns the enabled chat providers and models
-// the user can access. Deployment-level configuration is read as chatd, while
-// user key lookups still use the caller's authorization context.
+// the user can access in one organization. Provider configuration uses Chatd
+// access. Model configs and user keys use the caller's authorization context.
 func (api *API) getUserChatProviderAvailability(
 	ctx context.Context,
 	userID uuid.UUID,
 	organizationID uuid.UUID,
 ) (userChatModelAvailability, error) {
-	//nolint:gocritic // Chatd context is required to read enabled chat config.
+	//nolint:gocritic // Chatd context is required to read enabled chat providers.
 	chatdCtx := dbauthz.AsChatd(ctx)
 	enabledProviders, err := api.Database.GetAIProviders(chatdCtx, database.GetAIProvidersParams{})
 	if err != nil {
 		return userChatModelAvailability{}, err
 	}
-	enabledModels, err := api.Database.GetEnabledChatModelConfigsByOrganization(chatdCtx, organizationID)
+	modelRows, err := api.Database.GetEnabledChatModelConfigsByOrganization(ctx, organizationID)
 	if err != nil {
 		return userChatModelAvailability{}, err
+	}
+	effectiveModels := database.DeriveEffectiveChatModelConfigs(modelRows)
+	enabledModels := make([]database.ChatModelConfig, 0, len(effectiveModels.Configs))
+	for _, row := range effectiveModels.Configs {
+		enabledModels = append(enabledModels, row.ChatModelConfig)
 	}
 
 	configuredProviders, err := api.configuredProvidersFromAIProviders(chatdCtx, enabledProviders)
@@ -1057,9 +1058,17 @@ func (api *API) getUserChatProviderAvailability(
 		configuredProviders:  configuredProviders,
 		configuredModels:     make([]chatprovider.ConfiguredModel, 0, len(enabledModels)),
 		enabledModels:        enabledModels,
+		providerTypeByID:     make(map[uuid.UUID]string, len(enabledProviders)),
 		enabledProviderNames: make(map[string]struct{}, len(enabledProviders)),
 		enabledProviderIDs:   make(map[uuid.UUID]struct{}, len(enabledProviders)),
 		providerStatusByID:   make(map[uuid.UUID]chatprovider.ProviderAvailability, len(enabledProviders)),
+	}
+	// Model configs carry no provider type; resolve it from the enabled
+	// providers. A config under a disabled or deleted provider is skipped
+	// for status purposes, mirroring the provider join on the enabled
+	// models query.
+	for _, provider := range enabledProviders {
+		availability.providerTypeByID[provider.ID] = string(provider.Type)
 	}
 	for _, configuredProvider := range configuredProviders {
 		normalizedProvider := chatprovider.NormalizeProvider(configuredProvider.Provider)
@@ -1072,15 +1081,18 @@ func (api *API) getUserChatProviderAvailability(
 	}
 	userKeys := []chatprovider.UserProviderKey{}
 	if api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value() {
-		userKeyRows, err := api.Database.GetUserAIProviderKeysByUserID(ctx, userID)
+		userKeyStatus, err := api.userAIProviderKeyStatusByProviderID(ctx, userID)
 		if err != nil {
 			return userChatModelAvailability{}, err
 		}
-		userKeys = make([]chatprovider.UserProviderKey, 0, len(userKeyRows))
-		for _, userKey := range userKeyRows {
+		userKeys = make([]chatprovider.UserProviderKey, 0, len(userKeyStatus))
+		for providerID, configured := range userKeyStatus {
+			if !configured {
+				continue
+			}
 			userKeys = append(userKeys, chatprovider.UserProviderKey{
-				ChatProviderID: userKey.AIProviderID,
-				APIKey:         userKey.APIKey,
+				ChatProviderID: providerID,
+				APIKey:         "configured",
 			})
 		}
 	}
@@ -1120,18 +1132,20 @@ func (api *API) getUserChatProviderAvailability(
 
 	modelStatusByType := make(map[string]chatprovider.ProviderAvailability, len(enabledModels))
 	for _, model := range enabledModels {
-		normalizedProvider := chatprovider.NormalizeProvider(model.Provider)
+		if !model.AIProviderID.Valid {
+			continue
+		}
+		providerID := model.AIProviderID.UUID
+		providerType, ok := availability.providerTypeByID[providerID]
+		if !ok {
+			continue
+		}
+		normalizedProvider := chatprovider.NormalizeProvider(providerType)
 		if normalizedProvider == "" {
 			continue
 		}
-		if model.ChatModelConfig.AIProviderID.Valid {
-			status, ok := availability.providerStatusByID[model.ChatModelConfig.AIProviderID.UUID]
-			if ok {
-				mergeProviderStatus(modelStatusByType, normalizedProvider, status)
-			}
-			continue
-		}
-		if status, ok := providerStatusByType[normalizedProvider]; ok {
+		status, ok := availability.providerStatusByID[providerID]
+		if ok {
 			mergeProviderStatus(modelStatusByType, normalizedProvider, status)
 		}
 	}
@@ -1141,20 +1155,21 @@ func (api *API) getUserChatProviderAvailability(
 	}
 
 	for _, model := range enabledModels {
-		normalizedProvider := chatprovider.NormalizeProvider(model.Provider)
-		if model.ChatModelConfig.AIProviderID.Valid {
-			status, ok := availability.providerStatusByID[model.ChatModelConfig.AIProviderID.UUID]
-			if !ok {
-				continue
-			}
-			if aggregateStatus, ok := availability.providerStatus[normalizedProvider]; ok && aggregateStatus.Available && !status.Available {
-				continue
-			}
+		if !model.AIProviderID.Valid {
+			continue
+		}
+		providerType, ok := availability.providerTypeByID[model.AIProviderID.UUID]
+		if !ok {
+			continue
+		}
+		status, ok := availability.providerStatusByID[model.AIProviderID.UUID]
+		if !ok || !status.Available {
+			continue
 		}
 		availability.configuredModels = append(availability.configuredModels, chatprovider.ConfiguredModel{
-			Provider:    model.Provider,
-			Model:       model.ChatModelConfig.Model,
-			DisplayName: model.ChatModelConfig.DisplayName,
+			Provider:    providerType,
+			Model:       model.Model,
+			DisplayName: model.DisplayName,
 		})
 	}
 	return availability, nil
@@ -1172,11 +1187,7 @@ func (api *API) userCanUseChatModelConfig(
 	if modelConfigID == uuid.Nil {
 		return database.ChatModelConfig{}, chatModelConfigUnavailableModelNotFoundOrDisabled, nil
 	}
-	//nolint:gocritic // Non-admin users need deployment config validation.
-	model, err := api.Database.GetChatModelConfigByID(
-		dbauthz.AsSystemRestricted(ctx),
-		modelConfigID,
-	)
+	model, err := api.Database.GetChatModelConfigByID(ctx, modelConfigID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 			return database.ChatModelConfig{}, chatModelConfigUnavailableModelNotFoundOrDisabled, nil
@@ -1214,19 +1225,10 @@ func (api *API) userCanUseChatModelConfig(
 	return database.ChatModelConfig{}, chatModelConfigUnavailableModelNotFoundOrDisabled, nil
 }
 
-func (api *API) validateUserChatModelConfigAvailable(
-	ctx context.Context,
-	userID uuid.UUID,
-	organizationID uuid.UUID,
-	modelConfigID uuid.UUID,
+func validateUserChatModelConfigAvailability(
+	modelConfig database.ChatModelConfig,
+	reason chatModelConfigUnavailableReason,
 ) (database.ChatModelConfig, int, *codersdk.Response) {
-	modelConfig, reason, err := api.userCanUseChatModelConfig(ctx, userID, organizationID, modelConfigID)
-	if err != nil {
-		return database.ChatModelConfig{}, http.StatusInternalServerError, &codersdk.Response{
-			Message: "Internal error validating model config override.",
-			Detail:  err.Error(),
-		}
-	}
 	switch reason {
 	case chatModelConfigAvailable:
 		return modelConfig, 0, nil
@@ -1244,16 +1246,38 @@ func (api *API) validateUserChatModelConfigAvailable(
 			Message: "Invalid model_config_id: provider is not enabled for this model.",
 		}
 	default:
+		return database.ChatModelConfig{}, http.StatusBadRequest, &codersdk.Response{
+			Message: "Invalid model_config_id.",
+		}
+	}
+}
+
+func (api *API) validateUserChatModelConfigAvailable(
+	ctx context.Context,
+	userID uuid.UUID,
+	organizationID uuid.UUID,
+	modelConfigID uuid.UUID,
+) (database.ChatModelConfig, int, *codersdk.Response) {
+	modelConfig, reason, err := api.userCanUseChatModelConfig(ctx, userID, organizationID, modelConfigID)
+	if err != nil {
+		return database.ChatModelConfig{}, http.StatusInternalServerError, &codersdk.Response{
+			Message: "Internal error validating model config override.",
+			Detail:  err.Error(),
+		}
+	}
+	if reason != chatModelConfigAvailable &&
+		reason != chatModelConfigUnavailableModelNotFoundOrDisabled &&
+		reason != chatModelConfigUnavailableCredentialsMissing &&
+		reason != chatModelConfigUnavailableProviderDisabled &&
+		reason != chatModelConfigUnavailableOutsideOrganization {
 		api.Logger.Warn(ctx,
 			"unknown chat model config availability reason",
 			slog.F("user_id", userID),
 			slog.F("model_config_id", modelConfigID),
 			slog.F("reason", reason),
 		)
-		return database.ChatModelConfig{}, http.StatusBadRequest, &codersdk.Response{
-			Message: "Invalid model_config_id.",
-		}
 	}
+	return validateUserChatModelConfigAvailability(modelConfig, reason)
 }
 
 // validateExplicitChatModelConfigAvailable validates a caller-supplied
@@ -1599,26 +1623,33 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
-// @Summary List chat models
-// @ID list-chat-models
+// @Summary List available chat models in an organization
+// @ID list-chat-model-availability
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
+// @Param organization path string true "Organization name or ID"
 // @Success 200 {object} codersdk.ChatModelAvailabilityResponse
-// @Router /api/experimental/chats/models [get]
+// @Router /api/experimental/organizations/{organization}/chats/models/available [get]
 // @Description Experimental: this endpoint is subject to change.
-func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
+func (api *API) listChatModelAvailability(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	defaultOrganization, err := defaultOrganizationForChatModelConfigs(ctx, api.Database)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to load the default organization.",
-			Detail:  err.Error(),
-		})
+	if !chatModelConfigReadScope(apiKey.Scopes) {
+		httpapi.Forbidden(rw)
 		return
 	}
-	availability, err := api.getUserChatProviderAvailability(ctx, apiKey.UserID, defaultOrganization.ID)
+	organization := httpmw.OrganizationParam(r)
+	visible, err := api.canReadChatModelsInOrganization(ctx, r, organization)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if !visible {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	availability, err := api.getUserChatProviderAvailability(ctx, apiKey.UserID, organization.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to load chat model configuration.",
@@ -1640,6 +1671,11 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 			availability.providerStatus,
 			availability.enabledProviderNames,
 		)
+	}
+
+	response.Models = make([]codersdk.ChatModel, 0, len(availability.enabledModels))
+	for _, model := range availability.enabledModels {
+		response.Models = append(response.Models, convertChatModelConfig(model))
 	}
 
 	// Both catalog branches drop providers the harness cannot use, so
@@ -2721,6 +2757,17 @@ func writeChatInvalidState(ctx context.Context, rw http.ResponseWriter, err erro
 	return true
 }
 
+func noLocalChatModelResponse() *codersdk.Response {
+	return &codersdk.Response{
+		Message: "No chat model is available in this organization.",
+		Detail:  "Ask an organization administrator to configure and enable a chat model.",
+	}
+}
+
+func writeNoLocalChatModelResponse(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, *noLocalChatModelResponse())
+}
+
 // writeCommonChatMutationError writes responses shared by chat
 // mutation endpoints. Returns true when a response has been written.
 func writeCommonChatMutationError(ctx context.Context, rw http.ResponseWriter, err error, archivedMessage string) bool {
@@ -2926,9 +2973,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if xerrors.Is(sendErr, chatd.ErrNoDefaultChatModelConfig) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "No default chat model config is configured.",
-			})
+			writeNoLocalChatModelResponse(ctx, rw)
 			return
 		}
 		if errors.Is(sendErr, chatstate.ErrChatNotFound) {
@@ -3091,9 +3136,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 				Message: "Invalid model config ID.",
 			})
 		case xerrors.Is(editErr, chatd.ErrNoDefaultChatModelConfig):
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "No default chat model config is configured.",
-			})
+			writeNoLocalChatModelResponse(ctx, rw)
 		case errors.Is(editErr, chatstate.ErrChatNotFound):
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, editErr):
@@ -3240,6 +3283,8 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
 			})
+		case xerrors.Is(txErr, chatd.ErrNoDefaultChatModelConfig):
+			writeNoLocalChatModelResponse(ctx, rw)
 		case errors.Is(txErr, chatstate.ErrChatNotFound):
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, txErr):
@@ -3652,9 +3697,7 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 	updatedChat, err := api.chatDaemon.RegenerateChatTitle(ctx, chat)
 	if err != nil {
 		if errors.Is(err, chatd.ErrNoDefaultChatModelConfig) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "No default chat model config is configured.",
-			})
+			writeNoLocalChatModelResponse(ctx, rw)
 			return
 		}
 		if httpapi.Is404Error(err) {
@@ -3701,9 +3744,7 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 	title, err := api.chatDaemon.ProposeChatTitle(ctx, chat)
 	if err != nil {
 		if errors.Is(err, chatd.ErrNoDefaultChatModelConfig) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "No default chat model config is configured.",
-			})
+			writeNoLocalChatModelResponse(ctx, rw)
 			return
 		}
 		if httpapi.Is404Error(err) {
@@ -4439,20 +4480,7 @@ func (api *API) resolveCreateChatModelConfigID(
 				Message: "Invalid model config ID.",
 			}
 		}
-		_, reason, err := api.userCanUseChatModelConfig(ctx, userID, req.OrganizationID, *req.ModelConfigID)
-		if err != nil {
-			return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
-				Message: "Failed to resolve chat model config.",
-				Detail:  err.Error(),
-			}
-		}
-		if reason == chatModelConfigUnavailableOutsideOrganization {
-			return uuid.Nil, nil, http.StatusBadRequest, &codersdk.Response{
-				Message: "Model config does not belong to the specified organization.",
-			}
-		}
-		if reason != chatModelConfigAvailable {
-			_, status, resp := api.validateUserChatModelConfigAvailable(ctx, userID, req.OrganizationID, *req.ModelConfigID)
+		if _, status, resp := api.validateUserChatModelConfigAvailable(ctx, userID, req.OrganizationID, *req.ModelConfigID); resp != nil {
 			return uuid.Nil, nil, status, resp
 		}
 		return *req.ModelConfigID, nil, 0, nil
@@ -4533,60 +4561,23 @@ func (api *API) resolveCreateChatModelConfigID(
 	return id, nil, status, resp
 }
 
-// defaultOrganizationForChatModelConfigs resolves the organization used by
-// deployment-wide model configuration routes and overrides.
-func defaultOrganizationForChatModelConfigs(
-	ctx context.Context,
-	db database.Store,
-) (database.Organization, error) {
-	//nolint:gocritic // Deployment-wide routes need internal default organization metadata.
-	defaultOrg, err := db.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
-	if err != nil {
-		return database.Organization{}, xerrors.Errorf("get default organization: %w", err)
-	}
-	return defaultOrg, nil
-}
-
 func (api *API) defaultCreateChatModelConfigID(
 	ctx context.Context,
 	organizationID uuid.UUID,
 ) (uuid.UUID, int, *codersdk.Response) {
-	defaultModelConfig, err := api.Database.GetDefaultChatModelConfig(ctx, organizationID)
+	rows, err := api.Database.GetEnabledChatModelConfigsByOrganization(ctx, organizationID)
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return uuid.Nil, http.StatusBadRequest, &codersdk.Response{
-				Message: "No default chat model config is configured.",
-			}
-		}
 		return uuid.Nil, http.StatusInternalServerError, &codersdk.Response{
 			Message: "Failed to resolve chat model config.",
 			Detail:  err.Error(),
 		}
 	}
-
-	// The resolved default may itself be disabled or under a disabled
-	// provider.
-	enabledDefault, err := lookupEnabledChatModelConfigByID(ctx, api.Database, defaultModelConfig.ID)
-	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return uuid.Nil, http.StatusBadRequest, &codersdk.Response{
-				Message: "No default chat model config is configured.",
-				Detail:  "The default chat model or its provider is disabled.",
-			}
-		}
-		return uuid.Nil, http.StatusInternalServerError, &codersdk.Response{
-			Message: "Failed to resolve chat model config.",
-			Detail:  err.Error(),
-		}
+	effective := database.DeriveEffectiveChatModelConfigs(rows)
+	if effective.DefaultConfig.ID != uuid.Nil {
+		return effective.DefaultConfig.ID, 0, nil
 	}
 
-	if enabledDefault.OrganizationID != organizationID {
-		return uuid.Nil, http.StatusBadRequest, &codersdk.Response{
-			Message: "No default chat model config is configured.",
-		}
-	}
-
-	return defaultModelConfig.ID, 0, nil
+	return uuid.Nil, http.StatusBadRequest, noLocalChatModelResponse()
 }
 
 // validateChatCompressionThreshold enforces the chat_model_configs CHECK
@@ -5084,7 +5075,15 @@ func (api *API) putChatModelOverride(rw http.ResponseWriter, r *http.Request) {
 		modelConfigID = &parsedModelConfigID
 	}
 
-	status, resp := validateChatModelOverride(ctx, api.Database, modelConfigID, req.ReasoningEffort)
+	defaultOrgID, err := defaultOrganizationID(ctx, api.Database)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error validating model config override.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	status, resp := validateChatModelOverride(ctx, api.Database, defaultOrgID, modelConfigID, req.ReasoningEffort)
 	if resp != nil {
 		httpapi.Write(ctx, rw, status, *resp)
 		return
@@ -5324,7 +5323,7 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 			})
 			return
 		}
-		defaultOrg, err := defaultOrganizationForChatModelConfigs(ctx, api.Database)
+		defaultOrgID, err := defaultOrganizationID(ctx, api.Database)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to resolve default organization.",
@@ -5335,7 +5334,7 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 		modelConfig, status, resp := api.validateUserChatModelConfigAvailable(
 			ctx,
 			apiKey.UserID,
-			defaultOrg.ID,
+			defaultOrgID,
 			parsedModelConfigID,
 		)
 		if resp != nil {
@@ -5619,7 +5618,18 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
+		defaultOrgID, err := defaultOrganizationID(ctx, api.Database)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error validating advisor model config.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		modelConfig, err := lookupEnabledChatModelConfigByID(ctx, api.Database, req.ModelConfigID)
+		if err == nil && modelConfig.OrganizationID != defaultOrgID {
+			err = sql.ErrNoRows
+		}
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -6074,10 +6084,8 @@ func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Use system context because GetChatModelConfigByID requires
-	// deployment-config read access, which non-admin users lack.
-	// The user is only checking if the model exists and is enabled
-	// before writing their own personal preference.
+	// The preference is personal, so model existence checks must not depend on
+	// whether the user can read the organization model configuration.
 	//nolint:gocritic // Non-admin users need this lookup to save their own setting.
 	modelConfig, err := api.Database.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), modelConfigID)
 	if err != nil {
@@ -6849,6 +6857,22 @@ func (api *API) deleteUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
+// userAIProviderKeyStatusByProviderID returns only credential presence for the
+// requesting user. The privileged lookup is contained here so callers never
+// receive key material or require user:read_personal.
+func (api *API) userAIProviderKeyStatusByProviderID(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]bool, error) {
+	//nolint:gocritic // The result is reduced to credential presence for exactly the requesting user.
+	rows, err := api.Database.GetUserAIProviderKeysByUserID(dbauthz.AsChatd(ctx), userID)
+	if err != nil {
+		return nil, err
+	}
+	statusByProviderID := make(map[uuid.UUID]bool, len(rows))
+	for _, row := range rows {
+		statusByProviderID[row.AIProviderID] = strings.TrimSpace(row.APIKey) != ""
+	}
+	return statusByProviderID, nil
+}
+
 func (api *API) configuredProvidersFromAIProviders(ctx context.Context, providers []database.AIProvider) ([]chatprovider.ConfiguredProvider, error) {
 	if len(providers) == 0 {
 		return nil, nil
@@ -6926,8 +6950,9 @@ func (*API) deleteUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
 	writeLegacyChatProviderGone(rw, r)
 }
 
-func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
+func (api *API) listDefaultOrganizationChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
 	apiKey := httpmw.APIKey(r)
 
 	if !chatModelConfigReadScope(apiKey.Scopes) {
@@ -6935,16 +6960,7 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	defaultOrg, err := defaultOrganizationForChatModelConfigs(ctx, api.Database)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to resolve default organization.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	allConfigs, err := api.Database.GetChatModelConfigs(ctx)
+	configs, err := api.Database.GetChatModelConfigs(ctx, organization.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chat model configs.",
@@ -6953,19 +6969,184 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := make([]codersdk.ChatModel, 0, len(allConfigs))
-	for _, config := range allConfigs {
-		if config.OrganizationID == defaultOrg.ID {
-			resp = append(resp, convertChatModelConfig(config))
-		}
+	resp := make([]codersdk.ChatModel, 0, len(configs))
+	for _, config := range configs {
+		resp = append(resp, convertChatModelConfig(config))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// @Summary List AI models and provider descriptors in an organization
+// @ID list-ai-models-by-organization
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param organization path string true "Organization name or ID"
+// @Success 200 {object} codersdk.OrganizationChatModelsResponse
+// @Router /api/experimental/organizations/{organization}/chats/models [get]
+// @x-apidocgen {"skip": true}
+func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+	apiKey := httpmw.APIKey(r)
+
+	// Keep the token scope gate separate from the authorized database filter.
+	// The filter applies each config ACL and the organization predicate.
+	if !chatModelConfigReadScope(apiKey.Scopes) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	visible, err := api.canReadChatModelsInOrganization(ctx, r, organization)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if !visible {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	configs, err := api.Database.GetChatModelConfigs(ctx, organization.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list chat model configs.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	providers, err := api.chatModelProviderDescriptors(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list AI providers.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	resp := codersdk.OrganizationChatModelsResponse{
+		Models:    make([]codersdk.ChatModel, 0, len(configs)),
+		Providers: providers,
+	}
+	for _, config := range configs {
+		resp.Models = append(resp.Models, convertChatModelConfig(config))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+func (api *API) canReadChatModelsInOrganization(
+	ctx context.Context,
+	r *http.Request,
+	organization database.Organization,
+) (bool, error) {
+	configs, err := api.Database.GetChatModelConfigs(ctx, organization.ID)
+	if err != nil {
+		return false, err
+	}
+	for _, config := range configs {
+		if api.Authorize(r, policy.ActionRead, chatModelConfigRBACObject(config)) {
+			return true, nil
+		}
+	}
+	return api.Authorize(r, policy.ActionRead, organization.RBACObject()), nil
+}
+
 func chatModelConfigReadScope(scopes database.APIKeyScopes) bool {
 	return scopes.Has(database.ApiKeyScopeCoderAll) ||
 		scopes.Has(database.ApiKeyScopeChatModelConfigRead)
+}
+
+// chatModelProviderDescriptors assembles the redacted provider descriptors
+// for the org model collection. The caller already passed the org's model
+// read gate; providers are deployment-scoped and an org admin cannot read
+// them directly, so the fetch runs under a narrow AsChatd context scoped to
+// exactly these two reads and the result is projected to the fixed redacted
+// fields (no key material, base URLs, or headers). Disclosure matches what
+// /api/experimental/chats/models already shows any authenticated caller.
+func (api *API) chatModelProviderDescriptors(
+	ctx context.Context,
+	userID uuid.UUID,
+) ([]codersdk.ChatModelProviderDescriptor, error) {
+	//nolint:gocritic // Fixed redacted projection under the model read gate; see function doc.
+	providers, err := api.Database.GetAIProviders(dbauthz.AsChatd(ctx), database.GetAIProvidersParams{})
+	if err != nil {
+		return nil, err
+	}
+
+	//nolint:gocritic // Key presence is boolean metadata, not key material; same redaction as the deployment endpoint.
+	keysByProvider, err := loadAIProviderKeysByProvider(dbauthz.AsChatd(ctx), api.Database)
+	if err != nil {
+		return nil, err
+	}
+
+	userKeyStatus := make(map[uuid.UUID]bool)
+	if api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value() {
+		userKeyStatus, err = api.userAIProviderKeyStatusByProviderID(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	out := make([]codersdk.ChatModelProviderDescriptor, 0, len(providers))
+	for _, provider := range providers {
+		display := provider.Name
+		if provider.DisplayName.Valid && provider.DisplayName.String != "" {
+			display = provider.DisplayName.String
+		}
+		hasKey := false
+		for _, key := range keysByProvider[provider.ID] {
+			if key.APIKey != "" {
+				hasKey = true
+				break
+			}
+		}
+		hasUserKey := userKeyStatus[provider.ID]
+		out = append(out, codersdk.ChatModelProviderDescriptor{
+			ID:                 provider.ID,
+			Type:               string(provider.Type),
+			DisplayName:        display,
+			Icon:               provider.Icon,
+			Enabled:            provider.Enabled,
+			HasAPIKey:          hasKey,
+			HasUserAPIKey:      hasUserKey,
+			HasEffectiveAPIKey: hasKey || hasUserKey || provider.Type == database.AIProviderTypeBedrock,
+			AllowUserAPIKey:    api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
+		})
+	}
+	return out, nil
+}
+
+func chatModelConfigRBACObject(config database.ChatModelConfig) rbac.Object {
+	return rbac.ResourceChatModelConfig.
+		WithID(config.ID).
+		InOrg(config.OrganizationID).
+		WithACLUserList(config.UserACL.RBACACL()).
+		WithGroupACL(config.GroupACL.RBACACL())
+}
+
+// getChatModelConfig returns one chat model config after the organization and
+// model identities have been resolved by route middleware.
+// @Summary Get an AI model
+// @ID get-ai-model
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param organization path string true "Organization name or ID"
+// @Param model path string true "Model ID"
+// @Success 200 {object} codersdk.ChatModel
+// @Router /api/experimental/organizations/{organization}/chats/models/{model} [get]
+// @x-apidocgen {"skip": true}
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatModelConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	config := httpmw.ChatModelConfigParam(r)
+	if !api.Authorize(r, policy.ActionRead, chatModelConfigRBACObject(config)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(config))
 }
 
 type chatModelConfigProviderModelError struct {
@@ -7014,18 +7195,34 @@ func (api *API) inChatModelConfigWriteTx(
 	}, &database.TxOptions{Isolation: sql.LevelReadCommitted})
 }
 
+// @Summary Create an AI model in an organization
+// @ID create-ai-model
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param organization path string true "Organization name or ID"
+// @Param request body codersdk.CreateChatModelRequest true "Model"
+// @Success 201 {object} codersdk.ChatModel
+// @Router /api/experimental/organizations/{organization}/chats/models [post]
+// @x-apidocgen {"skip": true}
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	// Interim write gate: see the dbauthz InsertChatModelConfig check.
-	// TODO(mafredri): remove after CODAGT-709 M3 (org-scoping cutover)
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
+	organization := httpmw.OrganizationParam(r)
+
+	var req struct {
+		codersdk.CreateChatModelRequest
+		GroupACL json.RawMessage `json:"group_acl"`
+		UserACL  json.RawMessage `json:"user_acl"`
+	}
+	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
-	var req codersdk.CreateChatModelRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if req.GroupACL != nil || req.UserACL != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Model ACLs cannot be set here. Use the nested /acl endpoint after creating the model.",
+		})
 		return
 	}
 
@@ -7033,35 +7230,13 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "AI provider ID is required."})
 		return
 	}
-	//nolint:gocritic // The route already authorized chat model config updates.
-	aiProvider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), *req.AIProviderID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			writeChatProviderPreconditionError(ctx, rw, errChatProviderMissing)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get AI provider.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if !aiProvider.Enabled {
-		writeChatProviderPreconditionError(ctx, rw, errChatProviderDisabled)
-		return
-	}
-	aiProviderID := uuid.NullUUID{UUID: aiProvider.ID, Valid: true}
+	aiProviderID := uuid.NullUUID{UUID: *req.AIProviderID, Valid: true}
 
 	model := strings.TrimSpace(req.Model)
 	if model == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Model is required.",
 		})
-		return
-	}
-
-	if validationErr := validateChatModelConfigProviderModel(aiProvider, model); validationErr != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, validationErr.Response)
 		return
 	}
 
@@ -7104,16 +7279,11 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	defaultOrg, err := defaultOrganizationForChatModelConfigs(ctx, api.Database)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to resolve default organization.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	// Seed the everyone-in-org read entry so the config stays visible to
+	// members once ACLs are enforced; the Everyone group shares the
+	// organization's ID.
 	everyoneReadACL := database.ChatACL{
-		defaultOrg.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		organization.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
 	}
 
 	insertParams := database.InsertChatModelConfigParams{
@@ -7127,14 +7297,37 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		AIProviderID:         aiProviderID,
 		CreatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
-		OrganizationID:       defaultOrg.ID,
+		OrganizationID:       organization.ID,
 		GroupACL:             everyoneReadACL,
 		UserACL:              database.ChatACL{},
 	}
 
 	var inserted database.ChatModelConfig
-	err = api.inChatModelConfigWriteTx(ctx, insertParams.OrganizationID, func(tx database.Store) error {
-		//nolint:gocritic // The route already authorized chat model config updates.
+	err := api.inChatModelConfigWriteTx(ctx, insertParams.OrganizationID, func(tx database.Store) error {
+		_, err := tx.GetDefaultChatModelConfig(ctx, insertParams.OrganizationID)
+		defaultExists := err == nil
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get default model config: %w", err)
+		}
+		insertAsDefault := isDefault || !defaultExists
+
+		if insertAsDefault && defaultExists {
+			if err := tx.UnsetDefaultChatModelConfigs(ctx, insertParams.OrganizationID); err != nil {
+				return xerrors.Errorf("unset default model configs: %w", err)
+			}
+		}
+		insertParams.IsDefault = insertAsDefault
+
+		config, err := tx.InsertChatModelConfig(ctx, insertParams)
+		if err != nil {
+			if database.IsForeignKeyViolation(err, database.ForeignKeyChatModelConfigsAIProviderID) {
+				return errChatProviderMissing
+			}
+			return err
+		}
+		inserted = config
+
+		//nolint:gocritic // The provider fetch only reads the redacted descriptor fields.
 		lockedAIProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), insertParams.AIProviderID.UUID)
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
@@ -7148,32 +7341,6 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		if err := validateChatModelConfigProviderModel(lockedAIProvider, insertParams.Model); err != nil {
 			return err
 		}
-
-		insertAsDefault := isDefault
-		if !insertAsDefault {
-			_, err := tx.GetDefaultChatModelConfig(ctx, insertParams.OrganizationID)
-			switch {
-			case err == nil:
-				// A default already exists.
-			case xerrors.Is(err, sql.ErrNoRows):
-				insertAsDefault = true
-			default:
-				return xerrors.Errorf("get default model config: %w", err)
-			}
-		}
-
-		if insertAsDefault {
-			if err := tx.UnsetDefaultChatModelConfigs(ctx, insertParams.OrganizationID); err != nil {
-				return xerrors.Errorf("unset default model configs: %w", err)
-			}
-		}
-		insertParams.IsDefault = insertAsDefault
-
-		config, err := tx.InsertChatModelConfig(ctx, insertParams)
-		if err != nil {
-			return err
-		}
-		inserted = config
 
 		if err := ensureDefaultChatModelConfig(ctx, tx, insertParams.OrganizationID); err != nil {
 			return err
@@ -7201,6 +7368,11 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				Detail:  err.Error(),
 			})
 			return
+		case dbauthz.IsNotAuthorizedError(err):
+			// The dbauthz create-in-org check is the write access boundary;
+			// surface its denial as 403, not a concealed 404 or a 500.
+			httpapi.Forbidden(rw)
+			return
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to create chat model config.",
@@ -7215,48 +7387,39 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted))
 }
 
+// @Summary Update an AI model
+// @ID update-ai-model
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param organization path string true "Organization name or ID"
+// @Param model path string true "Model ID"
+// @Param request body codersdk.UpdateChatModelRequest true "Model updates"
+// @Success 200 {object} codersdk.ChatModel
+// @Router /api/experimental/organizations/{organization}/chats/models/{model} [patch]
+// @x-apidocgen {"skip": true}
 func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	// Interim write gate: see createChatModelConfig.
-	// TODO(mafredri): remove after CODAGT-709 M3 (org-scoping cutover)
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	modelConfigID, ok := parseChatModelConfigID(rw, r)
-	if !ok {
-		return
-	}
-
-	existing, err := api.Database.GetChatModelConfigByID(ctx, modelConfigID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat model config.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	defaultOrg, err := defaultOrganizationForChatModelConfigs(ctx, api.Database)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to resolve default organization.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if existing.OrganizationID != defaultOrg.ID {
+	existing := httpmw.ChatModelConfigParam(r)
+	if !api.Authorize(r, policy.ActionUpdate, chatModelConfigRBACObject(existing)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 
-	var req codersdk.UpdateChatModelRequest
+	var req struct {
+		codersdk.UpdateChatModelRequest
+		GroupACL json.RawMessage `json:"group_acl"`
+		UserACL  json.RawMessage `json:"user_acl"`
+	}
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if req.GroupACL != nil || req.UserACL != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Model ACLs cannot be updated here. Use the nested /acl endpoint.",
+		})
 		return
 	}
 
@@ -7295,11 +7458,12 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var updated database.ChatModelConfig
-	err = api.inChatModelConfigWriteTx(ctx, existing.OrganizationID, func(tx database.Store) error {
-		// The unlocked read above only rejects unknown IDs; a concurrent writer
-		// can change or delete the row between the two reads, so merge against
-		// this copy.
-		lockedExisting, err := tx.GetChatModelConfigByID(ctx, modelConfigID)
+	err := api.inChatModelConfigWriteTx(ctx, existing.OrganizationID, func(tx database.Store) error {
+		// The middleware lookup above only rejects unknown IDs; a concurrent
+		// writer can change or delete the row between the two reads, so merge
+		// against this copy.
+		//nolint:gocritic // The model update below reauthorizes the locked row for update.
+		lockedExisting, err := tx.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), existing.ID)
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return errChatModelConfigNotFound
@@ -7357,7 +7521,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		// invalidate the stored provider/model pair.
 		revalidateProviderModel := updateParams.AIProviderID.Valid && (req.AIProviderID != nil || strings.TrimSpace(req.Model) != "")
 		if revalidateProviderModel {
-			//nolint:gocritic // The route already authorized chat model config updates.
+			//nolint:gocritic // The provider fetch only reads the redacted descriptor fields.
 			aiProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), updateParams.AIProviderID.UUID)
 			if err != nil {
 				if xerrors.Is(err, sql.ErrNoRows) {
@@ -7402,7 +7566,8 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		refreshedConfig, err := tx.GetChatModelConfigByID(ctx, lockedExisting.ID)
+		//nolint:gocritic // The update above reauthorized the locked row.
+		refreshedConfig, err := tx.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), lockedExisting.ID)
 		if err != nil {
 			return xerrors.Errorf("refresh updated chat model config: %w", err)
 		}
@@ -7424,7 +7589,12 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				Detail:  err.Error(),
 			})
 			return
-		case xerrors.Is(err, errChatModelConfigNotFound):
+		case dbauthz.IsNotAuthorizedError(err):
+			// The dbauthz object update check is the write access boundary;
+			// surface its denial as 403, not a concealed 404 or a 500.
+			httpapi.Forbidden(rw)
+			return
+		case xerrors.Is(err, errChatModelConfigNotFound), httpapi.Is404Error(err):
 			httpapi.ResourceNotFound(rw)
 			return
 		default:
@@ -7441,47 +7611,25 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated))
 }
 
+// @Summary Delete an AI model
+// @ID delete-ai-model
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param organization path string true "Organization name or ID"
+// @Param model path string true "Model ID"
+// @Success 204
+// @Router /api/experimental/organizations/{organization}/chats/models/{model} [delete]
+// @x-apidocgen {"skip": true}
 func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	// Interim write gate: see createChatModelConfig.
-	// TODO(mafredri): remove after CODAGT-709 M3 (org-scoping cutover)
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	modelConfigID, ok := parseChatModelConfigID(rw, r)
-	if !ok {
-		return
-	}
-
-	existing, err := api.Database.GetChatModelConfigByID(ctx, modelConfigID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat model config.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	defaultOrg, err := defaultOrganizationForChatModelConfigs(ctx, api.Database)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to resolve default organization.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if existing.OrganizationID != defaultOrg.ID {
+	existing := httpmw.ChatModelConfigParam(r)
+	if !api.Authorize(r, policy.ActionDelete, chatModelConfigRBACObject(existing)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 
 	if err := api.inChatModelConfigWriteTx(ctx, existing.OrganizationID, func(tx database.Store) error {
-		if _, err := tx.DeleteChatModelConfigByID(ctx, modelConfigID); err != nil {
+		if _, err := tx.DeleteChatModelConfigByID(ctx, existing.ID); err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return errChatModelConfigNotFound
 			}
@@ -7489,7 +7637,13 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 		return ensureDefaultChatModelConfig(ctx, tx, existing.OrganizationID)
 	}); err != nil {
-		if xerrors.Is(err, errChatModelConfigNotFound) {
+		if dbauthz.IsNotAuthorizedError(err) {
+			// The dbauthz object delete check is the write access boundary;
+			// surface its denial as 403, not a concealed 404 or a 500.
+			httpapi.Forbidden(rw)
+			return
+		}
+		if xerrors.Is(err, errChatModelConfigNotFound) || httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -7500,7 +7654,7 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, modelConfigID)
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, existing.ID)
 
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -7513,7 +7667,8 @@ func ensureDefaultChatModelConfig(
 	organizationID uuid.UUID,
 	excludedConfigIDs ...uuid.UUID,
 ) error {
-	_, err := tx.GetDefaultChatModelConfig(ctx, organizationID)
+	//nolint:gocritic // Default election is contained by action-authorized writes.
+	_, err := tx.GetDefaultChatModelConfig(dbauthz.AsSystemRestricted(ctx), organizationID)
 	switch {
 	case err == nil:
 		return nil
@@ -7521,15 +7676,9 @@ func ensureDefaultChatModelConfig(
 		return xerrors.Errorf("get default model config: %w", err)
 	}
 
-	modelConfigs, err := tx.GetDefaultChatModelConfigCandidates(ctx)
+	orgModelConfigs, err := tx.GetChatModelConfigsByOrganization(ctx, organizationID)
 	if err != nil {
 		return xerrors.Errorf("list default chat model config candidates: %w", err)
-	}
-	orgModelConfigs := make([]database.ChatModelConfig, 0, len(modelConfigs))
-	for _, config := range modelConfigs {
-		if config.OrganizationID == organizationID {
-			orgModelConfigs = append(orgModelConfigs, config)
-		}
 	}
 	if len(orgModelConfigs) == 0 {
 		return nil
@@ -7539,8 +7688,7 @@ func ensureDefaultChatModelConfig(
 	// enabled provider) so the promoted default does not reject
 	// omitted-model chat creation. Fall back to any non-excluded config
 	// when no usable candidate exists.
-	//nolint:gocritic // Candidate usability depends on deployment-wide provider state, not the caller's permissions.
-	enabledRows, err := tx.GetEnabledChatModelConfigsByOrganization(dbauthz.AsChatd(ctx), organizationID)
+	enabledRows, err := tx.GetEnabledChatModelConfigsByOrganization(ctx, organizationID)
 	if err != nil {
 		return xerrors.Errorf("list enabled chat model configs: %w", err)
 	}
@@ -7634,6 +7782,7 @@ func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModel 
 	// chat_model_configs_ai_provider_required_when_active).
 	return codersdk.ChatModel{
 		ID:                   config.ID,
+		OrganizationID:       config.OrganizationID,
 		AIProviderID:         config.AIProviderID.UUID,
 		Model:                config.Model,
 		DisplayName:          config.DisplayName,
