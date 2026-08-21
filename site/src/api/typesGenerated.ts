@@ -4229,6 +4229,21 @@ export interface CreateTokenRequest {
 	readonly allow_list?: readonly APIAllowListTarget[];
 }
 
+// From codersdk/licenses.go
+/**
+ * Defines the input payload for requesting a trial license.
+ */
+export interface CreateTrialLicenseRequest {
+	readonly email: string;
+	readonly first_name: string;
+	readonly last_name: string;
+	readonly phone_number: string;
+	readonly job_title: string;
+	readonly company_name: string;
+	readonly country: string;
+	readonly developers: string;
+}
+
 // From codersdk/chats.go
 /**
  * CreateUserAIProviderKeyRequest creates or replaces a user's API key

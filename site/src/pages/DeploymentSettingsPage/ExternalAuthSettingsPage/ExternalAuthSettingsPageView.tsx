@@ -4,7 +4,6 @@ import type {
 	ExternalAuthConfig,
 } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
-import { PremiumBadge } from "#/components/Badges/Badges";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -54,7 +53,7 @@ export const ExternalAuthSettingsPageView: FC<
 			/>
 
 			<div className="mt-6 mb-6">
-				<Alert severity="info" actions={<PremiumBadge />}>
+				<Alert severity="info">
 					Integrating with multiple external authentication providers is a
 					Premium feature.{" "}
 					<a
