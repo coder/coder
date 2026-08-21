@@ -41,10 +41,9 @@ var (
 	errConflictingClientAuth = xerrors.New("conflicting client authentication")
 )
 
-// extractTokenRequest parses the /oauth2/tokens form. The app is passed whole
-// rather than as a pre-derived boolean so IsPublic remains the sole
-// decision-making reader of ClientType, keeping the confidential/public branch
-// in one place.
+// extractTokenRequest parses and validates the /oauth2/tokens form. It takes
+// the app because whether client_secret is required depends on the client
+// type.
 func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAuth2ProviderApp) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
 	p := httpapi.NewQueryParamParser()
 	err := r.ParseForm()
@@ -272,11 +271,9 @@ func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeI
 }
 
 func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
-	// Validate the client secret and record which secret the token is issued
-	// against. Public clients have none to validate and their tokens reference
-	// none; the PKCE verification below is their only proof of possession, so
-	// the code ownership check further down is what binds the code to the
-	// client rather than a redundant check behind the secret.
+	// A public client has no secret to validate, and its token references
+	// none. PKCE and the dbCode.AppID check are what bind the exchange to the
+	// client instead.
 	var appSecretID uuid.NullUUID
 	if !app.IsPublic() {
 		secret, err := ParseFormattedSecret(req.ClientSecret)
@@ -297,11 +294,9 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			return codersdk.OAuth2TokenResponse{}, errBadSecret
 		}
 
-		// The secret must belong to the app identified by the request's
-		// client_id, which is otherwise unauthenticated at this point (it is
-		// parsed straight from the request with no verification). Without this
-		// check, a valid secret for one app could issue a token attributed to a
-		// different app.
+		// The secret must belong to the app named by client_id, which arrives
+		// unverified in the request. Otherwise a valid secret for one app
+		// could issue a token for another.
 		if dbSecret.AppID != app.ID {
 			return codersdk.OAuth2TokenResponse{}, errBadSecret
 		}
@@ -327,10 +322,9 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		return codersdk.OAuth2TokenResponse{}, errBadCode
 	}
 
-	// The code must belong to the app identified by the request's
-	// client_id, for the same reason as the secret check above. For a public
-	// client this is the only binding between client_id and the code, so it
-	// must stay outside the confidential-client branch above.
+	// Likewise the code must belong to the app named by client_id. A public
+	// client runs no secret check, so this is the only thing tying the
+	// exchange to that app.
 	if dbCode.AppID != app.ID {
 		return codersdk.OAuth2TokenResponse{}, errBadCode
 	}
