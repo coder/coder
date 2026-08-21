@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rewrite2026augustlog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
@@ -196,6 +197,25 @@ func (api *API) postAISandboxSession(rw http.ResponseWriter, r *http.Request) {
 			EndedAt:           nullableAISandboxEndedAt(req.EndedAt),
 			CreatedAt:         existing.CreatedAt,
 		})
+		if err == nil {
+			f := rewrite2026augustlog.F{
+				"session_id":         existing.ID,
+				"workspace_id":       existing.WorkspaceID,
+				"reporter_agent_id":  existing.ReporterAgentID,
+				"confined_agent_id":  existing.ConfinedAgentID,
+				"ai_agent_user_id":   existing.AIAgentID,
+				"sponsor_user_id":    existing.SponsorUserID,
+				"egress_enforcement": existing.EgressEnforcement,
+				"started_at":         existing.StartedAt,
+				"path":               "reported again",
+			}
+			if req.EndedAt != nil {
+				f["ended_at"] = *req.EndedAt
+				rewrite2026augustlog.SessionClosed(ctx, f)
+			} else {
+				rewrite2026augustlog.SessionOpened(ctx, f)
+			}
+		}
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
@@ -267,6 +287,25 @@ func (api *API) postAISandboxSession(rw http.ResponseWriter, r *http.Request) {
 		EndedAt:           nullableAISandboxEndedAt(req.EndedAt),
 		CreatedAt:         dbtime.Now(),
 	})
+	if err == nil {
+		f := rewrite2026augustlog.F{
+			"session_id":         req.ID,
+			"workspace_id":       workspace.ID,
+			"reporter_agent_id":  reporter.ID,
+			"confined_agent_id":  confinedAgentID,
+			"ai_agent_user_id":   aiAgentID,
+			"sponsor_user_id":    sponsorUserID,
+			"egress_enforcement": string(req.EgressEnforcement),
+			"started_at":         req.StartedAt,
+			"path":               "first report",
+		}
+		if req.EndedAt != nil {
+			f["ended_at"] = *req.EndedAt
+			rewrite2026augustlog.SessionClosed(ctx, f)
+		} else {
+			rewrite2026augustlog.SessionOpened(ctx, f)
+		}
+	}
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

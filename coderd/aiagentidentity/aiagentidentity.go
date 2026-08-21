@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rewrite2026augustlog"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -133,6 +134,12 @@ func Create(ctx context.Context, db database.Store, params CreateParams) (databa
 			if err != nil {
 				return xerrors.Errorf("insert AI agent metadata: %w", err)
 			}
+			rewrite2026augustlog.AIAgentCreated(ctx, rewrite2026augustlog.F{
+				"ai_agent_user_id": createdAgent.UserID,
+				"owner_user_id":    createdAgent.OwnerUserID,
+				"origin_type":      createdAgent.OriginType,
+				"origin_id":        createdAgent.OriginID,
+			})
 			return nil
 		}, nil)
 		if err == nil {

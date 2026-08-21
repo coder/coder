@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rewrite2026augustlog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
@@ -181,6 +182,15 @@ func (api *API) postWorkspaceAgentAISandbox(rw http.ResponseWriter, r *http.Requ
 		}); err != nil {
 			return xerrors.Errorf("insert AI sandbox: %w", err)
 		}
+		rewrite2026augustlog.SandboxCreated(txCtx, rewrite2026augustlog.F{
+			"sandbox_id":         sandboxID,
+			"workspace_id":       workspace.ID,
+			"parent_agent_id":    parentAgent.ID,
+			"child_agent_id":     created.ID,
+			"ai_agent_user_id":   agent.UserID,
+			"name":               req.Name,
+			"egress_enforcement": string(req.EgressEnforcement),
+		})
 		_, minted, err := aiagentidentity.MintKey(txCtx, tx, agent.UserID,
 			aiagentidentity.SandboxIdentityProfile(workspace.ID, sandboxID))
 		if err != nil {
@@ -283,6 +293,14 @@ func (api *API) deleteWorkspaceAgentAISandbox(rw http.ResponseWriter, r *http.Re
 		httpapi.InternalServerError(rw, xerrors.Errorf("soft delete AI sandbox: %w", err))
 		return
 	}
+	rewrite2026augustlog.SandboxDeleted(ctx, rewrite2026augustlog.F{
+		"sandbox_id":       sandbox.ID,
+		"workspace_id":     sandbox.WorkspaceID,
+		"parent_agent_id":  sandbox.ParentAgentID,
+		"child_agent_id":   sandbox.ChildAgentID,
+		"ai_agent_user_id": sandbox.AIAgentID,
+		"name":             sandbox.Name,
+	})
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{Message: "Sandbox deleted."})
 }

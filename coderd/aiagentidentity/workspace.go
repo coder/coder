@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rewrite2026augustlog"
 )
 
 // ResolveWorkspaceOrigin creates or reuses the workspace-origin identity for
@@ -79,5 +80,12 @@ func revokeWorkspaceOrigin(ctx context.Context, db database.Store, agent databas
 	}); err != nil {
 		return xerrors.Errorf("mark AI agent deleted: %w", err)
 	}
+	rewrite2026augustlog.AIAgentRevoked(ctx, rewrite2026augustlog.F{
+		"ai_agent_user_id": agent.UserID,
+		"owner_user_id":    agent.OwnerUserID,
+		"origin_type":      agent.OriginType,
+		"origin_id":        agent.OriginID,
+		"route":            "workspace origin",
+	})
 	return nil
 }

@@ -40,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/promoauth"
+	"github.com/coder/coder/v2/coderd/rewrite2026augustlog"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -3444,6 +3445,13 @@ func (s *server) revokeAIAgentIdentity(ctx context.Context, agent database.AIAge
 	}); err != nil {
 		return xerrors.Errorf("mark AI agent deleted: %w", err)
 	}
+	rewrite2026augustlog.AIAgentRevoked(ctx, rewrite2026augustlog.F{
+		"ai_agent_user_id": agent.UserID,
+		"owner_user_id":    agent.OwnerUserID,
+		"origin_type":      agent.OriginType,
+		"origin_id":        agent.OriginID,
+		"route":            "provisioner, workspace deleted or reowned",
+	})
 	return nil
 }
 

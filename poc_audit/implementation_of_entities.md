@@ -82,6 +82,43 @@ and a line are required, no lines at all, and a ledger with no state column.
 - `coderd/database/migrations/000571_entity_journal.up.sql`
 - `coderd/database/migrations/000573_entity_ai_agents.up.sql`
 
+### Where lifecycle events are observable in existing code
+
+Six points in code already reached by the events this work wants to record.
+Each is in coderd, inside a request handler or a transaction, so none needs new
+plumbing to reach. None of them journals anything today; each writes a row
+directly.
+
+| Event                    | Function                        | File                                              |
+|--------------------------|---------------------------------|---------------------------------------------------|
+| AI agent created         | `Create`                        | `coderd/aiagentidentity/aiagentidentity.go`       |
+| AI agent revoked         | `revokeWorkspaceOrigin`         | `coderd/aiagentidentity/workspace.go`             |
+| AI agent revoked         | `revokeAIAgentIdentity`         | `coderd/provisionerdserver/provisionerdserver.go` |
+| Sandbox created          | `postWorkspaceAgentAISandbox`   | `coderd/aisandboxes.go`                           |
+| Sandbox deleted          | `deleteWorkspaceAgentAISandbox` | `coderd/aisandboxes.go`                           |
+| Session opened or closed | `postAISandboxSession`          | `coderd/aisandboxaudit.go`                        |
+
+**The activity session already begins where it should.** `agent/confine`'s
+supervisor builds the namespace and its redirect rules, then forks the child,
+and stamps the start in the fork's start callback. So the moment recorded is the
+one where the capacities exist and the thing able to use them has just begun,
+which is what an activity session is meant to mark.
+
+**An end is reported, and cannot be relied on.** The supervisor re-posts the
+same session with an end time once the child returns, a convention the agent SDK
+documents. That post is best effort and only happens if the child started and
+the supervisor survived to send it, so a killed workspace or a crashed
+supervisor leaves the session open with nothing to notice. The prompt path is
+real and lapse is what covers its absence, which is the same arrangement the
+credential sweep has.
+
+**Jon's session is not this work's session.** `ai_sandbox_sessions` names four
+parties, a reporter agent, a confined agent, an AI agent, and a sponsor user,
+where the convention here allows two; and it is bounded by one child process
+execution where an AI agent's session is bounded by the lifespans of its
+participants. The two may be reconciled later. Treating them as one thing under
+two names would be the easiest mistake available here.
+
 ### User
 
 **Absent**, external misaligned code.
