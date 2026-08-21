@@ -49,7 +49,7 @@ const defaultModelOptions: ModelSelectorOption[] = [
 	},
 ];
 
-const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
+const defaultModels: TypesGen.ChatModel[] = [
 	{
 		id: "config-openai-gpt-4o",
 		ai_provider_id: "prov-1",
@@ -69,7 +69,7 @@ const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...MockChat,
 	id: "chat-default",
-	last_model_config_id: defaultModelConfigs[0].id,
+	last_model_config_id: defaultModels[0].id,
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	...overrides,
@@ -100,7 +100,7 @@ const meta: Meta<typeof ChatsSidebar> = {
 	args: {
 		chatErrorReasons: {},
 		modelOptions: defaultModelOptions,
-		modelConfigs: defaultModelConfigs,
+		models: defaultModels,
 		onArchiveAgent: fn(),
 		onUnarchiveAgent: fn(),
 		onArchiveAndDeleteWorkspace: fn(),

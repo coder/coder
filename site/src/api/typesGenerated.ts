@@ -1214,11 +1214,11 @@ export interface AdvisorConfig {
 	 */
 	readonly max_output_tokens: number;
 	/**
-	 * ModelConfigID selects a specific chat model config to power the
+	 * ModelConfigID selects a specific admin-managed ChatModel to power the
 	 * advisor. uuid.Nil means reuse the outer chat model. The runtime
 	 * must fall back to the outer chat model when this ID cannot be
-	 * resolved (e.g. the referenced model config was soft-deleted or
-	 * its provider was disabled after the admin saved this config).
+	 * resolved, such as when the referenced ChatModel was soft-deleted or
+	 * its provider was disabled after the admin saved this configuration.
 	 */
 	readonly model_config_id: string;
 	/**
@@ -2830,13 +2830,26 @@ export interface ChatMessagesResponse {
 
 // From codersdk/chats.go
 /**
- * ChatModel represents a model in the chat model catalog.
+ * ChatModel is an admin-managed model record for an organization.
+ * It is not a discovery catalog entry. See ChatModelCatalogEntry.
  */
 export interface ChatModel {
 	readonly id: string;
-	readonly provider: string;
+	readonly ai_provider_id: string;
 	readonly model: string;
 	readonly display_name: string;
+	readonly enabled: boolean;
+	readonly is_default: boolean;
+	readonly context_limit: number;
+	readonly compression_threshold: number;
+	readonly model_config?: ChatModelCallConfig;
+	/**
+	 * ReasoningEfforts lists selectable reasoning effort values through
+	 * the model's configured maximum.
+	 */
+	readonly reasoning_efforts?: readonly string[];
+	readonly created_at: string;
+	readonly updated_at: string;
 }
 
 // From codersdk/chats.go
@@ -2864,6 +2877,20 @@ export interface ChatModelAnthropicThinkingOptions {
 
 // From codersdk/chats.go
 /**
+ * ChatModelAvailabilityResponse groups the discovery catalog by provider and
+ * reports provider availability.
+ */
+export interface ChatModelAvailabilityResponse {
+	readonly providers: readonly ChatModelProvider[];
+	/**
+	 * UnsupportedProviders lists configured providers the Agents harness
+	 * cannot use, so the UI can explain the empty state.
+	 */
+	readonly unsupported_providers: readonly ChatUnsupportedProvider[];
+}
+
+// From codersdk/chats.go
+/**
  * ChatModelCallConfig configures per-call model behavior defaults.
  */
 export interface ChatModelCallConfig {
@@ -2880,25 +2907,15 @@ export interface ChatModelCallConfig {
 
 // From codersdk/chats.go
 /**
- * ChatModelConfig is an admin-managed model configuration.
+ * ChatModelCatalogEntry is a discovery catalog entry for end users.
+ * Its ID is a synthetic provider:model value, not the UUID in ChatModel.ID.
+ * It is not an admin-managed record. See ChatModel.
  */
-export interface ChatModelConfig {
+export interface ChatModelCatalogEntry {
 	readonly id: string;
-	readonly ai_provider_id: string;
+	readonly provider: string;
 	readonly model: string;
 	readonly display_name: string;
-	readonly enabled: boolean;
-	readonly is_default: boolean;
-	readonly context_limit: number;
-	readonly compression_threshold: number;
-	readonly model_config?: ChatModelCallConfig;
-	/**
-	 * ReasoningEfforts lists selectable reasoning effort values through
-	 * the model's configured maximum.
-	 */
-	readonly reasoning_efforts?: readonly string[];
-	readonly created_at: string;
-	readonly updated_at: string;
 }
 
 // From codersdk/chats.go
@@ -3045,7 +3062,7 @@ export interface ChatModelProvider {
 	readonly provider: string;
 	readonly available: boolean;
 	readonly unavailable_reason?: ChatModelProviderUnavailableReason;
-	readonly models: readonly ChatModel[];
+	readonly models: readonly ChatModelCatalogEntry[];
 }
 
 // From codersdk/chats.go
@@ -3160,19 +3177,6 @@ export interface ChatModelVercelProviderOptions {
 	readonly parallel_tool_calls?: boolean;
 	// empty interface{} type, falling back to unknown
 	readonly extra_body?: Record<string, unknown>;
-}
-
-// From codersdk/chats.go
-/**
- * ChatModelsResponse is the catalog returned from chat model discovery.
- */
-export interface ChatModelsResponse {
-	readonly providers: readonly ChatModelProvider[];
-	/**
-	 * UnsupportedProviders lists configured providers the Agents harness
-	 * cannot use, so the UI can explain the empty state.
-	 */
-	readonly unsupported_providers: readonly ChatUnsupportedProvider[];
 }
 
 // From codersdk/chats.go
@@ -3889,9 +3893,12 @@ export interface CreateChatMessageResponse {
 
 // From codersdk/chats.go
 /**
- * CreateChatModelConfigRequest creates a chat model config.
+ * CreateChatModelRequest is the request body for an organization-scoped
+ * ChatModel. AIProviderID, Model, and a positive ContextLimit are required.
+ * Enabled defaults to true. IsDefault defaults to false. CompressionThreshold
+ * defaults to 70. An omitted ModelConfig uses the provider defaults.
  */
-export interface CreateChatModelConfigRequest {
+export interface CreateChatModelRequest {
 	readonly ai_provider_id?: string;
 	readonly model: string;
 	readonly display_name?: string;
@@ -9704,11 +9711,11 @@ export interface UpdateAdvisorConfigRequest {
 	 */
 	readonly max_output_tokens: number;
 	/**
-	 * ModelConfigID selects a specific chat model config to power the
+	 * ModelConfigID selects a specific admin-managed ChatModel to power the
 	 * advisor. uuid.Nil means reuse the outer chat model. The runtime
 	 * must fall back to the outer chat model when this ID cannot be
-	 * resolved (e.g. the referenced model config was soft-deleted or
-	 * its provider was disabled after the admin saved this config).
+	 * resolved, such as when the referenced ChatModel was soft-deleted or
+	 * its provider was disabled after the admin saved this configuration.
 	 */
 	readonly model_config_id: string;
 	/**
@@ -9773,9 +9780,21 @@ export interface UpdateChatDebugRetentionDaysRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatModelConfigRequest updates a chat model config.
+ * UpdateChatModelOverrideRequest is the request body for updating the chat
+ * model override configuration endpoint.
  */
-export interface UpdateChatModelConfigRequest {
+export interface UpdateChatModelOverrideRequest {
+	readonly model_config_id: string;
+	readonly reasoning_effort?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatModelRequest updates a ChatModel. Empty Model and DisplayName
+ * values preserve the stored values. Nil pointer fields preserve their stored
+ * values. This request cannot clear DisplayName.
+ */
+export interface UpdateChatModelRequest {
 	readonly ai_provider_id?: string;
 	readonly model?: string;
 	readonly display_name?: string;
@@ -9784,16 +9803,6 @@ export interface UpdateChatModelConfigRequest {
 	readonly context_limit?: number;
 	readonly compression_threshold?: number;
 	readonly model_config?: ChatModelCallConfig;
-}
-
-// From codersdk/chats.go
-/**
- * UpdateChatModelOverrideRequest is the request body for updating the chat
- * model override configuration endpoint.
- */
-export interface UpdateChatModelOverrideRequest {
-	readonly model_config_id: string;
-	readonly reasoning_effort?: string;
 }
 
 // From codersdk/chats.go

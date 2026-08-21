@@ -90,7 +90,7 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 			)
 			t.Cleanup(scopedClient.HTTPClient.CloseIdleConnections)
 
-			configs, err := codersdk.NewExperimentalClient(scopedClient).ListChatModelConfigs(ctx)
+			configs, err := codersdk.NewExperimentalClient(scopedClient).ChatModels(ctx)
 			if testCase.wantStatus != 0 {
 				requireSDKError(t, err, testCase.wantStatus)
 				return
@@ -200,21 +200,21 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			configs, err := testCase.client(t, ctx).ListChatModelConfigs(ctx)
+			models, err := testCase.client(t, ctx).ChatModels(ctx)
 			require.NoError(t, err)
 			for _, id := range testCase.visible {
-				require.True(t, containsChatModelConfig(configs, id), "must see config %s", id)
+				require.True(t, containsChatModel(models, id), "must see ChatModel %s", id)
 			}
 			for _, id := range testCase.hidden {
-				require.False(t, containsChatModelConfig(configs, id), "must not see config %s", id)
+				require.False(t, containsChatModel(models, id), "must not see ChatModel %s", id)
 			}
 		})
 	}
 }
 
-func containsChatModelConfig(configs []codersdk.ChatModelConfig, id uuid.UUID) bool {
-	return slices.ContainsFunc(configs, func(config codersdk.ChatModelConfig) bool {
-		return config.ID == id
+func containsChatModel(models []codersdk.ChatModel, id uuid.UUID) bool {
+	return slices.ContainsFunc(models, func(model codersdk.ChatModel) bool {
+		return model.ID == id
 	})
 }
 

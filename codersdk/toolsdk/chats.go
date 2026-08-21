@@ -883,7 +883,7 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 	},
 	MCPAnnotations: mcpReadOnlyAnnotations,
 	Handler: func(ctx context.Context, deps Deps, _ NoArgs) (ListChatModelConfigsResponse, error) {
-		configs, err := codersdk.NewExperimentalClient(deps.coderClient).ListChatModelConfigs(ctx)
+		configs, err := codersdk.NewExperimentalClient(deps.coderClient).ChatModels(ctx)
 		if err != nil {
 			return ListChatModelConfigsResponse{}, xerrors.Errorf("list chat model configs: %w", err)
 		}

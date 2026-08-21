@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModelConfig } from "#/testHelpers/chatModels";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import { MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -9,9 +9,9 @@ import {
 } from "#/testHelpers/storybook";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
-const mockModelConfigs: TypesGen.ChatModelConfig[] = [
+const mockModels: TypesGen.ChatModel[] = [
 	{
-		...MockChatModelConfig,
+		...MockChatModel,
 		id: "model-1",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -22,7 +22,7 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 		updated_at: "2025-01-01T00:00:00Z",
 	},
 	{
-		...MockChatModelConfig,
+		...MockChatModel,
 		id: "model-2",
 		ai_provider_id: "provider-anthropic",
 		model: "claude-sonnet",
@@ -31,7 +31,7 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 		updated_at: "2025-01-01T00:00:00Z",
 	},
 	{
-		...MockChatModelConfig,
+		...MockChatModel,
 		id: "model-3",
 		model: "gpt-3.5",
 		display_name: "GPT-3.5 (Disabled)",
@@ -48,7 +48,7 @@ const meta = {
 	component: UserCompactionThresholdSettings,
 	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
-		modelConfigs: mockModelConfigs,
+		models: mockModels,
 		providerTypeByID: new Map<string, string>([
 			["provider-1", "openai"],
 			["provider-anthropic", "anthropic"],
@@ -237,8 +237,8 @@ export const Loading: Story = {
 export const PartialSaveFailure: Story = {
 	name: "Partial Save Failure",
 	args: {
-		onSaveThreshold: fn(async (modelConfigId: string) => {
-			if (modelConfigId === "model-2") {
+		onSaveThreshold: fn(async (modelId: string) => {
+			if (modelId === "model-2") {
 				throw new globalThis.Error("Network error");
 			}
 		}),

@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
-	chatModelConfigs,
+	chatModels,
 	deleteUserCompactionThreshold,
 	updateUserCompactionThreshold,
 	userChatProviderConfigs,
@@ -12,7 +12,7 @@ import { providerTypeByIDFromUserConfigs } from "./utils/modelOptions";
 
 const AgentSettingsCompactionPage: FC = () => {
 	const queryClient = useQueryClient();
-	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const modelsQuery = useQuery(chatModels());
 	const providerConfigsQuery = useQuery(userChatProviderConfigs());
 	const thresholdsQuery = useQuery(userCompactionThresholds());
 	const saveThresholdMutation = useMutation(
@@ -22,17 +22,14 @@ const AgentSettingsCompactionPage: FC = () => {
 		deleteUserCompactionThreshold(queryClient),
 	);
 
-	const handleSaveThreshold = (
-		modelConfigId: string,
-		thresholdPercent: number,
-	) =>
+	const handleSaveThreshold = (modelId: string, thresholdPercent: number) =>
 		saveThresholdMutation.mutateAsync({
-			modelConfigId,
+			modelId,
 			req: { threshold_percent: thresholdPercent },
 		});
 
-	const handleResetThreshold = (modelConfigId: string) =>
-		resetThresholdMutation.mutateAsync(modelConfigId);
+	const handleResetThreshold = (modelId: string) =>
+		resetThresholdMutation.mutateAsync(modelId);
 
 	const providerTypeByID = providerTypeByIDFromUserConfigs(
 		providerConfigsQuery.data,
@@ -40,10 +37,10 @@ const AgentSettingsCompactionPage: FC = () => {
 
 	return (
 		<AgentSettingsCompactionPageView
-			modelConfigsData={modelConfigsQuery.data}
+			models={modelsQuery.data}
 			providerTypeByID={providerTypeByID}
-			modelConfigsError={modelConfigsQuery.error}
-			isLoadingModelConfigs={modelConfigsQuery.isLoading}
+			modelsError={modelsQuery.error}
+			isLoadingModels={modelsQuery.isLoading}
 			thresholds={thresholdsQuery.data?.thresholds}
 			isThresholdsLoading={thresholdsQuery.isLoading}
 			thresholdsError={thresholdsQuery.error}

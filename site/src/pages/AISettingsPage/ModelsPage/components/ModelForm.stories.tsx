@@ -32,8 +32,8 @@ import { ModelForm } from "./ModelForm";
 
 const onUpdateModel = fn(
 	async (
-		_modelConfigId: string,
-		_req: TypesGen.UpdateChatModelConfigRequest,
+		_modelId: string,
+		_req: TypesGen.UpdateChatModelRequest,
 	): Promise<unknown> => undefined,
 );
 

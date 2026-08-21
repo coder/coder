@@ -43,8 +43,8 @@ export const ModelFormHeader: FC<{
 	title: string;
 	selectedProviderState: ProviderState;
 	isEditing: boolean;
-	editingModel?: TypesGen.ChatModelConfig;
-	onDeleteModel?: (modelConfigId: string) => Promise<void>;
+	editingModel?: TypesGen.ChatModel;
+	onDeleteModel?: (modelId: string) => Promise<void>;
 	onDuplicate?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
 	isSaving: boolean;

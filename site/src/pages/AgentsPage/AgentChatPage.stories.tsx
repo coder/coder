@@ -14,8 +14,8 @@ import {
 	chatEntityKey,
 	chatListKey,
 	chatMessagesKey,
-	chatModelConfigs,
-	chatModelsKey,
+	chatModelAvailabilityKey,
+	chatModels,
 	chatPromptsKey,
 	mcpServerConfigsKey,
 	toChatListParams,
@@ -28,7 +28,7 @@ import {
 	MockChatQueuedMessage,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
-import { MockChatModelConfig } from "#/testHelpers/chatModels";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockGroup,
 	MockOrganizationMember,
@@ -124,7 +124,7 @@ const mockWorkspace: TypesGen.Workspace = {
 	},
 };
 
-const mockModelCatalog: TypesGen.ChatModelsResponse = {
+const mockModelCatalog: TypesGen.ChatModelAvailabilityResponse = {
 	providers: [
 		{
 			provider: "openai",
@@ -142,9 +142,9 @@ const mockModelCatalog: TypesGen.ChatModelsResponse = {
 	unsupported_providers: [],
 };
 
-const mockModelConfigs: TypesGen.ChatModelConfig[] = [
+const mockModels: TypesGen.ChatModel[] = [
 	{
-		...MockChatModelConfig,
+		...MockChatModel,
 		id: MODEL_CONFIG_ID,
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -306,8 +306,8 @@ const buildQueries = (
 			key: workspaceByIdKey(mockWorkspace.id),
 			data: mockWorkspace,
 		},
-		{ key: chatModelsKey, data: mockModelCatalog },
-		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
+		{ key: chatModelAvailabilityKey, data: mockModelCatalog },
+		{ key: chatModels().queryKey, data: mockModels },
 		{
 			key: mcpServerConfigsKey(chat.organization_id),
 			data: opts?.mcpServers ?? [],

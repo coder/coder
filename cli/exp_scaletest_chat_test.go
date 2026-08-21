@@ -77,9 +77,9 @@ func TestScaleTestChat(t *testing.T) {
 	require.Equal(t, mockURL, provider.BaseURL)
 
 	expClient := codersdk.NewExperimentalClient(client)
-	configs, err := expClient.ListChatModelConfigs(ctx)
+	configs, err := expClient.ChatModels(ctx)
 	require.NoError(t, err)
-	matchingConfigs := scaletestModelConfigsForProvider(configs, provider.ID)
+	matchingConfigs := scaletestModelsForProvider(configs, provider.ID)
 	require.Len(t, matchingConfigs, 1)
 	require.True(t, matchingConfigs[0].Enabled)
 
@@ -125,8 +125,8 @@ func chatMessageText(messages []codersdk.ChatMessage, role codersdk.ChatMessageR
 	return b.String(), found
 }
 
-func scaletestModelConfigsForProvider(configs []codersdk.ChatModelConfig, providerID uuid.UUID) []codersdk.ChatModelConfig {
-	matches := make([]codersdk.ChatModelConfig, 0, 1)
+func scaletestModelsForProvider(configs []codersdk.ChatModel, providerID uuid.UUID) []codersdk.ChatModel {
+	matches := make([]codersdk.ChatModel, 0, 1)
 	for _, config := range configs {
 		if config.AIProviderID != providerID {
 			continue

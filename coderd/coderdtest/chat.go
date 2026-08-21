@@ -46,15 +46,15 @@ func FakeOpenAICompatProviderAPIKeys(t testing.TB) chatprovider.ProviderAPIKeys 
 	return OpenAICompatProviderAPIKeys(chattest.OpenAI(t))
 }
 
-// CreateOpenAICompatChatModelConfig creates the default provider and model
-// config used by chat runtime tests. Tests can pass a baseURL to route chat work
-// to a specific local provider. If baseURL is empty, this helper starts a fake
+// CreateOpenAICompatChatModel creates the default provider and ChatModel used
+// by chat runtime tests. Tests can pass a baseURL to route chat work to a
+// specific local provider. If baseURL is empty, this helper starts a fake
 // OpenAI-compatible provider.
-func CreateOpenAICompatChatModelConfig(
+func CreateOpenAICompatChatModel(
 	t testing.TB,
 	client *codersdk.ExperimentalClient,
 	baseURL string,
-) codersdk.ChatModelConfig {
+) codersdk.ChatModel {
 	t.Helper()
 
 	if baseURL == "" {
@@ -72,14 +72,14 @@ func CreateOpenAICompatChatModelConfig(
 	require.NoError(t, err)
 	contextLimit := int64(4096)
 	isDefault := true
-	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	model, err := client.CreateChatModel(ctx, codersdk.CreateChatModelRequest{
 		AIProviderID: &provider.ID,
 		Model:        TestChatModelOpenAICompat,
 		ContextLimit: &contextLimit,
 		IsDefault:    &isDefault,
 	})
 	require.NoError(t, err)
-	return modelConfig
+	return model
 }
 
 // WaitForChatSettled waits for a chat to leave active processing and drains

@@ -18,11 +18,11 @@ import {
 } from "./AgentChatInput";
 import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 
-const defaultModelConfigID = "model-config-1";
+const defaultModelID = "model-config-1";
 
 const defaultModelOptions = [
 	{
-		id: defaultModelConfigID,
+		id: defaultModelID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",

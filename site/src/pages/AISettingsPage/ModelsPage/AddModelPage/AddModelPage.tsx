@@ -5,9 +5,9 @@ import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
-	chatModelConfigs,
+	chatModelAvailability,
 	chatModels,
-	createChatModelConfig,
+	createChatModel,
 } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
@@ -27,33 +27,33 @@ const AddModelPage: FC = () => {
 	const duplicateId = searchParams.get("duplicate");
 
 	const providerConfigsQuery = useQuery(chatProviderConfigs());
-	const modelConfigsQuery = useQuery(chatModelConfigs());
-	const modelCatalogQuery = useQuery(chatModels());
+	const modelsQuery = useQuery(chatModels());
+	const modelCatalogQuery = useQuery(chatModelAvailability());
 
-	const createMutation = useMutation(createChatModelConfig(queryClient));
+	const createMutation = useMutation(createChatModel(queryClient));
 
 	const providerStates = useMemo(
 		() =>
 			deriveProviderStates(
-				modelConfigsQuery.data ?? [],
+				modelsQuery.data ?? [],
 				providerConfigsQuery.data,
 				modelCatalogQuery.data,
 			),
-		[modelConfigsQuery.data, providerConfigsQuery.data, modelCatalogQuery.data],
+		[modelsQuery.data, providerConfigsQuery.data, modelCatalogQuery.data],
 	);
 
 	const isLoading =
 		providerConfigsQuery.isLoading ||
-		modelConfigsQuery.isLoading ||
+		modelsQuery.isLoading ||
 		modelCatalogQuery.isLoading;
 
 	const selectedProviderState = providerKey
 		? (providerStates.find((ps) => ps.key === providerKey) ?? null)
 		: (providerStates.find(canManageProviderModels) ?? null);
 	const duplicateSourceModel = duplicateId
-		? modelConfigsQuery.data?.find((m) => m.id === duplicateId)
+		? modelsQuery.data?.find((m) => m.id === duplicateId)
 		: undefined;
-	const currentDefaultModel = modelConfigsQuery.data?.find((m) => m.is_default);
+	const currentDefaultModel = modelsQuery.data?.find((m) => m.is_default);
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>

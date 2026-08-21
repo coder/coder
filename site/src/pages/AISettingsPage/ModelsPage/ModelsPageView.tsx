@@ -1,7 +1,7 @@
 import { ChevronDownIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { type FC, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import type { ChatModelConfig } from "#/api/typesGenerated";
+import type { ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -97,7 +97,7 @@ const AddModelDropdown: FC<{
 interface ModelsPageViewProps {
 	isLoading: boolean;
 	error: unknown;
-	models: readonly ChatModelConfig[];
+	models: readonly ChatModel[];
 	providerStates: readonly ProviderState[];
 	providerTypeByID: ReadonlyMap<string, string>;
 }
@@ -118,7 +118,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 	const providerKeyByModelId = useMemo(() => {
 		const map = new Map<string, string>();
 		for (const providerState of providerStates) {
-			for (const providerModel of providerState.modelConfigs) {
+			for (const providerModel of providerState.models) {
 				map.set(providerModel.id, providerState.key);
 			}
 		}
@@ -128,7 +128,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 	const providerLabelByModelId = useMemo(() => {
 		const map = new Map<string, string>();
 		for (const providerState of providerStates) {
-			for (const providerModel of providerState.modelConfigs) {
+			for (const providerModel of providerState.models) {
 				map.set(providerModel.id, providerState.label);
 			}
 		}
@@ -138,7 +138,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 	const hasProviderByModelId = useMemo(() => {
 		const map = new Map<string, boolean>();
 		for (const providerState of providerStates) {
-			for (const providerModel of providerState.modelConfigs) {
+			for (const providerModel of providerState.models) {
 				map.set(providerModel.id, Boolean(providerState.providerConfig));
 			}
 		}
@@ -148,7 +148,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 	const providerEnabledByModelId = useMemo(() => {
 		const map = new Map<string, boolean>();
 		for (const providerState of providerStates) {
-			for (const providerModel of providerState.modelConfigs) {
+			for (const providerModel of providerState.models) {
 				map.set(
 					providerModel.id,
 					providerState.providerConfig?.enabled === true,

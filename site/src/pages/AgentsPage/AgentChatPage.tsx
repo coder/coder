@@ -33,7 +33,7 @@ import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
 	chatMessagesForInfiniteScroll,
-	chatModelConfigs,
+	chatModelAvailability,
 	chatModels,
 	chatQueueConvergence,
 	compactChat,
@@ -777,15 +777,15 @@ const getPersistedDetailError = ({
  * preferring the user's override when set.
  */
 function resolveCompactionThreshold(
-	modelConfigID: string | undefined,
+	modelID: string | undefined,
 	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
-	modelConfigs: readonly TypesGen.ChatModelConfig[] | null | undefined,
+	models: readonly TypesGen.ChatModel[] | null | undefined,
 ): number | undefined {
-	if (!modelConfigID || !Array.isArray(modelConfigs)) return undefined;
-	const config = modelConfigs.find((c) => c.id === modelConfigID);
+	if (!modelID || !Array.isArray(models)) return undefined;
+	const config = models.find((c) => c.id === modelID);
 	if (!config) return undefined;
 	const userOverride = userThresholds?.find(
-		(threshold) => threshold.model_config_id === modelConfigID,
+		(threshold) => threshold.model_config_id === modelID,
 	);
 	if (userOverride) {
 		return userOverride.threshold_percent;
@@ -940,8 +940,8 @@ const AgentChatPage: FC = () => {
 	});
 	const workspace = workspaceQuery.data;
 
+	const chatModelAvailabilityQuery = useQuery(chatModelAvailability());
 	const chatModelsQuery = useQuery(chatModels());
-	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
@@ -991,26 +991,26 @@ const AgentChatPage: FC = () => {
 		modelCatalog,
 		hasConfiguredModels,
 	} = resolveModelSelector(
-		chatModelConfigsQuery,
 		chatModelsQuery,
+		chatModelAvailabilityQuery,
 		userProviderConfigsQuery,
 	);
-	const modelConfigs = chatModelConfigsQuery.data ?? [];
+	const models = chatModelsQuery.data ?? [];
 	const providerCount =
 		permissions.editDeploymentConfig &&
 		chatProviderConfigsQuery.isSuccess &&
-		chatModelsQuery.isSuccess
+		chatModelAvailabilityQuery.isSuccess
 			? countConfiguredProviderConfigs(
 					chatProviderConfigsQuery.data,
-					chatModelsQuery.data,
+					chatModelAvailabilityQuery.data,
 				)
 			: undefined;
 	const modelCount =
-		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
+		chatModelsQuery.isSuccess && chatModelAvailabilityQuery.isSuccess
 			? modelOptions.length
 			: undefined;
 	const unsupportedProviderNames = getUnsupportedProviderNames(
-		chatModelsQuery.data,
+		chatModelAvailabilityQuery.data,
 	);
 
 	const agentBindingRefetchKeyRef = useRef<string | undefined>(undefined);
@@ -1370,7 +1370,7 @@ const AgentChatPage: FC = () => {
 	const compressionThreshold = resolveCompactionThreshold(
 		chatLastModelConfigID,
 		userThresholdsQuery.data?.thresholds,
-		modelConfigs,
+		models,
 	);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);

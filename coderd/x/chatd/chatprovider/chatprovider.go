@@ -500,12 +500,12 @@ func (*ModelCatalog) ListConfiguredModels(
 	configuredModels []ConfiguredModel,
 	availabilityByProvider map[string]ProviderAvailability,
 	enabledProviders map[string]struct{},
-) (codersdk.ChatModelsResponse, bool) {
+) (codersdk.ChatModelAvailabilityResponse, bool) {
 	if len(configuredModels) == 0 {
-		return codersdk.ChatModelsResponse{}, false
+		return codersdk.ChatModelAvailabilityResponse{}, false
 	}
 
-	modelsByProvider := make(map[string][]codersdk.ChatModel)
+	modelsByProvider := make(map[string][]codersdk.ChatModelCatalogEntry)
 	seenByProvider := make(map[string]map[string]struct{})
 	providerSet := make(map[string]struct{})
 
@@ -534,16 +534,16 @@ func (*ModelCatalog) ListConfiguredModels(
 		seenByProvider[provider][normalizedModelID] = struct{}{}
 		modelsByProvider[provider] = append(
 			modelsByProvider[provider],
-			newChatModel(provider, modelID, model.DisplayName),
+			newChatModelCatalogEntry(provider, modelID, model.DisplayName),
 		)
 	}
 
 	providers := orderProviders(providerSet)
 	if len(providers) == 0 {
-		return codersdk.ChatModelsResponse{}, false
+		return codersdk.ChatModelAvailabilityResponse{}, false
 	}
 
-	response := codersdk.ChatModelsResponse{
+	response := codersdk.ChatModelAvailabilityResponse{
 		Providers: make([]codersdk.ChatModelProvider, 0, len(providers)),
 	}
 	for _, provider := range providers {
@@ -552,7 +552,7 @@ func (*ModelCatalog) ListConfiguredModels(
 		}
 
 		models := modelsByProvider[provider]
-		sortChatModels(models)
+		sortChatModelCatalogEntries(models)
 
 		result := codersdk.ChatModelProvider{
 			Provider: provider,
@@ -579,8 +579,8 @@ func (*ModelCatalog) ListConfiguredModels(
 func (*ModelCatalog) ListConfiguredProviderAvailability(
 	availabilityByProvider map[string]ProviderAvailability,
 	enabledProviders map[string]struct{},
-) codersdk.ChatModelsResponse {
-	response := codersdk.ChatModelsResponse{
+) codersdk.ChatModelAvailabilityResponse {
+	response := codersdk.ChatModelAvailabilityResponse{
 		Providers: make([]codersdk.ChatModelProvider, 0, len(supportedProviderNames)),
 	}
 
@@ -591,7 +591,7 @@ func (*ModelCatalog) ListConfiguredProviderAvailability(
 
 		result := codersdk.ChatModelProvider{
 			Provider: provider,
-			Models:   []codersdk.ChatModel{},
+			Models:   []codersdk.ChatModelCatalogEntry{},
 		}
 		if avail, ok := availabilityByProvider[provider]; ok {
 			result.Available = avail.Available
@@ -641,13 +641,13 @@ func PruneDisabledProviderKeys(keys *ProviderAPIKeys, enabledProviders map[strin
 	}
 }
 
-func newChatModel(provider, modelID, displayName string) codersdk.ChatModel {
+func newChatModelCatalogEntry(provider, modelID, displayName string) codersdk.ChatModelCatalogEntry {
 	name := strings.TrimSpace(displayName)
 	if name == "" {
 		name = modelID
 	}
 
-	return codersdk.ChatModel{
+	return codersdk.ChatModelCatalogEntry{
 		ID:          canonicalModelID(provider, modelID),
 		Provider:    provider,
 		Model:       modelID,
@@ -655,8 +655,8 @@ func newChatModel(provider, modelID, displayName string) codersdk.ChatModel {
 	}
 }
 
-func sortChatModels(models []codersdk.ChatModel) {
-	slices.SortFunc(models, func(a, b codersdk.ChatModel) int {
+func sortChatModelCatalogEntries(models []codersdk.ChatModelCatalogEntry) {
+	slices.SortFunc(models, func(a, b codersdk.ChatModelCatalogEntry) int {
 		return strings.Compare(a.Model, b.Model)
 	})
 }

@@ -99,7 +99,7 @@ func TestPostChatsStartsRunning(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -133,7 +133,7 @@ func TestArchiveChatStateTransitions(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		_ = createChatModel(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
@@ -157,7 +157,7 @@ func TestArchiveChatStateTransitions(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t, withChatWorkerDisabled)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		_ = createChatModel(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
@@ -183,7 +183,7 @@ func TestPostChatMessagesBusyInterrupt(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newChatClient(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -219,7 +219,7 @@ func TestDeleteChatQueuedMessageMissingReturns404(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newChatClient(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -254,7 +254,7 @@ func TestDeleteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newChatClient(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -282,7 +282,7 @@ func TestPromoteChatQueuedMessageMissingReturns404(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newChatClient(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -316,7 +316,7 @@ func TestPromoteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newChatClient(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -345,7 +345,7 @@ func TestInterruptChatIdleReturnsConflict(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -367,7 +367,7 @@ func TestSubmitToolResultsWrongStateReturnsConflict(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newChatClient(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -395,7 +395,7 @@ func TestSubmitToolResultsRequiresActionSucceeds(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 
 	dynamicTools := []codersdk.DynamicTool{{
 		Name:        "echo",
@@ -447,7 +447,7 @@ func TestPatchChatArchiveChildRejected(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, db, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	modelConfig := createChatModelConfig(t, client)
+	modelConfig := createChatModel(t, client)
 
 	root, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -497,7 +497,7 @@ func TestPatchChatUnarchiveChildRejected(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, db, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	modelConfig := createChatModelConfig(t, client)
+	modelConfig := createChatModel(t, client)
 
 	root, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -556,7 +556,7 @@ func TestPatchChatArchiveRootRollsBackWhenChildCannotArchive(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, db, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	modelConfig := createChatModelConfig(t, client)
+	modelConfig := createChatModel(t, client)
 
 	root, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -596,7 +596,7 @@ func TestPostChatMessagesInvalidStateReturnsSharedResponse(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, _, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -629,7 +629,7 @@ func TestPostChatToolResultsInvalidStateReturnsSharedResponse(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, _, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -663,7 +663,7 @@ func TestReconcileInvalidChatStateSucceeds(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, db, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -703,7 +703,7 @@ func TestReconcileInvalidChatStateNotInvalidReturnsConflict(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newChatClient(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 
 	// A freshly created chat starts in the valid running state (R0).
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{

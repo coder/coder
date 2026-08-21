@@ -97,7 +97,7 @@ export const ModelFormFields: FC<{
 	isEditing: boolean;
 	isSaving: boolean;
 	canSubmit: boolean;
-	initialModel?: TypesGen.ChatModelConfig;
+	initialModel?: TypesGen.ChatModel;
 	modelField: FormHelpers;
 	contextLimitField: FormHelpers;
 	compressionThresholdField: FormHelpers;

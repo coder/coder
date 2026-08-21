@@ -78,8 +78,8 @@ var AllChatAttachmentMediaTypes = []ChatAttachmentMediaType{
 
 // CompactionThresholdKey returns the user-config key for a specific
 // model configuration's compaction threshold.
-func CompactionThresholdKey(modelConfigID uuid.UUID) string {
-	return ChatCompactionThresholdKeyPrefix + modelConfigID.String()
+func CompactionThresholdKey(modelID uuid.UUID) string {
+	return ChatCompactionThresholdKeyPrefix + modelID.String()
 }
 
 // ChatStatus represents the status of a chat.
@@ -722,8 +722,10 @@ const (
 	ChatModelProviderUnavailableReasonUserAPIKeyRequired ChatModelProviderUnavailableReason = "user_api_key_required"
 )
 
-// ChatModel represents a model in the chat model catalog.
-type ChatModel struct {
+// ChatModelCatalogEntry is a discovery catalog entry for end users.
+// Its ID is a synthetic provider:model value, not the UUID in ChatModel.ID.
+// It is not an admin-managed record. See ChatModel.
+type ChatModelCatalogEntry struct {
 	ID          string `json:"id"`
 	Provider    string `json:"provider"`
 	Model       string `json:"model"`
@@ -735,11 +737,12 @@ type ChatModelProvider struct {
 	Provider          string                             `json:"provider"`
 	Available         bool                               `json:"available"`
 	UnavailableReason ChatModelProviderUnavailableReason `json:"unavailable_reason,omitempty"`
-	Models            []ChatModel                        `json:"models"`
+	Models            []ChatModelCatalogEntry            `json:"models"`
 }
 
-// ChatModelsResponse is the catalog returned from chat model discovery.
-type ChatModelsResponse struct {
+// ChatModelAvailabilityResponse groups the discovery catalog by provider and
+// reports provider availability.
+type ChatModelAvailabilityResponse struct {
 	Providers []ChatModelProvider `json:"providers"`
 	// UnsupportedProviders lists configured providers the Agents harness
 	// cannot use, so the UI can explain the empty state.
@@ -938,11 +941,11 @@ type AdvisorConfig struct {
 	// MaxOutputTokens caps the advisor model response tokens. 0 means
 	// use the runtime default.
 	MaxOutputTokens int64 `json:"max_output_tokens"`
-	// ModelConfigID selects a specific chat model config to power the
+	// ModelConfigID selects a specific admin-managed ChatModel to power the
 	// advisor. uuid.Nil means reuse the outer chat model. The runtime
 	// must fall back to the outer chat model when this ID cannot be
-	// resolved (e.g. the referenced model config was soft-deleted or
-	// its provider was disabled after the admin saved this config).
+	// resolved, such as when the referenced ChatModel was soft-deleted or
+	// its provider was disabled after the admin saved this configuration.
 	ModelConfigID uuid.UUID `json:"model_config_id" format:"uuid"`
 	// ReasoningEffort overrides the selected advisor model's configured default.
 	// It requires a non-zero ModelConfigID.
@@ -1315,8 +1318,9 @@ type CreateUserChatProviderKeyRequest struct {
 	APIKey string `json:"api_key"`
 }
 
-// ChatModelConfig is an admin-managed model configuration.
-type ChatModelConfig struct {
+// ChatModel is an admin-managed model record for an organization.
+// It is not a discovery catalog entry. See ChatModelCatalogEntry.
+type ChatModel struct {
 	ID                   uuid.UUID            `json:"id" format:"uuid"`
 	AIProviderID         uuid.UUID            `json:"ai_provider_id" format:"uuid"`
 	Model                string               `json:"model"`
@@ -1547,8 +1551,11 @@ func (c *ChatModelCallConfig) UnmarshalStrict(data []byte) error {
 	return nil
 }
 
-// CreateChatModelConfigRequest creates a chat model config.
-type CreateChatModelConfigRequest struct {
+// CreateChatModelRequest is the request body for an organization-scoped
+// ChatModel. AIProviderID, Model, and a positive ContextLimit are required.
+// Enabled defaults to true. IsDefault defaults to false. CompressionThreshold
+// defaults to 70. An omitted ModelConfig uses the provider defaults.
+type CreateChatModelRequest struct {
 	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name,omitempty"`
@@ -1559,8 +1566,10 @@ type CreateChatModelConfigRequest struct {
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 }
 
-// UpdateChatModelConfigRequest updates a chat model config.
-type UpdateChatModelConfigRequest struct {
+// UpdateChatModelRequest updates a ChatModel. Empty Model and DisplayName
+// values preserve the stored values. Nil pointer fields preserve their stored
+// values. This request cannot clear DisplayName.
+type UpdateChatModelRequest struct {
 	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model,omitempty"`
 	DisplayName          string               `json:"display_name,omitempty"`
@@ -2019,18 +2028,18 @@ func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptio
 	return chats, ReadBodyAsJSON(res, &chats)
 }
 
-// ListChatModels returns the available chat model catalog.
-func (c *ExperimentalClient) ListChatModels(ctx context.Context) (ChatModelsResponse, error) {
+// ChatModelAvailability returns the discovery catalog and provider availability.
+func (c *ExperimentalClient) ChatModelAvailability(ctx context.Context) (ChatModelAvailabilityResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/models", nil)
 	if err != nil {
-		return ChatModelsResponse{}, err
+		return ChatModelAvailabilityResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatModelsResponse{}, ReadBodyAsError(res)
+		return ChatModelAvailabilityResponse{}, ReadBodyAsError(res)
 	}
 
-	var catalog ChatModelsResponse
+	var catalog ChatModelAvailabilityResponse
 	return catalog, ReadBodyAsJSON(res, &catalog)
 }
 
@@ -2178,8 +2187,8 @@ func (c *ExperimentalClient) DeleteUserChatProviderKey(ctx context.Context, prov
 	return nil
 }
 
-// ListChatModelConfigs returns admin-managed chat model configs.
-func (c *ExperimentalClient) ListChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
+// ChatModels returns admin-managed chat model records.
+func (c *ExperimentalClient) ChatModels(ctx context.Context) ([]ChatModel, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/model-configs", nil)
 	if err != nil {
 		return nil, err
@@ -2189,43 +2198,43 @@ func (c *ExperimentalClient) ListChatModelConfigs(ctx context.Context) ([]ChatMo
 		return nil, ReadBodyAsError(res)
 	}
 
-	var configs []ChatModelConfig
-	return configs, ReadBodyAsJSON(res, &configs)
+	var models []ChatModel
+	return models, ReadBodyAsJSON(res, &models)
 }
 
-// CreateChatModelConfig creates an admin-managed chat model config.
-func (c *ExperimentalClient) CreateChatModelConfig(ctx context.Context, req CreateChatModelConfigRequest) (ChatModelConfig, error) {
+// CreateChatModel creates an admin-managed ChatModel.
+func (c *ExperimentalClient) CreateChatModel(ctx context.Context, req CreateChatModelRequest) (ChatModel, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/model-configs", req)
 	if err != nil {
-		return ChatModelConfig{}, err
+		return ChatModel{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return ChatModelConfig{}, ReadBodyAsError(res)
+		return ChatModel{}, ReadBodyAsError(res)
 	}
 
-	var config ChatModelConfig
-	return config, ReadBodyAsJSON(res, &config)
+	var model ChatModel
+	return model, ReadBodyAsJSON(res, &model)
 }
 
-// UpdateChatModelConfig updates an admin-managed chat model config.
-func (c *ExperimentalClient) UpdateChatModelConfig(ctx context.Context, modelConfigID uuid.UUID, req UpdateChatModelConfigRequest) (ChatModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelConfigID), req)
+// UpdateChatModel updates an admin-managed ChatModel.
+func (c *ExperimentalClient) UpdateChatModel(ctx context.Context, modelID uuid.UUID, req UpdateChatModelRequest) (ChatModel, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelID), req)
 	if err != nil {
-		return ChatModelConfig{}, err
+		return ChatModel{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatModelConfig{}, ReadBodyAsError(res)
+		return ChatModel{}, ReadBodyAsError(res)
 	}
 
-	var config ChatModelConfig
-	return config, ReadBodyAsJSON(res, &config)
+	var model ChatModel
+	return model, ReadBodyAsJSON(res, &model)
 }
 
-// DeleteChatModelConfig deletes an admin-managed chat model config.
-func (c *ExperimentalClient) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelConfigID), nil)
+// DeleteChatModel deletes an admin-managed ChatModel.
+func (c *ExperimentalClient) DeleteChatModel(ctx context.Context, modelID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelID), nil)
 	if err != nil {
 		return err
 	}
@@ -2613,8 +2622,8 @@ func (c *ExperimentalClient) GetUserChatCompactionThresholds(ctx context.Context
 
 // UpdateUserChatCompactionThreshold updates the user's per-model chat
 // compaction threshold.
-func (c *ExperimentalClient) UpdateUserChatCompactionThreshold(ctx context.Context, modelConfigID uuid.UUID, req UpdateUserChatCompactionThresholdRequest) (UserChatCompactionThreshold, error) {
-	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/config/user-compaction-thresholds/%s", modelConfigID), req)
+func (c *ExperimentalClient) UpdateUserChatCompactionThreshold(ctx context.Context, modelID uuid.UUID, req UpdateUserChatCompactionThresholdRequest) (UserChatCompactionThreshold, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/config/user-compaction-thresholds/%s", modelID), req)
 	if err != nil {
 		return UserChatCompactionThreshold{}, err
 	}
@@ -2628,8 +2637,8 @@ func (c *ExperimentalClient) UpdateUserChatCompactionThreshold(ctx context.Conte
 
 // DeleteUserChatCompactionThreshold deletes the user's per-model chat
 // compaction threshold override.
-func (c *ExperimentalClient) DeleteUserChatCompactionThreshold(ctx context.Context, modelConfigID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/config/user-compaction-thresholds/%s", modelConfigID), nil)
+func (c *ExperimentalClient) DeleteUserChatCompactionThreshold(ctx context.Context, modelID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/config/user-compaction-thresholds/%s", modelID), nil)
 	if err != nil {
 		return err
 	}
