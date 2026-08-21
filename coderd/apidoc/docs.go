@@ -15206,7 +15206,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636. This is a public client's only proof of possession.",
+                        "description": "PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636.",
                         "name": "code_verifier",
                         "in": "formData"
                     },

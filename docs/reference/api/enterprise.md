@@ -5276,7 +5276,7 @@ grant_type: authorization_code
 | `» client_id`     | body | string | false    | Client ID, required if grant_type=authorization_code                                                                                                      |
 | `» client_secret` | body | string | false    | Client secret, required if grant_type=authorization_code and the client is confidential. Public clients (token_endpoint_auth_method=none) send no secret. |
 | `» code`          | body | string | false    | Authorization code, required if grant_type=authorization_code                                                                                             |
-| `» code_verifier` | body | string | false    | PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636. This is a public client's only proof of possession.        |
+| `» code_verifier` | body | string | false    | PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636.                                                            |
 | `» refresh_token` | body | string | false    | Refresh token, required if grant_type=refresh_token                                                                                                       |
 | `» grant_type`    | body | string | true     | Grant type                                                                                                                                                |
 
