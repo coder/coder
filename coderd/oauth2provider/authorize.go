@@ -102,7 +102,7 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 //	allowlist  request  result
 //	absent     absent   ApiKeyScopeCoderAll, the pre-enforcement grant
 //	absent     present  the request, which is narrower than unrestricted
-//	present    absent   the whole allowlist (RFC 6749 §3.3 default)
+//	present    absent   the allowlist, catalog-filtered (RFC 6749 §3.3 default)
 //	present    present  the request, once shown to be within the allowlist
 //
 // An allowlist is absent when NULL or empty, which noScopeAllowlist treats as
@@ -490,8 +490,10 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 				StateHash:           hashOAuth2State(params.state),
 				RedirectUri:         sql.NullString{String: params.redirectURL.String(), Valid: params.redirectURIProvided},
 				// The negotiated scope, not the requested one: it has been
-				// checked against the scope catalog and the app's allowlist,
-				// and it is what the token minted from this code will carry.
+				// checked against the scope catalog and the app's allowlist.
+				// The exchange copies it onto the token row but does not yet
+				// put it on the API key it mints, so what is recorded here is
+				// what was agreed, not yet what is enforced.
 				Scope: grantedScope,
 			})
 			if err != nil {

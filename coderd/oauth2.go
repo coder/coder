@@ -120,7 +120,7 @@ func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Param state query string true "A random unguessable string"
 // @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
 // @Param redirect_uri query string false "Redirect here after authorization"
-// @Param scope query string false "Space-separated scopes to request. Must be within the app's configured scope allowlist; defaults to that allowlist when omitted"
+// @Param scope query string false "Space-separated scopes to request. Each must be a scope this deployment supports, and the app's scope allowlist, when it has one, must cover the permissions requested rather than list each name. When omitted, defaults to that allowlist, or to coder:all for an app with no allowlist"
 // @Success 200 "Returns HTML authorization page"
 // @Router /oauth2/authorize [get]
 func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
@@ -135,7 +135,7 @@ func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Param state query string true "A random unguessable string"
 // @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
 // @Param redirect_uri query string false "Redirect here after authorization"
-// @Param scope query string false "Space-separated scopes to request. Must be within the app's configured scope allowlist; defaults to that allowlist when omitted"
+// @Param scope query string false "Space-separated scopes to request. Each must be a scope this deployment supports, and the app's scope allowlist, when it has one, must cover the permissions requested rather than list each name. When omitted, defaults to that allowlist, or to coder:all for an app with no allowlist"
 // @Success 302 "Returns redirect with authorization code"
 // @Router /oauth2/authorize [post]
 func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
