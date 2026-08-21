@@ -3616,18 +3616,18 @@ func (mr *MockStoreMockRecorder) GetDatabaseNow(ctx any) *gomock.Call {
 }
 
 // GetDefaultChatModelConfig mocks base method.
-func (m *MockStore) GetDefaultChatModelConfig(ctx context.Context) (database.ChatModelConfig, error) {
+func (m *MockStore) GetDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (database.ChatModelConfig, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDefaultChatModelConfig", ctx)
+	ret := m.ctrl.Call(m, "GetDefaultChatModelConfig", ctx, organizationID)
 	ret0, _ := ret[0].(database.ChatModelConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetDefaultChatModelConfig indicates an expected call of GetDefaultChatModelConfig.
-func (mr *MockStoreMockRecorder) GetDefaultChatModelConfig(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetDefaultChatModelConfig(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDefaultChatModelConfig", reflect.TypeOf((*MockStore)(nil).GetDefaultChatModelConfig), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDefaultChatModelConfig", reflect.TypeOf((*MockStore)(nil).GetDefaultChatModelConfig), ctx, organizationID)
 }
 
 // GetDefaultOrganization mocks base method.
@@ -3763,6 +3763,21 @@ func (m *MockStore) GetEnabledChatModelConfigs(ctx context.Context) ([]database.
 func (mr *MockStoreMockRecorder) GetEnabledChatModelConfigs(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledChatModelConfigs", reflect.TypeOf((*MockStore)(nil).GetEnabledChatModelConfigs), ctx)
+}
+
+// GetEnabledChatModelConfigsByOrganization mocks base method.
+func (m *MockStore) GetEnabledChatModelConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.GetEnabledChatModelConfigsByOrganizationRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetEnabledChatModelConfigsByOrganization", ctx, organizationID)
+	ret0, _ := ret[0].([]database.GetEnabledChatModelConfigsByOrganizationRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetEnabledChatModelConfigsByOrganization indicates an expected call of GetEnabledChatModelConfigsByOrganization.
+func (mr *MockStoreMockRecorder) GetEnabledChatModelConfigsByOrganization(ctx, organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledChatModelConfigsByOrganization", reflect.TypeOf((*MockStore)(nil).GetEnabledChatModelConfigsByOrganization), ctx, organizationID)
 }
 
 // GetEnabledMCPServerConfigsByOrganization mocks base method.
@@ -9793,17 +9808,17 @@ func (mr *MockStoreMockRecorder) UnpinChatByID(ctx, id any) *gomock.Call {
 }
 
 // UnsetDefaultChatModelConfigs mocks base method.
-func (m *MockStore) UnsetDefaultChatModelConfigs(ctx context.Context) error {
+func (m *MockStore) UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UnsetDefaultChatModelConfigs", ctx)
+	ret := m.ctrl.Call(m, "UnsetDefaultChatModelConfigs", ctx, organizationID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UnsetDefaultChatModelConfigs indicates an expected call of UnsetDefaultChatModelConfigs.
-func (mr *MockStoreMockRecorder) UnsetDefaultChatModelConfigs(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) UnsetDefaultChatModelConfigs(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnsetDefaultChatModelConfigs", reflect.TypeOf((*MockStore)(nil).UnsetDefaultChatModelConfigs), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnsetDefaultChatModelConfigs", reflect.TypeOf((*MockStore)(nil).UnsetDefaultChatModelConfigs), ctx, organizationID)
 }
 
 // UpdateAIBridgeInterceptionEnded mocks base method.

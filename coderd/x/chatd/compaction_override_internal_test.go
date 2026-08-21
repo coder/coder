@@ -17,6 +17,28 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestResolveCompactionOverrideConfig_ForeignConfigFallsBack(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, _ := titleOverrideTestChatAndMessages(t)
+	chat.OrganizationID = uuid.New()
+	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
+	overrideConfig.OrganizationID = uuid.New()
+	overrideConfig.AIProviderID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
+
+	db.EXPECT().GetChatCompactionModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
+
+	server := titleOverrideTestServer(db, logger)
+	override, err := server.resolveCompactionOverrideConfig(ctx, chat)
+	require.NoError(t, err)
+	require.Nil(t, override)
+}
+
 func TestResolveCompactionOverrideConfig_Unset(t *testing.T) {
 	t.Parallel()
 

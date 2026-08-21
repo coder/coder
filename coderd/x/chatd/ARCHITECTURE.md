@@ -418,6 +418,10 @@ EXECUTE FUNCTION sync_chat_retry_state();
 
 ## HTTP endpoints
 
+<!-- TODO(CODAGT-709): Document organization-scoped model discovery here. -->
+
+<!-- TODO(CODAGT-709): Document organization-scoped model-config write serialization here. -->
+
 This section maps the public endpoints that mutate chat state to the transitions they use.
 
 ### `POST /api/experimental/chats`
@@ -596,6 +600,8 @@ There are 2 notification channels:
 - Every receiver tracks the highest `snapshot_version` it has processed per chat. Notifications with `snapshot_version` less than or equal to that watermark are discarded.
 
 # Chat worker
+
+<!-- TODO(CODAGT-709): Document organization-local model selection and fallback here. -->
 
 A chat worker lives inside every coderd replica. It acquires chats, calls the LLM API, executes tools, handles interrupts and tool-result waits, and commits completed outcomes through the core state machine.
 

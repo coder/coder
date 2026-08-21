@@ -266,6 +266,14 @@ func (p *Server) resolveAdvisorModelOverride(
 		ctx,
 		advisorCfg.ModelConfigID,
 	)
+	if err == nil && overrideConfig.OrganizationID != chat.OrganizationID {
+		logger.Warn(
+			ctx,
+			"advisor model config belongs to another organization, continuing with chat model",
+			slog.F("model_config_id", advisorCfg.ModelConfigID),
+		)
+		return resolvedModelCall{}, false, nil
+	}
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			logger.Warn(
@@ -1071,7 +1079,7 @@ var (
 	ErrChatArchived = xerrors.New("chat is archived")
 	// ErrNoDefaultChatModelConfig indicates no default chat model config
 	// is configured, so chatd cannot resolve a model for the request.
-	ErrNoDefaultChatModelConfig = xerrors.New("no default chat model config is configured")
+	ErrNoDefaultChatModelConfig = chatstate.ErrNoDefaultChatModelConfig
 	// ErrNothingToCompact indicates a manual compaction request found
 	// no uncompressed conversation after the latest compaction
 	// boundary, so running a compaction would produce nothing.
@@ -1262,7 +1270,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
 
 	if opts.ModelConfigID != uuid.Nil {
-		if err := requireEnabledChatModelConfig(ctx, p.db, opts.ModelConfigID); err != nil {
+		if err := requireEnabledChatModelConfig(ctx, p.db, opts.OrganizationID, opts.ModelConfigID); err != nil {
 			return database.Chat{}, err
 		}
 	}
@@ -1276,7 +1284,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	contentParts := opts.InitialUserContent
 	if p.hooks.Enabled() {
 		// Validate model admission before dispatch, matching the insert path.
-		if err := validateCreateModelConfigID(ctx, p.db, opts.ModelConfigID); err != nil {
+		if err := validateCreateModelConfigID(ctx, p.db, opts.OrganizationID, opts.ModelConfigID); err != nil {
 			return database.Chat{}, err
 		}
 		turnID := uuid.New()
@@ -1584,63 +1592,81 @@ func resolveSendMessageModelConfigID(
 	requested uuid.UUID,
 ) (uuid.UUID, error) {
 	if requested == uuid.Nil {
-		return resolveFallbackModelConfigID(ctx, store, chat.LastModelConfigID)
+		return resolveFallbackModelConfigID(ctx, store, chat.OrganizationID, chat.LastModelConfigID)
 	}
 
-	if err := requireEnabledChatModelConfig(ctx, store, requested); err != nil {
+	if err := requireEnabledChatModelConfig(ctx, store, chat.OrganizationID, requested); err != nil {
 		return uuid.Nil, err
 	}
 	return requested, nil
 }
 
-// requireEnabledChatModelConfig rechecks enabled state inside the daemon:
-// the coderd preflight can race an admin disabling the model or provider.
+// requireEnabledChatModelConfig rechecks enabled state inside the daemon.
+// The coderd preflight can race an admin disabling the model or provider.
 func requireEnabledChatModelConfig(
 	ctx context.Context,
 	store database.Store,
+	organizationID uuid.UUID,
 	modelConfigID uuid.UUID,
 ) error {
 	chatdCtx := chatdModelConfigLookupContext(ctx)
-	if _, err := store.GetEnabledChatModelConfigByID(chatdCtx, modelConfigID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf(
-				"%w: %s",
-				ErrInvalidModelConfigID,
-				modelConfigID,
-			)
+	config, err := store.GetEnabledChatModelConfigByID(chatdCtx, modelConfigID)
+	if err == nil {
+		if config.OrganizationID == organizationID {
+			return nil
 		}
+		err = sql.ErrNoRows
+	}
+	if errors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf(
-			"get requested model config %s: %w",
+			"%w: %s",
+			ErrInvalidModelConfigID,
 			modelConfigID,
-			err,
 		)
 	}
-	return nil
+	return xerrors.Errorf(
+		"get requested model config %s: %w",
+		modelConfigID,
+		err,
+	)
 }
 
-func validateCreateModelConfigID(ctx context.Context, store database.Store, modelConfigID uuid.UUID) error {
+func validateCreateModelConfigID(
+	ctx context.Context,
+	store database.Store,
+	organizationID uuid.UUID,
+	modelConfigID uuid.UUID,
+) error {
 	if modelConfigID == uuid.Nil {
 		return xerrors.Errorf("%w: %s", ErrInvalidModelConfigID, modelConfigID)
 	}
 	chatdCtx := chatdModelConfigLookupContext(ctx)
-	if _, err := store.GetChatModelConfigByID(chatdCtx, modelConfigID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("%w: %s", ErrInvalidModelConfigID, modelConfigID)
+	config, err := store.GetChatModelConfigByID(chatdCtx, modelConfigID)
+	if err == nil {
+		if config.OrganizationID == organizationID {
+			return nil
 		}
-		return xerrors.Errorf("get requested model config %s: %w", modelConfigID, err)
+		err = sql.ErrNoRows
 	}
-	return nil
+	if errors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("%w: %s", ErrInvalidModelConfigID, modelConfigID)
+	}
+	return xerrors.Errorf("get requested model config %s: %w", modelConfigID, err)
 }
 
 func resolveFallbackModelConfigID(
 	ctx context.Context,
 	store database.Store,
+	organizationID uuid.UUID,
 	modelConfigID uuid.UUID,
 ) (uuid.UUID, error) {
 	chatdCtx := chatdModelConfigLookupContext(ctx)
 	if modelConfigID != uuid.Nil {
-		if _, err := store.GetEnabledChatModelConfigByID(chatdCtx, modelConfigID); err == nil {
-			return modelConfigID, nil
+		config, err := store.GetEnabledChatModelConfigByID(chatdCtx, modelConfigID)
+		if err == nil {
+			if config.OrganizationID == organizationID {
+				return modelConfigID, nil
+			}
 		} else if !errors.Is(err, sql.ErrNoRows) {
 			return uuid.Nil, xerrors.Errorf(
 				"get chat model config %s: %w",
@@ -1650,27 +1676,12 @@ func resolveFallbackModelConfigID(
 		}
 	}
 
-	defaultConfig, err := store.GetDefaultChatModelConfig(chatdCtx)
+	defaultConfig, err := effectiveDefaultChatModelConfig(chatdCtx, store, organizationID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return uuid.Nil, ErrNoDefaultChatModelConfig
 		}
 		return uuid.Nil, xerrors.Errorf("get default chat model config: %w", err)
-	}
-	// The default may itself be disabled or under a disabled provider.
-	if _, err := store.GetEnabledChatModelConfigByID(chatdCtx, defaultConfig.ID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return uuid.Nil, xerrors.Errorf(
-				"%w: default model config %s or its provider is disabled",
-				ErrNoDefaultChatModelConfig,
-				defaultConfig.ID,
-			)
-		}
-		return uuid.Nil, xerrors.Errorf(
-			"get default chat model config %s: %w",
-			defaultConfig.ID,
-			err,
-		)
 	}
 	return defaultConfig.ID, nil
 }
@@ -1678,12 +1689,13 @@ func resolveFallbackModelConfigID(
 func validateModelConfigOverride(
 	ctx context.Context,
 	store database.Store,
+	organizationID uuid.UUID,
 	requested uuid.UUID,
 ) (uuid.NullUUID, error) {
 	if requested == uuid.Nil {
 		return uuid.NullUUID{}, nil
 	}
-	if err := requireEnabledChatModelConfig(ctx, store, requested); err != nil {
+	if err := requireEnabledChatModelConfig(ctx, store, organizationID, requested); err != nil {
 		return uuid.NullUUID{}, err
 	}
 	return uuid.NullUUID{UUID: requested, Valid: true}, nil
@@ -1704,6 +1716,31 @@ func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.U
 		return ErrEditedMessageNotUser
 	}
 	return nil
+}
+
+func effectiveDefaultChatModelConfig(
+	ctx context.Context,
+	store database.Store,
+	organizationID uuid.UUID,
+) (database.ChatModelConfig, error) {
+	rows, err := store.GetEnabledChatModelConfigsByOrganization(ctx, organizationID)
+	if err != nil {
+		return database.ChatModelConfig{}, err
+	}
+	for _, row := range rows {
+		if row.ChatModelConfig.IsDefault {
+			return row.ChatModelConfig, nil
+		}
+	}
+	return database.ChatModelConfig{}, sql.ErrNoRows
+}
+
+func enabledChatModelConfigsForOrganization(
+	ctx context.Context,
+	store database.Store,
+	organizationID uuid.UUID,
+) ([]database.GetEnabledChatModelConfigsByOrganizationRow, error) {
+	return store.GetEnabledChatModelConfigsByOrganization(ctx, organizationID)
 }
 
 // EditMessage replaces an earlier user message and discards the
@@ -1739,7 +1776,7 @@ func (p *Server) EditMessage(
 		if err := validateEditTarget(ctx, p.db, opts.ChatID, opts.EditedMessageID); err != nil {
 			return EditMessageResult{}, err
 		}
-		if _, err := validateModelConfigOverride(ctx, p.db, opts.ModelConfigID); err != nil {
+		if _, err := validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID); err != nil {
 			return EditMessageResult{}, err
 		}
 		sessionStartHookResult, err = p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), chathooks.Message{Source: chathooks.SessionStartSourceClear}, agenthooks.EventSessionStart, dispatch.CapacityClassAdmission)
@@ -1799,7 +1836,7 @@ func (p *Server) EditMessage(
 		}
 		editedMsg = target
 
-		modelOverride, err := validateModelConfigOverride(ctx, store, opts.ModelConfigID)
+		modelOverride, err := validateModelConfigOverride(ctx, store, lockedChat.OrganizationID, opts.ModelConfigID)
 		if err != nil {
 			return err
 		}
@@ -1811,7 +1848,7 @@ func (p *Server) EditMessage(
 			if target.ModelConfigID.Valid {
 				preserved = target.ModelConfigID.UUID
 			}
-			resolved, err := resolveFallbackModelConfigID(ctx, store, preserved)
+			resolved, err := resolveFallbackModelConfigID(ctx, store, lockedChat.OrganizationID, preserved)
 			if err != nil {
 				return err
 			}
@@ -2722,6 +2759,9 @@ func (p *Server) resolveManualTitleModel(
 		modelOpts,
 	)
 	if overrideErr != nil {
+		if errors.Is(overrideErr, errModelConfigOutsideOrganization) {
+			return p.resolveDefaultManualTitleModel(ctx, chat, modelOpts)
+		}
 		if overrideSet {
 			return resolvedModelCall{}, xerrors.Errorf(
 				"resolve manual title generation model override: %w",
@@ -2736,7 +2776,7 @@ func (p *Server) resolveManualTitleModel(
 		return overrideResolved, nil
 	}
 
-	configs, err := store.GetEnabledChatModelConfigs(ctx)
+	configs, err := enabledChatModelConfigsForOrganization(ctx, store, chat.OrganizationID)
 	if err != nil {
 		p.logger.Debug(ctx, "failed to list manual title model configs",
 			slog.F("chat_id", chat.ID),
@@ -2763,6 +2803,36 @@ func (p *Server) resolveManualTitleModel(
 			slog.Error(err),
 		)
 		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
+	}
+	return resolved, nil
+}
+
+func (p *Server) resolveDefaultManualTitleModel(
+	ctx context.Context,
+	chat database.Chat,
+	modelOpts modelBuildOptions,
+) (resolvedModelCall, error) {
+	config, err := p.configCache.DefaultModelConfig(ctx, chat.OrganizationID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return resolvedModelCall{}, ErrNoDefaultChatModelConfig
+		}
+		return resolvedModelCall{}, xerrors.Errorf(
+			"get default manual title model config: %w",
+			err,
+		)
+	}
+	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
+		purpose:        "title",
+		chat:           chat,
+		explicitConfig: &config,
+		buildOptions:   modelOpts,
+	})
+	if err != nil {
+		return resolvedModelCall{}, xerrors.Errorf(
+			"create default manual title model: %w",
+			err,
+		)
 	}
 	return resolved, nil
 }
@@ -4189,31 +4259,60 @@ func (p *Server) resolveUserProviderAPIKeys(
 	return keys, nil
 }
 
-// resolveModelConfig looks up the chat's model config by its
-// LastModelConfigID. If the referenced config no longer exists
-// (e.g. it was deleted), it falls back to the default model
-// config. Returns an error when no usable config is available.
+func (p *Server) resolveModelConfigForOrganization(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	modelConfigID uuid.UUID,
+) (database.ChatModelConfig, string, error) {
+	if modelConfigID == uuid.Nil {
+		return database.ChatModelConfig{}, "", sql.ErrNoRows
+	}
+	modelConfig, err := p.configCache.ModelConfigByID(ctx, modelConfigID)
+	if err != nil {
+		return database.ChatModelConfig{}, "", err
+	}
+	if modelConfig.OrganizationID != organizationID {
+		return database.ChatModelConfig{}, "", errModelConfigOutsideOrganization
+	}
+	return p.resolveNormalizedProviderForModelConfig(ctx, modelConfig)
+}
+
+// resolveModelConfig looks up the chat's enabled model config by its
+// LastModelConfigID. If the referenced config is unavailable or belongs to
+// another organization, it falls back to the local default model config.
+// Returns an error when no usable local config is available.
 func (p *Server) resolveModelConfig(
 	ctx context.Context,
 	chat database.Chat,
 ) (database.ChatModelConfig, error) {
 	if chat.LastModelConfigID != uuid.Nil {
-		modelConfig, err := p.configCache.ModelConfigByID(
-			ctx, chat.LastModelConfigID,
-		)
+		modelConfig, err := p.configCache.ModelConfigByID(ctx, chat.LastModelConfigID)
 		if err == nil {
-			return modelConfig, nil
-		}
-		if !xerrors.Is(err, sql.ErrNoRows) {
+			if modelConfig.Enabled && modelConfig.OrganizationID == chat.OrganizationID && modelConfig.AIProviderID.Valid {
+				provider, providerErr := p.db.GetAIProviderByID(
+					chatdModelConfigLookupContext(ctx),
+					modelConfig.AIProviderID.UUID,
+				)
+				switch {
+				case providerErr == nil && provider.Enabled:
+					return modelConfig, nil
+				case providerErr == nil, xerrors.Is(providerErr, sql.ErrNoRows):
+				default:
+					return database.ChatModelConfig{}, xerrors.Errorf(
+						"get AI provider %s: %w",
+						modelConfig.AIProviderID.UUID, providerErr,
+					)
+				}
+			}
+		} else if !xerrors.Is(err, sql.ErrNoRows) {
 			return database.ChatModelConfig{}, xerrors.Errorf(
 				"get chat model config %s: %w",
 				chat.LastModelConfigID, err,
 			)
 		}
-		// Model config was deleted, fall through to default.
 	}
 
-	defaultConfig, err := p.configCache.DefaultModelConfig(ctx)
+	defaultConfig, err := p.configCache.DefaultModelConfig(ctx, chat.OrganizationID)
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return database.ChatModelConfig{}, ErrNoDefaultChatModelConfig

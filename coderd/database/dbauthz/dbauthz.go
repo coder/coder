@@ -823,6 +823,9 @@ var (
 					// user's personal data; token writes use the per-user
 					// AsChatdTokenOwner subject instead.
 					rbac.ResourceUser.Type: {policy.ActionReadPersonal},
+					// TODO(mafredri): remove this organization read after CODAGT-709 M3.
+					// exp_chats and chatd use it for the pre-cutover default-org fallback.
+					rbac.ResourceOrganization.Type: {policy.ActionRead},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -3752,7 +3755,7 @@ func (q *querier) GetDatabaseNow(ctx context.Context) (time.Time, error) {
 	return q.db.GetDatabaseNow(ctx)
 }
 
-func (q *querier) GetDefaultChatModelConfig(ctx context.Context) (database.ChatModelConfig, error) {
+func (q *querier) GetDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (database.ChatModelConfig, error) {
 	// Reading the default model config is needed for chat creation.
 	// TODO(CODAGT-161): scope this check when org context is available.
 	// This function has no org context to scope the check, and
@@ -3762,7 +3765,7 @@ func (q *querier) GetDefaultChatModelConfig(ctx context.Context) (database.ChatM
 	if _, ok := ActorFromContext(ctx); !ok {
 		return database.ChatModelConfig{}, ErrNoActor
 	}
-	return q.db.GetDefaultChatModelConfig(ctx)
+	return q.db.GetDefaultChatModelConfig(ctx, organizationID)
 }
 
 func (q *querier) GetDefaultOrganization(ctx context.Context) (database.Organization, error) {
@@ -3809,6 +3812,14 @@ func (q *querier) GetEnabledChatModelConfigs(ctx context.Context) ([]database.Ge
 		return nil, err
 	}
 	return q.db.GetEnabledChatModelConfigs(ctx)
+}
+
+func (q *querier) GetEnabledChatModelConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.GetEnabledChatModelConfigsByOrganizationRow, error) {
+	// TODO(CODAGT-161): authorize against an organization-scoped chat model config resource.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetEnabledChatModelConfigsByOrganization(ctx, organizationID)
 }
 
 func (q *querier) GetEnabledMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
@@ -7303,11 +7314,11 @@ func (q *querier) UnpinChatByID(ctx context.Context, id uuid.UUID) error {
 	return q.db.UnpinChatByID(ctx, id)
 }
 
-func (q *querier) UnsetDefaultChatModelConfigs(ctx context.Context) error {
+func (q *querier) UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.UnsetDefaultChatModelConfigs(ctx)
+	return q.db.UnsetDefaultChatModelConfigs(ctx, organizationID)
 }
 
 func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, params database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error) {

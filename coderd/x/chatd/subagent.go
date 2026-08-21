@@ -56,7 +56,10 @@ type subagentStatusError struct {
 
 func (e *subagentStatusError) Error() string { return e.reason }
 
-var errInvalidModelOverrideMetadata = xerrors.New("invalid model override metadata")
+var (
+	errInvalidModelOverrideMetadata   = xerrors.New("invalid model override metadata")
+	errModelConfigOutsideOrganization = xerrors.Errorf("%w: model config belongs to another organization", sql.ErrNoRows)
+)
 
 type modelOverrideConfigResolver func(
 	context.Context,
@@ -218,11 +221,12 @@ func (p *Server) resolveConfiguredModelOverride(
 		if failureMode == modelOverrideFailureModeHard {
 			label := modelOverrideErrorLabel(overrideContext)
 			switch {
-			case errors.Is(err, sql.ErrNoRows):
+			case errors.Is(err, sql.ErrNoRows), errors.Is(err, errModelConfigOutsideOrganization):
 				return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
-					"%s model override is unavailable: %s",
+					"%s model override is unavailable: %s: %w",
 					label,
 					parsed.modelConfigID,
+					err,
 				)
 			case errors.Is(err, errInvalidModelOverrideMetadata):
 				return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
@@ -242,6 +246,12 @@ func (p *Server) resolveConfiguredModelOverride(
 		}
 
 		switch {
+		case errors.Is(err, errModelConfigOutsideOrganization):
+			p.logger.Info(ctx,
+				"model override belongs to another organization, ignoring",
+				slog.F("override_context", overrideContext),
+				slog.F("model_config_id", parsed.modelConfigID),
+			)
 		case errors.Is(err, sql.ErrNoRows):
 			p.logger.Info(ctx,
 				"model override is unavailable, ignoring",
@@ -296,6 +306,7 @@ func (p *Server) resolveConfiguredModelOverride(
 func (p *Server) resolvePersonalSubagentModelConfigID(
 	ctx context.Context,
 	ownerID uuid.UUID,
+	organizationID uuid.UUID,
 	overrideContext codersdk.ChatModelOverrideContext,
 ) (uuid.UUID, *string, bool, error) {
 	personalContext, err := personalModelOverrideContextForSubagent(overrideContext)
@@ -326,7 +337,7 @@ func (p *Server) resolvePersonalSubagentModelConfigID(
 	)
 	if parsed.Malformed {
 		p.logger.Debug(ctx,
-			"personal model override is malformed, using deployment default",
+			"personal model override is malformed, using chat organization default",
 			slog.F("override_context", overrideContext),
 			slog.F("owner_id", ownerID),
 			slog.F("raw_model_config_id", strings.TrimSpace(raw)),
@@ -341,6 +352,7 @@ func (p *Server) resolvePersonalSubagentModelConfigID(
 			ctx,
 			overrideContext,
 			ownerID,
+			organizationID,
 			parsed.ModelConfigID,
 		)
 		if err != nil {
@@ -351,7 +363,7 @@ func (p *Server) resolvePersonalSubagentModelConfigID(
 		}
 	default:
 		p.logger.Warn(ctx,
-			"unsupported personal model override mode, using deployment default",
+			"unsupported personal model override mode, using chat organization default",
 			slog.F("override_context", overrideContext),
 			slog.F("owner_id", ownerID),
 			slog.F("mode", parsed.Mode),
@@ -365,24 +377,33 @@ func (p *Server) resolvePersonalModelOverride(
 	ctx context.Context,
 	overrideContext codersdk.ChatModelOverrideContext,
 	ownerID uuid.UUID,
+	organizationID uuid.UUID,
 	modelConfigID uuid.UUID,
 ) (database.ChatModelConfig, bool, error) {
-	modelConfig, providerName, err := p.resolveModelConfigAndNormalizedProvider(
+	modelConfig, providerName, err := p.resolveModelConfigForOrganization(
 		ctx,
+		organizationID,
 		modelConfigID,
 	)
 	if err != nil {
 		switch {
+		case errors.Is(err, errModelConfigOutsideOrganization):
+			p.logger.Debug(ctx,
+				"personal model override belongs to another organization, using chat organization default",
+				slog.F("override_context", overrideContext),
+				slog.F("owner_id", ownerID),
+				slog.F("model_config_id", modelConfigID),
+			)
 		case xerrors.Is(err, sql.ErrNoRows):
 			p.logger.Debug(ctx,
-				"personal model override is unavailable, using deployment default",
+				"personal model override is unavailable, using chat organization default",
 				slog.F("override_context", overrideContext),
 				slog.F("owner_id", ownerID),
 				slog.F("model_config_id", modelConfigID),
 			)
 		case errors.Is(err, errInvalidModelOverrideMetadata):
 			p.logger.Debug(ctx,
-				"personal model override metadata is invalid, using deployment default",
+				"personal model override metadata is invalid, using chat organization default",
 				slog.F("override_context", overrideContext),
 				slog.F("owner_id", ownerID),
 				slog.F("model_config_id", modelConfigID),
@@ -390,7 +411,7 @@ func (p *Server) resolvePersonalModelOverride(
 			)
 		default:
 			p.logger.Warn(ctx,
-				"failed to resolve personal model override, using deployment default",
+				"failed to resolve personal model override, using chat organization default",
 				slog.F("override_context", overrideContext),
 				slog.F("owner_id", ownerID),
 				slog.F("model_config_id", modelConfigID),
@@ -408,7 +429,7 @@ func (p *Server) resolvePersonalModelOverride(
 	}
 	if !userCanUseProviderKeys(providerKeys, providerName) {
 		p.logger.Debug(ctx,
-			"personal model override credentials are unavailable, using deployment default",
+			"personal model override credentials are unavailable, using chat organization default",
 			slog.F("override_context", overrideContext),
 			slog.F("owner_id", ownerID),
 			slog.F("model_config_id", modelConfigID),
@@ -422,6 +443,7 @@ func (p *Server) resolvePersonalModelOverride(
 func (p *Server) resolveSubagentModelConfigID(
 	ctx context.Context,
 	ownerID uuid.UUID,
+	organizationID uuid.UUID,
 	overrideContext codersdk.ChatModelOverrideContext,
 ) (uuid.UUID, *string, error) {
 	//nolint:gocritic // Chatd needs its scoped config and user-data access here.
@@ -437,6 +459,7 @@ func (p *Server) resolveSubagentModelConfigID(
 		modelConfigID, reasoningEffort, resolved, err := p.resolvePersonalSubagentModelConfigID(
 			chatdCtx,
 			ownerID,
+			organizationID,
 			overrideContext,
 		)
 		if err != nil {
@@ -460,7 +483,9 @@ func (p *Server) resolveSubagentModelConfigID(
 		string(overrideContext),
 		raw,
 		ownerID,
-		p.resolveModelConfigAndNormalizedProvider,
+		func(ctx context.Context, modelConfigID uuid.UUID) (database.ChatModelConfig, string, error) {
+			return p.resolveModelConfigForOrganization(ctx, organizationID, modelConfigID)
+		},
 		p.resolveUserProviderAPIKeys,
 		modelOverrideFailureModeSoft,
 	)
@@ -491,6 +516,13 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 	if err != nil {
 		return database.ChatModelConfig{}, "", err
 	}
+	return p.resolveNormalizedProviderForModelConfig(ctx, modelConfig)
+}
+
+func (p *Server) resolveNormalizedProviderForModelConfig(
+	ctx context.Context,
+	modelConfig database.ChatModelConfig,
+) (database.ChatModelConfig, string, error) {
 	if !modelConfig.Enabled {
 		return database.ChatModelConfig{}, "", sql.ErrNoRows
 	}
@@ -518,6 +550,7 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 func (p *Server) resolveExplicitSpawnOverrides(
 	ctx context.Context,
 	ownerID uuid.UUID,
+	organizationID uuid.UUID,
 	args spawnAgentArgs,
 ) (*uuid.UUID, *string, error) {
 	var explicitModelConfigID *uuid.UUID
@@ -531,8 +564,9 @@ func (p *Server) resolveExplicitSpawnOverrides(
 		}
 		//nolint:gocritic // Chatd needs its scoped config and user-data access here.
 		chatdCtx := dbauthz.AsChatd(ctx)
-		modelConfig, providerName, err := p.resolveModelConfigAndNormalizedProvider(
+		modelConfig, providerName, err := p.resolveModelConfigForOrganization(
 			chatdCtx,
+			organizationID,
 			modelConfigID,
 		)
 		if err != nil {
@@ -594,10 +628,11 @@ func (p *Server) resolveExplicitSpawnOverrides(
 func (p *Server) listSpawnableModelConfigs(
 	ctx context.Context,
 	ownerID uuid.UUID,
+	organizationID uuid.UUID,
 ) ([]map[string]any, error) {
 	//nolint:gocritic // Chatd needs its scoped config and user-data access here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	rows, err := p.db.GetEnabledChatModelConfigs(chatdCtx)
+	rows, err := enabledChatModelConfigsForOrganization(chatdCtx, p.db, organizationID)
 	if err != nil {
 		return nil, xerrors.Errorf("get enabled chat model configs: %w", err)
 	}
@@ -703,6 +738,7 @@ func (p *Server) subagentTools(
 				explicitModelConfigID, explicitReasoningEffort, err := p.resolveExplicitSpawnOverrides(
 					ctx,
 					parent.OwnerID,
+					parent.OrganizationID,
 					args,
 				)
 				if err != nil {
@@ -775,7 +811,7 @@ func (p *Server) subagentTools(
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
-				models, err := p.listSpawnableModelConfigs(ctx, parent.OwnerID)
+				models, err := p.listSpawnableModelConfigs(ctx, parent.OwnerID, parent.OrganizationID)
 				if err != nil {
 					p.logger.Warn(ctx, "failed to list spawnable model configs",
 						slog.F("chat_id", parent.ID),

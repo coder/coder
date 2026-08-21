@@ -117,9 +117,10 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	})
 	require.NoError(t, err)
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		Options:      modelConfigRaw,
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:          "gpt-4o-mini",
+		Options:        modelConfigRaw,
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
 	}, func(p *database.InsertChatModelConfigParams) {
 		p.Enabled = true
 	})
@@ -209,9 +210,10 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 	})
 	require.NoError(t, err)
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		Options:      modelConfigRaw,
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:          "gpt-4o-mini",
+		Options:        modelConfigRaw,
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
 	}, func(p *database.InsertChatModelConfigParams) {
 		p.Enabled = true
 	})
@@ -304,8 +306,9 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		Type: database.AIProviderTypeOpenai,
 	}, "test-key")
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:          "gpt-4o-mini",
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
 	}, func(p *database.InsertChatModelConfigParams) {
 		p.Enabled = true
 	})
@@ -385,9 +388,10 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:       "gpt-4o-mini",
-			DisplayName: "gpt-4o-mini",
-			Options:     json.RawMessage(`{"openai_config":{"use_responses_api":false}}`),
+			Model:          "gpt-4o-mini",
+			DisplayName:    "gpt-4o-mini",
+			Options:        json.RawMessage(`{"openai_config":{"use_responses_api":false}}`),
+			OrganizationID: org.ID,
 		}, func(p *database.InsertChatModelConfigParams) {
 			p.Enabled = true
 			p.IsDefault = true
@@ -504,9 +508,10 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		})
 		provider := insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "provider-api-key", false)
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        "gpt-4o-mini",
-			DisplayName:  "gpt-4o-mini",
-			AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+			Model:          "gpt-4o-mini",
+			DisplayName:    "gpt-4o-mini",
+			AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+			OrganizationID: org.ID,
 		})
 
 		created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
