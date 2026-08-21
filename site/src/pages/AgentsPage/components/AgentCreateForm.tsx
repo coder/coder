@@ -135,8 +135,6 @@ interface AgentCreateFormProps {
 	canCreateChat: boolean;
 	canConfigureAgentSetup: boolean;
 	aiGatewayDisabled?: boolean;
-	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
-	isPersonalModelOverridesLoading?: boolean;
 	workspaceCount: number | undefined;
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
@@ -151,7 +149,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	canCreateChat,
 	canConfigureAgentSetup,
 	aiGatewayDisabled,
-	rootPersonalModelOverride,
 	workspaceCount: _workspaceCount,
 	workspaceOptions,
 	workspacesError,
@@ -283,10 +280,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		? personalModelOverridesQuery.data.root
 		: undefined;
 	const effectiveRootPersonalModelOverride =
-		organizationRootPersonalModelOverride ?? rootPersonalModelOverride;
-	const isPersonalModelOverridesLoading =
-		personalModelOverridesQuery.isLoading &&
-		rootPersonalModelOverride === undefined;
+		organizationRootPersonalModelOverride;
+	const isPersonalModelOverridesLoading = personalModelOverridesQuery.isLoading;
 	const availableModelConfigs = modelsQuery.data?.models ?? [];
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
@@ -592,6 +587,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					)}
 					{modelsQuery.error != null && (
 						<ErrorAlert error={modelsQuery.error} />
+					)}
+					{mcpServersQuery.error != null && (
+						<ErrorAlert error={mcpServersQuery.error} />
 					)}
 					{organizationId !== "" &&
 						modelsQuery.data !== undefined &&

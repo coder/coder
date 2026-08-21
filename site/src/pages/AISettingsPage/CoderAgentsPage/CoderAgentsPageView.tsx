@@ -46,28 +46,6 @@ export interface CoderAgentsPageViewProps {
 	>;
 	isSavingComputerUseProvider: boolean;
 	computerUseProviderSaveError: Error | null;
-	generalModelOverrideData?: TypesGen.ChatModelOverrideResponse;
-	exploreModelOverrideData?: TypesGen.ChatModelOverrideResponse;
-	titleGenerationModelOverrideData?: TypesGen.ChatModelOverrideResponse;
-	compactionModelOverrideData?: TypesGen.ChatModelOverrideResponse;
-	models?: readonly TypesGen.ChatModel[];
-	providerInfoByID?: ReadonlyMap<string, unknown>;
-	modelsError?: unknown;
-	isLoadingModels?: boolean;
-	isFetchingModels?: boolean;
-	onSaveGeneralModelOverride?: unknown;
-	onSaveExploreModelOverride?: unknown;
-	onSaveTitleGenerationModel?: unknown;
-	onSaveCompactionModel?: unknown;
-	isSavingGeneralModelOverride?: boolean;
-	isSavingExploreModelOverride?: boolean;
-	isSavingTitleGenerationModel?: boolean;
-	isSavingCompactionModel?: boolean;
-	isSaveGeneralModelOverrideError?: boolean;
-	isSaveExploreModelOverrideError?: boolean;
-	isSaveTitleGenerationModelError?: boolean;
-	isSaveCompactionModelError?: boolean;
-	advisorModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 }
 
 export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({

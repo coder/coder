@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import DefaultsPageView from "./DefaultsPageView";
@@ -9,6 +9,14 @@ const model: TypesGen.ChatModel = {
 	id: "model-1",
 	display_name: "Model One",
 };
+const alternateModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "model-2",
+	model: "model-two",
+	display_name: "Model Two",
+};
+const saveGeneralOverride = fn();
+const saveExploreOverride = fn();
 const overrides: readonly TypesGen.ChatModelOverrideResponse[] = [
 	{ context: "general", model_config_id: "model-1", reasoning_effort: "high" },
 	{ context: "compaction", model_config_id: "model-1" },
@@ -17,8 +25,8 @@ const saveByContext = new Map<
 	TypesGen.ChatModelOverrideContext,
 	(req: TypesGen.UpdateChatModelOverrideRequest) => void
 >([
-	["general", fn()],
-	["explore", fn()],
+	["general", saveGeneralOverride],
+	["explore", saveExploreOverride],
 	["title_generation", fn()],
 	["compaction", fn()],
 	["advisor", fn()],
@@ -29,7 +37,7 @@ const meta: Meta<typeof DefaultsPageView> = {
 	component: DefaultsPageView,
 	args: {
 		overrides,
-		enabledModels: [model],
+		enabledModels: [model, alternateModel],
 		providerInfoByID: new Map([
 			[
 				model.ai_provider_id,
@@ -50,10 +58,52 @@ export default meta;
 type Story = StoryObj<typeof DefaultsPageView>;
 
 export const SetAndUnset: Story = {
+	beforeEach: () => {
+		saveGeneralOverride.mockClear();
+		saveExploreOverride.mockClear();
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("General subagent")).toBeVisible();
-		await expect(canvas.getAllByText("Use default").length).toBeGreaterThan(0);
+		const body = within(canvasElement.ownerDocument.body);
+		const generalSection = canvas.getByRole("form", {
+			name: "General subagent",
+		});
+		const exploreSection = canvas.getByRole("form", {
+			name: "Explore subagent",
+		});
+
+		await userEvent.click(
+			within(exploreSection).getByRole("combobox", { name: "Use default" }),
+		);
+		await userEvent.click(
+			await body.findByRole("option", { name: /Model Two/i }),
+		);
+		const exploreSave = within(exploreSection).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => expect(exploreSave).toBeEnabled());
+		await userEvent.click(exploreSave);
+		await waitFor(() => {
+			expect(saveExploreOverride).toHaveBeenCalledWith(
+				{ model_config_id: alternateModel.id },
+				expect.anything(),
+			);
+		});
+
+		await userEvent.click(
+			within(generalSection).getByRole("button", { name: "Clear" }),
+		);
+		const generalSave = within(generalSection).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => expect(generalSave).toBeEnabled());
+		await userEvent.click(generalSave);
+		await waitFor(() => {
+			expect(saveGeneralOverride).toHaveBeenCalledWith(
+				{ model_config_id: "" },
+				expect.anything(),
+			);
+		});
 	},
 };
 export const AdvisorDisabled: Story = {

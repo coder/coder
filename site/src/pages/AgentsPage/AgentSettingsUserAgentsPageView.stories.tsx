@@ -1,8 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { useState } from "react";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
-import { MockDefaultOrganization } from "#/testHelpers/entities";
+import {
+	MockDefaultOrganization,
+	MockOrganization2,
+} from "#/testHelpers/entities";
 import {
 	AgentSettingsUserAgentsPageView,
 	type AgentSettingsUserAgentsPageViewProps,
@@ -109,6 +113,22 @@ const reasoningModelOption: ModelSelectorOption = {
 	reasoningEfforts: ["none", "minimal", "low", "medium", "high"],
 };
 
+const organization2ModelConfig = buildModelConfig({
+	id: "organization-2-model",
+	organization_id: MockOrganization2.id,
+	model: "organization-two-model",
+	display_name: "Organization Two Model",
+	is_default: true,
+});
+
+const organization2ModelOption: ModelSelectorOption = {
+	id: organization2ModelConfig.id,
+	provider: "openai",
+	model: organization2ModelConfig.model,
+	displayName: organization2ModelConfig.display_name,
+	contextLimit: organization2ModelConfig.context_limit,
+};
+
 const modelOptions: ModelSelectorOption[] = [
 	{
 		id: defaultModelConfig.id,
@@ -173,6 +193,36 @@ const buildArgs = (
 	isSaveExploreModelOverrideError: false,
 	...overrides,
 });
+
+const organization2OverridesResponse = buildOverridesResponse({
+	root: buildOverride("root", {
+		mode: "model",
+		model_config_id: organization2ModelConfig.id,
+		is_set: true,
+	}),
+});
+
+const MultiOrganizationView = (props: AgentSettingsUserAgentsPageViewProps) => {
+	const [selectedOrganization, setSelectedOrganization] = useState(
+		MockDefaultOrganization,
+	);
+	const isOrganization2 = selectedOrganization.id === MockOrganization2.id;
+	return (
+		<AgentSettingsUserAgentsPageView
+			{...props}
+			organizations={[MockDefaultOrganization, MockOrganization2]}
+			selectedOrganization={selectedOrganization}
+			onSelectOrganization={setSelectedOrganization}
+			overridesData={
+				isOrganization2
+					? organization2OverridesResponse
+					: buildOverridesResponse()
+			}
+			models={isOrganization2 ? [organization2ModelConfig] : models}
+			modelOptions={isOrganization2 ? [organization2ModelOption] : modelOptions}
+		/>
+	);
+};
 
 const getSection = async (
 	canvasElement: HTMLElement,
@@ -575,6 +625,30 @@ export const OverridesError: Story = {
 				within(section).getByRole("button", { name: "Save" }),
 			).toBeDisabled();
 		}
+	},
+};
+
+export const SwitchOrganizations: Story = {
+	args: buildArgs(),
+	render: (args) => <MultiOrganizationView {...args} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: new RegExp(MockDefaultOrganization.display_name, "i"),
+			}),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: new RegExp(MockOrganization2.display_name, "i"),
+			}),
+		);
+		const rootSection = await getSection(canvasElement, "Root agent model");
+		await expect(
+			within(rootSection).getByRole("combobox", {
+				name: /Organization Two Model$/,
+			}),
+		).toBeVisible();
 	},
 };
 

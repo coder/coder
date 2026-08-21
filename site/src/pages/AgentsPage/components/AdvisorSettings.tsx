@@ -146,7 +146,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 				id={maxUsesId}
 				name="max_uses_per_run"
 				label="Uses / turn"
-				ariaLabel="Max uses per turn"
+				ariaLabel="Uses / turn"
 				value={form.values.max_uses_per_run}
 				onChange={(value) => void form.setFieldValue("max_uses_per_run", value)}
 				onBlur={form.handleBlur}
@@ -158,7 +158,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 				id={maxOutputTokensId}
 				name="max_output_tokens"
 				label="Max tokens"
-				ariaLabel="Max output tokens"
+				ariaLabel="Max tokens"
 				value={form.values.max_output_tokens}
 				onChange={(value) =>
 					void form.setFieldValue("max_output_tokens", value)

@@ -110,28 +110,6 @@ const AgentsRouteElement = () => (
 		onSaveAdminOverrides={fn()}
 		isSavingAdminOverrides={false}
 		isSaveAdminOverridesError={false}
-		exploreModelOverrideData={{
-			context: "explore",
-			model_config_id: "",
-		}}
-		titleGenerationModelOverrideData={{
-			context: "title_generation",
-			model_config_id: "",
-		}}
-		models={[]}
-		providerInfoByID={new Map()}
-		modelsError={undefined}
-		isLoadingModels={false}
-		isFetchingModels={false}
-		onSaveTitleGenerationModel={fn()}
-		isSavingTitleGenerationModel={false}
-		isSaveTitleGenerationModelError={false}
-		onSaveCompactionModel={fn()}
-		isSavingCompactionModel={false}
-		isSaveCompactionModelError={false}
-		onSaveExploreModelOverride={fn()}
-		isSavingExploreModelOverride={false}
-		isSaveExploreModelOverrideError={false}
 		showAdvisorSettings={false}
 		advisorConfigData={undefined}
 		isAdvisorConfigLoading={false}
@@ -1269,9 +1247,7 @@ export const SettingsViewCoderAgentsLink: Story = {
 
 		await waitFor(() => {
 			expect(
-				screen.getByText(
-					"Configure deployment-wide defaults for Coder Agents and agent-specific capabilities.",
-				),
+				screen.getByText(/Configure deployment-wide Coder Agents capabilities/),
 			).toBeInTheDocument();
 		});
 	},
