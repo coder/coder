@@ -2416,6 +2416,59 @@ COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection wa
 
 COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
 
+CREATE TABLE credential_lifecycle_journal (
+    entry_id bigint NOT NULL,
+    line smallint NOT NULL,
+    recording_date timestamp with time zone DEFAULT now(),
+    effective_date timestamp with time zone DEFAULT now(),
+    actor_type text,
+    actor uuid,
+    event text NOT NULL,
+    subject uuid NOT NULL,
+    CONSTRAINT credential_lifecycle_journal_actor_on_first_line CHECK (((line = 0) = (actor IS NOT NULL))),
+    CONSTRAINT credential_lifecycle_journal_actor_type_on_first_line CHECK (((line = 0) = (actor_type IS NOT NULL))),
+    CONSTRAINT credential_lifecycle_journal_effective_date_on_first_line CHECK (((line = 0) = (effective_date IS NOT NULL))),
+    CONSTRAINT credential_lifecycle_journal_line_non_negative CHECK ((line >= 0)),
+    CONSTRAINT credential_lifecycle_journal_recording_date_on_first_line CHECK (((line = 0) = (recording_date IS NOT NULL)))
+);
+
+COMMENT ON TABLE credential_lifecycle_journal IS 'Journal of persistent state changes to credentials. One journal per entity: sharing one would assert that two lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.';
+
+COMMENT ON COLUMN credential_lifecycle_journal.entry_id IS 'Identifies the entry. An entry may occupy several lines sharing this value, expressing an atomic group: rotation issues one credential and revokes another as a single event, so that no interval passes without a valid one.';
+
+COMMENT ON COLUMN credential_lifecycle_journal.effective_date IS 'When the event occurred. For an expiry this is the expiry time and not the moment a sweep noticed, so an entry written late records the same fact at the same moment. It is the earlier of the event time and the recording time, which keeps it from ever claiming the journal foresaw something.';
+
+CREATE SEQUENCE credential_lifecycle_journal_entry_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+CREATE TABLE credential_lifecycle_ledger (
+    id uuid NOT NULL,
+    holder_type text NOT NULL,
+    holder_id uuid NOT NULL,
+    credential_type text NOT NULL,
+    credential_value text NOT NULL,
+    state text NOT NULL,
+    expires_at timestamp with time zone,
+    posting_reference bigint NOT NULL,
+    CONSTRAINT credential_lifecycle_ledger_state CHECK ((state = ANY (ARRAY['valid'::text, 'invalid'::text])))
+);
+
+COMMENT ON TABLE credential_lifecycle_ledger IS 'Current state of each credential. A credential is a means of exercising authority and not the authority itself: a grant stands whether or not one has been issued, and the two are reconciled against each other only because neither determines the other. Carries no creation time, the journal recording when.';
+
+COMMENT ON COLUMN credential_lifecycle_ledger.id IS 'Identifies the credential, and is deliberately not derived from its secret. Letting a secret name the credential carrying it would assume every credential is a password, and would put a secret in every reference to one.';
+
+COMMENT ON COLUMN credential_lifecycle_ledger.credential_type IS 'Two types exist in the proof of concept. A password holds the hex of an unsalted SHA-256 digest of the secret, unsalted because the secret is randomly generated and high entropy, and matching what coderd/apikey already does. A null credential always validates and holds an empty value; it exists for fault isolation in tests, would never be issued in production, and its always-validates path is a proof of concept hazard recorded with the other cheats.';
+
+COMMENT ON COLUMN credential_lifecycle_ledger.credential_value IS 'A container whose interpretation belongs to credential_type rather than to this column, which is why it is text. Postgres bytea holds raw binary and suits a column holding exactly one kind of thing, as api_keys.hashed_secret does; here each type chooses its own encoding, and text keeps that choice self describing. The password type stores a SHA-256 digest as lowercase hex. Hex rather than base64 because it has a single canonical form where base64 has several, and because sha256sum and its equivalents speak it, which matters for a value nobody can recover from the secret. The encoding belongs to the type and can change without a migration.';
+
+COMMENT ON COLUMN credential_lifecycle_ledger.expires_at IS 'The latest moment this credential can be valid. It promises nothing about the credential remaining valid until then, revocation being unconditional. Nothing prevents a row sitting in state valid past this time, since the entries recording expiry are written by a sweep that runs on a period; a reader wanting what is presently usable must test both, and must not do so through a view when verifying, which would be a time of check to time of use error.';
+
+COMMENT ON COLUMN credential_lifecycle_ledger.posting_reference IS 'Identifies the journal entry most recently posted to this row, after the folio that cross references a paper ledger back to its journal.';
+
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
     sequence integer NOT NULL,
@@ -4556,6 +4609,12 @@ ALTER TABLE ONLY chats
 ALTER TABLE ONLY connection_logs
     ADD CONSTRAINT connection_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY credential_lifecycle_journal
+    ADD CONSTRAINT credential_lifecycle_journal_pkey PRIMARY KEY (entry_id, line);
+
+ALTER TABLE ONLY credential_lifecycle_ledger
+    ADD CONSTRAINT credential_lifecycle_ledger_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_pkey PRIMARY KEY (feature, sequence);
 
@@ -4916,6 +4975,12 @@ CREATE INDEX authorization_lifecycle_ledger_agent_idx ON authorization_lifecycle
 CREATE INDEX authorization_lifecycle_ledger_principal_idx ON authorization_lifecycle_ledger USING btree (principal_type, principal_id);
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
+CREATE INDEX credential_lifecycle_journal_actor_idx ON credential_lifecycle_journal USING btree (actor_type, actor) WHERE (actor IS NOT NULL);
+
+CREATE INDEX credential_lifecycle_journal_subject_idx ON credential_lifecycle_journal USING btree (subject);
+
+CREATE INDEX credential_lifecycle_ledger_holder_idx ON credential_lifecycle_ledger USING btree (holder_type, holder_id);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
