@@ -124,9 +124,32 @@ export const ReadOnly: Story = {
 };
 export const NoModels: Story = {
 	args: { enabledModels: [] },
+	beforeEach: () => {
+		saveGeneralOverride.mockClear();
+	},
 	play: async ({ canvasElement }) => {
-		await expect(within(canvasElement).getByRole("status")).toHaveTextContent(
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("status")).toHaveTextContent(
 			"no enabled chat models",
 		);
+		// A saved override that references a now-disabled model must remain
+		// clearable even though no replacement model can be selected.
+		const generalSection = canvas.getByRole("form", {
+			name: "General subagent",
+		});
+		const clear = within(generalSection).getByRole("button", {
+			name: "Clear",
+		});
+		await expect(clear).toBeEnabled();
+		await userEvent.click(clear);
+		const save = within(generalSection).getByRole("button", { name: "Save" });
+		await waitFor(() => expect(save).toBeEnabled());
+		await userEvent.click(save);
+		await waitFor(() => {
+			expect(saveGeneralOverride).toHaveBeenCalledWith(
+				{ model_config_id: "" },
+				expect.anything(),
+			);
+		});
 	},
 };

@@ -14,7 +14,6 @@ import { AgentSettingsUserAgentsPageView } from "./AgentSettingsUserAgentsPageVi
 import { resolveModelSelector } from "./utils/modelOptions";
 
 const AgentSettingsUserAgentsPage: FC = () => {
-	const queryClient = useQueryClient();
 	const { organizations } = useDashboard();
 	const defaultOrganizationId = getDefaultOrganizationId(organizations);
 	const [selectedOrganizationId, setSelectedOrganizationId] = useState(
@@ -29,6 +28,37 @@ const AgentSettingsUserAgentsPage: FC = () => {
 		) ??
 		organizations[0];
 	const organizationId = selectedOrganization?.id ?? "";
+	// Remount on organization change so mutation state (pending saves,
+	// errors) from one organization never renders on another's form.
+	return (
+		<AgentSettingsUserAgentsPageContent
+			key={organizationId}
+			organizations={organizations}
+			selectedOrganization={selectedOrganization}
+			organizationId={organizationId}
+			onSelectOrganization={(organization) =>
+				setSelectedOrganizationId(organization.id)
+			}
+		/>
+	);
+};
+
+interface AgentSettingsUserAgentsPageContentProps {
+	organizations: readonly TypesGen.Organization[];
+	selectedOrganization: TypesGen.Organization | undefined;
+	organizationId: string;
+	onSelectOrganization: (organization: TypesGen.Organization) => void;
+}
+
+const AgentSettingsUserAgentsPageContent: FC<
+	AgentSettingsUserAgentsPageContentProps
+> = ({
+	organizations,
+	selectedOrganization,
+	organizationId,
+	onSelectOrganization,
+}) => {
+	const queryClient = useQueryClient();
 	const overridesQuery = useQuery(
 		userChatPersonalModelOverrides(organizationId),
 	);
@@ -80,9 +110,7 @@ const AgentSettingsUserAgentsPage: FC = () => {
 			modelOptions={modelOptions}
 			organizations={organizations}
 			selectedOrganization={selectedOrganization}
-			onSelectOrganization={(organization) =>
-				setSelectedOrganizationId(organization.id)
-			}
+			onSelectOrganization={onSelectOrganization}
 			models={organizationModelConfigs}
 			modelsError={modelsQuery.error}
 			isLoadingModels={isModelCatalogLoading}

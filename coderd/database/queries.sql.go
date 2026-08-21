@@ -6769,6 +6769,65 @@ func (q *sqlQuerier) GetChatOrganizationModelOverrides(ctx context.Context, orga
 	return items, nil
 }
 
+const getChatOrganizationModelOverridesByContext = `-- name: GetChatOrganizationModelOverridesByContext :many
+SELECT
+    o.organization_id,
+    (cmc.id IS NOT NULL AND ap.id IS NOT NULL)::boolean AS model_available,
+    COALESCE(cmc.model, '')::text AS model,
+    COALESCE(ap.type::text, '')::text AS provider_type
+FROM chat_organization_model_overrides o
+JOIN organizations org ON org.id = o.organization_id AND NOT org.deleted
+LEFT JOIN chat_model_configs cmc
+    ON cmc.id = o.model_config_id
+    AND cmc.deleted = FALSE
+    AND cmc.enabled = TRUE
+LEFT JOIN ai_providers ap
+    ON ap.id = cmc.ai_provider_id
+    AND ap.enabled = TRUE
+    AND ap.deleted = FALSE
+WHERE o.context = $1
+ORDER BY o.organization_id
+`
+
+type GetChatOrganizationModelOverridesByContextRow struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ModelAvailable bool      `db:"model_available" json:"model_available"`
+	Model          string    `db:"model" json:"model"`
+	ProviderType   string    `db:"provider_type" json:"provider_type"`
+}
+
+// Returns every non-deleted organization's override for one context together
+// with the resolved model and provider, for bulk consumers such as telemetry.
+// model_available mirrors GetEnabledChatModelConfigByID: it is false when the
+// referenced config or its provider is disabled or deleted.
+func (q *sqlQuerier) GetChatOrganizationModelOverridesByContext(ctx context.Context, argContext string) ([]GetChatOrganizationModelOverridesByContextRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatOrganizationModelOverridesByContext, argContext)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatOrganizationModelOverridesByContextRow
+	for rows.Next() {
+		var i GetChatOrganizationModelOverridesByContextRow
+		if err := rows.Scan(
+			&i.OrganizationID,
+			&i.ModelAvailable,
+			&i.Model,
+			&i.ProviderType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatUserModelOverride = `-- name: GetChatUserModelOverride :one
 SELECT id, user_id, organization_id, context, mode, model_config_id, reasoning_effort
 FROM chat_user_model_overrides

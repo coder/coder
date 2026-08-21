@@ -2382,15 +2382,15 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 		require.NoError(t, err)
 		return string(raw)
 	}
-	expectOrganizations := func(db *dbmock.MockStore, organizations ...database.Organization) {
-		db.EXPECT().GetOrganizations(gomock.Any(), database.GetOrganizationsParams{}).Return(organizations, nil)
+	expectOverrides := func(db *dbmock.MockStore, rows ...database.GetChatOrganizationModelOverridesByContextRow) {
+		db.EXPECT().GetChatOrganizationModelOverridesByContext(gomock.Any(), string(codersdk.ChatModelOverrideContextAdvisor)).Return(rows, nil)
 	}
 
 	t.Run("Defaults", func(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return(marshalConfig(t, codersdk.AdvisorConfig{}), nil)
-		expectOrganizations(db)
+		expectOverrides(db)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		require.False(t, payload.Enabled)
@@ -2402,19 +2402,14 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 	t.Run("ModelOverrides", func(t *testing.T) {
 		t.Parallel()
 		org := database.Organization{ID: uuid.New()}
-		deletedOrg := database.Organization{ID: uuid.New(), Deleted: true}
-		modelID := uuid.New()
-		providerID := uuid.New()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return(marshalConfig(t, codersdk.AdvisorConfig{MaxUsesPerRun: 7, MaxOutputTokens: 2048}), nil)
-		expectOrganizations(db, org, deletedOrg)
-		db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), database.GetChatOrganizationModelOverrideParams{
-			OrganizationID: org.ID, Context: string(codersdk.ChatModelOverrideContextAdvisor),
-		}).Return(database.ChatOrganizationModelOverride{OrganizationID: org.ID, ModelConfigID: modelID}, nil)
-		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).Return(database.ChatModelConfig{
-			Model: "gpt-6-preview", AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
-		}, nil)
-		db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{Type: database.AIProviderTypeOpenai}, nil)
+		expectOverrides(db, database.GetChatOrganizationModelOverridesByContextRow{
+			OrganizationID: org.ID,
+			ModelAvailable: true,
+			Model:          "gpt-6-preview",
+			ProviderType:   string(database.AIProviderTypeOpenai),
+		})
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t), Experiments: codersdk.Experiments{codersdk.ExperimentChatAdvisor}})
 		require.True(t, payload.Enabled)
@@ -2425,13 +2420,28 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 		}}, payload.Overrides)
 	})
 
-	t.Run("NoOverride", func(t *testing.T) {
+	t.Run("InactiveModel", func(t *testing.T) {
 		t.Parallel()
 		org := database.Organization{ID: uuid.New()}
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("{}", nil)
-		expectOrganizations(db, org)
-		db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), gomock.Any()).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
+		expectOverrides(db, database.GetChatOrganizationModelOverridesByContextRow{
+			OrganizationID: org.ID,
+			ModelAvailable: false,
+		})
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Equal(t, []telemetry.AgentsAdvisorOverrideTelemetry{{
+			OrganizationID: org.ID.String(),
+			Provider:       telemetry.AgentsExperimentAdvisorReuseChatModel,
+			Model:          telemetry.AgentsExperimentAdvisorReuseChatModel,
+		}}, payload.Overrides)
+	})
+
+	t.Run("NoOverride", func(t *testing.T) {
+		t.Parallel()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("{}", nil)
+		expectOverrides(db)
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		require.Empty(t, payload.Overrides)
 	})
@@ -2440,7 +2450,7 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("not-json", nil)
-		expectOrganizations(db)
+		expectOverrides(db)
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		require.Zero(t, payload.MaxUsesPerRun)
 		require.Zero(t, payload.MaxOutputTokens)
@@ -2450,7 +2460,7 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return(`{"max_uses_per_run":-3,"max_output_tokens":-99}`, nil)
-		expectOrganizations(db)
+		expectOverrides(db)
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		require.Zero(t, payload.MaxUsesPerRun)
 		require.Zero(t, payload.MaxOutputTokens)
@@ -2460,48 +2470,17 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("", sql.ErrConnDone)
-		expectOrganizations(db)
+		expectOverrides(db)
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		require.Empty(t, payload.Overrides)
 	})
 
-	t.Run("OrganizationsFetchError", func(t *testing.T) {
+	t.Run("OverridesFetchError", func(t *testing.T) {
 		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("{}", nil)
-		db.EXPECT().GetOrganizations(gomock.Any(), database.GetOrganizationsParams{}).Return(nil, sql.ErrConnDone)
+		db.EXPECT().GetChatOrganizationModelOverridesByContext(gomock.Any(), gomock.Any()).Return(nil, sql.ErrConnDone)
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		require.Empty(t, payload.Overrides)
 	})
-
-	for _, tc := range []struct {
-		name         string
-		modelErr     error
-		providerErr  error
-		wantProvider string
-		wantModel    string
-	}{
-		{name: "InactiveModel", modelErr: sql.ErrNoRows, wantProvider: telemetry.AgentsExperimentAdvisorReuseChatModel, wantModel: telemetry.AgentsExperimentAdvisorReuseChatModel},
-		{name: "ModelResolveError", modelErr: sql.ErrConnDone, wantProvider: telemetry.AgentsExperimentUnknown, wantModel: telemetry.AgentsExperimentUnknown},
-		{name: "ProviderResolveError", providerErr: sql.ErrConnDone, wantProvider: telemetry.AgentsExperimentUnknown, wantModel: "gpt-6-preview"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			org := database.Organization{ID: uuid.New()}
-			modelID := uuid.New()
-			providerID := uuid.New()
-			db := dbmock.NewMockStore(gomock.NewController(t))
-			db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("{}", nil)
-			expectOrganizations(db, org)
-			db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), gomock.Any()).Return(database.ChatOrganizationModelOverride{OrganizationID: org.ID, ModelConfigID: modelID}, nil)
-			if tc.modelErr != nil {
-				db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).Return(database.ChatModelConfig{}, tc.modelErr)
-			} else {
-				db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).Return(database.ChatModelConfig{Model: "gpt-6-preview", AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true}}, nil)
-				db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{}, tc.providerErr)
-			}
-			payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-			require.Equal(t, []telemetry.AgentsAdvisorOverrideTelemetry{{OrganizationID: org.ID.String(), Provider: tc.wantProvider, Model: tc.wantModel}}, payload.Overrides)
-		})
-	}
 }

@@ -164,6 +164,11 @@ const AgentsPageLayout: FC = () => {
 	const { organizations } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
 	const defaultOrganizationId = getDefaultOrganizationId(organizations);
+	// The personal-overrides feature flag is deployment-wide but read through
+	// an organization-scoped endpoint, so fall back to any accessible
+	// organization for users outside the default organization.
+	const personalOverridesOrganizationId =
+		defaultOrganizationId || (organizations[0]?.id ?? "");
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 
 	const [sidebarFilters, setSidebarFilters] = getAgentSidebarFilters(
@@ -232,7 +237,7 @@ const AgentsPageLayout: FC = () => {
 		organizations.map((organization) => organization.id),
 	);
 	const personalModelOverridesQuery = useQuery(
-		userChatPersonalModelOverrides(defaultOrganizationId),
+		userChatPersonalModelOverrides(personalOverridesOrganizationId),
 	);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>

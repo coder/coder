@@ -6491,6 +6491,85 @@ func TestGetUserStatusCounts(t *testing.T) {
 	}
 }
 
+func TestGetChatOrganizationModelOverridesByContext(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	availableOrg := dbgen.Organization(t, db, database.Organization{})
+	availableModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "bulk-available-" + uuid.NewString(),
+		Enabled:        true,
+		OrganizationID: availableOrg.ID,
+	})
+	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+		OrganizationID: availableOrg.ID,
+		Context:        "general",
+		ModelConfigID:  availableModel.ID,
+	}))
+
+	// An override referencing a disabled model reports the model unavailable.
+	// dbgen coerces Enabled=false to true, so disable it after insertion.
+	disabledOrg := dbgen.Organization(t, db, database.Organization{})
+	disabledModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "bulk-disabled-" + uuid.NewString(),
+		OrganizationID: disabledOrg.ID,
+	})
+	_, err := db.UpdateChatModelConfig(ctx, database.UpdateChatModelConfigParams{
+		ID:                   disabledModel.ID,
+		Model:                disabledModel.Model,
+		DisplayName:          disabledModel.DisplayName,
+		Enabled:              false,
+		IsDefault:            disabledModel.IsDefault,
+		ContextLimit:         disabledModel.ContextLimit,
+		CompressionThreshold: disabledModel.CompressionThreshold,
+		Options:              disabledModel.Options,
+		AIProviderID:         disabledModel.AIProviderID,
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+		OrganizationID: disabledOrg.ID,
+		Context:        "general",
+		ModelConfigID:  disabledModel.ID,
+	}))
+
+	// Deleted organizations are excluded from the bulk read.
+	deletedOrg := dbgen.Organization(t, db, database.Organization{})
+	deletedOrgModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "bulk-deleted-org-" + uuid.NewString(),
+		Enabled:        true,
+		OrganizationID: deletedOrg.ID,
+	})
+	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+		OrganizationID: deletedOrg.ID,
+		Context:        "general",
+		ModelConfigID:  deletedOrgModel.ID,
+	}))
+	require.NoError(t, db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+		ID:        deletedOrg.ID,
+		UpdatedAt: dbtime.Now(),
+	}))
+
+	rows, err := db.GetChatOrganizationModelOverridesByContext(ctx, "general")
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	byOrg := make(map[uuid.UUID]database.GetChatOrganizationModelOverridesByContextRow, len(rows))
+	for _, row := range rows {
+		byOrg[row.OrganizationID] = row
+	}
+	available := byOrg[availableOrg.ID]
+	require.True(t, available.ModelAvailable)
+	require.Equal(t, availableModel.Model, available.Model)
+	require.NotEmpty(t, available.ProviderType)
+	unavailable := byOrg[disabledOrg.ID]
+	require.False(t, unavailable.ModelAvailable)
+	require.Empty(t, unavailable.Model)
+
+	otherContext, err := db.GetChatOrganizationModelOverridesByContext(ctx, "advisor")
+	require.NoError(t, err)
+	require.Empty(t, otherContext)
+}
+
 func TestOrganizationDeleteTrigger(t *testing.T) {
 	t.Parallel()
 

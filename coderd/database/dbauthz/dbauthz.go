@@ -3571,6 +3571,15 @@ func (q *querier) GetChatOrganizationModelOverrides(ctx context.Context, organiz
 	return q.db.GetChatOrganizationModelOverrides(ctx, organizationID)
 }
 
+func (q *querier) GetChatOrganizationModelOverridesByContext(ctx context.Context, argContext string) ([]database.GetChatOrganizationModelOverridesByContextRow, error) {
+	// This read spans every organization, so it requires site-wide access to
+	// chat model configs. It exists for bulk consumers such as telemetry.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatModelConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatOrganizationModelOverridesByContext(ctx, argContext)
+}
+
 func (q *querier) GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error) {
 	// The personal model overrides flag is a deployment-wide setting read by
 	// authenticated chat users. We only require that an explicit actor is

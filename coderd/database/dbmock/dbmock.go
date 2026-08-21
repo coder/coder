@@ -3224,6 +3224,21 @@ func (mr *MockStoreMockRecorder) GetChatOrganizationModelOverrides(ctx, organiza
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatOrganizationModelOverrides", reflect.TypeOf((*MockStore)(nil).GetChatOrganizationModelOverrides), ctx, organizationID)
 }
 
+// GetChatOrganizationModelOverridesByContext mocks base method.
+func (m *MockStore) GetChatOrganizationModelOverridesByContext(ctx context.Context, argContext string) ([]database.GetChatOrganizationModelOverridesByContextRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatOrganizationModelOverridesByContext", ctx, argContext)
+	ret0, _ := ret[0].([]database.GetChatOrganizationModelOverridesByContextRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatOrganizationModelOverridesByContext indicates an expected call of GetChatOrganizationModelOverridesByContext.
+func (mr *MockStoreMockRecorder) GetChatOrganizationModelOverridesByContext(ctx, argContext any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatOrganizationModelOverridesByContext", reflect.TypeOf((*MockStore)(nil).GetChatOrganizationModelOverridesByContext), ctx, argContext)
+}
+
 // GetChatPersonalModelOverridesEnabled mocks base method.
 func (m *MockStore) GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error) {
 	m.ctrl.T.Helper()
