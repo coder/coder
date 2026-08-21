@@ -42,15 +42,18 @@ func TestOAuth2AuthorizationServerMetadata(t *testing.T) {
 	require.Contains(t, metadata.GrantTypesSupported, codersdk.OAuth2ProviderGrantTypeAuthorizationCode)
 	require.Contains(t, metadata.GrantTypesSupported, codersdk.OAuth2ProviderGrantTypeRefreshToken)
 	require.Contains(t, metadata.CodeChallengeMethodsSupported, codersdk.OAuth2PKCECodeChallengeMethodS256)
-	// Pins the exact advertised set, not just that it contains something
-	// expected, so a handler that dropped or added a method fails here rather
-	// than passing on a partial match.
-	require.ElementsMatch(t, codersdk.AdvertisedOAuth2TokenEndpointAuthMethods(), metadata.TokenEndpointAuthMethodsSupported)
-	// Asserted against the literal value, not the function, because the check
-	// above compares the handler to the function and holds for whatever the
-	// function returns. A public client learns secretless registration is
-	// available only by finding "none" here (RFC 8414 §2).
-	require.Contains(t, metadata.TokenEndpointAuthMethodsSupported, codersdk.OAuth2TokenEndpointAuthMethodNone)
+	// Pinned to a literal rather than to
+	// codersdk.AdvertisedOAuth2TokenEndpointAuthMethods(), which the handler
+	// already returns: comparing the handler to its own source holds for
+	// whatever that function returns, so it cannot catch a method being
+	// advertised that the token endpoint does not honor. "none" in particular
+	// is how a public client learns secretless registration is available
+	// (RFC 8414 §2).
+	require.ElementsMatch(t, []codersdk.OAuth2TokenEndpointAuthMethod{
+		codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+		codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost,
+		codersdk.OAuth2TokenEndpointAuthMethodNone,
+	}, metadata.TokenEndpointAuthMethodsSupported)
 	// Supported scopes are published from the curated catalog
 	require.Equal(t, rbac.ExternalScopeNames(), metadata.ScopesSupported)
 }
