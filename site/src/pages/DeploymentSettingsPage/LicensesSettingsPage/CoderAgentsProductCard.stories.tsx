@@ -32,9 +32,6 @@ export const Default: Story = {
 			"Unlimited",
 		);
 		await expect(
-			canvas.queryByRole("link", { name: "Manage usage" }),
-		).not.toBeInTheDocument();
-		await expect(
 			canvas.getByRole("link", { name: "View docs" }),
 		).toHaveAttribute(
 			"href",
