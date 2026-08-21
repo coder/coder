@@ -62,6 +62,7 @@ const TemplatePermissionsPage: FC = () => {
 						features={[
 							"Choose Use or Admin-level access",
 							"Prevent unauthorized template use",
+							"Let teams self-serve templates without admin bottlenecks",
 						]}
 						canViewPremium={authPermissions.viewAllLicenses}
 					/>
