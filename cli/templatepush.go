@@ -77,33 +77,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				}
 			}
 
-			// If the user has not provided a display name and icon via flag, we will attempt to read it from the README.md front matter.
-			content, err := os.ReadFile(filepath.Join(uploadFlags.directory, "README.md"))
-			if err != nil {
-				return xerrors.Errorf("README.md required: %w", err)
-			}
-			parsed, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(content))
-			if err != nil {
-				return xerrors.Errorf("failed to parse README.md: %w", err)
-			}
 			
-
-			if displayName != "" {
-				err = codersdk.DisplayNameValid(displayName)
-				if err != nil {
-					return xerrors.Errorf("display name %q is invalid: %w", displayName, err)
-				}
-			}else {
-				// If displayName is not provided via flag, we will attempt to read it from the README.md front matter.
-				displayName, _ = parsed.FrontMatter["display_name"].(string)
-			}
-
-			if icon == "" {
-				icon, _ = parsed.FrontMatter["icon"].(string)
-			}
-
-			description, _ := parsed.FrontMatter["description"].(string)
-
 			var createTemplate bool
 			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
 			if err != nil {
@@ -113,6 +87,59 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				}
 				// Template doesn't exist, create it.
 				createTemplate = true
+			}
+
+			// If the user has not provided a display name and icon via flag, we will attempt to read it from the README.md front matter.
+			var frontMatter map[string]any
+			var description string
+			content, err := os.ReadFile(filepath.Join(uploadFlags.directory, "README.md"))
+			if err != nil {
+				if !errors.Is(err, os.ErrNotExist) {
+					cliui.Warn(inv.Stderr, "Failed to read README.md: "+err.Error())
+				}
+				if displayName == "" || icon == "" {
+					cliui.Warn(inv.Stderr, "No display name or icon provided via flag and README.md front matter could not be read. The template will be created without a display name or icon.")
+				}
+				if createTemplate {
+					return xerrors.New("cannot create a new template without a display name or icon. Please provide them via flag or in README.md front matter")
+				}
+			} else {
+				parsed, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(content))
+				if err != nil {
+					return xerrors.Errorf("parse README.md front matter: %w", err)
+				}
+				frontMatter = parsed.FrontMatter
+
+				if displayName == "" {
+					displayName, err = frontMatterString(frontMatter, "display_name")
+					if err != nil {
+						return err
+					}
+					if displayName != template.DisplayName {
+						cliui.Info(inv.Stderr, "updating the display name from README.md front matter to "+cliui.Code(displayName))
+					}
+				}
+
+				if icon == "" {
+					icon, err = frontMatterString(frontMatter, "icon")
+					if err != nil {
+						return err
+					}
+					if icon != template.Icon {
+						cliui.Info(inv.Stderr, "updating the icon from README.md front matter to "+cliui.Code(icon))
+					}
+				}
+
+				description, err = frontMatterString(frontMatter, "description")
+				if err != nil {
+					return err
+				}
+
+				if displayName != "" {
+					if err := codersdk.DisplayNameValid(displayName); err != nil {
+						return xerrors.Errorf("display name %q is invalid: %w", displayName, err)
+					}
+				}
 			}
 
 			var tags map[string]string
@@ -740,4 +767,18 @@ func createVariableValidator(variable codersdk.TemplateVersionVariable) func(str
 		}
 		return nil
 	}
+}
+
+func frontMatterString(frontMatter map[string]any, key string) (string, error) {
+	value, ok := frontMatter[key]
+	if !ok {
+		return "", nil
+	}
+
+	text, ok := value.(string)
+	if !ok {
+		return "", xerrors.Errorf("README.md front matter %q must be a string", key)
+	}
+
+	return text, nil
 }
