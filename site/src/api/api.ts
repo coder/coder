@@ -2464,6 +2464,12 @@ class ApiMethods {
 		return response.data;
 	};
 
+	reportPremiumFunnelEvent = async (
+		req: TypesGen.PremiumFunnelEventRequest,
+	): Promise<void> => {
+		await this.axios.post("/api/v2/deployment/premium-funnel-events", req);
+	};
+
 	getReplicas = async (): Promise<TypesGen.Replica[]> => {
 		const response = await this.axios.get("/api/v2/replicas");
 		return response.data;

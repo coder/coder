@@ -41,6 +41,12 @@ type CreateTrialLicenseRequest struct {
 	CompanyName string `json:"company_name" validate:"required,min=2,max=100"      example:"Acme Corp"              minLength:"2" maxLength:"100"`
 	Country     string `json:"country"      validate:"required"                    example:"United States"`
 	Developers  string `json:"developers"   validate:"required"`
+	// Source is the premium paywall the request came from, for telemetry. It
+	// is not forwarded to the licensor. Omit it to report "direct".
+	Source PremiumFunnelSource `json:"source,omitempty"`
+	// AttributionID is the ID of the cta_click funnel event that led here, so
+	// that a signup can be joined back to the paywall that produced it.
+	AttributionID uuid.UUID `json:"attribution_id,omitempty" format:"uuid"`
 }
 
 type License struct {

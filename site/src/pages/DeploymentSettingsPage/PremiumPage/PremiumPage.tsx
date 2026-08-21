@@ -15,6 +15,10 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { DATABASE_DOCS_LINK } from "#/modules/licenses/trialLicense";
+import {
+	clearPremiumFunnelAttribution,
+	withPremiumFunnelAttribution,
+} from "#/modules/paywall/premiumFunnelAttribution";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { PremiumPageView } from "./PremiumPageView";
@@ -76,8 +80,9 @@ const PremiumPage: FC = () => {
 				isSubmitting={trialMutation.isPending}
 				error={trialMutation.error}
 				onSubmit={(request) => {
-					trialMutation.mutate(request, {
+					trialMutation.mutate(withPremiumFunnelAttribution(request), {
 						onSuccess: () => {
+							clearPremiumFunnelAttribution();
 							navigate("/deployment/licenses?success=true");
 						},
 						onError: (error) => {

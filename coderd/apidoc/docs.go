@@ -3389,6 +3389,39 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/deployment/premium-funnel-events": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Report a premium paywall click",
+                "operationId": "report-a-premium-paywall-click",
+                "parameters": [
+                    {
+                        "description": "Premium funnel event",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PremiumFunnelEventRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/deployment/ssh": {
             "get": {
                 "produces": [
@@ -19894,6 +19927,11 @@ const docTemplate = `{
                 "phone_number"
             ],
             "properties": {
+                "attribution_id": {
+                    "description": "AttributionID is the ID of the cta_click funnel event that led here, so\nthat a signup can be joined back to the paywall that produced it.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "company_name": {
                     "type": "string",
                     "maxLength": 100,
@@ -19936,6 +19974,14 @@ const docTemplate = `{
                     "maxLength": 20,
                     "minLength": 7,
                     "example": "+14155552671"
+                },
+                "source": {
+                    "description": "Source is the premium paywall the request came from, for telemetry. It\nis not forwarded to the licensor. Omit it to report \"direct\".",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.PremiumFunnelSource"
+                        }
+                    ]
                 }
             }
         },
@@ -23749,6 +23795,85 @@ const docTemplate = `{
                     "type": "boolean"
                 }
             }
+        },
+        "codersdk.PremiumFunnelEventRequest": {
+            "type": "object",
+            "required": [
+                "id",
+                "source",
+                "variant"
+            ],
+            "properties": {
+                "id": {
+                    "description": "ID identifies this click, and doubles as the attribution token that a\nlater trial signup reports.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.PremiumFunnelSource"
+                },
+                "variant": {
+                    "$ref": "#/definitions/codersdk.PremiumFunnelVariant"
+                }
+            }
+        },
+        "codersdk.PremiumFunnelSource": {
+            "type": "string",
+            "enum": [
+                "aibridge_session_threads",
+                "aibridge_sessions",
+                "ai_gateway_keys",
+                "ai_governance",
+                "appearance",
+                "audit_log",
+                "browser_only",
+                "connection_log",
+                "custom_roles",
+                "groups",
+                "idp_org_sync",
+                "idp_sync",
+                "multiple_organizations",
+                "observability",
+                "provisioner_keys",
+                "provisioners",
+                "template_permissions",
+                "workspace_proxies",
+                "direct"
+            ],
+            "x-enum-varnames": [
+                "PremiumFunnelSourceAIBridgeSessionThreads",
+                "PremiumFunnelSourceAIBridgeSessions",
+                "PremiumFunnelSourceAIGatewayKeys",
+                "PremiumFunnelSourceAIGovernance",
+                "PremiumFunnelSourceAppearance",
+                "PremiumFunnelSourceAuditLog",
+                "PremiumFunnelSourceBrowserOnly",
+                "PremiumFunnelSourceConnectionLog",
+                "PremiumFunnelSourceCustomRoles",
+                "PremiumFunnelSourceGroups",
+                "PremiumFunnelSourceIdpOrgSync",
+                "PremiumFunnelSourceIdpSync",
+                "PremiumFunnelSourceMultipleOrganizations",
+                "PremiumFunnelSourceObservability",
+                "PremiumFunnelSourceProvisionerKeys",
+                "PremiumFunnelSourceProvisioners",
+                "PremiumFunnelSourceTemplatePermissions",
+                "PremiumFunnelSourceWorkspaceProxies",
+                "PremiumFunnelSourceDirect"
+            ]
+        },
+        "codersdk.PremiumFunnelVariant": {
+            "type": "string",
+            "enum": [
+                "premium",
+                "small",
+                "ai_governance"
+            ],
+            "x-enum-varnames": [
+                "PremiumFunnelVariantPremium",
+                "PremiumFunnelVariantSmall",
+                "PremiumFunnelVariantAIGovernance"
+            ]
         },
         "codersdk.Preset": {
             "type": "object",

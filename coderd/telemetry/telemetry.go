@@ -1640,6 +1640,7 @@ type Snapshot struct {
 	ChatDiffStatusSummary                *ChatDiffStatusSummary                `json:"chat_diff_status_summary"`
 	UserSecretsSummary                   *UserSecretsSummary                   `json:"user_secrets_summary"`
 	TemplateBuilderSessions              []TemplateBuilderSession              `json:"template_builder_sessions"`
+	PremiumFunnelEvents                  []PremiumFunnelEvent                  `json:"premium_funnel_events"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -2675,6 +2676,28 @@ type TemplateBuilderSession struct {
 	DurationSeconds float64   `json:"duration_seconds,omitempty"`
 	Success         bool      `json:"success,omitempty"`
 	CreatedAt       time.Time `json:"created_at"`
+}
+
+// Steps of the premium trial funnel. These are set by coderd rather than the
+// client so that a conversion cannot be forged.
+const (
+	PremiumFunnelEventCTAClick    = "cta_click"
+	PremiumFunnelEventTrialSignup = "trial_signup"
+)
+
+// PremiumFunnelEvent tracks a single step of the premium trial funnel: a
+// paywall call to action being clicked, or a trial license being issued.
+// AttributionID carries the ID of the cta_click event that led to a trial
+// signup, so signups can be joined back to the paywall that produced them; it
+// is the nil UUID for clicks and for trials started without a paywall.
+type PremiumFunnelEvent struct {
+	ID            uuid.UUID `json:"id"`
+	EventType     string    `json:"event_type"`
+	Source        string    `json:"source"`
+	Variant       string    `json:"variant"`
+	AttributionID uuid.UUID `json:"attribution_id"`
+	UserID        uuid.UUID `json:"user_id"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 func ConvertAIBridgeInterceptionsSummary(endTime time.Time, provider, model, client string, summary database.CalculateAIBridgeInterceptionsTelemetrySummaryRow) AIBridgeInterceptionsSummary {
