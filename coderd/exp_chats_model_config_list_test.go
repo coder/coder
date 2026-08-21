@@ -107,16 +107,13 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 
 			experimentalClient := codersdk.NewExperimentalClient(scopedClient)
 			response, listErr := experimentalClient.ChatModels(ctx, defaultOrg.ID)
-			_, availabilityErr := experimentalClient.ChatModelAvailability(ctx, defaultOrg.ID)
 			model, itemErr := experimentalClient.ChatModel(ctx, defaultOrg.ID, ownEnabled.ID)
 			_, aclErr := experimentalClient.ChatModelACL(ctx, defaultOrg.ID, ownEnabled.ID)
 			if testCase.wantCollectionStatus != 0 {
 				requireSDKError(t, listErr, testCase.wantCollectionStatus)
-				requireSDKError(t, availabilityErr, testCase.wantCollectionStatus)
 			} else {
 				require.NoError(t, listErr)
 				require.NotEmpty(t, response.Models)
-				require.NoError(t, availabilityErr)
 			}
 			if testCase.wantItemStatus != 0 {
 				requireSDKError(t, itemErr, testCase.wantItemStatus)
@@ -138,13 +135,6 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 			name: "Collection",
 			call: func(ctx context.Context, organizationID uuid.UUID) error {
 				_, err := memberClient.ChatModels(ctx, organizationID)
-				return err
-			},
-		},
-		{
-			name: "Availability",
-			call: func(ctx context.Context, organizationID uuid.UUID) error {
-				_, err := memberClient.ChatModelAvailability(ctx, organizationID)
 				return err
 			},
 		},
@@ -247,7 +237,7 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 			models, err := testCase.client(t, ctx).ChatModels(ctx, defaultOrg.ID)
 			require.NoError(t, err)
 			require.True(t, containsChatModel(models.Models, ownEnabled.ID))
-			require.True(t, containsChatModel(models.Models, ownDisabled.ID))
+			require.False(t, containsChatModel(models.Models, ownDisabled.ID))
 			require.Equal(t, testCase.seesDenied, containsChatModel(models.Models, denied.ID))
 			require.False(t, containsChatModel(models.Models, otherEnabled.ID))
 		})

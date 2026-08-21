@@ -87,6 +87,7 @@ describe("useAccessibleModelOrganizations", () => {
 			.mockImplementation(async (_organizationId) => ({
 				models: [],
 				providers: [],
+				unsupported_providers: [],
 			}));
 		const { queryClient, wrapper } = createQueryWrapper();
 		const { result, unmount } = renderHook(
@@ -173,7 +174,7 @@ describe("useAccessibleModelOrganizations", () => {
 				if (organizationId === MockOrganization2.id) {
 					throw new Error("Failed to load organization");
 				}
-				return { models: [], providers: [] };
+				return { models: [], providers: [], unsupported_providers: [] };
 			},
 		);
 		const { queryClient, wrapper } = createQueryWrapper();

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatModel,
-	MockChatModelProvider,
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
 import {
@@ -17,7 +16,6 @@ const baseProviderState: ProviderState = {
 	label: MockChatModelProviderDescriptor.display_name,
 	providerDescriptor: MockChatModelProviderDescriptor,
 	models: [],
-	catalogModelCount: 0,
 	hasEffectiveAPIKey: true,
 	allowUserAPIKey: false,
 };
@@ -39,7 +37,7 @@ describe("deriveProviderStates", () => {
 			},
 		];
 
-		const states = deriveProviderStates([], descriptors, undefined);
+		const states = deriveProviderStates([], descriptors);
 
 		expect(states.map((state) => state.provider)).toEqual([
 			"anthropic",
@@ -53,49 +51,37 @@ describe("deriveProviderStates", () => {
 			{ ...MockChatModel, id: "m2" },
 		];
 
-		const states = deriveProviderStates(
-			modelConfigs,
-			[MockChatModelProviderDescriptor],
-			undefined,
-		);
+		const states = deriveProviderStates(modelConfigs, [
+			MockChatModelProviderDescriptor,
+		]);
 
 		expect(states[0].models.map((model) => model.id)).toEqual(["m1", "m2"]);
 	});
 
-	it("uses availability only for catalog model counts", () => {
-		const availability: TypesGen.ChatModelAvailabilityResponse = {
-			providers: [
-				{
-					...MockChatModelProvider,
-					models: [
-						{
-							id: "openai:gpt-x",
-							provider: "openai",
-							model: "gpt-x",
-							display_name: "GPT-X",
-						},
-					],
-				},
-			],
-			unsupported_providers: [],
-		};
+	it("keeps same-type provider availability independent by UUID", () => {
+		const descriptors: TypesGen.ChatModelProviderDescriptor[] = [
+			{
+				...MockChatModelProviderDescriptor,
+				id: "openai-available",
+				available: true,
+			},
+			{
+				...MockChatModelProviderDescriptor,
+				id: "openai-unavailable",
+				display_name: "OpenAI Secondary",
+				available: false,
+				unavailable_reason: "missing_api_key",
+			},
+		];
 
-		const states = deriveProviderStates(
-			[],
-			[MockChatModelProviderDescriptor],
-			availability,
-		);
+		const states = deriveProviderStates([], descriptors);
 
-		expect(states[0].catalogModelCount).toBe(1);
-	});
-
-	it("treats null provider models as an empty catalog", () => {
-		const states = deriveProviderStates([], [MockChatModelProviderDescriptor], {
-			providers: [{ ...MockChatModelProvider, models: null }],
-			unsupported_providers: [],
-		});
-
-		expect(states[0].catalogModelCount).toBe(0);
+		expect(
+			states.map((state) => [state.key, state.providerDescriptor.available]),
+		).toEqual([
+			["openai-available", true],
+			["openai-unavailable", false],
+		]);
 	});
 
 	it.each([
@@ -119,7 +105,7 @@ describe("deriveProviderStates", () => {
 			has_effective_api_key: hasEffectiveAPIKey,
 		};
 
-		const states = deriveProviderStates([], [descriptor], undefined);
+		const states = deriveProviderStates([], [descriptor]);
 
 		expect(states[0].hasEffectiveAPIKey).toBe(hasEffectiveAPIKey);
 	});

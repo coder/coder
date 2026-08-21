@@ -358,8 +358,6 @@ const chatModelPath = (organizationId: string, modelId: string) =>
 	`${chatModelsPath(organizationId)}/${encodeURIComponent(modelId)}`;
 const chatModelACLPath = (organizationId: string, modelId: string) =>
 	`${chatModelPath(organizationId, modelId)}/acl`;
-const chatModelAvailabilityPath = (organizationId: string) =>
-	`${chatModelsPath(organizationId)}/available`;
 const userSkillsPath = (user: string) =>
 	`/api/experimental/users/${encodeURIComponent(user)}/skills`;
 const userSkillPath = (user: string, name: string) =>
@@ -3494,16 +3492,6 @@ class ExperimentalApiMethods {
 		const response = await this.axios.get<TypesGen.ChatDiffContents>(
 			`/api/experimental/chats/${chatId}/diff`,
 		);
-		return response.data;
-	};
-
-	getChatModelAvailability = async (
-		organizationId: string,
-	): Promise<TypesGen.ChatModelAvailabilityResponse> => {
-		const response =
-			await this.axios.get<TypesGen.ChatModelAvailabilityResponse>(
-				chatModelAvailabilityPath(organizationId),
-			);
 		return response.data;
 	};
 

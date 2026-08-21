@@ -2189,16 +2189,6 @@ export const chatModels = (organizationId: string) => ({
 	staleTime: CHAT_MODELS_STALE_MS,
 });
 
-export const chatModelAvailabilityKey = (organizationId: string) =>
-	[...organizationChatModelsKey(organizationId), "available"] as const;
-
-export const chatModelAvailability = (organizationId: string) => ({
-	queryKey: chatModelAvailabilityKey(organizationId),
-	queryFn: (): Promise<TypesGen.ChatModelAvailabilityResponse> =>
-		API.experimental.getChatModelAvailability(organizationId),
-	enabled: organizationId !== "",
-});
-
 export const userChatProviderConfigsKey = [
 	"ai",
 	"provider-keys",
@@ -2352,10 +2342,6 @@ export const updateChatModelACL = (queryClient: QueryClient) => ({
 			}),
 			queryClient.invalidateQueries({
 				queryKey: organizationChatModelsKey(organizationId),
-				exact: true,
-			}),
-			queryClient.invalidateQueries({
-				queryKey: chatModelAvailabilityKey(organizationId),
 				exact: true,
 			}),
 			queryClient.invalidateQueries({ queryKey: authorizationKey }),

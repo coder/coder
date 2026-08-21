@@ -28,6 +28,7 @@ const modelsResponse = (
 		},
 	],
 	providers: [],
+	unsupported_providers: [],
 });
 
 const apiError = (status: number, message: string) => ({

@@ -1,10 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { deriveProviderStates } from "#/modules/aiModels/providerStates";
-import {
-	MockChatModelProvider,
-	MockChatModelProviderDescriptor,
-} from "#/testHelpers/chatModels";
+import { MockChatModelProviderDescriptor } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganizationPermissions,
@@ -94,21 +91,11 @@ export const NoProviderConfigurationFields: Story = {
 	},
 };
 
-export const NullAvailabilityModelsUsesEmptyCatalog: Story = {
+export const ProviderWithoutConfiguredModels: Story = {
 	args: {
-		providerStates: deriveProviderStates(
-			[],
-			[MockChatModelProviderDescriptor],
-			{
-				providers: [{ ...MockChatModelProvider, models: null }],
-				unsupported_providers: [],
-			},
-		),
+		providerStates: deriveProviderStates([], [MockChatModelProviderDescriptor]),
 		selectedProviderState:
-			deriveProviderStates([], [MockChatModelProviderDescriptor], {
-				providers: [{ ...MockChatModelProvider, models: null }],
-				unsupported_providers: [],
-			})[0] ?? null,
+			deriveProviderStates([], [MockChatModelProviderDescriptor])[0] ?? null,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

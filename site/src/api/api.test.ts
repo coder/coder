@@ -436,17 +436,9 @@ describe("api.ts", () => {
 
 		it.each<[string, () => Promise<unknown>, unknown]>([
 			[
-				"/api/experimental/organizations/organization%2Fid/chats/models/available",
-				() => API.experimental.getChatModelAvailability(organizationId),
-				{
-					providers: [],
-					unsupported_providers: [],
-				},
-			],
-			[
 				"/api/experimental/organizations/organization%2Fid/chats/models",
 				() => API.experimental.getChatModels(organizationId),
-				{ models: [], providers: [] },
+				{ models: [], providers: [], unsupported_providers: [] },
 			],
 		])("returns response data for %s", async (path, request, responseData) => {
 			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
@@ -460,10 +452,6 @@ describe("api.ts", () => {
 		});
 
 		it.each<[string, () => Promise<unknown>]>([
-			[
-				"/api/experimental/organizations/organization%2Fid/chats/models/available",
-				() => API.experimental.getChatModelAvailability(organizationId),
-			],
 			[
 				"/api/experimental/organizations/organization%2Fid/chats/models",
 				() => API.experimental.getChatModels(organizationId),
