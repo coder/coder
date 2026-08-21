@@ -23,6 +23,7 @@ export const Navbar: React.FC = () => {
 	const proxyContextValue = useProxy();
 	const accessibleModelOrgsQuery =
 		useAccessibleModelOrganizations(organizations);
+	const canAccessAnyModel = canAccessAnyChatModelConfig(permissions);
 
 	const canViewDeployment = canViewDeploymentSettings(permissions);
 	const canViewOrganizations = canViewOrganizationSettings;
@@ -41,8 +42,9 @@ export const Navbar: React.FC = () => {
 		permissions.createAnyMCPServerConfig ||
 		permissions.updateAnyMCPServerConfig ||
 		permissions.deleteAnyMCPServerConfig ||
-		canAccessAnyChatModelConfig(permissions) ||
-		(accessibleModelOrgsQuery.organizations.length ?? 0) > 0;
+		canAccessAnyModel;
+	const canViewModels =
+		!canViewAISettings && accessibleModelOrgsQuery.organizations.length > 0;
 	const canCreateChat = permissions.createChat;
 
 	const uniqueLinks = new Map<string, LinkConfig>();
@@ -66,6 +68,7 @@ export const Navbar: React.FC = () => {
 				canViewAIBridge,
 				canViewHealth,
 			}}
+			canViewModels={canViewModels}
 			canCreateChat={canCreateChat}
 			proxyContextValue={proxyContextValue}
 		/>
