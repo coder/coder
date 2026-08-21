@@ -7195,6 +7195,41 @@ func (api *API) inChatModelConfigWriteTx(
 	}, &database.TxOptions{Isolation: sql.LevelReadCommitted})
 }
 
+type chatModelConfigAuditTransition struct {
+	Old database.ChatModelConfig
+	New database.ChatModelConfig
+}
+
+func (api *API) auditChatModelConfigTransitions(
+	ctx context.Context,
+	r *http.Request,
+	userID uuid.UUID,
+	status int,
+	transitions []chatModelConfigAuditTransition,
+) {
+	if len(transitions) == 0 {
+		return
+	}
+	auditor := api.Auditor.Load()
+	auditCtx := context.WithoutCancel(ctx)
+	requestID := httpmw.RequestID(r)
+	for _, transition := range transitions {
+		audit.BackgroundAudit(auditCtx, &audit.BackgroundAuditParams[database.ChatModelConfig]{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			UserID:         userID,
+			RequestID:      requestID,
+			Status:         status,
+			IP:             r.RemoteAddr,
+			UserAgent:      r.UserAgent(),
+			Action:         database.AuditActionWrite,
+			OrganizationID: transition.New.OrganizationID,
+			Old:            transition.Old,
+			New:            transition.New,
+		})
+	}
+}
+
 // @Summary Create an AI model in an organization
 // @ID create-ai-model
 // @Security CoderSessionToken
@@ -7210,6 +7245,16 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
+
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.ChatModelConfig](rw, &audit.RequestParams{
+		Audit:          *auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionCreate,
+		OrganizationID: organization.ID,
+	})
+	defer commitAudit()
 
 	var req struct {
 		codersdk.CreateChatModelRequest
@@ -7302,9 +7347,12 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		UserACL:              database.ChatACL{},
 	}
 
-	var inserted database.ChatModelConfig
+	var (
+		inserted         database.ChatModelConfig
+		auditTransitions []chatModelConfigAuditTransition
+	)
 	err := api.inChatModelConfigWriteTx(ctx, insertParams.OrganizationID, func(tx database.Store) error {
-		_, err := tx.GetDefaultChatModelConfig(ctx, insertParams.OrganizationID)
+		currentDefault, err := tx.GetDefaultChatModelConfig(ctx, insertParams.OrganizationID)
 		defaultExists := err == nil
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("get default model config: %w", err)
@@ -7315,6 +7363,12 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			if err := tx.UnsetDefaultChatModelConfigs(ctx, insertParams.OrganizationID); err != nil {
 				return xerrors.Errorf("unset default model configs: %w", err)
 			}
+			//nolint:gocritic // The create write owns authorization for this transition.
+			demoted, err := tx.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), currentDefault.ID)
+			if err != nil {
+				return xerrors.Errorf("refresh demoted default chat model config: %w", err)
+			}
+			auditTransitions = append(auditTransitions, chatModelConfigAuditTransition{Old: currentDefault, New: demoted})
 		}
 		insertParams.IsDefault = insertAsDefault
 
@@ -7342,8 +7396,12 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		if err := ensureDefaultChatModelConfig(ctx, tx, insertParams.OrganizationID); err != nil {
+		transition, err := ensureDefaultChatModelConfig(ctx, tx, insertParams.OrganizationID)
+		if err != nil {
 			return err
+		}
+		if transition != nil {
+			auditTransitions = append(auditTransitions, *transition)
 		}
 
 		refreshedConfig, err := tx.GetChatModelConfigByID(ctx, inserted.ID)
@@ -7382,6 +7440,8 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	aReq.New = inserted
+	api.auditChatModelConfigTransitions(ctx, r, apiKey.UserID, http.StatusCreated, auditTransitions)
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, inserted.ID)
 
 	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted))
@@ -7407,6 +7467,17 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
+
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.ChatModelConfig](rw, &audit.RequestParams{
+		Audit:          *auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: existing.OrganizationID,
+	})
+	defer commitAudit()
+	aReq.Old = existing
 
 	var req struct {
 		codersdk.UpdateChatModelRequest
@@ -7457,7 +7528,10 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		requestedModelConfig = encodedModelConfig
 	}
 
-	var updated database.ChatModelConfig
+	var (
+		updated          database.ChatModelConfig
+		auditTransitions []chatModelConfigAuditTransition
+	)
 	err := api.inChatModelConfigWriteTx(ctx, existing.OrganizationID, func(tx database.Store) error {
 		// The middleware lookup above only rejects unknown IDs; a concurrent
 		// writer can change or delete the row between the two reads, so merge
@@ -7470,6 +7544,8 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 			return xerrors.Errorf("get chat model config for update: %w", err)
 		}
+
+		aReq.Old = lockedExisting
 
 		model := lockedExisting.Model
 		if trimmed := strings.TrimSpace(req.Model); trimmed != "" {
@@ -7539,12 +7615,25 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 		setAsDefault := updateParams.IsDefault && !lockedExisting.IsDefault
 		if setAsDefault {
+			//nolint:gocritic // The target update owns authorization for the sibling transition.
+			currentDefault, err := tx.GetDefaultChatModelConfig(dbauthz.AsSystemRestricted(ctx), lockedExisting.OrganizationID)
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get default model config before update: %w", err)
+			}
 			if err := tx.UnsetDefaultChatModelConfigs(ctx, lockedExisting.OrganizationID); err != nil {
 				return xerrors.Errorf("unset default model configs: %w", err)
 			}
+			if err == nil {
+				//nolint:gocritic // The target update owns authorization for the sibling transition.
+				demoted, err := tx.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), currentDefault.ID)
+				if err != nil {
+					return xerrors.Errorf("refresh demoted default chat model config: %w", err)
+				}
+				auditTransitions = append(auditTransitions, chatModelConfigAuditTransition{Old: currentDefault, New: demoted})
+			}
 		}
 
-		_, err = tx.UpdateChatModelConfig(ctx, updateParams)
+		updated, err = tx.UpdateChatModelConfig(ctx, updateParams)
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return errChatModelConfigNotFound
@@ -7557,21 +7646,22 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			excludeConfigID = lockedExisting.ID
 		}
 
-		if err := ensureDefaultChatModelConfig(
+		transition, err := ensureDefaultChatModelConfig(
 			ctx,
 			tx,
 			lockedExisting.OrganizationID,
 			excludeConfigID,
-		); err != nil {
+		)
+		if err != nil {
 			return err
 		}
-
-		//nolint:gocritic // The update above reauthorized the locked row.
-		refreshedConfig, err := tx.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), lockedExisting.ID)
-		if err != nil {
-			return xerrors.Errorf("refresh updated chat model config: %w", err)
+		if transition != nil {
+			if transition.New.ID == lockedExisting.ID {
+				updated = transition.New
+			} else {
+				auditTransitions = append(auditTransitions, *transition)
+			}
 		}
-		updated = refreshedConfig
 		return nil
 	})
 	if err != nil {
@@ -7606,6 +7696,8 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	aReq.New = updated
+	api.auditChatModelConfigTransitions(ctx, r, apiKey.UserID, http.StatusOK, auditTransitions)
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, updated.ID)
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated))
@@ -7628,14 +7720,42 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.ChatModelConfig](rw, &audit.RequestParams{
+		Audit:          *auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionDelete,
+		OrganizationID: existing.OrganizationID,
+	})
+	defer commitAudit()
+	aReq.Old = existing
+
+	var auditTransitions []chatModelConfigAuditTransition
 	if err := api.inChatModelConfigWriteTx(ctx, existing.OrganizationID, func(tx database.Store) error {
-		if _, err := tx.DeleteChatModelConfigByID(ctx, existing.ID); err != nil {
+		//nolint:gocritic // The delete write below reauthorizes the locked row.
+		current, err := tx.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), existing.ID)
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return errChatModelConfigNotFound
+			}
+			return xerrors.Errorf("get chat model config for delete: %w", err)
+		}
+		aReq.Old = current
+		if _, err := tx.DeleteChatModelConfigByID(ctx, current.ID); err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return errChatModelConfigNotFound
 			}
 			return err
 		}
-		return ensureDefaultChatModelConfig(ctx, tx, existing.OrganizationID)
+		transition, err := ensureDefaultChatModelConfig(ctx, tx, current.OrganizationID)
+		if err != nil {
+			return err
+		}
+		if transition != nil {
+			auditTransitions = append(auditTransitions, *transition)
+		}
+		return nil
 	}); err != nil {
 		if dbauthz.IsNotAuthorizedError(err) {
 			// The dbauthz object delete check is the write access boundary;
@@ -7654,6 +7774,7 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	api.auditChatModelConfigTransitions(ctx, r, httpmw.APIKey(r).UserID, http.StatusNoContent, auditTransitions)
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, existing.ID)
 
 	rw.WriteHeader(http.StatusNoContent)
@@ -7666,22 +7787,22 @@ func ensureDefaultChatModelConfig(
 	tx database.Store,
 	organizationID uuid.UUID,
 	excludedConfigIDs ...uuid.UUID,
-) error {
+) (*chatModelConfigAuditTransition, error) {
 	//nolint:gocritic // Default election is contained by action-authorized writes.
 	_, err := tx.GetDefaultChatModelConfig(dbauthz.AsSystemRestricted(ctx), organizationID)
 	switch {
 	case err == nil:
-		return nil
+		return nil, nil //nolint:nilnil // A nil transition means no default changed.
 	case !xerrors.Is(err, sql.ErrNoRows):
-		return xerrors.Errorf("get default model config: %w", err)
+		return nil, xerrors.Errorf("get default model config: %w", err)
 	}
 
 	orgModelConfigs, err := tx.GetChatModelConfigsByOrganization(ctx, organizationID)
 	if err != nil {
-		return xerrors.Errorf("list default chat model config candidates: %w", err)
+		return nil, xerrors.Errorf("list default chat model config candidates: %w", err)
 	}
 	if len(orgModelConfigs) == 0 {
-		return nil
+		return nil, nil //nolint:nilnil // No model remains to promote.
 	}
 
 	// Prefer a config that can actually serve requests (enabled, under an
@@ -7690,7 +7811,7 @@ func ensureDefaultChatModelConfig(
 	// when no usable candidate exists.
 	enabledRows, err := tx.GetEnabledChatModelConfigsByOrganization(ctx, organizationID)
 	if err != nil {
-		return xerrors.Errorf("list enabled chat model configs: %w", err)
+		return nil, xerrors.Errorf("list enabled chat model configs: %w", err)
 	}
 	usable := make(map[uuid.UUID]struct{}, len(enabledRows))
 	for _, row := range enabledRows {
@@ -7726,20 +7847,21 @@ func ensureDefaultChatModelConfig(
 	candidateConfig := *selected
 
 	if err := tx.UnsetDefaultChatModelConfigs(ctx, organizationID); err != nil {
-		return xerrors.Errorf("unset default model configs: %w", err)
+		return nil, xerrors.Errorf("unset default model configs: %w", err)
 	}
 
 	params := chatModelConfigToUpdateParams(candidateConfig)
 	params.IsDefault = true
-	if _, err := tx.UpdateChatModelConfig(ctx, params); err != nil {
+	promoted, err := tx.UpdateChatModelConfig(ctx, params)
+	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			// Do not wrap with %w. Callers map target misses to 404, but a
 			// default-candidate race is an internal retryable failure.
-			return xerrors.Errorf("set default model config: %v", err)
+			return nil, xerrors.Errorf("set default model config: %v", err)
 		}
-		return xerrors.Errorf("set default model config: %w", err)
+		return nil, xerrors.Errorf("set default model config: %w", err)
 	}
-	return nil
+	return &chatModelConfigAuditTransition{Old: candidateConfig, New: promoted}, nil
 }
 
 func chatModelConfigToUpdateParams(
