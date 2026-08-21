@@ -31,12 +31,7 @@ export const QueuedForCapacityCallout: FC<QueuedForCapacityCalloutProps> = ({
 
 	let action: ReactNode = (
 		<>
-			<Link
-				href={concurrencyDocsUrl}
-				target="_blank"
-				rel="noreferrer"
-				size="sm"
-			>
+			<Link href={concurrencyDocsUrl} target="_blank" rel="noreferrer">
 				Learn more
 			</Link>
 			.
@@ -46,7 +41,7 @@ export const QueuedForCapacityCallout: FC<QueuedForCapacityCalloutProps> = ({
 		action = (
 			<>
 				Contact your Coder account team or{" "}
-				<Link href="mailto:sales@coder.com" size="sm" showExternalIcon={false}>
+				<Link href="mailto:sales@coder.com" showExternalIcon={false}>
 					sales@coder.com
 				</Link>{" "}
 				to upgrade to unlimited concurrent agents.
@@ -55,18 +50,13 @@ export const QueuedForCapacityCallout: FC<QueuedForCapacityCalloutProps> = ({
 	} else if (canManageLicenses) {
 		action = (
 			<>
-				<Link asChild showExternalIcon={false} size="sm">
+				<Link asChild showExternalIcon={false}>
 					<RouterLink to="/deployment/premium">
 						Start an unlimited trial
 					</RouterLink>
 				</Link>{" "}
 				or{" "}
-				<Link
-					href={concurrencyDocsUrl}
-					target="_blank"
-					rel="noreferrer"
-					size="sm"
-				>
+				<Link href={concurrencyDocsUrl} target="_blank" rel="noreferrer">
 					learn more
 				</Link>
 				.
