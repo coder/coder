@@ -77,6 +77,10 @@ on something or you have simply not read the part that answers it.
   values are written once. Also where the existing implementation and this
   corpus are misaligned. Read it before arguing about schema, because most of
   that argument has already happened here.
+- [Rewriting RBAC](rewrite_rbac.md). What is known about rewriting the
+  authorization and credential machinery so that something other than a user can
+  hold a credential and act. Deliberately thin, and written alongside the work
+  rather than ahead of it.
 - [Implementation of Entities](implementation_of_entities.md). How much of each
   entity exists in code and where that code is. The entity corpus refers to
   implementation only through this file, and no more finely than an entity, so

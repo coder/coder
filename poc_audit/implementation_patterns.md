@@ -372,6 +372,35 @@ transaction, so entries written to different journals in one transaction carry
 an identical recording date. That is a property to know about rather than one
 to rely on; see Open below.
 
+### An actor type column on a core table is text with a CHECK
+
+This is a proof of concept cheat, and the production choice is a Postgres enum.
+An enum closes the set in the schema, documents it there, and gives generated Go
+a type rather than a string.
+
+It is rejected here for a specific and recurring cost. `ALTER TYPE ... ADD VALUE`
+may not be used in the transaction that adds it, so extending an enum means
+recreating the type, and recreating it means `ALTER COLUMN ... TYPE` with a cast.
+On a core table such as `api_keys` that is a full rewrite under lock. The set of
+actor types is not fixed: splitting system actors out of `user` is itself work
+this corpus anticipates, so the first extension is already foreseen.
+
+**This is not the earlier cheat, which was text with no constraint at all.**
+That one left the set open and offered a periodic sweep as its replacement. A
+`CHECK` closes the set in the schema, which is the guarantee that was missing.
+What it gives up against an enum is the schema level documentation and the typed
+value in generated code, and what it buys is that adding an actor type is a
+constraint swap rather than a table rewrite. `ADD CONSTRAINT ... NOT VALID`
+followed by `VALIDATE CONSTRAINT` avoids even a long lock.
+
+**One vocabulary, one spelling.** Whatever the actor type column is on a core
+table, the `actor_type` of every journal here matches it. Two representations of
+one set is worse than either representation alone.
+
+**Scope, for the proof of concept: `user` and `ai_agent` only.** System actors
+already recorded as users stay there. Going from one identity table to two is
+where nearly all the work is, and going from two to three afterwards is small.
+
 ## Findings
 
 ### The existing journal carries one date, not two
@@ -397,6 +426,24 @@ it with `ALTER COLUMN ... SET DEFAULT nextval(...)`.
 `000569_ai_sandbox_audit.up.sql` uses `BIGINT GENERATED ALWAYS AS IDENTITY`.
 Eight migrations use `BIGSERIAL`. Choosing the sequence is therefore consistent
 with the codebase rather than novel in it.
+
+### The users table already holds four actor kinds under three discriminators
+
+`users.kind` is an enum of `human` and `ai_agent`. `users.is_system` is a
+boolean, commented as marking a user that "cannot login or perform normal
+actions", which is how the account that creates prebuilt workspaces is
+represented. `users.is_service_account` is a third.
+
+So the table is a union of actor kinds presented as one relation, and each kind
+was absorbed by a different mechanism. This is the situation "A reference
+standing where a foreign key would stand is a pair" describes from the other
+side: `api_keys.user_id` is a single kind reference into a table that is not
+single kind. It is also why adding a column per actor kind is not the remedy,
+since the next kind would want another column.
+
+Two of the three discriminators are booleans rather than values of the enum.
+Whether that is because extending an enum is awkward is not established here,
+but it is consistent with the cost recorded above.
 
 ## Open
 
