@@ -105,9 +105,10 @@ func (server *Server) sanitizeForeignProviderExecutedToolRows(
 	ctx context.Context,
 	logger slog.Logger,
 	rows []database.ChatMessage,
+	ownerID uuid.UUID,
 	modelConfigID uuid.UUID,
 ) []database.ChatMessage {
-	targetCfg, targetProvider, err := server.resolveModelConfigAndNormalizedProvider(ctx, modelConfigID)
+	targetCfg, targetProvider, err := server.resolveModelConfigAndNormalizedProvider(ctx, ownerID, modelConfigID)
 	if err != nil || targetProvider == "" {
 		logger.Debug(ctx, "skipping provider-switch sanitization: target provider unresolved",
 			slog.F("model_config_id", modelConfigID),
@@ -125,7 +126,7 @@ func (server *Server) sanitizeForeignProviderExecutedToolRows(
 		if identity, seen := cache[id.UUID]; seen {
 			return identity, identity != ""
 		}
-		originCfg, provider, rErr := server.resolveModelConfigAndNormalizedProvider(ctx, id.UUID)
+		originCfg, provider, rErr := server.resolveModelConfigAndNormalizedProvider(ctx, ownerID, id.UUID)
 		if rErr != nil {
 			logger.Debug(ctx, "provider-switch sanitization: origin provider unresolved, treating as foreign",
 				slog.F("model_config_id", id.UUID),

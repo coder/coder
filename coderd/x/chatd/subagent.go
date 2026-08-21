@@ -382,6 +382,7 @@ func (p *Server) resolvePersonalModelOverride(
 ) (database.ChatModelConfig, bool, error) {
 	modelConfig, providerName, err := p.resolveModelConfigForOrganization(
 		ctx,
+		ownerID,
 		organizationID,
 		modelConfigID,
 	)
@@ -484,7 +485,7 @@ func (p *Server) resolveSubagentModelConfigID(
 		raw,
 		ownerID,
 		func(ctx context.Context, modelConfigID uuid.UUID) (database.ChatModelConfig, string, error) {
-			return p.resolveModelConfigForOrganization(ctx, organizationID, modelConfigID)
+			return p.resolveModelConfigForOrganization(ctx, ownerID, organizationID, modelConfigID)
 		},
 		p.resolveUserProviderAPIKeys,
 		modelOverrideFailureModeSoft,
@@ -507,12 +508,17 @@ func modelConfigAIProviderID(modelConfig database.ChatModelConfig) uuid.UUID {
 
 func (p *Server) resolveModelConfigAndNormalizedProvider(
 	ctx context.Context,
+	ownerID uuid.UUID,
 	modelConfigID uuid.UUID,
 ) (database.ChatModelConfig, string, error) {
 	if modelConfigID == uuid.Nil {
 		return database.ChatModelConfig{}, "", sql.ErrNoRows
 	}
-	modelConfig, err := p.configCache.ModelConfigByID(ctx, modelConfigID)
+	modelCtx, err := p.callerModelConfigContext(ctx, ownerID)
+	if err != nil {
+		return database.ChatModelConfig{}, "", err
+	}
+	modelConfig, err := p.db.GetChatModelConfigByID(modelCtx, modelConfigID)
 	if err != nil {
 		return database.ChatModelConfig{}, "", err
 	}
@@ -527,7 +533,8 @@ func (p *Server) resolveNormalizedProviderForModelConfig(
 		return database.ChatModelConfig{}, "", sql.ErrNoRows
 	}
 	if modelConfig.AIProviderID.Valid {
-		provider, err := p.db.GetAIProviderByID(ctx, modelConfig.AIProviderID.UUID)
+		//nolint:gocritic // Provider configuration remains a privileged Chatd read.
+		provider, err := p.db.GetAIProviderByID(dbauthz.AsChatd(ctx), modelConfig.AIProviderID.UUID)
 		if err != nil {
 			return database.ChatModelConfig{}, "", err
 		}
@@ -562,10 +569,9 @@ func (p *Server) resolveExplicitSpawnOverrides(
 					listSubagentModelsToolName + " to see available models",
 			)
 		}
-		//nolint:gocritic // Chatd needs its scoped config and user-data access here.
-		chatdCtx := dbauthz.AsChatd(ctx)
 		modelConfig, providerName, err := p.resolveModelConfigForOrganization(
-			chatdCtx,
+			ctx,
+			ownerID,
 			organizationID,
 			modelConfigID,
 		)
@@ -589,8 +595,9 @@ func (p *Server) resolveExplicitSpawnOverrides(
 				return nil, nil, xerrors.New("internal error looking up model config")
 			}
 		}
+		//nolint:gocritic // Provider credentials remain privileged Chatd reads.
 		providerKeys, err := p.resolveUserProviderAPIKeys(
-			chatdCtx,
+			dbauthz.AsChatd(ctx),
 			ownerID,
 			modelConfigAIProviderID(modelConfig),
 		)
@@ -630,9 +637,11 @@ func (p *Server) listSpawnableModelConfigs(
 	ownerID uuid.UUID,
 	organizationID uuid.UUID,
 ) ([]map[string]any, error) {
-	//nolint:gocritic // Chatd needs its scoped config and user-data access here.
-	chatdCtx := dbauthz.AsChatd(ctx)
-	rows, err := enabledChatModelConfigsForOrganization(chatdCtx, p.db, organizationID)
+	modelCtx, err := p.callerModelConfigContext(ctx, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := enabledChatModelConfigsForOrganization(modelCtx, p.db, organizationID)
 	if err != nil {
 		return nil, xerrors.Errorf("get enabled chat model configs: %w", err)
 	}
@@ -652,8 +661,9 @@ func (p *Server) listSpawnableModelConfigs(
 		providerID := modelConfigAIProviderID(row.ChatModelConfig)
 		providerKeys, ok := providerKeysByID[providerID]
 		if !ok {
+			//nolint:gocritic // Provider credentials remain privileged Chatd reads.
 			providerKeys, err = p.resolveUserProviderAPIKeys(
-				chatdCtx,
+				dbauthz.AsChatd(ctx),
 				ownerID,
 				providerID,
 			)

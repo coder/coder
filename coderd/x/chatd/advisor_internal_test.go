@@ -455,7 +455,7 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 	ctx = aibridge.WithDelegatedAPIKeyID(ctx, uuid.NewString())
 	resolved, ok, err := p.resolveAdvisorModelOverride(
 		ctx,
-		database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
+		database.Chat{ID: uuid.New()},
 		codersdk.AdvisorConfig{ModelConfigID: configID},
 		advisorTestMaxOutputTokens,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},

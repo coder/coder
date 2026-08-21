@@ -722,9 +722,9 @@ const (
 	ChatModelProviderUnavailableReasonUserAPIKeyRequired ChatModelProviderUnavailableReason = "user_api_key_required"
 )
 
-// ChatModelCatalogEntry is a discovery catalog entry for end users.
-// Its ID is a synthetic provider:model value, not the UUID in ChatModel.ID.
-// It is not an admin-managed record. See ChatModel.
+// ChatModelCatalogEntry is the runtime catalog view of a model. Its ID is the
+// synthetic catalog identity `provider:model` built by canonicalModelID, not
+// the chat_model_configs row UUID that ChatModel.ID carries.
 type ChatModelCatalogEntry struct {
 	ID          string `json:"id"`
 	Provider    string `json:"provider"`
@@ -740,9 +740,11 @@ type ChatModelProvider struct {
 	Models            []ChatModelCatalogEntry            `json:"models"`
 }
 
-// ChatModelAvailabilityResponse groups the discovery catalog by provider and
-// reports provider availability.
+// ChatModelAvailabilityResponse is the catalog returned from chat model discovery.
 type ChatModelAvailabilityResponse struct {
+	// Models contains the effective runtime model configs for the requested
+	// organization. Each config belongs to that organization.
+	Models    []ChatModel         `json:"models,omitempty"`
 	Providers []ChatModelProvider `json:"providers"`
 	// UnsupportedProviders lists configured providers the Agents harness
 	// cannot use, so the UI can explain the empty state.
@@ -1318,10 +1320,10 @@ type CreateUserChatProviderKeyRequest struct {
 	APIKey string `json:"api_key"`
 }
 
-// ChatModel is an admin-managed model record for an organization.
-// It is not a discovery catalog entry. See ChatModelCatalogEntry.
+// ChatModel is an org-scoped model configuration.
 type ChatModel struct {
 	ID                   uuid.UUID            `json:"id" format:"uuid"`
+	OrganizationID       uuid.UUID            `json:"organization_id" format:"uuid"`
 	AIProviderID         uuid.UUID            `json:"ai_provider_id" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name"`
@@ -1335,6 +1337,21 @@ type ChatModel struct {
 	ReasoningEfforts []string  `json:"reasoning_efforts,omitempty"`
 	CreatedAt        time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+}
+
+// ChatModelACL is the access control list for an organization-scoped chat
+// model. Each principal is mapped to its effective model role.
+type ChatModelACL struct {
+	UserRoles  map[string]ChatRole `json:"user_roles"`
+	GroupRoles map[string]ChatRole `json:"group_roles"`
+}
+
+// UpdateChatModelACLRequest is a sparse update of a chat model ACL. Only the
+// listed principals change. ChatRoleDeleted removes an entry, while an omitted
+// map or principal is unchanged.
+type UpdateChatModelACLRequest struct {
+	UserRoles  map[string]ChatRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatRole `json:"group_roles,omitempty"`
 }
 
 // ChatModelProviderOptions contains typed provider-specific options.
@@ -2028,9 +2045,10 @@ func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptio
 	return chats, ReadBodyAsJSON(res, &chats)
 }
 
-// ChatModelAvailability returns the discovery catalog and provider availability.
-func (c *ExperimentalClient) ChatModelAvailability(ctx context.Context) (ChatModelAvailabilityResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/models", nil)
+// ChatModelAvailability returns the provider-grouped, per-caller
+// availability view of one organization's chat models.
+func (c *ExperimentalClient) ChatModelAvailability(ctx context.Context, organizationID uuid.UUID) (ChatModelAvailabilityResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/models/available", organizationID), nil)
 	if err != nil {
 		return ChatModelAvailabilityResponse{}, err
 	}
@@ -2187,24 +2205,41 @@ func (c *ExperimentalClient) DeleteUserChatProviderKey(ctx context.Context, prov
 	return nil
 }
 
-// ChatModels returns admin-managed chat model records.
-func (c *ExperimentalClient) ChatModels(ctx context.Context) ([]ChatModel, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/model-configs", nil)
+// ChatModels returns the chat model configs the caller can read in one
+// organization, plus the redacted provider descriptors the authoring page
+// needs, for org-scoped management and picker surfaces.
+func (c *ExperimentalClient) ChatModels(ctx context.Context, organizationID uuid.UUID) (OrganizationChatModelsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/models", organizationID), nil)
 	if err != nil {
-		return nil, err
+		return OrganizationChatModelsResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return OrganizationChatModelsResponse{}, ReadBodyAsError(res)
 	}
 
-	var models []ChatModel
-	return models, ReadBodyAsJSON(res, &models)
+	var resp OrganizationChatModelsResponse
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
-// CreateChatModel creates an admin-managed ChatModel.
-func (c *ExperimentalClient) CreateChatModel(ctx context.Context, req CreateChatModelRequest) (ChatModel, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/model-configs", req)
+// ChatModel fetches one chat model config by ID in an organization.
+func (c *ExperimentalClient) ChatModel(ctx context.Context, organizationID, modelConfigID uuid.UUID) (ChatModel, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/models/%s", organizationID, modelConfigID), nil)
+	if err != nil {
+		return ChatModel{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatModel{}, ReadBodyAsError(res)
+	}
+
+	var config ChatModel
+	return config, ReadBodyAsJSON(res, &config)
+}
+
+// CreateChatModel creates a chat model config in the given organization.
+func (c *ExperimentalClient) CreateChatModel(ctx context.Context, organizationID uuid.UUID, req CreateChatModelRequest) (ChatModel, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/organizations/%s/chats/models", organizationID), req)
 	if err != nil {
 		return ChatModel{}, err
 	}
@@ -2217,9 +2252,9 @@ func (c *ExperimentalClient) CreateChatModel(ctx context.Context, req CreateChat
 	return model, ReadBodyAsJSON(res, &model)
 }
 
-// UpdateChatModel updates an admin-managed ChatModel.
-func (c *ExperimentalClient) UpdateChatModel(ctx context.Context, modelID uuid.UUID, req UpdateChatModelRequest) (ChatModel, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelID), req)
+// UpdateChatModel updates a ChatModel in an organization.
+func (c *ExperimentalClient) UpdateChatModel(ctx context.Context, organizationID, modelID uuid.UUID, req UpdateChatModelRequest) (ChatModel, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/organizations/%s/chats/models/%s", organizationID, modelID), req)
 	if err != nil {
 		return ChatModel{}, err
 	}
@@ -2232,9 +2267,26 @@ func (c *ExperimentalClient) UpdateChatModel(ctx context.Context, modelID uuid.U
 	return model, ReadBodyAsJSON(res, &model)
 }
 
-// DeleteChatModel deletes an admin-managed ChatModel.
-func (c *ExperimentalClient) DeleteChatModel(ctx context.Context, modelID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelID), nil)
+// ChatModelACL returns the access control list for a chat model in an
+// organization.
+func (c *ExperimentalClient) ChatModelACL(ctx context.Context, organizationID, modelID uuid.UUID) (ChatModelACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/models/%s/acl", organizationID, modelID), nil)
+	if err != nil {
+		return ChatModelACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatModelACL{}, ReadBodyAsError(res)
+	}
+
+	var modelACL ChatModelACL
+	return modelACL, ReadBodyAsJSON(res, &modelACL)
+}
+
+// UpdateChatModelACL applies a sparse access control list update to a chat
+// model in an organization.
+func (c *ExperimentalClient) UpdateChatModelACL(ctx context.Context, organizationID, modelID uuid.UUID, req UpdateChatModelACLRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/organizations/%s/chats/models/%s/acl", organizationID, modelID), req)
 	if err != nil {
 		return err
 	}
@@ -2243,6 +2295,44 @@ func (c *ExperimentalClient) DeleteChatModel(ctx context.Context, modelID uuid.U
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// DeleteChatModel deletes a ChatModel in an organization.
+func (c *ExperimentalClient) DeleteChatModel(ctx context.Context, organizationID, modelID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/organizations/%s/chats/models/%s", organizationID, modelID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ChatModelProviderDescriptor is the redacted view of an AI provider carried
+// on the org model collection response. It carries only the capability
+// metadata the Models UI needs; key material, base URLs, and headers are
+// never exposed. The fields mirror what /api/experimental/chats/models
+// already discloses to any authenticated caller.
+type ChatModelProviderDescriptor struct {
+	ID                 uuid.UUID `json:"id" format:"uuid"`
+	Type               string    `json:"type"`
+	DisplayName        string    `json:"display_name"`
+	Icon               string    `json:"icon"`
+	Enabled            bool      `json:"enabled"`
+	HasAPIKey          bool      `json:"has_api_key"`
+	HasUserAPIKey      bool      `json:"has_user_api_key"`
+	HasEffectiveAPIKey bool      `json:"has_effective_api_key"`
+	AllowUserAPIKey    bool      `json:"allow_user_api_key"`
+}
+
+// OrganizationChatModelsResponse is the org chat model config collection:
+// the caller-readable configs plus the redacted provider descriptors the
+// authoring page needs.
+type OrganizationChatModelsResponse struct {
+	Models    []ChatModel                   `json:"models"`
+	Providers []ChatModelProviderDescriptor `json:"providers"`
 }
 
 // GetChatCost returns the AI Gateway cost for the whole chat tree that

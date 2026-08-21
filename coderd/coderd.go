@@ -1408,6 +1408,53 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		// Organization-scoped ChatModel management and runtime discovery.
+		// Keep the previous default-organization collection routes until the
+		// frontend uses the organization-scoped routes.
+		r.Route("/chats/model-configs", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				func(next http.Handler) http.Handler {
+					return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+						chi.RouteContext(req.Context()).URLParams.Add("organization", codersdk.DefaultOrganization)
+						next.ServeHTTP(rw, req)
+					})
+				},
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Get("/", api.listDefaultOrganizationChatModelConfigs)
+			r.Post("/", api.createChatModelConfig)
+		})
+		r.With(
+			apiKeyMiddleware,
+			func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					chi.RouteContext(req.Context()).URLParams.Add("organization", codersdk.DefaultOrganization)
+					next.ServeHTTP(rw, req)
+				})
+			},
+			httpmw.ExtractOrganizationParam(options.Database),
+		).Get("/chats/models", api.listChatModelAvailability)
+
+		r.Route("/organizations/{organization}/chats/models", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.With(httpmw.ExtractChatModelOrganizationParam(options.Database)).Get("/", api.listChatModelConfigsByOrganization)
+			r.With(httpmw.ExtractOrganizationParam(options.Database)).Post("/", api.createChatModelConfig)
+			r.With(httpmw.ExtractChatModelOrganizationParam(options.Database)).Get("/available", api.listChatModelAvailability)
+			r.Route("/{model}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractChatModelOrganizationParam(options.Database),
+					httpmw.ExtractChatModelConfigParam(options.Database),
+				)
+				r.Get("/", api.getChatModelConfig)
+				r.Patch("/", api.updateChatModelConfig)
+				r.Delete("/", api.deleteChatModelConfig)
+				r.Route("/acl", func(r chi.Router) {
+					r.Get("/", api.chatModelConfigACLHandler)
+					r.Patch("/", api.updateChatModelConfigACL)
+				})
+			})
+		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1415,7 +1462,6 @@ func New(options *Options) *API {
 			r.Get("/by-workspace", api.chatsByWorkspace)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
-			r.Get("/models", api.listChatModels)
 			r.Get("/watch", api.watchChats)
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
@@ -1469,15 +1515,6 @@ func New(options *Options) *API {
 				r.Route("/{providerConfig}", func(r chi.Router) {
 					r.Patch("/", api.updateChatProvider)
 					r.Delete("/", api.deleteChatProvider)
-				})
-			})
-			// TODO(cian): place under /api/experimental/chats/config
-			r.Route("/model-configs", func(r chi.Router) {
-				r.Get("/", api.listChatModelConfigs)
-				r.Post("/", api.createChatModelConfig)
-				r.Route("/{modelConfig}", func(r chi.Router) {
-					r.Patch("/", api.updateChatModelConfig)
-					r.Delete("/", api.deleteChatModelConfig)
 				})
 			})
 			r.Route("/user-provider-configs", func(r chi.Router) {

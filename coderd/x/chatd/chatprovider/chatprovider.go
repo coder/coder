@@ -552,6 +552,9 @@ func (*ModelCatalog) ListConfiguredModels(
 		}
 
 		models := modelsByProvider[provider]
+		if models == nil {
+			models = []codersdk.ChatModelCatalogEntry{}
+		}
 		sortChatModelCatalogEntries(models)
 
 		result := codersdk.ChatModelProvider{
