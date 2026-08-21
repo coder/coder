@@ -114,6 +114,7 @@ describe("useAccessibleModelOrganizations", () => {
 		vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
 			models: [],
 			providers: [],
+			unsupported_providers: [],
 		});
 		const { queryClient, wrapper } = createQueryWrapper();
 		const { result, unmount } = renderHook(
@@ -146,6 +147,7 @@ describe("useAccessibleModelOrganizations", () => {
 							]
 						: [],
 				providers: [],
+				unsupported_providers: [],
 			}),
 		);
 		const { queryClient, wrapper } = createQueryWrapper();
