@@ -3,6 +3,7 @@ import type { PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -79,7 +80,8 @@ describe("selectModelOrganization", () => {
 });
 
 describe("useAccessibleModelOrganizations", () => {
-	it("uses successful ACL-filtered collection reads without permission prechecks", async () => {
+	it("excludes successful empty collection reads without model permissions", async () => {
+		vi.spyOn(API, "checkAuthorization").mockResolvedValue({});
 		const getChatModels = vi
 			.spyOn(API.experimental, "getChatModels")
 			.mockImplementation(async (_organizationId) => ({
@@ -97,17 +99,75 @@ describe("useAccessibleModelOrganizations", () => {
 		);
 
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
-		expect(result.current.organizations).toEqual([
-			MockDefaultOrganization,
-			MockOrganization2,
-		]);
+		expect(result.current.organizations).toEqual([]);
 		expect(getChatModels).toHaveBeenCalledTimes(2);
 
 		unmount();
 		queryClient.clear();
 	});
 
-	it("keeps successful organization data when another request fails", async () => {
+	it("includes organization-level model access without readable rows", async () => {
+		vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+			[`${MockDefaultOrganization.id}.viewChatModelConfigs`]: true,
+		});
+		vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
+			models: [],
+			providers: [],
+		});
+		const { queryClient, wrapper } = createQueryWrapper();
+		const { result, unmount } = renderHook(
+			() =>
+				useAccessibleModelOrganizations([
+					MockDefaultOrganization,
+					MockOrganization2,
+				]),
+			{ wrapper },
+		);
+
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
+		expect(result.current.organizations).toEqual([MockDefaultOrganization]);
+
+		unmount();
+		queryClient.clear();
+	});
+
+	it("includes ACL-filtered readable model rows without collection access", async () => {
+		vi.spyOn(API, "checkAuthorization").mockResolvedValue({});
+		vi.spyOn(API.experimental, "getChatModels").mockImplementation(
+			async (organizationId) => ({
+				models:
+					organizationId === MockDefaultOrganization.id
+						? [
+								{
+									...MockChatModel,
+									organization_id: organizationId,
+								},
+							]
+						: [],
+				providers: [],
+			}),
+		);
+		const { queryClient, wrapper } = createQueryWrapper();
+		const { result, unmount } = renderHook(
+			() =>
+				useAccessibleModelOrganizations([
+					MockDefaultOrganization,
+					MockOrganization2,
+				]),
+			{ wrapper },
+		);
+
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
+		expect(result.current.organizations).toEqual([MockDefaultOrganization]);
+
+		unmount();
+		queryClient.clear();
+	});
+
+	it("keeps accessible organization data when another request fails", async () => {
+		vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+			[`${MockDefaultOrganization.id}.viewChatModelConfigs`]: true,
+		});
 		vi.spyOn(API.experimental, "getChatModels").mockImplementation(
 			async (organizationId) => {
 				if (organizationId === MockOrganization2.id) {

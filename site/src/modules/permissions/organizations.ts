@@ -181,6 +181,20 @@ export const organizationPermissionChecks = (organizationId: string) =>
 	}) as const satisfies Record<string, AuthorizationCheck>;
 
 /**
+ * Checks if the user can access chat model settings for the organization that
+ * produced the given OrganizationPermissions.
+ */
+export const canAccessOrganizationChatModelConfig = (
+	permissions: OrganizationPermissions | undefined,
+): permissions is OrganizationPermissions =>
+	permissions !== undefined &&
+	(permissions.viewChatModelConfigs ||
+		permissions.createChatModelConfigs ||
+		permissions.editChatModelConfigs ||
+		permissions.deleteChatModelConfigs ||
+		permissions.shareChatModelConfigs);
+
+/**
  * Checks if the user can view or edit members or groups for the organization
  * that produced the given OrganizationPermissions.
  */

@@ -1,10 +1,14 @@
 import { isAxiosError } from "axios";
 import { createContext, useContext } from "react";
-import { useQueries } from "react-query";
+import { useQueries, useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { chatModels } from "#/api/queries/chats";
+import { organizationsPermissions } from "#/api/queries/organizations";
 import type { Organization } from "#/api/typesGenerated";
-import type { OrganizationPermissions } from "#/modules/permissions/organizations";
+import {
+	canAccessOrganizationChatModelConfig,
+	type OrganizationPermissions,
+} from "#/modules/permissions/organizations";
 
 export const modelOrganizationSearchParam = "org";
 
@@ -18,17 +22,28 @@ export const useAccessibleModelOrganizations = (
 	const queries = useQueries({
 		queries: organizations.map((organization) => chatModels(organization.id)),
 	});
-	const accessibleOrganizations = organizations.filter(
-		(_, index) => queries[index]?.data !== undefined,
+	const permissionsQuery = useQuery(
+		organizationsPermissions(
+			organizations.map((organization) => organization.id),
+		),
 	);
-	const requestError = queries.find(
-		(query) => query.error && !isInaccessibleOrganizationError(query.error),
-	)?.error;
+	const accessibleOrganizations = organizations.filter(
+		(organization, index) =>
+			(queries[index]?.data?.models.length ?? 0) > 0 ||
+			canAccessOrganizationChatModelConfig(
+				permissionsQuery.data?.[organization.id],
+			),
+	);
+	const requestError =
+		queries.find(
+			(query) => query.error && !isInaccessibleOrganizationError(query.error),
+		)?.error ?? permissionsQuery.error;
 	const hasData = accessibleOrganizations.length > 0;
 
 	return {
 		organizations: accessibleOrganizations,
-		isLoading: queries.some((query) => query.isLoading),
+		isLoading:
+			queries.some((query) => query.isLoading) || permissionsQuery.isLoading,
 		error: hasData ? null : (requestError ?? null),
 		partialError: hasData ? (requestError ?? null) : null,
 	};

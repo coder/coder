@@ -33,6 +33,7 @@ interface NavbarViewProps {
 	onSignOut: () => void;
 	adminPermissions: AdminSettingsPermissions;
 	canCreateChat: boolean;
+	canViewModels: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
 
@@ -49,6 +50,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	onSignOut,
 	adminPermissions,
 	canCreateChat,
+	canViewModels,
 	proxyContextValue,
 }) => {
 	const prerelease = getPrereleaseFlag(buildInfo);
@@ -80,6 +82,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 			<NavItems
 				className="ml-4 hidden md:flex"
 				user={user}
+				canViewModels={canViewModels}
 				canCreateChat={canCreateChat}
 			/>
 
@@ -145,6 +148,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				<div className="md:hidden">
 					<MobileMenu
 						proxyContextValue={proxyContextValue}
+						canViewModels={canViewModels}
 						adminPermissions={adminPermissions}
 						user={user}
 						supportLinks={supportLinks}
@@ -159,10 +163,16 @@ export const NavbarView: FC<NavbarViewProps> = ({
 interface NavItemsProps {
 	className?: string;
 	user: TypesGen.User;
+	canViewModels: boolean;
 	canCreateChat: boolean;
 }
 
-const NavItems: FC<NavItemsProps> = ({ className, user, canCreateChat }) => {
+const NavItems: FC<NavItemsProps> = ({
+	className,
+	user,
+	canCreateChat,
+	canViewModels,
+}) => {
 	const location = useLocation();
 
 	return (
@@ -187,6 +197,16 @@ const NavItems: FC<NavItemsProps> = ({ className, user, canCreateChat }) => {
 				Templates
 			</NavLink>
 			<TasksNavItem user={user} />
+			{canViewModels && (
+				<NavLink
+					className={({ isActive }) =>
+						cn(linkStyles.default, { [linkStyles.active]: isActive })
+					}
+					to="/ai/settings/models"
+				>
+					Models
+				</NavLink>
+			)}
 			{canCreateChat && (
 				<NavLink
 					className={({ isActive }) => {
