@@ -17,7 +17,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -777,7 +776,7 @@ func TestConfigCache_AdvisorConfig_EmptyJSONYieldsZeroValue(t *testing.T) {
 
 	cfg, err := cache.AdvisorConfig(ctx)
 	require.NoError(t, err)
-	require.Equal(t, codersdk.AdvisorConfig{}, cfg)
+	require.Equal(t, advisorRuntimeConfig{}, cfg)
 }
 
 // Guards the pubsub-driven invalidation path. Without this, an admin
@@ -842,7 +841,7 @@ func TestConfigCache_InvalidateAdvisorConfig_BlocksStaleInFlight(t *testing.T) {
 	cache := newChatConfigCache(ctx, store, clock)
 
 	type result struct {
-		config codersdk.AdvisorConfig
+		config advisorRuntimeConfig
 		err    error
 	}
 
