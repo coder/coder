@@ -313,6 +313,13 @@ func (api *API) postAISandboxSession(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{Message: "AI sandbox session reported."})
 }
 
+// AI AGENT ACTIVITY: this is where the actor is bound. The AI agent identity
+// and its sponsoring human are resolved server side and stored on the session,
+// and every network event of that session inherits both from this row.
+//
+// Marked and not journaled. What the session records is activity, which wants a
+// log, and this log exists already. The session's own opening and closing are
+// lifecycle events and carry rewrite2026augustlog markers separately.
 func (api *API) upsertAISandboxSession(ctx context.Context, params database.UpsertAISandboxSessionParams) error {
 	// Session attribution is derived from the authenticated reporter or a
 	// previously verified retained row, so the internal write cannot be
@@ -376,6 +383,15 @@ func (api *API) patchAISandboxNetworkEvents(rw http.ResponseWriter, r *http.Requ
 		sessions[sessionID] = session
 	}
 
+	// AI AGENT ACTIVITY: one row per external reach by the confined AI agent,
+	// an egress decision at the network layer, allowed and denied alike. The
+	// actor comes from the session held server side rather than from the
+	// request, so a reporting agent cannot claim an identity it does not have.
+	//
+	// Marked and not journaled, for the reason given on upsertAISandboxSession.
+	// Against an application layer record this one knows host and port but
+	// neither path nor method, so it says what was reached and not what was
+	// asked of it.
 	err := api.Database.InTx(func(tx database.Store) error {
 		for sessionID, events := range eventsBySession {
 			session := sessions[sessionID]
