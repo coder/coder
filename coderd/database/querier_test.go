@@ -12366,6 +12366,83 @@ func TestDeleteChatModelConfigByID(t *testing.T) {
 	require.ErrorIs(t, err, sql.ErrNoRows)
 }
 
+func TestUpdateChatModelConfigACLByID(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+
+	tests := []struct {
+		name     string
+		groupACL database.ChatACL
+		userACL  database.ChatACL
+	}{
+		{
+			name: "Replace",
+			groupACL: database.ChatACL{
+				uuid.NewString(): {Permissions: []policy.Action{policy.ActionRead}},
+			},
+			userACL: database.ChatACL{
+				uuid.NewString(): {Permissions: []policy.Action{policy.ActionRead}},
+			},
+		},
+		{
+			name:     "Clear",
+			groupACL: database.ChatACL{},
+			userACL:  database.ChatACL{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			organization := dbgen.Organization(t, store, database.Organization{})
+			creator := dbgen.User(t, store, database.User{})
+			updater := dbgen.User(t, store, database.User{})
+			config := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
+				Model:                "acl-model-" + uuid.NewString(),
+				DisplayName:          "ACL model " + uuid.NewString(),
+				CreatedBy:            uuid.NullUUID{UUID: creator.ID, Valid: true},
+				UpdatedBy:            uuid.NullUUID{UUID: creator.ID, Valid: true},
+				IsDefault:            true,
+				ContextLimit:         4242,
+				CompressionThreshold: 37,
+				Options:              json.RawMessage(`{"temperature":0.25}`),
+				OrganizationID:       organization.ID,
+				GroupACL: database.ChatACL{
+					organization.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+				},
+				UserACL: database.ChatACL{
+					creator.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+				},
+			})
+
+			before, err := store.GetChatModelConfigByID(ctx, config.ID)
+			require.NoError(t, err)
+
+			updated, err := store.UpdateChatModelConfigACLByID(ctx, database.UpdateChatModelConfigACLByIDParams{
+				ID:        config.ID,
+				GroupACL:  tt.groupACL,
+				UserACL:   tt.userACL,
+				UpdatedBy: uuid.NullUUID{UUID: updater.ID, Valid: true},
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.groupACL, updated.GroupACL)
+			require.Equal(t, tt.userACL, updated.UserACL)
+			require.Equal(t, uuid.NullUUID{UUID: updater.ID, Valid: true}, updated.UpdatedBy)
+			require.True(t, updated.UpdatedAt.After(before.UpdatedAt))
+
+			expected := before
+			expected.GroupACL = tt.groupACL
+			expected.UserACL = tt.userACL
+			expected.UpdatedBy = uuid.NullUUID{UUID: updater.ID, Valid: true}
+			expected.UpdatedAt = updated.UpdatedAt
+			require.Equal(t, expected, updated)
+		})
+	}
+}
+
 func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 	t.Parallel()
 
