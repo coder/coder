@@ -22,6 +22,7 @@ const (
 	PremiumFunnelSourceBrowserOnly            PremiumFunnelSource = "browser_only"
 	PremiumFunnelSourceConnectionLog          PremiumFunnelSource = "connection_log"
 	PremiumFunnelSourceCustomRoles            PremiumFunnelSource = "custom_roles"
+	PremiumFunnelSourceExternalAuth           PremiumFunnelSource = "external_auth"
 	PremiumFunnelSourceGroups                 PremiumFunnelSource = "groups"
 	PremiumFunnelSourceIdpOrgSync             PremiumFunnelSource = "idp_org_sync"
 	PremiumFunnelSourceIdpSync                PremiumFunnelSource = "idp_sync"
@@ -49,6 +50,7 @@ func PremiumFunnelSources() []PremiumFunnelSource {
 		PremiumFunnelSourceBrowserOnly,
 		PremiumFunnelSourceConnectionLog,
 		PremiumFunnelSourceCustomRoles,
+		PremiumFunnelSourceExternalAuth,
 		PremiumFunnelSourceGroups,
 		PremiumFunnelSourceIdpOrgSync,
 		PremiumFunnelSourceIdpSync,

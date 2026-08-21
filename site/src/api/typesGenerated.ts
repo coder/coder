@@ -7412,6 +7412,7 @@ export type PremiumFunnelSource =
 	| "connection_log"
 	| "custom_roles"
 	| "direct"
+	| "external_auth"
 	| "groups"
 	| "idp_org_sync"
 	| "idp_sync"
@@ -7433,6 +7434,7 @@ export const PremiumFunnelSources: PremiumFunnelSource[] = [
 	"connection_log",
 	"custom_roles",
 	"direct",
+	"external_auth",
 	"groups",
 	"idp_org_sync",
 	"idp_sync",
