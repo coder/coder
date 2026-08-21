@@ -793,7 +793,7 @@ func TestPostChats(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		deploymentDefault := createChatModelConfig(t, client)
 
 		defaultOrgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: firstUser.OrganizationID,
@@ -801,6 +801,11 @@ func TestPostChats(t *testing.T) {
 		})
 
 		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   uuid.NullUUID{UUID: deploymentDefault.AIProviderID, Valid: true},
+			OrganizationID: secondOrg.ID,
+			IsDefault:      true,
+		})
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID, rbac.ScopedRoleAgentsAccess(secondOrg.ID))
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
@@ -825,9 +830,14 @@ func TestPostChats(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		deploymentDefault := createChatModelConfig(t, client)
 
 		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   uuid.NullUUID{UUID: deploymentDefault.AIProviderID, Valid: true},
+			OrganizationID: secondOrg.ID,
+			IsDefault:      true,
+		})
 		orgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: secondOrg.ID,
 			Enabled:        true,
@@ -1003,7 +1013,7 @@ func TestPostChats(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		deploymentDefault := createChatModelConfig(t, client)
 
 		thirdOrg := dbgen.Organization(t, db, database.Organization{})
 		thirdOrgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
@@ -1012,6 +1022,11 @@ func TestPostChats(t *testing.T) {
 		})
 
 		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   uuid.NullUUID{UUID: deploymentDefault.AIProviderID, Valid: true},
+			OrganizationID: secondOrg.ID,
+			IsDefault:      true,
+		})
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID, rbac.ScopedRoleAgentsAccess(secondOrg.ID))
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
