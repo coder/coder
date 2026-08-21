@@ -243,6 +243,94 @@ a row in silence.
 identifier together with the line number, so the entry identifier alone is not
 unique, and it cannot be made unique because the lines of one entry share it.
 
+### A view over a ledger answers "what is usable", and must not verify
+
+A ledger's state column says what has been recorded, and a sweep that records
+expiries runs on a period. So a row can sit in `valid` past its expiry, and
+anyone reading the state column alone gets a superset of what would actually be
+accepted.
+
+A view combining the state with the expiry gives readers what they usually mean,
+and is worth having for reporting, for operators, and for anything asking how
+much is outstanding.
+
+**Such a view must never be used to verify a credential.** Reading through it
+answers a question about the moment the query ran, and a verification acts at a
+later moment. That gap is a time of check to time of use error, and the fact
+that the gap is small does not make it absent: an expiry can fall between the
+two, and a revocation certainly can. Verification reads the row and evaluates
+validity itself, at the moment it decides.
+
+### Sweeps have three triggers, and never run on the read path
+
+The entries recording expiries are written by a sweep, not by whatever noticed
+the credential was expired. Three ways of starting one are wanted, and all three
+are out of band:
+
+- On a period, which may be measured in hours, since falling behind is a
+  recordkeeping lag and not a security hole.
+- On demand, over everything, so that an operator can bring the record current
+  before working from it.
+- On demand, for one entity, for the same reason at a smaller scale.
+
+The last two exist for the people who will use them. An investigation wants the
+deferred work flushed before it starts, so that what remains unrecorded is
+nothing rather than an unknown quantity, and so that the noise of a backlog does
+not have to be reasoned around.
+
+**None of them runs during verification.** Recording an expiry there would put a
+write on the read path, forfeit read replicas, and set two concurrent
+presentations of one expired credential racing to record the same thing, all to
+buy timeliness the account does not need.
+
+**The read path may ask for a sweep, and may log, but may not write the entry.**
+Verification meeting an expired credential can put a work item on a queue for
+the per-entity sweep to take up. That queue need not be durable: losing it means
+the periodic sweep brings the ledger current instead, which is the same outcome
+arriving later.
+
+Strictly the queue is unnecessary, the periodic sweep being sufficient alone. It
+is likely worth having anyway. Presenting an expired credential should be rare
+and is worth logging every time it happens, that log write is already on the
+read path and carries its own cost, and the marginal cost of enqueuing beside
+it is small.
+
+#### A sweep is a reconciliation
+
+It compares what the ledger says against what the clock and the recorded
+expiries imply, and closes the difference by writing the entries that were owed.
+
+It is not the kind of reconciliation that produces an adjusting entry, because
+nothing is being corrected. The entries a sweep writes are the ordinary ones,
+arriving late, and their effective dates are the expiry times rather than the
+time of the sweep.
+
+What it buys is currency, and the guarantee is narrower than it first looks. A
+sweep that completes has brought the ledger current **as of the moment it
+started**, not as of the moment it finished and certainly not as of now. The
+ledger is stale again from the instant the sweep begins. What a sweep does is
+make it **less stale**, by an amount bounded by how often it runs.
+
+### A failed write is not evidence that somebody else did it
+
+A sweep recording an expiry can lose a race, another sweep or an operator having
+already moved the credential to `invalid`, and a transition out of `invalid` is
+not legal. That much is expected.
+
+**What must not happen is inferring the cause from the failure.** A transaction
+that fails says the transaction failed. It does not say another entry got there
+first, and treating it as though it did means the one case that matters, a write
+that failed for its own reasons, is silently read as success.
+
+So on failure, read the state again and decide from what is there. Retry if the
+new read warrants it, bounded by a count and separated by a randomized backoff,
+so that many sweepers meeting the same contention do not synchronize on it.
+
+A sweep that gives up has not hit a permanent error and should not be treated as
+one: the work is still there and the next sweep will find it. **It should
+however be logged**, because a sweep quietly failing to record is exactly the
+condition under which the ledger drifts and nobody knows.
+
 ### The recording date is set by the schema, not by a caller
 
 `recording_date` is declared with `DEFAULT now()` and is **never a parameter**,

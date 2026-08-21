@@ -561,17 +561,42 @@ inventing.
 |---------|------------|-----------|-----------|
 | none    | `issue`    | `valid`   | commanded |
 | `valid` | `revoke`   | `invalid` | commanded |
+| `valid` | `expire`   | `invalid` | observed  |
 | `valid` | `lapse`    | `invalid` | observed  |
 
 **`issue` and `revoke` are both in scope** for the proof of concept. Revocation
 will need something written to demonstrate it.
 
-**Expiry is unsettled and deliberately absent.** Automatic invalidation after a
-period is common enough that this will want it eventually. The question held
-open is not whether to support it but whether an expiry belongs in the entry
-that issues the credential, so that its end is foreseen at its beginning, or
-arrives later as a transition like any other. Authorization raises the same
-question and has no answer either, so whatever settles one should settle both.
+#### An expiry is a maximum time of validity
+
+**An expiry names the latest moment a credential can be valid, and promises
+nothing about it remaining valid until then.** It may be revoked at any earlier
+moment.
+
+Two readings were considered and rejected. One takes the expiry as the exact
+moment validity ends, the other as the earliest moment it may end, so that a
+holder is told it can be relied on at least until then. Both promise that the
+credential survives until the expiry, and neither can be kept: revocation is
+unconditional, as it must be for a credential believed compromised. The exact
+reading is simply the two others together, so it inherits the defect.
+
+The reading chosen is the one that needs no carve-out. Saying "valid until then,
+except when revoked early" states the same rule as "no later than then" while
+inviting a reader to wonder what else is excepted. It is also what everyone else
+means by an expiry: a certificate's `notAfter`, a token's `exp`.
+
+All three readings compile to the same verification, so nothing here is a
+question of what to build. It is a question of what is promised, which is why
+getting it wrong would be cheap to do and expensive to have done.
+
+**Authorization takes the same answer**, whenever it acquires an expiry.
+
+**`expire` is a transition of its own, and does not have to be.** The actor
+would already distinguish the two, an expiry being recorded by a sweeper where a
+revocation carries an operator. So a separate transition is strictly redundant.
+It earns its place practically rather than theoretically: expiry is common
+enough that making every reader derive it from an actor would be a false
+economy, and the cost of the extra transition is close to nothing.
 
 **Rotation is out of scope, and is what multiline entries are for.** Rotating a
 credential is issuing one and revoking another: two subjects, one entry. The
@@ -588,6 +613,22 @@ is handed to the holder once and never read back.
 
 `revoke` arises when a party withdraws a credential deliberately, whether
 because it is suspected, superseded, or no longer wanted.
+
+`expire` arises when the clock passes the credential's expiry. Nobody decides it
+at that moment, so it is observed, and what notices is a sweep rather than a
+person. **The actor is a fixed system identity, in the manner the prebuilds
+system user already uses.** That is a proof of concept cheat and compounds an
+existing one: the finding below holds that a non person should not be filed
+among users. What it wants instead is a table of system actors written on the
+assumption that they multiply, and all questions about that table are held.
+
+Verification never records an expiry itself. A credential presented after its
+expiry is refused, and the entry recording that it expired is left to a sweep.
+Nothing is lost by the delay, because the entry's effective date is the expiry
+and not the moment of writing, so a late entry records the same fact at the same
+moment. What would be lost by recording it during verification is a great deal:
+a write on the read path, no read replicas, and two concurrent presentations of
+one expired credential racing to record the same thing.
 
 `lapse` arises when what the credential rests on goes away: the holder ceases to
 exist, or the authorization it serves ends. Nobody decides it, so the actor is

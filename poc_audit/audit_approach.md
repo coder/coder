@@ -354,6 +354,25 @@ are separated by design, which is developed under Derived below. A single
 recorder makes that separation checkable in one place rather than distributed
 across every component that might have something to say.
 
+### Recordkeeping is a reactive control, not a proactive one
+
+Keeping the ledger current is a **reactive** security measure: it acts after the
+fact, so that what happened can be established afterwards. Refusing a request is
+a **proactive** one, acting before the fact so that the thing does not happen.
+
+The two are easy to confuse and are worth separating for a reader who is not
+used to valuing the first. Nothing in this system decides whether an action is
+allowed. A credential presented after its expiry is refused by the code that
+checks it, whether or not any entry has been written; the entry recording the
+expiry can arrive an hour later, or a day, and refuse nothing that would
+otherwise have been permitted.
+
+That is why a background process falling behind is a **recordkeeping lag
+rather than a security hole**, and why such a process can run on a period
+measured in hours. It also sets the standard the machinery has to meet, which
+is not timeliness but completeness: an account that arrives late is still an
+account, and one with holes is not.
+
 ### The ideal, and the reality
 
 The ideal is exactly one journal entry per persistent state change.
@@ -445,6 +464,14 @@ distinct**, though a clock coarse relative to the interval between them may
 render them equal. That is worth having rather than avoiding, since it reifies
 the principle that the recording comes after the event. `effective_date` is
 never later than `recording_date`.
+
+Where the event has a known time and the entry is written later, the effective
+date is **the earlier of that time and the recording time**. In the ordinary
+case the event came first and the rule returns the event's time, which is what
+makes a late entry no worse than a prompt one: it records the same fact at the
+same moment. Taking the minimum is what keeps the invariant above true when a
+clock disagrees or a caller miscomputes, since an effective date later than its
+recording date would claim the journal foresaw something.
 
 Where a caller does not know when the event occurred, it reads the clock at the
 earliest moment it can vouch for and uses that. The value is then an upper bound
