@@ -490,6 +490,11 @@ type sqlcQuerier interface {
 	GetChatModelConfigsForTelemetry(ctx context.Context) ([]GetChatModelConfigsForTelemetryRow, error)
 	GetChatOrganizationModelOverride(ctx context.Context, arg GetChatOrganizationModelOverrideParams) (ChatOrganizationModelOverride, error)
 	GetChatOrganizationModelOverrides(ctx context.Context, organizationID uuid.UUID) ([]ChatOrganizationModelOverride, error)
+	// Returns every non-deleted organization's override for one context together
+	// with the resolved model and provider, for bulk consumers such as telemetry.
+	// model_available mirrors GetEnabledChatModelConfigByID: it is false when the
+	// referenced config or its provider is disabled or deleted.
+	GetChatOrganizationModelOverridesByContext(ctx context.Context, argContext string) ([]GetChatOrganizationModelOverridesByContextRow, error)
 	// GetChatPersonalModelOverridesEnabled returns whether users may configure
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)

@@ -2441,29 +2441,19 @@ func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
 		payload.MaxOutputTokens = max(cfg.MaxOutputTokens, 0)
 	}
 
-	organizations, err := opts.Database.GetOrganizations(ctx, database.GetOrganizationsParams{})
+	overrides, err := opts.Database.GetChatOrganizationModelOverridesByContext(ctx, string(codersdk.ChatModelOverrideContextAdvisor))
 	if err != nil {
-		opts.Logger.Warn(ctx, "get organizations for advisor telemetry", slog.Error(err))
+		opts.Logger.Warn(ctx, "get chat advisor model overrides for telemetry", slog.Error(err))
 	} else {
-		for _, organization := range organizations {
-			if organization.Deleted {
-				continue
+		for _, override := range overrides {
+			// When the override's model is disabled or deleted, the runtime
+			// falls back to the chat model.
+			provider, model := AgentsExperimentAdvisorReuseChatModel, AgentsExperimentAdvisorReuseChatModel
+			if override.ModelAvailable {
+				provider, model = override.ProviderType, override.Model
 			}
-			override, err := opts.Database.GetChatOrganizationModelOverride(ctx, database.GetChatOrganizationModelOverrideParams{
-				OrganizationID: organization.ID,
-				Context:        string(codersdk.ChatModelOverrideContextAdvisor),
-			})
-			if errors.Is(err, sql.ErrNoRows) {
-				continue
-			}
-			if err != nil {
-				opts.Logger.Warn(ctx, "get chat advisor model override for telemetry",
-					slog.F("organization_id", organization.ID), slog.Error(err))
-				continue
-			}
-			provider, model := advisorModelTelemetry(ctx, opts.Database, opts.Logger, override.ModelConfigID)
 			payload.Overrides = append(payload.Overrides, AgentsAdvisorOverrideTelemetry{
-				OrganizationID: organization.ID.String(),
+				OrganizationID: override.OrganizationID.String(),
 				Provider:       provider,
 				Model:          model,
 			})
@@ -2476,24 +2466,6 @@ func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
 		return nil
 	}
 	return val
-}
-
-func advisorModelTelemetry(ctx context.Context, db database.Store, log slog.Logger, id uuid.UUID) (provider string, model string) {
-	cfg, err := db.GetEnabledChatModelConfigByID(ctx, id)
-	if errors.Is(err, sql.ErrNoRows) {
-		// An inactive override; the runtime falls back to the chat model.
-		return AgentsExperimentAdvisorReuseChatModel, AgentsExperimentAdvisorReuseChatModel
-	}
-	if err != nil {
-		log.Warn(ctx, "resolve chat advisor model config for telemetry", slog.Error(err))
-		return AgentsExperimentUnknown, AgentsExperimentUnknown
-	}
-	providerRow, err := db.GetAIProviderByID(ctx, cfg.AIProviderID.UUID)
-	if err != nil {
-		log.Warn(ctx, "resolve chat advisor model provider for telemetry", slog.Error(err))
-		return AgentsExperimentUnknown, cfg.Model
-	}
-	return string(providerRow.Type), cfg.Model
 }
 
 type TelemetryItem struct {

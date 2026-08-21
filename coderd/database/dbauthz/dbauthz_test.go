@@ -1308,6 +1308,10 @@ func (s *MethodTestSuite) TestChats() {
 		})
 		check.Args(orgID).Asserts(object, policy.ActionRead)
 	}))
+	s.Run("GetChatOrganizationModelOverridesByContext", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetChatOrganizationModelOverridesByContext(gomock.Any(), "advisor").Return([]database.GetChatOrganizationModelOverridesByContextRow{}, nil).AnyTimes()
+		check.Args("advisor").Asserts(rbac.ResourceChatModelConfig, policy.ActionRead)
+	}))
 	s.Run("DeleteChatOrganizationModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		orgID := uuid.New()
 		arg := database.DeleteChatOrganizationModelOverrideParams{OrganizationID: orgID, Context: "general"}

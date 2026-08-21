@@ -27,6 +27,13 @@ const contexts: readonly ChatModelOverrideContext[] = [
 ];
 
 const DefaultsPage: FC = () => {
+	const { organization } = useOrganizationModels();
+	// Remount on organization change so mutation state (pending saves,
+	// errors) from one organization never renders on another's form.
+	return <DefaultsPageContent key={organization.id} />;
+};
+
+const DefaultsPageContent: FC = () => {
 	const queryClient = useQueryClient();
 	const { experiments } = useDashboard();
 	const { organization, permissions } = useOrganizationModels();
@@ -99,7 +106,6 @@ const DefaultsPage: FC = () => {
 		<>
 			<title>{pageTitle("Defaults & overrides", "AI Settings")}</title>
 			<DefaultsPageView
-				key={organization.id}
 				overrides={overridesQuery.data?.overrides}
 				enabledModels={enabledModels}
 				providerInfoByID={providerInfoByID}

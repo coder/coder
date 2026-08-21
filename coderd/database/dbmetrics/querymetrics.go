@@ -1720,6 +1720,14 @@ func (m queryMetricsStore) GetChatOrganizationModelOverrides(ctx context.Context
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatOrganizationModelOverridesByContext(ctx context.Context, argContext string) ([]database.GetChatOrganizationModelOverridesByContextRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatOrganizationModelOverridesByContext(ctx, argContext)
+	m.queryLatencies.WithLabelValues("GetChatOrganizationModelOverridesByContext").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatOrganizationModelOverridesByContext").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatPersonalModelOverridesEnabled(ctx)

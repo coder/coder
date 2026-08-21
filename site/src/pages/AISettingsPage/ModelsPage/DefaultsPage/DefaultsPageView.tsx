@@ -123,7 +123,7 @@ const DefaultsPageView: FC<DefaultsPageViewProps> = ({
 							isSaveError={errorContexts.has(setting.context)}
 							saveErrorMessage={`Failed to save ${setting.title.toLowerCase()} override.`}
 							unsetPlaceholder="Use default"
-							disabled={!canEdit || enabledModels.length === 0}
+							disabled={!canEdit}
 						/>
 					);
 				})}
