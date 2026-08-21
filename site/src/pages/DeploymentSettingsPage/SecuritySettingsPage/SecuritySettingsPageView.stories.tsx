@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import type { SerpentGroup, SerpentOption } from "#/api/typesGenerated";
 import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
 
@@ -55,6 +56,29 @@ export default meta;
 type Story = StoryObj<typeof SecuritySettingsPageView>;
 
 export const Page: Story = {};
+
+export const BrowserOnlyPaywall: Story = {
+	args: {
+		featureBrowserOnlyEnabled: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText("Restrict access to web-based connections"),
+		).toBeVisible();
+		await expect(
+			canvas.getByText("Block SSH and port-forward entirely"),
+		).toBeVisible();
+		await expect(
+			canvas.getByText("Enforce browser-only compliance policies"),
+		).toBeVisible();
+		// The generic premium bullets must not leak back in.
+		await expect(
+			canvas.queryByText("24x7 global support with SLA"),
+		).not.toBeInTheDocument();
+	},
+};
 
 export const NoTLS = {
 	args: {

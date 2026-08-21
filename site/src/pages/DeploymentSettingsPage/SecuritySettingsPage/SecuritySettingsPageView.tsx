@@ -79,8 +79,12 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 					<PremiumPaywallSmall
 						source="browser_only"
 						message="Browser-Only Connections"
-						description="Block all workspace access via SSH, port forward, and other
-						non-browser connections."
+						description="Block all workspace access via SSH, port forward, and other non-browser connections."
+						features={[
+							"Restrict access to web-based connections",
+							"Block SSH and port-forward entirely",
+							"Enforce browser-only compliance policies",
+						]}
 						canViewPremium
 					/>
 				) : null}
