@@ -3404,4 +3404,33 @@ func TestMigration000583ChatModelOverrideOrgScope(t *testing.T) {
 	require.JSONEq(t, fmt.Sprintf(
 		`{"enabled":true,"max_uses_per_run":2,"model_config_id":%q,"reasoning_effort":"low"}`,
 		modelID), value)
+
+	// A malformed advisor config is a representable persisted state. It must
+	// not abort the migration and must be left untouched.
+	_, err = db.ExecContext(ctx,
+		"UPDATE site_configs SET value = 'not-json' WHERE key = 'agents_advisor_config'")
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT value FROM site_configs WHERE key = 'agents_advisor_config'").Scan(&value))
+	require.Equal(t, "not-json", value)
+	var advisorCount int
+	require.NoError(t, db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM chat_organization_model_overrides
+		WHERE context = 'advisor'`).Scan(&advisorCount))
+	require.Zero(t, advisorCount)
+
+	// The rollback must tolerate a malformed stored value too, replacing it
+	// with the restored advisor model fields.
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO chat_organization_model_overrides (organization_id, context, model_config_id, reasoning_effort)
+		VALUES ($1, 'advisor', $2, 'low')`, orgID, modelID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	require.NoError(t, db.QueryRowContext(ctx,
+		"SELECT value FROM site_configs WHERE key = 'agents_advisor_config'").Scan(&value))
+	require.JSONEq(t, fmt.Sprintf(
+		`{"model_config_id":%q,"reasoning_effort":"low"}`, modelID), value)
 }
