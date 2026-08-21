@@ -4,7 +4,6 @@ import { useLocation, useParams } from "react-router";
 import { userChatProviderConfigs } from "#/api/queries/chats";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
-import type { ModelSelectorOption } from "../ChatElements";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import { ChatSearchDialog, RenameChatDialog } from "./dialogs";
 import { SettingsPanel } from "./settings/SettingsPanel";
@@ -15,8 +14,7 @@ export { isSettingsView, sidebarViewFromPath } from "./sidebarView";
 interface ChatsSidebarProps {
 	chats: readonly Chat[];
 	chatErrorReasons: Record<string, string>;
-	modelOptions: readonly ModelSelectorOption[];
-	models: readonly ChatModel[];
+	modelConfigs: readonly ChatModel[];
 	onArchiveAgent: (chatId: string) => void;
 	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
@@ -57,8 +55,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const {
 		chats,
 		chatErrorReasons,
-		modelOptions,
-		models,
+		modelConfigs,
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
@@ -123,8 +120,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 			<ChatsPanel
 				chats={chats}
 				chatErrorReasons={chatErrorReasons}
-				modelOptions={modelOptions}
-				models={models}
+				modelConfigs={modelConfigs}
 				onArchiveAgent={onArchiveAgent}
 				onUnarchiveAgent={onUnarchiveAgent}
 				onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}

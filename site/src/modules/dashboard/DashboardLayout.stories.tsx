@@ -6,12 +6,15 @@ import {
 } from "storybook-addon-remix-react-router";
 import { buildInfoKey } from "#/api/queries/buildInfo";
 import { deploymentStatsQueryKey } from "#/api/queries/deployment";
+import { organizationsPermissions } from "#/api/queries/organizations";
 import { updateCheckQueryKey } from "#/api/queries/updateCheck";
 import type { UpdateCheckResponse } from "#/api/typesGenerated";
 import {
 	MockBuildInfo,
+	MockDefaultOrganization,
 	MockDeploymentStats,
 	MockNoPermissions,
+	MockOrganizationPermissions,
 	MockPermissions,
 	MockUpdateCheck,
 	MockUserMember,
@@ -88,6 +91,39 @@ export const ForMember: Story = {
 		await expect(
 			screen.queryByTestId("update-check-notice"),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const CustomOrganizationRoleCanOpenAISettings: Story = {
+	parameters: {
+		user: MockUserMember,
+		permissions: MockNoPermissions,
+		queries: [
+			{ key: buildInfoKey, data: MockBuildInfo },
+			{ key: updateCheckQueryKey, data: MockUpdateCheck },
+			{ key: deploymentStatsQueryKey, data: MockDeploymentStats },
+			{
+				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
+				data: {
+					[MockDefaultOrganization.id]: {
+						...MockOrganizationPermissions,
+						createChatModelConfigs: false,
+						editChatModelConfigs: false,
+						deleteChatModelConfigs: false,
+					},
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Admin settings" }),
+		);
+		await expect(screen.getByRole("menuitem", { name: "AI" })).toHaveAttribute(
+			"href",
+			"/ai/settings",
+		);
 	},
 };
 

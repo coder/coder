@@ -1,4 +1,3 @@
-import type { UseQueryResult } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "../components/ChatElements";
 import {
@@ -7,7 +6,7 @@ import {
 } from "../components/ChatElements/runtimeTypeUtils";
 
 type CatalogModelLike =
-	| TypesGen.ChatModelCatalogEntry
+	| TypesGen.ChatModel
 	| {
 			readonly id?: unknown;
 			readonly display_name?: unknown;
@@ -74,7 +73,7 @@ const isProviderConfiguredInCatalog = (
 	return unavailableReason !== "" && unavailableReason !== "missing_api_key";
 };
 
-export const hasConfiguredModelsInCatalog = (
+const hasConfiguredModelsInCatalog = (
 	catalog: ModelCatalogLike | null | undefined,
 ): boolean => {
 	return getCatalogProviders(catalog).some(isProviderConfiguredInCatalog);
@@ -137,25 +136,70 @@ const getAvailableProviders = (
 };
 
 /**
+ * The nil UUID (all zeros) is the backend sentinel for an unset stored
+ * model reference. Exported so all model-selection surfaces share one value.
+ */
+export const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Reports whether a stored model reference is unset. A blank string and the
+ * nil UUID both mean "no selection", so callers handle them identically.
+ */
+export const isUnsetModelRef = (ref: string | null | undefined): boolean => {
+	const normalized = asString(ref).trim();
+	return normalized === "" || normalized === NIL_UUID;
+};
+
+/**
  * Resolves a stored ChatModel ID to the ID of a matching model
  * option. Returns the matched option ID, or an empty string when the
- * stored ID is blank or no longer matches an available option.
+ * stored ID is unset or no longer matches an available option.
  */
 export const resolveModelOptionId = (
 	storedRef: string | null | undefined,
 	modelOptions: readonly ModelSelectorOption[],
 ): string => {
-	const normalized = asString(storedRef).trim();
-	if (!normalized) {
+	if (isUnsetModelRef(storedRef)) {
 		return "";
 	}
 
+	const normalized = asString(storedRef).trim();
 	const directMatch = modelOptions.find((option) => option.id === normalized);
 	if (directMatch) {
 		return directMatch.id;
 	}
 
 	return "";
+};
+
+/**
+ * Reports whether a stored model ID no longer matches an available option.
+ * Blank and nil UUID references mean no selection, so they are not unavailable.
+ */
+export const isUnavailableHistoricalModelID = (
+	storedRef: string | null | undefined,
+	modelOptions: readonly ModelSelectorOption[],
+): boolean =>
+	!isUnsetModelRef(storedRef) &&
+	resolveModelOptionId(storedRef, modelOptions) === "";
+
+/**
+ * Returns the usable default model ID for one organization.
+ * The function returns an empty string when the default is unavailable.
+ */
+export const getUsableDefaultModelIDForOrganization = (
+	configs: readonly TypesGen.ChatModel[] | null | undefined,
+	modelOptions: readonly ModelSelectorOption[],
+	organizationID: string,
+): string => {
+	if (!organizationID || !configs) {
+		return "";
+	}
+	const defaultConfig = configs.find(
+		(config) =>
+			config.organization_id === organizationID && config.is_default === true,
+	);
+	return resolveModelOptionId(defaultConfig?.id, modelOptions);
 };
 
 export type ProviderInfo = {
@@ -166,22 +210,21 @@ export type ProviderInfo = {
 	readonly enabled?: boolean;
 };
 
-// providerInfoByIDFromConfigs and providerInfoByIDFromUserConfigs build
-// the ai_provider_id -> provider metadata lookup that
-// getModelOptionsFromModels needs. The admin and user provider endpoints
-// expose the provider id under different field names (id vs provider_id), so
-// each source has its own helper to bake in the correct field.
-export const providerInfoByIDFromConfigs = (
-	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+// Provider descriptors use `id`; personal provider configs use `provider_id`.
+export const providerInfoByIDFromDescriptors = (
+	providerDescriptors:
+		| readonly TypesGen.ChatModelProviderDescriptor[]
+		| null
+		| undefined,
 ): ReadonlyMap<string, ProviderInfo> =>
 	new Map(
-		(providerConfigs ?? []).map((providerConfig) => [
-			providerConfig.id,
+		(providerDescriptors ?? []).map((providerDescriptor) => [
+			providerDescriptor.id,
 			{
-				provider: providerConfig.provider,
-				displayName: providerConfig.display_name,
-				icon: providerConfig.icon,
-				enabled: providerConfig.enabled,
+				provider: providerDescriptor.type,
+				displayName: providerDescriptor.display_name,
+				icon: providerDescriptor.icon,
+				enabled: providerDescriptor.enabled,
 			},
 		]),
 	);
@@ -201,16 +244,6 @@ export const providerInfoByIDFromUserConfigs = (
 				icon: providerConfig.icon,
 				enabled: providerConfig.enabled,
 			},
-		]),
-	);
-
-export const providerTypeByIDFromConfigs = (
-	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
-): ReadonlyMap<string, string> =>
-	new Map(
-		Array.from(providerInfoByIDFromConfigs(providerConfigs), ([id, info]) => [
-			id,
-			info.provider,
 		]),
 	);
 
@@ -245,8 +278,9 @@ export const getModelOptionsFromModels = (
 	models: readonly TypesGen.ChatModel[] | null | undefined,
 	catalog: TypesGen.ChatModelAvailabilityResponse | null | undefined,
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+	organizationID: string,
 ): readonly ModelSelectorOption[] => {
-	if (!models || !catalog) {
+	if (!models || !catalog || !organizationID) {
 		return [];
 	}
 
@@ -256,7 +290,7 @@ export const getModelOptionsFromModels = (
 	// The catalog check below is keyed by provider type, so it cannot
 	// exclude a disabled provider when another of the same type is enabled.
 	for (const model of filterModelsWithEnabledProvider(
-		models,
+		models.filter((model) => model.organization_id === organizationID),
 		providerInfoByID,
 	)) {
 		if (!model.enabled) {
@@ -304,12 +338,9 @@ export const getModelOptionsFromModels = (
 	});
 };
 
-// Read slice of a react-query result. The field types come from UseQueryResult
-// by indexed access, not Pick (which would distribute over v5's status union),
-// so they track the library rather than being hand-maintained.
 type SelectorQuery<T> = {
-	readonly data: UseQueryResult<T>["data"];
-	readonly isLoading: UseQueryResult<T>["isLoading"];
+	readonly data: T | undefined;
+	readonly isLoading: boolean;
 };
 
 interface ModelSelectorState {
@@ -319,22 +350,22 @@ interface ModelSelectorState {
 	readonly hasConfiguredModels: boolean;
 }
 
-// Provider identity comes from a separate query (userChatProviderModels).
-// Folding all three loading states into one flag here spares every caller the
+// Provider identity comes from a separate query (userProviderModels).
+// Folding both loading states into one flag here spares every caller the
 // "models loaded but providers still pending" window that would otherwise
 // build an empty provider map, drop every option, and flash "No Models".
 export const resolveModelSelector = (
-	models: SelectorQuery<readonly TypesGen.ChatModel[]>,
+	organizationID: string,
 	catalog: SelectorQuery<TypesGen.ChatModelAvailabilityResponse>,
 	userProviderModels: SelectorQuery<readonly TypesGen.UserChatProviderConfig[]>,
 ): ModelSelectorState => ({
 	options: getModelOptionsFromModels(
-		models.data,
+		catalog.data?.models,
 		catalog.data,
 		providerInfoByIDFromUserConfigs(userProviderModels.data),
+		organizationID,
 	),
-	isModelCatalogLoading:
-		models.isLoading || catalog.isLoading || userProviderModels.isLoading,
+	isModelCatalogLoading: catalog.isLoading || userProviderModels.isLoading,
 	modelCatalog: catalog.data,
 	hasConfiguredModels: hasConfiguredModelsInCatalog(catalog.data),
 });

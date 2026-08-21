@@ -34,7 +34,6 @@ import {
 	chat,
 	chatMessagesForInfiniteScroll,
 	chatModelAvailability,
-	chatModels,
 	chatQueueConvergence,
 	compactChat,
 	createChatMessage,
@@ -118,7 +117,9 @@ import {
 	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
 	getUnsupportedProviderNames,
+	getUsableDefaultModelIDForOrganization,
 	hasUserFixableProviders,
+	isUnavailableHistoricalModelID,
 	resolveModelOptionId,
 	resolveModelSelector,
 } from "./utils/modelOptions";
@@ -940,8 +941,10 @@ const AgentChatPage: FC = () => {
 	});
 	const workspace = workspaceQuery.data;
 
-	const chatModelAvailabilityQuery = useQuery(chatModelAvailability());
-	const chatModelsQuery = useQuery(chatModels());
+	const availableModelsQuery = useQuery(
+		chatModelAvailability(chatOrganizationId),
+	);
+	const models = availableModelsQuery.data?.models ?? [];
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
@@ -991,26 +994,25 @@ const AgentChatPage: FC = () => {
 		modelCatalog,
 		hasConfiguredModels,
 	} = resolveModelSelector(
-		chatModelsQuery,
-		chatModelAvailabilityQuery,
+		chatOrganizationId,
+		availableModelsQuery,
 		userProviderConfigsQuery,
 	);
-	const models = chatModelsQuery.data ?? [];
+	const isModelDataPending = chatOrganizationId === "" || isModelCatalogLoading;
 	const providerCount =
 		permissions.editDeploymentConfig &&
-		chatProviderConfigsQuery.isSuccess &&
-		chatModelAvailabilityQuery.isSuccess
+		chatProviderConfigsQuery.data &&
+		availableModelsQuery.data
 			? countConfiguredProviderConfigs(
 					chatProviderConfigsQuery.data,
-					chatModelAvailabilityQuery.data,
+					availableModelsQuery.data,
 				)
 			: undefined;
-	const modelCount =
-		chatModelsQuery.isSuccess && chatModelAvailabilityQuery.isSuccess
-			? modelOptions.length
-			: undefined;
+	const modelCount = availableModelsQuery.data
+		? modelOptions.length
+		: undefined;
 	const unsupportedProviderNames = getUnsupportedProviderNames(
-		chatModelAvailabilityQuery.data,
+		availableModelsQuery.data,
 	);
 
 	const agentBindingRefetchKeyRef = useRef<string | undefined>(undefined);
@@ -1333,9 +1335,8 @@ const AgentChatPage: FC = () => {
 	);
 	const prNumber =
 		chatQuery.data?.diff_status?.pr_number ?? (parsedPrNumber || undefined);
-	// Compute an effective selected model by validating the user's
-	// explicit choice against the current model options, falling
-	// back to the chat's last model or the first available option.
+	// Validate explicit and historical choices against organization options.
+	// Prefer the usable organization default before another organization model.
 	const effectiveSelectedModel = (() => {
 		const resolvedSelectedModel = resolveModelOptionId(
 			selectedModel,
@@ -1353,8 +1354,38 @@ const AgentChatPage: FC = () => {
 			return resolvedChatModel;
 		}
 
-		return modelOptions[0]?.id ?? "";
+		return (
+			getUsableDefaultModelIDForOrganization(
+				models,
+				modelOptions,
+				chatOrganizationId,
+			) ||
+			modelOptions[0]?.id ||
+			""
+		);
 	})();
+	const hasModelOptions = modelOptions.length > 0;
+	const hasResolvedModelData =
+		!isModelDataPending &&
+		availableModelsQuery.data !== undefined &&
+		availableModelsQuery.error == null &&
+		userProviderConfigsQuery.data !== undefined &&
+		userProviderConfigsQuery.error == null;
+	const hasUnavailableHistoricalModel =
+		hasResolvedModelData &&
+		isUnavailableHistoricalModelID(chatLastModelConfigID, modelOptions);
+	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
+	const unavailableModelNotice = hasUnavailableHistoricalModel
+		? hasModelOptions
+			? "The model used by this chat is not available. A usable model is selected for new messages."
+			: hasUserFixableModelProviders
+				? "The model used by this chat is not available. Add your API key in provider settings to enable models."
+				: "The model used by this chat is not available. Generation is disabled because no usable model is available."
+		: hasResolvedModelData && !hasModelOptions
+			? hasUserFixableModelProviders
+				? "No usable chat model is available. Add your API key in provider settings to enable models."
+				: "No usable chat model is currently available. Generation is disabled."
+			: undefined;
 
 	const effectiveModelOption = modelOptions.find(
 		(option) => option.id === effectiveSelectedModel,
@@ -1372,16 +1403,14 @@ const AgentChatPage: FC = () => {
 		userThresholdsQuery.data?.thresholds,
 		models,
 	);
-	const hasModelOptions = modelOptions.length > 0;
-	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
-		isModelCatalogLoading,
+		isModelDataPending,
 		hasConfiguredModels,
 		modelCatalog,
 	);
 	const modelSelectorHelp = getModelSelectorHelp({
-		isModelCatalogLoading,
+		isModelCatalogLoading: isModelDataPending,
 		hasModelOptions,
 		hasConfiguredModels,
 		hasUserFixableModelProviders,
@@ -1711,15 +1740,19 @@ const AgentChatPage: FC = () => {
 			const pickerModelConfigID = effectiveSelectedModel || undefined;
 			const originalIsSelectable =
 				originalModelConfigID !== undefined &&
-				modelOptions.some((opt) => opt.id === originalModelConfigID);
-			// Only override the original model when the user has switched to
-			// a different selectable option. If the original is no longer
-			// selectable, the picker is showing a fallback we should not
-			// silently use; let the backend preserve the original.
+				modelOptions.some((option) => option.id === originalModelConfigID);
+			const originalIsUnavailable = isUnavailableHistoricalModelID(
+				originalModelConfigID,
+				modelOptions,
+			);
+			// Use the picker fallback for an unavailable historical model.
+			// Override a selectable model only after the user changes it.
+			// Omit blank and nil references so the backend preserves the original.
 			const editSelectedModelConfigID =
 				pickerModelConfigID &&
-				originalIsSelectable &&
-				pickerModelConfigID !== originalModelConfigID
+				(originalIsUnavailable ||
+					(originalIsSelectable &&
+						pickerModelConfigID !== originalModelConfigID))
 					? pickerModelConfigID
 					: undefined;
 			// Omit so the backend preserves the original effort.
@@ -1928,7 +1961,7 @@ const AgentChatPage: FC = () => {
 				modelOptions={modelOptions}
 				modelSelectorPlaceholder={modelSelectorPlaceholder}
 				hasModelOptions={hasModelOptions}
-				isModelCatalogLoading={isModelCatalogLoading}
+				isModelCatalogLoading={isModelDataPending}
 				planModeEnabled={planModeEnabled}
 				onPlanModeToggle={handlePlanModeToggle}
 				isSidebarCollapsed={isSidebarCollapsed}
@@ -2007,6 +2040,10 @@ const AgentChatPage: FC = () => {
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
+			modelCatalogError={
+				availableModelsQuery.error ?? userProviderConfigsQuery.error
+			}
+			unavailableModelNotice={unavailableModelNotice}
 			reasoningEffort={effectiveReasoningEffort}
 			onReasoningEffortChange={(value) => {
 				setSelectedReasoningEffort(value);
@@ -2020,7 +2057,7 @@ const AgentChatPage: FC = () => {
 			unsupportedProviderNames={unsupportedProviderNames}
 			aiGatewayDisabled={aiGatewayDisabled}
 			hasModelOptions={hasModelOptions}
-			isModelCatalogLoading={isModelCatalogLoading}
+			isModelCatalogLoading={isModelDataPending}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={handlePlanModeToggle}
 			compressionThreshold={compressionThreshold}

@@ -20,6 +20,8 @@ export interface AgentSettingsUserAgentsPageViewProps {
 	models: readonly TypesGen.ChatModel[];
 	modelsError: unknown;
 	isLoadingModels: boolean;
+	isDefaultOrganizationUnresolved: boolean;
+	hasNoDefaultOrgModels: boolean;
 	onSaveRootModelOverride: SavePersonalOverride;
 	isSavingRootModelOverride: boolean;
 	isSaveRootModelOverrideError: boolean;
@@ -43,6 +45,8 @@ export const AgentSettingsUserAgentsPageView: FC<
 	models,
 	modelsError,
 	isLoadingModels,
+	isDefaultOrganizationUnresolved,
+	hasNoDefaultOrgModels,
 	onSaveRootModelOverride,
 	isSavingRootModelOverride,
 	isSaveRootModelOverrideError,
@@ -55,7 +59,11 @@ export const AgentSettingsUserAgentsPageView: FC<
 }) => {
 	const personalOverridesEnabled = overridesData?.enabled ?? true;
 	const isLoading = isLoadingOverrides || isLoadingModels;
-	const isDisabled = isLoading || !personalOverridesEnabled;
+	const isDisabled =
+		isLoading ||
+		!personalOverridesEnabled ||
+		isDefaultOrganizationUnresolved ||
+		hasNoDefaultOrgModels;
 
 	return (
 		<div className="flex flex-col gap-8">
@@ -84,6 +92,23 @@ export const AgentSettingsUserAgentsPageView: FC<
 					<AlertDescription>
 						Personal model overrides are disabled by an administrator. Saved
 						values are shown for reference, but changes cannot be saved.
+					</AlertDescription>
+				</Alert>
+			)}
+			{isDefaultOrganizationUnresolved && (
+				<Alert severity="info">
+					<AlertDescription>
+						Your default organization is not available. Personal model overrides
+						cannot be changed.
+					</AlertDescription>
+				</Alert>
+			)}
+			{hasNoDefaultOrgModels && (
+				<Alert severity="info">
+					<AlertDescription>
+						Your default organization has no available chat models. Ask an
+						organization administrator to add and enable a model before you set
+						personal overrides.
 					</AlertDescription>
 				</Alert>
 			)}
