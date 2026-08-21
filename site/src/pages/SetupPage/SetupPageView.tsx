@@ -18,8 +18,6 @@ import { PrivacyPolicyNotice } from "#/modules/licenses/PrivacyPolicyNotice";
 import {
 	CONTACT_SALES_LINK,
 	numberOfDevelopersOptions,
-	TRIAL_OFFER_DESCRIPTION,
-	TRIAL_OFFER_TITLE,
 	trialInfoValidationSchema,
 } from "#/modules/licenses/trialLicense";
 import {
@@ -178,9 +176,12 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							disabled={isLoading}
 						/>
 						<div className="flex flex-col items-start gap-0.5">
-							<span className="text-sm font-semibold">{TRIAL_OFFER_TITLE}</span>
+							<span className="text-sm font-semibold">
+								Start an unlimited 30-day Coder trial
+							</span>
 							<span className="text-xs text-content-secondary leading-relaxed">
-								{TRIAL_OFFER_DESCRIPTION}
+								Get access to high availability, template RBAC, audit logging,
+								quotas, and more.
 							</span>
 							<a
 								href="https://coder.com/pricing"

@@ -2,10 +2,6 @@ import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { PaywallGuidance } from "#/components/Paywall/Paywall";
 import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
-import {
-	PREMIUM_TRIAL_UPSELL,
-	TRIAL_OFFER_TITLE,
-} from "#/modules/licenses/trialLicense";
 import { LicenseActivePanel } from "./LicenseActivePanel";
 import { TrialActivePanel } from "./TrialActivePanel";
 import { TrialRequestForm } from "./TrialRequestForm";
@@ -51,10 +47,13 @@ export const PremiumPageView: FC<PremiumPageViewProps> = ({
 				<div className="relative isolate overflow-hidden hidden lg:flex flex-col p-12 bg-surface-secondary">
 					<Supergraphic className="bg-[position:20%_20%] bg-[length:110%_125%] -scale-x-100" />
 					<h2 className="self-start m-0 pt-24 max-w-md text-3xl font-semibold text-content-primary text-balance">
-						{TRIAL_OFFER_TITLE}
+						Start an unlimited 30-day Coder trial
 					</h2>
 					<p className="self-start m-0 max-w-sm pt-6 text-sm text-content-primary">
-						{PREMIUM_TRIAL_UPSELL}
+						Unlock unlimited Coder Agents usage and enterprise AI governance.
+						Control what agents can access, manage who can use templates and
+						infrastructure, and run your self-hosted development platform with
+						role-based access controls and high availability.
 					</p>
 				</div>
 				<div className="flex flex-col justify-center p-8 lg:p-12 bg-surface-secondary">

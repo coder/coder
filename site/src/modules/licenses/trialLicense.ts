@@ -15,18 +15,7 @@ export const numberOfDevelopersOptions = [
 export const DATABASE_DOCS_LINK =
 	"/admin/infrastructure/architecture#postgresql-recommended";
 
-export const CODER_PRIVACY_POLICY_LINK =
-	"https://coder.com/legal/privacy-policy";
-
 export const CONTACT_SALES_LINK = "https://coder.com/contact/sales";
-
-export const TRIAL_OFFER_TITLE = "Start an unlimited 30-day Coder trial";
-
-export const TRIAL_OFFER_DESCRIPTION =
-	"Get access to high availability, template RBAC, audit logging, quotas, and more.";
-
-export const PREMIUM_TRIAL_UPSELL =
-	"Unlock unlimited Coder Agents usage and enterprise AI governance. Control what agents can access, manage who can use templates and infrastructure, and run your self-hosted development platform with role-based access controls and high availability.";
 
 // REMARK: Keep these consts in sync with codersdk.CreateTrialLicenseRequest.
 export const MAX_EMAIL_LENGTH = 254;

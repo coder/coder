@@ -1,8 +1,13 @@
-import { type FC, type ReactNode, useId } from "react";
+import { type FC, type HTMLAttributes, type ReactNode, useId } from "react";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { cn } from "#/utils/cn";
 import type { FormHelpers } from "#/utils/formUtils";
+
+type ControlProps = Pick<
+	HTMLAttributes<HTMLElement>,
+	"id" | "aria-invalid" | "aria-describedby"
+>;
 
 type FormFieldProps = React.ComponentPropsWithRef<"input"> & {
 	field: FormHelpers;
@@ -11,11 +16,7 @@ type FormFieldProps = React.ComponentPropsWithRef<"input"> & {
 	/**
 	 * Renders in place of the default `Input` element
 	 */
-	control?: (props: {
-		id: string;
-		"aria-invalid": boolean;
-		"aria-describedby": string | undefined;
-	}) => ReactNode;
+	control?: (props: ControlProps) => ReactNode;
 };
 
 export const FormField: FC<FormFieldProps> = ({
@@ -38,7 +39,7 @@ export const FormField: FC<FormFieldProps> = ({
 		.filter(Boolean)
 		.join(" ");
 	const required = inputProps.required ?? false;
-	const controlProps = {
+	const controlProps: ControlProps = {
 		id,
 		"aria-invalid": field.error,
 		"aria-describedby": describedBy || undefined,

@@ -19,8 +19,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 )
 
-// Many structures here mimic those from https://github.com/coder/license/blob/main/server/server.go
-
 // LicenseRequestURL is the Coder licensor endpoint that issues trial licenses.
 const LicenseRequestURL = "https://v2-licensor.coder.com/trial"
 
