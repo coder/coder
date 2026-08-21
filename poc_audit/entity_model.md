@@ -87,6 +87,33 @@ of principal and agent. That sense is the oldest of the three and the origin of
 the others, so it holds the unmodified word. The other two senses are always
 qualified: `workspace_agent` written in full, and "AI agent" written in full.
 
+**Authenticator.** Something a holder possesses and controls, used to
+authenticate it. A password is one. The term is NIST's, from SP 800-63, along
+with the three below.
+
+**Authenticator output.** The value an authenticator produces and sends to the
+verifier, which is not the authenticator itself. For a password the two
+coincide; for a challenge and a response it is the response; for a key pair it
+is a signature. **What is presented is never called a secret**, because in
+general it is not one, and calling it that would build the password case into
+the vocabulary.
+
+**Verifier.** The party that establishes a holder controls an authenticator.
+
+**Relying party.** The party that acts on the verifier's answer. Access control
+is one relying party and signing a document is another, so keeping the two roles
+apart is what stops verification being confused with a grant of access. The two
+usually happen together, which is exactly why they need separate names.
+
+**Session.** A grouping, by convention, of a sequence of interactions. The
+grouping is arbitrary in itself: a session may span several connections, and one
+connection may be divided into several sessions. So a session is not defined
+until its convention is written down, as a rule saying which interactions belong
+to it and which do not. The convention adopted here is below.
+
+**Claimant.** A party whose identity is not yet established, and which becomes a
+subscriber once it is. See below: an AI agent is never one.
+
 ### Identifiers in source code
 
 The terminology rules above govern prose and rendered text. They are
@@ -231,6 +258,79 @@ A technical system can embody an AI agent. It cannot embody a human. That
 asymmetry is the whole of the difference between the two so far as a grant is
 concerned. In every other respect a grant to an AI agent and a grant to a person
 are the same kind of act, made to a party that already exists.
+
+### An AI agent is never a claimant
+
+A claimant is a party whose identity is not yet established. **An AI agent is
+never in that position**, and that is a property to preserve rather than an
+accident to observe.
+
+The sandbox holding an AI agent's embodiment knows which AI agent it holds, so
+an identity can be supplied by the context of a presentation instead of asserted
+within it. An AI agent is **subscribed at birth**: from the moment its identity
+exists it is bound to a known embodiment, and no interval passes in which that
+identity is an unproven claim.
+
+The gain is structural rather than a convenience. An AI agent cannot claim to be
+a different AI agent, because it makes no claim at all. Impersonating one would
+mean subverting the binding the sandbox holds, which is a different problem from
+defeating a check, and not one any credential guards against.
+
+**What the authenticator is then for is a separate question and is not settled
+here.** Possession still has to be shown across boundaries the sandbox's own
+knowledge does not cross.
+
+### The session convention adopted here
+
+**Every session here has the same participants throughout.** That is the rule
+which makes the grouping something rather than nothing, and it is a restriction
+rather than an observation: interactions with a different participant are a
+different session.
+
+A second restriction holds at present, that a session has exactly **two**
+participants. So a session is described by two `(type, identifier)` pairs. That
+is narrower than the same-participants rule requires and may be relaxed later.
+
+For an AI agent, one participant is the AI agent and the other is the sandbox
+holding its embodiment, and the session is bounded by that sandbox's lifespan.
+
+The point of having sessions at all, at this stage, is that **an AI agent's
+logged activity is always subordinate to one**. An action is recorded as
+belonging to a session rather than floating free, which is what lets it be
+placed against the authorization in force at the time.
+
+**Cheat: the sandbox is named contextually, not identified.** Neither sessions
+nor sandboxes are journaled entities yet, so there is no sandbox identity to
+name. The second participant is written as the pair
+`("sandbox", "sandbox-of:<ai agent uuid>")`, meaning the sandbox this AI agent
+runs in, whichever that is.
+
+**This form belongs in a log and nowhere else.** The `(type, identifier)` rule
+with uuid identifiers is a discipline of journals and ledgers, whose identifiers
+name rows in identity tables. A log carries no such obligation, so a text
+identifier costs nothing there. It must never appear in a journal's or a
+ledger's identifier column.
+
+Three things recommend the form over an empty string or a sentinel uuid. It is
+**self evidently not a real identifier**, so a reader meets an unfinished thing
+rather than a plausible one. It **distinguishes the sessions of different AI
+agents**, which an empty string would have collapsed together. And it carries a
+fixed prefix, so the tool that reads these records can recognise it without
+matching on prose.
+
+It cannot be a nil uuid, that value already meaning absent and being rejected as
+such in `coderd/entity`.
+
+The cost is that the sandbox identifier is derived from the AI agent's, so one
+fact is written twice and the two copies could disagree. That is tolerable only
+because the value is always computed and never authored, so a disagreement needs
+a hand written row rather than an ordinary mistake.
+
+The cheat costs nothing else today, because an AI agent's lifespan falls
+entirely within one sandbox, so an AI agent has exactly one session and the pair
+is determined by the AI agent alone. **It stops working the moment either an AI
+agent outlives a sandbox or a sandbox holds more than one session**, and it is
+not expected to survive sandboxes becoming journaled entities.
 
 ### Lifecycles are state machines either way
 
