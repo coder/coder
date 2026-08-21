@@ -31,12 +31,36 @@ import (
 type advisorOverrideStubStore struct {
 	database.Store
 
-	getEnabledChatModelConfigByID  func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
-	getChatModelConfigByID         func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
-	getAIProviderByID              func(context.Context, uuid.UUID) (database.AIProvider, error)
-	getAIProviders                 func(context.Context, database.GetAIProvidersParams) ([]database.AIProvider, error)
-	getAIProviderKeysByProviderID  func(context.Context, uuid.UUID) ([]database.AIProviderKey, error)
-	getAIProviderKeysByProviderIDs func(context.Context, []uuid.UUID) ([]database.AIProviderKey, error)
+	getChatOrganizationModelOverride func(context.Context, database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error)
+	advisorModelConfigID             uuid.UUID
+	advisorReasoningEffort           *string
+	getEnabledChatModelConfigByID    func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
+	getChatModelConfigByID           func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
+	getAIProviderByID                func(context.Context, uuid.UUID) (database.AIProvider, error)
+	getAIProviders                   func(context.Context, database.GetAIProvidersParams) ([]database.AIProvider, error)
+	getAIProviderKeysByProviderID    func(context.Context, uuid.UUID) ([]database.AIProviderKey, error)
+	getAIProviderKeysByProviderIDs   func(context.Context, []uuid.UUID) ([]database.AIProviderKey, error)
+}
+
+func (s *advisorOverrideStubStore) GetChatOrganizationModelOverride(
+	ctx context.Context,
+	params database.GetChatOrganizationModelOverrideParams,
+) (database.ChatOrganizationModelOverride, error) {
+	if s.getChatOrganizationModelOverride != nil {
+		return s.getChatOrganizationModelOverride(ctx, params)
+	}
+	if s.advisorModelConfigID == uuid.Nil {
+		return database.ChatOrganizationModelOverride{}, sql.ErrNoRows
+	}
+	override := database.ChatOrganizationModelOverride{
+		OrganizationID: params.OrganizationID,
+		Context:        params.Context,
+		ModelConfigID:  s.advisorModelConfigID,
+	}
+	if s.advisorReasoningEffort != nil {
+		override.ReasoningEffort = sql.NullString{String: *s.advisorReasoningEffort, Valid: true}
+	}
+	return override, nil
 }
 
 func (s *advisorOverrideStubStore) GetEnabledChatModelConfigByID(
@@ -114,6 +138,22 @@ func newAdvisorTestServer(
 
 const advisorTestMaxOutputTokens = int64(16384)
 
+func resolveAdvisorModelOverrideForTest(
+	ctx context.Context,
+	p *Server,
+	chat database.Chat,
+	cfg codersdk.AdvisorConfig,
+	maxOutputTokens int64,
+	modelOpts modelBuildOptions,
+	logger slog.Logger,
+) (resolvedModelCall, bool, error) {
+	if store, ok := p.db.(*advisorOverrideStubStore); ok {
+		store.advisorModelConfigID = cfg.ModelConfigID
+		store.advisorReasoningEffort = cfg.ReasoningEffort
+	}
+	return p.resolveAdvisorModelOverride(ctx, chat, maxOutputTokens, modelOpts, logger)
+}
+
 // advisorChatModelFixture wires a chat whose LastModelConfigID resolves
 // through the config cache to an enabled, provider-linked model config, so
 // the advisor chat-model path can resolve without an override.
@@ -121,22 +161,24 @@ func advisorChatModelFixture(t *testing.T, options json.RawMessage) (database.Ch
 	t.Helper()
 	configID := uuid.New()
 	providerID := uuid.New()
+	organizationID := uuid.New()
 	store := &advisorOverrideStubStore{
 		getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 			return database.ChatModelConfig{
-				ID:           configID,
-				Model:        "gpt-5.2",
-				Enabled:      true,
-				Options:      options,
-				DisplayName:  "gpt-5.2",
-				AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+				ID:             configID,
+				Model:          "gpt-5.2",
+				Enabled:        true,
+				Options:        options,
+				DisplayName:    "gpt-5.2",
+				AIProviderID:   uuid.NullUUID{UUID: providerID, Valid: true},
+				OrganizationID: organizationID,
 			}, nil
 		},
 		getAIProviderByID: func(context.Context, uuid.UUID) (database.AIProvider, error) {
 			return aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil
 		},
 	}
-	return database.Chat{LastModelConfigID: configID}, store
+	return database.Chat{LastModelConfigID: configID, OrganizationID: organizationID}, store
 }
 
 func advisorTestTransportFactory() *aibridgeTestFactory {
@@ -155,8 +197,8 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 	requireChatModel := func(t *testing.T, p *Server, advisorCfg codersdk.AdvisorConfig) {
 		t.Helper()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		resolved, ok, err := p.resolveAdvisorModelOverride(
-			ctx,
+		resolved, ok, err := resolveAdvisorModelOverrideForTest(ctx,
+			p,
 			database.Chat{},
 			advisorCfg,
 			advisorTestMaxOutputTokens,
@@ -227,8 +269,8 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		resolved, ok, err := p.resolveAdvisorModelOverride(
-			ctx,
+		resolved, ok, err := resolveAdvisorModelOverrideForTest(ctx,
+			p,
 			database.Chat{OrganizationID: chatOrgID},
 			codersdk.AdvisorConfig{ModelConfigID: configID},
 			advisorTestMaxOutputTokens,
@@ -348,8 +390,8 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		p := newAdvisorTestServer(ctx, t, store)
 		p.aibridgeTransportFactory = aibridgeTestFactoryPointer(advisorTestTransportFactory())
 
-		resolved, ok, err := p.resolveAdvisorModelOverride(
-			ctx,
+		resolved, ok, err := resolveAdvisorModelOverrideForTest(ctx,
+			p,
 			database.Chat{},
 			codersdk.AdvisorConfig{
 				ModelConfigID:   configID,
@@ -408,8 +450,8 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		p := newAdvisorTestServer(ctx, t, store)
 		p.aibridgeTransportFactory = aibridgeTestFactoryPointer(advisorTestTransportFactory())
 
-		resolved, ok, err := p.resolveAdvisorModelOverride(
-			ctx,
+		resolved, ok, err := resolveAdvisorModelOverrideForTest(ctx,
+			p,
 			database.Chat{},
 			codersdk.AdvisorConfig{ModelConfigID: configID},
 			advisorTestMaxOutputTokens,
@@ -453,8 +495,8 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 	p := newAdvisorTestServer(ctx, t, store)
 
 	ctx = aibridge.WithDelegatedAPIKeyID(ctx, uuid.NewString())
-	resolved, ok, err := p.resolveAdvisorModelOverride(
-		ctx,
+	resolved, ok, err := resolveAdvisorModelOverrideForTest(ctx,
+		p,
 		database.Chat{ID: uuid.New()},
 		codersdk.AdvisorConfig{ModelConfigID: configID},
 		advisorTestMaxOutputTokens,
@@ -557,7 +599,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 
 	logger := slog.Make()
 
-	newChatModelRuntime := func(t *testing.T, advisorCfg codersdk.AdvisorConfig, options json.RawMessage) *chatadvisor.Runtime {
+	newChatModelRuntime := func(t *testing.T, advisorCfg advisorRuntimeConfig, options json.RawMessage) *chatadvisor.Runtime {
 		t.Helper()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		chat, store := advisorChatModelFixture(t, options)
@@ -578,7 +620,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 	t.Run("ZeroMaxUsesDefaultsToMaxChatSteps", func(t *testing.T) {
 		t.Parallel()
 
-		rt := newChatModelRuntime(t, codersdk.AdvisorConfig{
+		rt := newChatModelRuntime(t, advisorRuntimeConfig{
 			Enabled:         true,
 			MaxUsesPerRun:   0,
 			MaxOutputTokens: 16384,
@@ -599,7 +641,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		rt, err := p.newAdvisorRuntime(
 			ctx,
 			database.Chat{},
-			codersdk.AdvisorConfig{
+			advisorRuntimeConfig{
 				Enabled:         true,
 				MaxUsesPerRun:   -1,
 				MaxOutputTokens: 16384,
@@ -614,7 +656,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 	t.Run("ZeroMaxOutputTokensDefaults", func(t *testing.T) {
 		t.Parallel()
 
-		rt := newChatModelRuntime(t, codersdk.AdvisorConfig{
+		rt := newChatModelRuntime(t, advisorRuntimeConfig{
 			Enabled:         true,
 			MaxUsesPerRun:   3,
 			MaxOutputTokens: 0,
@@ -639,7 +681,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		rt, err := p.newAdvisorRuntime(
 			ctx,
 			database.Chat{LastModelConfigID: uuid.New()},
-			codersdk.AdvisorConfig{
+			advisorRuntimeConfig{
 				Enabled:         true,
 				MaxUsesPerRun:   3,
 				MaxOutputTokens: 16384,
@@ -667,7 +709,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		rt := newChatModelRuntime(t, codersdk.AdvisorConfig{
+		rt := newChatModelRuntime(t, advisorRuntimeConfig{
 			Enabled:         true,
 			MaxUsesPerRun:   3,
 			MaxOutputTokens: 16384,
