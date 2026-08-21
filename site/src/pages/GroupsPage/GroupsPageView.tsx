@@ -95,7 +95,12 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 		return (
 			<PaywallPremium
 				message="Groups"
-				description="Organize users into groups with restricted access to templates."
+				description="Run isolated business units on one deployment, each with its own users, templates, provisioners, and infrastructure."
+				features={[
+					"Isolate provisioners & infrastructure",
+					"Sync org membership from your IdP",
+					"Manage orgs at scale via Terraform",
+				]}
 				canViewPremium={permissions.viewAllLicenses}
 			/>
 		);

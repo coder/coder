@@ -7,11 +7,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -54,52 +52,6 @@ func (p *Server) computerUseProviderAndModelFromConfig(
 	}
 
 	return provider, modelProvider, modelName, nil
-}
-
-func (p *Server) resolveComputerUseModel(
-	ctx context.Context,
-	chat database.Chat,
-	route aiGatewayModelRoute,
-	computerUseProvider codersdk.ChatComputerUseProvider,
-	computerUseModelProvider string,
-	computerUseModelName string,
-	modelOpts modelBuildOptions,
-) (
-	model chatprovider.Model,
-	debugEnabled bool,
-	resolvedProvider string,
-	resolvedModel string,
-	err error,
-) {
-	resolvedProvider, resolvedModel, err = chatprovider.ResolveModelWithProviderHint(
-		computerUseModelName,
-		computerUseModelProvider,
-	)
-	if err != nil {
-		return chatprovider.Model{}, false, "", "", xerrors.Errorf(
-			"resolve computer use model metadata for provider %q model %q: %w",
-			computerUseProvider,
-			computerUseModelName,
-			err,
-		)
-	}
-
-	model, debugEnabled, err = p.newDebugAwareModel(ctx, modelClientRequest{
-		Chat:         chat,
-		ModelName:    computerUseModelName,
-		UserAgent:    chatprovider.UserAgent(),
-		ExtraHeaders: chatprovider.CoderHeaders(chat),
-	}, route, modelOpts)
-	if err != nil {
-		return chatprovider.Model{}, false, "", "", xerrors.Errorf(
-			"resolve computer use model for provider %q model %q: %w",
-			computerUseProvider,
-			computerUseModelName,
-			err,
-		)
-	}
-
-	return model, debugEnabled, resolvedProvider, resolvedModel, nil
 }
 
 type computerUseProviderToolOptions struct {
