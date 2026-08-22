@@ -15,11 +15,13 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -34,6 +36,11 @@ type interceptionBase struct {
 	cfg  intercept.Config
 	cred intercept.Credential
 
+	// bedrockMantle is nil for non-Bedrock providers. When set, upstream
+	// calls are SigV4-signed against the Bedrock Mantle endpoint instead of
+	// using a key pool or BYOK secret.
+	bedrockMantle *bedrocksig.MantleConfig
+
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
 
@@ -47,15 +54,28 @@ type interceptionBase struct {
 // newCompletionsService builds the SDK service used for upstream calls.
 func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.ChatCompletionService {
 	var opts []option.RequestOption
-	// Only BYOK sets its credential here. Centralized keys are injected
-	// per-attempt in the failover loop.
-	if byok, ok := intercept.AsBYOK(i.cred); ok {
-		i.logger.Debug(ctx, "using byok auth",
-			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
-		)
-		opts = append(opts, option.WithAPIKey(byok.Secret))
+	if i.bedrockMantle != nil {
+		base, err := bedrocksig.BaseURLForModel(i.bedrockMantle.BaseURL, i.Model())
+		if err != nil {
+			// Fail the request loudly: a malformed base URL is a provider
+			// misconfiguration, not a retryable upstream error.
+			opts = append(opts, option.WithMiddleware(func(_ *http.Request, _ option.MiddlewareNext) (*http.Response, error) {
+				return nil, xerrors.Errorf("bedrock mantle base URL: %w", err)
+			}))
+			return openai.NewChatCompletionService(opts...)
+		}
+		opts = append(opts, option.WithBaseURL(base))
+	} else {
+		// Only BYOK sets its credential here. Centralized keys are injected
+		// per-attempt in the failover loop.
+		if byok, ok := intercept.AsBYOK(i.cred); ok {
+			i.logger.Debug(ctx, "using byok auth",
+				slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
+			)
+			opts = append(opts, option.WithAPIKey(byok.Secret))
+		}
+		opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
 	}
-	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
 
 	// Forward client headers to upstream. This middleware runs after the SDK
 	// has built the request, and replaces the outgoing headers with the sanitized
@@ -70,6 +90,14 @@ func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.Cha
 	// Add API dump middleware if configured
 	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.cfg.ProviderName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
 		opts = append(opts, option.WithMiddleware(mw))
+	}
+
+	// Bedrock mantle: install the SigV4 signing middleware last so it runs
+	// innermost (right before the HTTP send) and signs the request after all
+	// other headers are set.
+	if i.bedrockMantle != nil {
+		//nolint:bodyclose // signing middleware hands the response to the transport, which closes the body.
+		opts = append(opts, option.WithMiddleware(bedrocksig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region)))
 	}
 
 	return openai.NewChatCompletionService(opts...)

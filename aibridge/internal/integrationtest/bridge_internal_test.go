@@ -445,6 +445,84 @@ func TestAWSBedrockIntegration(t *testing.T) {
 		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 	})
 
+	t.Run("mantle OpenAI routes", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name         string
+			fixture      []byte
+			model        string
+			requestPath  string
+			upstreamPath string
+		}{
+			{
+				name:         "responses",
+				fixture:      fixtures.OaiResponsesBlockingSimple,
+				model:        "openai.gpt-5.6-luna",
+				requestPath:  "/anthropic/v1/responses",
+				upstreamPath: "/openai/v1/responses",
+			},
+			{
+				name:         "chat completions",
+				fixture:      fixtures.OaiChatSimple,
+				model:        "mistral.ministral-3-3b-instruct",
+				requestPath:  "/anthropic/v1/chat/completions",
+				upstreamPath: "/v1/chat/completions",
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+				t.Cleanup(cancel)
+
+				fix := fixtures.Parse(t, tc.fixture)
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+				bedrockCfg := config.AWSBedrock{
+					Region:          "us-west-2",
+					AccessKey:       "test-access-key",
+					AccessKeySecret: "test-secret-key",
+					BaseURL:         upstream.URL + "/anthropic",
+					Protocol:        config.BedrockProtocolMantle,
+				}
+				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+					withCustomProvider(aibridgetest.NewBedrockProvider(t, config.Anthropic{
+						Name:    config.ProviderAnthropic,
+						BaseURL: upstream.URL,
+					}, bedrockCfg)),
+				)
+
+				reqBody, err := sjson.SetBytes(fix.Request(), "model", tc.model)
+				require.NoError(t, err)
+				resp, err := bridgeServer.makeRequest(t, http.MethodPost, tc.requestPath, reqBody)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				_, err = io.Copy(io.Discard, resp.Body)
+				require.NoError(t, err)
+
+				received := upstream.ReceivedRequests()
+				require.Len(t, received, 1)
+				require.Equal(t, tc.upstreamPath, received[0].Path)
+				require.Equal(t, tc.model, gjson.GetBytes(received[0].Body, "model").String(),
+					"model should be forwarded unchanged")
+
+				authHeader := received[0].Header.Get("Authorization")
+				require.True(t, strings.HasPrefix(authHeader, "AWS4-HMAC-SHA256"), "missing SigV4 auth: %q", authHeader)
+				require.Contains(t, authHeader, "/bedrock-mantle/aws4_request",
+					"signature must be scoped to the bedrock-mantle service")
+				require.Contains(t, received[0].Header.Get("User-Agent"), bedrocksig.PRMUserAgent)
+
+				interceptions := bridgeServer.Recorder.RecordedInterceptions()
+				require.Len(t, interceptions, 1)
+				require.Equal(t, tc.model, interceptions[0].Model)
+				bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+			})
+		}
+	})
+
 	// Tests that Bedrock-incompatible fields are stripped and adaptive thinking
 	// is handled correctly per model. Different Bedrock model names trigger
 	// different behavior for beta flag filtering and field stripping.

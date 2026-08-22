@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -34,12 +35,37 @@ func NewBlockingInterceptor(
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingResponsesInterceptor {
+	return buildBlockingInterceptor(id, reqPayload, cfg, cred, nil, clientHeaders, tracer)
+}
+
+func NewBedrockBlockingInterceptor(
+	id uuid.UUID,
+	reqPayload RequestPayload,
+	cfg intercept.Config,
+	cred intercept.Credential,
+	bedrockMantle *bedrocksig.MantleConfig,
+	clientHeaders http.Header,
+	tracer trace.Tracer,
+) *BlockingResponsesInterceptor {
+	return buildBlockingInterceptor(id, reqPayload, cfg, cred, bedrockMantle, clientHeaders, tracer)
+}
+
+func buildBlockingInterceptor(
+	id uuid.UUID,
+	reqPayload RequestPayload,
+	cfg intercept.Config,
+	cred intercept.Credential,
+	bedrockMantle *bedrocksig.MantleConfig,
+	clientHeaders http.Header,
+	tracer trace.Tracer,
+) *BlockingResponsesInterceptor {
 	return &BlockingResponsesInterceptor{
 		responsesInterceptionBase: responsesInterceptionBase{
 			id:            id,
 			reqPayload:    reqPayload,
 			cfg:           cfg,
 			cred:          cred,
+			bedrockMantle: bedrockMantle,
 			clientHeaders: clientHeaders,
 			tracer:        tracer,
 		},
