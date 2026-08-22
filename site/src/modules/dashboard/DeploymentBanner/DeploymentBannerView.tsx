@@ -421,7 +421,7 @@ const getHealthErrors = (health: HealthcheckReport) => {
 	} as const;
 
 	for (const section of sections) {
-		if (health[section].severity === "error" && !health[section].dismissed) {
+		if (health[section].severity === "error") {
 			warnings.push(messages[section]);
 		}
 	}
