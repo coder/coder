@@ -14,6 +14,7 @@ import {
 } from "#/modules/terminal/WorkspaceTerminal";
 import { WorkspaceTerminalAlerts } from "#/modules/terminal/WorkspaceTerminalAlerts";
 import { openMaybePortForwardedURL } from "#/utils/portForward";
+import { generateConnectionSessionId } from "#/utils/random";
 
 /** Promote a freshly created terminal tab after this delay if no output has painted. */
 const READY_FALLBACK_MS = 100;
@@ -55,6 +56,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 	const { proxy } = useProxy();
 	const { metadata } = useEmbeddedMetadata();
 	const terminalRef = useRef<WorkspaceTerminalHandle>(null);
+	const [sessionId] = useState(() => generateConnectionSessionId());
 	const [isWarm, setIsWarm] = useState(Boolean(isHot));
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("initializing");
@@ -167,6 +169,7 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 						onContentReady={signalReady}
 						onError={handleTerminalError}
 						reconnectionToken={reconnectionToken}
+						sessionId={sessionId}
 						initialCommand={initialCommand}
 						baseUrl={terminalConfig.baseUrl}
 						terminalFontFamily={terminalConfig.fontFamily}
