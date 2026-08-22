@@ -116,3 +116,47 @@ func TestValidateFromAddr(t *testing.T) {
 		})
 	}
 }
+
+func TestEncodeHeaderValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{
+			name:  "ascii is unchanged",
+			value: `User account "bobby" suspended`,
+			want:  `User account "bobby" suspended`,
+		},
+		{
+			name:  "crlf is folded",
+			value: "Subject\r\nBcc: attacker@example.com",
+			want:  "Subject  Bcc: attacker@example.com",
+		},
+		{
+			name:  "bare newline is folded",
+			value: "Subject\nBcc: attacker@example.com",
+			want:  "Subject Bcc: attacker@example.com",
+		},
+		{
+			name:  "non-ascii is q-encoded",
+			value: "Konto gelöscht",
+			want:  "=?utf-8?q?Konto_gel=C3=B6scht?=",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := encodeHeaderValue(tc.value)
+			require.Equal(t, tc.want, got)
+			// Whatever the input, the result must never be able to terminate the
+			// header it is written into.
+			require.NotContains(t, got, "\r")
+			require.NotContains(t, got, "\n")
+		})
+	}
+}

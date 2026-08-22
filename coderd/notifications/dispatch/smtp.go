@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	_ "embed"
 	"fmt"
+	"mime"
 	"mime/multipart"
 	"mime/quotedprintable"
 	"net"
@@ -66,7 +67,7 @@ func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTm
 		return nil, xerrors.Errorf("render subject: %w", err)
 	}
 
-	htmlBody := markdown.HTMLFromMarkdown(bodyTmpl)
+	htmlBody := markdown.HTMLFromNotificationMarkdown(bodyTmpl)
 	plainBody, err := markdown.PlaintextFromMarkdown(bodyTmpl)
 	if err != nil {
 		return nil, xerrors.Errorf("render plaintext body: %w", err)
@@ -202,7 +203,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		multipartWriter := multipart.NewWriter(multipartBuffer)
 		_, _ = fmt.Fprintf(msg, "From: %s\r\n", headerFrom)
 		_, _ = fmt.Fprintf(msg, "To: %s\r\n", strings.Join(recipients, ", "))
-		_, _ = fmt.Fprintf(msg, "Subject: %s\r\n", subject)
+		_, _ = fmt.Fprintf(msg, "Subject: %s\r\n", encodeHeaderValue(subject))
 		_, _ = fmt.Fprintf(msg, "Message-Id: %s@%s\r\n", msgID, s.hostname())
 		_, _ = fmt.Fprintf(msg, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
 		_, _ = fmt.Fprintf(msg, "Content-Type: multipart/alternative;  boundary=%s\r\n", multipartWriter.Boundary())
@@ -572,4 +573,20 @@ func (s *SMTPHandler) password() (string, error) {
 		return string(content), nil
 	}
 	return s.cfg.Auth.Password.String(), nil
+}
+
+// encodeHeaderValue prepares a rendered value for use as a header value. Line
+// breaks are folded to spaces so the value cannot terminate the header and inject
+// another, and non-ASCII content is Q-encoded per RFC 2047 rather than emitted as
+// raw 8-bit. Pure ASCII values are returned unchanged.
+func encodeHeaderValue(value string) string {
+	if strings.ContainsAny(value, "\r\n") {
+		value = strings.Map(func(r rune) rune {
+			if r == '\r' || r == '\n' {
+				return ' '
+			}
+			return r
+		}, value)
+	}
+	return mime.QEncoding.Encode("utf-8", value)
 }
