@@ -28,10 +28,16 @@ func TestResolveCompactionOverrideConfig_ForeignConfigFallsBack(t *testing.T) {
 	chat.OrganizationID = uuid.New()
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
 	overrideConfig.OrganizationID = uuid.New()
-	overrideConfig.AIProviderID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
+	overrideProviderID := uuid.New()
+	overrideConfig.AIProviderID = uuid.NullUUID{UUID: overrideProviderID, Valid: true}
 
 	db.EXPECT().GetChatCompactionModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), overrideProviderID).Return(database.AIProvider{
+		ID:      overrideProviderID,
+		Type:    database.AIProviderTypeOpenai,
+		Enabled: true,
+	}, nil)
 
 	server := titleOverrideTestServer(db, logger)
 	override, err := server.resolveCompactionOverrideConfig(ctx, chat)

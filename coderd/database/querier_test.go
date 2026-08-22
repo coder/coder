@@ -12483,15 +12483,15 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 		params.Enabled = false
 	})
 
-	configs, err := store.GetEnabledChatModelConfigs(ctx)
+	configs, err := store.GetEnabledChatModelConfigsByOrganization(ctx, enabledConfig.OrganizationID)
 	require.NoError(t, err)
-	require.True(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+	require.True(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsByOrganizationRow) bool {
 		return row.ChatModelConfig.ID == enabledConfig.ID
 	}))
-	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsByOrganizationRow) bool {
 		return row.ChatModelConfig.ID == disabledProviderConfig.ID
 	}))
-	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsByOrganizationRow) bool {
 		return row.ChatModelConfig.ID == disabledModelConfig.ID
 	}))
 

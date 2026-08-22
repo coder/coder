@@ -2830,11 +2830,11 @@ export interface ChatMessagesResponse {
 
 // From codersdk/chats.go
 /**
- * ChatModel is an admin-managed model record for an organization.
- * It is not a discovery catalog entry. See ChatModelCatalogEntry.
+ * ChatModel is an org-scoped model configuration.
  */
 export interface ChatModel {
 	readonly id: string;
+	readonly organization_id: string;
 	readonly ai_provider_id: string;
 	readonly model: string;
 	readonly display_name: string;
@@ -2850,6 +2850,16 @@ export interface ChatModel {
 	readonly reasoning_efforts?: readonly string[];
 	readonly created_at: string;
 	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelACL is the access control list for an organization-scoped chat
+ * model. Each principal is mapped to its effective model role.
+ */
+export interface ChatModelACL {
+	readonly user_roles: Record<string, ChatRole>;
+	readonly group_roles: Record<string, ChatRole>;
 }
 
 // From codersdk/chats.go
@@ -2877,10 +2887,14 @@ export interface ChatModelAnthropicThinkingOptions {
 
 // From codersdk/chats.go
 /**
- * ChatModelAvailabilityResponse groups the discovery catalog by provider and
- * reports provider availability.
+ * ChatModelAvailabilityResponse is the catalog returned from chat model discovery.
  */
 export interface ChatModelAvailabilityResponse {
+	/**
+	 * Models contains the effective runtime model configs for the requested
+	 * organization. Each config belongs to that organization.
+	 */
+	readonly models?: readonly ChatModel[];
 	readonly providers: readonly ChatModelProvider[];
 	/**
 	 * UnsupportedProviders lists configured providers the Agents harness
@@ -2907,9 +2921,9 @@ export interface ChatModelCallConfig {
 
 // From codersdk/chats.go
 /**
- * ChatModelCatalogEntry is a discovery catalog entry for end users.
- * Its ID is a synthetic provider:model value, not the UUID in ChatModel.ID.
- * It is not an admin-managed record. See ChatModel.
+ * ChatModelCatalogEntry is the runtime catalog view of a model. Its ID is the
+ * synthetic catalog identity `provider:model` built by canonicalModelID, not
+ * the chat_model_configs row UUID that ChatModel.ID carries.
  */
 export interface ChatModelCatalogEntry {
 	readonly id: string;
@@ -3063,6 +3077,26 @@ export interface ChatModelProvider {
 	readonly available: boolean;
 	readonly unavailable_reason?: ChatModelProviderUnavailableReason;
 	readonly models: readonly ChatModelCatalogEntry[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelProviderDescriptor is the redacted view of an AI provider carried
+ * on the org model collection response. It carries only the capability
+ * metadata the Models UI needs; key material, base URLs, and headers are
+ * never exposed. The fields mirror what /api/experimental/chats/models
+ * already discloses to any authenticated caller.
+ */
+export interface ChatModelProviderDescriptor {
+	readonly id: string;
+	readonly type: string;
+	readonly display_name: string;
+	readonly icon: string;
+	readonly enabled: boolean;
+	readonly has_api_key: boolean;
+	readonly has_user_api_key: boolean;
+	readonly has_effective_api_key: boolean;
+	readonly allow_user_api_key: boolean;
 }
 
 // From codersdk/chats.go
@@ -7017,6 +7051,17 @@ export interface Organization extends MinimalOrganization {
 	readonly default_org_member_roles: readonly string[];
 }
 
+// From codersdk/chats.go
+/**
+ * OrganizationChatModelsResponse is the org chat model config collection:
+ * the caller-readable configs plus the redacted provider descriptors the
+ * authoring page needs.
+ */
+export interface OrganizationChatModelsResponse {
+	readonly models: readonly ChatModel[];
+	readonly providers: readonly ChatModelProviderDescriptor[];
+}
+
 // From codersdk/aibridge.go
 /**
  * OrganizationGroupAISpend is the current AI spend snapshot for a group
@@ -9776,6 +9821,17 @@ export interface UpdateChatDebugLoggingAllowUsersRequest {
  */
 export interface UpdateChatDebugRetentionDaysRequest {
 	readonly debug_retention_days: number;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatModelACLRequest is a sparse update of a chat model ACL. Only the
+ * listed principals change. ChatRoleDeleted removes an entry, while an omitted
+ * map or principal is unchanged.
+ */
+export interface UpdateChatModelACLRequest {
+	readonly user_roles?: Record<string, ChatRole>;
+	readonly group_roles?: Record<string, ChatRole>;
 }
 
 // From codersdk/chats.go

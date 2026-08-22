@@ -77,7 +77,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			}
 
 			logger := inv.Logger
-			modelID, err := chat.EnsureScaletestChatModel(ctx, client, logger, llmMockURL, providerPropagationWait)
+			modelForOrg, err := chat.EnsureScaletestChatModel(ctx, client, logger, llmMockURL, providerPropagationWait)
 			if err != nil {
 				return err
 			}
@@ -122,6 +122,11 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				for chatIndex := int64(0); chatIndex < chatsPerWorkspace; chatIndex++ {
 					if turnStartReadyWaitGroup != nil {
 						turnStartReadyWaitGroup.Add(1)
+					}
+
+					modelID, err := modelForOrg(targetWorkspace.OrganizationID)
+					if err != nil {
+						return xerrors.Errorf("ensure scaletest model config for organization %s: %w", targetWorkspace.OrganizationID, err)
 					}
 
 					cfg := chat.Config{

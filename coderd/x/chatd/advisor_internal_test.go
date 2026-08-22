@@ -122,7 +122,7 @@ func advisorChatModelFixture(t *testing.T, options json.RawMessage) (database.Ch
 	configID := uuid.New()
 	providerID := uuid.New()
 	store := &advisorOverrideStubStore{
-		getChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+		getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 			return database.ChatModelConfig{
 				ID:           configID,
 				Model:        "gpt-5.2",
@@ -455,7 +455,7 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 	ctx = aibridge.WithDelegatedAPIKeyID(ctx, uuid.NewString())
 	resolved, ok, err := p.resolveAdvisorModelOverride(
 		ctx,
-		database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
+		database.Chat{ID: uuid.New()},
 		codersdk.AdvisorConfig{ModelConfigID: configID},
 		advisorTestMaxOutputTokens,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
@@ -630,7 +630,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		store := &advisorOverrideStubStore{
-			getChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{}, xerrors.New("lookup failed")
 			},
 		}

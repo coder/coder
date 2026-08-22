@@ -55,56 +55,90 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			arg := chi.URLParam(r, "organization")
-			if arg == "" {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "\"organization\" must be provided.",
-				})
+			organization, ok := resolveOrganizationParam(ctx, ctx, db, rw, r)
+			if !ok {
 				return
 			}
 
-			var organization database.Organization
-			var dbErr error
-
-			// If the name is exactly "default", then we fetch the default
-			// organization. This is a special case to make it easier
-			// for single org deployments.
-			//
-			// arg == uuid.Nil.String() should be a temporary workaround for
-			// legacy provisioners that don't provide an organization ID.
-			// This prevents a breaking change.
-			// TODO: This change was added March 2024. Nil uuid returning the
-			// 		default org should be removed some number of months after
-			//		that date.
-			if arg == codersdk.DefaultOrganization || arg == uuid.Nil.String() {
-				organization, dbErr = db.GetDefaultOrganization(ctx)
-			} else {
-				// Try by name or uuid.
-				id, err := uuid.Parse(arg)
-				if err == nil {
-					organization, dbErr = db.GetOrganizationByID(ctx, id)
-				} else {
-					organization, dbErr = db.GetOrganizationByName(ctx, database.GetOrganizationByNameParams{
-						Name:    arg,
-						Deleted: false,
-					})
-				}
-			}
-			if httpapi.Is404Error(dbErr) {
-				httpapi.ResourceNotFound(rw)
-				return
-			}
-			if dbErr != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: fmt.Sprintf("Internal error fetching organization %q.", arg),
-					Detail:  dbErr.Error(),
-				})
-				return
-			}
 			ctx = context.WithValue(ctx, organizationParamContextKey{}, organization)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
+}
+
+// ExtractChatModelOrganizationParam resolves organization identity for chat
+// model routes without requiring organization:read. The model handlers and
+// Store methods authorize the original caller for the concrete operation.
+func ExtractChatModelOrganizationParam(db database.Store) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			//nolint:gocritic // Route context resolution does not expose organization data.
+			organization, ok := resolveOrganizationParam(ctx, dbauthz.AsSystemRestricted(ctx), db, rw, r)
+			if !ok {
+				return
+			}
+
+			ctx = context.WithValue(ctx, organizationParamContextKey{}, organization)
+			next.ServeHTTP(rw, r.WithContext(ctx))
+		})
+	}
+}
+
+func resolveOrganizationParam(
+	responseCtx context.Context,
+	queryCtx context.Context,
+	db database.Store,
+	rw http.ResponseWriter,
+	r *http.Request,
+) (database.Organization, bool) {
+	arg := chi.URLParam(r, "organization")
+	if arg == "" {
+		httpapi.Write(responseCtx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "\"organization\" must be provided.",
+		})
+		return database.Organization{}, false
+	}
+
+	var organization database.Organization
+	var dbErr error
+
+	// If the name is exactly "default", then we fetch the default
+	// organization. This is a special case to make it easier
+	// for single org deployments.
+	//
+	// arg == uuid.Nil.String() should be a temporary workaround for
+	// legacy provisioners that don't provide an organization ID.
+	// This prevents a breaking change.
+	// TODO: This change was added March 2024. Nil uuid returning the
+	// 		default org should be removed some number of months after
+	//		that date.
+	if arg == codersdk.DefaultOrganization || arg == uuid.Nil.String() {
+		organization, dbErr = db.GetDefaultOrganization(queryCtx)
+	} else {
+		// Try by name or uuid.
+		id, err := uuid.Parse(arg)
+		if err == nil {
+			organization, dbErr = db.GetOrganizationByID(queryCtx, id)
+		} else {
+			organization, dbErr = db.GetOrganizationByName(queryCtx, database.GetOrganizationByNameParams{
+				Name:    arg,
+				Deleted: false,
+			})
+		}
+	}
+	if httpapi.Is404Error(dbErr) {
+		httpapi.ResourceNotFound(rw)
+		return database.Organization{}, false
+	}
+	if dbErr != nil {
+		httpapi.Write(responseCtx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: fmt.Sprintf("Internal error fetching organization %q.", arg),
+			Detail:  dbErr.Error(),
+		})
+		return database.Organization{}, false
+	}
+	return organization, true
 }
 
 // OrganizationMember is the database object plus the Username and Avatar URL. Including these

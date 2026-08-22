@@ -582,6 +582,7 @@ describe("ChatsSidebar model display names", () => {
 		];
 		const models: TypesGen.ChatModel[] = [
 			{
+				organization_id: "00000000-0000-0000-0000-000000000000",
 				id: "config-fast",
 				ai_provider_id: "prov-openai",
 				model: "gpt-4o",
@@ -594,6 +595,7 @@ describe("ChatsSidebar model display names", () => {
 				updated_at: oneWeekAgo,
 			},
 			{
+				organization_id: "00000000-0000-0000-0000-000000000000",
 				id: "config-quality",
 				ai_provider_id: "prov-openai",
 				model: "gpt-4o",
