@@ -684,7 +684,7 @@ type sqlcQuerier interface {
 	GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, appID uuid.UUID) ([]OAuth2ProviderAppSecret, error)
 	GetOAuth2ProviderAppTokenByAPIKeyID(ctx context.Context, apiKeyID string) (OAuth2ProviderAppToken, error)
 	GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPrefix []byte) (OAuth2ProviderAppToken, error)
-	GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2ProviderApp, error)
+	GetOAuth2ProviderApps(ctx context.Context, arg GetOAuth2ProviderAppsParams) ([]GetOAuth2ProviderAppsRow, error)
 	// Joins directly on oauth2_provider_app_tokens.app_id rather than through
 	// app_secret_id, since app_secret_id is NULL for public (secretless) clients
 	// and would silently exclude their tokens from this listing.

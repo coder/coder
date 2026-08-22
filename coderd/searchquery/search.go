@@ -492,6 +492,58 @@ func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBri
 	return filter, parser.Errors
 }
 
+// OAuth2ProviderApps converts a search query into GetOAuth2ProviderAppsParams.
+// Pagination fields (AfterID, LimitOpt, OffsetOpt) are left zero and should be
+// filled by the caller.
+//
+// Supported query parameters:
+//
+//   - search: string (matches application name or callback URL)
+//
+// Bare terms default to search. HTTP(S) URLs pasted as bare input are treated
+// as search values so schemes and ports are not parsed as filter syntax.
+// Additional keys can be added later without changing the request shape.
+func OAuth2ProviderApps(query string) (database.GetOAuth2ProviderAppsParams, []codersdk.ValidationError) {
+	//nolint:exhaustruct // Pagination is set by the caller.
+	filter := database.GetOAuth2ProviderAppsParams{}
+	if query == "" {
+		return filter, nil
+	}
+
+	// Callback URLs are a primary search target. Users paste them into the
+	// filter; treat URL-shaped input as a bare search term before searchTerms
+	// can parse the scheme (or port) as key:value filter syntax.
+	if search, ok := oauth2ProviderAppURLSearch(query); ok {
+		filter.Search = search
+		return filter, nil
+	}
+
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("search", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.Search = parser.String(values, "", "search")
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
+// oauth2ProviderAppURLSearch returns a normalized search string when query is
+// an HTTP(S) URL rather than filter syntax.
+func oauth2ProviderAppURLSearch(query string) (string, bool) {
+	trimmed := strings.Trim(strings.TrimSpace(query), `"`)
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		return lower, true
+	}
+	return "", false
+}
+
 // Tasks parses a search query for tasks.
 //
 // Supported query parameters:

@@ -19516,18 +19516,91 @@ func (q *sqlQuerier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hash
 }
 
 const getOAuth2ProviderApps = `-- name: GetOAuth2ProviderApps :many
-SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps ORDER BY (name, id) ASC
+SELECT
+	id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri, COUNT(*) OVER() AS count
+FROM
+	oauth2_provider_apps
+WHERE
+	CASE
+		-- This allows using the last element on a page as effectively a cursor.
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			(LOWER(name), id) > (
+				SELECT
+					LOWER(name), id
+				FROM
+					oauth2_provider_apps
+				WHERE
+					id = $1
+			)
+		)
+		ELSE true
+	END
+	AND CASE
+		WHEN $2 :: text != '' THEN (
+			name ILIKE concat('%', $2, '%')
+			OR callback_url ILIKE concat('%', $2, '%')
+		)
+		ELSE true
+	END
+ORDER BY
+	LOWER(name) ASC, id ASC
+OFFSET $3
+LIMIT
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF($4 :: int, 0)
 `
 
-func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2ProviderApp, error) {
-	rows, err := q.db.QueryContext(ctx, getOAuth2ProviderApps)
+type GetOAuth2ProviderAppsParams struct {
+	AfterID   uuid.UUID `db:"after_id" json:"after_id"`
+	Search    string    `db:"search" json:"search"`
+	OffsetOpt int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt  int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type GetOAuth2ProviderAppsRow struct {
+	ID                      uuid.UUID             `db:"id" json:"id"`
+	CreatedAt               time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time             `db:"updated_at" json:"updated_at"`
+	Name                    string                `db:"name" json:"name"`
+	Icon                    string                `db:"icon" json:"icon"`
+	CallbackURL             string                `db:"callback_url" json:"callback_url"`
+	RedirectUris            []string              `db:"redirect_uris" json:"redirect_uris"`
+	ClientType              string                `db:"client_type" json:"client_type"`
+	DynamicallyRegistered   sql.NullBool          `db:"dynamically_registered" json:"dynamically_registered"`
+	ClientIDIssuedAt        sql.NullTime          `db:"client_id_issued_at" json:"client_id_issued_at"`
+	ClientSecretExpiresAt   sql.NullTime          `db:"client_secret_expires_at" json:"client_secret_expires_at"`
+	GrantTypes              []string              `db:"grant_types" json:"grant_types"`
+	ResponseTypes           []string              `db:"response_types" json:"response_types"`
+	TokenEndpointAuthMethod sql.NullString        `db:"token_endpoint_auth_method" json:"token_endpoint_auth_method"`
+	Scope                   sql.NullString        `db:"scope" json:"scope"`
+	Contacts                []string              `db:"contacts" json:"contacts"`
+	ClientUri               sql.NullString        `db:"client_uri" json:"client_uri"`
+	LogoUri                 sql.NullString        `db:"logo_uri" json:"logo_uri"`
+	TosUri                  sql.NullString        `db:"tos_uri" json:"tos_uri"`
+	PolicyUri               sql.NullString        `db:"policy_uri" json:"policy_uri"`
+	JwksUri                 sql.NullString        `db:"jwks_uri" json:"jwks_uri"`
+	Jwks                    pqtype.NullRawMessage `db:"jwks" json:"jwks"`
+	SoftwareID              sql.NullString        `db:"software_id" json:"software_id"`
+	SoftwareVersion         sql.NullString        `db:"software_version" json:"software_version"`
+	RegistrationAccessToken []byte                `db:"registration_access_token" json:"registration_access_token"`
+	RegistrationClientUri   sql.NullString        `db:"registration_client_uri" json:"registration_client_uri"`
+	Count                   int64                 `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context, arg GetOAuth2ProviderAppsParams) ([]GetOAuth2ProviderAppsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOAuth2ProviderApps,
+		arg.AfterID,
+		arg.Search,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []OAuth2ProviderApp
+	var items []GetOAuth2ProviderAppsRow
 	for rows.Next() {
-		var i OAuth2ProviderApp
+		var i GetOAuth2ProviderAppsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -19555,6 +19628,7 @@ func (q *sqlQuerier) GetOAuth2ProviderApps(ctx context.Context) ([]OAuth2Provide
 			&i.SoftwareVersion,
 			&i.RegistrationAccessToken,
 			&i.RegistrationClientUri,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}

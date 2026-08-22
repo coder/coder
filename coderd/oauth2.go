@@ -20,7 +20,11 @@ import (
 // @Produce json
 // @Tags Enterprise
 // @Param user_id query string false "Filter by applications authorized for a user"
-// @Success 200 {array} codersdk.OAuth2ProviderApp
+// @Param q query string false "Search query filter. Bare terms match name or callback URL. Supports a search: qualifier."
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
+// @Param after_id query string false "After ID for cursor pagination" format(uuid)
+// @Success 200 {object} codersdk.OAuth2ProviderAppsResponse
 // @Router /api/v2/oauth2-provider/apps [get]
 func (api *API) oAuth2ProviderApps() http.HandlerFunc {
 	return oauth2provider.ListApps(api.Database, api.AccessURL)

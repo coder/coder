@@ -17,9 +17,8 @@ const OAuth2ProviderPage: FC = () => {
 	const userOAuth2AppsQuery = useQuery(getApps(me.id));
 	const revokeAppMutation = useMutation(revokeApp(queryClient, me.id));
 	const [appIdToRevoke, setAppIdToRevoke] = useState<string>();
-	const appToRevoke = userOAuth2AppsQuery.data?.find(
-		(app) => app.id === appIdToRevoke,
-	);
+	const apps = userOAuth2AppsQuery.data?.apps;
+	const appToRevoke = apps?.find((app) => app.id === appIdToRevoke);
 
 	return (
 		<>
@@ -29,7 +28,7 @@ const OAuth2ProviderPage: FC = () => {
 			<OAuth2ProviderPageView
 				isLoading={userOAuth2AppsQuery.isLoading}
 				error={userOAuth2AppsQuery.error}
-				apps={userOAuth2AppsQuery.data}
+				apps={apps}
 				revoke={(app) => {
 					setAppIdToRevoke(app.id);
 				}}

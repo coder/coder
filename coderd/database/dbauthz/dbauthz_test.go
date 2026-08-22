@@ -5885,11 +5885,12 @@ func (s *MethodTestSuite) TestPrebuilds() {
 
 func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 	s.Run("GetOAuth2ProviderApps", s.Subtest(func(db database.Store, check *expects) {
-		apps := []database.OAuth2ProviderApp{
-			dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{Name: "first"}),
-			dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{Name: "last"}),
-		}
-		check.Args().Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(apps)
+		_ = dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{Name: "first"})
+		_ = dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{Name: "last"})
+		params := database.GetOAuth2ProviderAppsParams{}
+		rows, err := db.GetOAuth2ProviderApps(context.Background(), params)
+		s.NoError(err, "get oauth2 provider apps")
+		check.Args(params).Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(rows)
 	}))
 	s.Run("GetOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})

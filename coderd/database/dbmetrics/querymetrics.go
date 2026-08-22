@@ -2528,9 +2528,9 @@ func (m queryMetricsStore) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetOAuth2ProviderApps(ctx context.Context) ([]database.OAuth2ProviderApp, error) {
+func (m queryMetricsStore) GetOAuth2ProviderApps(ctx context.Context, arg database.GetOAuth2ProviderAppsParams) ([]database.GetOAuth2ProviderAppsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetOAuth2ProviderApps(ctx)
+	r0, r1 := m.s.GetOAuth2ProviderApps(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetOAuth2ProviderApps").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOAuth2ProviderApps").Inc()
 	return r0, r1

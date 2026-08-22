@@ -506,6 +506,39 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 	}
 }
 
+func OAuth2ProviderAppsFromRows(accessURL *url.URL, rows []database.GetOAuth2ProviderAppsRow) []codersdk.OAuth2ProviderApp {
+	return slice.List(rows, func(row database.GetOAuth2ProviderAppsRow) codersdk.OAuth2ProviderApp {
+		return OAuth2ProviderApp(accessURL, database.OAuth2ProviderApp{
+			ID:                      row.ID,
+			CreatedAt:               row.CreatedAt,
+			UpdatedAt:               row.UpdatedAt,
+			Name:                    row.Name,
+			Icon:                    row.Icon,
+			CallbackURL:             row.CallbackURL,
+			RedirectUris:            row.RedirectUris,
+			ClientType:              row.ClientType,
+			DynamicallyRegistered:   row.DynamicallyRegistered,
+			ClientIDIssuedAt:        row.ClientIDIssuedAt,
+			ClientSecretExpiresAt:   row.ClientSecretExpiresAt,
+			GrantTypes:              row.GrantTypes,
+			ResponseTypes:           row.ResponseTypes,
+			TokenEndpointAuthMethod: row.TokenEndpointAuthMethod,
+			Scope:                   row.Scope,
+			Contacts:                row.Contacts,
+			ClientUri:               row.ClientUri,
+			LogoUri:                 row.LogoUri,
+			TosUri:                  row.TosUri,
+			PolicyUri:               row.PolicyUri,
+			JwksUri:                 row.JwksUri,
+			Jwks:                    row.Jwks,
+			SoftwareID:              row.SoftwareID,
+			SoftwareVersion:         row.SoftwareVersion,
+			RegistrationAccessToken: row.RegistrationAccessToken,
+			RegistrationClientUri:   row.RegistrationClientUri,
+		})
+	})
+}
+
 func OAuth2ProviderApps(accessURL *url.URL, dbApps []database.OAuth2ProviderApp) []codersdk.OAuth2ProviderApp {
 	return slice.List(dbApps, func(dbApp database.OAuth2ProviderApp) codersdk.OAuth2ProviderApp {
 		return OAuth2ProviderApp(accessURL, dbApp)

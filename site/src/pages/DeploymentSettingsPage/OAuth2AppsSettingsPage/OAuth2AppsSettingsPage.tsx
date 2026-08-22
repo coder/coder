@@ -1,13 +1,23 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { getApps, getSettings, putSettings } from "#/api/queries/oauth2";
+import { useSearchParams } from "react-router";
+import { getSettings, paginatedApps, putSettings } from "#/api/queries/oauth2";
+import { useFilter } from "#/components/Filter/Filter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { pageTitle } from "#/utils/page";
 import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
 
 const OAuth2AppsSettingsPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
+	const [searchParams, setSearchParams] = useSearchParams();
+	const appsQuery = usePaginatedQuery(paginatedApps(searchParams));
+	const filter = useFilter({
+		searchParams,
+		onSearchParamsChange: setSearchParams,
+		onUpdate: appsQuery.goToFirstPage,
+	});
 
 	const canCreateApp = permissions.createOAuth2App;
 	// Gates the query and the prop below. Spelled once because a disabled query
@@ -17,7 +27,6 @@ const OAuth2AppsSettingsPage: FC = () => {
 	const canViewSettings = permissions.viewDeploymentConfig;
 	const canEditSettings = permissions.editDeploymentConfig;
 
-	const appsQuery = useQuery(getApps());
 	const settingsQuery = useQuery({
 		...getSettings(),
 		enabled: canViewSettings,
@@ -29,7 +38,9 @@ const OAuth2AppsSettingsPage: FC = () => {
 			<title>{pageTitle("OAuth2 applications")}</title>
 
 			<OAuth2AppsSettingsPageView
-				apps={appsQuery.data}
+				apps={appsQuery.data?.apps}
+				appsQuery={appsQuery}
+				filter={filter}
 				isLoadingApps={appsQuery.isLoading}
 				appsError={appsQuery.error}
 				canCreateApp={canCreateApp}

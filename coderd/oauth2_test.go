@@ -940,12 +940,12 @@ func TestOAuth2ProviderRevoke(t *testing.T) {
 			filter := codersdk.OAuth2ProviderAppFilter{UserID: testUser.ID}
 			apps, err := testClient.OAuth2ProviderApps(ctx, filter)
 			require.NoError(t, err)
-			require.Contains(t, apps, testEntities.app)
+			require.Contains(t, apps.Apps, testEntities.app)
 
 			// Should not show up for another user.
 			apps, err = client.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{UserID: owner.UserID})
 			require.NoError(t, err)
-			require.Len(t, apps, 0)
+			require.Len(t, apps.Apps, 0)
 
 			// Perform the deletion.
 			test.fn(ctx, testClient, testEntities)
@@ -954,7 +954,7 @@ func TestOAuth2ProviderRevoke(t *testing.T) {
 			if !test.replacesToken {
 				apps, err = testClient.OAuth2ProviderApps(ctx, filter)
 				require.NoError(t, err)
-				require.NotContains(t, apps, testEntities.app, fmt.Sprintf("contains %q", testEntities.app.Name))
+				require.NotContains(t, apps.Apps, testEntities.app, fmt.Sprintf("contains %q", testEntities.app.Name))
 			}
 
 			// The token should no longer be valid.
