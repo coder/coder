@@ -119,6 +119,19 @@ is the mechanism named `audit_logs`.
 **Entry.** An element of the journal. The journal is composed of entries. An
 entry is a reflection and recording of an event.
 
+**An entry is composed of lines, each carrying a description of one
+operation.** Most entries have one line. Where an entry has several they are an
+**atomic group**: one event and not several that happen to coincide. That
+matters most where an entry both ends something and begins something, since the
+group describes a single interval rather than two intervals sharing an
+endpoint.
+
+**Every entry has at least one line.** An operation may take no parameters, and
+a line describing such an operation carries nothing beyond which operation it
+was. A storage form may hold no row for such a line, which is a fact about the
+record and not about the entry, in the sense the next definition gives those
+words.
+
 **Record.** The stored representation of something, typically a row in a
 database table. An entry is usually implemented as a record in some table, but
 that is a fact about implementation and not part of the model. Where this

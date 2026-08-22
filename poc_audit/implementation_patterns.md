@@ -102,32 +102,77 @@ every entry is line `0`. The primary key is the entry identifier together with
 the line number. A line has no identity of its own, because a line is not a
 thing: it is part of one.
 
-### Journals are denormalized across their lines
+### A journal takes one of two forms, and heterogeneity decides which
 
-An entry may have more than one line. **Lines are rows of the journal table
-sharing an entry identifier**, not rows of a separate table under a foreign
-key.
+`audit_approach.md` defines an entry as a collection of lines under
+"Terminology". Two ways of storing that are supported, and the choice is not a
+matter of taste.
 
-> **Placeholder.** Nothing elsewhere in this corpus yet defines a multiline
-> entry or says what one means. Until something does, the paragraph below
-> stands in for that definition and should be cited from here rather than the
-> reverse.
+**The denormalized form** puts lines in the journal table itself, as rows
+sharing an entry identifier. **The normalized form** gives the entry its own
+table and the lines one or more tables of their own.
 
-A multiline entry expresses an **atomic group**. The lines are one event and
-not several that happen to coincide. This matters most where an entry both ends
-something and begins something: the authorized activity has no gap, because the
-group describes a single interval rather than two intervals sharing an
-endpoint.
+**Heterogeneity forces the normalized form.** Where every line has the same
+shape, one table holds them all and the denormalized form costs nothing. Where
+operations need different particulars, issuance carrying scopes and a token name
+while revocation carries none, a single table means columns meaningful for some
+rows and null for the rest. That is a junk drawer arriving one column at a time,
+and the same fault this corpus objects to in a credential value that means
+different things by row.
 
-> **Placeholder for the justification.** The reason offered so far is that most
-> entries carry a single line, so a normalized entry table would hold one row
-> per entry and buy nothing for the common case. That says why the normalized
-> form is not obviously better, not why this one is right. A real argument has
-> to weigh what the separate table would give, somewhere to hang entry level
-> columns once and a place to enforce that an entry has at least one line,
-> against a join on every read. Do not treat this as settled.
+**Line tables are per shape, not per operation.** Operations whose parameters
+resemble each other enough share a table, and the test is the one above: a
+shared table is right while its columns belong together, and wrong once it holds
+unrelated columns for the sake of avoiding another table.
+
+**A journal can be migrated from one form to the other, and the cost is
+mostly data.** Rewriting the code that reads and writes it is the smaller part.
+Choosing the denormalized form is therefore a real choice rather than a
+deferral, and where heterogeneity is expected rather than merely possible, the
+normalized form should be taken at the start.
+
+### The denormalized form: lines are rows of the journal table
+
+**Lines are rows of the journal table sharing an entry identifier**, not rows of
+a separate table under a foreign key. Line numbers are subordinate to the entry
+and start at zero, and `PRIMARY KEY (entry_id, line)` makes them unique within
+one.
+
+This is the right form while a journal's lines are alike, which in this work
+means most of them: most entries carry a single line, and a separate entry table
+would hold one row per entry and buy nothing.
+
+### The normalized form: an entry table and line tables
+
+The entry table holds what concerns the entry as a whole. Each line table holds
+one shape of operation and carries a foreign key to the entry.
+
+**Line numbers behave as they do in the denormalized form**, subordinate to the
+entry and starting at zero. With a single line table `PRIMARY KEY (entry_id,
+line)` gives that for nothing. **With more than one, nothing enforces it**,
+since no constraint spans tables, and two line tables could each claim line one
+of the same entry. That is a reconciliation rather than a constraint: a check
+reading the line tables together and looking for a repeated number within an
+entry.
+
+**An operation taking no parameters needs no row.** A line table exists to carry
+particulars, and where an operation has none there is nothing for a row to hold.
+An entry with no line rows is therefore valid exactly when its operation takes
+no parameters, and it is not an entry without a line: it is the storage of an
+entry whose single line carries nothing. `audit_approach.md` draws that
+distinction under "Entry" and "Record".
+
+One consequence follows and should be honoured rather than discovered. **Such an
+entry has to identify its own operation**, since no line survives to do it. What
+sits on the entry and what sits on a line is otherwise open, and the subject in
+particular may belong at either level depending on the entity and what its
+operations do.
 
 ### Entry level values are written once, on line zero
+
+**This is a rule of the denormalized form only.** The normalized form has an
+entry table, which is a place to write such a value once, so nothing below
+applies to it.
 
 Denormalization puts every column on every row, so placement by level cannot be
 expressed in the schema. It is therefore a rule about what is written:

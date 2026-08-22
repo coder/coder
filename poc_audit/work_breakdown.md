@@ -14,6 +14,11 @@ deliverable. It is used here in preference to "unit", which collides with unit
 testing, and to "task", which collides with the `tasks` entity in this
 codebase.
 
+**A package's number is an identifier and nothing else.** It is neither a
+priority nor a position in a sequence, and the packages are not meant to be
+worked in numeric order. What a package depends on is stated in its own Status,
+and that is the only ordering the document asserts.
+
 Each work package is sized so that completing it produces a passing acceptance
 test. Subsections are fixed for now and may grow later:
 
@@ -329,5 +334,114 @@ Not yet enumerated. They will be, before this package is called complete.
 
 Not yet written. Covers the sweep and its three triggers, the fixed system
 actor, the clock check on the verification path, and the optional enqueue. The
-expiry column itself lands with the credential schema rather than here, so this
-package changes no schema.
+expiry column itself lands with the credential schema in WP4, defined there and
+left unused, so this package changes no schema.
+
+## WP4. Credential foundations
+
+### Summary
+
+Credentials become normalized, typed, and able to stand behind the credential
+`api_keys` already issues. The package ends with a running system whose api key
+issuance goes through a journal, which is what makes it a foundation rather than
+a rehearsal.
+
+### Status
+
+Not started. Depends on WP2, which brings the credential journal and ledger into
+existence, and on the entity model's account of operations, which landed on
+2026-08-22 and which the third milestone needs.
+
+### What forces the work
+
+The credential ledger is denormalized. `credential_value` holds a hex digest for
+one type and the empty string for another, which is already two meanings in one
+column and would become a junk drawer at the third. `api_keys` is what that
+becomes when it is left alone long enough: `login_type` and `ip_address` are
+meaningful for a credential a person obtained by logging in and fiction for one
+minted for an agent, and nothing in a row says which it is.
+
+Normalizing is cheaper here than the actor case that motivated the `(type, id)`
+pair, because the direction of reference reverses. The ledger mints the
+identifier, so a per-type table keys on the ledger's own id and points at it
+with an ordinary foreign key. There is no union to join into: read the ledger
+row, learn the type, go to one table.
+
+Separately, the two credential stores are unconnected. Ours mints, stores and
+verifies over the agent socket; `api_keys` does the same over HTTP. Both now
+carry a `(holder_type, holder_id)` pair, identically shaped, and no code crosses
+between them. Until one of them produces the other, the credential ledger
+describes credentials rather than recording them, which
+`rewrite_rbac.md` argues is not a record at all.
+
+### New behavior
+
+- A journal and a ledger per credential type, replacing the single denormalized
+  pair. The null type needs no table, having no value to hold.
+- An `api_key` credential type, carrying what an API key is: its scopes, its
+  allow list, its token name.
+- Entries carrying type specific particulars for issuance only. Other
+  operations on a credential do not need what issuance needs, and a journal
+  shaped to hold the largest entry leaves most rows mostly empty.
+- A `credential_use` entity, described in the corpus before it is built. It is
+  a variable rather than a state machine: entries record assignments and posting
+  overwrites. Two variables are wanted, `last_presented` for every presentation
+  and `last_used` for accepted ones, and the difference between them is the
+  security value.
+- Issuance of an api key posting to `api_keys` in the same transaction as the
+  ledger, so that the existing table becomes what the journal produces.
+
+### Milestones
+
+1. **Normalize the existing credential journal and ledger.** Per-type tables,
+   the existing test still passing.
+2. **Add the `api_key` credential type**, with its journal and its ledger.
+3. **Model and build `credential_use`.** The corpus entry comes first, since
+   this is the first entity that is not a state machine and the general form was
+   only settled recently.
+4. **Mirror `api_key` credentials into `api_keys` on issuance.** Posting is
+   already a transaction, so a third write joins it.
+
+### What this package does not do
+
+**Expiry is out of scope, with one exception.** The schema defines the column
+and nothing reads or writes it. Expiry is generic to credentials rather than a
+property of any one type, so the column belongs with the entry table and not
+with any of the line tables carrying type specific particulars; the ledger
+follows the same division for the same reason. Defining it now and leaving it
+unused costs nothing and saves a migration later. WP3 covers the behaviour.
+
+It replaces the write path for issuance and no other. Revocation, expiry and
+last use still write `api_keys` directly, so for the duration the ledger is
+complete about beginnings and silent about endings. **That is an interim and
+should not be read as the ledger being authoritative**, which it becomes only
+when every path that changes a credential goes through it.
+
+### Acceptance tests
+
+To be written before the implementation, and at least these.
+
+**A credential of each type round trips**, including one whose type carries no
+value, which is the case a denormalized column handles by convention rather than
+by structure.
+
+**An api key issued through the journal is accepted by the existing
+authentication path.** This is the test that makes the package a foundation: it
+fails if the mirror is wrong in any way that matters, and it needs no new
+endpoint to write.
+
+**A presentation that is refused is recorded, and a presentation that is
+accepted updates a different variable.** The two are separate assertions because
+conflating them is the defect this entity exists to remove.
+
+**Posting occurs in journal order.** `entity_model.md` makes this policy, and a
+variable is where violating it gives a visibly wrong answer, so the test belongs
+with the first variable rather than with the policy.
+
+### PoC cheats
+
+Not yet enumerated. Two are already visible. The subsequence predicate selecting
+which presentations are journaled will start as a constant rather than as state
+on the ledger row, which defers the ability to order that everything be
+recorded. And the mirror into `api_keys` is one way, so nothing detects the two
+diverging on the paths this package does not replace.
