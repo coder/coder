@@ -2,7 +2,7 @@ import {
 	CheckIcon,
 	ChevronDownIcon,
 	CircleDotIcon,
-	ColumnsIcon,
+	ExternalLinkIcon,
 	GitBranchIcon,
 	GitCompareArrowsIcon,
 	GitMergeIcon,
@@ -10,7 +10,6 @@ import {
 	GitPullRequestDraftIcon,
 	GitPullRequestIcon,
 	RefreshCwIcon,
-	RowsIcon,
 } from "lucide-react";
 import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -33,6 +32,7 @@ import {
 import { cn } from "#/utils/cn";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
+import { DiffStyleToggle } from "../DiffViewer/DiffStyleToggle";
 import {
 	type DiffStyle,
 	loadDiffStyle,
@@ -99,8 +99,8 @@ interface ViewItemBase {
 	itemPrimary: string;
 	/** Secondary text in the dropdown item (e.g. PR title, repo name). */
 	itemSecondary?: string;
-	stateClasses: string;
 	icon: React.ReactNode;
+	iconLabel: string;
 }
 
 type ViewItem =
@@ -207,6 +207,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 	const [spinning, setSpinning] = useState(false);
 	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 	useEffect(() => () => clearTimeout(spinTimerRef.current), []);
+
 	const handleRefresh = () => {
 		const sent = onRefresh();
 		if (!sent) {
@@ -268,7 +269,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 					triggerIdentifier: `PR #${prTab.prNumber}`,
 					itemPrimary: `PR #${prTab.prNumber}`,
 					itemSecondary: prTitle || undefined,
-					stateClasses: prStateClasses(prState, prDraft),
 					icon: (
 						<PrStateIcon
 							state={prState}
@@ -276,6 +276,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 							className="!size-3.5 shrink-0"
 						/>
 					),
+					iconLabel: `Pull request status: ${prStateLabel(prState, prDraft)}`,
 				}
 			: {
 					kind: "remote",
@@ -284,8 +285,8 @@ export const GitPanel: FC<GitPanelProps> = ({
 					triggerIdentifier: remoteHeadBranch || "Branch",
 					itemPrimary: "Branch",
 					itemSecondary: remoteHeadBranch || undefined,
-					stateClasses: "text-content-secondary",
 					icon: <GitBranchIcon className="!size-3.5 shrink-0" />,
+					iconLabel: "Git view: Branch",
 				}
 		: null;
 
@@ -297,8 +298,8 @@ export const GitPanel: FC<GitPanelProps> = ({
 		triggerIdentifier: repoLabel(repoRoot),
 		itemPrimary: "Working",
 		itemSecondary: repoLabel(repoRoot),
-		stateClasses: "text-content-secondary",
 		icon: <CircleDotIcon className="!size-3.5 shrink-0 text-content-warning" />,
+		iconLabel: `Git view: Working (${repoLabel(repoRoot)})`,
 	}));
 
 	const items: ViewItem[] = [
@@ -330,44 +331,18 @@ export const GitPanel: FC<GitPanelProps> = ({
 					<GitViewSwitcher
 						items={items}
 						activeItem={activeItem}
-						hasRemoteItem={remoteItem !== null}
 						onSelect={handleSelectItem}
 					/>
 				</div>
 				{/* Controls */}
 				<div className="flex shrink-0 items-center gap-1">
-					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default">
-						<button
-							type="button"
-							onClick={() => handleDiffStyleChange("unified")}
-							aria-label="Unified diff"
-							disabled={!hasGitContext}
-							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
-							className={cn(
-								"flex cursor-pointer items-center border-none px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
-								diffStyle === "unified"
-									? "bg-surface-quaternary/25 text-content-primary"
-									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-							)}
-						>
-							<RowsIcon className="size-3.5" />
-						</button>
-						<button
-							type="button"
-							onClick={() => handleDiffStyleChange("split")}
-							aria-label="Split diff"
-							disabled={!hasGitContext}
-							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
-							className={cn(
-								"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
-								diffStyle === "split"
-									? "bg-surface-quaternary/25 text-content-primary"
-									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-							)}
-						>
-							<ColumnsIcon className="size-3.5" />
-						</button>
-					</div>
+					<PrimaryCta
+						effectiveView={effectiveView}
+						prTab={prTab}
+						pullRequestUrl={remoteDiffStats?.url}
+						repositories={repositories}
+						onCommit={onCommit}
+					/>
 					{/*
 					 * The shared Button applies `disabled:pointer-events-none`,
 					 * which would suppress the native `title` tooltip when the
@@ -428,6 +403,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						isExpanded={isExpanded}
 						chatInputRef={chatInputRef}
 						diffStyle={diffStyle}
+						onDiffStyleChange={handleDiffStyleChange}
 						diffStatus={remoteDiffStats}
 					/>
 				) : (
@@ -440,9 +416,9 @@ export const GitPanel: FC<GitPanelProps> = ({
 								deletions: 0,
 							}
 						}
-						onCommit={onCommit}
 						isExpanded={isExpanded}
 						diffStyle={diffStyle}
+						onDiffStyleChange={handleDiffStyleChange}
 						chatInputRef={chatInputRef}
 					/>
 				)}
@@ -458,24 +434,18 @@ export const GitPanel: FC<GitPanelProps> = ({
 interface GitViewSwitcherProps {
 	items: ReadonlyArray<ViewItem>;
 	activeItem?: ViewItem;
-	/**
-	 * Whether a remote (PR or Branch) item exists in `items`. Controls
-	 * whether local entries are visually nested (indented) under it.
-	 */
-	hasRemoteItem: boolean;
 	onSelect: (item: ViewItem) => void;
 }
 
 const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	items,
 	activeItem,
-	hasRemoteItem,
 	onSelect,
 }) => {
 	if (!activeItem) {
 		return (
 			<div
-				className="inline-flex h-6 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 text-xs text-content-secondary"
+				className="inline-flex h-6 items-center gap-1.5 text-xs text-content-secondary"
 				data-testid="git-panel-view-switcher"
 			>
 				<GitBranchIcon className="!size-3.5 shrink-0" />
@@ -486,38 +456,52 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 
 	const isSingleItem = items.length <= 1;
 
-	const triggerContent = (
-		<>
-			<span
-				className={cn(
-					"inline-flex h-full items-center gap-1 rounded-l-md border-0 border-r border-solid border-border-default px-1.5 font-medium leading-none",
-					activeItem.stateClasses,
-				)}
-			>
-				<span className="inline-flex size-3.5 shrink-0 items-center justify-center">
-					{activeItem.icon}
-				</span>
-				<span className="whitespace-nowrap">{activeItem.stateLabel}</span>
-			</span>
-			<span className="inline-flex min-w-0 items-center gap-1 pl-1.5 pr-1 text-content-primary">
-				<span className="truncate">{activeItem.triggerIdentifier}</span>
-				{!isSingleItem && (
-					<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
-				)}
-			</span>
-		</>
-	);
-
 	if (isSingleItem) {
 		return (
 			<div
-				className="inline-flex h-6 min-w-0 max-w-full items-stretch overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-xs"
+				className="inline-flex h-6 min-w-0 max-w-full items-center gap-1.5 text-xs"
 				data-testid="git-panel-view-switcher"
 			>
-				{triggerContent}
+				<span
+					role="img"
+					aria-label={activeItem.iconLabel}
+					className="inline-flex size-3.5 shrink-0 items-center justify-center"
+				>
+					{activeItem.icon}
+				</span>
+				<span className="min-w-0 truncate font-medium text-content-primary">
+					{activeItem.triggerIdentifier}
+				</span>
 			</div>
 		);
 	}
+
+	const showStateLabelInline = activeItem.kind === "local";
+	const triggerContent = (
+		<span className="flex h-full min-w-0 items-center gap-1.5 px-1 leading-none text-content-primary">
+			<span
+				role="img"
+				aria-label={activeItem.iconLabel}
+				className="inline-flex size-3.5 shrink-0 items-center justify-center"
+			>
+				{activeItem.icon}
+			</span>
+			{showStateLabelInline && (
+				<span className="whitespace-nowrap font-medium">
+					{activeItem.stateLabel}
+				</span>
+			)}
+			<span
+				className={cn(
+					"min-w-0 truncate",
+					showStateLabelInline ? "text-content-secondary" : "font-medium",
+				)}
+			>
+				{activeItem.triggerIdentifier}
+			</span>
+			<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
+		</span>
+	);
 
 	return (
 		<DropdownMenu>
@@ -531,10 +515,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 					{triggerContent}
 				</button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent
-				align="start"
-				className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[240px] p-1"
-			>
+			<DropdownMenuContent align="start" className="flex flex-col gap-1 p-1">
 				{items.map((item) => {
 					const isActive = item.id === activeItem.id;
 					return (
@@ -542,13 +523,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 							key={item.id}
 							onSelect={() => onSelect(item)}
 							className={cn(
-								"flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs",
-								// Nest local entries under the remote/PR entry
-								// when one exists. Without a parent above them,
-								// nesting reads as an orphan indent.
-								item.kind === "local" && hasRemoteItem
-									? "ml-4 mt-0.5"
-									: "w-full",
+								"flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs",
 								isActive && "bg-surface-secondary text-content-primary",
 							)}
 						>
@@ -571,6 +546,48 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	);
 };
 
+const PrimaryCta: FC<{
+	effectiveView: GitView;
+	prTab?: { prNumber: number; chatId: string };
+	pullRequestUrl?: string;
+	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
+	onCommit: (repoRoot: string) => void;
+}> = ({ effectiveView, prTab, pullRequestUrl, repositories, onCommit }) => {
+	if (effectiveView.type === "remote") {
+		if (!prTab || !pullRequestUrl) {
+			return null;
+		}
+		return (
+			<a
+				href={pullRequestUrl}
+				target="_blank"
+				rel="noreferrer"
+				className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-solid border-border-default bg-surface-primary px-2 text-[13px] font-medium leading-none text-content-primary no-underline transition-colors hover:bg-surface-secondary"
+				aria-label={`View PR #${prTab.prNumber}`}
+			>
+				View PR
+				<ExternalLinkIcon className="size-3" />
+			</a>
+		);
+	}
+
+	const repo = repositories.get(effectiveView.repoRoot);
+	if (!repo) {
+		return null;
+	}
+	return (
+		<button
+			type="button"
+			onClick={() => onCommit(effectiveView.repoRoot)}
+			disabled={!repo.unified_diff}
+			className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-solid border-border-default bg-surface-primary px-2 text-[13px] font-medium leading-none text-content-primary transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
+		>
+			<CheckIcon className="size-3" />
+			Commit
+		</button>
+	);
+};
+
 // ---------------------------------------------------------------
 // Remote view (branch/PR diff)
 // ---------------------------------------------------------------
@@ -582,6 +599,7 @@ const RemoteContent: FC<{
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
+	onDiffStyleChange: (style: DiffStyle) => void;
 	diffStatus?: ChatDiffStatus;
 }> = ({
 	prTab,
@@ -590,6 +608,7 @@ const RemoteContent: FC<{
 	isExpanded,
 	chatInputRef,
 	diffStyle,
+	onDiffStyleChange,
 	diffStatus,
 }) => {
 	if (!prTab) {
@@ -626,6 +645,7 @@ const RemoteContent: FC<{
 			isExpanded={isExpanded}
 			chatInputRef={chatInputRef}
 			diffStyle={diffStyle}
+			onDiffStyleChange={onDiffStyleChange}
 			diffStatus={diffStatus}
 		/>
 	);
@@ -639,17 +659,17 @@ const LocalRepoContent: FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges | undefined;
 	diffStats: DiffStats;
-	onCommit: (repoRoot: string) => void;
 	isExpanded?: boolean;
 	diffStyle: DiffStyle;
+	onDiffStyleChange: (style: DiffStyle) => void;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 }> = ({
 	repoRoot,
 	repo,
 	diffStats,
-	onCommit,
 	isExpanded,
 	diffStyle,
+	onDiffStyleChange,
 	chatInputRef,
 }) => {
 	if (!repo) {
@@ -662,7 +682,8 @@ const LocalRepoContent: FC<{
 				repoRoot={repoRoot}
 				repo={repo}
 				diffStats={diffStats}
-				onCommit={() => onCommit(repoRoot)}
+				diffStyle={diffStyle}
+				onDiffStyleChange={onDiffStyleChange}
 			/>
 			<LocalDiffPanel
 				repo={repo}
@@ -682,8 +703,9 @@ const RepoHeader: FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges;
 	diffStats: DiffStats;
-	onCommit: () => void;
-}> = ({ repoRoot, repo, diffStats, onCommit }) => {
+	diffStyle: DiffStyle;
+	onDiffStyleChange: (style: DiffStyle) => void;
+}> = ({ repoRoot, repo, diffStats, diffStyle, onDiffStyleChange }) => {
 	return (
 		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
 			<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
@@ -698,15 +720,7 @@ const RepoHeader: FC<{
 					additions={diffStats.additions}
 					deletions={diffStats.deletions}
 				/>
-				<button
-					type="button"
-					onClick={onCommit}
-					disabled={!repo.unified_diff}
-					className="inline-flex cursor-pointer items-center gap-1 rounded-sm border border-solid border-border-default bg-transparent px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
-				>
-					<CheckIcon className="size-3" />
-					Commit
-				</button>
+				<DiffStyleToggle value={diffStyle} onChange={onDiffStyleChange} />
 			</div>
 		</div>
 	);

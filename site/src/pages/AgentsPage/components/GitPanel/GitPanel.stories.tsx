@@ -147,8 +147,13 @@ export const PullRequestAndWorkingChanges: Story = {
 		).toBeVisible();
 
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		await expect(switcher).toHaveTextContent("Open");
 		await expect(switcher).toHaveTextContent("PR #23020");
+		await expect(switcher).not.toHaveTextContent("Open");
+		await expect(
+			within(switcher).getByRole("img", {
+				name: "Pull request status: Open",
+			}),
+		).toBeInTheDocument();
 
 		const title = canvas.getByTestId("git-panel-pr-title");
 		await expect(title).toHaveTextContent(
@@ -245,7 +250,13 @@ export const DraftPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		await expect(switcher).toHaveTextContent("Draft");
+		await expect(switcher).toHaveTextContent("PR #22950");
+		await expect(switcher).not.toHaveTextContent("Draft");
+		await expect(
+			within(switcher).getByRole("img", {
+				name: "Pull request status: Draft",
+			}),
+		).toBeInTheDocument();
 	},
 };
 
@@ -272,7 +283,13 @@ export const MergedPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		await expect(switcher).toHaveTextContent("Merged");
+		await expect(switcher).toHaveTextContent("PR #23000");
+		await expect(switcher).not.toHaveTextContent("Merged");
+		await expect(
+			within(switcher).getByRole("img", {
+				name: "Pull request status: Merged",
+			}),
+		).toBeInTheDocument();
 	},
 };
 
@@ -299,7 +316,13 @@ export const ClosedPullRequest: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const switcher = canvas.getByTestId("git-panel-view-switcher");
-		await expect(switcher).toHaveTextContent("Closed");
+		await expect(switcher).toHaveTextContent("PR #22800");
+		await expect(switcher).not.toHaveTextContent("Closed");
+		await expect(
+			within(switcher).getByRole("img", {
+				name: "Pull request status: Closed",
+			}),
+		).toBeInTheDocument();
 	},
 };
 
@@ -374,8 +397,10 @@ export const GitNotActive: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByLabelText("Refresh")).toBeDisabled();
-		await expect(canvas.getByLabelText("Unified diff")).toBeDisabled();
-		await expect(canvas.getByLabelText("Split diff")).toBeDisabled();
+		// Diff-style toggle lives in the per-view sub-header, which does
+		// not render without git context.
+		await expect(canvas.queryByLabelText("Unified diff")).toBeNull();
+		await expect(canvas.queryByLabelText("Split diff")).toBeNull();
 		await expect(
 			canvas.getByText("Git is not set up for this chat."),
 		).toBeVisible();
@@ -470,7 +495,8 @@ export const EverDirtyRepoGoneClean: Story = {
 			"[data-testid='git-panel-view-switcher']",
 		);
 		expect(switcher).not.toBeNull();
-		expect(switcher?.textContent ?? "").toContain("Working");
+		// Single-item switcher shows only the identifier (the repo name).
+		expect(switcher?.textContent ?? "").toContain("coder");
 
 		// The content pane falls through to the diff viewer's empty state.
 		expect(canvasElement.textContent ?? "").toContain("No file changes");
