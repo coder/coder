@@ -10,7 +10,6 @@ import {
 } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -18,6 +17,7 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
@@ -61,9 +61,10 @@ export const AppearanceSettingsPageView: FC<
 			</SettingsHeader>
 
 			{!isEntitled ? (
-				<PaywallPremium
+				<PremiumPaywall
+					source="appearance"
 					message="Appearance"
-					description="Customize branding and announcement banners for your deployment."
+					description="Configure branding and announcement banners for your deployment."
 					features={[
 						"Custom application name and logo",
 						"Site-wide announcement banners for updates",

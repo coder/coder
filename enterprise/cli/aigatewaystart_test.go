@@ -346,7 +346,7 @@ func TestAIGatewayStartE2E_RevokedKey(t *testing.T) {
 	// Given: a ready gateway, and a coderd whose key check ticker the test drives.
 	keyCheck := make(chan time.Time, 1)
 	dep := setupAIGatewayDeployment(ctx, t, withAIGatewayCoderdOptions(func(opts *coderdenttest.Options) {
-		opts.Options.NewTicker = func(time.Duration) (<-chan time.Time, func()) {
+		opts.NewTicker = func(time.Duration) (<-chan time.Time, func()) {
 			return keyCheck, func() {}
 		}
 	}))
