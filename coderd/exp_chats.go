@@ -146,6 +146,34 @@ func maybeWriteChatUsageLimitError(ctx context.Context, rw http.ResponseWriter, 
 	return true
 }
 
+// statusClientClosedRequest is nginx's non-standard 499 status code,
+// used here to distinguish a client-initiated cancel from a server-
+// side failure when the manual title generation context is canceled.
+const statusClientClosedRequest = 499
+
+// maybeWriteManualTitleTimeoutErr translates context-cancel or
+// context-deadline errors from the manual title pipeline into friendly
+// 499/504 responses instead of a raw 500 that leaks the wrapped error
+// chain. Manual title generation runs a model call under an internal
+// deadline; when it expires (or the caller disconnects) the error
+// bubbles up wrapped, so match with errors.Is. Returns true when a
+// response was written.
+func maybeWriteManualTitleTimeoutErr(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	switch {
+	case errors.Is(err, context.Canceled):
+		httpapi.Write(ctx, rw, statusClientClosedRequest, codersdk.Response{
+			Message: "Title generation was canceled.",
+		})
+		return true
+	case errors.Is(err, context.DeadlineExceeded):
+		httpapi.Write(ctx, rw, http.StatusGatewayTimeout, codersdk.Response{
+			Message: "Title generation timed out. Try again or rename manually.",
+		})
+		return true
+	}
+	return false
+}
+
 // requireChatDaemon reports whether the chat daemon exists, writing a 503
 // Service Unavailable with a remediation message when it does not. The
 // daemon is nil when the in-memory AI Gateway is disabled by deployment
@@ -3628,6 +3656,9 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 		if maybeWriteChatUsageLimitError(ctx, rw, err) {
 			return
 		}
+		if maybeWriteManualTitleTimeoutErr(ctx, rw, err) {
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to regenerate chat title.",
 			Detail:  err.Error(),
@@ -3675,6 +3706,9 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if maybeWriteChatUsageLimitError(ctx, rw, err) {
+			return
+		}
+		if maybeWriteManualTitleTimeoutErr(ctx, rw, err) {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
