@@ -199,7 +199,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 			SoftwareVersion:         app.SoftwareVersion.String,
 			GrantTypes:              slice.StringEnums[codersdk.OAuth2ProviderGrantType](app.GrantTypes),
 			ResponseTypes:           slice.StringEnums[codersdk.OAuth2ProviderResponseType](app.ResponseTypes),
-			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethod(app.TokenEndpointAuthMethod.String),
+			TokenEndpointAuthMethod: reportedAuthMethod(app),
 			Scope:                   app.Scope.String,
 			Contacts:                app.Contacts,
 			RegistrationAccessToken: registrationToken,
@@ -262,7 +262,7 @@ func GetClientConfiguration(db database.Store) http.HandlerFunc {
 			SoftwareVersion:         app.SoftwareVersion.String,
 			GrantTypes:              slice.StringEnums[codersdk.OAuth2ProviderGrantType](app.GrantTypes),
 			ResponseTypes:           slice.StringEnums[codersdk.OAuth2ProviderResponseType](app.ResponseTypes),
-			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethod(app.TokenEndpointAuthMethod.String),
+			TokenEndpointAuthMethod: reportedAuthMethod(app),
 			Scope:                   app.Scope.String,
 			Contacts:                app.Contacts,
 			RegistrationAccessToken: "", // RFC 7592: Not returned in GET responses for security
@@ -418,7 +418,7 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			SoftwareVersion:         updatedApp.SoftwareVersion.String,
 			GrantTypes:              slice.StringEnums[codersdk.OAuth2ProviderGrantType](updatedApp.GrantTypes),
 			ResponseTypes:           slice.StringEnums[codersdk.OAuth2ProviderResponseType](updatedApp.ResponseTypes),
-			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethod(updatedApp.TokenEndpointAuthMethod.String),
+			TokenEndpointAuthMethod: reportedAuthMethod(updatedApp),
 			Scope:                   updatedApp.Scope.String,
 			Contacts:                updatedApp.Contacts,
 			RegistrationAccessToken: "", // RFC 7592: Not returned for security
@@ -569,6 +569,29 @@ func RequireRegistrationAccessToken(db database.Store) func(http.Handler) http.H
 }
 
 // Helper functions for RFC 7591 Dynamic Client Registration
+
+// reportedAuthMethod returns the token_endpoint_auth_method to report for an
+// app, which is the stored value unless it contradicts the client type.
+//
+// The token endpoint enforces on client_type, so reporting a stored method that
+// disagrees with it would tell a client to authenticate in a way the server
+// will not accept. Clients registered before the type was derived from the
+// method can disagree, because the method was persisted verbatim while the type
+// was always "confidential": such an app is stored confidential with a method of
+// "none", and reporting "none" tells it to drop a secret its exchange still
+// requires. Reporting the enforced behavior instead also lets the row repair
+// itself, since the client's next PUT sends back a method that matches.
+func reportedAuthMethod(app database.OAuth2ProviderApp) codersdk.OAuth2TokenEndpointAuthMethod {
+	stored := codersdk.OAuth2TokenEndpointAuthMethod(app.TokenEndpointAuthMethod.String)
+	if stored.Valid() && (stored == codersdk.OAuth2TokenEndpointAuthMethodNone) == app.IsPublic() {
+		return stored
+	}
+	if app.IsPublic() {
+		return codersdk.OAuth2TokenEndpointAuthMethodNone
+	}
+	// RFC 7591 §2 default for a client that authenticates with a secret.
+	return codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic
+}
 
 // generateClientCredentials generates a client secret for OAuth2 apps
 func generateClientCredentials() (plaintext string, hashed []byte, err error) {

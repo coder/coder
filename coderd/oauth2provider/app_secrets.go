@@ -53,6 +53,21 @@ func CreateAppSecret(db database.Store, auditor *audit.Auditor, logger slog.Logg
 			})
 		)
 		defer commitAudit()
+
+		// A public client authenticates with PKCE alone, so the token endpoint
+		// never validates a secret for one. Minting a secret anyway would hand
+		// an operator a credential that does nothing, and worse, one whose
+		// deletion looks like a kill switch: for a confidential app deleting a
+		// secret cascades its tokens away, but a public client's tokens carry a
+		// NULL app_secret_id, so deleting it revokes nothing.
+		if app.IsPublic() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot create a client secret for a public OAuth2 app.",
+				Detail:  "Public clients authenticate with PKCE and have no client secret. The client type is fixed at registration.",
+			})
+			return
+		}
+
 		secret, err := GenerateSecret()
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
