@@ -4802,8 +4802,13 @@ func (api *API) putOrganizationChatModelOverride(rw http.ResponseWriter, r *http
 		})
 		return
 	}
+	// The explicit ActionUpdate authorization above gates this endpoint. Look
+	// the referenced model up under a system context so a custom role that
+	// grants update without read can still use the endpoint; organization
+	// ownership is enforced inside the validation.
+	//nolint:gocritic // See above.
 	status, validationResponse := validateChatModelOverride(
-		ctx,
+		dbauthz.AsSystemRestricted(ctx),
 		api.Database,
 		organization.ID,
 		&modelConfigID,

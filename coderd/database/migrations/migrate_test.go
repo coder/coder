@@ -3298,6 +3298,23 @@ func TestMigration000583ChatModelOverrideOrgScope(t *testing.T) {
 		VALUES ($1, $2, $3, $4, $5, $5, 'active', '{}', 'password')`,
 		userID, "model-override-"+userID.String(), userID.String()+"@example.com", []byte{}, now)
 	require.NoError(t, err)
+
+	// A second organization the user belongs to: legacy mode-only personal
+	// overrides were deployment-wide and must be seeded into every member
+	// organization, not only the default one.
+	memberOrgID := uuid.New()
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO organizations (
+			id, name, display_name, description, created_at, updated_at,
+			is_default, default_org_member_roles
+		) VALUES ($1, $2, $2, '', $3, $3, false, '{}')`,
+		memberOrgID, "model-override-"+memberOrgID.String(), now)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO organization_members (user_id, organization_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $3), ($1, $4, $3, $3)`,
+		userID, orgID, now, memberOrgID)
+	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, `
 		INSERT INTO ai_providers (id, type, name, enabled, base_url, created_at, updated_at)
 		VALUES ($1, 'openai', $2, true, 'https://example.com', $3, $3)`,
@@ -3359,6 +3376,20 @@ func TestMigration000583ChatModelOverrideOrgScope(t *testing.T) {
 	require.Equal(t, "model", mode)
 	require.Equal(t, modelID, userModelID)
 	require.Equal(t, sql.NullString{String: "max", Valid: true}, userEffort)
+
+	// The mode-only general setting is seeded into both member organizations;
+	// the model-backed root setting only where the model lives.
+	var generalOrgCount int
+	require.NoError(t, db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM chat_user_model_overrides
+		WHERE user_id = $1 AND context = 'general' AND mode = 'chat_default'
+		  AND organization_id IN ($2, $3)`, userID, orgID, memberOrgID).Scan(&generalOrgCount))
+	require.Equal(t, 2, generalOrgCount)
+	var rootOrgCount int
+	require.NoError(t, db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM chat_user_model_overrides
+		WHERE user_id = $1 AND context = 'root'`, userID).Scan(&rootOrgCount))
+	require.Equal(t, 1, rootOrgCount)
 
 	var advisorConfig string
 	require.NoError(t, db.QueryRowContext(ctx,
