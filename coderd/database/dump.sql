@@ -284,7 +284,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'mcp_server_config:read',
     'mcp_server_config:update',
     'mcp_server_config:delete',
-    'mcp_server_config:share'
+    'mcp_server_config:share',
+    'user_memory:create',
+    'user_memory:read',
+    'user_memory:update',
+    'user_memory:delete',
+    'user_memory:*'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -611,7 +616,9 @@ CREATE TYPE resource_type AS ENUM (
     'user_ai_budget_override',
     'oauth2_provider_settings',
     'chat_instruction_settings',
-    'mcp_server_config'
+    'mcp_server_config',
+    'user_memory',
+    'chat_memory'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -979,6 +986,12 @@ BEGIN
         -- does not remove the users row so the FK cascade never fires.
         DELETE FROM user_skills
         WHERE user_id = OLD.id;
+
+        -- Remove their user_memories.
+        -- user_memories.user_id has ON DELETE CASCADE, but soft-delete
+        -- does not remove the users row so the FK cascade never fires.
+        DELETE FROM user_memories
+        WHERE user_id = OLD.id;
     END IF;
     RETURN NEW;
 END;
@@ -1023,6 +1036,44 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION enforce_chat_memories_insert_invariants() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    chat_parent_id uuid;
+    referenced_root_chat_id uuid;
+    memory_count int;
+    memory_limit constant int := 100;
+BEGIN
+    SELECT parent_chat_id, root_chat_id
+    INTO chat_parent_id, referenced_root_chat_id
+    FROM chats
+    WHERE id = NEW.root_chat_id
+    FOR NO KEY UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN NEW;
+    END IF;
+
+    IF chat_parent_id IS NOT NULL OR referenced_root_chat_id IS NOT NULL THEN
+        RAISE EXCEPTION 'chat % is not a root chat', NEW.root_chat_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'chat_memory_root_chat_required';
+    END IF;
+
+    SELECT count(*) INTO memory_count
+    FROM chat_memories
+    WHERE root_chat_id = NEW.root_chat_id;
+    IF memory_count >= memory_limit THEN
+        RAISE EXCEPTION 'chat % has reached the chat_memories limit of % (current count %)',
+            NEW.root_chat_id, memory_limit, memory_count
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'chat_memories_per_root_chat_limit';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION enforce_user_ai_budget_override_membership() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1036,6 +1087,42 @@ BEGIN
 			      CONSTRAINT = 'user_ai_budget_overrides_must_be_group_member';
 	END IF;
 	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION enforce_user_memories_insert_invariants() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    user_deleted boolean;
+    memory_count int;
+    memory_limit constant int := 100;
+BEGIN
+    SELECT deleted INTO user_deleted
+    FROM users
+    WHERE id = NEW.user_id
+    FOR NO KEY UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN NEW;
+    END IF;
+
+    IF user_deleted THEN
+        RAISE EXCEPTION 'cannot create user_memory for deleted user %', NEW.user_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_memory_user_deleted';
+    END IF;
+
+    SELECT count(*) INTO memory_count
+    FROM user_memories
+    WHERE user_id = NEW.user_id;
+    IF memory_count >= memory_limit THEN
+        RAISE EXCEPTION 'user % has reached the user_memories limit of % (current count %)',
+            NEW.user_id, memory_limit, memory_count
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_memories_per_user_limit';
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -2020,6 +2107,20 @@ CREATE UNLOGGED TABLE chat_heartbeats (
 );
 
 COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
+
+CREATE TABLE chat_memories (
+    id uuid NOT NULL,
+    root_chat_id uuid NOT NULL,
+    path text NOT NULL,
+    content text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_memories_content_size CHECK ((octet_length(content) <= 65536)),
+    CONSTRAINT chat_memories_path_format CHECK (((path ~ '^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*\.md$'::text) AND (path !~ '(^|/)[.]{1,2}(/|$)'::text))),
+    CONSTRAINT chat_memories_path_size CHECK ((octet_length(path) <= 256))
+);
+
+COMMENT ON TABLE chat_memories IS 'Agent memory documents owned by a root chat and shared with its descendant subagent chats.';
 
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
@@ -3698,6 +3799,20 @@ COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key us
 
 COMMENT ON COLUMN user_links.claims IS 'Claims from the IDP for the linked user. Includes both id_token and userinfo claims. ';
 
+CREATE TABLE user_memories (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    path text NOT NULL,
+    content text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT user_memories_content_size CHECK ((octet_length(content) <= 65536)),
+    CONSTRAINT user_memories_path_format CHECK (((path ~ '^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*\.md$'::text) AND (path !~ '(^|/)[.]{1,2}(/|$)'::text))),
+    CONSTRAINT user_memories_path_size CHECK ((octet_length(path) <= 256))
+);
+
+COMMENT ON TABLE user_memories IS 'Private per-user agent memory documents addressed by scope-relative paths.';
+
 CREATE TABLE user_secrets (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
@@ -4385,6 +4500,9 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
 
+ALTER TABLE ONLY chat_memories
+    ADD CONSTRAINT chat_memories_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
@@ -4622,6 +4740,9 @@ ALTER TABLE ONLY user_deleted
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_pkey PRIMARY KEY (user_id, login_type);
 
+ALTER TABLE ONLY user_memories
+    ADD CONSTRAINT user_memories_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY user_secrets
     ADD CONSTRAINT user_secrets_pkey PRIMARY KEY (id);
 
@@ -4749,6 +4870,8 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
+CREATE UNIQUE INDEX chat_memories_root_chat_id_path_idx ON chat_memories USING btree (root_chat_id, path);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
@@ -5016,6 +5139,8 @@ CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree 
 
 CREATE UNIQUE INDEX user_links_linked_id_login_type_idx ON user_links USING btree (linked_id, login_type) WHERE (linked_id <> ''::text);
 
+CREATE UNIQUE INDEX user_memories_user_id_path_idx ON user_memories USING btree (user_id, path);
+
 CREATE UNIQUE INDEX user_secrets_user_env_name_idx ON user_secrets USING btree (user_id, env_name) WHERE (env_name <> ''::text);
 
 CREATE UNIQUE INDEX user_secrets_user_file_path_idx ON user_secrets USING btree (user_id, file_path) WHERE (file_path <> ''::text);
@@ -5142,6 +5267,8 @@ CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER IN
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
+CREATE TRIGGER trigger_chat_memories_insert_invariants BEFORE INSERT ON chat_memories FOR EACH ROW EXECUTE FUNCTION enforce_chat_memories_insert_invariants();
+
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
@@ -5175,6 +5302,8 @@ CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links F
 CREATE TRIGGER trigger_upsert_user_secrets BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION insert_user_secret_fail_if_user_deleted();
 
 CREATE TRIGGER trigger_upsert_user_skills BEFORE INSERT OR UPDATE ON user_skills FOR EACH ROW EXECUTE FUNCTION insert_user_skill_fail_if_user_deleted();
+
+CREATE TRIGGER trigger_user_memories_insert_invariants BEFORE INSERT ON user_memories FOR EACH ROW EXECUTE FUNCTION enforce_user_memories_insert_invariants();
 
 CREATE TRIGGER trigger_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION enforce_user_secrets_per_user_limits();
 
@@ -5243,6 +5372,9 @@ ALTER TABLE ONLY chat_files
 
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_memories
+    ADD CONSTRAINT chat_memories_root_chat_id_fkey FOREIGN KEY (root_chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
@@ -5525,6 +5657,9 @@ ALTER TABLE ONLY user_links
 
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY user_memories
+    ADD CONSTRAINT user_memories_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_secrets
     ADD CONSTRAINT user_secrets_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

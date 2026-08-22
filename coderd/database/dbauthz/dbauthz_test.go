@@ -6564,6 +6564,179 @@ func (s *MethodTestSuite) TestUserSkills() {
 	}))
 }
 
+func (s *MethodTestSuite) TestUserMemories() {
+	s.Run("InsertUserMemory", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.InsertUserMemoryParams{
+			ID:      uuid.New(),
+			UserID:  user.ID,
+			Path:    "preferences/example.md",
+			Content: "content",
+		}
+		ret := testutil.Fake(s.T(), faker, database.UserMemory{
+			ID:     arg.ID,
+			UserID: arg.UserID,
+			Path:   arg.Path,
+		})
+		dbm.EXPECT().InsertUserMemory(gomock.Any(), arg).Return(ret, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceUserMemory.WithOwner(user.ID.String()), policy.ActionCreate).
+			Returns(ret)
+	}))
+	s.Run("GetUserMemoryByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		memory := testutil.Fake(s.T(), faker, database.UserMemory{UserID: user.ID})
+		dbm.EXPECT().GetUserMemoryByID(gomock.Any(), memory.ID).Return(memory, nil).AnyTimes()
+		check.Args(memory.ID).
+			Asserts(memory, policy.ActionRead).
+			Returns(memory)
+	}))
+	s.Run("GetUserMemoryByUserIDAndPath", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		memory := testutil.Fake(s.T(), faker, database.UserMemory{UserID: user.ID})
+		arg := database.GetUserMemoryByUserIDAndPathParams{UserID: user.ID, Path: memory.Path}
+		dbm.EXPECT().GetUserMemoryByUserIDAndPath(gomock.Any(), arg).Return(memory, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceUserMemory.WithOwner(user.ID.String()), policy.ActionRead).
+			Returns(memory)
+	}))
+	s.Run("ListUserMemoriesByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		row := testutil.Fake(s.T(), faker, database.ListUserMemoriesByUserIDRow{UserID: user.ID})
+		dbm.EXPECT().ListUserMemoriesByUserID(gomock.Any(), user.ID).Return([]database.ListUserMemoriesByUserIDRow{row}, nil).AnyTimes()
+		check.Args(user.ID).
+			Asserts(rbac.ResourceUserMemory.WithOwner(user.ID.String()), policy.ActionRead).
+			Returns([]database.ListUserMemoriesByUserIDRow{row})
+	}))
+	s.Run("ListUserMemoriesByUserIDAndPathPrefix", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.ListUserMemoriesByUserIDAndPathPrefixParams{UserID: user.ID, PathPrefix: "preferences/"}
+		row := testutil.Fake(s.T(), faker, database.ListUserMemoriesByUserIDAndPathPrefixRow{UserID: user.ID})
+		dbm.EXPECT().ListUserMemoriesByUserIDAndPathPrefix(gomock.Any(), arg).Return([]database.ListUserMemoriesByUserIDAndPathPrefixRow{row}, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceUserMemory.WithOwner(user.ID.String()), policy.ActionRead).
+			Returns([]database.ListUserMemoriesByUserIDAndPathPrefixRow{row})
+	}))
+	s.Run("UpdateUserMemoryByUserIDAndPath", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.UpdateUserMemoryByUserIDAndPathParams{UserID: user.ID, Path: "preferences/example.md"}
+		updated := testutil.Fake(s.T(), faker, database.UserMemory{UserID: user.ID, Path: arg.Path})
+		dbm.EXPECT().UpdateUserMemoryByUserIDAndPath(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceUserMemory.WithOwner(user.ID.String()), policy.ActionUpdate).
+			Returns(updated)
+	}))
+	s.Run("RenameUserMemoryByUserIDAndPath", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.RenameUserMemoryByUserIDAndPathParams{UserID: user.ID, OldPath: "preferences/old.md", NewPath: "preferences/new.md"}
+		renamed := testutil.Fake(s.T(), faker, database.UserMemory{UserID: user.ID, Path: arg.NewPath})
+		dbm.EXPECT().RenameUserMemoryByUserIDAndPath(gomock.Any(), arg).Return(renamed, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceUserMemory.WithOwner(user.ID.String()), policy.ActionUpdate).
+			Returns(renamed)
+	}))
+	s.Run("DeleteUserMemoryByUserIDAndPath", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.DeleteUserMemoryByUserIDAndPathParams{UserID: user.ID, Path: "preferences/example.md"}
+		deleted := testutil.Fake(s.T(), faker, database.UserMemory{UserID: user.ID, Path: arg.Path})
+		dbm.EXPECT().DeleteUserMemoryByUserIDAndPath(gomock.Any(), arg).Return(deleted, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceUserMemory.WithOwner(user.ID.String()), policy.ActionDelete).
+			Returns(deleted)
+	}))
+	s.Run("DeleteUserMemoriesByUserIDAndPathPrefix", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.DeleteUserMemoriesByUserIDAndPathPrefixParams{UserID: user.ID, PathPrefix: "preferences/"}
+		deleted := testutil.Fake(s.T(), faker, database.UserMemory{UserID: user.ID})
+		dbm.EXPECT().DeleteUserMemoriesByUserIDAndPathPrefix(gomock.Any(), arg).Return([]database.UserMemory{deleted}, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceUserMemory.WithOwner(user.ID.String()), policy.ActionDelete).
+			Returns([]database.UserMemory{deleted})
+	}))
+}
+
+func (s *MethodTestSuite) TestChatMemories() {
+	s.Run("InsertChatMemory", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.InsertChatMemoryParams{
+			ID:         uuid.New(),
+			RootChatID: chat.ID,
+			Path:       "notes/example.md",
+			Content:    "content",
+		}
+		ret := testutil.Fake(s.T(), faker, database.ChatMemory{
+			ID:         arg.ID,
+			RootChatID: arg.RootChatID,
+			Path:       arg.Path,
+		})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().InsertChatMemory(gomock.Any(), arg).Return(ret, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(ret)
+	}))
+	s.Run("GetChatMemoryByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		memory := testutil.Fake(s.T(), faker, database.ChatMemory{RootChatID: chat.ID})
+		dbm.EXPECT().GetChatMemoryByID(gomock.Any(), memory.ID).Return(memory, nil).AnyTimes()
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		check.Args(memory.ID).Asserts(chat, policy.ActionRead).Returns(memory)
+	}))
+	s.Run("GetChatMemoryByRootChatIDAndPath", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		memory := testutil.Fake(s.T(), faker, database.ChatMemory{RootChatID: chat.ID})
+		arg := database.GetChatMemoryByRootChatIDAndPathParams{RootChatID: chat.ID, Path: memory.Path}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatMemoryByRootChatIDAndPath(gomock.Any(), arg).Return(memory, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(memory)
+	}))
+	s.Run("ListChatMemoriesByRootChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		row := testutil.Fake(s.T(), faker, database.ListChatMemoriesByRootChatIDRow{RootChatID: chat.ID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ListChatMemoriesByRootChatID(gomock.Any(), chat.ID).Return([]database.ListChatMemoriesByRootChatIDRow{row}, nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns([]database.ListChatMemoriesByRootChatIDRow{row})
+	}))
+	s.Run("ListChatMemoriesByRootChatIDAndPathPrefix", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.ListChatMemoriesByRootChatIDAndPathPrefixParams{RootChatID: chat.ID, PathPrefix: "notes/"}
+		row := testutil.Fake(s.T(), faker, database.ListChatMemoriesByRootChatIDAndPathPrefixRow{RootChatID: chat.ID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ListChatMemoriesByRootChatIDAndPathPrefix(gomock.Any(), arg).Return([]database.ListChatMemoriesByRootChatIDAndPathPrefixRow{row}, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns([]database.ListChatMemoriesByRootChatIDAndPathPrefixRow{row})
+	}))
+	s.Run("UpdateChatMemoryByRootChatIDAndPath", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.UpdateChatMemoryByRootChatIDAndPathParams{RootChatID: chat.ID, Path: "notes/example.md"}
+		updated := testutil.Fake(s.T(), faker, database.ChatMemory{RootChatID: chat.ID, Path: arg.Path})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatMemoryByRootChatIDAndPath(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(updated)
+	}))
+	s.Run("RenameChatMemoryByRootChatIDAndPath", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.RenameChatMemoryByRootChatIDAndPathParams{RootChatID: chat.ID, OldPath: "notes/old.md", NewPath: "notes/new.md"}
+		renamed := testutil.Fake(s.T(), faker, database.ChatMemory{RootChatID: chat.ID, Path: arg.NewPath})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().RenameChatMemoryByRootChatIDAndPath(gomock.Any(), arg).Return(renamed, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(renamed)
+	}))
+	s.Run("DeleteChatMemoryByRootChatIDAndPath", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.DeleteChatMemoryByRootChatIDAndPathParams{RootChatID: chat.ID, Path: "notes/example.md"}
+		deleted := testutil.Fake(s.T(), faker, database.ChatMemory{RootChatID: chat.ID, Path: arg.Path})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().DeleteChatMemoryByRootChatIDAndPath(gomock.Any(), arg).Return(deleted, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(deleted)
+	}))
+	s.Run("DeleteChatMemoriesByRootChatIDAndPathPrefix", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.DeleteChatMemoriesByRootChatIDAndPathPrefixParams{RootChatID: chat.ID, PathPrefix: "notes/"}
+		deleted := testutil.Fake(s.T(), faker, database.ChatMemory{RootChatID: chat.ID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().DeleteChatMemoriesByRootChatIDAndPathPrefix(gomock.Any(), arg).Return([]database.ChatMemory{deleted}, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns([]database.ChatMemory{deleted})
+	}))
+}
+
 func (s *MethodTestSuite) TestUsageEvents() {
 	s.Run("InsertUsageEvent", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		params := database.InsertUsageEventParams{

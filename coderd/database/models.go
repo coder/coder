@@ -529,6 +529,11 @@ const (
 	ApiKeyScopeMcpServerConfigUpdate               APIKeyScope = "mcp_server_config:update"
 	ApiKeyScopeMcpServerConfigDelete               APIKeyScope = "mcp_server_config:delete"
 	ApiKeyScopeMcpServerConfigShare                APIKeyScope = "mcp_server_config:share"
+	ApiKeyScopeUserMemoryCreate                    APIKeyScope = "user_memory:create"
+	ApiKeyScopeUserMemoryRead                      APIKeyScope = "user_memory:read"
+	ApiKeyScopeUserMemoryUpdate                    APIKeyScope = "user_memory:update"
+	ApiKeyScopeUserMemoryDelete                    APIKeyScope = "user_memory:delete"
+	ApiKeyScopeUserMemory                          APIKeyScope = "user_memory:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -809,7 +814,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeMcpServerConfigRead,
 		ApiKeyScopeMcpServerConfigUpdate,
 		ApiKeyScopeMcpServerConfigDelete,
-		ApiKeyScopeMcpServerConfigShare:
+		ApiKeyScopeMcpServerConfigShare,
+		ApiKeyScopeUserMemoryCreate,
+		ApiKeyScopeUserMemoryRead,
+		ApiKeyScopeUserMemoryUpdate,
+		ApiKeyScopeUserMemoryDelete,
+		ApiKeyScopeUserMemory:
 		return true
 	}
 	return false
@@ -1059,6 +1069,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeMcpServerConfigUpdate,
 		ApiKeyScopeMcpServerConfigDelete,
 		ApiKeyScopeMcpServerConfigShare,
+		ApiKeyScopeUserMemoryCreate,
+		ApiKeyScopeUserMemoryRead,
+		ApiKeyScopeUserMemoryUpdate,
+		ApiKeyScopeUserMemoryDelete,
+		ApiKeyScopeUserMemory,
 	}
 }
 
@@ -3613,6 +3628,8 @@ const (
 	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
 	ResourceTypeChatInstructionSettings     ResourceType = "chat_instruction_settings"
 	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
+	ResourceTypeUserMemory                  ResourceType = "user_memory"
+	ResourceTypeChatMemory                  ResourceType = "chat_memory"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3689,7 +3706,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeUserAIBudgetOverride,
 		ResourceTypeOauth2ProviderSettings,
 		ResourceTypeChatInstructionSettings,
-		ResourceTypeMCPServerConfig:
+		ResourceTypeMCPServerConfig,
+		ResourceTypeUserMemory,
+		ResourceTypeChatMemory:
 		return true
 	}
 	return false
@@ -3735,6 +3754,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeOauth2ProviderSettings,
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
+		ResourceTypeUserMemory,
+		ResourceTypeChatMemory,
 	}
 }
 
@@ -5193,6 +5214,16 @@ type ChatHeartbeat struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
+// Agent memory documents owned by a root chat and shared with its descendant subagent chats.
+type ChatMemory struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	RootChatID uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	Path       string    `db:"path" json:"path"`
+	Content    string    `db:"content" json:"content"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
@@ -6339,6 +6370,16 @@ type UserLink struct {
 	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 	// Claims from the IDP for the linked user. Includes both id_token and userinfo claims.
 	Claims UserLinkClaims `db:"claims" json:"claims"`
+}
+
+// Private per-user agent memory documents addressed by scope-relative paths.
+type UserMemory struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	Path      string    `db:"path" json:"path"`
+	Content   string    `db:"content" json:"content"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type UserSecret struct {

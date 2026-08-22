@@ -5134,6 +5134,308 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const deleteChatMemoriesByRootChatIDAndPathPrefix = `-- name: DeleteChatMemoriesByRootChatIDAndPathPrefix :many
+DELETE FROM chat_memories
+WHERE
+    root_chat_id = $1
+    AND octet_length($2::text) > 0
+    AND starts_with(path, $2::text)
+RETURNING id, root_chat_id, path, content, created_at, updated_at
+`
+
+type DeleteChatMemoriesByRootChatIDAndPathPrefixParams struct {
+	RootChatID uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	PathPrefix string    `db:"path_prefix" json:"path_prefix"`
+}
+
+func (q *sqlQuerier) DeleteChatMemoriesByRootChatIDAndPathPrefix(ctx context.Context, arg DeleteChatMemoriesByRootChatIDAndPathPrefixParams) ([]ChatMemory, error) {
+	rows, err := q.db.QueryContext(ctx, deleteChatMemoriesByRootChatIDAndPathPrefix, arg.RootChatID, arg.PathPrefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMemory
+	for rows.Next() {
+		var i ChatMemory
+		if err := rows.Scan(
+			&i.ID,
+			&i.RootChatID,
+			&i.Path,
+			&i.Content,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const deleteChatMemoryByRootChatIDAndPath = `-- name: DeleteChatMemoryByRootChatIDAndPath :one
+DELETE FROM chat_memories
+WHERE root_chat_id = $1 AND path = $2
+RETURNING id, root_chat_id, path, content, created_at, updated_at
+`
+
+type DeleteChatMemoryByRootChatIDAndPathParams struct {
+	RootChatID uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	Path       string    `db:"path" json:"path"`
+}
+
+func (q *sqlQuerier) DeleteChatMemoryByRootChatIDAndPath(ctx context.Context, arg DeleteChatMemoryByRootChatIDAndPathParams) (ChatMemory, error) {
+	row := q.db.QueryRowContext(ctx, deleteChatMemoryByRootChatIDAndPath, arg.RootChatID, arg.Path)
+	var i ChatMemory
+	err := row.Scan(
+		&i.ID,
+		&i.RootChatID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getChatMemoryByID = `-- name: GetChatMemoryByID :one
+SELECT id, root_chat_id, path, content, created_at, updated_at
+FROM chat_memories
+WHERE id = $1
+`
+
+func (q *sqlQuerier) GetChatMemoryByID(ctx context.Context, id uuid.UUID) (ChatMemory, error) {
+	row := q.db.QueryRowContext(ctx, getChatMemoryByID, id)
+	var i ChatMemory
+	err := row.Scan(
+		&i.ID,
+		&i.RootChatID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getChatMemoryByRootChatIDAndPath = `-- name: GetChatMemoryByRootChatIDAndPath :one
+SELECT id, root_chat_id, path, content, created_at, updated_at
+FROM chat_memories
+WHERE root_chat_id = $1 AND path = $2
+`
+
+type GetChatMemoryByRootChatIDAndPathParams struct {
+	RootChatID uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	Path       string    `db:"path" json:"path"`
+}
+
+func (q *sqlQuerier) GetChatMemoryByRootChatIDAndPath(ctx context.Context, arg GetChatMemoryByRootChatIDAndPathParams) (ChatMemory, error) {
+	row := q.db.QueryRowContext(ctx, getChatMemoryByRootChatIDAndPath, arg.RootChatID, arg.Path)
+	var i ChatMemory
+	err := row.Scan(
+		&i.ID,
+		&i.RootChatID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertChatMemory = `-- name: InsertChatMemory :one
+INSERT INTO chat_memories (id, root_chat_id, path, content)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text)
+RETURNING id, root_chat_id, path, content, created_at, updated_at
+`
+
+type InsertChatMemoryParams struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	RootChatID uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	Path       string    `db:"path" json:"path"`
+	Content    string    `db:"content" json:"content"`
+}
+
+func (q *sqlQuerier) InsertChatMemory(ctx context.Context, arg InsertChatMemoryParams) (ChatMemory, error) {
+	row := q.db.QueryRowContext(ctx, insertChatMemory,
+		arg.ID,
+		arg.RootChatID,
+		arg.Path,
+		arg.Content,
+	)
+	var i ChatMemory
+	err := row.Scan(
+		&i.ID,
+		&i.RootChatID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listChatMemoriesByRootChatID = `-- name: ListChatMemoriesByRootChatID :many
+SELECT
+    id, root_chat_id, path, created_at, updated_at
+FROM chat_memories
+WHERE root_chat_id = $1
+ORDER BY path ASC
+`
+
+type ListChatMemoriesByRootChatIDRow struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	RootChatID uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	Path       string    `db:"path" json:"path"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) ListChatMemoriesByRootChatID(ctx context.Context, rootChatID uuid.UUID) ([]ListChatMemoriesByRootChatIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, listChatMemoriesByRootChatID, rootChatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListChatMemoriesByRootChatIDRow
+	for rows.Next() {
+		var i ListChatMemoriesByRootChatIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RootChatID,
+			&i.Path,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listChatMemoriesByRootChatIDAndPathPrefix = `-- name: ListChatMemoriesByRootChatIDAndPathPrefix :many
+SELECT
+    id, root_chat_id, path, created_at, updated_at,
+    left(content, 4096)::text AS content_prefix
+FROM chat_memories
+WHERE root_chat_id = $1 AND starts_with(path, $2::text)
+ORDER BY path ASC
+`
+
+type ListChatMemoriesByRootChatIDAndPathPrefixParams struct {
+	RootChatID uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	PathPrefix string    `db:"path_prefix" json:"path_prefix"`
+}
+
+type ListChatMemoriesByRootChatIDAndPathPrefixRow struct {
+	ID            uuid.UUID `db:"id" json:"id"`
+	RootChatID    uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	Path          string    `db:"path" json:"path"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+	ContentPrefix string    `db:"content_prefix" json:"content_prefix"`
+}
+
+func (q *sqlQuerier) ListChatMemoriesByRootChatIDAndPathPrefix(ctx context.Context, arg ListChatMemoriesByRootChatIDAndPathPrefixParams) ([]ListChatMemoriesByRootChatIDAndPathPrefixRow, error) {
+	rows, err := q.db.QueryContext(ctx, listChatMemoriesByRootChatIDAndPathPrefix, arg.RootChatID, arg.PathPrefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListChatMemoriesByRootChatIDAndPathPrefixRow
+	for rows.Next() {
+		var i ListChatMemoriesByRootChatIDAndPathPrefixRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RootChatID,
+			&i.Path,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ContentPrefix,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const renameChatMemoryByRootChatIDAndPath = `-- name: RenameChatMemoryByRootChatIDAndPath :one
+UPDATE chat_memories
+SET
+    path       = $1::text,
+    updated_at = now()
+WHERE root_chat_id = $2 AND path = $3::text
+RETURNING id, root_chat_id, path, content, created_at, updated_at
+`
+
+type RenameChatMemoryByRootChatIDAndPathParams struct {
+	NewPath    string    `db:"new_path" json:"new_path"`
+	RootChatID uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	OldPath    string    `db:"old_path" json:"old_path"`
+}
+
+func (q *sqlQuerier) RenameChatMemoryByRootChatIDAndPath(ctx context.Context, arg RenameChatMemoryByRootChatIDAndPathParams) (ChatMemory, error) {
+	row := q.db.QueryRowContext(ctx, renameChatMemoryByRootChatIDAndPath, arg.NewPath, arg.RootChatID, arg.OldPath)
+	var i ChatMemory
+	err := row.Scan(
+		&i.ID,
+		&i.RootChatID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateChatMemoryByRootChatIDAndPath = `-- name: UpdateChatMemoryByRootChatIDAndPath :one
+UPDATE chat_memories
+SET
+    content    = $1,
+    updated_at = now()
+WHERE root_chat_id = $2 AND path = $3
+RETURNING id, root_chat_id, path, content, created_at, updated_at
+`
+
+type UpdateChatMemoryByRootChatIDAndPathParams struct {
+	Content    string    `db:"content" json:"content"`
+	RootChatID uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	Path       string    `db:"path" json:"path"`
+}
+
+func (q *sqlQuerier) UpdateChatMemoryByRootChatIDAndPath(ctx context.Context, arg UpdateChatMemoryByRootChatIDAndPathParams) (ChatMemory, error) {
+	row := q.db.QueryRowContext(ctx, updateChatMemoryByRootChatIDAndPath, arg.Content, arg.RootChatID, arg.Path)
+	var i ChatMemory
+	err := row.Scan(
+		&i.ID,
+		&i.RootChatID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deleteChatDebugDataAfterMessageID = `-- name: DeleteChatDebugDataAfterMessageID :execrows
 WITH affected_runs AS (
     SELECT DISTINCT run.id
@@ -29907,6 +30209,308 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
 		&i.Claims,
+	)
+	return i, err
+}
+
+const deleteUserMemoriesByUserIDAndPathPrefix = `-- name: DeleteUserMemoriesByUserIDAndPathPrefix :many
+DELETE FROM user_memories
+WHERE
+    user_id = $1
+    AND octet_length($2::text) > 0
+    AND starts_with(path, $2::text)
+RETURNING id, user_id, path, content, created_at, updated_at
+`
+
+type DeleteUserMemoriesByUserIDAndPathPrefixParams struct {
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	PathPrefix string    `db:"path_prefix" json:"path_prefix"`
+}
+
+func (q *sqlQuerier) DeleteUserMemoriesByUserIDAndPathPrefix(ctx context.Context, arg DeleteUserMemoriesByUserIDAndPathPrefixParams) ([]UserMemory, error) {
+	rows, err := q.db.QueryContext(ctx, deleteUserMemoriesByUserIDAndPathPrefix, arg.UserID, arg.PathPrefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserMemory
+	for rows.Next() {
+		var i UserMemory
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Path,
+			&i.Content,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const deleteUserMemoryByUserIDAndPath = `-- name: DeleteUserMemoryByUserIDAndPath :one
+DELETE FROM user_memories
+WHERE user_id = $1 AND path = $2
+RETURNING id, user_id, path, content, created_at, updated_at
+`
+
+type DeleteUserMemoryByUserIDAndPathParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Path   string    `db:"path" json:"path"`
+}
+
+func (q *sqlQuerier) DeleteUserMemoryByUserIDAndPath(ctx context.Context, arg DeleteUserMemoryByUserIDAndPathParams) (UserMemory, error) {
+	row := q.db.QueryRowContext(ctx, deleteUserMemoryByUserIDAndPath, arg.UserID, arg.Path)
+	var i UserMemory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserMemoryByID = `-- name: GetUserMemoryByID :one
+SELECT id, user_id, path, content, created_at, updated_at
+FROM user_memories
+WHERE id = $1
+`
+
+func (q *sqlQuerier) GetUserMemoryByID(ctx context.Context, id uuid.UUID) (UserMemory, error) {
+	row := q.db.QueryRowContext(ctx, getUserMemoryByID, id)
+	var i UserMemory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserMemoryByUserIDAndPath = `-- name: GetUserMemoryByUserIDAndPath :one
+SELECT id, user_id, path, content, created_at, updated_at
+FROM user_memories
+WHERE user_id = $1 AND path = $2
+`
+
+type GetUserMemoryByUserIDAndPathParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Path   string    `db:"path" json:"path"`
+}
+
+func (q *sqlQuerier) GetUserMemoryByUserIDAndPath(ctx context.Context, arg GetUserMemoryByUserIDAndPathParams) (UserMemory, error) {
+	row := q.db.QueryRowContext(ctx, getUserMemoryByUserIDAndPath, arg.UserID, arg.Path)
+	var i UserMemory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertUserMemory = `-- name: InsertUserMemory :one
+INSERT INTO user_memories (id, user_id, path, content)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text)
+RETURNING id, user_id, path, content, created_at, updated_at
+`
+
+type InsertUserMemoryParams struct {
+	ID      uuid.UUID `db:"id" json:"id"`
+	UserID  uuid.UUID `db:"user_id" json:"user_id"`
+	Path    string    `db:"path" json:"path"`
+	Content string    `db:"content" json:"content"`
+}
+
+func (q *sqlQuerier) InsertUserMemory(ctx context.Context, arg InsertUserMemoryParams) (UserMemory, error) {
+	row := q.db.QueryRowContext(ctx, insertUserMemory,
+		arg.ID,
+		arg.UserID,
+		arg.Path,
+		arg.Content,
+	)
+	var i UserMemory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listUserMemoriesByUserID = `-- name: ListUserMemoriesByUserID :many
+SELECT
+    id, user_id, path, created_at, updated_at
+FROM user_memories
+WHERE user_id = $1
+ORDER BY path ASC
+`
+
+type ListUserMemoriesByUserIDRow struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	Path      string    `db:"path" json:"path"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) ListUserMemoriesByUserID(ctx context.Context, userID uuid.UUID) ([]ListUserMemoriesByUserIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUserMemoriesByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUserMemoriesByUserIDRow
+	for rows.Next() {
+		var i ListUserMemoriesByUserIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Path,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserMemoriesByUserIDAndPathPrefix = `-- name: ListUserMemoriesByUserIDAndPathPrefix :many
+SELECT
+    id, user_id, path, created_at, updated_at,
+    left(content, 4096)::text AS content_prefix
+FROM user_memories
+WHERE user_id = $1 AND starts_with(path, $2::text)
+ORDER BY path ASC
+`
+
+type ListUserMemoriesByUserIDAndPathPrefixParams struct {
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	PathPrefix string    `db:"path_prefix" json:"path_prefix"`
+}
+
+type ListUserMemoriesByUserIDAndPathPrefixRow struct {
+	ID            uuid.UUID `db:"id" json:"id"`
+	UserID        uuid.UUID `db:"user_id" json:"user_id"`
+	Path          string    `db:"path" json:"path"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+	ContentPrefix string    `db:"content_prefix" json:"content_prefix"`
+}
+
+func (q *sqlQuerier) ListUserMemoriesByUserIDAndPathPrefix(ctx context.Context, arg ListUserMemoriesByUserIDAndPathPrefixParams) ([]ListUserMemoriesByUserIDAndPathPrefixRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUserMemoriesByUserIDAndPathPrefix, arg.UserID, arg.PathPrefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUserMemoriesByUserIDAndPathPrefixRow
+	for rows.Next() {
+		var i ListUserMemoriesByUserIDAndPathPrefixRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Path,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ContentPrefix,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const renameUserMemoryByUserIDAndPath = `-- name: RenameUserMemoryByUserIDAndPath :one
+UPDATE user_memories
+SET
+    path       = $1::text,
+    updated_at = now()
+WHERE user_id = $2 AND path = $3::text
+RETURNING id, user_id, path, content, created_at, updated_at
+`
+
+type RenameUserMemoryByUserIDAndPathParams struct {
+	NewPath string    `db:"new_path" json:"new_path"`
+	UserID  uuid.UUID `db:"user_id" json:"user_id"`
+	OldPath string    `db:"old_path" json:"old_path"`
+}
+
+func (q *sqlQuerier) RenameUserMemoryByUserIDAndPath(ctx context.Context, arg RenameUserMemoryByUserIDAndPathParams) (UserMemory, error) {
+	row := q.db.QueryRowContext(ctx, renameUserMemoryByUserIDAndPath, arg.NewPath, arg.UserID, arg.OldPath)
+	var i UserMemory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateUserMemoryByUserIDAndPath = `-- name: UpdateUserMemoryByUserIDAndPath :one
+UPDATE user_memories
+SET
+    content    = $1,
+    updated_at = now()
+WHERE user_id = $2 AND path = $3
+RETURNING id, user_id, path, content, created_at, updated_at
+`
+
+type UpdateUserMemoryByUserIDAndPathParams struct {
+	Content string    `db:"content" json:"content"`
+	UserID  uuid.UUID `db:"user_id" json:"user_id"`
+	Path    string    `db:"path" json:"path"`
+}
+
+func (q *sqlQuerier) UpdateUserMemoryByUserIDAndPath(ctx context.Context, arg UpdateUserMemoryByUserIDAndPathParams) (UserMemory, error) {
+	row := q.db.QueryRowContext(ctx, updateUserMemoryByUserIDAndPath, arg.Content, arg.UserID, arg.Path)
+	var i UserMemory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
