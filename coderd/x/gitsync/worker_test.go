@@ -82,7 +82,7 @@ func newTestRefresher(t *testing.T, clk quartz.Clock, opts ...testRefresherOpt) 
 		},
 	}
 
-	providers := func(context.Context, string) gitprovider.Provider { return prov }
+	providers := func(context.Context, string) (gitprovider.Provider, error) { return prov, nil }
 	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
 		return ptr.Ref("tok"), nil
 	}
@@ -1119,8 +1119,8 @@ func TestRefreshChat_RefreshError(t *testing.T) {
 	store := dbmock.NewMockStore(ctrl)
 	// UpsertChatDiffStatus should NOT be called.
 
-	// Provider resolver returns nil → "no provider" error.
-	providers := func(context.Context, string) gitprovider.Provider { return nil }
+	// Provider resolver returns nil, nil → "no provider" error.
+	providers := func(context.Context, string) (gitprovider.Provider, error) { return nil, nil }
 	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
 		return ptr.Ref("tok"), nil
 	}
@@ -1205,7 +1205,7 @@ func TestWorker_NoTokenBackoff(t *testing.T) {
 	// Token resolver returns empty token → ErrNoTokenAvailable.
 	// Provider methods should never be called.
 	prov := &mockProvider{}
-	providers := func(context.Context, string) gitprovider.Provider { return prov }
+	providers := func(context.Context, string) (gitprovider.Provider, error) { return prov, nil }
 	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
 		return ptr.Ref(""), nil
 	}
@@ -1224,5 +1224,59 @@ func TestWorker_NoTokenBackoff(t *testing.T) {
 	// The backoff should use NoTokenBackoff (10min), not
 	// DiffStatusTTL (2min).
 	expectedStaleAt := mClock.Now().UTC().Add(gitsync.NoTokenBackoff)
+	assert.WithinDuration(t, expectedStaleAt, backoffArgs[0].StaleAt, time.Second)
+}
+
+func TestWorker_ProviderUnimplementedBackoff(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	chatID := uuid.New()
+	ownerID := uuid.New()
+
+	var mu sync.Mutex
+	var backoffArgs []database.BackoffChatDiffStatusParams
+	tickDone := make(chan struct{})
+
+	mClock := quartz.NewMock(t)
+
+	ctrl := gomock.NewController(t)
+	store := dbmock.NewMockStore(ctrl)
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return([]database.AcquireStaleChatDiffStatusesRow{
+			makeAcquiredRowWithBranch(chatID, ownerID, "feature"),
+		}, nil)
+	store.EXPECT().BackoffChatDiffStatus(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.BackoffChatDiffStatusParams) error {
+			mu.Lock()
+			backoffArgs = append(backoffArgs, arg)
+			mu.Unlock()
+			close(tickDone)
+			return nil
+		})
+
+	// Provider resolver returns ErrProviderUnimplemented.
+	providers := func(context.Context, string) (gitprovider.Provider, error) {
+		return nil, gitsync.ErrProviderUnimplemented
+	}
+	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
+		return ptr.Ref("tok"), nil
+	}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	refresher := gitsync.NewRefresher(providers, tokens, logger, mClock)
+	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
+
+	tickOnce(ctx, t, mClock, worker, tickDone)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, backoffArgs, 1)
+	assert.Equal(t, chatID, backoffArgs[0].ChatID)
+
+	// The backoff should use NotImplementedBackoff (24h), not
+	// DiffStatusTTL (2min).
+	expectedStaleAt := mClock.Now().UTC().Add(gitsync.NotImplementedBackoff)
 	assert.WithinDuration(t, expectedStaleAt, backoffArgs[0].StaleAt, time.Second)
 }
