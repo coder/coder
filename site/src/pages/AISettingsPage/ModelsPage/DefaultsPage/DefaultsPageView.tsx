@@ -35,6 +35,7 @@ const settings: readonly {
 	context: TypesGen.ChatModelOverrideContext;
 	title: string;
 	description: string;
+	unavailableModelWarning?: string;
 }[] = [
 	{
 		context: "general",
@@ -51,6 +52,10 @@ const settings: readonly {
 		context: "title_generation",
 		title: "Title generation",
 		description: "Used to generate chat titles.",
+		// Title generation fails hard on a broken override instead of falling
+		// back to default model selection, so the generic warning is wrong here.
+		unavailableModelWarning:
+			"The selected model is currently unavailable. Title generation will be skipped until you choose another model or clear this setting.",
 	},
 	{
 		context: "compaction",
@@ -122,6 +127,7 @@ const DefaultsPageView: FC<DefaultsPageViewProps> = ({
 							isSaving={savingContexts.has(setting.context)}
 							isSaveError={errorContexts.has(setting.context)}
 							saveErrorMessage={`Failed to save ${setting.title.toLowerCase()} override.`}
+							unavailableModelWarning={setting.unavailableModelWarning}
 							unsetPlaceholder="Use default"
 							disabled={!canEdit}
 						/>

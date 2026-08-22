@@ -69,11 +69,11 @@ export const AgentSettingsUserAgentsPageView: FC<
 }) => {
 	const personalOverridesEnabled = overridesData?.enabled ?? true;
 	const isLoading = isLoadingOverrides || isLoadingModels;
+	// Rows stay enabled when the organization has no models so the model-free
+	// default modes can still replace a stale saved model override; mode
+	// "model" cannot be saved without a valid model anyway.
 	const isDisabled =
-		isLoading ||
-		!personalOverridesEnabled ||
-		isOrganizationUnresolved ||
-		hasNoOrganizationModels;
+		isLoading || !personalOverridesEnabled || isOrganizationUnresolved;
 
 	return (
 		<div className="flex flex-col gap-8">
@@ -128,9 +128,9 @@ export const AgentSettingsUserAgentsPageView: FC<
 			{hasNoOrganizationModels && (
 				<Alert severity="info">
 					<AlertDescription>
-						The selected organization has no available chat models. Ask an
-						organization administrator to add and enable a model before you set
-						personal overrides.
+						The selected organization has no available chat models. Default
+						options can still be saved. Ask an organization administrator to add
+						and enable a model before you choose a specific model.
 					</AlertDescription>
 				</Alert>
 			)}
