@@ -41,9 +41,8 @@ var _ Provider = &Bedrock{}
 // protocols, and the OpenAI-shaped chat-completions and responses routes under
 // mantle only. Authentication is via AWS SigV4 signing, not bearer keys.
 type Bedrock struct {
-	cfg config.Anthropic
-	// runtime is always non-nil for this provider.
-	runtime *messages.BedrockRuntime
+	cfg     config.Anthropic
+	runtime messages.BedrockRuntime
 }
 
 // NewBedrock constructs a Bedrock provider. cfg supplies the shared
@@ -55,7 +54,7 @@ func NewBedrock(ctx context.Context, cfg config.Anthropic, bedrockCfg config.AWS
 		cfg.Name = config.ProviderBedrock
 	}
 	if cfg.BaseURL == "" {
-		cfg.BaseURL = "https://api.anthropic.com/"
+		cfg.BaseURL = bedrockCfg.BaseURL
 	}
 	if cfg.CircuitBreaker != nil {
 		cfg.CircuitBreaker.IsFailure = anthropicIsFailure
@@ -78,7 +77,7 @@ func NewBedrock(ctx context.Context, cfg config.Anthropic, bedrockCfg config.AWS
 
 	return &Bedrock{
 		cfg:     cfg,
-		runtime: &messages.BedrockRuntime{Cfg: runtimeCfg, Creds: creds},
+		runtime: messages.BedrockRuntime{Cfg: runtimeCfg, Creds: creds},
 	}, nil
 }
 
@@ -173,9 +172,9 @@ func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, trace
 
 	var interceptor intercept.Interceptor
 	if reqPayload.Stream() {
-		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, p.runtime, r.Header, tracer)
+		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, &p.runtime, r.Header, tracer)
 	} else {
-		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, p.runtime, r.Header, tracer)
+		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, &p.runtime, r.Header, tracer)
 	}
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
@@ -240,8 +239,7 @@ func (p *Bedrock) createResponsesInterceptor(id uuid.UUID, r *http.Request, trac
 }
 
 // mantleConfig narrows the provider's full Bedrock runtime to the fields the
-// OpenAI-shaped interceptors use. The runtime is always non-nil for this
-// provider.
+// OpenAI-shaped interceptors use.
 func (p *Bedrock) mantleConfig() *bedrocksig.MantleConfig {
 	return &bedrocksig.MantleConfig{
 		BaseURL: p.runtime.Cfg.BaseURL,

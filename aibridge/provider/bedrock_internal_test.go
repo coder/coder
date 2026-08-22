@@ -513,7 +513,6 @@ func TestNewBedrock_RegionResolution(t *testing.T) {
 			AccessKeySecret: "test-secret",
 		})
 		require.NoError(t, err)
-		require.NotNil(t, p.runtime)
 		require.Equal(t, "us-west-2", p.runtime.Cfg.Region)
 	})
 
@@ -665,4 +664,36 @@ func TestBedrock_CreateInterceptor_InvokeModelOpenAIRoutes(t *testing.T) {
 			require.Nil(t, interceptor)
 		})
 	}
+}
+
+func TestNewBedrock_BaseURLInheritance(t *testing.T) {
+	t.Parallel()
+
+	t.Run("inherits_bedrock_base_url", func(t *testing.T) {
+		t.Parallel()
+
+		const baseURL = "https://bedrock-mantle.us-west-2.api.aws/anthropic"
+		p := newTestBedrock(t, config.Anthropic{}, config.AWSBedrock{
+			Region:          "us-west-2",
+			AccessKey:       "test-key",
+			AccessKeySecret: "test-secret",
+			Model:           "m",
+			SmallFastModel:  "s",
+			BaseURL:         baseURL,
+		})
+		assert.Equal(t, baseURL, p.BaseURL())
+	})
+
+	t.Run("does_not_default_to_anthropic", func(t *testing.T) {
+		t.Parallel()
+
+		p := newTestBedrock(t, config.Anthropic{}, config.AWSBedrock{
+			Region:          "us-west-2",
+			AccessKey:       "test-key",
+			AccessKeySecret: "test-secret",
+			Model:           "m",
+			SmallFastModel:  "s",
+		})
+		assert.Empty(t, p.BaseURL())
+	})
 }

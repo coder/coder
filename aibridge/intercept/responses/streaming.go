@@ -51,11 +51,11 @@ func NewBedrockStreamingInterceptor(
 	reqPayload RequestPayload,
 	cfg intercept.Config,
 	cred intercept.Credential,
-	bedrock *bedrocksig.MantleConfig,
+	bedrockMantle *bedrocksig.MantleConfig,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingResponsesInterceptor {
-	return buildStreamingInterceptor(id, reqPayload, cfg, cred, bedrock, clientHeaders, tracer)
+	return buildStreamingInterceptor(id, reqPayload, cfg, cred, bedrockMantle, clientHeaders, tracer)
 }
 
 func buildStreamingInterceptor(
@@ -63,7 +63,7 @@ func buildStreamingInterceptor(
 	reqPayload RequestPayload,
 	cfg intercept.Config,
 	cred intercept.Credential,
-	bedrock *bedrocksig.MantleConfig,
+	bedrockMantle *bedrocksig.MantleConfig,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingResponsesInterceptor {
@@ -73,7 +73,7 @@ func buildStreamingInterceptor(
 			reqPayload:    reqPayload,
 			cfg:           cfg,
 			cred:          cred,
-			bedrock:       bedrock,
+			bedrockMantle: bedrockMantle,
 			clientHeaders: clientHeaders,
 			tracer:        tracer,
 		},
