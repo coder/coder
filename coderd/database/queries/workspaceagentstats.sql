@@ -13,10 +13,7 @@ INSERT INTO
 		rx_bytes,
 		tx_packets,
 		tx_bytes,
-		session_count_vscode,
-		session_count_jetbrains,
-		session_count_reconnecting_pty,
-		session_count_ssh,
+		session_counts,
 		connection_median_latency_ms,
 		usage
 	)
@@ -33,10 +30,7 @@ SELECT
 	unnest(@rx_bytes :: bigint[]) AS rx_bytes,
 	unnest(@tx_packets :: bigint[]) AS tx_packets,
 	unnest(@tx_bytes :: bigint[]) AS tx_bytes,
-	unnest(@session_count_vscode :: bigint[]) AS session_count_vscode,
-	unnest(@session_count_jetbrains :: bigint[]) AS session_count_jetbrains,
-	unnest(@session_count_reconnecting_pty :: bigint[]) AS session_count_reconnecting_pty,
-	unnest(@session_count_ssh :: bigint[]) AS session_count_ssh,
+	jsonb_array_elements(@session_counts :: jsonb) AS session_counts,
 	unnest(@connection_median_latency_ms :: double precision[]) AS connection_median_latency_ms,
 	unnest(@usage :: boolean[]) AS usage;
 
@@ -73,30 +67,27 @@ WHERE
 
 -- name: GetDeploymentWorkspaceAgentStats :one
 WITH stats AS (
-    SELECT
-        agent_id,
-        created_at,
-        rx_bytes,
-        tx_bytes,
-        connection_median_latency_ms,
-        session_count_vscode,
-        session_count_ssh,
-        session_count_jetbrains,
-        session_count_reconnecting_pty,
-        ROW_NUMBER() OVER (PARTITION BY agent_id ORDER BY created_at DESC) AS rn
-    FROM workspace_agent_stats
-    WHERE created_at > $1
+	SELECT
+		agent_id,
+		created_at,
+		rx_bytes,
+		tx_bytes,
+		connection_median_latency_ms,
+		session_counts,
+		ROW_NUMBER() OVER (PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+	FROM workspace_agent_stats
+	WHERE created_at > $1
 )
 SELECT
-    coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
-    coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
-	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-    coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_50,
-    coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_95,
-    coalesce(SUM(session_count_vscode) FILTER (WHERE rn = 1), 0)::bigint AS session_count_vscode,
-    coalesce(SUM(session_count_ssh) FILTER (WHERE rn = 1), 0)::bigint AS session_count_ssh,
-    coalesce(SUM(session_count_jetbrains) FILTER (WHERE rn = 1), 0)::bigint AS session_count_jetbrains,
-    coalesce(SUM(session_count_reconnecting_pty) FILTER (WHERE rn = 1), 0)::bigint AS session_count_reconnecting_pty
+	coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
+	coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
+	-- Positive latency values exclude legacy agents that do not report latency.
+	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_50,
+	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_95,
+	coalesce(SUM((session_counts ->> 'vscode')::bigint) FILTER (WHERE rn = 1), 0)::bigint AS session_count_vscode,
+	coalesce(SUM((session_counts ->> 'ssh')::bigint) FILTER (WHERE rn = 1), 0)::bigint AS session_count_ssh,
+	coalesce(SUM((session_counts ->> 'jetbrains')::bigint) FILTER (WHERE rn = 1), 0)::bigint AS session_count_jetbrains,
+	coalesce(SUM((session_counts ->> 'reconnecting_pty')::bigint) FILTER (WHERE rn = 1), 0)::bigint AS session_count_reconnecting_pty
 FROM stats;
 
 -- name: GetDeploymentWorkspaceAgentUsageStats :one
@@ -110,46 +101,36 @@ WITH agent_stats AS (
 	 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 		WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 ),
-minute_buckets AS (
+latest_minutes AS (
 	SELECT
 		agent_id,
-		date_trunc('minute', created_at) AS minute_bucket,
-		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
+		MAX(date_trunc('minute', created_at)) AS minute_bucket
 	FROM
 		workspace_agent_stats
 	WHERE
 		created_at >= $1
-		AND created_at < date_trunc('minute', now())  -- Exclude current partial minute
-		AND usage = true
+		-- Exclude the current partial minute.
+		AND created_at < date_trunc('minute', now())
+		AND usage
 	GROUP BY
-		agent_id,
-		minute_bucket
-),
-latest_buckets AS (
-	SELECT DISTINCT ON (agent_id)
-		agent_id,
-		minute_bucket,
-		session_count_vscode,
-		session_count_jetbrains,
-		session_count_reconnecting_pty,
-		session_count_ssh
-	FROM
-		minute_buckets
-	ORDER BY
-		agent_id,
-		minute_bucket DESC
+		agent_id
 ),
 latest_agent_stats AS (
-    SELECT
-		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
-    FROM
-        latest_buckets
+	SELECT
+		coalesce(SUM((stats.session_counts ->> 'vscode')::bigint), 0)::bigint AS session_count_vscode,
+		coalesce(SUM((stats.session_counts ->> 'ssh')::bigint), 0)::bigint AS session_count_ssh,
+		coalesce(SUM((stats.session_counts ->> 'jetbrains')::bigint), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM((stats.session_counts ->> 'reconnecting_pty')::bigint), 0)::bigint AS session_count_reconnecting_pty
+	FROM
+		latest_minutes
+	JOIN
+		workspace_agent_stats AS stats
+	ON
+		stats.agent_id = latest_minutes.agent_id
+		AND stats.created_at >= $1
+		AND stats.created_at >= latest_minutes.minute_bucket
+		AND stats.created_at < latest_minutes.minute_bucket + '1 minute'::interval
+		AND stats.usage
 )
 SELECT * FROM agent_stats, latest_agent_stats;
 
@@ -172,85 +153,74 @@ WITH agent_stats AS (
 ), latest_agent_stats AS (
 	SELECT
 		a.agent_id,
-		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
+		coalesce(SUM((a.session_counts ->> 'vscode')::bigint), 0)::bigint AS session_count_vscode,
+		coalesce(SUM((a.session_counts ->> 'ssh')::bigint), 0)::bigint AS session_count_ssh,
+		coalesce(SUM((a.session_counts ->> 'jetbrains')::bigint), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM((a.session_counts ->> 'reconnecting_pty')::bigint), 0)::bigint AS session_count_reconnecting_pty
 	 FROM (
 		SELECT *, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats WHERE created_at > $1
-	) AS a WHERE a.rn = 1 GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
+	) AS a
+	WHERE a.rn = 1
+	GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
 )
 SELECT * FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id;
 
 -- name: GetWorkspaceAgentUsageStats :many
-WITH agent_stats AS (
+WITH stats AS (
 	SELECT
 		user_id,
 		agent_id,
 		workspace_id,
 		template_id,
-		MIN(created_at)::timestamptz AS aggregated_from,
-		coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
-		coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
-		coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
-		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
+		created_at,
+		rx_bytes,
+		tx_bytes,
+		connection_median_latency_ms,
+		usage,
+		session_counts,
+		MAX(date_trunc('minute', created_at)) FILTER (
+			WHERE usage AND created_at < date_trunc('minute', now())
+		) OVER (PARTITION BY agent_id) AS latest_usage_minute
 	FROM workspace_agent_stats
-	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
-	GROUP BY user_id, agent_id, workspace_id, template_id
-),
-minute_buckets AS (
-	SELECT
-		agent_id,
-		date_trunc('minute', created_at) AS minute_bucket,
-		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
-	FROM
-		workspace_agent_stats
-	WHERE
-		created_at >= $1
-		AND created_at < date_trunc('minute', now())  -- Exclude current partial minute
-		AND usage = true
-	GROUP BY
-		agent_id,
-		minute_bucket,
-		user_id,
-		agent_id,
-		workspace_id,
-		template_id
-),
-latest_buckets AS (
-	SELECT DISTINCT ON (agent_id)
-		agent_id,
-		session_count_vscode,
-		session_count_ssh,
-		session_count_jetbrains,
-		session_count_reconnecting_pty
-	FROM
-		minute_buckets
-	ORDER BY
-		agent_id,
-		minute_bucket DESC
+	WHERE created_at >= $1
 )
-SELECT user_id,
-agent_stats.agent_id,
-workspace_id,
-template_id,
-aggregated_from,
-workspace_rx_bytes,
-workspace_tx_bytes,
-workspace_connection_latency_50,
-workspace_connection_latency_95,
--- `minute_buckets` could return 0 rows if there are no usage stats since `created_at`.
-coalesce(latest_buckets.agent_id,agent_stats.agent_id) AS agent_id,
-coalesce(session_count_vscode, 0)::bigint AS session_count_vscode,
-coalesce(session_count_ssh, 0)::bigint AS session_count_ssh,
-coalesce(session_count_jetbrains, 0)::bigint AS session_count_jetbrains,
-coalesce(session_count_reconnecting_pty, 0)::bigint AS session_count_reconnecting_pty
-FROM agent_stats LEFT JOIN latest_buckets ON agent_stats.agent_id = latest_buckets.agent_id;
+SELECT
+	user_id,
+	agent_id,
+	workspace_id,
+	template_id,
+	MIN(created_at) FILTER (
+		WHERE created_at > $1 AND connection_median_latency_ms > 0
+	)::timestamptz AS aggregated_from,
+	coalesce(SUM(rx_bytes) FILTER (
+		WHERE created_at > $1 AND connection_median_latency_ms > 0
+	), 0)::bigint AS workspace_rx_bytes,
+	coalesce(SUM(tx_bytes) FILTER (
+		WHERE created_at > $1 AND connection_median_latency_ms > 0
+	), 0)::bigint AS workspace_tx_bytes,
+	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (
+		WHERE created_at > $1 AND connection_median_latency_ms > 0
+	)), -1)::FLOAT AS workspace_connection_latency_50,
+	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (
+		WHERE created_at > $1 AND connection_median_latency_ms > 0
+	)), -1)::FLOAT AS workspace_connection_latency_95,
+	agent_id,
+	coalesce(SUM((session_counts ->> 'vscode')::bigint) FILTER (
+		WHERE usage AND date_trunc('minute', created_at) = latest_usage_minute
+	), 0)::bigint AS session_count_vscode,
+	coalesce(SUM((session_counts ->> 'ssh')::bigint) FILTER (
+		WHERE usage AND date_trunc('minute', created_at) = latest_usage_minute
+	), 0)::bigint AS session_count_ssh,
+	coalesce(SUM((session_counts ->> 'jetbrains')::bigint) FILTER (
+		WHERE usage AND date_trunc('minute', created_at) = latest_usage_minute
+	), 0)::bigint AS session_count_jetbrains,
+	coalesce(SUM((session_counts ->> 'reconnecting_pty')::bigint) FILTER (
+		WHERE usage AND date_trunc('minute', created_at) = latest_usage_minute
+	), 0)::bigint AS session_count_reconnecting_pty
+FROM stats
+GROUP BY user_id, agent_id, workspace_id, template_id
+HAVING BOOL_OR(created_at > $1 AND connection_median_latency_ms > 0);
 
 -- name: GetWorkspaceAgentStatsAndLabels :many
 WITH agent_stats AS (
@@ -266,12 +236,12 @@ WITH agent_stats AS (
 ), latest_agent_stats AS (
 	SELECT
 		a.agent_id,
-		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
-		coalesce(SUM(connection_count), 0)::bigint AS connection_count,
-		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
+		coalesce(SUM((a.session_counts ->> 'vscode')::bigint), 0)::bigint AS session_count_vscode,
+		coalesce(SUM((a.session_counts ->> 'ssh')::bigint), 0)::bigint AS session_count_ssh,
+		coalesce(SUM((a.session_counts ->> 'jetbrains')::bigint), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM((a.session_counts ->> 'reconnecting_pty')::bigint), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM(a.connection_count), 0)::bigint AS connection_count,
+		coalesce(MAX(a.connection_median_latency_ms), 0)::float AS connection_median_latency_ms
 	 FROM (
 		SELECT *, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats
@@ -320,15 +290,15 @@ WITH agent_stats AS (
 ), latest_agent_stats AS (
 	SELECT
 		agent_id,
-		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
-		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
-		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM((session_counts ->> 'vscode')::bigint), 0)::bigint AS session_count_vscode,
+		coalesce(SUM((session_counts ->> 'ssh')::bigint), 0)::bigint AS session_count_ssh,
+		coalesce(SUM((session_counts ->> 'jetbrains')::bigint), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM((session_counts ->> 'reconnecting_pty')::bigint), 0)::bigint AS session_count_reconnecting_pty,
 		coalesce(SUM(connection_count), 0)::bigint AS connection_count
 	FROM workspace_agent_stats
 	-- We only want the latest stats, but those stats might be
 	-- spread across multiple rows.
-	WHERE usage = true AND created_at > now() - '1 minute'::interval
+	WHERE usage AND created_at > now() - '1 minute'::interval
 	GROUP BY user_id, agent_id, workspace_id
 )
 SELECT

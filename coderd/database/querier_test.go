@@ -59,14 +59,12 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 			TxBytes:                   1,
 			RxBytes:                   1,
 			ConnectionMedianLatencyMS: 1,
-			SessionCountVSCode:        1,
-		})
+		}, map[string]int64{"vscode": 1})
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
 			TxBytes:                   1,
 			RxBytes:                   1,
 			ConnectionMedianLatencyMS: 2,
-			SessionCountVSCode:        1,
-		})
+		}, map[string]int64{"vscode": 1})
 		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, dbtime.Now().Add(-time.Hour))
 		require.NoError(t, err)
 
@@ -93,8 +91,7 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 			TxBytes:                   1,
 			RxBytes:                   1,
 			ConnectionMedianLatencyMS: 1,
-			SessionCountVSCode:        1,
-		})
+		}, map[string]int64{"vscode": 1})
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
 			// Ensure this stat is newer!
 			CreatedAt:                 insertTime,
@@ -102,8 +99,7 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 			TxBytes:                   1,
 			RxBytes:                   1,
 			ConnectionMedianLatencyMS: 2,
-			SessionCountVSCode:        1,
-		})
+		}, map[string]int64{"vscode": 1})
 		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, dbtime.Now().Add(-time.Hour))
 		require.NoError(t, err)
 
@@ -136,22 +132,17 @@ func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
 			TxBytes:                   1,
 			RxBytes:                   1,
 			ConnectionMedianLatencyMS: 1,
-			// Should be ignored
-			SessionCountSSH:    4,
-			SessionCountVSCode: 3,
-		})
+		}, map[string]int64{"ssh": 4, "vscode": 3}) // Should be ignored.
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			CreatedAt:          insertTime.Add(-time.Minute),
-			AgentID:            agentID,
-			SessionCountVSCode: 1,
-			Usage:              true,
-		})
+			CreatedAt: insertTime.Add(-time.Minute),
+			AgentID:   agentID,
+			Usage:     true,
+		}, map[string]int64{"vscode": 1})
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			CreatedAt:                   insertTime.Add(-time.Minute),
-			AgentID:                     agentID,
-			SessionCountReconnectingPTY: 1,
-			Usage:                       true,
-		})
+			CreatedAt: insertTime.Add(-time.Minute),
+			AgentID:   agentID,
+			Usage:     true,
+		}, map[string]int64{"reconnecting_pty": 1})
 
 		// Latest stats
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
@@ -160,22 +151,17 @@ func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
 			TxBytes:                   1,
 			RxBytes:                   1,
 			ConnectionMedianLatencyMS: 2,
-			// Should be ignored
-			SessionCountSSH:    3,
-			SessionCountVSCode: 1,
-		})
+		}, map[string]int64{"ssh": 3, "vscode": 1}) // Should be ignored.
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			CreatedAt:          insertTime,
-			AgentID:            agentID,
-			SessionCountVSCode: 1,
-			Usage:              true,
-		})
+			CreatedAt: insertTime,
+			AgentID:   agentID,
+			Usage:     true,
+		}, map[string]int64{"vscode": 1})
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			CreatedAt:       insertTime,
-			AgentID:         agentID,
-			SessionCountSSH: 1,
-			Usage:           true,
-		})
+			CreatedAt: insertTime,
+			AgentID:   agentID,
+			Usage:     true,
+		}, map[string]int64{"ssh": 1})
 
 		stats, err := db.GetDeploymentWorkspaceAgentUsageStats(ctx, dbtime.Now().Add(-time.Hour))
 		require.NoError(t, err)
@@ -188,6 +174,34 @@ func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
 		require.Equal(t, int64(1), stats.SessionCountSSH)
 		require.Equal(t, int64(0), stats.SessionCountReconnectingPTY)
 		require.Equal(t, int64(0), stats.SessionCountJetBrains)
+	})
+
+	t.Run("ExcludesStatsBeforeCutoffInSameMinute", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		authz := rbac.NewAuthorizer(prometheus.NewRegistry())
+		db = dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+		ctx := context.Background()
+		agentID := uuid.New()
+		minute := dbtime.Now().Add(-2 * time.Minute).Truncate(time.Minute)
+		cutoff := minute.Add(30 * time.Second)
+
+		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+			CreatedAt: minute.Add(10 * time.Second),
+			AgentID:   agentID,
+			Usage:     true,
+		}, map[string]int64{"vscode": 4})
+		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+			CreatedAt: minute.Add(40 * time.Second),
+			AgentID:   agentID,
+			Usage:     true,
+		}, map[string]int64{"ssh": 1})
+
+		stats, err := db.GetDeploymentWorkspaceAgentUsageStats(ctx, cutoff)
+		require.NoError(t, err)
+		require.Zero(t, stats.SessionCountVSCode)
+		require.Equal(t, int64(1), stats.SessionCountSSH)
 	})
 
 	t.Run("NoUsage", func(t *testing.T) {
@@ -207,10 +221,7 @@ func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
 			TxBytes:                   3,
 			RxBytes:                   4,
 			ConnectionMedianLatencyMS: 2,
-			// Should be ignored
-			SessionCountSSH:    3,
-			SessionCountVSCode: 1,
-		})
+		}, map[string]int64{"ssh": 3, "vscode": 1}) // Should be ignored.
 
 		stats, err := db.GetDeploymentWorkspaceAgentUsageStats(ctx, dbtime.Now().Add(-time.Hour))
 		require.NoError(t, err)
@@ -710,6 +721,62 @@ func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
 	})
 }
 
+func TestGetTemplateInsightsByTemplate(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+	startTime := dbtime.Now().Add(-10 * time.Minute).Truncate(time.Minute)
+	endTime := startTime.Add(2 * time.Minute)
+
+	insertStat := func(offset time.Duration, templateID, userID, workspaceID uuid.UUID, connections int64, counts map[string]int64) {
+		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+			CreatedAt:       startTime.Add(offset),
+			TemplateID:      templateID,
+			UserID:          userID,
+			WorkspaceID:     workspaceID,
+			AgentID:         uuid.New(),
+			ConnectionCount: connections,
+		}, counts)
+	}
+
+	templateID := uuid.New()
+	userID := uuid.New()
+	workspaceID := uuid.New()
+	otherWorkspaceID := uuid.New()
+
+	// Activity is deduplicated by user and minute.
+	insertStat(5*time.Second, templateID, userID, workspaceID, 1, map[string]int64{"ssh": 1, "vscode": 1})
+	insertStat(20*time.Second, templateID, userID, workspaceID, 0, map[string]int64{"jetbrains": 1, "vscode": 1})
+	insertStat(40*time.Second, templateID, userID, otherWorkspaceID, 0, map[string]int64{"reconnecting_pty": 1, "vscode": 1})
+	insertStat(time.Minute+5*time.Second, templateID, userID, otherWorkspaceID, 1, map[string]int64{"ssh": 1, "vscode": 1})
+
+	// Unknown apps do not contribute activity or active users.
+	insertStat(10*time.Second, templateID, uuid.New(), uuid.New(), 1, map[string]int64{"unknown": 1})
+
+	// Unknown activity cannot supply a connection for known activity.
+	noKnownConnectionTemplateID := uuid.New()
+	noKnownConnectionUserID := uuid.New()
+	insertStat(15*time.Second, noKnownConnectionTemplateID, noKnownConnectionUserID, uuid.New(), 0, map[string]int64{"vscode": 1})
+	insertStat(30*time.Second, noKnownConnectionTemplateID, noKnownConnectionUserID, uuid.New(), 1, map[string]int64{"unknown": 1})
+
+	insights, err := db.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{
+		StartTime: startTime,
+		EndTime:   endTime,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []database.GetTemplateInsightsByTemplateRow{
+		{
+			TemplateID:                  templateID,
+			ActiveUsers:                 1,
+			UsageVscodeSeconds:          120,
+			UsageJetbrainsSeconds:       60,
+			UsageReconnectingPtySeconds: 60,
+			UsageSshSeconds:             120,
+		},
+	}, insights)
+}
+
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 	t.Parallel()
 
@@ -742,19 +809,15 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 			TxBytes:                   1,
 			RxBytes:                   1,
 			ConnectionMedianLatencyMS: 1,
-			// Should be ignored
-			SessionCountVSCode: 3,
-			SessionCountSSH:    1,
-		})
+		}, map[string]int64{"vscode": 3, "ssh": 1}) // Should be ignored.
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			CreatedAt:          insertTime.Add(-time.Minute),
-			AgentID:            agentID1,
-			WorkspaceID:        workspaceID1,
-			TemplateID:         templateID1,
-			UserID:             userID1,
-			SessionCountVSCode: 1,
-			Usage:              true,
-		})
+			CreatedAt:   insertTime.Add(-time.Minute),
+			AgentID:     agentID1,
+			WorkspaceID: workspaceID1,
+			TemplateID:  templateID1,
+			UserID:      userID1,
+			Usage:       true,
+		}, map[string]int64{"vscode": 1})
 
 		// Latest workspace 1 stats
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
@@ -766,28 +829,23 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 			TxBytes:                   2,
 			RxBytes:                   2,
 			ConnectionMedianLatencyMS: 1,
-			// Should be ignored
-			SessionCountVSCode: 3,
-			SessionCountSSH:    4,
-		})
+		}, map[string]int64{"vscode": 3, "ssh": 4}) // Should be ignored.
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			CreatedAt:          insertTime,
-			AgentID:            agentID1,
-			WorkspaceID:        workspaceID1,
-			TemplateID:         templateID1,
-			UserID:             userID1,
-			SessionCountVSCode: 1,
-			Usage:              true,
-		})
+			CreatedAt:   insertTime,
+			AgentID:     agentID1,
+			WorkspaceID: workspaceID1,
+			TemplateID:  templateID1,
+			UserID:      userID1,
+			Usage:       true,
+		}, map[string]int64{"vscode": 1})
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			CreatedAt:             insertTime,
-			AgentID:               agentID1,
-			WorkspaceID:           workspaceID1,
-			TemplateID:            templateID1,
-			UserID:                userID1,
-			SessionCountJetBrains: 1,
-			Usage:                 true,
-		})
+			CreatedAt:   insertTime,
+			AgentID:     agentID1,
+			WorkspaceID: workspaceID1,
+			TemplateID:  templateID1,
+			UserID:      userID1,
+			Usage:       true,
+		}, map[string]int64{"jetbrains": 1})
 
 		// Latest workspace 2 stats
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
@@ -809,28 +867,23 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 			TxBytes:                   2,
 			RxBytes:                   3,
 			ConnectionMedianLatencyMS: 1,
-			// Should be ignored
-			SessionCountVSCode: 3,
-			SessionCountSSH:    4,
-		})
+		}, map[string]int64{"vscode": 3, "ssh": 4}) // Should be ignored.
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			CreatedAt:       insertTime,
-			AgentID:         agentID2,
-			WorkspaceID:     workspaceID2,
-			TemplateID:      templateID2,
-			UserID:          userID2,
-			SessionCountSSH: 1,
-			Usage:           true,
-		})
+			CreatedAt:   insertTime,
+			AgentID:     agentID2,
+			WorkspaceID: workspaceID2,
+			TemplateID:  templateID2,
+			UserID:      userID2,
+			Usage:       true,
+		}, map[string]int64{"ssh": 1})
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			CreatedAt:             insertTime,
-			AgentID:               agentID2,
-			WorkspaceID:           workspaceID2,
-			TemplateID:            templateID2,
-			UserID:                userID2,
-			SessionCountJetBrains: 1,
-			Usage:                 true,
-		})
+			CreatedAt:   insertTime,
+			AgentID:     agentID2,
+			WorkspaceID: workspaceID2,
+			TemplateID:  templateID2,
+			UserID:      userID2,
+			Usage:       true,
+		}, map[string]int64{"jetbrains": 1})
 
 		reqTime := dbtime.Now().Add(-time.Hour)
 		stats, err := db.GetWorkspaceAgentUsageStats(ctx, reqTime)
@@ -873,10 +926,7 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 			TxBytes:                   3,
 			RxBytes:                   4,
 			ConnectionMedianLatencyMS: 2,
-			// Should be ignored
-			SessionCountSSH:    3,
-			SessionCountVSCode: 1,
-		})
+		}, map[string]int64{"ssh": 3, "vscode": 1}) // Should be ignored.
 
 		stats, err := db.GetWorkspaceAgentUsageStats(ctx, dbtime.Now().Add(-time.Hour))
 		require.NoError(t, err)
@@ -1040,19 +1090,15 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 			TxBytes:                   1,
 			RxBytes:                   1,
 			ConnectionMedianLatencyMS: 1,
-			// Should be ignored
-			SessionCountVSCode: 3,
-			SessionCountSSH:    1,
-		})
+		}, map[string]int64{"vscode": 3, "ssh": 1}) // Should be ignored.
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			CreatedAt:          insertTime.Add(-time.Minute),
-			AgentID:            agent1.ID,
-			WorkspaceID:        workspace1.ID,
-			TemplateID:         template1.ID,
-			UserID:             user1.ID,
-			SessionCountVSCode: 1,
-			Usage:              true,
-		})
+			CreatedAt:   insertTime.Add(-time.Minute),
+			AgentID:     agent1.ID,
+			WorkspaceID: workspace1.ID,
+			TemplateID:  template1.ID,
+			UserID:      user1.ID,
+			Usage:       true,
+		}, map[string]int64{"vscode": 1})
 
 		// Latest workspace 1 stats
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
@@ -1064,28 +1110,23 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 			TxBytes:                   2,
 			RxBytes:                   2,
 			ConnectionMedianLatencyMS: 1,
-			// Should be ignored
-			SessionCountVSCode: 4,
-			SessionCountSSH:    3,
-		})
+		}, map[string]int64{"vscode": 4, "ssh": 3}) // Should be ignored.
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			CreatedAt:             insertTime,
-			AgentID:               agent1.ID,
-			WorkspaceID:           workspace1.ID,
-			TemplateID:            template1.ID,
-			UserID:                user1.ID,
-			SessionCountJetBrains: 1,
-			Usage:                 true,
-		})
+			CreatedAt:   insertTime,
+			AgentID:     agent1.ID,
+			WorkspaceID: workspace1.ID,
+			TemplateID:  template1.ID,
+			UserID:      user1.ID,
+			Usage:       true,
+		}, map[string]int64{"jetbrains": 1})
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			CreatedAt:                   insertTime,
-			AgentID:                     agent1.ID,
-			WorkspaceID:                 workspace1.ID,
-			TemplateID:                  template1.ID,
-			UserID:                      user1.ID,
-			SessionCountReconnectingPTY: 1,
-			Usage:                       true,
-		})
+			CreatedAt:   insertTime,
+			AgentID:     agent1.ID,
+			WorkspaceID: workspace1.ID,
+			TemplateID:  template1.ID,
+			UserID:      user1.ID,
+			Usage:       true,
+		}, map[string]int64{"reconnecting_pty": 1})
 
 		// Latest workspace 2 stats
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
@@ -1099,23 +1140,21 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 			ConnectionMedianLatencyMS: 1,
 		})
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			CreatedAt:          insertTime,
-			AgentID:            agent2.ID,
-			WorkspaceID:        workspace2.ID,
-			TemplateID:         template2.ID,
-			UserID:             user2.ID,
-			SessionCountVSCode: 1,
-			Usage:              true,
-		})
+			CreatedAt:   insertTime,
+			AgentID:     agent2.ID,
+			WorkspaceID: workspace2.ID,
+			TemplateID:  template2.ID,
+			UserID:      user2.ID,
+			Usage:       true,
+		}, map[string]int64{"vscode": 1})
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-			CreatedAt:       insertTime,
-			AgentID:         agent2.ID,
-			WorkspaceID:     workspace2.ID,
-			TemplateID:      template2.ID,
-			UserID:          user2.ID,
-			SessionCountSSH: 1,
-			Usage:           true,
-		})
+			CreatedAt:   insertTime,
+			AgentID:     agent2.ID,
+			WorkspaceID: workspace2.ID,
+			TemplateID:  template2.ID,
+			UserID:      user2.ID,
+			Usage:       true,
+		}, map[string]int64{"ssh": 1})
 
 		stats, err := db.GetWorkspaceAgentUsageStatsAndLabels(ctx, insertTime.Add(-time.Hour))
 		require.NoError(t, err)
@@ -1181,10 +1220,7 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 			RxBytes:                   4,
 			TxBytes:                   5,
 			ConnectionMedianLatencyMS: 1,
-			// Should be ignored
-			SessionCountVSCode: 3,
-			SessionCountSSH:    1,
-		})
+		}, map[string]int64{"vscode": 3, "ssh": 1}) // Should be ignored.
 
 		stats, err := db.GetWorkspaceAgentUsageStatsAndLabels(ctx, insertTime.Add(-time.Hour))
 		require.NoError(t, err)
