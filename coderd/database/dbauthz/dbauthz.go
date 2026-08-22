@@ -3797,6 +3797,20 @@ func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetC
 	return q.db.GetAuthorizedConnectionLogsOffset(ctx, arg, prep)
 }
 
+func (q *querier) GetCredentialAPIKeyByID(ctx context.Context, id uuid.UUID) (database.CredentialApiKey, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.CredentialApiKey{}, err
+	}
+	return q.db.GetCredentialAPIKeyByID(ctx, id)
+}
+
+func (q *querier) GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, entryID int64) ([]database.CredentialLifecycleJournalApiKey, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetCredentialLifecycleJournalAPIKeyLines(ctx, entryID)
+}
+
 func (q *querier) GetCredentialLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.CredentialLifecycleLedger, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.CredentialLifecycleLedger{}, err
@@ -6301,6 +6315,20 @@ func (q *querier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg da
 	}
 	_ = chat
 	return q.db.InsertChatQueuedMessageWithCreator(ctx, arg)
+}
+
+func (q *querier) InsertCredentialAPIKey(ctx context.Context, arg database.InsertCredentialAPIKeyParams) (database.CredentialApiKey, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.CredentialApiKey{}, err
+	}
+	return q.db.InsertCredentialAPIKey(ctx, arg)
+}
+
+func (q *querier) InsertCredentialLifecycleJournalAPIKeyLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalAPIKeyLineParams) (database.CredentialLifecycleJournalApiKey, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.CredentialLifecycleJournalApiKey{}, err
+	}
+	return q.db.InsertCredentialLifecycleJournalAPIKeyLine(ctx, arg)
 }
 
 func (q *querier) InsertCredentialLifecycleJournalEntry(ctx context.Context, arg database.InsertCredentialLifecycleJournalEntryParams) (database.CredentialLifecycleJournal, error) {

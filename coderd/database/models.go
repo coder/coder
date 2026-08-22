@@ -5490,6 +5490,16 @@ type ConnectionLog struct {
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
 }
 
+// What an api_key credential holds beyond what every credential holds. Keyed on the ledger row it belongs to, so the type discriminator on that row says this is the table to read.
+type CredentialApiKey struct {
+	ID uuid.UUID `db:"id" json:"id"`
+	// Hex of an unsalted SHA-256 digest, as for a password credential. The column is separate rather than shared because a type owns its own state, and two types holding a digest apiece is not one column held in common.
+	HashedSecret string       `db:"hashed_secret" json:"hashed_secret"`
+	TokenName    string       `db:"token_name" json:"token_name"`
+	Scopes       APIKeyScopes `db:"scopes" json:"scopes"`
+	AllowList    AllowList    `db:"allow_list" json:"allow_list"`
+}
+
 // Journal of persistent state changes to credentials, in the normalized form: this is the entry table. Line tables join to it as credential operations acquire parameters. One journal per entity: sharing one would assert that two lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.
 type CredentialLifecycleJournal struct {
 	// Identifies the entry. An entry may occupy several lines sharing this value, expressing an atomic group: rotation issues one credential and revokes another as a single event, so that no interval passes without a valid one.
@@ -5501,6 +5511,15 @@ type CredentialLifecycleJournal struct {
 	Actor         uuid.UUID `db:"actor" json:"actor"`
 	Event         string    `db:"event" json:"event"`
 	Subject       uuid.UUID `db:"subject" json:"subject"`
+}
+
+// Lines of the credential journal describing the issuance of an api_key credential. Line numbers are subordinate to the entry and start at zero, as in the denormalized form. With a second line table nothing would enforce that two of them do not claim the same number within one entry, which is a reconciliation rather than a constraint.
+type CredentialLifecycleJournalApiKey struct {
+	EntryID   int64        `db:"entry_id" json:"entry_id"`
+	Line      int16        `db:"line" json:"line"`
+	TokenName string       `db:"token_name" json:"token_name"`
+	Scopes    APIKeyScopes `db:"scopes" json:"scopes"`
+	AllowList AllowList    `db:"allow_list" json:"allow_list"`
 }
 
 // Current state of each credential. A credential is a means of exercising authority and not the authority itself: a grant stands whether or not one has been issued, and the two are reconciled against each other only because neither determines the other. Carries no creation time, the journal recording when.

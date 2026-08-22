@@ -418,8 +418,8 @@ func (s *MethodTestSuite) TestAPIKey() {
 	}))
 	s.Run("DeleteApplicationConnectAPIKeysByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		a := testutil.Fake(s.T(), faker, database.APIKey{Scopes: database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect}})
-		dbm.EXPECT().DeleteApplicationConnectAPIKeysByUserID(gomock.Any(), a.HolderID.AsUserIDUnchecked()).Return(nil).AnyTimes()
-		check.Args(a.HolderID.AsUserIDUnchecked()).Asserts(rbac.ResourceApiKey.WithOwner(a.HolderID.AsUserIDUnchecked().String()), policy.ActionDelete).Returns()
+		dbm.EXPECT().DeleteApplicationConnectAPIKeysByUserID(gomock.Any(), a.HolderID).Return(nil).AnyTimes()
+		check.Args(a.HolderID).Asserts(rbac.ResourceApiKey.WithOwner(a.HolderID.AsUserIDUnchecked().String()), policy.ActionDelete).Returns()
 	}))
 	s.Run("DeleteExternalAuthLink", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		a := testutil.Fake(s.T(), faker, database.ExternalAuthLink{})
@@ -3098,8 +3098,8 @@ func (s *MethodTestSuite) TestUser() {
 	}))
 	s.Run("DeleteAPIKeysByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		key := testutil.Fake(s.T(), faker, database.APIKey{})
-		dbm.EXPECT().DeleteAPIKeysByUserID(gomock.Any(), key.HolderID.AsUserIDUnchecked()).Return(nil).AnyTimes()
-		check.Args(key.HolderID.AsUserIDUnchecked()).Asserts(rbac.ResourceApiKey.WithOwner(key.HolderID.AsUserIDUnchecked().String()), policy.ActionDelete).Returns()
+		dbm.EXPECT().DeleteAPIKeysByUserID(gomock.Any(), key.HolderID).Return(nil).AnyTimes()
+		check.Args(key.HolderID).Asserts(rbac.ResourceApiKey.WithOwner(key.HolderID.AsUserIDUnchecked().String()), policy.ActionDelete).Returns()
 	}))
 	s.Run("ExpirePrebuildsAPIKeys", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Times(1).Return(nil)

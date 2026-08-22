@@ -34,6 +34,18 @@ sql:
           - ai
           - nats
         overrides:
+          - column: "credential_api_key.scopes"
+            go_type:
+              type: "APIKeyScopes"
+          - column: "credential_api_key.allow_list"
+            go_type:
+              type: "AllowList"
+          - column: "credential_lifecycle_journal_api_key.scopes"
+            go_type:
+              type: "APIKeyScopes"
+          - column: "credential_lifecycle_journal_api_key.allow_list"
+            go_type:
+              type: "AllowList"
           - column: "api_keys.holder_id"
             go_type:
               type: "HolderID"

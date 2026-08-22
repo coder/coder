@@ -596,6 +596,9 @@ type sqlcQuerier interface {
 	// at write time, not here.
 	GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
+	GetCredentialAPIKeyByID(ctx context.Context, id uuid.UUID) (CredentialApiKey, error)
+	// The api_key lines of one entry, in line order.
+	GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, entryID int64) ([]CredentialLifecycleJournalApiKey, error)
 	GetCredentialLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (CredentialLifecycleLedger, error)
 	GetCredentialPasswordByID(ctx context.Context, id uuid.UUID) (CredentialPassword, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
@@ -1216,6 +1219,12 @@ type sqlcQuerier interface {
 	// sequence) and an explicit created_by reference. Use this when the
 	// queued-message creator differs from the chat owner.
 	InsertChatQueuedMessageWithCreator(ctx context.Context, arg InsertChatQueuedMessageWithCreatorParams) (ChatQueuedMessage, error)
+	// The api_key type's own state, keyed on the ledger row it belongs to and
+	// written in the same transaction as it.
+	InsertCredentialAPIKey(ctx context.Context, arg InsertCredentialAPIKeyParams) (CredentialApiKey, error)
+	// What an issuance of an api_key credential carried. The entry says an issuance
+	// occurred; this says with what.
+	InsertCredentialLifecycleJournalAPIKeyLine(ctx context.Context, arg InsertCredentialLifecycleJournalAPIKeyLineParams) (CredentialLifecycleJournalApiKey, error)
 	// recording_date is absent from this statement on purpose: the column default
 	// supplies it, so no caller can supply, override, or backdate it.
 	InsertCredentialLifecycleJournalEntry(ctx context.Context, arg InsertCredentialLifecycleJournalEntryParams) (CredentialLifecycleJournal, error)

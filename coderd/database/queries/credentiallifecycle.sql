@@ -88,3 +88,38 @@ SET
 WHERE
 	id = $1
 	AND posting_reference = $3 RETURNING *;
+
+-- name: InsertCredentialAPIKey :one
+-- The api_key type's own state, keyed on the ledger row it belongs to and
+-- written in the same transaction as it.
+INSERT INTO
+	credential_api_key (id, hashed_secret, token_name, scopes, allow_list)
+VALUES
+	($1, $2, $3, $4, $5) RETURNING *;
+
+-- name: GetCredentialAPIKeyByID :one
+SELECT
+	*
+FROM
+	credential_api_key
+WHERE
+	id = $1;
+
+-- name: InsertCredentialLifecycleJournalAPIKeyLine :one
+-- What an issuance of an api_key credential carried. The entry says an issuance
+-- occurred; this says with what.
+INSERT INTO
+	credential_lifecycle_journal_api_key (entry_id, line, token_name, scopes, allow_list)
+VALUES
+	($1, $2, $3, $4, $5) RETURNING *;
+
+-- name: GetCredentialLifecycleJournalAPIKeyLines :many
+-- The api_key lines of one entry, in line order.
+SELECT
+	*
+FROM
+	credential_lifecycle_journal_api_key
+WHERE
+	entry_id = $1
+ORDER BY
+	line;

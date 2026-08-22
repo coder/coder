@@ -37,9 +37,14 @@ const (
 // of this type being issued outside a test. In production the type would be
 // compiled out, and its presence in a ledger would then be evidence of an
 // intrusion rather than of a credential.
+// CredentialTypeAPIKey holds the hex of a SHA-256 digest as a password does,
+// and beside it the capability the key confers: a token name, a set of scopes,
+// and an allow list. It is the first credential type whose issuance takes
+// parameters, and so the first to need a line in the journal.
 const (
 	CredentialTypePassword = "password"
 	CredentialTypeNull     = "null"
+	CredentialTypeAPIKey   = "api_key"
 )
 
 // Credential lifecycle events.
@@ -65,6 +70,31 @@ type IssueCredentialParams struct {
 
 	// EffectiveAt is when the issuance happened. Zero means now.
 	EffectiveAt time.Time
+
+	// APIKey carries what an api_key credential needs and no other type does.
+	// It must be present exactly when Type is CredentialTypeAPIKey: absent for
+	// that type there is nothing to issue, and present for another type it
+	// would be a parameter to an operation that does not take one.
+	APIKey *APIKeyCredential
+}
+
+// APIKeyCredential is the api_key type's own input to issuance.
+//
+// These are the particulars a line of the journal records, and they are also
+// what the ledger holds afterwards. Those are not the same statement: the line
+// says what the issuance carried, and the ledger says what the credential
+// currently is.
+type APIKeyCredential struct {
+	// TokenName is how the credential is found and revoked. It is unique per
+	// holder in the table this eventually mirrors into.
+	TokenName string
+
+	// Scopes and AllowList are the capability the key confers. They are
+	// capability rather than authorization, which is a different level: see
+	// "Capability becomes checkable against authorization" in
+	// poc_audit/rewrite_rbac.md.
+	Scopes    database.APIKeyScopes
+	AllowList database.AllowList
 }
 
 // IssuedCredential is what issuing produced.
@@ -107,8 +137,16 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 
 	var issued IssuedCredential
 	var stored string
+	// A type's own parameters are present exactly for that type. Absent where
+	// they are needed there is nothing to issue; present where they are not
+	// they parameterize an operation that takes none.
+	if (credentialType == CredentialTypeAPIKey) != (params.APIKey != nil) {
+		return IssuedCredential{}, xerrors.Errorf(
+			"credential type %q and the api_key parameters must be given together or not at all", credentialType)
+	}
+
 	switch credentialType {
-	case CredentialTypePassword:
+	case CredentialTypePassword, CredentialTypeAPIKey:
 		authenticator, err := cryptorand.String(authenticatorLength)
 		if err != nil {
 			return IssuedCredential{}, xerrors.Errorf("generate authenticator: %w", err)
@@ -120,6 +158,10 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 		// purpose, and verification never consults either.
 	default:
 		return IssuedCredential{}, xerrors.Errorf("credential type %q has no code able to validate it", credentialType)
+	}
+
+	if params.APIKey != nil && len(params.APIKey.AllowList) == 0 {
+		return IssuedCredential{}, xerrors.New("an api_key credential with an empty allow list confers nothing")
 	}
 
 	effective := params.EffectiveAt
@@ -166,12 +208,35 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 		// The type's own state, in the same transaction as the row it belongs
 		// to. A password credential whose digest is missing is one nothing can
 		// verify, so the two are written together or not at all.
-		if credentialType == CredentialTypePassword {
+		switch credentialType {
+		case CredentialTypePassword:
 			if _, err := tx.InsertCredentialPassword(ctx, database.InsertCredentialPasswordParams{
 				ID:                  issued.ID,
 				HashedAuthenticator: stored,
 			}); err != nil {
 				return xerrors.Errorf("post the password: %w", err)
+			}
+		case CredentialTypeAPIKey:
+			// The line first, then the row it posts to, for the same reason
+			// the entry precedes the ledger: the journal is the book of
+			// original entry. Line zero, this being the only line.
+			if _, err := tx.InsertCredentialLifecycleJournalAPIKeyLine(ctx, database.InsertCredentialLifecycleJournalAPIKeyLineParams{
+				EntryID:   entryID,
+				Line:      0,
+				TokenName: params.APIKey.TokenName,
+				Scopes:    params.APIKey.Scopes,
+				AllowList: params.APIKey.AllowList,
+			}); err != nil {
+				return xerrors.Errorf("append the api_key line: %w", err)
+			}
+			if _, err := tx.InsertCredentialAPIKey(ctx, database.InsertCredentialAPIKeyParams{
+				ID:           issued.ID,
+				HashedSecret: stored,
+				TokenName:    params.APIKey.TokenName,
+				Scopes:       params.APIKey.Scopes,
+				AllowList:    params.APIKey.AllowList,
+			}); err != nil {
+				return xerrors.Errorf("post the api_key: %w", err)
 			}
 		}
 		return nil
@@ -219,6 +284,18 @@ func VerifyCredential(ctx context.Context, store database.Store, holder Ref, pre
 		switch candidate.CredentialType {
 		case CredentialTypeNull:
 			matched = 1
+		case CredentialTypeAPIKey:
+			key, err := store.GetCredentialAPIKeyByID(ctx, candidate.ID)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					continue
+				}
+				return false, xerrors.Errorf("read the api_key credential: %w", err)
+			}
+			matched |= subtle.ConstantTimeCompare(
+				[]byte(key.HashedSecret),
+				[]byte(presentedDigest),
+			)
 		case CredentialTypePassword:
 			// The digest lives in the password type's own table, which the
 			// ledger row names by carrying its type. A ledger row of this type

@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/testutil"
@@ -184,5 +185,111 @@ func TestCredentials(t *testing.T) {
 
 		require.ErrorContains(t, entity.RevokeCredential(ctx, db, issued.ID, actor),
 			"already invalid", "invalid is terminal")
+	})
+}
+
+// The api_key type is the first whose issuance takes parameters, and so the
+// first to write a line. These check that the line and the ledger row are
+// written together and say the same thing, and that the type's parameters are
+// required exactly for it.
+func TestIssueAPIKeyCredential(t *testing.T) {
+	t.Parallel()
+
+	params := func(holder, actor entity.Ref) entity.IssueCredentialParams {
+		return entity.IssueCredentialParams{
+			Holder: holder,
+			Actor:  actor,
+			Type:   entity.CredentialTypeAPIKey,
+			APIKey: &entity.APIKeyCredential{
+				TokenName: "ai-ws-" + uuid.NewString(),
+				Scopes:    database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+				AllowList: database.AllowList{{Type: "workspace", ID: uuid.NewString()}},
+			},
+		}
+	}
+
+	t.Run("WritesALineAndALedgerRow", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		holder := entity.Ref{Type: entity.TypeAIAgent, ID: uuid.New()}
+		actor := entity.Ref{Type: entity.TypeUser, ID: uuid.New()}
+		in := params(holder, actor)
+
+		issued, err := entity.IssueCredential(ctx, db, in)
+		require.NoError(t, err)
+		require.NotEmpty(t, issued.Authenticator, "an api_key credential has a secret")
+
+		row, err := db.GetCredentialLifecycleLedgerRowByID(ctx, issued.ID)
+		require.NoError(t, err)
+		require.Equal(t, entity.CredentialTypeAPIKey, row.CredentialType)
+
+		key, err := db.GetCredentialAPIKeyByID(ctx, issued.ID)
+		require.NoError(t, err)
+		require.Equal(t, in.APIKey.TokenName, key.TokenName)
+		require.Equal(t, in.APIKey.Scopes, key.Scopes)
+		require.Equal(t, in.APIKey.AllowList, key.AllowList)
+		require.NotEqual(t, issued.Authenticator, key.HashedSecret,
+			"the ledger must not hold what was handed out")
+
+		// The line says what the issuance carried. It is a separate statement
+		// from the ledger row, which says what the credential now is, and here
+		// they agree because nothing has happened since.
+		lines, err := db.GetCredentialLifecycleJournalAPIKeyLines(ctx, row.PostingReference)
+		require.NoError(t, err)
+		require.Len(t, lines, 1, "one issuance carries one line")
+		require.EqualValues(t, 0, lines[0].Line, "the only line of an entry is line zero")
+		require.Equal(t, in.APIKey.TokenName, lines[0].TokenName)
+		require.Equal(t, in.APIKey.Scopes, lines[0].Scopes)
+		require.Equal(t, in.APIKey.AllowList, lines[0].AllowList)
+	})
+
+	t.Run("VerifiesItsOwnSecret", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		holder := entity.Ref{Type: entity.TypeAIAgent, ID: uuid.New()}
+		actor := entity.Ref{Type: entity.TypeUser, ID: uuid.New()}
+
+		issued, err := entity.IssueCredential(ctx, db, params(holder, actor))
+		require.NoError(t, err)
+
+		ok, err := entity.VerifyCredential(ctx, db, holder, issued.Authenticator)
+		require.NoError(t, err)
+		require.True(t, ok, "the secret handed back should verify")
+
+		ok, err = entity.VerifyCredential(ctx, db, holder, "not-the-secret")
+		require.NoError(t, err)
+		require.False(t, ok, "another secret should not")
+	})
+
+	t.Run("ParametersAreRequiredExactlyForTheType", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		holder := entity.Ref{Type: entity.TypeAIAgent, ID: uuid.New()}
+		actor := entity.Ref{Type: entity.TypeUser, ID: uuid.New()}
+
+		bare := entity.IssueCredentialParams{Holder: holder, Actor: actor, Type: entity.CredentialTypeAPIKey}
+		_, err := entity.IssueCredential(ctx, db, bare)
+		require.ErrorContains(t, err, "given together or not at all",
+			"an api_key credential without its parameters issues nothing")
+
+		wrongType := params(holder, actor)
+		wrongType.Type = entity.CredentialTypePassword
+		_, err = entity.IssueCredential(ctx, db, wrongType)
+		require.ErrorContains(t, err, "given together or not at all",
+			"parameters for a type that does not take them are refused")
+
+		empty := params(holder, actor)
+		empty.APIKey.AllowList = database.AllowList{}
+		_, err = entity.IssueCredential(ctx, db, empty)
+		require.ErrorContains(t, err, "confers nothing")
 	})
 }

@@ -2462,6 +2462,19 @@ COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection wa
 
 COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
 
+CREATE TABLE credential_api_key (
+    id uuid NOT NULL,
+    hashed_secret text NOT NULL,
+    token_name text NOT NULL,
+    scopes api_key_scope[] NOT NULL,
+    allow_list text[] NOT NULL,
+    CONSTRAINT credential_api_key_allow_list_not_empty CHECK ((array_length(allow_list, 1) > 0))
+);
+
+COMMENT ON TABLE credential_api_key IS 'What an api_key credential holds beyond what every credential holds. Keyed on the ledger row it belongs to, so the type discriminator on that row says this is the table to read.';
+
+COMMENT ON COLUMN credential_api_key.hashed_secret IS 'Hex of an unsalted SHA-256 digest, as for a password credential. The column is separate rather than shared because a type owns its own state, and two types holding a digest apiece is not one column held in common.';
+
 CREATE TABLE credential_lifecycle_journal (
     entry_id bigint NOT NULL,
     recording_date timestamp with time zone DEFAULT now() NOT NULL,
@@ -2477,6 +2490,17 @@ COMMENT ON TABLE credential_lifecycle_journal IS 'Journal of persistent state ch
 COMMENT ON COLUMN credential_lifecycle_journal.entry_id IS 'Identifies the entry. An entry may occupy several lines sharing this value, expressing an atomic group: rotation issues one credential and revokes another as a single event, so that no interval passes without a valid one.';
 
 COMMENT ON COLUMN credential_lifecycle_journal.effective_date IS 'When the event occurred. For an expiry this is the expiry time and not the moment a sweep noticed, so an entry written late records the same fact at the same moment. It is the earlier of the event time and the recording time, which keeps it from ever claiming the journal foresaw something.';
+
+CREATE TABLE credential_lifecycle_journal_api_key (
+    entry_id bigint NOT NULL,
+    line smallint NOT NULL,
+    token_name text NOT NULL,
+    scopes api_key_scope[] NOT NULL,
+    allow_list text[] NOT NULL,
+    CONSTRAINT credential_lifecycle_journal_api_key_line_non_negative CHECK ((line >= 0))
+);
+
+COMMENT ON TABLE credential_lifecycle_journal_api_key IS 'Lines of the credential journal describing the issuance of an api_key credential. Line numbers are subordinate to the entry and start at zero, as in the denormalized form. With a second line table nothing would enforce that two of them do not claim the same number within one entry, which is a reconciliation rather than a constraint.';
 
 CREATE SEQUENCE credential_lifecycle_journal_entry_seq
     START WITH 1
@@ -4621,6 +4645,12 @@ ALTER TABLE ONLY chats
 ALTER TABLE ONLY connection_logs
     ADD CONSTRAINT connection_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY credential_api_key
+    ADD CONSTRAINT credential_api_key_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY credential_lifecycle_journal_api_key
+    ADD CONSTRAINT credential_lifecycle_journal_api_key_pkey PRIMARY KEY (entry_id, line);
+
 ALTER TABLE ONLY credential_lifecycle_journal
     ADD CONSTRAINT credential_lifecycle_journal_pkey PRIMARY KEY (entry_id);
 
@@ -5574,6 +5604,12 @@ ALTER TABLE ONLY connection_logs
 
 ALTER TABLE ONLY connection_logs
     ADD CONSTRAINT connection_logs_workspace_owner_id_fkey FOREIGN KEY (workspace_owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY credential_api_key
+    ADD CONSTRAINT credential_api_key_id_fkey FOREIGN KEY (id) REFERENCES credential_lifecycle_ledger(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY credential_lifecycle_journal_api_key
+    ADD CONSTRAINT credential_lifecycle_journal_api_key_entry_fkey FOREIGN KEY (entry_id) REFERENCES credential_lifecycle_journal(entry_id);
 
 ALTER TABLE ONLY credential_password
     ADD CONSTRAINT credential_password_id_fkey FOREIGN KEY (id) REFERENCES credential_lifecycle_ledger(id) ON DELETE CASCADE;

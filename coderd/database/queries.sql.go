@@ -15106,6 +15106,69 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 	return items, nil
 }
 
+const getCredentialAPIKeyByID = `-- name: GetCredentialAPIKeyByID :one
+SELECT
+	id, hashed_secret, token_name, scopes, allow_list
+FROM
+	credential_api_key
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) GetCredentialAPIKeyByID(ctx context.Context, id uuid.UUID) (CredentialApiKey, error) {
+	row := q.db.QueryRowContext(ctx, getCredentialAPIKeyByID, id)
+	var i CredentialApiKey
+	err := row.Scan(
+		&i.ID,
+		&i.HashedSecret,
+		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
+	)
+	return i, err
+}
+
+const getCredentialLifecycleJournalAPIKeyLines = `-- name: GetCredentialLifecycleJournalAPIKeyLines :many
+SELECT
+	entry_id, line, token_name, scopes, allow_list
+FROM
+	credential_lifecycle_journal_api_key
+WHERE
+	entry_id = $1
+ORDER BY
+	line
+`
+
+// The api_key lines of one entry, in line order.
+func (q *sqlQuerier) GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, entryID int64) ([]CredentialLifecycleJournalApiKey, error) {
+	rows, err := q.db.QueryContext(ctx, getCredentialLifecycleJournalAPIKeyLines, entryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CredentialLifecycleJournalApiKey
+	for rows.Next() {
+		var i CredentialLifecycleJournalApiKey
+		if err := rows.Scan(
+			&i.EntryID,
+			&i.Line,
+			&i.TokenName,
+			&i.Scopes,
+			&i.AllowList,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getCredentialLifecycleLedgerRowByID = `-- name: GetCredentialLifecycleLedgerRowByID :one
 SELECT
 	id, holder_type, holder_id, credential_type, state, expires_at, posting_reference
@@ -15200,6 +15263,78 @@ func (q *sqlQuerier) GetValidCredentialsByHolder(ctx context.Context, arg GetVal
 		return nil, err
 	}
 	return items, nil
+}
+
+const insertCredentialAPIKey = `-- name: InsertCredentialAPIKey :one
+INSERT INTO
+	credential_api_key (id, hashed_secret, token_name, scopes, allow_list)
+VALUES
+	($1, $2, $3, $4, $5) RETURNING id, hashed_secret, token_name, scopes, allow_list
+`
+
+type InsertCredentialAPIKeyParams struct {
+	ID           uuid.UUID    `db:"id" json:"id"`
+	HashedSecret string       `db:"hashed_secret" json:"hashed_secret"`
+	TokenName    string       `db:"token_name" json:"token_name"`
+	Scopes       APIKeyScopes `db:"scopes" json:"scopes"`
+	AllowList    AllowList    `db:"allow_list" json:"allow_list"`
+}
+
+// The api_key type's own state, keyed on the ledger row it belongs to and
+// written in the same transaction as it.
+func (q *sqlQuerier) InsertCredentialAPIKey(ctx context.Context, arg InsertCredentialAPIKeyParams) (CredentialApiKey, error) {
+	row := q.db.QueryRowContext(ctx, insertCredentialAPIKey,
+		arg.ID,
+		arg.HashedSecret,
+		arg.TokenName,
+		arg.Scopes,
+		arg.AllowList,
+	)
+	var i CredentialApiKey
+	err := row.Scan(
+		&i.ID,
+		&i.HashedSecret,
+		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
+	)
+	return i, err
+}
+
+const insertCredentialLifecycleJournalAPIKeyLine = `-- name: InsertCredentialLifecycleJournalAPIKeyLine :one
+INSERT INTO
+	credential_lifecycle_journal_api_key (entry_id, line, token_name, scopes, allow_list)
+VALUES
+	($1, $2, $3, $4, $5) RETURNING entry_id, line, token_name, scopes, allow_list
+`
+
+type InsertCredentialLifecycleJournalAPIKeyLineParams struct {
+	EntryID   int64        `db:"entry_id" json:"entry_id"`
+	Line      int16        `db:"line" json:"line"`
+	TokenName string       `db:"token_name" json:"token_name"`
+	Scopes    APIKeyScopes `db:"scopes" json:"scopes"`
+	AllowList AllowList    `db:"allow_list" json:"allow_list"`
+}
+
+// What an issuance of an api_key credential carried. The entry says an issuance
+// occurred; this says with what.
+func (q *sqlQuerier) InsertCredentialLifecycleJournalAPIKeyLine(ctx context.Context, arg InsertCredentialLifecycleJournalAPIKeyLineParams) (CredentialLifecycleJournalApiKey, error) {
+	row := q.db.QueryRowContext(ctx, insertCredentialLifecycleJournalAPIKeyLine,
+		arg.EntryID,
+		arg.Line,
+		arg.TokenName,
+		arg.Scopes,
+		arg.AllowList,
+	)
+	var i CredentialLifecycleJournalApiKey
+	err := row.Scan(
+		&i.EntryID,
+		&i.Line,
+		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
+	)
+	return i, err
 }
 
 const insertCredentialLifecycleJournalEntry = `-- name: InsertCredentialLifecycleJournalEntry :one

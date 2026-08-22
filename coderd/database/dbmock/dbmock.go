@@ -3720,6 +3720,36 @@ func (mr *MockStoreMockRecorder) GetConnectionLogsOffset(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConnectionLogsOffset", reflect.TypeOf((*MockStore)(nil).GetConnectionLogsOffset), ctx, arg)
 }
 
+// GetCredentialAPIKeyByID mocks base method.
+func (m *MockStore) GetCredentialAPIKeyByID(ctx context.Context, id uuid.UUID) (database.CredentialApiKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCredentialAPIKeyByID", ctx, id)
+	ret0, _ := ret[0].(database.CredentialApiKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCredentialAPIKeyByID indicates an expected call of GetCredentialAPIKeyByID.
+func (mr *MockStoreMockRecorder) GetCredentialAPIKeyByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCredentialAPIKeyByID", reflect.TypeOf((*MockStore)(nil).GetCredentialAPIKeyByID), ctx, id)
+}
+
+// GetCredentialLifecycleJournalAPIKeyLines mocks base method.
+func (m *MockStore) GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, entryID int64) ([]database.CredentialLifecycleJournalApiKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCredentialLifecycleJournalAPIKeyLines", ctx, entryID)
+	ret0, _ := ret[0].([]database.CredentialLifecycleJournalApiKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCredentialLifecycleJournalAPIKeyLines indicates an expected call of GetCredentialLifecycleJournalAPIKeyLines.
+func (mr *MockStoreMockRecorder) GetCredentialLifecycleJournalAPIKeyLines(ctx, entryID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCredentialLifecycleJournalAPIKeyLines", reflect.TypeOf((*MockStore)(nil).GetCredentialLifecycleJournalAPIKeyLines), ctx, entryID)
+}
+
 // GetCredentialLifecycleLedgerRowByID mocks base method.
 func (m *MockStore) GetCredentialLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.CredentialLifecycleLedger, error) {
 	m.ctrl.T.Helper()
@@ -8201,6 +8231,36 @@ func (m *MockStore) InsertChatQueuedMessageWithCreator(ctx context.Context, arg 
 func (mr *MockStoreMockRecorder) InsertChatQueuedMessageWithCreator(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatQueuedMessageWithCreator", reflect.TypeOf((*MockStore)(nil).InsertChatQueuedMessageWithCreator), ctx, arg)
+}
+
+// InsertCredentialAPIKey mocks base method.
+func (m *MockStore) InsertCredentialAPIKey(ctx context.Context, arg database.InsertCredentialAPIKeyParams) (database.CredentialApiKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertCredentialAPIKey", ctx, arg)
+	ret0, _ := ret[0].(database.CredentialApiKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertCredentialAPIKey indicates an expected call of InsertCredentialAPIKey.
+func (mr *MockStoreMockRecorder) InsertCredentialAPIKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertCredentialAPIKey", reflect.TypeOf((*MockStore)(nil).InsertCredentialAPIKey), ctx, arg)
+}
+
+// InsertCredentialLifecycleJournalAPIKeyLine mocks base method.
+func (m *MockStore) InsertCredentialLifecycleJournalAPIKeyLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalAPIKeyLineParams) (database.CredentialLifecycleJournalApiKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertCredentialLifecycleJournalAPIKeyLine", ctx, arg)
+	ret0, _ := ret[0].(database.CredentialLifecycleJournalApiKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertCredentialLifecycleJournalAPIKeyLine indicates an expected call of InsertCredentialLifecycleJournalAPIKeyLine.
+func (mr *MockStoreMockRecorder) InsertCredentialLifecycleJournalAPIKeyLine(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertCredentialLifecycleJournalAPIKeyLine", reflect.TypeOf((*MockStore)(nil).InsertCredentialLifecycleJournalAPIKeyLine), ctx, arg)
 }
 
 // InsertCredentialLifecycleJournalEntry mocks base method.

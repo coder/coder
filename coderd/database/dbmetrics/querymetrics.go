@@ -2009,6 +2009,22 @@ func (m queryMetricsStore) GetConnectionLogsOffset(ctx context.Context, arg data
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetCredentialAPIKeyByID(ctx context.Context, id uuid.UUID) (database.CredentialApiKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCredentialAPIKeyByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetCredentialAPIKeyByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCredentialAPIKeyByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, entryID int64) ([]database.CredentialLifecycleJournalApiKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCredentialLifecycleJournalAPIKeyLines(ctx, entryID)
+	m.queryLatencies.WithLabelValues("GetCredentialLifecycleJournalAPIKeyLines").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCredentialLifecycleJournalAPIKeyLines").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetCredentialLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.CredentialLifecycleLedger, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetCredentialLifecycleLedgerRowByID(ctx, id)
@@ -4374,6 +4390,22 @@ func (m queryMetricsStore) InsertChatQueuedMessageWithCreator(ctx context.Contex
 	r0, r1 := m.s.InsertChatQueuedMessageWithCreator(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertChatQueuedMessageWithCreator").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatQueuedMessageWithCreator").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertCredentialAPIKey(ctx context.Context, arg database.InsertCredentialAPIKeyParams) (database.CredentialApiKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertCredentialAPIKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertCredentialAPIKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialAPIKey").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertCredentialLifecycleJournalAPIKeyLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalAPIKeyLineParams) (database.CredentialLifecycleJournalApiKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertCredentialLifecycleJournalAPIKeyLine(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertCredentialLifecycleJournalAPIKeyLine").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialLifecycleJournalAPIKeyLine").Inc()
 	return r0, r1
 }
 
