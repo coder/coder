@@ -18,22 +18,23 @@ import (
 // The state machine never reshapes a Message except to attach the
 // runtime `chat_id`.
 type Message struct {
-	Role                database.ChatMessageRole
-	Content             pqtype.NullRawMessage
-	Visibility          database.ChatMessageVisibility
-	ModelConfigID       uuid.NullUUID
-	ReasoningEffort     database.NullChatReasoningEffort
-	CreatedBy           uuid.NullUUID
-	ContentVersion      int16
-	Compressed          bool
-	InputTokens         sql.NullInt64
-	OutputTokens        sql.NullInt64
-	TotalTokens         sql.NullInt64
-	ReasoningTokens     sql.NullInt64
-	CacheCreationTokens sql.NullInt64
-	CacheReadTokens     sql.NullInt64
-	ContextLimit        sql.NullInt64
-	RuntimeMs           sql.NullInt64
+	Role                 database.ChatMessageRole
+	Content              pqtype.NullRawMessage
+	EnvironmentVariables pqtype.NullRawMessage
+	Visibility           database.ChatMessageVisibility
+	ModelConfigID        uuid.NullUUID
+	ReasoningEffort      database.NullChatReasoningEffort
+	CreatedBy            uuid.NullUUID
+	ContentVersion       int16
+	Compressed           bool
+	InputTokens          sql.NullInt64
+	OutputTokens         sql.NullInt64
+	TotalTokens          sql.NullInt64
+	ReasoningTokens      sql.NullInt64
+	CacheCreationTokens  sql.NullInt64
+	CacheReadTokens      sql.NullInt64
+	ContextLimit         sql.NullInt64
+	RuntimeMs            sql.NullInt64
 }
 
 // toInsertParams converts a batch of Messages into the parallel-array
@@ -45,23 +46,24 @@ type Message struct {
 func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMessagesParams {
 	n := len(messages)
 	params := database.InsertChatMessagesParams{
-		ChatID:              chatID,
-		CreatedBy:           make([]uuid.UUID, n),
-		ModelConfigID:       make([]uuid.UUID, n),
-		ReasoningEffort:     make([]string, n),
-		Role:                make([]database.ChatMessageRole, n),
-		Content:             make([]string, n),
-		ContentVersion:      make([]int16, n),
-		Visibility:          make([]database.ChatMessageVisibility, n),
-		InputTokens:         make([]int64, n),
-		OutputTokens:        make([]int64, n),
-		TotalTokens:         make([]int64, n),
-		ReasoningTokens:     make([]int64, n),
-		CacheCreationTokens: make([]int64, n),
-		CacheReadTokens:     make([]int64, n),
-		ContextLimit:        make([]int64, n),
-		Compressed:          make([]bool, n),
-		RuntimeMs:           make([]int64, n),
+		ChatID:               chatID,
+		CreatedBy:            make([]uuid.UUID, n),
+		ModelConfigID:        make([]uuid.UUID, n),
+		ReasoningEffort:      make([]string, n),
+		Role:                 make([]database.ChatMessageRole, n),
+		Content:              make([]string, n),
+		EnvironmentVariables: make([]string, n),
+		ContentVersion:       make([]int16, n),
+		Visibility:           make([]database.ChatMessageVisibility, n),
+		InputTokens:          make([]int64, n),
+		OutputTokens:         make([]int64, n),
+		TotalTokens:          make([]int64, n),
+		ReasoningTokens:      make([]int64, n),
+		CacheCreationTokens:  make([]int64, n),
+		CacheReadTokens:      make([]int64, n),
+		ContextLimit:         make([]int64, n),
+		Compressed:           make([]bool, n),
+		RuntimeMs:            make([]int64, n),
 	}
 	for i, m := range messages {
 		params.CreatedBy[i] = nullUUIDOrNil(m.CreatedBy)
@@ -70,6 +72,9 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 			params.ReasoningEffort[i] = string(m.ReasoningEffort.ChatReasoningEffort)
 		}
 		params.Role[i] = m.Role
+		if m.EnvironmentVariables.Valid {
+			params.EnvironmentVariables[i] = string(m.EnvironmentVariables.RawMessage)
+		}
 		if m.Content.Valid {
 			params.Content[i] = string(m.Content.RawMessage)
 		} else {

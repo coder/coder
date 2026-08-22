@@ -1,6 +1,7 @@
 package chatd //nolint:testpackage // Exercises unexported re-derivation helpers.
 
 import (
+	"database/sql"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -43,6 +44,58 @@ func textMessage(t *testing.T, id int64, role database.ChatMessageRole, parts ..
 		Content:        mustMarshalText(t, parts...),
 		ContentVersion: chatprompt.CurrentContentVersion,
 	}
+}
+
+func TestCurrentTurnEnvironmentVariables(t *testing.T) {
+	t.Parallel()
+
+	marshalEnv := func(environmentVariables map[string]string) pqtype.NullRawMessage {
+		t.Helper()
+		raw, err := json.Marshal(environmentVariables)
+		require.NoError(t, err)
+		return pqtype.NullRawMessage{RawMessage: raw, Valid: true}
+	}
+	message := func(role database.ChatMessageRole, visibility database.ChatMessageVisibility, environmentVariables pqtype.NullRawMessage) database.ChatMessage {
+		return database.ChatMessage{
+			Role:                 role,
+			Visibility:           visibility,
+			EnvironmentVariables: environmentVariables,
+		}
+	}
+
+	messages := []database.ChatMessage{
+		message(database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, marshalEnv(map[string]string{"TOKEN": "old"})),
+		message(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, pqtype.NullRawMessage{}),
+		message(database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, marshalEnv(map[string]string{"TOKEN": "current"})),
+		message(database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, marshalEnv(map[string]string{"TOKEN": "hook"})),
+	}
+	environmentVariables, err := currentTurnEnvironmentVariables(database.Chat{}, messages)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"TOKEN": "current"}, environmentVariables)
+
+	messages = append(messages, message(database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, pqtype.NullRawMessage{}))
+	environmentVariables, err = currentTurnEnvironmentVariables(database.Chat{}, messages)
+	require.NoError(t, err)
+	require.Empty(t, environmentVariables, "a later turn without variables must not inherit an earlier turn")
+
+	compacted := []database.ChatMessage{
+		message(database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, marshalEnv(map[string]string{"TOKEN": "current"})),
+		{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityModel,
+			Compressed: true,
+		},
+	}
+	environmentVariables, err = currentTurnEnvironmentVariables(database.Chat{}, compacted)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"TOKEN": "current"}, environmentVariables,
+		"automatic compaction must preserve the active user turn variables")
+
+	environmentVariables, err = currentTurnEnvironmentVariables(database.Chat{
+		CompactionRequestedAt: sql.NullTime{Valid: true},
+	}, compacted)
+	require.NoError(t, err)
+	require.Empty(t, environmentVariables, "manual compaction must not reuse the previous completed turn variables")
 }
 
 func TestLatestAssistantText(t *testing.T) {

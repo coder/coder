@@ -5220,6 +5220,8 @@ type ChatMessage struct {
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 	// Used for full text search. NULL initially, populated async via background job.
 	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
+	// Turn-scoped environment variables for workspace command execution. Not included in model prompts or API responses.
+	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
 }
 
 type ChatModelConfig struct {
@@ -5250,6 +5252,8 @@ type ChatQueuedMessage struct {
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	// Turn-scoped environment variables retained until the queued message is promoted.
+	EnvironmentVariables pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
 }
 
 type ChatTable struct {

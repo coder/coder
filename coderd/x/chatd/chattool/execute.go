@@ -97,7 +97,8 @@ type ExecuteOptions struct {
 	// AgentBrowserSession, when non-empty, is exported as
 	// AGENT_BROWSER_SESSION so agent-browser CLI invocations land in a
 	// browser session scoped to this chat instead of a shared default.
-	AgentBrowserSession string
+	AgentBrowserSession  string
+	EnvironmentVariables map[string]string
 }
 
 // ProcessToolOptions configures a process management tool
@@ -148,8 +149,12 @@ func executeTool(
 		return fantasy.NewTextErrorResponse("command is required")
 	}
 
-	// Build the environment map for the process request.
-	env := make(map[string]string, len(nonInteractiveEnvVars)+2)
+	// Build the environment map for the process request. Tool-owned
+	// variables are applied last so callers cannot override them.
+	env := make(map[string]string, len(nonInteractiveEnvVars)+len(options.EnvironmentVariables)+2)
+	for k, v := range options.EnvironmentVariables {
+		env[k] = v
+	}
 	env["CODER_CHAT_AGENT"] = "true"
 	if options.AgentBrowserSession != "" {
 		env["AGENT_BROWSER_SESSION"] = options.AgentBrowserSession

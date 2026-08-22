@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"mime"
 	"net/http"
 	"net/http/httptest"
@@ -78,6 +79,46 @@ const (
 )
 
 var allowedReasoningEffortValues = strings.Join(codersdk.ChatModelReasoningEffortValues(), ", ")
+
+func validateChatEnvironmentVariables(environmentVariables map[string]string) []codersdk.ValidationError {
+	var validations []codersdk.ValidationError
+	if len(environmentVariables) > codersdk.MaxUserSecretsPerUserCount {
+		validations = append(validations, codersdk.ValidationError{
+			Field:  "environment_variables",
+			Detail: fmt.Sprintf("must not contain more than %d entries", codersdk.MaxUserSecretsPerUserCount),
+		})
+	}
+
+	totalBytes := 0
+	for _, name := range slices.Sorted(maps.Keys(environmentVariables)) {
+		value := environmentVariables[name]
+		totalBytes += len(name) + len(value)
+		if name == "" {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  "environment_variables",
+				Detail: "environment variable names must not be empty",
+			})
+		} else if err := codersdk.UserSecretEnvNameValid(name); err != nil {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  "environment_variables",
+				Detail: fmt.Sprintf("%q: %s", name, err),
+			})
+		}
+		if err := codersdk.UserSecretValueValid(value); err != nil {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  "environment_variables",
+				Detail: fmt.Sprintf("%q: %s", name, err),
+			})
+		}
+	}
+	if totalBytes > codersdk.MaxUserSecretValueBytes {
+		validations = append(validations, codersdk.ValidationError{
+			Field:  "environment_variables",
+			Detail: fmt.Sprintf("names and values must not exceed %d bytes in total", codersdk.MaxUserSecretValueBytes),
+		})
+	}
+	return validations
+}
 
 // chatGitRef holds the branch, remote origin, and optional chat
 // ID reported by the workspace agent during a git operation.
@@ -1321,6 +1362,13 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
 		return
 	}
+	if validations := validateChatEnvironmentVariables(req.EnvironmentVariables); len(validations) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid environment_variables.",
+			Validations: validations,
+		})
+		return
+	}
 
 	aReq, commitAudit := audit.InitRequest[database.Chat](rw, &audit.RequestParams{
 		Audit:          *api.Auditor.Load(),
@@ -1492,6 +1540,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		TitleDerivedFromContent: true,
 		ModelConfigID:           modelConfigID,
 		ReasoningEffort:         reasoningEffort,
+		EnvironmentVariables:    req.EnvironmentVariables,
 		PlanMode:                planModeToNullChatPlanMode(req.PlanMode),
 		ClientType:              clientType,
 		SystemPrompt:            req.SystemPrompt,
@@ -2760,6 +2809,13 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
+	if validations := validateChatEnvironmentVariables(req.EnvironmentVariables); len(validations) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid environment_variables.",
+			Validations: validations,
+		})
+		return
+	}
 
 	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
 	if inputError != nil {
@@ -2848,14 +2904,15 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
-			ChatID:          chatID,
-			CreatedBy:       apiKey.UserID,
-			Content:         contentBlocks,
-			ModelConfigID:   modelConfigID,
-			ReasoningEffort: reasoningEffort,
-			BusyBehavior:    busyBehavior,
-			PlanMode:        sendPlanMode,
-			MCPServerIDs:    req.MCPServerIDs,
+			ChatID:               chatID,
+			CreatedBy:            apiKey.UserID,
+			Content:              contentBlocks,
+			ModelConfigID:        modelConfigID,
+			ReasoningEffort:      reasoningEffort,
+			EnvironmentVariables: req.EnvironmentVariables,
+			BusyBehavior:         busyBehavior,
+			PlanMode:             sendPlanMode,
+			MCPServerIDs:         req.MCPServerIDs,
 		},
 	)
 	if sendErr != nil {

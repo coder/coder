@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -25,6 +26,29 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestValidateChatEnvironmentVariables(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                 string
+		environmentVariables map[string]string
+		wantErrors           int
+	}{
+		{name: "Valid", environmentVariables: map[string]string{"SCANNER_TOKEN": "secret"}},
+		{name: "EmptyName", environmentVariables: map[string]string{"": "secret"}, wantErrors: 1},
+		{name: "InvalidName", environmentVariables: map[string]string{"NOT VALID": "secret"}, wantErrors: 1},
+		{name: "ReservedName", environmentVariables: map[string]string{"CODER_AGENT_TOKEN": "secret"}, wantErrors: 1},
+		{name: "NullValue", environmentVariables: map[string]string{"SCANNER_TOKEN": "bad\x00value"}, wantErrors: 1},
+		{name: "OverTotalBytes", environmentVariables: map[string]string{"SCANNER_TOKEN": strings.Repeat("x", codersdk.MaxUserSecretValueBytes)}, wantErrors: 1},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			require.Len(t, validateChatEnvironmentVariables(test.environmentVariables), test.wantErrors)
+		})
+	}
+}
 
 // ExtractChatParam authorizes the read, then GetAIBridgeChatCost authorizes it
 // again. A denial on the second check means the ACL changed in between (a

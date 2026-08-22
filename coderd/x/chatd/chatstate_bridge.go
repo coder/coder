@@ -1,6 +1,8 @@
 package chatd
 
 import (
+	"encoding/json"
+
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 
@@ -41,6 +43,17 @@ func userMessage(rawContent pqtype.NullRawMessage, modelConfigID, createdBy uuid
 		CreatedBy:       uuid.NullUUID{UUID: createdBy, Valid: createdBy != uuid.Nil},
 		ContentVersion:  chatprompt.CurrentContentVersion,
 	}
+}
+
+func marshalEnvironmentVariables(environmentVariables map[string]string) (pqtype.NullRawMessage, error) {
+	if len(environmentVariables) == 0 {
+		return pqtype.NullRawMessage{}, nil
+	}
+	raw, err := json.Marshal(environmentVariables)
+	if err != nil {
+		return pqtype.NullRawMessage{}, err
+	}
+	return pqtype.NullRawMessage{RawMessage: raw, Valid: true}, nil
 }
 
 // busyBehaviorToChatState converts the public busy-behavior enum used
