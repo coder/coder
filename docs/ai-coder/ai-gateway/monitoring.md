@@ -219,7 +219,7 @@ Available query filters:
 - `Kilo Code`
 - `Roo Code`
 - `Coder Agents`
-- `Mux`
+- `Xum`
 - `Cursor`
 - `OpenCode`
 - `Charm Crush`

@@ -49,6 +49,14 @@ export const AIBridgeClientIcon = ({
 					className={cn(iconClassName, className)}
 				/>
 			);
+		case "Xum":
+			return (
+				<ExternalImage
+					src="/icon/xum.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
+		// Legacy label for interceptions recorded before the Mux -> Xum rename.
 		case "Mux":
 			return (
 				<ExternalImage
