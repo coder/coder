@@ -4623,6 +4623,104 @@ func TestDevcontainerDiscovery(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "SubfolderConfig/SingleConfig",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/.git/HEAD":                              "",
+				"/home/coder/.devcontainer/python/devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder",
+					ConfigPath:      "/home/coder/.devcontainer/python/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "SubfolderConfig/FirstSubfolderWins",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/.git/HEAD":                              "",
+				"/home/coder/.devcontainer/go/devcontainer.json":     "",
+				"/home/coder/.devcontainer/python/devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder",
+					ConfigPath:      "/home/coder/.devcontainer/go/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "SubfolderConfig/DevcontainerDirConfigWins",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/.git/HEAD":                              "",
+				"/home/coder/.devcontainer/devcontainer.json":        "",
+				"/home/coder/.devcontainer/python/devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder",
+					ConfigPath:      "/home/coder/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "SubfolderConfig/RootDotfileConfigWins",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/.git/HEAD":                              "",
+				"/home/coder/.devcontainer.json":                     "",
+				"/home/coder/.devcontainer/python/devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder",
+					ConfigPath:      "/home/coder/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "SubfolderConfig/IgnoreNonsenseNamesAndNesting",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/.git/HEAD": "",
+
+				"/home/coder/.devcontainer/python/devcontainer.json.bak": "",
+				"/home/coder/.devcontainer/python/notdevcontainer.json":  "",
+				"/home/coder/.devcontainer/a/b/devcontainer.json":        "",
+				"/home/coder/.devcontainer/python/devcontainer.json":     "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder",
+					ConfigPath:      "/home/coder/.devcontainer/python/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "ConfigPrecedence/DevcontainerDirWinsOverDotfile",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/.git/HEAD":                       "",
+				"/home/coder/.devcontainer/devcontainer.json": "",
+				"/home/coder/.devcontainer.json":              "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder",
+					ConfigPath:      "/home/coder/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
 	}
 
 	initFS := func(t *testing.T, files map[string]string) afero.Fs {
