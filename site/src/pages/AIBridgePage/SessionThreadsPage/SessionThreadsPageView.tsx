@@ -1,22 +1,26 @@
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
-import type { FC, PropsWithChildren } from "react";
+import { type FC, type PropsWithChildren, useState } from "react";
 import type {
 	AIBridgeSessionThreadsResponse,
 	AIBridgeThread,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
+import { SearchField } from "#/components/SearchField/SearchField";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useDebouncedValue } from "#/hooks/debounce";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
+import { cn } from "#/utils/cn";
 import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
 import { SessionTimelineSkeleton } from "./SessionTimeline/SessionTimelineSkeleton";
+import { countSessionSearchMatches } from "./SessionTimeline/sessionSearch";
 
 const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 	<TooltipProvider>
@@ -61,6 +65,10 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	isAISessionsEntitled,
 	onBackClicked,
 }) => {
+	const [searchQuery, setSearchQuery] = useState("");
+	// Debounce so typing does not refilter the timeline on every keystroke.
+	const debouncedQuery = useDebouncedValue(searchQuery, 500);
+
 	if (!isAISessionsEntitled) {
 		return (
 			<PremiumPaywallAIGovernance
@@ -84,9 +92,22 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	// distinct domain count that drives the "+N more" overflow.
 	const topDomain = session?.network_top_domains?.[0];
 
+	const networkCalls = session?.network_call_logs ?? [];
+
+	const isSearching = debouncedQuery.trim() !== "";
+
+	const searchMatches = countSessionSearchMatches(
+		threads,
+		networkCalls,
+		debouncedQuery,
+	);
+	const searchMatchLabel = `${searchMatches.toLocaleString("en-US")} ${
+		searchMatches === 1 ? "match" : "matches"
+	}`;
+
 	return (
 		<>
-			<nav className="mb-6">
+			<nav className="mb-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
 				<Button
 					asChild
 					variant="outline"
@@ -99,6 +120,36 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 						Back
 					</span>
 				</Button>
+				{session && (
+					<div className="flex flex-col items-stretch md:items-end gap-1 md:w-[28rem]">
+						<SearchField
+							value={searchQuery}
+							onChange={setSearchQuery}
+							placeholder="Search..."
+							aria-label="Search session events"
+						/>
+						<p
+							aria-hidden
+							data-testid="search-match-count"
+							className={cn(
+								"m-0 text-sm font-normal text-content-secondary text-right",
+								!isSearching && "opacity-0",
+							)}
+						>
+							{isSearching ? (
+								<>
+									<strong>{searchMatches.toLocaleString("en-US")}</strong>{" "}
+									{searchMatches === 1 ? "match" : "matches"}
+								</>
+							) : (
+								"\u00a0"
+							)}
+						</p>
+						<span className="sr-only" role="status">
+							{isSearching ? searchMatchLabel : ""}
+						</span>
+					</div>
+				)}
 			</nav>
 			<div className="flex flex-col md:flex-row md:items-start gap-6">
 				<aside className="md:w-80 md:shrink-0 px-3 py-2.5 border border-solid rounded-md flex flex-col gap-1">
@@ -140,7 +191,8 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 							initiator={session.initiator}
 							threads={threads}
 							networkCallSummary={session.network_calls}
-							networkCalls={session.network_call_logs ?? []}
+							networkCalls={networkCalls}
+							searchQuery={debouncedQuery}
 							hasNextPage={hasNextPage}
 							isFetchingNextPage={isFetchingNextPage}
 							onFetchNextPage={onFetchNextPage}
