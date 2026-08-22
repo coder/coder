@@ -15610,6 +15610,27 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 		}
 	})
 
+	t.Run("AdminWriteValidatesWithMemberACL", func(t *testing.T) {
+		// The admin can read the ACL-restricted model, but the target member
+		// cannot, and chatd resolves the override under the member's actor.
+		privateModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   uuid.NullUUID{UUID: defaultModel.AIProviderID, Valid: true},
+			OrganizationID: firstUser.OrganizationID,
+			Model:          "private-personal-" + uuid.NewString(),
+			Enabled:        true,
+			GroupACL:       database.ChatACL{},
+		})
+		err := adminClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, member.ID.String(), codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+			Mode: codersdk.ChatPersonalModelOverrideModeModel, ModelConfigID: privateModel.ID.String(),
+		})
+		requireSDKError(t, err, http.StatusBadRequest)
+		// A model the member can use is still accepted from an admin caller.
+		err = adminClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, member.ID.String(), codersdk.ChatPersonalModelOverrideContextGeneral, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+			Mode: codersdk.ChatPersonalModelOverrideModeModel, ModelConfigID: model.ID.String(),
+		})
+		require.NoError(t, err)
+	})
+
 	t.Run("OrganizationIsolation", func(t *testing.T) {
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: member.ID})
 		err := db.UpsertChatUserModelOverride(dbauthz.AsSystemRestricted(ctx), database.UpsertChatUserModelOverrideParams{

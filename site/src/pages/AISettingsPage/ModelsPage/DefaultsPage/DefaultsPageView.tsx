@@ -99,7 +99,7 @@ const DefaultsPageView: FC<DefaultsPageViewProps> = ({
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 			{refetchError != null && <ErrorAlert error={refetchError} />}
-			{enabledModels.length === 0 && !isLoading && (
+			{enabledModels.length === 0 && !isLoading && refetchError == null && (
 				<p role="status" className="m-0 text-content-secondary">
 					This organization has no enabled chat models.
 				</p>
