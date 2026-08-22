@@ -4590,7 +4590,7 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.True(t, found)
 	})
 
-	t.Run("NonAdminExcludesDisabledModelConfigs", func(t *testing.T) {
+	t.Run("NonAdminIncludesAllowedDisabledModelConfigs", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -4613,14 +4613,16 @@ func TestListChatModelConfigs(t *testing.T) {
 
 		configs, err := memberClient.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
-		require.Len(t, configs, 1)
-		require.Equal(t, enabledConfig.ID, configs[0].ID)
-		require.True(t, configs[0].Enabled)
+		require.Len(t, configs, 2)
+		require.True(t, slices.ContainsFunc(configs, func(config codersdk.ChatModelConfig) bool {
+			return config.ID == enabledConfig.ID && config.Enabled
+		}))
+		require.True(t, slices.ContainsFunc(configs, func(config codersdk.ChatModelConfig) bool {
+			return config.Model == "gpt-4o-disabled" && !config.Enabled
+		}))
 	})
 
-	// An enabled config under a disabled provider must stay visible to
-	// admins (management view) while being hidden from non-admins (usage
-	// view).
+	// Provider status does not change management list visibility.
 	t.Run("ProviderDisabled", func(t *testing.T) {
 		t.Parallel()
 
@@ -4647,8 +4649,12 @@ func TestListChatModelConfigs(t *testing.T) {
 
 		memberConfigs, err := memberClient.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
-		require.Len(t, memberConfigs, 1)
-		require.Equal(t, enabledConfig.ID, memberConfigs[0].ID)
+		memberIDs := make([]uuid.UUID, 0, len(memberConfigs))
+		for _, config := range memberConfigs {
+			memberIDs = append(memberIDs, config.ID)
+		}
+		require.Contains(t, memberIDs, enabledConfig.ID)
+		require.Contains(t, memberIDs, providerDisabledConfig.ID)
 	})
 
 	t.Run("ManagementListExcludesOtherOrganizations", func(t *testing.T) {
@@ -4682,7 +4688,7 @@ func TestListChatModelConfigs(t *testing.T) {
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-		// Non-admin users should see only enabled model configs.
+		// The management list returns all rows allowed by the row ACL.
 		configs, err := memberClient.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
 		require.NotEmpty(t, configs)
@@ -4814,9 +4820,6 @@ func TestCreateChatModelConfig(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		// dbauthz rejects site-permission roles on the authorized
-		// querier; seed the role through the raw store, as persisted
-		// site custom roles exist in production deployments.
 		rawDB, pubsub := dbtestutil.NewDB(t)
 		client := newChatClient(t, func(opts *coderdtest.Options) {
 			opts.Database = rawDB
@@ -4825,50 +4828,25 @@ func TestCreateChatModelConfig(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		nonDefaultOrg := dbgen.Organization(t, rawDB, database.Organization{IsDefault: false})
 
-		// A custom site role holding only deployment-config permissions
-		// passes the route gate but cannot read the default organization
-		// object; the default-org resolution is an internal step and must
-		// not require caller-held organization read. The owning org is a
-		// label on the role; the site permissions apply deployment-wide.
-		role, err := rawDB.InsertCustomRole(ctx, database.InsertCustomRoleParams{
-			Name:           testutil.GetRandomName(t),
-			DisplayName:    "Deployment Config Admin",
-			OrganizationID: uuid.NullUUID{UUID: nonDefaultOrg.ID, Valid: true},
-			SitePermissions: database.CustomRolePermissions{
-				{
-					ResourceType: rbac.ResourceDeploymentConfig.Type,
-					Action:       policy.ActionRead,
-				},
-				{
-					ResourceType: rbac.ResourceDeploymentConfig.Type,
-					Action:       policy.ActionUpdate,
-				},
+		// A restricted system context supplies organization read permission for
+		// the internal lookup, so the user's role does not require it.
+		adminClient := newSiteCustomRoleClient(
+			ctx,
+			t,
+			client,
+			rawDB,
+			nonDefaultOrg.ID,
+			database.CustomRolePermission{
+				ResourceType: rbac.ResourceDeploymentConfig.Type,
+				Action:       policy.ActionRead,
 			},
-		})
-		require.NoError(t, err)
+			database.CustomRolePermission{
+				ResourceType: rbac.ResourceDeploymentConfig.Type,
+				Action:       policy.ActionUpdate,
+			},
+		)
 
 		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
-		// An existing deployment default keeps the create off the
-		// self-promotion path, which is a separate system-scoped
-		// authorization requirement.
-		_ = createChatModelConfig(t, client)
-
-		// A member of a non-default org cannot read the default
-		// organization object; the implicit organization-member role
-		// grants organization read only within its own org.
-		adminClientRaw, adminUser := coderdtest.CreateAnotherUser(
-			t,
-			client.Client,
-			nonDefaultOrg.ID,
-		)
-		_, err = client.Client.UpdateOrganizationMemberRoles(
-			ctx,
-			nonDefaultOrg.ID,
-			adminUser.ID.String(),
-			codersdk.UpdateRoles{Roles: []string{role.Name}},
-		)
-		require.NoError(t, err)
-		adminClient := codersdk.NewExperimentalClient(adminClientRaw)
 
 		contextLimit := int64(4096)
 		modelConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
@@ -4883,7 +4861,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 		row, err := rawDB.GetChatModelConfigByID(ctx, modelConfig.ID)
 		require.NoError(t, err)
 		require.Equal(t, defaultOrg.ID, row.OrganizationID)
-		require.False(t, row.IsDefault)
+		require.True(t, row.IsDefault)
 		require.Equal(
 			t,
 			database.ChatACL{
@@ -4892,6 +4870,102 @@ func TestCreateChatModelConfig(t *testing.T) {
 			row.GroupACL,
 		)
 		require.Equal(t, database.ChatACL{}, row.UserACL)
+	})
+
+	// Deployment-config administrators can manage configs and defaults.
+	t.Run("DeploymentConfigOnlyRoleWritesThroughWindow", func(t *testing.T) {
+		t.Parallel()
+
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Database = rawDB
+			opts.Pubsub = pubsub
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		nonDefaultOrg := dbgen.Organization(t, rawDB, database.Organization{IsDefault: false})
+
+		writerClient := newSiteCustomRoleClient(
+			setupCtx,
+			t,
+			client,
+			rawDB,
+			nonDefaultOrg.ID,
+			database.CustomRolePermission{
+				ResourceType: rbac.ResourceDeploymentConfig.Type,
+				Action:       policy.ActionRead,
+			},
+			database.CustomRolePermission{
+				ResourceType: rbac.ResourceDeploymentConfig.Type,
+				Action:       policy.ActionUpdate,
+			},
+		)
+
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+		// The first config self-elects as the deployment default. The existing
+		// default keeps the writer's own create off the self-promotion path.
+		defaultConfig := createChatModelConfig(t, client)
+
+		contextLimit := int64(4096)
+		modelConfig, err := writerClient.CreateChatModelConfig(setupCtx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o-mini",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+
+		updated, err := writerClient.UpdateChatModelConfig(setupCtx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			DisplayName: "Window Write",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "Window Write", updated.DisplayName)
+
+		require.NoError(t, writerClient.DeleteChatModelConfig(setupCtx, modelConfig.ID))
+
+		// TODO(mafredri): remove these default-transition checks after
+		// CODAGT-709 M3 (org-scoping cutover).
+		ctx := testutil.Context(t, testutil.WaitLong)
+		notDefault := false
+		updated, err = writerClient.UpdateChatModelConfig(ctx, defaultConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			IsDefault: &notDefault,
+		})
+		require.NoError(t, err)
+		require.True(t, updated.IsDefault, "the sole config must remain default")
+		row, err := rawDB.GetChatModelConfigByID(ctx, defaultConfig.ID)
+		require.NoError(t, err)
+		require.True(t, row.IsDefault, "the sole config must remain default")
+
+		replacement, err := writerClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o-mini-replacement",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+		require.NoError(t, writerClient.DeleteChatModelConfig(ctx, defaultConfig.ID))
+		_, err = rawDB.GetChatModelConfigByID(ctx, defaultConfig.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+		row, err = rawDB.GetChatModelConfigByID(ctx, replacement.ID)
+		require.NoError(t, err)
+		require.True(t, row.IsDefault, "replacement must be promoted")
+
+		candidate, err := writerClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o-mini-promote",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+		isDefault := true
+		updated, err = writerClient.UpdateChatModelConfig(ctx, candidate.ID, codersdk.UpdateChatModelConfigRequest{
+			IsDefault: &isDefault,
+		})
+		require.NoError(t, err)
+		require.True(t, updated.IsDefault)
+		row, err = rawDB.GetChatModelConfigByID(ctx, candidate.ID)
+		require.NoError(t, err)
+		require.True(t, row.IsDefault, "candidate must be promoted")
+		row, err = rawDB.GetChatModelConfigByID(ctx, replacement.ID)
+		require.NoError(t, err)
+		require.False(t, row.IsDefault, "existing default must be demoted")
 	})
 
 	t.Run("ReasoningEffortStored", func(t *testing.T) {
@@ -5393,7 +5467,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.Contains(t, sdkErr.Detail, "Change the AI provider type to openrouter or openai-compat.")
 	})
 
-	t.Run("DisablePreservesRecordAndHidesItFromNonAdmins", func(t *testing.T) {
+	t.Run("DisablePreservesRecordAndStateForNonAdmins", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -5425,12 +5499,18 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		memberConfigs, err := memberClient.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
+
+		foundForMember := false
 		for _, config := range memberConfigs {
-			require.NotEqual(t, modelConfig.ID, config.ID)
+			if config.ID == modelConfig.ID {
+				foundForMember = true
+				require.False(t, config.Enabled)
+			}
 		}
+		require.True(t, foundForMember)
 	})
 
-	t.Run("ReEnableRestoresVisibilityForNonAdmins", func(t *testing.T) {
+	t.Run("ReEnableUpdatesStateForNonAdmins", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -5460,9 +5540,10 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		for _, config := range memberConfigs {
 			if config.ID == modelConfig.ID {
 				foundForMember = true
+				require.False(t, config.Enabled)
 			}
 		}
-		require.False(t, foundForMember)
+		require.True(t, foundForMember)
 
 		enabled = true
 		updated, err := adminClient.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{

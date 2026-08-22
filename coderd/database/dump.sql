@@ -284,7 +284,13 @@ CREATE TYPE api_key_scope AS ENUM (
     'mcp_server_config:read',
     'mcp_server_config:update',
     'mcp_server_config:delete',
-    'mcp_server_config:share'
+    'mcp_server_config:share',
+    'chat_model_config:*',
+    'chat_model_config:create',
+    'chat_model_config:read',
+    'chat_model_config:update',
+    'chat_model_config:delete',
+    'chat_model_config:share'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -611,7 +617,8 @@ CREATE TYPE resource_type AS ENUM (
     'user_ai_budget_override',
     'oauth2_provider_settings',
     'chat_instruction_settings',
-    'mcp_server_config'
+    'mcp_server_config',
+    'chat_model_config'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (

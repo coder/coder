@@ -529,6 +529,12 @@ const (
 	ApiKeyScopeMcpServerConfigUpdate               APIKeyScope = "mcp_server_config:update"
 	ApiKeyScopeMcpServerConfigDelete               APIKeyScope = "mcp_server_config:delete"
 	ApiKeyScopeMcpServerConfigShare                APIKeyScope = "mcp_server_config:share"
+	ApiKeyScopeChatModelConfig                     APIKeyScope = "chat_model_config:*"
+	ApiKeyScopeChatModelConfigCreate               APIKeyScope = "chat_model_config:create"
+	ApiKeyScopeChatModelConfigRead                 APIKeyScope = "chat_model_config:read"
+	ApiKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
+	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
+	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -809,7 +815,13 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeMcpServerConfigRead,
 		ApiKeyScopeMcpServerConfigUpdate,
 		ApiKeyScopeMcpServerConfigDelete,
-		ApiKeyScopeMcpServerConfigShare:
+		ApiKeyScopeMcpServerConfigShare,
+		ApiKeyScopeChatModelConfig,
+		ApiKeyScopeChatModelConfigCreate,
+		ApiKeyScopeChatModelConfigRead,
+		ApiKeyScopeChatModelConfigUpdate,
+		ApiKeyScopeChatModelConfigDelete,
+		ApiKeyScopeChatModelConfigShare:
 		return true
 	}
 	return false
@@ -1059,6 +1071,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeMcpServerConfigUpdate,
 		ApiKeyScopeMcpServerConfigDelete,
 		ApiKeyScopeMcpServerConfigShare,
+		ApiKeyScopeChatModelConfig,
+		ApiKeyScopeChatModelConfigCreate,
+		ApiKeyScopeChatModelConfigRead,
+		ApiKeyScopeChatModelConfigUpdate,
+		ApiKeyScopeChatModelConfigDelete,
+		ApiKeyScopeChatModelConfigShare,
 	}
 }
 
@@ -3613,6 +3631,7 @@ const (
 	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
 	ResourceTypeChatInstructionSettings     ResourceType = "chat_instruction_settings"
 	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
+	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3689,7 +3708,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeUserAIBudgetOverride,
 		ResourceTypeOauth2ProviderSettings,
 		ResourceTypeChatInstructionSettings,
-		ResourceTypeMCPServerConfig:
+		ResourceTypeMCPServerConfig,
+		ResourceTypeChatModelConfig:
 		return true
 	}
 	return false
@@ -3735,6 +3755,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeOauth2ProviderSettings,
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
+		ResourceTypeChatModelConfig,
 	}
 }
 

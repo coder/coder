@@ -6928,6 +6928,12 @@ func (*API) deleteUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	if !chatModelConfigReadScope(apiKey.Scopes) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	defaultOrg, err := defaultOrganizationForChatModelConfigs(ctx, api.Database)
 	if err != nil {
@@ -6938,32 +6944,7 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Admin users can see disabled configs. Non-admin users see only enabled
-	// configs. These deployment-wide routes manage the default organization.
-	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig)
-
-	var configs []database.ChatModelConfig
-	if isAdmin {
-		allConfigs, listErr := api.Database.GetChatModelConfigs(ctx)
-		err = listErr
-		configs = make([]database.ChatModelConfig, 0, len(allConfigs))
-		for _, config := range allConfigs {
-			if config.OrganizationID == defaultOrg.ID {
-				configs = append(configs, config)
-			}
-		}
-	} else {
-		//nolint:gocritic // All authenticated users need the shared enabled models.
-		rows, rowsErr := api.Database.GetEnabledChatModelConfigsByOrganization(
-			dbauthz.AsChatd(ctx),
-			defaultOrg.ID,
-		)
-		err = rowsErr
-		configs = make([]database.ChatModelConfig, 0, len(rows))
-		for _, row := range rows {
-			configs = append(configs, row.ChatModelConfig)
-		}
-	}
+	allConfigs, err := api.Database.GetChatModelConfigs(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chat model configs.",
@@ -6972,12 +6953,19 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := make([]codersdk.ChatModelConfig, 0, len(configs))
-	for _, config := range configs {
-		resp = append(resp, convertChatModelConfig(config))
+	resp := make([]codersdk.ChatModelConfig, 0, len(allConfigs))
+	for _, config := range allConfigs {
+		if config.OrganizationID == defaultOrg.ID {
+			resp = append(resp, convertChatModelConfig(config))
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+func chatModelConfigReadScope(scopes database.APIKeyScopes) bool {
+	return scopes.Has(database.ApiKeyScopeCoderAll) ||
+		scopes.Has(database.ApiKeyScopeChatModelConfigRead)
 }
 
 type chatModelConfigProviderModelError struct {
@@ -7029,6 +7017,8 @@ func (api *API) inChatModelConfigWriteTx(
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	// Interim write gate: see the dbauthz InsertChatModelConfig check.
+	// TODO(mafredri): remove after CODAGT-709 M3 (org-scoping cutover)
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
@@ -7228,6 +7218,8 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	// Interim write gate: see createChatModelConfig.
+	// TODO(mafredri): remove after CODAGT-709 M3 (org-scoping cutover)
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
@@ -7451,6 +7443,8 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	// Interim write gate: see createChatModelConfig.
+	// TODO(mafredri): remove after CODAGT-709 M3 (org-scoping cutover)
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
@@ -7527,9 +7521,9 @@ func ensureDefaultChatModelConfig(
 		return xerrors.Errorf("get default model config: %w", err)
 	}
 
-	modelConfigs, err := tx.GetChatModelConfigs(ctx)
+	modelConfigs, err := tx.GetDefaultChatModelConfigCandidates(ctx)
 	if err != nil {
-		return xerrors.Errorf("list chat model configs: %w", err)
+		return xerrors.Errorf("list default chat model config candidates: %w", err)
 	}
 	orgModelConfigs := make([]database.ChatModelConfig, 0, len(modelConfigs))
 	for _, config := range modelConfigs {
