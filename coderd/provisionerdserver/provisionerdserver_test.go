@@ -5110,7 +5110,7 @@ func TestServer_ExpirePrebuildsSessionToken(t *testing.T) {
 			InitiatorID:       database.PrebuildsSystemUserID,
 		})
 		existingKey, _ = dbgen.APIKey(t, db, database.APIKey{
-			UserID:    database.PrebuildsSystemUserID,
+			HolderID:  database.HolderID(database.PrebuildsSystemUserID),
 			TokenName: provisionerdserver.WorkspaceSessionTokenName(database.PrebuildsSystemUserID, workspace.ID),
 		})
 	)
@@ -6000,7 +6000,7 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	keyID := strings.Split(firstToken, "-")[0]
 	firstKey, err := db.GetAPIKeyByID(ctx, keyID)
 	require.NoError(t, err)
-	require.Equal(t, agent.UserID, firstKey.UserID)
+	require.Equal(t, agent.UserID, firstKey.HolderID.AsUserIDUnchecked())
 	// The key must be pinned to exactly this workspace.
 	require.Len(t, firstKey.AllowList, 1)
 	require.Equal(t, workspace.ID.String(), firstKey.AllowList[0].ID)
@@ -6154,7 +6154,7 @@ func TestAcquireJob_AIAgentSessionTokenChatDesignated(t *testing.T) {
 	keyID := strings.Split(token, "-")[0]
 	key, err := db.GetAPIKeyByID(ctx, keyID)
 	require.NoError(t, err)
-	require.Equal(t, chatAgent.UserID, key.UserID,
+	require.Equal(t, chatAgent.UserID, key.HolderID.AsUserIDUnchecked(),
 		"the scoped token belongs to the chat marker identity")
 
 	// No workspace-origin identity exists for this workspace: resolving

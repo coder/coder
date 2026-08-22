@@ -104,7 +104,7 @@ func TestRateLimit(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		u := dbgen.User(t, db, database.User{})
-		_, key := dbgen.APIKey(t, db, database.APIKey{UserID: u.ID})
+		_, key := dbgen.APIKey(t, db, database.APIKey{HolderID: database.HolderID(u.ID)})
 
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -150,7 +150,7 @@ func TestRateLimit(t *testing.T) {
 		u := dbgen.User(t, db, database.User{
 			RBACRoles: []string{codersdk.RoleOwner},
 		})
-		_, key := dbgen.APIKey(t, db, database.APIKey{UserID: u.ID})
+		_, key := dbgen.APIKey(t, db, database.APIKey{HolderID: database.HolderID(u.ID)})
 
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{

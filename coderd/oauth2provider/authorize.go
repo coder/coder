@@ -232,7 +232,7 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 			// Delete any previous codes.
 			err = tx.DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx, database.DeleteOAuth2ProviderAppCodesByAppAndUserIDParams{
 				AppID:  app.ID,
-				UserID: apiKey.UserID,
+				UserID: apiKey.HolderID.AsUserIDUnchecked(),
 			})
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return xerrors.Errorf("delete oauth2 app codes: %w", err)
@@ -253,7 +253,7 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 				SecretPrefix:        []byte(code.Prefix),
 				HashedSecret:        code.Hashed,
 				AppID:               app.ID,
-				UserID:              apiKey.UserID,
+				UserID:              apiKey.HolderID.AsUserIDUnchecked(),
 				ResourceUri:         sql.NullString{String: params.resource, Valid: params.resource != ""},
 				CodeChallenge:       sql.NullString{String: params.codeChallenge, Valid: params.codeChallenge != ""},
 				CodeChallengeMethod: sql.NullString{String: params.codeChallengeMethod, Valid: params.codeChallengeMethod != ""},

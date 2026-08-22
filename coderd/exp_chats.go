@@ -206,7 +206,7 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 		ctxDone = ctx.Done()
 	)
 
-	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(pubsub.ChatWatchEventChannel(apiKey.UserID),
+	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(pubsub.ChatWatchEventChannel(apiKey.HolderID.AsUserIDUnchecked()),
 		pubsub.HandleChatWatchEvent(
 			func(cbCtx context.Context, payload codersdk.ChatWatchEvent, err error) {
 				if err != nil {
@@ -433,7 +433,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 
 	var sharedWithGroupIDs []string
 	if searchParams.SharedOnly {
-		groups, err := api.Database.GetGroups(ctx, database.GetGroupsParams{HasMemberID: apiKey.UserID})
+		groups, err := api.Database.GetGroups(ctx, database.GetGroupsParams{HasMemberID: apiKey.HolderID.AsUserIDUnchecked()})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to list chats.",
@@ -449,9 +449,9 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 
 	params := database.GetChatsParams{
 		OwnedOnly:           searchParams.OwnedOnly,
-		ViewerID:            apiKey.UserID,
+		ViewerID:            apiKey.HolderID.AsUserIDUnchecked(),
 		SharedOnly:          searchParams.SharedOnly,
-		SharedWithUserID:    apiKey.UserID,
+		SharedWithUserID:    apiKey.HolderID.AsUserIDUnchecked(),
 		SharedWithGroupIds:  sharedWithGroupIDs,
 		Archived:            searchParams.Archived,
 		AfterID:             paginationParams.AfterID,
@@ -1291,7 +1291,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// parsing because we need req.OrganizationID to scope the RBAC check
 	// to the correct org. The request body is bounded by MaxBytesReader
 	// above, limiting the cost of parsing before rejection.
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String()).InOrg(req.OrganizationID)) {
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.HolderID.AsUserIDUnchecked().String()).InOrg(req.OrganizationID)) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -1319,7 +1319,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	title := chatprompt.FallbackTitle(titleSource)
 
-	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ctx, apiKey.UserID, req)
+	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ctx, apiKey.HolderID.AsUserIDUnchecked(), req)
 	if modelConfigError != nil {
 		httpapi.Write(ctx, rw, modelConfigStatus, *modelConfigError)
 		return
@@ -1446,7 +1446,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:          req.OrganizationID,
-		OwnerID:                 apiKey.UserID,
+		OwnerID:                 apiKey.HolderID.AsUserIDUnchecked(),
 		WorkspaceID:             workspaceSelection.WorkspaceID,
 		Title:                   title,
 		TitleDerivedFromContent: true,
@@ -1569,7 +1569,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	availability, err := api.getUserChatProviderAvailability(ctx, apiKey.UserID)
+	availability, err := api.getUserChatProviderAvailability(ctx, apiKey.HolderID.AsUserIDUnchecked())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to load chat model configuration.",
@@ -2717,7 +2717,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	// provider API keys) to external services. Allowing a
 	// non-owner to trigger processing would leak the owner's
 	// tokens to MCP servers the caller controls.
-	if apiKey.UserID != chat.OwnerID {
+	if apiKey.HolderID.AsUserIDUnchecked() != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may send messages.",
 		})
@@ -2808,7 +2808,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	if req.ModelConfigID != nil {
 		modelConfigID = *req.ModelConfigID
 	}
-	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, modelConfigID); resp != nil {
+	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.HolderID.AsUserIDUnchecked(), modelConfigID); resp != nil {
 		httpapi.Write(ctx, rw, status, *resp)
 		return
 	}
@@ -2823,7 +2823,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		ctx,
 		chatd.SendMessageOptions{
 			ChatID:          chatID,
-			CreatedBy:       apiKey.UserID,
+			CreatedBy:       apiKey.HolderID.AsUserIDUnchecked(),
 			Content:         contentBlocks,
 			ModelConfigID:   modelConfigID,
 			ReasoningEffort: reasoningEffort,
@@ -2958,7 +2958,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 
 	// Only the chat owner may edit messages. See postChatMessages
 	// for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
+	if apiKey.HolderID.AsUserIDUnchecked() != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may edit messages.",
 		})
@@ -3000,7 +3000,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	if req.ModelConfigID != nil {
 		editModelConfigID = *req.ModelConfigID
 	}
-	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, editModelConfigID); resp != nil {
+	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.HolderID.AsUserIDUnchecked(), editModelConfigID); resp != nil {
 		httpapi.Write(ctx, rw, status, *resp)
 		return
 	}
@@ -3013,7 +3013,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 
 	editResult, editErr := api.chatDaemon.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
-		CreatedBy:       apiKey.UserID,
+		CreatedBy:       apiKey.HolderID.AsUserIDUnchecked(),
 		EditedMessageID: messageID,
 		Content:         contentBlocks,
 		ModelConfigID:   editModelConfigID,
@@ -3160,7 +3160,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 
 	// Only the chat owner may promote messages. See
 	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
+	if apiKey.HolderID.AsUserIDUnchecked() != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may promote queued messages.",
 		})
@@ -3186,7 +3186,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 
 	_, txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chatID,
-		CreatedBy:       apiKey.UserID,
+		CreatedBy:       apiKey.HolderID.AsUserIDUnchecked(),
 		QueuedMessageID: queuedMessageID,
 	})
 
@@ -3325,7 +3325,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	// The last_read_message_id field is owner-scoped. Shared readers
 	// intentionally lack chat update permission, so their streams must not
 	// update it.
-	if chat.OwnerID == httpmw.APIKey(r).UserID {
+	if chat.OwnerID == httpmw.APIKey(r).HolderID.AsUserIDUnchecked() {
 		api.markChatAsRead(ctx, chatID)
 		defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
 	}
@@ -3484,7 +3484,7 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 	// Only the chat owner may trigger compaction. Org admins pass the
 	// RBAC check above (org-level ActionUpdate), but compaction runs
 	// inference with the owner's delegated credentials.
-	if apiKey.UserID != chat.OwnerID {
+	if apiKey.HolderID.AsUserIDUnchecked() != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may compact the chat.",
 		})
@@ -3604,7 +3604,7 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 
 	// Only the chat owner may regenerate titles. See
 	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
+	if apiKey.HolderID.AsUserIDUnchecked() != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may regenerate the title.",
 		})
@@ -3653,7 +3653,7 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 
 	// Only the chat owner may propose titles. See
 	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
+	if apiKey.HolderID.AsUserIDUnchecked() != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may propose a title.",
 		})
@@ -3866,7 +3866,8 @@ func (api *API) chatStartWorkspace(
 	// Build a synthetic API key so postWorkspaceBuildsInternal can
 	// record the correct initiator (the AI agent user when present).
 	syntheticKey := database.APIKey{
-		UserID: actingUserID,
+		HolderID:   database.HolderID(actingUserID),
+		HolderType: database.HolderTypeUser,
 	}
 
 	apiBuild, err := api.postWorkspaceBuildsInternal(
@@ -3925,7 +3926,8 @@ func (api *API) chatStopWorkspace(
 	// Build a synthetic API key so postWorkspaceBuildsInternal can
 	// record the correct initiator (the AI agent user when present).
 	syntheticKey := database.APIKey{
-		UserID: actingUserID,
+		HolderID:   database.HolderID(actingUserID),
+		HolderType: database.HolderTypeUser,
 	}
 
 	apiBuild, err := api.postWorkspaceBuildsInternal(
@@ -4919,7 +4921,7 @@ func (api *API) getUserChatPersonalModelOverrides(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	rows, err := api.Database.ListUserChatPersonalModelOverrides(ctx, apiKey.UserID)
+	rows, err := api.Database.ListUserChatPersonalModelOverrides(ctx, apiKey.HolderID.AsUserIDUnchecked())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user personal model overrides.",
@@ -5056,7 +5058,7 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 			})
 			return
 		}
-		modelConfig, status, resp := api.validateUserChatModelConfigAvailable(ctx, apiKey.UserID, parsedModelConfigID)
+		modelConfig, status, resp := api.validateUserChatModelConfigAvailable(ctx, apiKey.HolderID.AsUserIDUnchecked(), parsedModelConfigID)
 		if resp != nil {
 			httpapi.Write(ctx, rw, status, *resp)
 			return
@@ -5075,7 +5077,7 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 	}
 
 	if err := api.Database.UpsertUserChatPersonalModelOverride(ctx, database.UpsertUserChatPersonalModelOverrideParams{
-		UserID: apiKey.UserID,
+		UserID: apiKey.HolderID.AsUserIDUnchecked(),
 		Key:    chatd.ChatPersonalModelOverrideKey(overrideContext),
 		Value:  formatChatPersonalModelOverrideValue(req.Mode, modelConfigID, reasoningEffort),
 	}); err != nil {
@@ -5213,7 +5215,7 @@ func (api *API) getUserChatDebugLogging(rw http.ResponseWriter, r *http.Request)
 
 	debugEnabled := forcedByDeployment
 	if allowUsers {
-		enabled, err := api.Database.GetUserChatDebugLoggingEnabled(ctx, apiKey.UserID)
+		enabled, err := api.Database.GetUserChatDebugLoggingEnabled(ctx, apiKey.HolderID.AsUserIDUnchecked())
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching user chat debug logging setting.",
@@ -5262,7 +5264,7 @@ func (api *API) putUserChatDebugLogging(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err := api.Database.UpsertUserChatDebugLoggingEnabled(ctx, database.UpsertUserChatDebugLoggingEnabledParams{
-		UserID:              apiKey.UserID,
+		UserID:              apiKey.HolderID.AsUserIDUnchecked(),
 		DebugLoggingEnabled: req.DebugLoggingEnabled,
 	}); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -5640,7 +5642,7 @@ func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		apiKey = httpmw.APIKey(r)
 	)
 
-	customPrompt, err := api.Database.GetUserChatCustomPrompt(ctx, apiKey.UserID)
+	customPrompt, err := api.Database.GetUserChatCustomPrompt(ctx, apiKey.HolderID.AsUserIDUnchecked())
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -5684,7 +5686,7 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 	}
 
 	updatedConfig, err := api.Database.UpdateUserChatCustomPrompt(ctx, database.UpdateUserChatCustomPromptParams{
-		UserID:           apiKey.UserID,
+		UserID:           apiKey.HolderID.AsUserIDUnchecked(),
 		ChatCustomPrompt: sanitizedPrompt,
 	})
 	if err != nil {
@@ -5695,7 +5697,7 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventUserPrompt, apiKey.UserID)
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventUserPrompt, apiKey.HolderID.AsUserIDUnchecked())
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPrompt{
 		CustomPrompt: updatedConfig.Value,
@@ -5713,7 +5715,7 @@ func (api *API) getUserChatCompactionThresholds(rw http.ResponseWriter, r *http.
 		apiKey = httpmw.APIKey(r)
 	)
 
-	rows, err := api.Database.ListUserChatCompactionThresholds(ctx, apiKey.UserID)
+	rows, err := api.Database.ListUserChatCompactionThresholds(ctx, apiKey.HolderID.AsUserIDUnchecked())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error listing user chat compaction thresholds.",
@@ -5820,7 +5822,7 @@ func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.R
 	}
 
 	_, err = api.Database.UpdateUserChatCompactionThreshold(ctx, database.UpdateUserChatCompactionThresholdParams{
-		UserID:           apiKey.UserID,
+		UserID:           apiKey.HolderID.AsUserIDUnchecked(),
 		Key:              codersdk.CompactionThresholdKey(modelConfigID),
 		ThresholdPercent: req.ThresholdPercent,
 	})
@@ -5853,7 +5855,7 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 	}
 
 	if err := api.Database.DeleteUserChatCompactionThreshold(ctx, database.DeleteUserChatCompactionThresholdParams{
-		UserID: apiKey.UserID,
+		UserID: apiKey.HolderID.AsUserIDUnchecked(),
 		Key:    codersdk.CompactionThresholdKey(modelConfigID),
 	}); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -5899,7 +5901,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	// NOTE: This authorize check is intentionally placed after query
 	// parameter parsing because we need orgID to scope the RBAC check
 	// to the correct org.
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String()).InOrg(orgID)) {
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.HolderID.AsUserIDUnchecked().String()).InOrg(orgID)) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -5989,7 +5991,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	chatFile, err := api.Database.InsertChatFile(ctx, database.InsertChatFileParams{
-		OwnerID:        apiKey.UserID,
+		OwnerID:        apiKey.HolderID.AsUserIDUnchecked(),
 		OrganizationID: orgID,
 		Name:           filename,
 		Mimetype:       detected,
@@ -6724,8 +6726,8 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		CompressionThreshold: compressionThreshold,
 		Options:              modelConfigRaw,
 		AIProviderID:         aiProviderID,
-		CreatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
-		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
+		CreatedBy:            uuid.NullUUID{UUID: apiKey.HolderID.AsUserIDUnchecked(), Valid: apiKey.HolderID.AsUserIDUnchecked() != uuid.Nil},
+		UpdatedBy:            uuid.NullUUID{UUID: apiKey.HolderID.AsUserIDUnchecked(), Valid: apiKey.HolderID.AsUserIDUnchecked() != uuid.Nil},
 	}
 
 	var inserted database.ChatModelConfig
@@ -6931,7 +6933,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		CompressionThreshold: compressionThreshold,
 		Options:              modelConfigRaw,
 		AIProviderID:         aiProviderID,
-		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
+		UpdatedBy:            uuid.NullUUID{UUID: apiKey.HolderID.AsUserIDUnchecked(), Valid: apiKey.HolderID.AsUserIDUnchecked() != uuid.Nil},
 		ID:                   existing.ID,
 	}
 
@@ -7371,7 +7373,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 
 	// Only the chat owner may submit tool results. See
 	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
+	if apiKey.HolderID.AsUserIDUnchecked() != chat.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner may submit tool results.",
 		})
@@ -7412,7 +7414,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 
 	err := api.chatDaemon.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
-		UserID:        apiKey.UserID,
+		UserID:        apiKey.HolderID.AsUserIDUnchecked(),
 		ModelConfigID: chat.LastModelConfigID,
 		Results:       req.Results,
 		DynamicTools:  dynamicTools,

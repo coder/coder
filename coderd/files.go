@@ -106,7 +106,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	hash := hex.EncodeToString(hashBytes[:])
 	file, err := api.Database.GetFileByHashAndCreator(ctx, database.GetFileByHashAndCreatorParams{
 		Hash:      hash,
-		CreatedBy: apiKey.UserID,
+		CreatedBy: apiKey.HolderID.AsUserIDUnchecked(),
 	})
 	if err == nil {
 		// The file already exists!
@@ -126,7 +126,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	file, err = api.Database.InsertFile(ctx, database.InsertFileParams{
 		ID:        id,
 		Hash:      hash,
-		CreatedBy: apiKey.UserID,
+		CreatedBy: apiKey.HolderID.AsUserIDUnchecked(),
 		CreatedAt: dbtime.Now(),
 		Mimetype:  contentType,
 		Data:      data,
@@ -136,9 +136,9 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 			// The file was uploaded by some concurrent process since the last time we checked for it, fetch it again.
 			file, err = api.Database.GetFileByHashAndCreator(ctx, database.GetFileByHashAndCreatorParams{
 				Hash:      hash,
-				CreatedBy: apiKey.UserID,
+				CreatedBy: apiKey.HolderID.AsUserIDUnchecked(),
 			})
-			api.Logger.Info(ctx, "postFile handler hit UniqueViolation trying to upload file after already checking for the file existence", slog.F("hash", hash), slog.F("created_by_id", apiKey.UserID))
+			api.Logger.Info(ctx, "postFile handler hit UniqueViolation trying to upload file after already checking for the file existence", slog.F("hash", hash), slog.F("created_by_id", apiKey.HolderID.AsUserIDUnchecked()))
 		}
 		// At this point the first error was either not the UniqueViolation OR there's still an error even after we
 		// attempt to fetch the file again, so we should return here.

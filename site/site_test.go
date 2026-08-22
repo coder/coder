@@ -100,7 +100,7 @@ func TestInjectionAppearanceEscapesMetaAttributes(t *testing.T) {
 			if tt.authenticated {
 				user := dbgen.User(t, db, database.User{})
 				_, token := dbgen.APIKey(t, db, database.APIKey{
-					UserID:    user.ID,
+					HolderID:  database.HolderID(user.ID),
 					ExpiresAt: time.Now().Add(time.Hour),
 				})
 				r.Header.Set(codersdk.SessionTokenHeader, token)
@@ -137,7 +137,7 @@ func TestInjection(t *testing.T) {
 
 	user := dbgen.User(t, db, database.User{})
 	_, token := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    user.ID,
+		HolderID:  database.HolderID(user.ID),
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
@@ -205,7 +205,7 @@ func TestInjectionUserAppearance(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, token := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    user.ID,
+		HolderID:  database.HolderID(user.ID),
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
@@ -257,7 +257,7 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	_, tokenWithRole := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    userWithRole.ID,
+		HolderID:  database.HolderID(userWithRole.ID),
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
@@ -283,7 +283,7 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	// GIVEN: a user without the agents-access role.
 	userWithoutRole := dbgen.User(t, db, database.User{})
 	_, tokenWithoutRole := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    userWithoutRole.ID,
+		HolderID:  database.HolderID(userWithoutRole.ID),
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
@@ -313,7 +313,7 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 		Roles:          []string{rbac.RoleOrgWorkspaceCreationBan()},
 	})
 	_, bannedToken := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    bannedUser.ID,
+		HolderID:  database.HolderID(bannedUser.ID),
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
@@ -342,7 +342,7 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 	// an error when httpmw.ExtractAPIKey is called.
 	user := dbgen.User(t, db, database.User{})
 	_, token := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    user.ID,
+		HolderID:  database.HolderID(user.ID),
 		LastUsed:  dbtime.Now().Add(-time.Hour),
 		ExpiresAt: dbtime.Now().Add(-time.Second),
 		LoginType: database.LoginTypeGithub,
@@ -448,7 +448,7 @@ func TestOrganizationsMetadata(t *testing.T) {
 		UserID:         owner.ID,
 	})
 	_, ownerToken := dbgen.APIKey(t, rawDB, database.APIKey{
-		UserID:    owner.ID,
+		HolderID:  database.HolderID(owner.ID),
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
@@ -466,7 +466,7 @@ func TestOrganizationsMetadata(t *testing.T) {
 		UserID:         member.ID,
 	})
 	_, memberToken := dbgen.APIKey(t, rawDB, database.APIKey{
-		UserID:    member.ID,
+		HolderID:  database.HolderID(member.ID),
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 

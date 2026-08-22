@@ -889,7 +889,7 @@ BEGIN
     IF (NEW.deleted) THEN
         -- Remove their api_keys.
         DELETE FROM api_keys
-        WHERE user_id = OLD.id;
+        WHERE holder_type = 'user' AND holder_id = OLD.id;
 
         -- Remove their user_links.
         -- Their login_type is preserved in the users table.
@@ -1102,8 +1102,8 @@ CREATE FUNCTION insert_apikey_fail_if_user_deleted() RETURNS trigger
 
 DECLARE
 BEGIN
-	IF (NEW.user_id IS NOT NULL) THEN
-		IF (SELECT deleted FROM users WHERE id = NEW.user_id LIMIT 1) THEN
+	IF (NEW.holder_type = 'user' AND NEW.holder_id IS NOT NULL) THEN
+		IF (SELECT deleted FROM users WHERE id = NEW.holder_id LIMIT 1) THEN
 			RAISE EXCEPTION 'Cannot create API key for deleted user';
 		END IF;
 	END IF;
@@ -1849,7 +1849,7 @@ COMMENT ON COLUMN aibridge_user_prompts.provider_response_id IS 'The ID for the 
 CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
-    user_id uuid NOT NULL,
+    holder_id uuid NOT NULL,
     last_used timestamp with time zone NOT NULL,
     expires_at timestamp with time zone NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -1860,10 +1860,16 @@ CREATE TABLE api_keys (
     token_name text DEFAULT ''::text NOT NULL,
     scopes api_key_scope[] NOT NULL,
     allow_list text[] NOT NULL,
-    CONSTRAINT api_keys_allow_list_not_empty CHECK ((array_length(allow_list, 1) > 0))
+    holder_type text DEFAULT 'user'::text NOT NULL,
+    CONSTRAINT api_keys_allow_list_not_empty CHECK ((array_length(allow_list, 1) > 0)),
+    CONSTRAINT api_keys_holder_type_check CHECK ((holder_type = ANY (ARRAY['user'::text, 'ai_agent'::text])))
 );
 
 COMMENT ON COLUMN api_keys.hashed_secret IS 'hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.';
+
+COMMENT ON COLUMN api_keys.holder_id IS 'The actor holding this key. Not a foreign key: the holder may be a user or an AI agent, and no single table holds both.';
+
+COMMENT ON COLUMN api_keys.holder_type IS 'Which kind of actor holder_id names, and so which table resolves it.';
 
 CREATE TABLE audit_logs (
     id uuid NOT NULL,
@@ -5058,9 +5064,9 @@ CREATE INDEX idx_aibridge_user_prompts_interception_id ON aibridge_user_prompts 
 
 CREATE INDEX idx_aibridge_user_prompts_provider_response_id ON aibridge_user_prompts USING btree (provider_response_id);
 
-CREATE UNIQUE INDEX idx_api_key_name ON api_keys USING btree (user_id, token_name) WHERE (login_type = 'token'::login_type);
+CREATE UNIQUE INDEX idx_api_key_name ON api_keys USING btree (holder_id, token_name) WHERE (login_type = 'token'::login_type);
 
-CREATE INDEX idx_api_keys_user ON api_keys USING btree (user_id);
+CREATE INDEX idx_api_keys_user ON api_keys USING btree (holder_id);
 
 CREATE INDEX idx_audit_log_organization_id ON audit_logs USING btree (organization_id);
 
@@ -5478,9 +5484,6 @@ ALTER TABLE ONLY ai_seat_state
 
 ALTER TABLE ONLY aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id);
-
-ALTER TABLE ONLY api_keys
-    ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY boundary_logs
     ADD CONSTRAINT boundary_logs_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL;

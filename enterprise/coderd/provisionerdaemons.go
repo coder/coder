@@ -122,7 +122,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 		return provisiionerDaemonAuthResponse{}, xerrors.Errorf("parse user provisioner key id: %w", err)
 	}
 
-	tags = provisionersdk.MutateTags(apiKey.UserID, tags)
+	tags = provisionersdk.MutateTags(apiKey.HolderID.AsUserIDUnchecked(), tags)
 	if tags[provisionersdk.TagScope] == provisionersdk.ScopeUser {
 		// Any authenticated user can create provisioner daemons scoped
 		// for jobs that they own,

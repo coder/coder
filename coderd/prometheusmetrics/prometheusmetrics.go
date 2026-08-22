@@ -64,7 +64,7 @@ func ActiveUsers(ctx context.Context, logger slog.Logger, registerer prometheus.
 			}
 			distinctUsers := map[uuid.UUID]struct{}{}
 			for _, apiKey := range apiKeys {
-				distinctUsers[apiKey.UserID] = struct{}{}
+				distinctUsers[apiKey.HolderID.AsUserIDUnchecked()] = struct{}{}
 			}
 			gauge.Set(float64(len(distinctUsers)))
 		}

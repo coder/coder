@@ -127,7 +127,7 @@ func newWorkerTestFixture(t *testing.T) *workerTestFixture {
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		IsDefault: true,
 	})
-	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{HolderID: database.HolderID(user.ID)})
 	return &workerTestFixture{db: db, pubsub: ps, sqlDB: sqlDB, user: user, org: org, model: model, apiKey: apiKey}
 }
 

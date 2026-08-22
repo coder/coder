@@ -219,7 +219,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAuditWS()
 
-	workspace, err := createWorkspace(ctx, aReqWS, apiKey.UserID, api, owner, createReq, &createWorkspaceOptions{
+	workspace, err := createWorkspace(ctx, aReqWS, apiKey.HolderID.AsUserIDUnchecked(), api, owner, createReq, &createWorkspaceOptions{
 		remoteAddr: r.RemoteAddr,
 		// Before creating the workspace, ensure that this task can be created.
 		preCreateInTX: func(ctx context.Context, tx database.Store) error {
@@ -435,7 +435,7 @@ func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 
 	// Parse query parameters for filtering tasks.
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.Tasks(ctx, api.Database, queryStr, apiKey.UserID)
+	filter, errs := searchquery.Tasks(ctx, api.Database, queryStr, apiKey.HolderID.AsUserIDUnchecked())
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid task search query.",
@@ -454,7 +454,7 @@ func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tasks, err := api.convertTasks(ctx, apiKey.UserID, dbTasks)
+	tasks, err := api.convertTasks(ctx, apiKey.HolderID.AsUserIDUnchecked(), dbTasks)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting tasks.",
@@ -586,7 +586,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	ws, err := convertWorkspace(
 		ctx,
 		api.Logger,
-		apiKey.UserID,
+		apiKey.HolderID.AsUserIDUnchecked(),
 		workspace,
 		data.builds[0],
 		data.templates[0],

@@ -599,11 +599,11 @@ func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 	}).Return(nil, nil)
 	db.EXPECT().GetAIAgentByOriginIncludingDeleted(gomock.Any(), gomock.Any()).Return(database.AIAgent{}, sql.ErrNoRows).AnyTimes()
 	db.EXPECT().GetChatGatewayAPIKey(gomock.Any(), database.GetChatGatewayAPIKeyParams{
-		UserID:    chat.OwnerID,
+		HolderID:  database.HolderID(chat.OwnerID),
 		TokenName: GatewayTokenName(chat.OwnerID),
 	}).Return(database.APIKey{
 		ID:        apiKeyID,
-		UserID:    chat.OwnerID,
+		HolderID:  database.HolderID(chat.OwnerID),
 		ExpiresAt: time.Now().Add(48 * time.Hour),
 	}, nil)
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)

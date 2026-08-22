@@ -340,7 +340,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 
 	file, err := api.Database.GetFileByHashAndCreator(ctx, database.GetFileByHashAndCreatorParams{
 		Hash:      hash,
-		CreatedBy: apiKey.UserID,
+		CreatedBy: apiKey.HolderID.AsUserIDUnchecked(),
 	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -354,7 +354,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 			ID:        uuid.New(),
 			Hash:      hash,
 			CreatedAt: dbtime.Now(),
-			CreatedBy: apiKey.UserID,
+			CreatedBy: apiKey.HolderID.AsUserIDUnchecked(),
 			Mimetype:  codersdk.ContentTypeTar,
 			Data:      tarData,
 		})
@@ -367,7 +367,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 		}
 	}
 
-	tags := provisionersdk.MutateTags(apiKey.UserID, nil, req.ProvisionerTags)
+	tags := provisionersdk.MutateTags(apiKey.HolderID.AsUserIDUnchecked(), nil, req.ProvisionerTags)
 	traceMetadataRaw, err := json.Marshal(tracing.MetadataFromContext(ctx))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -398,7 +398,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 			CreatedAt:      dbtime.Now(),
 			UpdatedAt:      dbtime.Now(),
 			OrganizationID: organization.ID,
-			InitiatorID:    apiKey.UserID,
+			InitiatorID:    apiKey.HolderID.AsUserIDUnchecked(),
 			Provisioner:    database.ProvisionerTypeTerraform,
 			StorageMethod:  database.ProvisionerStorageMethodFile,
 			FileID:         file.ID,
@@ -426,7 +426,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 			Message:         "",
 			Readme:          string(result.Readme),
 			JobID:           provisionerJob.ID,
-			CreatedBy:       apiKey.UserID,
+			CreatedBy:       apiKey.HolderID.AsUserIDUnchecked(),
 			SourceExampleID: sql.NullString{},
 		})
 		if err != nil {
@@ -546,7 +546,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 			Provisioner:                  database.ProvisionerTypeTerraform,
 			ActiveVersionID:              templateVersion.ID,
 			Description:                  req.Description,
-			CreatedBy:                    apiKey.UserID,
+			CreatedBy:                    apiKey.HolderID.AsUserIDUnchecked(),
 			UserACL:                      database.TemplateACL{},
 			GroupACL:                     defaultGroups,
 			DisplayName:                  req.DisplayName,
@@ -683,7 +683,7 @@ func (api *API) templateBuilderSession(rw http.ResponseWriter, r *http.Request) 
 			{
 				ID:              req.SessionID,
 				EventType:       string(req.EventType),
-				UserID:          apiKey.UserID,
+				UserID:          apiKey.HolderID.AsUserIDUnchecked(),
 				BaseTemplateID:  req.BaseTemplateID,
 				ModuleIDs:       req.ModuleIDs,
 				DurationSeconds: req.DurationSeconds,

@@ -65,9 +65,9 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	filter.LimitOpt = int32(page.Limit)
 
 	if filter.Username == "me" {
-		filter.UserID = apiKey.UserID
+		filter.UserID = apiKey.HolderID.AsUserIDUnchecked()
 		filter.Username = ""
-		countFilter.UserID = apiKey.UserID
+		countFilter.UserID = apiKey.HolderID.AsUserIDUnchecked()
 		countFilter.Username = ""
 	}
 
@@ -133,7 +133,7 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	key := httpmw.APIKey(r)
-	user, err := api.Database.GetUserByID(ctx, key.UserID)
+	user, err := api.Database.GetUserByID(ctx, key.HolderID.AsUserIDUnchecked())
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

@@ -198,7 +198,7 @@ func TestAuthorization(t *testing.T) {
 					},
 					Valid: true,
 				},
-				UserID:    user.ID,
+				HolderID:  database.HolderID(user.ID),
 				LastUsed:  now,
 				ExpiresAt: now.Add(time.Hour),
 				CreatedAt: now,
@@ -361,7 +361,7 @@ func TestAuthorizationAIAgentOwnerLiveness(t *testing.T) {
 				})
 				require.NoError(t, err)
 				_, token = dbgen.APIKey(t, db, database.APIKey{
-					UserID:    agentUser.ID,
+					HolderID:  database.HolderID(agentUser.ID),
 					LoginType: database.LoginTypeToken,
 				})
 			} else {
@@ -533,7 +533,7 @@ func TestAuthorization_Delegated(t *testing.T) {
 				ID:              keyID,
 				LifetimeSeconds: 86400,
 				HashedSecret:    keySecretHashed,
-				UserID:          user.ID,
+				HolderID:        database.HolderID(user.ID),
 				LastUsed:        now,
 				ExpiresAt:       now.Add(time.Hour),
 				CreatedAt:       now,

@@ -82,6 +82,51 @@ effort is not spent on work a later failure would waste. Journaling credentials
 was wanted independently, and its value is blunted if the core change proves
 impossible.
 
+### Making an assumption visible to the compiler is a measurement
+
+Where a wrong assumption is spread through code and fails silently, a change
+that forces every site holding it to say so is worth more than the change
+itself. **Its product is a count.** Until it is made, nobody can say how large
+the assumption is, only that it is somewhere.
+
+The instance here is giving an API key's holder a type distinct from the type it
+had. The holder was a `uuid.UUID` read throughout as "the user making this
+request", and nothing distinguished a site that meant the holder from a site
+that meant the user. A defined type refuses to be read as either without saying
+which, which turned an assumption nobody had counted into a list of a hundred
+and eighty four places, each one a decision that is now owed rather than
+unnoticed.
+
+This does not settle any of those decisions and is not meant to. It converts a
+question of unknown size into a question of known size, which is what makes an
+estimate possible at all.
+
+### An API key's holder is a pair, and reading it as a user is a marked cheat
+
+The holder of an API key is a `(type, id)` pair. The identifier column is a type
+of its own rather than a bare UUID, so no site can read it as a user without
+saying that is what it is doing. The narrowing is called `AsUserIDUnchecked`,
+and the name is the point.
+
+**Every call to it is a decision that has not been made.** There are a hundred
+and eighty five outside tests. They preserve the behaviour a human holder
+already had, which is correct for a human and wrong for anything else, and they
+are left that way deliberately for the proof of concept rather than repaired.
+Grepping the name gives the outstanding work; removing a call means deciding
+what that site meant.
+
+**The cheat is safe because the failure is silent and the guards are honest.**
+A site handing a non-user holder to something expecting a user gets an empty
+record rather than an error, and a site asking whether the holder is a
+particular user gets a correct no. Neither produces an unsafe answer. What they
+produce is a wrong one, which "These sites are found by someone noticing a wrong
+number" describes.
+
+**Two things are not cheatable and were not cheated.** Authentication resolves
+the holder before anything else runs, and refuses the request outright if it
+cannot; and the trigger refusing keys to deleted users had to learn that a
+holder which is not a user cannot be a deleted one.
+
 ### Scope for the proof of concept is user and ai_agent
 
 System actors already recorded as users stay there. Going from one identity
@@ -164,6 +209,67 @@ It was rejected on Humphrey's grounds rather than on technical ones. It defers
 the riskiest ring while spending effort that the failure of that ring would
 waste, and it would ship a record that is honest about agents and authorizations
 while remaining a shadow about credentials.
+
+### These sites are found by someone noticing a wrong number
+
+A site that treats a holder as a user does not announce itself. It does not
+crash and it does not return an error: it returns an answer computed from a
+record that is absent, which is usually an empty one. So the failure is silent,
+and saying only that understates it.
+
+**The observed mechanism of discovery is a person noticing that a figure is
+wrong.** A percentile counting subjects that could never have contributed to it,
+a list of people containing something that is not one, a seat consumed by a
+machine. Each was corrected once seen, and each correction was local to where it
+was seen.
+
+The consequence for estimating is that any figure arrived at by finding the
+sites through testing will be too low, because the behaviour under test is
+plausible. This is the case that "Making an assumption visible to the compiler
+is a measurement" generalises from.
+
+### The overloading is debt, and it has never been named as such
+
+Nothing found in this trace was a bad decision. Excluding an internal subject
+from a percentile is right. Keeping a machine out of a list of people is right.
+Refusing it a paid seat is right. Each repair was correct where it was made.
+
+**What is missing is the principle that would have predicted them.** Every one
+was derived from an incident rather than from a rule, so there has never been a
+way to ask where else the same thing holds. The comment saying the handling
+covers one system user because only one exists is that absence stated plainly by
+someone who could see it locally and had nothing to generalise from.
+
+Two properties keep the debt from accumulating visibly.
+
+**It does not fail**, so it produces no incidents in the ordinary sense, only
+answers that are wrong in ways somebody eventually queries. A cost that never
+announces itself is not weighed against anything.
+
+**Each instance was repaired locally**, a filter in one query, a sweep in
+another, a bespoke expiry somewhere else. Nothing ever aggregated into a thing
+with a name, and an unnamed thing cannot be scheduled, estimated, or argued
+about.
+
+That is what distinguishes this from ordinary shortcuts taken knowingly. Debt
+usually gets recorded and deferred. This was never recorded, because at each
+point there was nothing visible to record beyond the one query in front of
+someone.
+
+### The subject is a smaller problem than the credential
+
+Tracing the prebuilds user moves weight between two of the three rings.
+
+**The subject ring shrinks.** A compiled in subject for a non-person already
+exists and works, so building one for an AI agent is a pattern the codebase
+has rather than one it lacks.
+
+**The credential ring grows.** The transfer case has already happened to a
+system user, has already produced two layers of workaround, and the second layer
+leans on parsing an identifier out of a name because the schema has nowhere to
+record what a credential was issued for. That gap is closed by construction in a
+credential ledger, and the argument for closing it does not depend on
+auditability at all.
 
 ## Findings
 
@@ -337,6 +443,123 @@ Distinguishing one from a human requires joining the users table on its kind
 discriminator, or joining the AI agent table. An identifier alone does not say
 what kind of thing it names, which is the same lack the pair exists to remedy.
 
+### Twenty one places ask whether the holder is a particular user
+
+Comparisons rather than lookups, and they behave differently from the rest
+because a comparison cannot return an empty record. Triaged:
+
+- **Ten refuse an actor that may have a legitimate claim.** Eight guard chat
+  ownership and two guard workspace ownership. All fail closed, so the outcome
+  is safe and the agent is simply refused.
+- **One refuses something no agent has business doing**, reading a login type.
+- **Four guard against something impossible for a non-user**: suspending
+  yourself, changing your own roles, changing your own chat sharing role, and
+  supplying an old password when changing your own. The guard does not fire, and
+  not firing is correct, because the holder genuinely is not that user.
+- **Four decorate output**, marking which row is the caller. The mark is absent.
+- **Two degrade noisily**, doing a lookup that fails and logging it, and in one
+  case sending a notification that would otherwise have been suppressed.
+
+**None of them fails open.** Each asks whether the holder is one specific user,
+and for any other kind of actor the honest answer is no, so every guard is
+answered correctly by the question it actually asks.
+
+The consequence is that the first group is not a work item but **a list to check
+a demonstration against**. If a scenario has an agent send a chat message or
+favourite a workspace, those gates fire; if it stays on credential and
+authorization lifecycle, none is reached.
+
+### An existing security control describes the grant, negatively
+
+The chat message endpoint refuses anyone but the owner, and says why in a
+comment written without AI agents in view:
+
+> processing forwards the *owner's* credentials (OIDC tokens, provider API
+> keys) to external services. Allowing a non-owner to trigger processing would
+> leak the owner's tokens to MCP servers the caller controls.
+
+**That is the delegation problem stated as a prohibition.** An AI agent acting
+for its owner is precisely a non-owner triggering processing with the owner's
+credentials, which is the case the comment forbids. It is forbidden entirely
+because there was no way to say that a particular non-owner had been authorized
+by the owner to do precisely this, and no record that would settle it after the
+fact.
+
+So the grant is not an idea imported into this codebase from outside. **The
+question it answers is already here**, asked by someone who could only answer it
+by refusing the whole class. Seven more owner-only gates in the same file take
+the same shape, and two on workspaces.
+
+This also bounds what the grant has to do to be useful. It does not need to
+express arbitrary permission: it needs to distinguish an authorized delegate
+from an arbitrary caller, which is the distinction the prohibition could not
+make.
+
+### A non-user actor already has an RBAC subject of its own
+
+The prebuilds system user is a seeded `users` row with no roles on it, and its
+authority does not come from that row. A compiled in subject in `dbauthz` gives
+it a hand written role covering templates, workspaces, prebuilt workspaces and
+several reads, and the reconciler injects that subject directly.
+
+**So RBAC does not need a users row in order to authorize a non-person.** It
+needs one in order to authenticate. The subject is a structure the code builds,
+and nothing in the policy asks where its roles came from.
+
+The same identity is therefore capable in two different degrees. Injected, it
+holds the orchestrator role. Arriving as a session token over HTTP, its subject
+is built from the users row instead, which yields nothing but the implied
+`member` that every user receives. Nothing reconciles the two.
+
+### The transfer problem has already occurred, and cost two retrofits
+
+A prebuilt workspace is created owned by the system user and later claimed,
+which changes the workspace's owner. The session token minted under the old
+owner remains valid for a workspace that owner no longer holds. This is the
+transfer transition of the AI agent machine, arriving early and in another
+guise.
+
+Two mitigations exist and neither was part of the original design. The claim
+path deletes the old token and mints a replacement. A periodic query then
+expires whatever the claim path missed, which is the eager and swept pair this
+corpus describes under reconciliation.
+
+**The sweep recovers the workspace from the token's name by slicing characters
+out of it**, because no column relates a credential to the resource it was
+issued for. The same sweep also collects keys with no token name at all,
+recorded in its own comment as probably created by logging in as the system
+user, which the column comment says cannot happen.
+
+### The exclusions of system users were added reactively
+
+`is_system = false` appears as a filter in queries for group membership,
+organization membership, insights, user secrets, AI seats and roles, and a
+separate rule refuses the prebuilds actor permission to create API keys. Beside
+one of them sits the admission that the handling covers a single system user
+because only one exists.
+
+**An absent filter is therefore not evidence that a site tolerates a non-person
+actor.** These were found one at a time, and the set of places that would need
+one has never been enumerated.
+
+#### None of those exclusions prevents a failure
+
+Read for what they do rather than for where they sit, the filters divide into
+three purposes and none is defensive. Two correct a statistic, keeping an
+internal subject from diluting a distribution or a count. Two hide non-people
+from a listing of people, and are written so a caller may ask for them anyway.
+One withholds a paid seat.
+
+The system user broke none of those queries. It produced answers that were
+**wrong rather than absent**, and a query for a per-person record it has no rows
+in returns empty rather than failing: the appearance settings query builds its
+result from `COALESCE(MAX(...), '')` over a configuration table, so a holder
+with nothing there receives blank values and no error.
+
+The seat query is the one worth copying. It requires `kind = 'human'` rather
+than excluding the kinds known at the time, so an actor kind added later is
+excluded without anyone remembering to exclude it.
+
 ## Open
 
 ### Whether an AI agent's own API key can reach a designated workspace
@@ -358,6 +581,19 @@ asserted.**
 If an absent grant means no subject is built, a grant withdrawn after subjects
 exist has to reach them, rather than only stopping the next one. Nothing in the
 current code does this and no mechanism has been considered.
+
+### How this is broken into work packages
+
+The rewrite is too large for one, so it wants a sequence, and that sequence has
+not been planned. What exists instead is a partial ordering: the three rings in
+"The change has three rings", the risk ordering that puts the credential and
+subject work first, and the observation that repointing the sandbox and session
+clusters is mechanical once the identifier changes.
+
+The work packages already written cover journals over entities this work owns.
+This covers code it does not own and gates all of them, so it is not obvious
+that the existing shape, with its acceptance test and its list of cheats per
+package, transfers unchanged.
 
 ### Where fundamental changes to the codebase are documented
 

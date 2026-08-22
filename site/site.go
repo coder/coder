@@ -413,11 +413,11 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 	var userOrgs []database.Organization
 	eg.Go(func() error {
 		var err error
-		user, err = h.opts.Database.GetUserByID(ctx, apiKey.UserID)
+		user, err = h.opts.Database.GetUserByID(ctx, apiKey.HolderID.AsUserIDUnchecked())
 		return err
 	})
 	eg.Go(func() error {
-		settings, err := h.opts.Database.GetUserAppearanceSettings(ctx, apiKey.UserID)
+		settings, err := h.opts.Database.GetUserAppearanceSettings(ctx, apiKey.HolderID.AsUserIDUnchecked())
 		if err != nil {
 			return err
 		}
@@ -425,7 +425,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		return nil
 	})
 	eg.Go(func() error {
-		memberIDs, err := h.opts.Database.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{apiKey.UserID})
+		memberIDs, err := h.opts.Database.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{apiKey.HolderID.AsUserIDUnchecked()})
 		if errors.Is(err, sql.ErrNoRows) || len(memberIDs) == 0 {
 			return nil
 		}

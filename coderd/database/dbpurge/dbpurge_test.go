@@ -79,7 +79,7 @@ func TestMetrics(t *testing.T) {
 		user := dbgen.User(t, db, database.User{})
 
 		oldExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
-			UserID:    user.ID,
+			HolderID:  database.HolderID(user.ID),
 			ExpiresAt: now.Add(-8 * 24 * time.Hour), // Expired 8 days ago
 			TokenName: "old-expired-key",
 		})
@@ -1030,7 +1030,7 @@ func TestExpireOldAPIKeys(t *testing.T) {
 			TemplateID: tpl.ID,
 		})
 		createAPIKey = func(userID uuid.UUID, name string) database.APIKey {
-			k, _ := dbgen.APIKey(t, db, database.APIKey{UserID: userID, TokenName: name, ExpiresAt: now.Add(time.Hour)}, func(iap *database.InsertAPIKeyParams) {
+			k, _ := dbgen.APIKey(t, db, database.APIKey{HolderID: database.HolderID(userID), TokenName: name, ExpiresAt: now.Add(time.Hour)}, func(iap *database.InsertAPIKeyParams) {
 				iap.TokenName = name
 			})
 			return k
@@ -2240,7 +2240,7 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 
 			// Create API key that expired long ago.
 			oldExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
-				UserID:    user.ID,
+				HolderID:  database.HolderID(user.ID),
 				ExpiresAt: tc.oldExpiredTime,
 				TokenName: "old-expired-key",
 			})
@@ -2249,7 +2249,7 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 			var recentExpiredKey database.APIKey
 			if tc.recentExpiredTime != nil {
 				recentExpiredKey, _ = dbgen.APIKey(t, db, database.APIKey{
-					UserID:    user.ID,
+					HolderID:  database.HolderID(user.ID),
 					ExpiresAt: *tc.recentExpiredTime,
 					TokenName: "recent-expired-key",
 				})
@@ -2259,7 +2259,7 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 			var activeKey database.APIKey
 			if tc.activeTime != nil {
 				activeKey, _ = dbgen.APIKey(t, db, database.APIKey{
-					UserID:    user.ID,
+					HolderID:  database.HolderID(user.ID),
 					ExpiresAt: *tc.activeTime,
 					TokenName: "active-key",
 				})

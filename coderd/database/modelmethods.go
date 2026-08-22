@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"slices"
 	"sort"
@@ -385,7 +386,7 @@ func (k APIKey) ScopeSet() APIKeyScopeSet {
 
 func (k APIKey) RBACObject() rbac.Object {
 	return rbac.ResourceApiKey.WithIDString(k.ID).
-		WithOwner(k.UserID.String())
+		WithOwner(k.HolderID.String())
 }
 
 func (t Template) RBACObject() rbac.Object {
@@ -1069,4 +1070,53 @@ type UpsertConnectionLogParams struct {
 
 func (r GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow) RBACObject() rbac.Object {
 	return r.WorkspaceTable.RBACObject()
+}
+
+// HolderType names the kind of actor an API key is held by, and so which table
+// resolves its holder. It mirrors the actor type set in coderd/entity.
+type HolderType string
+
+const (
+	HolderTypeUser    HolderType = "user"
+	HolderTypeAIAgent HolderType = "ai_agent"
+)
+
+// HolderID identifies the actor holding an API key.
+//
+// It is deliberately not uuid.UUID. Before this type existed the column was
+// named user_id and was read throughout the HTTP layer as "the user making
+// this request", which is only true while every holder is a user. A distinct
+// type makes each of those reads state which it wants: the holder, whatever
+// kind of actor that is, or the user the request is authorized as. Those are
+// the same value for a human and different for an AI agent.
+type HolderID uuid.UUID
+
+// AsUserIDUnchecked reads a holder as though it were a user identifier, without
+// establishing that it is one.
+//
+// **Every call is a decision that has not been made yet.** The name is
+// deliberate: a call site that means "the user this request is authorized as"
+// and a call site that means "whoever holds this key" both compile, and for a
+// human holder they agree. They disagree for any other kind of actor, and this
+// method is where that disagreement is currently resolved by assuming the
+// first.
+//
+// Count the calls to find out how much of the codebase assumes a key is held by
+// a person. Removing one means deciding what that site meant.
+func (h HolderID) AsUserIDUnchecked() uuid.UUID { return uuid.UUID(h) }
+
+func (h HolderID) String() string { return uuid.UUID(h).String() }
+
+// Value and Scan are required because a defined type does not inherit the
+// methods of its underlying type, so HolderID does not get uuid.UUID's
+// driver.Valuer and sql.Scanner for free.
+func (h HolderID) Value() (driver.Value, error) { return uuid.UUID(h).Value() }
+
+func (h *HolderID) Scan(src any) error {
+	var u uuid.UUID
+	if err := u.Scan(src); err != nil {
+		return err
+	}
+	*h = HolderID(u)
+	return nil
 }

@@ -676,7 +676,7 @@ func auditAIProviderKeyChanges(ctx context.Context, r *http.Request, auditor aud
 		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.AIProviderKey]{
 			Audit:     auditor,
 			Log:       log,
-			UserID:    key.UserID,
+			UserID:    key.HolderID.AsUserIDUnchecked(),
 			RequestID: requestID,
 			Status:    http.StatusOK,
 			IP:        r.RemoteAddr,

@@ -432,7 +432,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 
 		//nolint:gocritic // Password resets must revoke all keys owned by the
 		// target user, not just keys addressable by the caller's actor.
-		err = tx.DeleteAPIKeysByUserID(dbauthz.AsAPIKeyRevoker(ctx, user.ID), user.ID)
+		err = tx.DeleteAPIKeysByUserID(dbauthz.AsAPIKeyRevoker(ctx, user.ID), database.HolderID(user.ID))
 		if err != nil {
 			logger.Error(ctx, "unable to delete user's api keys", slog.Error(err))
 			return xerrors.Errorf("delete api keys for user: %w", err)
@@ -729,9 +729,9 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	// track which app tokens are associated which this browser session and
 	// doesn't inconvenience the user as they'll just get redirected if they try
 	// to access the app again.
-	err = api.Database.DeleteApplicationConnectAPIKeysByUserID(ctx, apiKey.UserID)
+	err = api.Database.DeleteApplicationConnectAPIKeysByUserID(ctx, apiKey.HolderID)
 	if err != nil {
-		logger.Error(ctx, "unable to invalidate subdomain app tokens", slog.F("user_id", apiKey.UserID), slog.Error(err))
+		logger.Error(ctx, "unable to invalidate subdomain app tokens", slog.F("user_id", apiKey.HolderID.AsUserIDUnchecked()), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting app tokens.",
 			Detail:  err.Error(),
@@ -1134,7 +1134,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	aReq.New = key
-	aReq.UserID = key.UserID
+	aReq.UserID = key.HolderID.AsUserIDUnchecked()
 
 	for _, cookie := range cookies {
 		http.SetCookie(rw, cookie)
@@ -1565,7 +1565,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = key
-	aReq.UserID = key.UserID
+	aReq.UserID = key.HolderID.AsUserIDUnchecked()
 
 	for i := range cookies {
 		http.SetCookie(rw, cookies[i])

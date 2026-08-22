@@ -88,7 +88,7 @@ func ExtractUserContext(ctx context.Context, db database.Store, rw http.Response
 			})
 			return database.User{}, false
 		}
-		user, err := db.GetUserByID(ctx, apiKey.UserID)
+		user, err := db.GetUserByID(ctx, apiKey.HolderID.AsUserIDUnchecked())
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return database.User{}, false

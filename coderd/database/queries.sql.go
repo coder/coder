@@ -1393,7 +1393,7 @@ WITH orphaned AS (
 	RETURNING user_id
 )
 DELETE FROM api_keys
-WHERE user_id IN (SELECT user_id FROM orphaned)
+WHERE holder_id IN (SELECT user_id FROM orphaned)
 `
 
 // Marks chat-origin AI agent identities deleted when their chat no longer
@@ -4755,11 +4755,11 @@ const deleteAPIKeysByUserID = `-- name: DeleteAPIKeysByUserID :exec
 DELETE FROM
 	api_keys
 WHERE
-	user_id = $1
+	holder_id = $1
 `
 
-func (q *sqlQuerier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteAPIKeysByUserID, userID)
+func (q *sqlQuerier) DeleteAPIKeysByUserID(ctx context.Context, holderID HolderID) error {
+	_, err := q.db.ExecContext(ctx, deleteAPIKeysByUserID, holderID)
 	return err
 }
 
@@ -4767,12 +4767,12 @@ const deleteApplicationConnectAPIKeysByUserID = `-- name: DeleteApplicationConne
 DELETE FROM
 	api_keys
 WHERE
-	user_id = $1 AND
+	holder_id = $1 AND
 	'coder:application_connect'::api_key_scope = ANY(scopes)
 `
 
-func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteApplicationConnectAPIKeysByUserID, userID)
+func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, holderID HolderID) error {
+	_, err := q.db.ExecContext(ctx, deleteApplicationConnectAPIKeysByUserID, holderID)
 	return err
 }
 
@@ -4809,7 +4809,7 @@ const expirePrebuildsAPIKeys = `-- name: ExpirePrebuildsAPIKeys :exec
 WITH unexpired_prebuilds_workspace_session_tokens AS (
 	SELECT id, SUBSTRING(token_name FROM 38 FOR 36)::uuid AS workspace_id
 	FROM api_keys
-	WHERE user_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+	WHERE holder_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
 	AND expires_at > $1::timestamptz
 	AND token_name SIMILAR TO 'c42fdf75-3097-471c-8c33-fb52454d81c0_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}_session_token'
 ),
@@ -4823,7 +4823,7 @@ stale_prebuilds_workspace_session_tokens AS (
 unnamed_prebuilds_api_keys AS (
 	SELECT id
 	FROM api_keys
-	WHERE user_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+	WHERE holder_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
 	AND token_name = ''
 	AND expires_at > $1::timestamptz
 )
@@ -4847,7 +4847,7 @@ func (q *sqlQuerier) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) 
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
+	id, hashed_secret, holder_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list, holder_type
 FROM
 	api_keys
 WHERE
@@ -4862,7 +4862,7 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 	err := row.Scan(
 		&i.ID,
 		&i.HashedSecret,
-		&i.UserID,
+		&i.HolderID,
 		&i.LastUsed,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -4873,17 +4873,18 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 		&i.TokenName,
 		&i.Scopes,
 		&i.AllowList,
+		&i.HolderType,
 	)
 	return i, err
 }
 
 const getAPIKeyByName = `-- name: GetAPIKeyByName :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
+	id, hashed_secret, holder_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list, holder_type
 FROM
 	api_keys
 WHERE
-	user_id = $1 AND
+	holder_id = $1 AND
 	token_name = $2 AND
 	token_name != ''
 LIMIT
@@ -4891,18 +4892,18 @@ LIMIT
 `
 
 type GetAPIKeyByNameParams struct {
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
-	TokenName string    `db:"token_name" json:"token_name"`
+	HolderID  HolderID `db:"holder_id" json:"holder_id"`
+	TokenName string   `db:"token_name" json:"token_name"`
 }
 
 // there is no unique constraint on empty token names
 func (q *sqlQuerier) GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error) {
-	row := q.db.QueryRowContext(ctx, getAPIKeyByName, arg.UserID, arg.TokenName)
+	row := q.db.QueryRowContext(ctx, getAPIKeyByName, arg.HolderID, arg.TokenName)
 	var i APIKey
 	err := row.Scan(
 		&i.ID,
 		&i.HashedSecret,
-		&i.UserID,
+		&i.HolderID,
 		&i.LastUsed,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -4913,12 +4914,13 @@ func (q *sqlQuerier) GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNamePar
 		&i.TokenName,
 		&i.Scopes,
 		&i.AllowList,
+		&i.HolderType,
 	)
 	return i, err
 }
 
 const getAPIKeysByLoginType = `-- name: GetAPIKeysByLoginType :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list FROM api_keys WHERE login_type = $1
+SELECT id, hashed_secret, holder_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list, holder_type FROM api_keys WHERE login_type = $1
 AND ($2::bool OR expires_at > now())
 `
 
@@ -4939,7 +4941,7 @@ func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, arg GetAPIKeysBy
 		if err := rows.Scan(
 			&i.ID,
 			&i.HashedSecret,
-			&i.UserID,
+			&i.HolderID,
 			&i.LastUsed,
 			&i.ExpiresAt,
 			&i.CreatedAt,
@@ -4950,6 +4952,7 @@ func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, arg GetAPIKeysBy
 			&i.TokenName,
 			&i.Scopes,
 			&i.AllowList,
+			&i.HolderType,
 		); err != nil {
 			return nil, err
 		}
@@ -4965,18 +4968,18 @@ func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, arg GetAPIKeysBy
 }
 
 const getAPIKeysByUserID = `-- name: GetAPIKeysByUserID :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list FROM api_keys WHERE login_type = $1 AND user_id = $2
+SELECT id, hashed_secret, holder_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list, holder_type FROM api_keys WHERE login_type = $1 AND holder_id = $2
 AND ($3::bool OR expires_at > now())
 `
 
 type GetAPIKeysByUserIDParams struct {
 	LoginType      LoginType `db:"login_type" json:"login_type"`
-	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	HolderID       HolderID  `db:"holder_id" json:"holder_id"`
 	IncludeExpired bool      `db:"include_expired" json:"include_expired"`
 }
 
 func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error) {
-	rows, err := q.db.QueryContext(ctx, getAPIKeysByUserID, arg.LoginType, arg.UserID, arg.IncludeExpired)
+	rows, err := q.db.QueryContext(ctx, getAPIKeysByUserID, arg.LoginType, arg.HolderID, arg.IncludeExpired)
 	if err != nil {
 		return nil, err
 	}
@@ -4987,7 +4990,7 @@ func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUse
 		if err := rows.Scan(
 			&i.ID,
 			&i.HashedSecret,
-			&i.UserID,
+			&i.HolderID,
 			&i.LastUsed,
 			&i.ExpiresAt,
 			&i.CreatedAt,
@@ -4998,6 +5001,7 @@ func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUse
 			&i.TokenName,
 			&i.Scopes,
 			&i.AllowList,
+			&i.HolderType,
 		); err != nil {
 			return nil, err
 		}
@@ -5013,7 +5017,7 @@ func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUse
 }
 
 const getAPIKeysLastUsedAfter = `-- name: GetAPIKeysLastUsedAfter :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list FROM api_keys WHERE last_used > $1
+SELECT id, hashed_secret, holder_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list, holder_type FROM api_keys WHERE last_used > $1
 `
 
 func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error) {
@@ -5028,7 +5032,7 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 		if err := rows.Scan(
 			&i.ID,
 			&i.HashedSecret,
-			&i.UserID,
+			&i.HolderID,
 			&i.LastUsed,
 			&i.ExpiresAt,
 			&i.CreatedAt,
@@ -5039,6 +5043,7 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 			&i.TokenName,
 			&i.Scopes,
 			&i.AllowList,
+			&i.HolderType,
 		); err != nil {
 			return nil, err
 		}
@@ -5055,11 +5060,11 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 
 const getChatGatewayAPIKey = `-- name: GetChatGatewayAPIKey :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
+	id, hashed_secret, holder_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list, holder_type
 FROM
 	api_keys
 WHERE
-	user_id = $1 AND
+	holder_id = $1 AND
 	token_name = $2 AND
 	-- Token names are unvalidated user input, so a user could create a token
 	-- with the chat gateway name. Excluding login_type 'token' ensures chatd
@@ -5073,17 +5078,17 @@ LIMIT
 `
 
 type GetChatGatewayAPIKeyParams struct {
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
-	TokenName string    `db:"token_name" json:"token_name"`
+	HolderID  HolderID `db:"holder_id" json:"holder_id"`
+	TokenName string   `db:"token_name" json:"token_name"`
 }
 
 func (q *sqlQuerier) GetChatGatewayAPIKey(ctx context.Context, arg GetChatGatewayAPIKeyParams) (APIKey, error) {
-	row := q.db.QueryRowContext(ctx, getChatGatewayAPIKey, arg.UserID, arg.TokenName)
+	row := q.db.QueryRowContext(ctx, getChatGatewayAPIKey, arg.HolderID, arg.TokenName)
 	var i APIKey
 	err := row.Scan(
 		&i.ID,
 		&i.HashedSecret,
-		&i.UserID,
+		&i.HolderID,
 		&i.LastUsed,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -5094,6 +5099,7 @@ func (q *sqlQuerier) GetChatGatewayAPIKey(ctx context.Context, arg GetChatGatewa
 		&i.TokenName,
 		&i.Scopes,
 		&i.AllowList,
+		&i.HolderType,
 	)
 	return i, err
 }
@@ -5105,7 +5111,8 @@ INSERT INTO
 		lifetime_seconds,
 		hashed_secret,
 		ip_address,
-		user_id,
+		holder_id,
+		holder_type,
 		last_used,
 		expires_at,
 		created_at,
@@ -5122,7 +5129,7 @@ VALUES
 	     WHEN 0 THEN 86400
 		 ELSE $2::bigint
 	 END
-	 , $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
+	 , $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, hashed_secret, holder_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list, holder_type
 `
 
 type InsertAPIKeyParams struct {
@@ -5130,7 +5137,8 @@ type InsertAPIKeyParams struct {
 	LifetimeSeconds int64        `db:"lifetime_seconds" json:"lifetime_seconds"`
 	HashedSecret    []byte       `db:"hashed_secret" json:"hashed_secret"`
 	IPAddress       pqtype.Inet  `db:"ip_address" json:"ip_address"`
-	UserID          uuid.UUID    `db:"user_id" json:"user_id"`
+	HolderID        HolderID     `db:"holder_id" json:"holder_id"`
+	HolderType      HolderType   `db:"holder_type" json:"holder_type"`
 	LastUsed        time.Time    `db:"last_used" json:"last_used"`
 	ExpiresAt       time.Time    `db:"expires_at" json:"expires_at"`
 	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
@@ -5147,7 +5155,8 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		arg.LifetimeSeconds,
 		arg.HashedSecret,
 		arg.IPAddress,
-		arg.UserID,
+		arg.HolderID,
+		arg.HolderType,
 		arg.LastUsed,
 		arg.ExpiresAt,
 		arg.CreatedAt,
@@ -5161,7 +5170,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 	err := row.Scan(
 		&i.ID,
 		&i.HashedSecret,
-		&i.UserID,
+		&i.HolderID,
 		&i.LastUsed,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -5172,6 +5181,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		&i.TokenName,
 		&i.Scopes,
 		&i.AllowList,
+		&i.HolderType,
 	)
 	return i, err
 }

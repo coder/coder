@@ -20,7 +20,7 @@ import (
 
 func getGatewayKey(ctx context.Context, db database.Store, userID uuid.UUID) (database.APIKey, error) {
 	return db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-		UserID:    userID,
+		HolderID:  database.HolderID(userID),
 		TokenName: GatewayTokenName(userID),
 	})
 }
@@ -108,7 +108,7 @@ func TestSyntheticAPIKeyIgnoresUserTokenCollision(t *testing.T) {
 	// extension path.
 	collisionExpiry := server.clock.Now().Add(time.Hour).UTC()
 	collision, _ := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    user.ID,
+		HolderID:  database.HolderID(user.ID),
 		LoginType: database.LoginTypeToken,
 		TokenName: GatewayTokenName(user.ID),
 		ExpiresAt: collisionExpiry,
@@ -180,7 +180,7 @@ func TestSyntheticAPIKeyConcurrentMint(t *testing.T) {
 	}
 	keys, err := db.GetAPIKeysByUserID(t.Context(), database.GetAPIKeysByUserIDParams{
 		LoginType:      user.LoginType,
-		UserID:         user.ID,
+		HolderID:       database.HolderID(user.ID),
 		IncludeExpired: true,
 	})
 	require.NoError(t, err)
@@ -203,7 +203,7 @@ func TestSyntheticAPIKeyDeletionDoesNotMutateChatState(t *testing.T) {
 		{
 			name: "all user keys",
 			deleteKey: func(ctx context.Context, db database.Store, userID uuid.UUID, _ string) error {
-				return db.DeleteAPIKeysByUserID(ctx, userID)
+				return db.DeleteAPIKeysByUserID(ctx, database.HolderID(userID))
 			},
 		},
 	}

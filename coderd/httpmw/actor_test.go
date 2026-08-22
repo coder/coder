@@ -41,7 +41,7 @@ func TestRequireAPIKeyOrWorkspaceProxyAuth(t *testing.T) {
 			db, _    = dbtestutil.NewDB(t)
 			user     = dbgen.User(t, db, database.User{})
 			_, token = dbgen.APIKey(t, db, database.APIKey{
-				UserID:    user.ID,
+				HolderID:  database.HolderID(user.ID),
 				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
 			})
 
@@ -78,7 +78,7 @@ func TestRequireAPIKeyOrWorkspaceProxyAuth(t *testing.T) {
 			db, _        = dbtestutil.NewDB(t)
 			user         = dbgen.User(t, db, database.User{})
 			_, userToken = dbgen.APIKey(t, db, database.APIKey{
-				UserID:    user.ID,
+				HolderID:  database.HolderID(user.ID),
 				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
 			})
 			proxy, proxyToken = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})

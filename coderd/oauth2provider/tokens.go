@@ -349,7 +349,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 
 		// Delete the previous key, if any.
 		prevKey, err := tx.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
-			UserID:    dbCode.UserID,
+			HolderID:  database.HolderID(dbCode.UserID),
 			TokenName: tokenName,
 		})
 		if err == nil {
@@ -443,7 +443,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
-	actor, _, err := httpmw.UserRBACSubject(ctx, db, prevKey.UserID, rbac.ScopeAll)
+	actor, _, err := httpmw.UserRBACSubject(ctx, db, prevKey.HolderID.AsUserIDUnchecked(), rbac.ScopeAll)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, xerrors.Errorf("fetch user actor: %w", err)
 	}
@@ -456,9 +456,9 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 
 	// Generate the new API key.
 	// TODO: We are ignoring scopes for now.
-	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", prevKey.UserID, app.ID)
+	tokenName := fmt.Sprintf("%s_%s_oauth_session_token", prevKey.HolderID.AsUserIDUnchecked(), app.ID)
 	key, sessionToken, err := apikey.Generate(apikey.CreateParams{
-		UserID:          prevKey.UserID,
+		UserID:          prevKey.HolderID.AsUserIDUnchecked(),
 		LoginType:       database.LoginTypeOAuth2ProviderApp,
 		DefaultLifetime: lifetimes.DefaultDuration.Value(),
 		// For now, we allow only one token per app and user at a time.

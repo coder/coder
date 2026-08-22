@@ -14,7 +14,7 @@ SELECT
 FROM
 	api_keys
 WHERE
-	user_id = @user_id AND
+	holder_id = @holder_id AND
 	token_name = @token_name AND
 -- there is no unique constraint on empty token names
 	token_name != ''
@@ -27,7 +27,7 @@ SELECT
 FROM
 	api_keys
 WHERE
-	user_id = @user_id AND
+	holder_id = @holder_id AND
 	token_name = @token_name AND
 	-- Token names are unvalidated user input, so a user could create a token
 	-- with the chat gateway name. Excluding login_type 'token' ensures chatd
@@ -47,7 +47,7 @@ SELECT * FROM api_keys WHERE login_type = $1
 AND (@include_expired::bool OR expires_at > now());
 
 -- name: GetAPIKeysByUserID :many
-SELECT * FROM api_keys WHERE login_type = $1 AND user_id = $2
+SELECT * FROM api_keys WHERE login_type = $1 AND holder_id = $2
 AND (@include_expired::bool OR expires_at > now());
 
 -- name: InsertAPIKey :one
@@ -57,7 +57,8 @@ INSERT INTO
 		lifetime_seconds,
 		hashed_secret,
 		ip_address,
-		user_id,
+		holder_id,
+		holder_type,
 		last_used,
 		expires_at,
 		created_at,
@@ -74,7 +75,7 @@ VALUES
 	     WHEN 0 THEN 86400
 		 ELSE @lifetime_seconds::bigint
 	 END
-	 , @hashed_secret, @ip_address, @user_id, @last_used, @expires_at, @created_at, @updated_at, @login_type, @scopes, @allow_list, @token_name) RETURNING *;
+	 , @hashed_secret, @ip_address, @holder_id, @holder_type, @last_used, @expires_at, @created_at, @updated_at, @login_type, @scopes, @allow_list, @token_name) RETURNING *;
 
 -- name: UpdateAPIKeyByID :exec
 UPDATE
@@ -96,14 +97,14 @@ WHERE
 DELETE FROM
 	api_keys
 WHERE
-	user_id = $1 AND
+	holder_id = $1 AND
 	'coder:application_connect'::api_key_scope = ANY(scopes);
 
 -- name: DeleteAPIKeysByUserID :exec
 DELETE FROM
 	api_keys
 WHERE
-	user_id = $1;
+	holder_id = $1;
 
 -- name: DeleteExpiredAPIKeys :execrows
 WITH expired_keys AS (
@@ -126,7 +127,7 @@ WHERE
 WITH unexpired_prebuilds_workspace_session_tokens AS (
 	SELECT id, SUBSTRING(token_name FROM 38 FOR 36)::uuid AS workspace_id
 	FROM api_keys
-	WHERE user_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+	WHERE holder_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
 	AND expires_at > @now::timestamptz
 	AND token_name SIMILAR TO 'c42fdf75-3097-471c-8c33-fb52454d81c0_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}_session_token'
 ),
@@ -142,7 +143,7 @@ stale_prebuilds_workspace_session_tokens AS (
 unnamed_prebuilds_api_keys AS (
 	SELECT id
 	FROM api_keys
-	WHERE user_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+	WHERE holder_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
 	AND token_name = ''
 	AND expires_at > @now::timestamptz
 )

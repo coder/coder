@@ -18,8 +18,12 @@ import (
 )
 
 type CreateParams struct {
-	UserID    uuid.UUID
-	LoginType database.LoginType
+	// UserID is the holder when HolderType is empty or user, which is every
+	// caller that predates AI agents holding keys of their own.
+	UserID uuid.UUID
+	// HolderType names the kind of actor holding the key. Empty means user.
+	HolderType database.HolderType
+	LoginType  database.LoginType
 	// DefaultLifetime is configured in DeploymentValues.
 	// It is used if both ExpiresAt and LifetimeSeconds are not set.
 	DefaultLifetime time.Duration
@@ -110,9 +114,15 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 
 	token := fmt.Sprintf("%s-%s", keyID, keySecret)
 
+	holderType := params.HolderType
+	if holderType == "" {
+		holderType = database.HolderTypeUser
+	}
+
 	return database.InsertAPIKeyParams{
 		ID:              keyID,
-		UserID:          params.UserID,
+		HolderID:        database.HolderID(params.UserID),
+		HolderType:      holderType,
 		LastUsed:        time.Unix(0, 0).UTC(),
 		LifetimeSeconds: params.LifetimeSeconds,
 		IPAddress: pqtype.Inet{

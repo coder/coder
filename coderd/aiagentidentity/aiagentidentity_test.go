@@ -52,7 +52,7 @@ func TestCreateAndMintKey(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, aiagentidentity.APIKeyMatchesBuiltInProfile(key))
 	require.NotEmpty(t, token)
-	require.Equal(t, agentUser.ID, key.UserID)
+	require.Equal(t, agentUser.ID, key.HolderID.AsUserIDUnchecked())
 	require.Equal(t, database.LoginTypeToken, key.LoginType)
 	require.NotEmpty(t, key.Scopes)
 	require.NotEmpty(t, key.AllowList)

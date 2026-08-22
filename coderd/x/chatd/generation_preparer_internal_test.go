@@ -329,7 +329,7 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 	t.Cleanup(prepared.Cleanup)
 
 	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-		UserID:    user.ID,
+		HolderID:  database.HolderID(user.ID),
 		TokenName: GatewayTokenName(user.ID),
 	})
 	require.NoError(t, err)

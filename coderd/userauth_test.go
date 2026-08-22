@@ -2604,8 +2604,8 @@ func TestUserLogout(t *testing.T) {
 	// Create a few application_connect-scoped API keys that should be deleted.
 	for i := range 3 {
 		key, _ := dbgen.APIKey(t, db, database.APIKey{
-			UserID: newUser.ID,
-			Scopes: database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect},
+			HolderID: database.HolderID(newUser.ID),
+			Scopes:   database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect},
 		})
 		shouldBeDeleted[fmt.Sprintf("application_connect key owned by logout user %d", i)] = key.ID
 	}
@@ -2614,8 +2614,8 @@ func TestUserLogout(t *testing.T) {
 	// should not be deleted.
 	for i := range 3 {
 		key, _ := dbgen.APIKey(t, db, database.APIKey{
-			UserID: firstUser.UserID,
-			Scopes: database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect},
+			HolderID: database.HolderID(firstUser.UserID),
+			Scopes:   database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect},
 		})
 		shouldNotBeDeleted[fmt.Sprintf("application_connect key owned by admin user %d", i)] = key.ID
 	}

@@ -171,7 +171,7 @@ func TestAISandboxLifecycleReconcile(t *testing.T) {
 	require.NoError(t, err)
 	profile := aiagentidentity.SandboxIdentityProfile(fixture.workspace.Workspace.ID, first.ID)
 	firstKey, err := fixture.db.GetAPIKeyByName(dbauthz.AsSystemRestricted(ctx), database.GetAPIKeyByNameParams{
-		UserID:    first.AIAgentID,
+		HolderID:  database.HolderID(first.AIAgentID),
 		TokenName: profile.TokenName,
 	})
 	require.NoError(t, err)
@@ -191,7 +191,7 @@ func TestAISandboxLifecycleReconcile(t *testing.T) {
 	_, err = fixture.db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), firstKey.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows)
 	secondKey, err := fixture.db.GetAPIKeyByName(dbauthz.AsSystemRestricted(ctx), database.GetAPIKeyByNameParams{
-		UserID:    second.AIAgentID,
+		HolderID:  database.HolderID(second.AIAgentID),
 		TokenName: profile.TokenName,
 	})
 	require.NoError(t, err)
@@ -347,7 +347,7 @@ func TestAISandboxLifecycleDelete(t *testing.T) {
 
 	profile := aiagentidentity.SandboxIdentityProfile(fixture.workspace.Workspace.ID, created.ID)
 	_, err = fixture.db.GetAPIKeyByName(dbauthz.AsSystemRestricted(ctx), database.GetAPIKeyByNameParams{
-		UserID:    created.AIAgentID,
+		HolderID:  database.HolderID(created.AIAgentID),
 		TokenName: profile.TokenName,
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows)

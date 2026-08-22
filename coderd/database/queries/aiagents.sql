@@ -97,4 +97,4 @@ WITH orphaned AS (
 	RETURNING user_id
 )
 DELETE FROM api_keys
-WHERE user_id IN (SELECT user_id FROM orphaned);
+WHERE holder_id IN (SELECT user_id FROM orphaned);

@@ -220,7 +220,7 @@ func RevokeApp(db database.Store) http.HandlerFunc {
 		err := db.InTx(func(tx database.Store) error {
 			err := tx.DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx, database.DeleteOAuth2ProviderAppCodesByAppAndUserIDParams{
 				AppID:  app.ID,
-				UserID: apiKey.UserID,
+				UserID: apiKey.HolderID.AsUserIDUnchecked(),
 			})
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return err
@@ -228,7 +228,7 @@ func RevokeApp(db database.Store) http.HandlerFunc {
 
 			err = tx.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, database.DeleteOAuth2ProviderAppTokensByAppAndUserIDParams{
 				AppID:  app.ID,
-				UserID: apiKey.UserID,
+				UserID: apiKey.HolderID.AsUserIDUnchecked(),
 			})
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return err

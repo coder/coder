@@ -108,7 +108,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		lifetimeSeconds = int64(api.DeploymentValues.Sessions.DefaultDuration.Value().Seconds())
 	}
 	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
-		UserID:          apiKey.UserID,
+		UserID:          apiKey.HolderID.AsUserIDUnchecked(),
 		LoginType:       database.LoginTypePassword,
 		DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
 		ExpiresAt:       exp,

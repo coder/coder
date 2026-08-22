@@ -132,7 +132,7 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	for userID := range req.UserRoles {
 		parsed, err := uuid.Parse(userID)
-		if err == nil && parsed == apiKey.UserID {
+		if err == nil && parsed == apiKey.HolderID.AsUserIDUnchecked() {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot change your own chat sharing role.",
 			})
@@ -206,7 +206,7 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	initiator, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	initiator, err := api.Database.GetUserByID(ctx, apiKey.HolderID.AsUserIDUnchecked())
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to load chat share initiator", slog.Error(err), slog.F("chat_id", chat.ID))
 	} else {

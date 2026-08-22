@@ -47,7 +47,7 @@ func (p *Server) ensureChatGatewayKeyID(ctx context.Context, chat database.Chat)
 	//nolint:gocritic // Managing internal AI agent keys requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	key, err := p.db.GetAPIKeyByName(systemCtx, database.GetAPIKeyByNameParams{
-		UserID:    actor.AgentUserID,
+		HolderID:  database.HolderID(actor.AgentUserID),
 		TokenName: profile.TokenName,
 	})
 	switch {
@@ -92,7 +92,7 @@ func GatewayTokenName(ownerID uuid.UUID) string {
 func (p *Server) ensureSyntheticAPIKeyID(ctx context.Context, ownerID uuid.UUID) (string, error) {
 	ctx = dbauthz.AsChatdKeyMinter(ctx, ownerID)
 	key, err := p.db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-		UserID:    ownerID,
+		HolderID:  database.HolderID(ownerID),
 		TokenName: GatewayTokenName(ownerID),
 	})
 	switch {
@@ -117,7 +117,7 @@ func (p *Server) mintSyntheticAPIKey(ctx context.Context, ownerID uuid.UUID) (st
 			return xerrors.Errorf("acquire chat gateway key lock: %w", err)
 		}
 		key, err := tx.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-			UserID:    ownerID,
+			HolderID:  database.HolderID(ownerID),
 			TokenName: tokenName,
 		})
 		if err == nil {

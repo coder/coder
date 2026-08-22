@@ -190,7 +190,7 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.AIBridgeSessions(ctx, api.Database, queryStr, page, apiKey.UserID, afterSessionID)
+	filter, errs := searchquery.AIBridgeSessions(ctx, api.Database, queryStr, page, apiKey.HolderID.AsUserIDUnchecked(), afterSessionID)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid session search query.",

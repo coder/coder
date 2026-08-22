@@ -187,7 +187,7 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.AuditableGroup:
 		return typed.Group.ID
 	case database.APIKey:
-		return typed.UserID
+		return typed.HolderID.AsUserIDUnchecked()
 	case database.License:
 		return typed.UUID
 	case database.WorkspaceProxy:
@@ -512,7 +512,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		case hasAIAgentActor:
 			userID = actor.AgentUserID
 		case hasAPIKey:
-			userID = key.UserID
+			userID = key.HolderID.AsUserIDUnchecked()
 		case req.UserID != uuid.Nil:
 			userID = req.UserID
 		default:

@@ -42,7 +42,7 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 
 	link, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 		ProviderID: config.ID,
-		UserID:     apiKey.UserID,
+		UserID:     apiKey.HolderID.AsUserIDUnchecked(),
 	})
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -96,7 +96,7 @@ func (api *API) deleteExternalAuthByID(w http.ResponseWriter, r *http.Request) {
 
 	link, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 		ProviderID: config.ID,
-		UserID:     apiKey.UserID,
+		UserID:     apiKey.HolderID.AsUserIDUnchecked(),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -112,7 +112,7 @@ func (api *API) deleteExternalAuthByID(w http.ResponseWriter, r *http.Request) {
 
 	err = api.Database.DeleteExternalAuthLink(ctx, database.DeleteExternalAuthLinkParams{
 		ProviderID: config.ID,
-		UserID:     apiKey.UserID,
+		UserID:     apiKey.HolderID.AsUserIDUnchecked(),
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -170,7 +170,7 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 
 	_, err = api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 		ProviderID: config.ID,
-		UserID:     apiKey.UserID,
+		UserID:     apiKey.HolderID.AsUserIDUnchecked(),
 	})
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -183,7 +183,7 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 
 		_, err = api.Database.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
 			ProviderID:             config.ID,
-			UserID:                 apiKey.UserID,
+			UserID:                 apiKey.HolderID.AsUserIDUnchecked(),
 			CreatedAt:              dbtime.Now(),
 			UpdatedAt:              dbtime.Now(),
 			OAuthAccessToken:       token.AccessToken,
@@ -204,7 +204,7 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 	} else {
 		_, err = api.Database.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 			ProviderID:             config.ID,
-			UserID:                 apiKey.UserID,
+			UserID:                 apiKey.HolderID.AsUserIDUnchecked(),
 			UpdatedAt:              dbtime.Now(),
 			OAuthAccessToken:       token.AccessToken,
 			OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
@@ -273,7 +273,7 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 		}
 		_, err = api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 			ProviderID: externalAuthConfig.ID,
-			UserID:     apiKey.UserID,
+			UserID:     apiKey.HolderID.AsUserIDUnchecked(),
 		})
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
@@ -286,7 +286,7 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 
 			_, err = api.Database.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
 				ProviderID:             externalAuthConfig.ID,
-				UserID:                 apiKey.UserID,
+				UserID:                 apiKey.HolderID.AsUserIDUnchecked(),
 				CreatedAt:              dbtime.Now(),
 				UpdatedAt:              dbtime.Now(),
 				OAuthAccessToken:       state.Token.AccessToken,
@@ -306,7 +306,7 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 		} else {
 			_, err = api.Database.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 				ProviderID:             externalAuthConfig.ID,
-				UserID:                 apiKey.UserID,
+				UserID:                 apiKey.HolderID.AsUserIDUnchecked(),
 				UpdatedAt:              dbtime.Now(),
 				OAuthAccessToken:       state.Token.AccessToken,
 				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
@@ -349,7 +349,7 @@ func (api *API) listUserExternalAuths(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	key := httpmw.APIKey(r)
 
-	links, err := api.Database.GetExternalAuthLinksByUserID(ctx, key.UserID)
+	links, err := api.Database.GetExternalAuthLinksByUserID(ctx, key.HolderID.AsUserIDUnchecked())
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)

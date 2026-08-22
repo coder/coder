@@ -214,7 +214,7 @@ func TestCustomNotifications(t *testing.T) {
 
 		// Given: A system user (prebuilds system user)
 		_, token := dbgen.APIKey(t, db, database.APIKey{
-			UserID:    database.PrebuildsSystemUserID,
+			HolderID:  database.HolderID(database.PrebuildsSystemUserID),
 			LoginType: database.LoginTypeNone,
 		})
 		systemUserClient := codersdk.New(ownerClient.URL)

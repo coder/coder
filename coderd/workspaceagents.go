@@ -1424,7 +1424,7 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 		ID:         uuid.New(),
 		AgentID:    waws.WorkspaceAgent.ID,
 		AppID:      uuid.Nil, // Tunnels are not associated with an app.
-		UserID:     apiKey.UserID,
+		UserID:     apiKey.HolderID.AsUserIDUnchecked(),
 		Ip:         r.RemoteAddr,
 		UserAgent:  userAgent,
 		SlugOrPort: "",
@@ -1436,7 +1436,7 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 		// Skip logging rather than risk spamming the connection log.
 		api.Logger.Error(ctx, "upsert tunnel audit session",
 			slog.F("workspace_id", waws.WorkspaceTable.ID),
-			slog.F("user_id", apiKey.UserID),
+			slog.F("user_id", apiKey.HolderID.AsUserIDUnchecked()),
 			slog.Error(err),
 		)
 		return
@@ -1462,7 +1462,7 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 			Valid: true,
 		},
 		UserAgent: sql.NullString{String: userAgent, Valid: userAgent != ""},
-		UserID:    uuid.NullUUID{UUID: apiKey.UserID, Valid: true},
+		UserID:    uuid.NullUUID{UUID: apiKey.HolderID.AsUserIDUnchecked(), Valid: true},
 		// Left unset so each session gets its own row; reusing peerID
 		// would make resume_token reconnects upsert into a stale row.
 		ConnectionID:     uuid.NullUUID{},
@@ -1474,7 +1474,7 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 	if err != nil {
 		api.Logger.Error(ctx, "upsert tunnel connection log",
 			slog.F("workspace_id", waws.WorkspaceTable.ID),
-			slog.F("user_id", apiKey.UserID),
+			slog.F("user_id", apiKey.HolderID.AsUserIDUnchecked()),
 			slog.Error(err),
 		)
 	}
@@ -2519,7 +2519,7 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 
 	// Get user ID for telemetry
 	apiKey := httpmw.APIKey(r)
-	userID := apiKey.UserID.String()
+	userID := apiKey.HolderID.AsUserIDUnchecked().String()
 
 	// Store connection telemetry event
 	now := dbtime.Now()

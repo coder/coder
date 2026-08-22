@@ -425,7 +425,7 @@ func (m queryMetricsStore) DeleteAPIKeyByID(ctx context.Context, id string) erro
 	return r0
 }
 
-func (m queryMetricsStore) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
+func (m queryMetricsStore) DeleteAPIKeysByUserID(ctx context.Context, userID database.HolderID) error {
 	start := time.Now()
 	r0 := m.s.DeleteAPIKeysByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("DeleteAPIKeysByUserID").Observe(time.Since(start).Seconds())
@@ -473,7 +473,7 @@ func (m queryMetricsStore) DeleteAllWebpushSubscriptions(ctx context.Context) er
 	return r0
 }
 
-func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
+func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID database.HolderID) error {
 	start := time.Now()
 	r0 := m.s.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("DeleteApplicationConnectAPIKeysByUserID").Observe(time.Since(start).Seconds())

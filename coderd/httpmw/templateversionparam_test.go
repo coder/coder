@@ -24,7 +24,7 @@ func TestTemplateVersionParam(t *testing.T) {
 		dbtestutil.DisableForeignKeysAndTriggers(nil, db)
 		user := dbgen.User(t, db, database.User{})
 		_, token := dbgen.APIKey(t, db, database.APIKey{
-			UserID: user.ID,
+			HolderID: database.HolderID(user.ID),
 		})
 		organization := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{

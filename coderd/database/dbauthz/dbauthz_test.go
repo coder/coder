@@ -347,7 +347,7 @@ func (s *MethodTestSuite) TestChatGatewayAPIKey() {
 	}))
 	s.Run("GetChatGatewayAPIKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		key := testutil.Fake(s.T(), faker, database.APIKey{})
-		arg := database.GetChatGatewayAPIKeyParams{UserID: key.UserID, TokenName: key.TokenName}
+		arg := database.GetChatGatewayAPIKeyParams{HolderID: database.HolderID(key.HolderID.AsUserIDUnchecked()), TokenName: key.TokenName}
 		dbm.EXPECT().GetChatGatewayAPIKey(gomock.Any(), arg).Return(key, nil).AnyTimes()
 		check.Args(arg).Asserts(key, policy.ActionRead).Returns(key)
 	}))
@@ -375,8 +375,8 @@ func (s *MethodTestSuite) TestAPIKey() {
 	}))
 	s.Run("GetAPIKeyByName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		key := testutil.Fake(s.T(), faker, database.APIKey{LoginType: database.LoginTypeToken, TokenName: "marge-cat"})
-		dbm.EXPECT().GetAPIKeyByName(gomock.Any(), database.GetAPIKeyByNameParams{TokenName: key.TokenName, UserID: key.UserID}).Return(key, nil).AnyTimes()
-		check.Args(database.GetAPIKeyByNameParams{TokenName: key.TokenName, UserID: key.UserID}).Asserts(key, policy.ActionRead).Returns(key)
+		dbm.EXPECT().GetAPIKeyByName(gomock.Any(), database.GetAPIKeyByNameParams{TokenName: key.TokenName, HolderID: database.HolderID(key.HolderID.AsUserIDUnchecked())}).Return(key, nil).AnyTimes()
+		check.Args(database.GetAPIKeyByNameParams{TokenName: key.TokenName, HolderID: database.HolderID(key.HolderID.AsUserIDUnchecked())}).Asserts(key, policy.ActionRead).Returns(key)
 	}))
 	s.Run("GetAPIKeysByLoginType", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		a := testutil.Fake(s.T(), faker, database.APIKey{LoginType: database.LoginTypePassword})
@@ -386,11 +386,11 @@ func (s *MethodTestSuite) TestAPIKey() {
 	}))
 	s.Run("GetAPIKeysByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u1 := testutil.Fake(s.T(), faker, database.User{})
-		keyA := testutil.Fake(s.T(), faker, database.APIKey{UserID: u1.ID, LoginType: database.LoginTypeToken, TokenName: "key-a"})
-		keyB := testutil.Fake(s.T(), faker, database.APIKey{UserID: u1.ID, LoginType: database.LoginTypeToken, TokenName: "key-b"})
+		keyA := testutil.Fake(s.T(), faker, database.APIKey{HolderID: database.HolderID(u1.ID), LoginType: database.LoginTypeToken, TokenName: "key-a"})
+		keyB := testutil.Fake(s.T(), faker, database.APIKey{HolderID: database.HolderID(u1.ID), LoginType: database.LoginTypeToken, TokenName: "key-b"})
 
 		dbm.EXPECT().GetAPIKeysByUserID(gomock.Any(), gomock.Any()).Return(slice.New(keyA, keyB), nil).AnyTimes()
-		check.Args(database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, UserID: u1.ID}).
+		check.Args(database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, HolderID: database.HolderID(u1.ID)}).
 			Asserts(keyA, policy.ActionRead, keyB, policy.ActionRead).
 			Returns(slice.New(keyA, keyB))
 	}))
@@ -403,14 +403,14 @@ func (s *MethodTestSuite) TestAPIKey() {
 	}))
 	s.Run("InsertAPIKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		arg := database.InsertAPIKeyParams{UserID: u.ID, LoginType: database.LoginTypePassword, Scopes: database.APIKeyScopes{database.ApiKeyScopeCoderAll}, IPAddress: defaultIPAddress()}
-		ret := testutil.Fake(s.T(), faker, database.APIKey{UserID: u.ID, LoginType: database.LoginTypePassword})
+		arg := database.InsertAPIKeyParams{HolderID: database.HolderID(u.ID), HolderType: database.HolderTypeUser, LoginType: database.LoginTypePassword, Scopes: database.APIKeyScopes{database.ApiKeyScopeCoderAll}, IPAddress: defaultIPAddress()}
+		ret := testutil.Fake(s.T(), faker, database.APIKey{HolderID: database.HolderID(u.ID), LoginType: database.LoginTypePassword})
 		dbm.EXPECT().InsertAPIKey(gomock.Any(), arg).Return(ret, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceApiKey.WithOwner(u.ID.String()), policy.ActionCreate)
 	}))
 	s.Run("UpdateAPIKeyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		a := testutil.Fake(s.T(), faker, database.APIKey{UserID: u.ID, IPAddress: defaultIPAddress()})
+		a := testutil.Fake(s.T(), faker, database.APIKey{HolderID: database.HolderID(u.ID), IPAddress: defaultIPAddress()})
 		arg := database.UpdateAPIKeyByIDParams{ID: a.ID, IPAddress: defaultIPAddress(), LastUsed: time.Now(), ExpiresAt: time.Now().Add(time.Hour)}
 		dbm.EXPECT().GetAPIKeyByID(gomock.Any(), a.ID).Return(a, nil).AnyTimes()
 		dbm.EXPECT().UpdateAPIKeyByID(gomock.Any(), arg).Return(nil).AnyTimes()
@@ -418,8 +418,8 @@ func (s *MethodTestSuite) TestAPIKey() {
 	}))
 	s.Run("DeleteApplicationConnectAPIKeysByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		a := testutil.Fake(s.T(), faker, database.APIKey{Scopes: database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect}})
-		dbm.EXPECT().DeleteApplicationConnectAPIKeysByUserID(gomock.Any(), a.UserID).Return(nil).AnyTimes()
-		check.Args(a.UserID).Asserts(rbac.ResourceApiKey.WithOwner(a.UserID.String()), policy.ActionDelete).Returns()
+		dbm.EXPECT().DeleteApplicationConnectAPIKeysByUserID(gomock.Any(), a.HolderID.AsUserIDUnchecked()).Return(nil).AnyTimes()
+		check.Args(a.HolderID.AsUserIDUnchecked()).Asserts(rbac.ResourceApiKey.WithOwner(a.HolderID.AsUserIDUnchecked().String()), policy.ActionDelete).Returns()
 	}))
 	s.Run("DeleteExternalAuthLink", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		a := testutil.Fake(s.T(), faker, database.ExternalAuthLink{})
@@ -3096,8 +3096,8 @@ func (s *MethodTestSuite) TestUser() {
 	}))
 	s.Run("DeleteAPIKeysByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		key := testutil.Fake(s.T(), faker, database.APIKey{})
-		dbm.EXPECT().DeleteAPIKeysByUserID(gomock.Any(), key.UserID).Return(nil).AnyTimes()
-		check.Args(key.UserID).Asserts(rbac.ResourceApiKey.WithOwner(key.UserID.String()), policy.ActionDelete).Returns()
+		dbm.EXPECT().DeleteAPIKeysByUserID(gomock.Any(), key.HolderID.AsUserIDUnchecked()).Return(nil).AnyTimes()
+		check.Args(key.HolderID.AsUserIDUnchecked()).Asserts(rbac.ResourceApiKey.WithOwner(key.HolderID.AsUserIDUnchecked().String()), policy.ActionDelete).Returns()
 	}))
 	s.Run("ExpirePrebuildsAPIKeys", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Times(1).Return(nil)
@@ -6136,7 +6136,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		user := dbgen.User(s.T(), db, database.User{})
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
-			UserID: user.ID,
+			HolderID: database.HolderID(user.ID),
 		})
 		// Use a fixed timestamp for consistent test results across all database types
 		fixedTime := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -6355,7 +6355,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 	s.Run("InsertOAuth2ProviderAppToken", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
-			UserID: user.ID,
+			HolderID: database.HolderID(user.ID),
 		})
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
@@ -6371,7 +6371,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 	s.Run("GetOAuth2ProviderAppTokenByPrefix", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
-			UserID: user.ID,
+			HolderID: database.HolderID(user.ID),
 		})
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
@@ -6388,7 +6388,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 	s.Run("GetOAuth2ProviderAppTokenByAPIKeyID", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
-			UserID: user.ID,
+			HolderID: database.HolderID(user.ID),
 		})
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
@@ -6406,7 +6406,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		user := dbgen.User(s.T(), db, database.User{})
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
-			UserID: user.ID,
+			HolderID: database.HolderID(user.ID),
 		})
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{

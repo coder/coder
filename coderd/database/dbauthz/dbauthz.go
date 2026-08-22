@@ -2067,7 +2067,7 @@ func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return deleteQ(q.log, q.auth, q.db.GetAPIKeyByID, q.db.DeleteAPIKeyByID)(ctx, id)
 }
 
-func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
+func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID database.HolderID) error {
 	// TODO: This is not 100% correct because it omits apikey IDs.
 	err := q.authorizeContext(ctx, policy.ActionDelete,
 		rbac.ResourceApiKey.WithOwner(userID.String()))
@@ -2126,7 +2126,7 @@ func (q *querier) DeleteAllWebpushSubscriptions(ctx context.Context) error {
 	return q.db.DeleteAllWebpushSubscriptions(ctx)
 }
 
-func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
+func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID database.HolderID) error {
 	// TODO: This is not 100% correct because it omits apikey IDs.
 	err := q.authorizeContext(ctx, policy.ActionDelete,
 		rbac.ResourceApiKey.WithOwner(userID.String()))
@@ -6152,7 +6152,7 @@ func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyPar
 	}
 
 	return insert(q.log, q.auth,
-		rbac.ResourceApiKey.WithOwner(arg.UserID.String()),
+		rbac.ResourceApiKey.WithOwner(arg.HolderID.String()),
 		q.db.InsertAPIKey)(ctx, arg)
 }
 

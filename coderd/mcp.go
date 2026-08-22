@@ -174,7 +174,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	// auth_connected per server. Attempt to refresh expired tokens
 	// so the status is accurate and the token is ready for use.
 	//nolint:gocritic // Need to check user tokens across all servers.
-	userTokens, err := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+	userTokens, err := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.HolderID.AsUserIDUnchecked())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get user tokens.",
@@ -293,8 +293,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				ModelIntent:             req.ModelIntent,
 				AllowInPlanMode:         req.AllowInPlanMode,
 				ForwardCoderHeaders:     req.ForwardCoderHeaders,
-				CreatedBy:               apiKey.UserID,
-				UpdatedBy:               apiKey.UserID,
+				CreatedBy:               apiKey.HolderID.AsUserIDUnchecked(),
+				UpdatedBy:               apiKey.HolderID.AsUserIDUnchecked(),
 			})
 			if err != nil {
 				switch {
@@ -399,7 +399,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				ModelIntent:             inserted.ModelIntent,
 				AllowInPlanMode:         inserted.AllowInPlanMode,
 				ForwardCoderHeaders:     inserted.ForwardCoderHeaders,
-				UpdatedBy:               apiKey.UserID,
+				UpdatedBy:               apiKey.HolderID.AsUserIDUnchecked(),
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -470,8 +470,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		ModelIntent:             req.ModelIntent,
 		AllowInPlanMode:         req.AllowInPlanMode,
 		ForwardCoderHeaders:     req.ForwardCoderHeaders,
-		CreatedBy:               apiKey.UserID,
-		UpdatedBy:               apiKey.UserID,
+		CreatedBy:               apiKey.HolderID.AsUserIDUnchecked(),
+		UpdatedBy:               apiKey.HolderID.AsUserIDUnchecked(),
 	})
 	if err != nil {
 		switch {
@@ -550,7 +550,7 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	// refresh the token so the status is accurate.
 	if config.AuthType == "oauth2" {
 		//nolint:gocritic // Need to check user token for this server.
-		userTokens, err := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		userTokens, err := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.HolderID.AsUserIDUnchecked())
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to get user tokens.",
@@ -850,7 +850,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			ModelIntent:             modelIntent,
 			AllowInPlanMode:         allowInPlanMode,
 			ForwardCoderHeaders:     forwardCoderHeaders,
-			UpdatedBy:               apiKey.UserID,
+			UpdatedBy:               apiKey.HolderID.AsUserIDUnchecked(),
 			ID:                      existing.ID,
 		})
 		return err
@@ -1166,7 +1166,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	//nolint:gocritic // Users store their own tokens.
 	_, err = api.Database.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
 		MCPServerConfigID: mcpServerID,
-		UserID:            apiKey.UserID,
+		UserID:            apiKey.HolderID.AsUserIDUnchecked(),
 		AccessToken:       token.AccessToken,
 		AccessTokenKeyID:  sql.NullString{},
 		RefreshToken:      refreshToken,
@@ -1220,7 +1220,7 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 	err := api.Database.InTx(func(tx database.Store) error {
 		dbToken, err := tx.GetMCPServerUserToken(systemCtx, database.GetMCPServerUserTokenParams{
 			MCPServerConfigID: mcpServerID,
-			UserID:            apiKey.UserID,
+			UserID:            apiKey.HolderID.AsUserIDUnchecked(),
 		})
 		if err != nil {
 			return err
@@ -1233,7 +1233,7 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 		}
 		if err := tx.DeleteMCPServerUserToken(systemCtx, database.DeleteMCPServerUserTokenParams{
 			MCPServerConfigID: mcpServerID,
-			UserID:            apiKey.UserID,
+			UserID:            apiKey.HolderID.AsUserIDUnchecked(),
 		}); err != nil {
 			return err
 		}

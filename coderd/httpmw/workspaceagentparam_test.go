@@ -28,7 +28,7 @@ func TestWorkspaceAgentParam(t *testing.T) {
 		var (
 			user     = dbgen.User(t, db, database.User{})
 			_, token = dbgen.APIKey(t, db, database.APIKey{
-				UserID: user.ID,
+				HolderID: database.HolderID(user.ID),
 			})
 			tpl       = dbgen.Template(t, db, database.Template{})
 			workspace = dbgen.Workspace(t, db, database.WorkspaceTable{

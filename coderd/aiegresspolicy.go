@@ -122,7 +122,7 @@ func (api *API) putTemplateAIEgressPolicy(rw http.ResponseWriter, r *http.Reques
 	inserted, err := api.Database.InsertTemplateAIEgressPolicy(ctx, database.InsertTemplateAIEgressPolicyParams{
 		TemplateID: template.ID,
 		Rules:      rulesJSON,
-		CreatedBy:  httpmw.APIKey(r).UserID,
+		CreatedBy:  httpmw.APIKey(r).HolderID.AsUserIDUnchecked(),
 	})
 	if err != nil {
 		if httpapi.IsUnauthorizedError(err) {

@@ -401,7 +401,7 @@ func (api *API) postWorkspaceBuildsInternal(
 
 	transition := database.WorkspaceTransition(createBuild.Transition)
 	builder := wsbuilder.New(workspace, transition, *api.BuildUsageChecker.Load()).
-		Initiator(apiKey.UserID).
+		Initiator(apiKey.HolderID.AsUserIDUnchecked()).
 		RichParameterValues(createBuild.RichParameterValues).
 		LogLevel(string(createBuild.LogLevel)).
 		DeploymentValues(api.Options.DeploymentValues).
@@ -448,8 +448,8 @@ func (api *API) postWorkspaceBuildsInternal(
 				Old:              workspace.WorkspaceTable(),
 				New:              updatedWorkspace,
 				Log:              api.Logger,
-				UserID:           apiKey.UserID,
-				OnBehalfOfUserID: audit.ResolveOnBehalfOf(ctx, tx, apiKey.UserID),
+				UserID:           apiKey.HolderID.AsUserIDUnchecked(),
+				OnBehalfOfUserID: audit.ResolveOnBehalfOf(ctx, tx, apiKey.HolderID.AsUserIDUnchecked()),
 				OrganizationID:   workspace.OrganizationID,
 				RequestID:        workspace.ID,
 				IP:               bag.IP,
@@ -647,11 +647,11 @@ func (api *API) postWorkspaceBuildsInternal(
 		} else {
 			for _, admin := range admins {
 				// Don't send notifications to user which initiated the event.
-				if admin.ID == apiKey.UserID {
+				if admin.ID == apiKey.HolderID.AsUserIDUnchecked() {
 					continue
 				}
 
-				api.notifyWorkspaceUpdated(ctx, apiKey.UserID, admin.ID, workspace, createBuild.RichParameterValues)
+				api.notifyWorkspaceUpdated(ctx, apiKey.HolderID.AsUserIDUnchecked(), admin.ID, workspace, createBuild.RichParameterValues)
 			}
 		}
 	}
@@ -813,7 +813,7 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		Message: "Internal error canceling workspace build.",
 	}
 	err = api.Database.InTx(func(db database.Store) error {
-		valid, err := verifyUserCanCancelWorkspaceBuilds(ctx, db, httpmw.APIKey(r).UserID, workspace.TemplateID, expectStatus)
+		valid, err := verifyUserCanCancelWorkspaceBuilds(ctx, db, httpmw.APIKey(r).HolderID.AsUserIDUnchecked(), workspace.TemplateID, expectStatus)
 		if err != nil {
 			code = http.StatusInternalServerError
 			resp.Message = "Internal error verifying permission to cancel workspace build."

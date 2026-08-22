@@ -253,7 +253,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.APIKey{}: {
 		"id":               ActionIgnore,
 		"hashed_secret":    ActionIgnore,
-		"user_id":          ActionTrack,
+		"holder_id":        ActionTrack,
+		"holder_type":      ActionTrack,
 		"last_used":        ActionTrack,
 		"expires_at":       ActionTrack,
 		"created_at":       ActionTrack,

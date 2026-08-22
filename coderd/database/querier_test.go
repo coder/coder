@@ -8813,7 +8813,7 @@ func TestUserSecretsSoftDeleteTrigger(t *testing.T) {
 
 	// Sanity-check the existing trigger behavior. An API key for
 	// userA should also be wiped on soft-delete.
-	_, _ = dbgen.APIKey(t, db, database.APIKey{UserID: userA.ID})
+	_, _ = dbgen.APIKey(t, db, database.APIKey{HolderID: database.HolderID(userA.ID)})
 
 	userB := dbgen.User(t, db, database.User{})
 	secretB := dbgen.UserSecret(t, db, database.UserSecret{
@@ -8834,7 +8834,7 @@ func TestUserSecretsSoftDeleteTrigger(t *testing.T) {
 
 	// userA's API key is also removed.
 	apiKeysA, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
-		UserID:    userA.ID,
+		HolderID:  database.HolderID(userA.ID),
 		LoginType: userA.LoginType,
 	})
 	require.NoError(t, err)
@@ -11646,7 +11646,7 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 	}
 	for _, exp := range expiredTimes {
 		// Expired api keys
-		dbgen.APIKey(t, db, database.APIKey{UserID: user.ID, ExpiresAt: exp})
+		dbgen.APIKey(t, db, database.APIKey{HolderID: database.HolderID(user.ID), ExpiresAt: exp})
 	}
 
 	unexpiredTimes := []time.Time{
@@ -11658,13 +11658,13 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 	}
 	for _, unexp := range unexpiredTimes {
 		// Unexpired api keys
-		dbgen.APIKey(t, db, database.APIKey{UserID: user.ID, ExpiresAt: unexp})
+		dbgen.APIKey(t, db, database.APIKey{HolderID: database.HolderID(user.ID), ExpiresAt: unexp})
 	}
 
 	// All keys are present before deletion
 	keys, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
 		LoginType:      user.LoginType,
-		UserID:         user.ID,
+		HolderID:       database.HolderID(user.ID),
 		IncludeExpired: true,
 	})
 	require.NoError(t, err)
@@ -11682,7 +11682,7 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 	// Ensure it was deleted
 	remaining, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
 		LoginType:      user.LoginType,
-		UserID:         user.ID,
+		HolderID:       database.HolderID(user.ID),
 		IncludeExpired: true,
 	})
 	require.NoError(t, err)
@@ -11699,7 +11699,7 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 	// Ensure only unexpired keys remain
 	remaining, err = db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
 		LoginType:      user.LoginType,
-		UserID:         user.ID,
+		HolderID:       database.HolderID(user.ID),
 		IncludeExpired: true,
 	})
 	require.NoError(t, err)

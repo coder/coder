@@ -33,12 +33,12 @@ func TestOAuth2BearerTokenSecurityBoundaries(t *testing.T) {
 
 	// Create API keys for both users
 	key1, token1 := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    user1.ID,
+		HolderID:  database.HolderID(user1.ID),
 		ExpiresAt: dbtime.Now().Add(testutil.WaitLong),
 	})
 
 	_, token2 := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    user2.ID,
+		HolderID:  database.HolderID(user2.ID),
 		ExpiresAt: dbtime.Now().Add(testutil.WaitLong),
 	})
 
@@ -51,7 +51,7 @@ func TestOAuth2BearerTokenSecurityBoundaries(t *testing.T) {
 		// Handler that returns the authenticated user ID
 		handler := middleware(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			apiKey := httpmw.APIKey(r)
-			rw.Header().Set("X-User-ID", apiKey.UserID.String())
+			rw.Header().Set("X-User-ID", apiKey.HolderID.AsUserIDUnchecked().String())
 			rw.WriteHeader(http.StatusOK)
 		}))
 
@@ -240,7 +240,7 @@ func TestOAuth2BearerTokenPrecedence(t *testing.T) {
 
 	// Create a valid API key
 	key, validToken := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    user.ID,
+		HolderID:  database.HolderID(user.ID),
 		ExpiresAt: dbtime.Now().Add(testutil.WaitLong),
 	})
 
@@ -373,7 +373,7 @@ func TestOAuth2WWWAuthenticateCompliance(t *testing.T) {
 	t.Run("ExpiredTokenResponse", func(t *testing.T) {
 		// Create an expired API key
 		_, expiredToken := dbgen.APIKey(t, db, database.APIKey{
-			UserID:    user.ID,
+			HolderID:  database.HolderID(user.ID),
 			ExpiresAt: dbtime.Now().Add(-time.Hour), // Expired 1 hour ago
 		})
 

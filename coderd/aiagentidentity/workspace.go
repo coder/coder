@@ -62,7 +62,7 @@ func revokeWorkspaceOrigin(ctx context.Context, db database.Store, agent databas
 	//nolint:gocritic // Managing internal AI agent identities requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	key, err := db.GetAPIKeyByName(systemCtx, database.GetAPIKeyByNameParams{
-		UserID:    agent.UserID,
+		HolderID:  database.HolderID(agent.UserID),
 		TokenName: profile.TokenName,
 	})
 	switch {

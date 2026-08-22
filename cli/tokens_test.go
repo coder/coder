@@ -256,7 +256,7 @@ func TestTokensListExpiredFiltering(t *testing.T) {
 
 	// Create a valid (non-expired) token
 	validToken, _ := dbgen.APIKey(t, api.Database, database.APIKey{
-		UserID:    owner.UserID,
+		HolderID:  database.HolderID(owner.UserID),
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 		LoginType: database.LoginTypeToken,
 		TokenName: "valid-token",
@@ -264,7 +264,7 @@ func TestTokensListExpiredFiltering(t *testing.T) {
 
 	// Create an expired token
 	expiredToken, _ := dbgen.APIKey(t, api.Database, database.APIKey{
-		UserID:    owner.UserID,
+		HolderID:  database.HolderID(owner.UserID),
 		ExpiresAt: time.Now().Add(-24 * time.Hour),
 		LoginType: database.LoginTypeToken,
 		TokenName: "expired-token",

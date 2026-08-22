@@ -676,17 +676,17 @@ func (mr *MockStoreMockRecorder) DeleteAPIKeyByID(ctx, id any) *gomock.Call {
 }
 
 // DeleteAPIKeysByUserID mocks base method.
-func (m *MockStore) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
+func (m *MockStore) DeleteAPIKeysByUserID(ctx context.Context, holderID database.HolderID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteAPIKeysByUserID", ctx, userID)
+	ret := m.ctrl.Call(m, "DeleteAPIKeysByUserID", ctx, holderID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteAPIKeysByUserID indicates an expected call of DeleteAPIKeysByUserID.
-func (mr *MockStoreMockRecorder) DeleteAPIKeysByUserID(ctx, userID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) DeleteAPIKeysByUserID(ctx, holderID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeysByUserID), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeysByUserID), ctx, holderID)
 }
 
 // DeleteAllChatHeartbeats mocks base method.
@@ -762,17 +762,17 @@ func (mr *MockStoreMockRecorder) DeleteAllWebpushSubscriptions(ctx any) *gomock.
 }
 
 // DeleteApplicationConnectAPIKeysByUserID mocks base method.
-func (m *MockStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
+func (m *MockStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, holderID database.HolderID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteApplicationConnectAPIKeysByUserID", ctx, userID)
+	ret := m.ctrl.Call(m, "DeleteApplicationConnectAPIKeysByUserID", ctx, holderID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteApplicationConnectAPIKeysByUserID indicates an expected call of DeleteApplicationConnectAPIKeysByUserID.
-func (mr *MockStoreMockRecorder) DeleteApplicationConnectAPIKeysByUserID(ctx, userID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) DeleteApplicationConnectAPIKeysByUserID(ctx, holderID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteApplicationConnectAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteApplicationConnectAPIKeysByUserID), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteApplicationConnectAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteApplicationConnectAPIKeysByUserID), ctx, holderID)
 }
 
 // DeleteChatContextResourcesByChatID mocks base method.

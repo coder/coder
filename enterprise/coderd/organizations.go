@@ -337,7 +337,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 
 		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: organization.ID,
-			UserID:         apiKey.UserID,
+			UserID:         apiKey.HolderID.AsUserIDUnchecked(),
 			CreatedAt:      dbtime.Now(),
 			UpdatedAt:      dbtime.Now(),
 			Roles:          []string{

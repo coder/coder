@@ -57,7 +57,7 @@ func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsse
 	key, err := api.Database.GetAPIKeyByID(ctx, parts[0])
 	require.NoError(t, err, "fetch client api key")
 
-	roles, err := api.Database.GetAuthorizationUserRoles(ctx, key.UserID)
+	roles, err := api.Database.GetAuthorizationUserRoles(ctx, key.HolderID.AsUserIDUnchecked())
 	require.NoError(t, err, "fetch user roles")
 
 	roleNames, err := roles.RoleNames()
@@ -65,7 +65,7 @@ func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsse
 
 	return RBACAsserter{
 		Subject: rbac.Subject{
-			ID:     key.UserID.String(),
+			ID:     key.HolderID.AsUserIDUnchecked().String(),
 			Roles:  rbac.RoleIdentifiers(roleNames),
 			Groups: roles.Groups,
 			Scope:  key.ScopeSet(),

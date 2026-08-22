@@ -31,7 +31,7 @@ func TestRFC6750BearerTokenAuthentication(t *testing.T) {
 
 	// Create an OAuth2 provider app token (which should work with bearer token authentication)
 	key, token := dbgen.APIKey(t, db, database.APIKey{
-		UserID:    user.ID,
+		HolderID:  database.HolderID(user.ID),
 		ExpiresAt: dbtime.Now().Add(testutil.WaitLong),
 	})
 
@@ -69,7 +69,7 @@ func TestRFC6750BearerTokenAuthentication(t *testing.T) {
 	t.Run("BearerTokenPriorityAfterCustomMethods", func(t *testing.T) {
 		// Create a different token for custom header
 		customKey, customToken := dbgen.APIKey(t, db, database.APIKey{
-			UserID:    user.ID,
+			HolderID:  database.HolderID(user.ID),
 			ExpiresAt: dbtime.Now().Add(testutil.WaitLong),
 		})
 
@@ -114,7 +114,7 @@ func TestRFC6750BearerTokenAuthentication(t *testing.T) {
 	t.Run("ExpiredBearerToken", func(t *testing.T) {
 		// Create an expired token
 		_, expiredToken := dbgen.APIKey(t, db, database.APIKey{
-			UserID:    user.ID,
+			HolderID:  database.HolderID(user.ID),
 			ExpiresAt: dbtime.Now().Add(-testutil.WaitShort), // Expired
 		})
 

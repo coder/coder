@@ -62,10 +62,10 @@ func TestFake(t *testing.T) {
 		faker := gofakeit.New(0)
 		id := uuid.New()
 		key := testutil.Fake(t, faker, database.APIKey{
-			UserID:    id,
+			HolderID:  database.HolderID(id),
 			TokenName: "keep-my-name",
 		})
-		require.Equal(t, id, key.UserID)
+		require.Equal(t, id, key.HolderID.AsUserIDUnchecked())
 		require.NotEmpty(t, key.TokenName)
 	})
 }

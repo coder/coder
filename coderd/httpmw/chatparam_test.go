@@ -23,7 +23,7 @@ func TestChatParam(t *testing.T) {
 	setupAuthentication := func(db database.Store) (*http.Request, database.User) {
 		user := dbgen.User(t, db, database.User{})
 		_, token := dbgen.APIKey(t, db, database.APIKey{
-			UserID: user.ID,
+			HolderID: database.HolderID(user.ID),
 		})
 
 		r := httptest.NewRequest("GET", "/", nil)

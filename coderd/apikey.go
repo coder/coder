@@ -293,7 +293,7 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 
 	token, err := api.Database.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
 		TokenName: tokenName,
-		UserID:    user.ID,
+		HolderID:  database.HolderID(user.ID),
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -346,7 +346,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// get user's tokens only
-		keys, err = api.Database.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, UserID: user.ID, IncludeExpired: includeExpired})
+		keys, err = api.Database.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, HolderID: database.HolderID(user.ID), IncludeExpired: includeExpired})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching API keys.",
@@ -367,7 +367,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 
 	var userIDs []uuid.UUID
 	for _, key := range keys {
-		userIDs = append(userIDs, key.UserID)
+		userIDs = append(userIDs, key.HolderID.AsUserIDUnchecked())
 	}
 
 	users, _ := api.Database.GetUsersByIDs(ctx, userIDs)
@@ -378,7 +378,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 
 	var apiKeys []codersdk.APIKeyWithOwner
 	for _, key := range keys {
-		if user, exists := usersByID[key.UserID]; exists {
+		if user, exists := usersByID[key.HolderID.AsUserIDUnchecked()]; exists {
 			apiKeys = append(apiKeys, codersdk.APIKeyWithOwner{
 				APIKey:   convertAPIKey(key),
 				Username: user.Username,

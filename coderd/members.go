@@ -124,7 +124,7 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 	// If we add a feature to force logout a user, then we can prevent manual
 	// member removal when organization sync is enabled, and use force logout instead.
 
-	if member.UserID == apiKey.UserID {
+	if member.UserID == apiKey.HolderID.AsUserIDUnchecked() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "cannot remove self from an organization"})
 		return
 	}
@@ -427,7 +427,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if apiKey.UserID == member.OrganizationMember.UserID {
+	if apiKey.HolderID.AsUserIDUnchecked() == member.OrganizationMember.UserID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "You cannot change your own organization roles.",
 			Detail:  "Another user with the appropriate permissions must change your roles.",

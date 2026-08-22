@@ -31,6 +31,7 @@ const (
 	CheckAibridgeTokenUsagesInputPriceMicrosCheck              CheckConstraint = "aibridge_token_usages_input_price_micros_check"               // aibridge_token_usages
 	CheckAibridgeTokenUsagesOutputPriceMicrosCheck             CheckConstraint = "aibridge_token_usages_output_price_micros_check"              // aibridge_token_usages
 	CheckAPIKeysAllowListNotEmpty                              CheckConstraint = "api_keys_allow_list_not_empty"                                // api_keys
+	CheckAPIKeysHolderTypeCheck                                CheckConstraint = "api_keys_holder_type_check"                                   // api_keys
 	CheckAuthorizationLifecycleJournalActorOnFirstLine         CheckConstraint = "authorization_lifecycle_journal_actor_on_first_line"          // authorization_lifecycle_journal
 	CheckAuthorizationLifecycleJournalActorTypeOnFirstLine     CheckConstraint = "authorization_lifecycle_journal_actor_type_on_first_line"     // authorization_lifecycle_journal
 	CheckAuthorizationLifecycleJournalEffectiveDateOnFirstLine CheckConstraint = "authorization_lifecycle_journal_effective_date_on_first_line" // authorization_lifecycle_journal

@@ -128,7 +128,7 @@ func TestGenerate(t *testing.T) {
 			equal := apikey.ValidateHash(key.HashedSecret, keytokens[1])
 			require.True(t, equal, "valid secret")
 
-			assert.Equal(t, tc.params.UserID, key.UserID)
+			assert.Equal(t, tc.params.UserID, key.HolderID.AsUserIDUnchecked())
 			assert.WithinDuration(t, dbtime.Now(), key.CreatedAt, time.Second*5)
 			assert.WithinDuration(t, dbtime.Now(), key.UpdatedAt, time.Second*5)
 

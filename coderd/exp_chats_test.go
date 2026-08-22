@@ -392,7 +392,7 @@ func TestPostChats(t *testing.T) {
 		require.Equal(t, database.LoginTypeNone, agentUser.LoginType)
 
 		keys, err := db.GetAPIKeysByUserID(sysCtx, database.GetAPIKeysByUserIDParams{
-			UserID:    agent.UserID,
+			HolderID:  database.HolderID(agent.UserID),
 			LoginType: database.LoginTypeToken,
 		})
 		require.NoError(t, err)
@@ -10038,7 +10038,7 @@ func TestManualTitleEndpointsPassOwnerSyntheticAPIKeyToAIGateway(t *testing.T) {
 
 			require.NoError(t, tt.call(ctx, client, chat.ID))
 			gatewayKey, err := db.GetChatGatewayAPIKey(dbauthz.AsSystemRestricted(ctx), database.GetChatGatewayAPIKeyParams{
-				UserID:    firstUser.UserID,
+				HolderID:  database.HolderID(firstUser.UserID),
 				TokenName: chatd.GatewayTokenName(firstUser.UserID),
 			})
 			require.NoError(t, err)

@@ -32,7 +32,7 @@ func TestOrganizationParam(t *testing.T) {
 			ID: uuid.New(),
 		})
 		_, token := dbgen.APIKey(t, db, database.APIKey{
-			UserID: user.ID,
+			HolderID: database.HolderID(user.ID),
 		})
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, chi.NewRouteContext()))

@@ -3363,7 +3363,7 @@ func (s *server) deleteAIAgentSessionToken(ctx context.Context, agent database.A
 	//nolint:gocritic // Deleting an internal AI agent key requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	key, err := s.Database.GetAPIKeyByName(systemCtx, database.GetAPIKeyByNameParams{
-		UserID:    agent.UserID,
+		HolderID:  database.HolderID(agent.UserID),
 		TokenName: tokenName,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -3462,7 +3462,7 @@ func deleteSessionToken(ctx context.Context, db database.Store, workspace databa
 func deleteSessionTokenForUserAndWorkspace(ctx context.Context, db database.Store, userID, workspaceID uuid.UUID) error {
 	err := db.InTx(func(tx database.Store) error {
 		key, err := tx.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
-			UserID:    userID,
+			HolderID:  database.HolderID(userID),
 			TokenName: WorkspaceSessionTokenName(userID, workspaceID),
 		})
 		if err == nil {

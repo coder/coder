@@ -26,7 +26,7 @@ func TestUserParam(t *testing.T) {
 		)
 		user := dbgen.User(t, db, database.User{})
 		_, token := dbgen.APIKey(t, db, database.APIKey{
-			UserID: user.ID,
+			HolderID: database.HolderID(user.ID),
 		})
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 

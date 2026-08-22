@@ -200,7 +200,7 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	api.Logger.Debug(ctx, "check-auth",
-		slog.F("my_id", httpmw.APIKey(r).UserID),
+		slog.F("my_id", httpmw.APIKey(r).HolderID.AsUserIDUnchecked()),
 		slog.F("got_id", auth.ID),
 		slog.F("name", auth),
 		slog.F("roles", auth.SafeRoleNames()),

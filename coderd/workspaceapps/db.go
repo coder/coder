@@ -439,7 +439,7 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 
 		userID := uuid.Nil
 		if aReq.apiKey != nil {
-			userID = aReq.apiKey.UserID
+			userID = aReq.apiKey.HolderID.AsUserIDUnchecked()
 		}
 		userAgent := r.UserAgent()
 		ip := r.RemoteAddr

@@ -117,7 +117,7 @@ type sqlcQuerier interface {
 	DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
-	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	DeleteAPIKeysByUserID(ctx context.Context, holderID HolderID) error
 	// Deletes all heartbeat rows for the chat. Used during ownership
 	// transitions that abandon a lease.
 	DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID) error
@@ -129,7 +129,7 @@ type sqlcQuerier interface {
 	// keypair will no longer be valid and all existing subscriptions will need to
 	// be recreated.
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
-	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, holderID HolderID) error
 	// Clears a chat's pinned context resources. Used as the first half of a
 	// clear-then-copy re-pin, and on its own when the chat's current agent
 	// has no snapshot.

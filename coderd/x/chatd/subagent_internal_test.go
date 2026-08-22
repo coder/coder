@@ -286,7 +286,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 			OwnerID:           user.ID,
 			LastModelConfigID: model.ID,
 		})
-		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{HolderID: database.HolderID(user.ID)})
 		ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
 
 		consumer := httptest.NewServer(handler)

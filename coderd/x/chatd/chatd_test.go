@@ -4986,7 +4986,7 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
 	require.False(t, chatResult.LastError.Valid)
 	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-		UserID:    user.ID,
+		HolderID:  database.HolderID(user.ID),
 		TokenName: chatd.GatewayTokenName(user.ID),
 	})
 	require.NoError(t, err)
@@ -6021,7 +6021,7 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
 		})
 		user, org, _, model := seedChatDependenciesWithProviderPolicy(t, db, "openai", openAIURL, "test-key", true, false, true)
-		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{HolderID: database.HolderID(user.ID)})
 		model.Model = "gpt-5.5"
 		model = updateChatModelContextLimit(t, db, model)
 
@@ -9907,7 +9907,7 @@ func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
 	require.False(t, chatResult.LastError.Valid)
 	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-		UserID:    user.ID,
+		HolderID:  database.HolderID(user.ID),
 		TokenName: chatd.GatewayTokenName(user.ID),
 	})
 	require.NoError(t, err)
@@ -9989,7 +9989,7 @@ func TestProcessChat_RoutingPreservesAPIKeyAfterWorkspaceContext(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, pinned, "workspace context should be pinned to the chat")
 	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-		UserID:    user.ID,
+		HolderID:  database.HolderID(user.ID),
 		TokenName: chatd.GatewayTokenName(user.ID),
 	})
 	require.NoError(t, err)

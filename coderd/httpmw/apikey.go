@@ -277,7 +277,7 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 	if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
 		//nolint:gocritic // System needs to fetch UserLink to check if it's valid.
 		link, err := cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
-			UserID:    key.UserID,
+			UserID:    key.HolderID.AsUserIDUnchecked(),
 			LoginType: key.LoginType,
 		})
 		if errors.Is(err, sql.ErrNoRows) {
@@ -458,7 +458,7 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 
 		//nolint:gocritic // system needs to update user last seen at
 		_, err = cfg.DB.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
-			ID:         key.UserID,
+			ID:         key.HolderID.AsUserIDUnchecked(),
 			LastSeenAt: dbtime.Now(),
 			UpdatedAt:  dbtime.Now(),
 		})
@@ -477,7 +477,7 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 	// The key user determines whether authorization is direct or delegated.
 	// Authentication runs before a request actor exists, so this lookup uses the
 	// restricted system subject.
-	user, err := cfg.DB.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID) //nolint:gocritic
+	user, err := cfg.DB.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.HolderID.AsUserIDUnchecked()) //nolint:gocritic
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, invalidAIAgentError("API key user does not exist.")
@@ -529,7 +529,7 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 			agentActor = &resolvedActor
 		}
 	} else {
-		actor, userStatus, err = UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
+		actor, userStatus, err = UserRBACSubject(ctx, cfg.DB, key.HolderID.AsUserIDUnchecked(), key.ScopeSet())
 	}
 	if err != nil {
 		return nil, &ValidateAPIKeyError{

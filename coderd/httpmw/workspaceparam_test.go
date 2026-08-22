@@ -56,7 +56,8 @@ func TestWorkspaceParam(t *testing.T) {
 
 		_, err = db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
-			UserID:       user.ID,
+			HolderID:     database.HolderID(user.ID),
+			HolderType:   database.HolderTypeUser,
 			HashedSecret: hashed,
 			LastUsed:     dbtime.Now(),
 			ExpiresAt:    dbtime.Now().Add(time.Minute),

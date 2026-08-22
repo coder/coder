@@ -74,7 +74,7 @@ func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *code
 	require.NoError(t, err, "get api key")
 
 	link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
-		UserID:    key.UserID,
+		UserID:    key.HolderID.AsUserIDUnchecked(),
 		LoginType: database.LoginTypeOIDC,
 	})
 	require.NoError(t, err, "get user link")

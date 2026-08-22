@@ -802,9 +802,9 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 
 	// User exists.
-	user, err := s.store.GetUserByID(ctx, key.UserID)
+	user, err := s.store.GetUserByID(ctx, key.HolderID.AsUserIDUnchecked())
 	if err != nil {
-		s.logger.Warn(ctx, "failed to retrieve API key user", slog.F("key_id", keyID), slog.F("user_id", key.UserID), slog.Error(err))
+		s.logger.Warn(ctx, "failed to retrieve API key user", slog.F("key_id", keyID), slog.F("user_id", key.HolderID), slog.Error(err))
 		return nil, ErrUnknownUser
 	}
 
@@ -848,7 +848,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 
 	return &proto.IsAuthorizedResponse{
-		OwnerId:  key.UserID.String(),
+		OwnerId:  key.HolderID.String(),
 		ApiKeyId: key.ID,
 		Username: user.Username,
 	}, nil

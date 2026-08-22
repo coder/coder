@@ -87,7 +87,7 @@ func (api *API) userOIDCClaims(rw http.ResponseWriter, r *http.Request) {
 		apiKey = httpmw.APIKey(r)
 	)
 
-	user, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	user, err := api.Database.GetUserByID(ctx, apiKey.HolderID.AsUserIDUnchecked())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get user.",
@@ -610,7 +610,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 
 	apiKey := httpmw.APIKey(r)
 
-	accountCreator, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	accountCreator, err := api.Database.GetUserByID(ctx, apiKey.HolderID.AsUserIDUnchecked())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Unable to determine the details of the actor creating the account.",
@@ -725,7 +725,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 
 	apiKey := httpmw.APIKey(r)
 
-	accountDeleter, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	accountDeleter, err := api.Database.GetUserByID(ctx, apiKey.HolderID.AsUserIDUnchecked())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Unable to determine the details of the actor deleting the account.",
@@ -886,7 +886,7 @@ func (*API) userLoginType(rw http.ResponseWriter, r *http.Request) {
 		key  = httpmw.APIKey(r)
 	)
 
-	if key.UserID != user.ID {
+	if key.HolderID.AsUserIDUnchecked() != user.ID {
 		// Currently this is only valid for querying yourself.
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "You are not authorized to view this user's login type.",
@@ -1045,7 +1045,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			// There are some manual protections when suspending a user to
 			// prevent certain situations.
 			switch {
-			case user.ID == apiKey.UserID:
+			case user.ID == apiKey.HolderID.AsUserIDUnchecked():
 				// Suspending yourself is not allowed, as you can lock yourself
 				// out of the system.
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1061,7 +1061,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			}
 		}
 
-		actingUser, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+		actingUser, err := api.Database.GetUserByID(ctx, apiKey.HolderID.AsUserIDUnchecked())
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Unable to determine the details of the actor creating the account.",
@@ -1658,8 +1658,8 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only owners can change the password of another owner.
-	if apiKey.UserID != user.ID && slices.Contains(user.RBACRoles, rbac.RoleOwner().String()) {
-		actingUser, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if apiKey.HolderID.AsUserIDUnchecked() != user.ID && slices.Contains(user.RBACRoles, rbac.RoleOwner().String()) {
+		actingUser, err := api.Database.GetUserByID(ctx, apiKey.HolderID.AsUserIDUnchecked())
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching acting user.",
@@ -1687,7 +1687,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// A user need to put its own password to update it
-	if apiKey.UserID == user.ID && params.OldPassword == "" {
+	if apiKey.HolderID.AsUserIDUnchecked() == user.ID && params.OldPassword == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Old password is required.",
 		})
@@ -1760,7 +1760,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 
 		//nolint:gocritic // Password resets must revoke all keys owned by the
 		// target user, not just keys addressable by the caller's actor.
-		err = tx.DeleteAPIKeysByUserID(dbauthz.AsAPIKeyRevoker(ctx, user.ID), user.ID)
+		err = tx.DeleteAPIKeysByUserID(dbauthz.AsAPIKeyRevoker(ctx, user.ID), database.HolderID(user.ID))
 		if err != nil {
 			return xerrors.Errorf("delete api keys by user ID: %w", err)
 		}
@@ -1861,7 +1861,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if apiKey.UserID == user.ID {
+	if apiKey.HolderID.AsUserIDUnchecked() == user.ID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "You cannot change your own roles.",
 		})
@@ -2188,7 +2188,7 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 
 	return codersdk.APIKey{
 		ID:              k.ID,
-		UserID:          k.UserID,
+		UserID:          k.HolderID.AsUserIDUnchecked(),
 		LastUsed:        k.LastUsed,
 		ExpiresAt:       k.ExpiresAt,
 		CreatedAt:       k.CreatedAt,

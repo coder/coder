@@ -47,10 +47,10 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 			var subject *rbac.Subject
 
 			if pc, ok := r.Context().Value(apiKeyPrecheckedContextKey{}).(APIKeyPrechecked); ok && pc.Result != nil {
-				userID = pc.Result.Key.UserID.String()
+				userID = pc.Result.Key.HolderID.String()
 				subject = &pc.Result.Subject
 			} else if ak, ok := r.Context().Value(apiKeyContextKey{}).(database.APIKey); ok {
-				userID = ak.UserID.String()
+				userID = ak.HolderID.String()
 				if auth, ok := UserAuthorizationOptional(r.Context()); ok {
 					subject = &auth
 				}

@@ -84,7 +84,7 @@ func TestTelemetry(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, _ = dbgen.APIKey(t, db, database.APIKey{
-			UserID: user.ID,
+			HolderID: database.HolderID(user.ID),
 		})
 		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			Provisioner:    database.ProvisionerTypeTerraform,

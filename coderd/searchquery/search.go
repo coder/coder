@@ -124,12 +124,12 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 	}
 
 	if filter.Username == "me" {
-		filter.UserID = apiKey.UserID
+		filter.UserID = apiKey.HolderID.AsUserIDUnchecked()
 		filter.Username = ""
 	}
 
 	if filter.WorkspaceOwner == "me" {
-		filter.WorkspaceOwnerID = apiKey.UserID
+		filter.WorkspaceOwnerID = apiKey.HolderID.AsUserIDUnchecked()
 		filter.WorkspaceOwner = ""
 	}
 

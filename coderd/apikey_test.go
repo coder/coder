@@ -540,7 +540,7 @@ func TestAPIKey_AIAgentTargetsForbidden(t *testing.T) {
 
 		keys, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
 			LoginType:      loginType,
-			UserID:         userID,
+			HolderID:       database.HolderID(userID),
 			IncludeExpired: true,
 		})
 		require.NoError(t, err)
@@ -603,7 +603,7 @@ func TestAPIKey_PrebuildsNotAllowed(t *testing.T) {
 
 	// Given: an existing api token for the prebuilds user
 	_, prebuildsToken := dbgen.APIKey(t, db, database.APIKey{
-		UserID: database.PrebuildsSystemUserID,
+		HolderID: database.HolderID(database.PrebuildsSystemUserID),
 	})
 	client.SetSessionToken(prebuildsToken)
 

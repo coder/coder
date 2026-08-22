@@ -24,7 +24,7 @@ func TestTemplateParam(t *testing.T) {
 		var (
 			user     = dbgen.User(t, db, database.User{})
 			_, token = dbgen.APIKey(t, db, database.APIKey{
-				UserID: user.ID,
+				HolderID: database.HolderID(user.ID),
 			})
 			organization = dbgen.Organization(t, db, database.Organization{})
 			_            = dbgen.OrganizationMember(t, db, database.OrganizationMember{

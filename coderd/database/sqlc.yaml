@@ -34,6 +34,12 @@ sql:
           - ai
           - nats
         overrides:
+          - column: "api_keys.holder_id"
+            go_type:
+              type: "HolderID"
+          - column: "api_keys.holder_type"
+            go_type:
+              type: "HolderType"
           - column: "api_keys.scopes"
             go_type:
               type: "APIKeyScopes"

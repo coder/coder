@@ -131,10 +131,10 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	}
 	for _, admin := range admins {
 		// Don't send notification to user which initiated the event.
-		if admin.ID == apiKey.UserID {
+		if admin.ID == apiKey.HolderID.AsUserIDUnchecked() {
 			continue
 		}
-		api.notifyTemplateDeleted(ctx, template, apiKey.UserID, admin.ID)
+		api.notifyTemplateDeleted(ctx, template, apiKey.HolderID.AsUserIDUnchecked(), admin.ID)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
@@ -221,7 +221,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		OrganizationID:          organization.ID,
 		Name:                    createTemplate.Name,
 		Description:             createTemplate.Description,
-		CreatedBy:               apiKey.UserID,
+		CreatedBy:               apiKey.HolderID.AsUserIDUnchecked(),
 		Icon:                    createTemplate.Icon,
 		DisplayName:             createTemplate.DisplayName,
 		UseClassicParameterFlow: useClassicParameterFlow,
@@ -440,7 +440,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Provisioner:                  importJob.Provisioner,
 			ActiveVersionID:              templateVersion.ID,
 			Description:                  createTemplate.Description,
-			CreatedBy:                    apiKey.UserID,
+			CreatedBy:                    apiKey.HolderID.AsUserIDUnchecked(),
 			UserACL:                      database.TemplateACL{},
 			GroupACL:                     defaultsGroups,
 			DisplayName:                  createTemplate.DisplayName,
@@ -571,7 +571,7 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 		key := httpmw.APIKey(r)
 
 		queryStr := r.URL.Query().Get("q")
-		filter, errs := searchquery.Templates(ctx, api.Database, key.UserID, queryStr)
+		filter, errs := searchquery.Templates(ctx, api.Database, key.HolderID.AsUserIDUnchecked(), queryStr)
 		if len(errs) > 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Invalid template search query.",

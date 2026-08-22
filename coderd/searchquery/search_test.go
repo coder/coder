@@ -693,7 +693,7 @@ func TestSearchConnectionLogs(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		query := `username:me workspace_owner:me`
-		values, _, errs := searchquery.ConnectionLogs(context.Background(), db, query, database.APIKey{UserID: userID})
+		values, _, errs := searchquery.ConnectionLogs(context.Background(), db, query, database.APIKey{HolderID: database.HolderID(userID)})
 		require.Len(t, errs, 0)
 
 		expected := database.GetConnectionLogsOffsetParams{

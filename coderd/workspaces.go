@@ -119,7 +119,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	w, err := convertWorkspace(
 		ctx,
 		api.Logger,
-		apiKey.UserID,
+		apiKey.HolderID.AsUserIDUnchecked(),
 		workspace,
 		data.builds[0],
 		data.templates[0],
@@ -159,7 +159,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.Workspaces(ctx, api.Database, queryStr, page, api.AgentInactiveDisconnectTimeout, apiKey.UserID)
+	filter, errs := searchquery.Workspaces(ctx, api.Database, queryStr, page, api.AgentInactiveDisconnectTimeout, apiKey.HolderID.AsUserIDUnchecked())
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -169,13 +169,13 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if filter.OwnerUsername == "me" {
-		filter.OwnerID = apiKey.UserID
+		filter.OwnerID = apiKey.HolderID.AsUserIDUnchecked()
 		filter.OwnerUsername = ""
 	}
 
 	// To show the requester's favorite workspaces first, we pass their userID and compare it to
 	// the workspace owner_id when ordering the rows.
-	filter.RequesterID = apiKey.UserID
+	filter.RequesterID = apiKey.HolderID.AsUserIDUnchecked()
 
 	// We need the technical row to present the correct count on every page.
 	filter.WithSummary = true
@@ -237,7 +237,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	wss, err := convertWorkspaces(
 		ctx,
 		api.Logger,
-		apiKey.UserID,
+		apiKey.HolderID.AsUserIDUnchecked(),
 		workspaces,
 		data,
 	)
@@ -343,7 +343,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	w, err := convertWorkspace(
 		ctx,
 		api.Logger,
-		apiKey.UserID,
+		apiKey.HolderID.AsUserIDUnchecked(),
 		workspace,
 		data.builds[0],
 		data.templates[0],
@@ -412,7 +412,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		AvatarURL: member.AvatarURL,
 	}
 
-	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, &createWorkspaceOptions{
+	w, err := createWorkspace(ctx, aReq, apiKey.HolderID.AsUserIDUnchecked(), api, owner, req, &createWorkspaceOptions{
 		remoteAddr: r.RemoteAddr,
 	})
 	if err != nil {
@@ -510,7 +510,7 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 
 	defer commitAudit()
 
-	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, &createWorkspaceOptions{
+	w, err := createWorkspace(ctx, aReq, apiKey.HolderID.AsUserIDUnchecked(), api, owner, req, &createWorkspaceOptions{
 		remoteAddr: r.RemoteAddr,
 	})
 	if err != nil {
@@ -1551,15 +1551,15 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// We don't need to notify the owner if they are the one making the request.
-	if req.Dormant && apiKey.UserID != newWorkspace.OwnerID {
-		initiator, initiatorErr := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if req.Dormant && apiKey.HolderID.AsUserIDUnchecked() != newWorkspace.OwnerID {
+		initiator, initiatorErr := api.Database.GetUserByID(ctx, apiKey.HolderID.AsUserIDUnchecked())
 		if initiatorErr != nil {
 			api.Logger.Warn(
 				ctx,
 				"failed to fetch the user that marked the workspace as dormant",
 				slog.Error(err),
 				slog.F("workspace_id", newWorkspace.ID),
-				slog.F("user_id", apiKey.UserID),
+				slog.F("user_id", apiKey.HolderID.AsUserIDUnchecked()),
 			)
 		}
 
@@ -1630,7 +1630,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 	w, err := convertWorkspace(
 		ctx,
 		api.Logger,
-		apiKey.UserID,
+		apiKey.HolderID.AsUserIDUnchecked(),
 		workspace,
 		data.builds[0],
 		data.templates[0],
@@ -1887,7 +1887,7 @@ func (api *API) putFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
 		auditor   = api.Auditor.Load()
 	)
 
-	if apiKey.UserID != workspace.OwnerID {
+	if apiKey.HolderID.AsUserIDUnchecked() != workspace.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "You can only favorite workspaces that you own.",
 		})
@@ -1934,7 +1934,7 @@ func (api *API) deleteFavoriteWorkspace(rw http.ResponseWriter, r *http.Request)
 		auditor   = api.Auditor.Load()
 	)
 
-	if apiKey.UserID != workspace.OwnerID {
+	if apiKey.HolderID.AsUserIDUnchecked() != workspace.OwnerID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "You can only un-favorite workspaces that you own.",
 		})
@@ -2209,7 +2209,7 @@ func (api *API) watchWorkspace(
 		w, err := convertWorkspace(
 			ctx,
 			api.Logger,
-			apiKey.UserID,
+			apiKey.HolderID.AsUserIDUnchecked(),
 			workspace,
 			data.builds[0],
 			data.templates[0],
@@ -2559,7 +2559,7 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	apiKey := httpmw.APIKey(r)
-	if _, ok := req.UserRoles[apiKey.UserID.String()]; ok {
+	if _, ok := req.UserRoles[apiKey.HolderID.AsUserIDUnchecked().String()]; ok {
 		// Block changing your own sharing role unless you can share any
 		// workspace in the organization. This keeps a user whose only access is
 		// this share from destructively demoting themselves, while letting org

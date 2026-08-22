@@ -339,7 +339,7 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 		templateVersion = httpmw.TemplateVersionParam(r)
 	)
 
-	ownerID := apiKey.UserID
+	ownerID := apiKey.HolderID.AsUserIDUnchecked()
 	externalAuthCtx := ctx
 	if q := r.URL.Query().Get("user_id"); q != "" && q != codersdk.Me {
 		id, err := uuid.Parse(q)
@@ -512,7 +512,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 	// We use the workspace RBAC check since we don't want to allow dry runs if
 	// the user can't create workspaces.
 	if !api.Authorize(r, policy.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(apiKey.UserID.String())) {
+		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(apiKey.HolderID.AsUserIDUnchecked().String())) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -577,7 +577,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		CreatedAt:      dbtime.Now(),
 		UpdatedAt:      dbtime.Now(),
 		OrganizationID: templateVersion.OrganizationID,
-		InitiatorID:    apiKey.UserID,
+		InitiatorID:    apiKey.HolderID.AsUserIDUnchecked(),
 		Provisioner:    job.Provisioner,
 		StorageMethod:  job.StorageMethod,
 		FileID:         job.FileID,
@@ -1539,12 +1539,12 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	var err error
 	// if example id is specified we need to copy the embedded tar into a new file in the database
 	if req.ExampleID != "" {
-		if !api.Authorize(r, policy.ActionCreate, rbac.ResourceFile.WithOwner(apiKey.UserID.String())) {
+		if !api.Authorize(r, policy.ActionCreate, rbac.ResourceFile.WithOwner(apiKey.HolderID.AsUserIDUnchecked().String())) {
 			httpapi.Forbidden(rw)
 			return
 		}
 		// ensure we can read the file that either already exists or will be created
-		if !api.Authorize(r, policy.ActionRead, rbac.ResourceFile.WithOwner(apiKey.UserID.String())) {
+		if !api.Authorize(r, policy.ActionRead, rbac.ResourceFile.WithOwner(apiKey.HolderID.AsUserIDUnchecked().String())) {
 			httpapi.Forbidden(rw)
 			return
 		}
@@ -1572,7 +1572,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		// Check if the file already exists.
 		file, err := api.Database.GetFileByHashAndCreator(ctx, database.GetFileByHashAndCreatorParams{
 			Hash:      hash,
-			CreatedBy: apiKey.UserID,
+			CreatedBy: apiKey.HolderID.AsUserIDUnchecked(),
 		})
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
@@ -1587,7 +1587,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			file, err = api.Database.InsertFile(ctx, database.InsertFileParams{
 				ID:        uuid.New(),
 				Hash:      hash,
-				CreatedBy: apiKey.UserID,
+				CreatedBy: apiKey.HolderID.AsUserIDUnchecked(),
 				CreatedAt: dbtime.Now(),
 				Mimetype:  tarMimeType,
 				Data:      tar,
@@ -1624,7 +1624,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	var parsedTags map[string]string
 	var ok bool
 	if dynamicTemplate {
-		parsedTags, ok = api.dynamicTemplateVersionTags(ctx, rw, organization.ID, apiKey.UserID, file, req.UserVariableValues)
+		parsedTags, ok = api.dynamicTemplateVersionTags(ctx, rw, organization.ID, apiKey.HolderID.AsUserIDUnchecked(), file, req.UserVariableValues)
 		if !ok {
 			return
 		}
@@ -1638,7 +1638,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	// Ensure the "owner" tag is properly applied in addition to request tags and coder_workspace_tags.
 	// User-specified tags in the request will take precedence over tags parsed from `coder_workspace_tags`
 	// data sources defined in the template file.
-	tags := provisionersdk.MutateTags(apiKey.UserID, parsedTags, req.ProvisionerTags)
+	tags := provisionersdk.MutateTags(apiKey.HolderID.AsUserIDUnchecked(), parsedTags, req.ProvisionerTags)
 
 	var templateVersion database.TemplateVersion
 	var provisionerJob database.ProvisionerJob
@@ -1677,7 +1677,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			CreatedAt:      dbtime.Now(),
 			UpdatedAt:      dbtime.Now(),
 			OrganizationID: organization.ID,
-			InitiatorID:    apiKey.UserID,
+			InitiatorID:    apiKey.HolderID.AsUserIDUnchecked(),
 			Provisioner:    database.ProvisionerType(req.Provisioner),
 			StorageMethod:  database.ProvisionerStorageMethodFile,
 			FileID:         file.ID,
@@ -1714,14 +1714,14 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		matchedProvisioners = db2sdk.MatchedProvisioners(eligibleProvisioners, provisionerJob.CreatedAt, provisionerdserver.StaleInterval)
 		if matchedProvisioners.Count == 0 {
 			api.Logger.Warn(ctx, "no matching provisioners found for job",
-				slog.F("user_id", apiKey.UserID),
+				slog.F("user_id", apiKey.HolderID.AsUserIDUnchecked()),
 				slog.F("job_id", jobID),
 				slog.F("job_type", database.ProvisionerJobTypeTemplateVersionImport),
 				slog.F("tags", tags),
 			)
 		} else if matchedProvisioners.Available == 0 {
 			api.Logger.Warn(ctx, "no active provisioners found for job",
-				slog.F("user_id", apiKey.UserID),
+				slog.F("user_id", apiKey.HolderID.AsUserIDUnchecked()),
 				slog.F("job_id", jobID),
 				slog.F("job_type", database.ProvisionerJobTypeTemplateVersionImport),
 				slog.F("tags", tags),
@@ -1750,7 +1750,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			Message:        req.Message,
 			Readme:         "",
 			JobID:          provisionerJob.ID,
-			CreatedBy:      apiKey.UserID,
+			CreatedBy:      apiKey.HolderID.AsUserIDUnchecked(),
 			SourceExampleID: sql.NullString{
 				String: req.ExampleID,
 				Valid:  req.ExampleID != "",

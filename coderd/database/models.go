@@ -5057,8 +5057,9 @@ type AIUserDailySpend struct {
 type APIKey struct {
 	ID string `db:"id" json:"id"`
 	// hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.
-	HashedSecret    []byte       `db:"hashed_secret" json:"hashed_secret"`
-	UserID          uuid.UUID    `db:"user_id" json:"user_id"`
+	HashedSecret []byte `db:"hashed_secret" json:"hashed_secret"`
+	// The actor holding this key. Not a foreign key: the holder may be a user or an AI agent, and no single table holds both.
+	HolderID        HolderID     `db:"holder_id" json:"holder_id"`
 	LastUsed        time.Time    `db:"last_used" json:"last_used"`
 	ExpiresAt       time.Time    `db:"expires_at" json:"expires_at"`
 	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
@@ -5069,6 +5070,8 @@ type APIKey struct {
 	TokenName       string       `db:"token_name" json:"token_name"`
 	Scopes          APIKeyScopes `db:"scopes" json:"scopes"`
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
+	// Which kind of actor holder_id names, and so which table resolves it.
+	HolderType HolderType `db:"holder_type" json:"holder_type"`
 }
 
 type AuditLog struct {

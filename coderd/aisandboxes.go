@@ -323,7 +323,7 @@ func (api *API) rotateAISandboxSessionToken(ctx context.Context, workspaceID uui
 func (api *API) deleteAISandboxSessionToken(ctx context.Context, sandbox database.AISandbox) error {
 	profile := aiagentidentity.SandboxIdentityProfile(sandbox.WorkspaceID, sandbox.ID)
 	key, err := api.Database.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
-		UserID:    sandbox.AIAgentID,
+		HolderID:  database.HolderID(sandbox.AIAgentID),
 		TokenName: profile.TokenName,
 	})
 	if errors.Is(err, sql.ErrNoRows) {

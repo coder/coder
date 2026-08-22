@@ -47,7 +47,7 @@ func (api *API) templateVersionDynamicParametersEvaluate(rw http.ResponseWriter,
 // @Router /api/v2/templateversions/{templateversion}/dynamic-parameters [get]
 func (api *API) templateVersionDynamicParametersWebsocket(rw http.ResponseWriter, r *http.Request) {
 	apikey := httpmw.APIKey(r)
-	userID := apikey.UserID
+	userID := apikey.HolderID.AsUserIDUnchecked()
 
 	qUserID := r.URL.Query().Get("user_id")
 	if qUserID != "" && qUserID != codersdk.Me {

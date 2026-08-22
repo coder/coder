@@ -1162,7 +1162,7 @@ func HashContent(content string) string {
 func ConvertAPIKey(apiKey database.APIKey) APIKey {
 	a := APIKey{
 		ID:        apiKey.ID,
-		UserID:    apiKey.UserID,
+		UserID:    apiKey.HolderID.AsUserIDUnchecked(),
 		CreatedAt: apiKey.CreatedAt,
 		LastUsed:  apiKey.LastUsed,
 		LoginType: apiKey.LoginType,
