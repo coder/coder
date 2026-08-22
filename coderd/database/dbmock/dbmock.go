@@ -3780,6 +3780,21 @@ func (mr *MockStoreMockRecorder) GetCredentialLifecycleJournalAPIKeyLines(ctx, e
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCredentialLifecycleJournalAPIKeyLines", reflect.TypeOf((*MockStore)(nil).GetCredentialLifecycleJournalAPIKeyLines), ctx, entryID)
 }
 
+// GetCredentialLifecycleJournalEntriesBySubject mocks base method.
+func (m *MockStore) GetCredentialLifecycleJournalEntriesBySubject(ctx context.Context, arg database.GetCredentialLifecycleJournalEntriesBySubjectParams) ([]database.CredentialLifecycleJournal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCredentialLifecycleJournalEntriesBySubject", ctx, arg)
+	ret0, _ := ret[0].([]database.CredentialLifecycleJournal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCredentialLifecycleJournalEntriesBySubject indicates an expected call of GetCredentialLifecycleJournalEntriesBySubject.
+func (mr *MockStoreMockRecorder) GetCredentialLifecycleJournalEntriesBySubject(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCredentialLifecycleJournalEntriesBySubject", reflect.TypeOf((*MockStore)(nil).GetCredentialLifecycleJournalEntriesBySubject), ctx, arg)
+}
+
 // GetCredentialPasswordByID mocks base method.
 func (m *MockStore) GetCredentialPasswordByID(ctx context.Context, id uuid.UUID) (database.CredentialPassword, error) {
 	m.ctrl.T.Helper()
@@ -9298,6 +9313,21 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceResourceMetadata(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceResourceMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceResourceMetadata), ctx, arg)
 }
 
+// InvalidateCredential mocks base method.
+func (m *MockStore) InvalidateCredential(ctx context.Context, arg database.InvalidateCredentialParams) (database.CredentialLedger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InvalidateCredential", ctx, arg)
+	ret0, _ := ret[0].(database.CredentialLedger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InvalidateCredential indicates an expected call of InvalidateCredential.
+func (mr *MockStoreMockRecorder) InvalidateCredential(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InvalidateCredential", reflect.TypeOf((*MockStore)(nil).InvalidateCredential), ctx, arg)
+}
+
 // IsChatHeartbeatStale mocks base method.
 func (m *MockStore) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatHeartbeatStaleParams) (bool, error) {
 	m.ctrl.T.Helper()
@@ -10090,21 +10120,6 @@ func (mr *MockStoreMockRecorder) RetireAIAgent(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetireAIAgent", reflect.TypeOf((*MockStore)(nil).RetireAIAgent), ctx, arg)
 }
 
-// RevokeCredential mocks base method.
-func (m *MockStore) RevokeCredential(ctx context.Context, arg database.RevokeCredentialParams) (database.CredentialLedger, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RevokeCredential", ctx, arg)
-	ret0, _ := ret[0].(database.CredentialLedger)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// RevokeCredential indicates an expected call of RevokeCredential.
-func (mr *MockStoreMockRecorder) RevokeCredential(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeCredential", reflect.TypeOf((*MockStore)(nil).RevokeCredential), ctx, arg)
-}
-
 // RevokeDBCryptKey mocks base method.
 func (m *MockStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	m.ctrl.T.Helper()
@@ -10260,6 +10275,21 @@ func (m *MockStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, 
 func (mr *MockStoreMockRecorder) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteWorkspaceAgentsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).SoftDeleteWorkspaceAgentsByWorkspaceID), ctx, workspaceID)
+}
+
+// TerminateAuthorization mocks base method.
+func (m *MockStore) TerminateAuthorization(ctx context.Context, arg database.TerminateAuthorizationParams) (database.AuthorizationLedger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TerminateAuthorization", ctx, arg)
+	ret0, _ := ret[0].(database.AuthorizationLedger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TerminateAuthorization indicates an expected call of TerminateAuthorization.
+func (mr *MockStoreMockRecorder) TerminateAuthorization(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TerminateAuthorization", reflect.TypeOf((*MockStore)(nil).TerminateAuthorization), ctx, arg)
 }
 
 // TouchChatDebugRunUpdatedAt mocks base method.

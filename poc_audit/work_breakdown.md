@@ -280,20 +280,43 @@ still in a shape the corpus has moved past.
 
 ### Status
 
-Mostly complete. Every schema change this package describes has landed:
-`entity_journal` and `entity_ai_agents` are gone, and each of the three
+Complete as of 2026-08-22. Every schema change this package describes has
+landed, `entity_journal` and `entity_ai_agents` are gone, and each of the three
 entities has its own journal and ledger written to the current patterns. The
-blocker named here, the credential lifecycle, was designed and built in WP4.
+blocker recorded here for a time, the credential lifecycle, was designed and
+built in WP4.
 
-**One item remains, and it is the one this package called required
-regardless.** Retiring an AI agent does not lapse its authorizations or
-invalidate its credentials. `entity.RetireAIAgent` writes one entry and posts
-one row.
+The last item was the one this package called required regardless: retiring an
+AI agent now lapses every authorization naming it and invalidates every
+credential it holds, in the transaction that retires it.
 
-The reads for the rest are in place. `GetValidCredentialsByHolder` finds what
-to invalidate, and
-`GetAuthorizationLifecycleLedgerRowsByAgent` was added for exactly this and
-still has no production caller. Only the writes are missing.
+That forced a question the entity model had left open, recorded below under
+"Who an observed operation is attributed to when nobody noticed".
+
+### Who an observed operation is attributed to when nobody noticed
+
+The model says an observed operation's actor is whoever noticed. For a lapse
+nobody does. The agent's retirement is commanded by some party, and the lapses
+follow from it as consequences that party neither performed nor observed.
+
+Attributing them to that party would be wrong twice over. Somebody who kills an
+AI agent has not revoked its authorization, and `revoke` is a different
+transition with a different meaning. Worse, an agent whose own `finish` lapses
+its authorization would be recording the end of its own authority, which
+entities may not do.
+
+So the entries name a **fixed system actor**, `entity.SystemActor`, in the same
+manner the model already prescribes for `expire`. It travels as a `user`,
+because the type set has no member for a system actor, and it is a bare
+identifier, because there is no table of system actors to point at. Both are
+proof of concept cheats already named in `entity_model.md`, and this is the
+first code to depend on them.
+
+**This differs from creation, and the difference is instructive.** Creation
+writes three entries and all three name the owner, because all three operations
+are commanded and the owner commanded all three. Retirement writes three and
+they do not share an actor, because only the first is commanded. An actor is a
+property of an operation rather than of a transaction.
 
 ### What forces the work
 

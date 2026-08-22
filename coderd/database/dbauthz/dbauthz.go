@@ -3825,6 +3825,13 @@ func (q *querier) GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, 
 	return q.db.GetCredentialLifecycleJournalAPIKeyLines(ctx, entryID)
 }
 
+func (q *querier) GetCredentialLifecycleJournalEntriesBySubject(ctx context.Context, arg database.GetCredentialLifecycleJournalEntriesBySubjectParams) ([]database.CredentialLifecycleJournal, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetCredentialLifecycleJournalEntriesBySubject(ctx, arg)
+}
+
 func (q *querier) GetCredentialPasswordByID(ctx context.Context, id uuid.UUID) (database.CredentialPassword, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.CredentialPassword{}, err
@@ -7016,6 +7023,13 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
 }
 
+func (q *querier) InvalidateCredential(ctx context.Context, arg database.InvalidateCredentialParams) (database.CredentialLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.CredentialLedger{}, err
+	}
+	return q.db.InvalidateCredential(ctx, arg)
+}
+
 func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatHeartbeatStaleParams) (bool, error) {
 	_, err := q.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -7423,13 +7437,6 @@ func (q *querier) RetireAIAgent(ctx context.Context, arg database.RetireAIAgentP
 	return q.db.RetireAIAgent(ctx, arg)
 }
 
-func (q *querier) RevokeCredential(ctx context.Context, arg database.RevokeCredentialParams) (database.CredentialLedger, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return database.CredentialLedger{}, err
-	}
-	return q.db.RevokeCredential(ctx, arg)
-}
-
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
@@ -7537,6 +7544,13 @@ func (q *querier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, wo
 		return err
 	}
 	return q.db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID)
+}
+
+func (q *querier) TerminateAuthorization(ctx context.Context, arg database.TerminateAuthorizationParams) (database.AuthorizationLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.AuthorizationLedger{}, err
+	}
+	return q.db.TerminateAuthorization(ctx, arg)
 }
 
 func (q *querier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {

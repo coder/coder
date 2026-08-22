@@ -20,8 +20,17 @@ const (
 	StateTerminated = "terminated"
 )
 
-// EventGrant names the transition that brings an authorization into being.
-const EventGrant Event = "grant"
+// Authorization lifecycle events.
+//
+// EventAuthorizationLapse is observed. It arises when a party to the relation
+// ceases to exist, which in practice means an AI agent reaching `retired`, and
+// nobody decides it. The corpus explains at length why the law arrives at the
+// same rule: there is nobody left to stand in the relation. See "The
+// authorization lifecycle" in poc_audit/entity_model.md.
+const (
+	EventGrant              Event = "grant"
+	EventAuthorizationLapse Event = "lapse"
+)
 
 // UniversalScope is the only scope the proof of concept issues. Everything the
 // principal may do, the agent may do, which is the grant that restricts nothing
@@ -130,4 +139,63 @@ func GrantUniversalAuthorization(ctx context.Context, store database.Store, para
 		return uuid.Nil, err
 	}
 	return id, nil
+}
+
+// LapseAuthorization ends an authorization because a party to it has ceased to
+// exist, and records it.
+//
+// **This is observed, not commanded.** Nobody withdrew anything. What the
+// actor records is who noticed, and where the event ending the party is ours to
+// record the noticer is the control plane, which is why callers pass
+// SystemActor rather than whoever commanded that ending.
+//
+// store may be a transaction handle, so a lapse can commit with the ending that
+// caused it. Where that ending is not ours to record a sweep has to find it
+// instead, per "Sweeps have three triggers, and never run on the read path" in
+// poc_audit/implementation_patterns.md, and no sweep exists yet.
+func LapseAuthorization(ctx context.Context, store database.Store, id uuid.UUID, actor Ref, effectiveAt time.Time) error {
+	if !actor.Type.Valid() || actor.ID == uuid.Nil {
+		return xerrors.New("an entry needs an actor, so a lapse needs one")
+	}
+
+	effective := effectiveAt
+	if effective.IsZero() {
+		effective = time.Now()
+	}
+
+	return store.InTx(func(tx database.Store) error {
+		current, err := tx.GetAuthorizationLedgerRowByID(ctx, id)
+		if err != nil {
+			return xerrors.Errorf("read the authorization: %w", err)
+		}
+		if current.State != StateActive {
+			return xerrors.Errorf("authorization %s is already %s", id, current.State)
+		}
+
+		entryID, err := tx.NextAuthorizationLifecycleJournalEntryID(ctx)
+		if err != nil {
+			return xerrors.Errorf("take an entry identifier: %w", err)
+		}
+
+		_, err = tx.InsertAuthorizationLifecycleJournalFirstLine(ctx, database.InsertAuthorizationLifecycleJournalFirstLineParams{
+			EntryID:       entryID,
+			EffectiveDate: sql.NullTime{Time: effective, Valid: true},
+			ActorType:     sql.NullString{String: string(actor.Type), Valid: true},
+			Actor:         uuid.NullUUID{UUID: actor.ID, Valid: true},
+			Event:         string(EventAuthorizationLapse),
+			Subject:       id,
+		})
+		if err != nil {
+			return xerrors.Errorf("append lapse entry: %w", err)
+		}
+
+		if _, err := tx.TerminateAuthorization(ctx, database.TerminateAuthorizationParams{
+			ID:                 id,
+			PostingReference:   entryID,
+			PostingReference_2: current.PostingReference,
+		}); err != nil {
+			return xerrors.Errorf("post the lapse: %w", err)
+		}
+		return nil
+	}, nil)
 }

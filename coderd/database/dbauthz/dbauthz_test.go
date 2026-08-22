@@ -537,6 +537,15 @@ func (s *MethodTestSuite) TestAuthorizationLifecycle() {
 		dbm.EXPECT().GetAuthorizationLedgerRowByID(gomock.Any(), id).Return(database.AuthorizationLedger{}, nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("TerminateAuthorization", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.TerminateAuthorizationParams{
+			ID:                 uuid.New(),
+			PostingReference:   2,
+			PostingReference_2: 1,
+		}
+		dbm.EXPECT().TerminateAuthorization(gomock.Any(), arg).Return(database.AuthorizationLedger{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
 	s.Run("GetAuthorizationLedgerRowsByAgent", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetAuthorizationLedgerRowsByAgentParams{
 			AgentType: "ai_agent",
@@ -663,6 +672,14 @@ func (s *MethodTestSuite) TestCredentialLifecycle() {
 		dbm.EXPECT().GetCredentialLedgerRowByID(gomock.Any(), id).Return(database.CredentialLedger{}, nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("GetCredentialLifecycleJournalEntriesBySubject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetCredentialLifecycleJournalEntriesBySubjectParams{
+			Subject: uuid.New(),
+			Limit:   10,
+		}
+		dbm.EXPECT().GetCredentialLifecycleJournalEntriesBySubject(gomock.Any(), arg).Return([]database.CredentialLifecycleJournal{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("GetValidCredentialsByHolder", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetValidCredentialsByHolderParams{
 			HolderType: "ai_agent",
@@ -709,13 +726,13 @@ func (s *MethodTestSuite) TestCredentialLifecycle() {
 		dbm.EXPECT().GetCredentialLifecycleJournalAPIKeyLines(gomock.Any(), entryID).Return([]database.CredentialLifecycleJournalApiKey{}, nil).AnyTimes()
 		check.Args(entryID).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("RevokeCredential", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.RevokeCredentialParams{
+	s.Run("InvalidateCredential", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InvalidateCredentialParams{
 			ID:                          uuid.New(),
 			LifecyclePostingReference:   2,
 			LifecyclePostingReference_2: 1,
 		}
-		dbm.EXPECT().RevokeCredential(gomock.Any(), arg).Return(database.CredentialLedger{}, nil).AnyTimes()
+		dbm.EXPECT().InvalidateCredential(gomock.Any(), arg).Return(database.CredentialLedger{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 }

@@ -2041,6 +2041,14 @@ func (m queryMetricsStore) GetCredentialLifecycleJournalAPIKeyLines(ctx context.
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetCredentialLifecycleJournalEntriesBySubject(ctx context.Context, arg database.GetCredentialLifecycleJournalEntriesBySubjectParams) ([]database.CredentialLifecycleJournal, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCredentialLifecycleJournalEntriesBySubject(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetCredentialLifecycleJournalEntriesBySubject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCredentialLifecycleJournalEntriesBySubject").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetCredentialPasswordByID(ctx context.Context, id uuid.UUID) (database.CredentialPassword, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetCredentialPasswordByID(ctx, id)
@@ -4969,6 +4977,14 @@ func (m queryMetricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) InvalidateCredential(ctx context.Context, arg database.InvalidateCredentialParams) (database.CredentialLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.InvalidateCredential(ctx, arg)
+	m.queryLatencies.WithLabelValues("InvalidateCredential").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InvalidateCredential").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatHeartbeatStaleParams) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.IsChatHeartbeatStale(ctx, arg)
@@ -5345,14 +5361,6 @@ func (m queryMetricsStore) RetireAIAgent(ctx context.Context, arg database.Retir
 	return r0, r1
 }
 
-func (m queryMetricsStore) RevokeCredential(ctx context.Context, arg database.RevokeCredentialParams) (database.CredentialLedger, error) {
-	start := time.Now()
-	r0, r1 := m.s.RevokeCredential(ctx, arg)
-	m.queryLatencies.WithLabelValues("RevokeCredential").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RevokeCredential").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	start := time.Now()
 	r0 := m.s.RevokeDBCryptKey(ctx, activeKeyDigest)
@@ -5439,6 +5447,14 @@ func (m queryMetricsStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Co
 	m.queryLatencies.WithLabelValues("SoftDeleteWorkspaceAgentsByWorkspaceID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteWorkspaceAgentsByWorkspaceID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) TerminateAuthorization(ctx context.Context, arg database.TerminateAuthorizationParams) (database.AuthorizationLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.TerminateAuthorization(ctx, arg)
+	m.queryLatencies.WithLabelValues("TerminateAuthorization").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "TerminateAuthorization").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {

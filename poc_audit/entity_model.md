@@ -622,6 +622,32 @@ by another road. And an observed operation may be recorded long after it
 occurred, by whoever eventually noticed, which the audit approach addresses
 under the entry's timestamp.
 
+**Some observed operations are noticed by nobody.** A credential expires
+because a clock passed. An authorization lapses because a party to it ended.
+Nothing perceives either at the moment it occurs, and the entry recording it is
+written by whatever code derives it, whether that is a sweep running later or
+the same transaction that ended the party.
+
+The actor on those entries is a **fixed system identity**, in the manner the
+prebuilds system user already uses. It is neither invented per occasion nor
+generated per process, so that entries written by different processes and by
+one process across restarts name a single party.
+
+**The temptation to be resisted is naming whoever commanded the cause.** An
+observed operation that follows from a commanded one is not thereby commanded.
+Somebody who kills an AI agent has not revoked its authorization; they ended
+the agent, and the authorization lapsed. Recording them as the lapse's actor
+would assert a different transition than the one that occurred, and where the
+commanded operation is the agent's own it would have the agent record the end of
+its own authority, which the rule above forbids.
+
+**An actor is a property of an operation and not of the transaction it commits
+in.** Bringing an AI agent into being writes three entries that all name the
+owner, because all three operations are commanded and the owner commanded all
+three. Ending one writes three that do not share an actor, because only the
+first is commanded. The entries are as related as they ever were, and what
+relates them is arising together, not a common actor.
+
 **Operations are named with the bare verb**: `create`, `finish`, `suspend`,
 `assign`. Not `created`, and not `creating`. The imperative reads naturally for
 a commanded operation and the declarative for an observed one, and English
@@ -1010,12 +1036,14 @@ is handed to the holder once and never read back.
 because it is suspected, superseded, or no longer wanted.
 
 `expire` arises when the clock passes the credential's expiry. Nobody decides it
-at that moment, so it is observed, and what notices is a sweep rather than a
-person. **The actor is a fixed system identity, in the manner the prebuilds
-system user already uses.** That is a proof of concept cheat and compounds an
-existing one: the finding below holds that a non person should not be filed
-among users. What it wants instead is a table of system actors written on the
-assumption that they multiply, and all questions about that table are held.
+at that moment, so it is observed, and nobody notices it either: what writes the
+entry is a sweep. The actor is therefore the fixed system identity, per "Some
+observed operations are noticed by nobody" above.
+
+That identity is a proof of concept cheat and compounds an existing one: the
+finding below holds that a non person should not be filed among users. What it
+wants instead is a table of system actors written on the assumption that they
+multiply, and all questions about that table are held.
 
 Verification never records an expiry itself. A credential presented after its
 expiry is refused, and the entry recording that it expired is left to a sweep.

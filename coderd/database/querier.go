@@ -430,8 +430,8 @@ type sqlcQuerier interface {
 	// retirement is ours to record the two go in one transaction, arising
 	// together. Where it is not, an end of life nothing reported has to be found
 	// by a sweep instead. See "What the existence of the parties requires" in
-	// poc_audit/entity_model.md. Neither route performs the transition yet, so no
-	// production code calls this.
+	// poc_audit/entity_model.md. The in-transaction route is
+	// built; the sweep is not.
 	//
 	// Unlike the credential equivalent it does not filter to the live rows, since
 	// both callers have to tell an authorization that already ended from one they
@@ -604,6 +604,11 @@ type sqlcQuerier interface {
 	GetCredentialLedgerRowByID(ctx context.Context, id uuid.UUID) (CredentialLedger, error)
 	// The api_key lines of one entry, in line order.
 	GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, entryID int64) ([]CredentialLifecycleJournalApiKey, error)
+	// Entries about one credential, ordered as they were made. This machine has no
+	// cycle, so one subject's entries are bounded by the sequences it allows and
+	// the limit only caps what a caller will take. Callers pass one more than they
+	// will accept, so receiving it tells them the set was larger.
+	GetCredentialLifecycleJournalEntriesBySubject(ctx context.Context, arg GetCredentialLifecycleJournalEntriesBySubjectParams) ([]CredentialLifecycleJournal, error)
 	GetCredentialPasswordByID(ctx context.Context, id uuid.UUID) (CredentialPassword, error)
 	// Entries about one credential's use, in journal order. Unbounded in principle:
 	// a variable takes assignments without limit, so the caller's limit is a cap it
@@ -1326,6 +1331,13 @@ type sqlcQuerier interface {
 	InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)
+	// Post a credential to `invalid`. Two transitions reach that state, `revoke`
+	// and `lapse`, so this is named for the posting rather than for either of
+	// them. Which one occurred is the entry's business.
+	//
+	// Conditional on the posting reference the caller last saw, so that two posters
+	// cannot both believe they succeeded.
+	InvalidateCredential(ctx context.Context, arg InvalidateCredentialParams) (CredentialLedger, error)
 	// Returns true when there is no heartbeat row for (chat_id, runner_id)
 	// or the existing row is older than @stale_seconds seconds by database
 	// time. chatstate calls this in a single query so the staleness check
@@ -1480,9 +1492,6 @@ type sqlcQuerier interface {
 	// Posting a retirement. Conditioned on the posting reference the caller expects
 	// to find, so that two concurrent posters cannot both believe they succeeded.
 	RetireAIAgent(ctx context.Context, arg RetireAIAgentParams) (AIAgentLedger, error)
-	// Conditional on the posting reference the caller last saw, so that two posters
-	// cannot both believe they succeeded.
-	RevokeCredential(ctx context.Context, arg RevokeCredentialParams) (CredentialLedger, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Marks chat-origin AI agent identities deleted when their chat no longer
 	// exists (retention purge hard-deletes chats; ai_agents.origin_id has no
@@ -1529,6 +1538,14 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
+	// Post an authorization to `terminated`. Three transitions reach that state,
+	// `revoke`, `lapse` and the reserved `disqualify`, so this is named for the
+	// posting rather than for any of them. Which one occurred is the entry's
+	// business.
+	//
+	// Conditional on the posting reference the caller last saw, so that two posters
+	// cannot both believe they succeeded.
+	TerminateAuthorization(ctx context.Context, arg TerminateAuthorizationParams) (AuthorizationLedger, error)
 	// Overrides updated_at on the parent run without touching any
 	// other column. Used by tests that need to stamp a run with a
 	// specific timestamp after the InsertChatDebugStep CTE has

@@ -51,9 +51,15 @@ const (
 )
 
 // Credential lifecycle events.
+//
+// EventCredentialLapse is observed. It arises when what the credential rests on
+// goes away: its holder ceases to exist, or the authorization it serves ends.
+// Nobody decides it. See "The credential lifecycle" in
+// poc_audit/entity_model.md.
 const (
 	EventCredentialIssue  Event = "issue"
 	EventCredentialRevoke Event = "revoke"
+	EventCredentialLapse  Event = "lapse"
 )
 
 // Credential use events. Both name a presentation, because both are one: what
@@ -551,14 +557,48 @@ func recordPresentation(ctx context.Context, store database.Store, p Presentatio
 	}, nil)
 }
 
-// RevokeCredential invalidates a credential and records it.
+// RevokeCredential invalidates a credential deliberately and records it.
+//
+// **Commanded.** Some party withdrew the credential, whether because it is
+// suspected, superseded, or no longer wanted, and the actor is that party.
+// LapseCredential is the observed counterpart, reaching the same state for a
+// reason nobody chose.
+func RevokeCredential(ctx context.Context, store database.Store, id uuid.UUID, actor Ref) error {
+	if !actor.Type.Valid() || actor.ID == uuid.Nil {
+		return xerrors.New("an entry needs an actor, so revocation needs one")
+	}
+
+	return invalidateCredential(ctx, store, id, actor, EventCredentialRevoke, time.Time{})
+}
+
+// LapseCredential invalidates a credential because what it rested on went
+// away, and records it.
+//
+// **Observed, not commanded.** Nobody withdrew it. The actor records who
+// noticed, which where the ending is ours to record is the control plane, so
+// callers pass SystemActor rather than whoever commanded that ending.
+//
+// store may be a transaction handle, so a lapse can commit with the ending that
+// caused it.
+func LapseCredential(ctx context.Context, store database.Store, id uuid.UUID, actor Ref, effectiveAt time.Time) error {
+	if !actor.Type.Valid() || actor.ID == uuid.Nil {
+		return xerrors.New("an entry needs an actor, so a lapse needs one")
+	}
+
+	return invalidateCredential(ctx, store, id, actor, EventCredentialLapse, effectiveAt)
+}
+
+// invalidateCredential writes the entry and posts it. Both transitions into
+// `invalid` come through here, differing only in the event they record and in
+// where their actor came from, so the posting is written once.
 //
 // The update is conditioned on the posting reference the caller read, so two
 // posters racing cannot both believe they succeeded. Losing that race is
 // reported as such rather than as success.
-func RevokeCredential(ctx context.Context, store database.Store, id uuid.UUID, actor Ref) error {
-	if !actor.Type.Valid() || actor.ID == uuid.Nil {
-		return xerrors.New("an entry needs an actor, so revocation needs one")
+func invalidateCredential(ctx context.Context, store database.Store, id uuid.UUID, actor Ref, event Event, effectiveAt time.Time) error {
+	effective := effectiveAt
+	if effective.IsZero() {
+		effective = time.Now()
 	}
 
 	return store.InTx(func(tx database.Store) error {
@@ -577,22 +617,22 @@ func RevokeCredential(ctx context.Context, store database.Store, id uuid.UUID, a
 
 		_, err = tx.InsertCredentialLifecycleJournalEntry(ctx, database.InsertCredentialLifecycleJournalEntryParams{
 			EntryID:       entryID,
-			EffectiveDate: time.Now(),
+			EffectiveDate: effective,
 			ActorType:     string(actor.Type),
 			Actor:         actor.ID,
-			Event:         string(EventCredentialRevoke),
+			Event:         string(event),
 			Subject:       id,
 		})
 		if err != nil {
-			return xerrors.Errorf("append revocation entry: %w", err)
+			return xerrors.Errorf("append %s entry: %w", event, err)
 		}
 
-		if _, err := tx.RevokeCredential(ctx, database.RevokeCredentialParams{
+		if _, err := tx.InvalidateCredential(ctx, database.InvalidateCredentialParams{
 			ID:                          id,
 			LifecyclePostingReference:   entryID,
 			LifecyclePostingReference_2: current.LifecyclePostingReference,
 		}); err != nil {
-			return xerrors.Errorf("post the revocation: %w", err)
+			return xerrors.Errorf("post the %s: %w", event, err)
 		}
 		return nil
 	}, nil)

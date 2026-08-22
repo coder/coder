@@ -58,6 +58,22 @@ FROM
 WHERE
 	id = $1;
 
+-- name: GetCredentialLifecycleJournalEntriesBySubject :many
+-- Entries about one credential, ordered as they were made. This machine has no
+-- cycle, so one subject's entries are bounded by the sequences it allows and
+-- the limit only caps what a caller will take. Callers pass one more than they
+-- will accept, so receiving it tells them the set was larger.
+SELECT
+	*
+FROM
+	credential_lifecycle_journal
+WHERE
+	subject = $1
+ORDER BY
+	entry_id
+LIMIT
+	$2;
+
 -- name: GetValidCredentialsByHolder :many
 -- Every credential currently valid for one holder. More than one may be valid
 -- at a time, so that a rotation can overlap rather than leaving an interval
@@ -77,7 +93,11 @@ WHERE
 	AND holder_id = $2
 	AND state = 'valid';
 
--- name: RevokeCredential :one
+-- name: InvalidateCredential :one
+-- Post a credential to `invalid`. Two transitions reach that state, `revoke`
+-- and `lapse`, so this is named for the posting rather than for either of
+-- them. Which one occurred is the entry's business.
+--
 -- Conditional on the posting reference the caller last saw, so that two posters
 -- cannot both believe they succeeded.
 UPDATE

@@ -53,6 +53,32 @@ type Ref struct {
 	ID   uuid.UUID
 }
 
+// SystemActor is the party an operation is attributed to when what noticed it
+// is the control plane and nobody else.
+//
+// Observed operations take the actor that noticed, and for some of them nobody
+// did: a credential expires because a clock passed, and an authorization lapses
+// because a party to it ended. Attributing those to whoever commanded the
+// change that caused them would name the wrong party. Somebody who kills an AI
+// agent has not revoked its authorization, and an agent whose own finishing
+// lapses its authorization would be recording the end of its own authority,
+// which entities may not do.
+//
+// **Two proof of concept cheats sit here, one on top of the other.** It travels
+// as a user because Type is a closed set with no member for a system actor, and
+// it is a bare identifier because there is no table of system actors to point
+// at. The corpus holds that a non person should not be filed among users, and
+// holds every question about the table that would replace this. See "A system
+// actor is stored as a user because there was nowhere else to put it" in
+// poc_audit/entity_model.md.
+//
+// The identifier is fixed rather than generated so that entries made by
+// different processes, and by the same process across restarts, name one party.
+var SystemActor = Ref{
+	Type: TypeUser,
+	ID:   uuid.MustParse("d0ce9b3f-6b7c-4e0f-9a11-1c0a5a2f7e64"),
+}
+
 // Event names a persistent state change. Each machine qualifies its own
 // constants, since revoke and lapse each name a transition in two of them and a
 // shared constant would assert that two transitions are the same kind of event.

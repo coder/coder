@@ -187,13 +187,13 @@ func TestCreateAIAgent(t *testing.T) {
 func TestRetireAIAgent(t *testing.T) {
 	t.Parallel()
 
-	newAgent := func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, entity.Ref) {
+	newAgent := func(t *testing.T, ctx context.Context, db database.Store) (entity.NewAIAgent, entity.Ref) {
 		t.Helper()
 		user := dbgen.User(t, db, database.User{})
 		owner := entity.Ref{Type: entity.TypeUser, ID: user.ID}
 		created, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{Owner: owner})
 		require.NoError(t, err)
-		return created.ID, owner
+		return created, owner
 	}
 
 	// finish and kill reach the same state, so the entry is the only thing
@@ -211,7 +211,8 @@ func TestRetireAIAgent(t *testing.T) {
 
 			db, _ := dbtestutil.NewDB(t)
 			ctx := testutil.Context(t, testutil.WaitShort)
-			id, owner := newAgent(t, ctx, db)
+			agent, owner := newAgent(t, ctx, db)
+			id := agent.ID
 
 			before, err := db.GetAIAgentLedgerRowByID(ctx, id)
 			require.NoError(t, err)
@@ -241,12 +242,160 @@ func TestRetireAIAgent(t *testing.T) {
 		})
 	}
 
+	// Retirement ends more than the agent. An authorization naming a party that
+	// no longer exists cannot hold, and a credential authenticating one
+	// authenticates nobody.
+	t.Run("LapsesTheAuthorizationAndTheCredential", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		agent, owner := newAgent(t, ctx, db)
+
+		happened := dbtime.Now().Add(-time.Hour)
+		require.NoError(t, entity.RetireAIAgent(ctx, db, agent.ID, entity.EventAIAgentKill, owner, happened))
+
+		authorization, err := db.GetAuthorizationLedgerRowByID(ctx, agent.AuthorizationID)
+		require.NoError(t, err)
+		require.Equal(t, entity.StateTerminated, authorization.State)
+
+		credential, err := db.GetCredentialLedgerRowByID(ctx, agent.CredentialID)
+		require.NoError(t, err)
+		require.Equal(t, entity.CredentialStateInvalid, credential.State)
+
+		// Both entries are observed operations, so neither names the party who
+		// commanded the retirement. Attributing them to the owner would say the
+		// owner revoked what in fact lapsed.
+		authEntries, err := db.GetAuthorizationLifecycleJournalEntriesBySubject(ctx,
+			database.GetAuthorizationLifecycleJournalEntriesBySubjectParams{Subject: agent.AuthorizationID, Limit: 10})
+		require.NoError(t, err)
+		require.Len(t, authEntries, 2, "the grant and the lapse")
+		lapse := authEntries[1]
+		require.Equal(t, string(entity.EventAuthorizationLapse), lapse.Event)
+		require.Equal(t, string(entity.SystemActor.Type), lapse.ActorType.String)
+		require.Equal(t, entity.SystemActor.ID, lapse.Actor.UUID)
+		require.NotEqual(t, owner.ID, lapse.Actor.UUID,
+			"the party who ended the agent did not notice the consequence")
+		require.WithinDuration(t, happened, lapse.EffectiveDate.Time, time.Second,
+			"a lapse happens when the party ceased to exist, not when it was written")
+		require.Equal(t, authorization.PostingReference, lapse.EntryID)
+
+		credEntries, err := db.GetCredentialLifecycleJournalEntriesBySubject(ctx,
+			database.GetCredentialLifecycleJournalEntriesBySubjectParams{Subject: agent.CredentialID, Limit: 10})
+		require.NoError(t, err)
+		require.Len(t, credEntries, 2, "the issuance and the lapse")
+		credLapse := credEntries[1]
+		require.Equal(t, string(entity.EventCredentialLapse), credLapse.Event)
+		require.Equal(t, entity.SystemActor.ID, credLapse.Actor)
+		require.WithinDuration(t, happened, credLapse.EffectiveDate, time.Second)
+		require.Equal(t, credential.LifecyclePostingReference, credLapse.EntryID)
+	})
+
+	t.Run("LapsedCredentialsStopVerifying", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		agent, owner := newAgent(t, ctx, db)
+
+		verifier := entity.Ref{Type: entity.TypeUser, ID: uuid.New()}
+		present := entity.Presentation{
+			Declared:            agent.CredentialID,
+			AuthenticatorOutput: agent.Authenticator,
+			Verifier:            verifier,
+		}
+
+		accepted, err := entity.VerifyCredential(ctx, db, present)
+		require.NoError(t, err)
+		require.True(t, accepted, "the credential works while the agent lives")
+
+		require.NoError(t, entity.RetireAIAgent(ctx, db, agent.ID, entity.EventAIAgentFinish, owner, time.Time{}))
+
+		// The point of the lapse, stated as behavior rather than as a state
+		// column. A credential outliving its holder is a capability nobody
+		// authorized.
+		accepted, err = entity.VerifyCredential(ctx, db, present)
+		require.NoError(t, err)
+		require.False(t, accepted, "and stops the moment the agent is retired")
+	})
+
+	t.Run("LeavesAnotherAgentAlone", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		retired, owner := newAgent(t, ctx, db)
+		survivor, _ := newAgent(t, ctx, db)
+
+		require.NoError(t, entity.RetireAIAgent(ctx, db, retired.ID, entity.EventAIAgentKill, owner, time.Time{}))
+
+		authorization, err := db.GetAuthorizationLedgerRowByID(ctx, survivor.AuthorizationID)
+		require.NoError(t, err)
+		require.Equal(t, entity.StateActive, authorization.State)
+
+		credential, err := db.GetCredentialLedgerRowByID(ctx, survivor.CredentialID)
+		require.NoError(t, err)
+		require.Equal(t, entity.CredentialStateValid, credential.State)
+	})
+
+	t.Run("PassesOverWhatAlreadyEnded", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		agent, owner := newAgent(t, ctx, db)
+
+		// A credential revoked before the agent ended is not a second thing to
+		// end. One of them having gone early says nothing about the rest, so
+		// retirement passes over it rather than failing.
+		require.NoError(t, entity.RevokeCredential(ctx, db, agent.CredentialID, owner))
+		require.NoError(t, entity.RetireAIAgent(ctx, db, agent.ID, entity.EventAIAgentKill, owner, time.Time{}))
+
+		entries, err := db.GetCredentialLifecycleJournalEntriesBySubject(ctx,
+			database.GetCredentialLifecycleJournalEntriesBySubjectParams{Subject: agent.CredentialID, Limit: 10})
+		require.NoError(t, err)
+		require.Len(t, entries, 2, "the issuance and the revocation, and no lapse on top")
+		require.Equal(t, string(entity.EventCredentialRevoke), entries[1].Event,
+			"the credential ended the way it actually ended")
+	})
+
+	t.Run("TheEndingsCommitTogether", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		agent, owner := newAgent(t, ctx, db)
+		errCallerFailed := xerrors.New("the caller's other work failed")
+
+		err := db.InTx(func(tx database.Store) error {
+			if err := entity.RetireAIAgent(ctx, tx, agent.ID, entity.EventAIAgentKill, owner, time.Time{}); err != nil {
+				return err
+			}
+			return errCallerFailed
+		}, nil)
+		require.ErrorIs(t, err, errCallerFailed)
+
+		// Three endings arising together, so none of them survives alone.
+		row, err := db.GetAIAgentLedgerRowByID(ctx, agent.ID)
+		require.NoError(t, err)
+		require.Equal(t, entity.AIAgentStateActive, row.State)
+
+		authorization, err := db.GetAuthorizationLedgerRowByID(ctx, agent.AuthorizationID)
+		require.NoError(t, err)
+		require.Equal(t, entity.StateActive, authorization.State)
+
+		credential, err := db.GetCredentialLedgerRowByID(ctx, agent.CredentialID)
+		require.NoError(t, err)
+		require.Equal(t, entity.CredentialStateValid, credential.State)
+	})
+
 	t.Run("RetiredIsTerminal", func(t *testing.T) {
 		t.Parallel()
 
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		id, owner := newAgent(t, ctx, db)
+		agent, owner := newAgent(t, ctx, db)
+		id := agent.ID
 
 		require.NoError(t, entity.RetireAIAgent(ctx, db, id, entity.EventAIAgentFinish, owner, time.Time{}))
 		require.ErrorContains(t,
@@ -259,7 +408,8 @@ func TestRetireAIAgent(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		id, owner := newAgent(t, ctx, db)
+		agent, owner := newAgent(t, ctx, db)
+		id := agent.ID
 
 		require.ErrorContains(t,
 			entity.RetireAIAgent(ctx, db, id, entity.EventAIAgentCreate, owner, time.Time{}),

@@ -143,6 +143,16 @@ func CreateAIAgent(ctx context.Context, store database.Store, params CreateAIAge
 //
 // effectiveAt is when it happened, which for a finish may be well before
 // anybody noticed. Zero means now.
+//
+// **Retirement ends more than the agent.** An authorization naming a party that
+// has ceased to exist cannot go on holding, and a credential authenticating one
+// authenticates nobody, so both lapse here. All of it commits together, the
+// three endings arising together in the sense the audit approach gives that
+// term, and each lapse takes the retirement's effective date because that is
+// when it happened rather than when it was written.
+//
+// The retirement is commanded and the two lapses are observed, so they do not
+// share an actor the way the three entries of a creation do. See SystemActor.
 func RetireAIAgent(ctx context.Context, store database.Store, id uuid.UUID, event Event, actor Ref, effectiveAt time.Time) error {
 	switch event {
 	case EventAIAgentFinish, EventAIAgentKill:
@@ -192,8 +202,63 @@ func RetireAIAgent(ctx context.Context, store database.Store, id uuid.UUID, even
 		}); err != nil {
 			return xerrors.Errorf("post the retirement: %w", err)
 		}
-		return nil
+
+		// Reading down the chain of dependency, as creation writes down it. An
+		// authorization rests on the parties to it and a credential rests on
+		// the authority it lets its holder exercise, so each is ended after the
+		// thing it rested on.
+		if err := lapseAuthorizationsOf(ctx, tx, id, effective); err != nil {
+			return err
+		}
+		return lapseCredentialsOf(ctx, tx, id, effective)
 	}, nil)
+}
+
+// lapseAuthorizationsOf ends every authorization naming a retired AI agent as
+// agent.
+//
+// Rows already terminated are passed over rather than refused. A retirement is
+// one event and the authorizations under it are several, so one of them having
+// been revoked earlier says nothing about the others and is not a failure of
+// this one.
+func lapseAuthorizationsOf(ctx context.Context, tx database.Store, agentID uuid.UUID, effective time.Time) error {
+	rows, err := tx.GetAuthorizationLedgerRowsByAgent(ctx, database.GetAuthorizationLedgerRowsByAgentParams{
+		AgentType: string(TypeAIAgent),
+		AgentID:   agentID,
+	})
+	if err != nil {
+		return xerrors.Errorf("read the agent's authorizations: %w", err)
+	}
+	for _, row := range rows {
+		if row.State != StateActive {
+			continue
+		}
+		if err := LapseAuthorization(ctx, tx, row.ID, SystemActor, effective); err != nil {
+			return xerrors.Errorf("lapse authorization %s: %w", row.ID, err)
+		}
+	}
+	return nil
+}
+
+// lapseCredentialsOf invalidates every credential a retired AI agent holds.
+//
+// The read returns only the valid ones, so unlike the authorizations there is
+// nothing to skip. More than one may be valid at once, a rotation being allowed
+// to overlap, so this is a loop rather than a lookup.
+func lapseCredentialsOf(ctx context.Context, tx database.Store, agentID uuid.UUID, effective time.Time) error {
+	rows, err := tx.GetValidCredentialsByHolder(ctx, database.GetValidCredentialsByHolderParams{
+		HolderType: string(TypeAIAgent),
+		HolderID:   agentID,
+	})
+	if err != nil {
+		return xerrors.Errorf("read the agent's credentials: %w", err)
+	}
+	for _, row := range rows {
+		if err := LapseCredential(ctx, tx, row.ID, SystemActor, effective); err != nil {
+			return xerrors.Errorf("lapse credential %s: %w", row.ID, err)
+		}
+	}
+	return nil
 }
 
 // recordAIAgentCreation writes the entry and posts it, in that order. The

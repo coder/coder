@@ -62,6 +62,23 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5, '', $6, $7) RETURNING *;
 
+-- name: TerminateAuthorization :one
+-- Post an authorization to `terminated`. Three transitions reach that state,
+-- `revoke`, `lapse` and the reserved `disqualify`, so this is named for the
+-- posting rather than for any of them. Which one occurred is the entry's
+-- business.
+--
+-- Conditional on the posting reference the caller last saw, so that two posters
+-- cannot both believe they succeeded.
+UPDATE
+	authorization_ledger
+SET
+	state = 'terminated',
+	posting_reference = $2
+WHERE
+	id = $1
+	AND posting_reference = $3 RETURNING *;
+
 -- name: GetAuthorizationLedgerRowByID :one
 SELECT
 	*
@@ -96,8 +113,8 @@ LIMIT
 -- retirement is ours to record the two go in one transaction, arising
 -- together. Where it is not, an end of life nothing reported has to be found
 -- by a sweep instead. See "What the existence of the parties requires" in
--- poc_audit/entity_model.md. Neither route performs the transition yet, so no
--- production code calls this.
+-- poc_audit/entity_model.md. The in-transaction route is
+-- built; the sweep is not.
 --
 -- Unlike the credential equivalent it does not filter to the live rows, since
 -- both callers have to tell an authorization that already ended from one they

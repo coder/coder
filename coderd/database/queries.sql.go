@@ -5863,8 +5863,8 @@ type GetAuthorizationLedgerRowsByAgentParams struct {
 // retirement is ours to record the two go in one transaction, arising
 // together. Where it is not, an end of life nothing reported has to be found
 // by a sweep instead. See "What the existence of the parties requires" in
-// poc_audit/entity_model.md. Neither route performs the transition yet, so no
-// production code calls this.
+// poc_audit/entity_model.md. The in-transaction route is
+// built; the sweep is not.
 //
 // Unlike the credential equivalent it does not filter to the live rows, since
 // both callers have to tell an authorization that already ended from one they
@@ -6124,6 +6124,46 @@ func (q *sqlQuerier) NextAuthorizationLifecycleJournalEntryID(ctx context.Contex
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const terminateAuthorization = `-- name: TerminateAuthorization :one
+UPDATE
+	authorization_ledger
+SET
+	state = 'terminated',
+	posting_reference = $2
+WHERE
+	id = $1
+	AND posting_reference = $3 RETURNING id, principal_type, principal_id, agent_type, agent_id, scope, state, posting_reference
+`
+
+type TerminateAuthorizationParams struct {
+	ID                 uuid.UUID `db:"id" json:"id"`
+	PostingReference   int64     `db:"posting_reference" json:"posting_reference"`
+	PostingReference_2 int64     `db:"posting_reference_2" json:"posting_reference_2"`
+}
+
+// Post an authorization to `terminated`. Three transitions reach that state,
+// `revoke`, `lapse` and the reserved `disqualify`, so this is named for the
+// posting rather than for any of them. Which one occurred is the entry's
+// business.
+//
+// Conditional on the posting reference the caller last saw, so that two posters
+// cannot both believe they succeeded.
+func (q *sqlQuerier) TerminateAuthorization(ctx context.Context, arg TerminateAuthorizationParams) (AuthorizationLedger, error) {
+	row := q.db.QueryRowContext(ctx, terminateAuthorization, arg.ID, arg.PostingReference, arg.PostingReference_2)
+	var i AuthorizationLedger
+	err := row.Scan(
+		&i.ID,
+		&i.PrincipalType,
+		&i.PrincipalID,
+		&i.AgentType,
+		&i.AgentID,
+		&i.Scope,
+		&i.State,
+		&i.PostingReference,
+	)
+	return i, err
 }
 
 const deleteOldBoundaryLogs = `-- name: DeleteOldBoundaryLogs :execrows
@@ -15223,6 +15263,59 @@ func (q *sqlQuerier) GetCredentialLifecycleJournalAPIKeyLines(ctx context.Contex
 	return items, nil
 }
 
+const getCredentialLifecycleJournalEntriesBySubject = `-- name: GetCredentialLifecycleJournalEntriesBySubject :many
+SELECT
+	entry_id, recording_date, effective_date, actor_type, actor, event, subject
+FROM
+	credential_lifecycle_journal
+WHERE
+	subject = $1
+ORDER BY
+	entry_id
+LIMIT
+	$2
+`
+
+type GetCredentialLifecycleJournalEntriesBySubjectParams struct {
+	Subject uuid.UUID `db:"subject" json:"subject"`
+	Limit   int32     `db:"limit" json:"limit"`
+}
+
+// Entries about one credential, ordered as they were made. This machine has no
+// cycle, so one subject's entries are bounded by the sequences it allows and
+// the limit only caps what a caller will take. Callers pass one more than they
+// will accept, so receiving it tells them the set was larger.
+func (q *sqlQuerier) GetCredentialLifecycleJournalEntriesBySubject(ctx context.Context, arg GetCredentialLifecycleJournalEntriesBySubjectParams) ([]CredentialLifecycleJournal, error) {
+	rows, err := q.db.QueryContext(ctx, getCredentialLifecycleJournalEntriesBySubject, arg.Subject, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CredentialLifecycleJournal
+	for rows.Next() {
+		var i CredentialLifecycleJournal
+		if err := rows.Scan(
+			&i.EntryID,
+			&i.RecordingDate,
+			&i.EffectiveDate,
+			&i.ActorType,
+			&i.Actor,
+			&i.Event,
+			&i.Subject,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getCredentialPasswordByID = `-- name: GetCredentialPasswordByID :one
 SELECT
 	id, hashed_authenticator
@@ -15598,6 +15691,47 @@ func (q *sqlQuerier) InsertCredentialUseJournalEntry(ctx context.Context, arg In
 	return i, err
 }
 
+const invalidateCredential = `-- name: InvalidateCredential :one
+UPDATE
+	credential_ledger
+SET
+	state = 'invalid',
+	lifecycle_posting_reference = $2
+WHERE
+	id = $1
+	AND lifecycle_posting_reference = $3 RETURNING id, holder_type, holder_id, credential_type, state, expires_at, lifecycle_posting_reference, last_presented, last_used, use_posting_reference
+`
+
+type InvalidateCredentialParams struct {
+	ID                          uuid.UUID `db:"id" json:"id"`
+	LifecyclePostingReference   int64     `db:"lifecycle_posting_reference" json:"lifecycle_posting_reference"`
+	LifecyclePostingReference_2 int64     `db:"lifecycle_posting_reference_2" json:"lifecycle_posting_reference_2"`
+}
+
+// Post a credential to `invalid`. Two transitions reach that state, `revoke`
+// and `lapse`, so this is named for the posting rather than for either of
+// them. Which one occurred is the entry's business.
+//
+// Conditional on the posting reference the caller last saw, so that two posters
+// cannot both believe they succeeded.
+func (q *sqlQuerier) InvalidateCredential(ctx context.Context, arg InvalidateCredentialParams) (CredentialLedger, error) {
+	row := q.db.QueryRowContext(ctx, invalidateCredential, arg.ID, arg.LifecyclePostingReference, arg.LifecyclePostingReference_2)
+	var i CredentialLedger
+	err := row.Scan(
+		&i.ID,
+		&i.HolderType,
+		&i.HolderID,
+		&i.CredentialType,
+		&i.State,
+		&i.ExpiresAt,
+		&i.LifecyclePostingReference,
+		&i.LastPresented,
+		&i.LastUsed,
+		&i.UsePostingReference,
+	)
+	return i, err
+}
+
 const nextCredentialLifecycleJournalEntryID = `-- name: NextCredentialLifecycleJournalEntryID :one
 SELECT
 	nextval('credential_lifecycle_journal_entry_seq')::bigint
@@ -15661,43 +15795,6 @@ func (q *sqlQuerier) PostCredentialPresentation(ctx context.Context, arg PostCre
 		arg.EntryID,
 		arg.ID,
 	)
-	var i CredentialLedger
-	err := row.Scan(
-		&i.ID,
-		&i.HolderType,
-		&i.HolderID,
-		&i.CredentialType,
-		&i.State,
-		&i.ExpiresAt,
-		&i.LifecyclePostingReference,
-		&i.LastPresented,
-		&i.LastUsed,
-		&i.UsePostingReference,
-	)
-	return i, err
-}
-
-const revokeCredential = `-- name: RevokeCredential :one
-UPDATE
-	credential_ledger
-SET
-	state = 'invalid',
-	lifecycle_posting_reference = $2
-WHERE
-	id = $1
-	AND lifecycle_posting_reference = $3 RETURNING id, holder_type, holder_id, credential_type, state, expires_at, lifecycle_posting_reference, last_presented, last_used, use_posting_reference
-`
-
-type RevokeCredentialParams struct {
-	ID                          uuid.UUID `db:"id" json:"id"`
-	LifecyclePostingReference   int64     `db:"lifecycle_posting_reference" json:"lifecycle_posting_reference"`
-	LifecyclePostingReference_2 int64     `db:"lifecycle_posting_reference_2" json:"lifecycle_posting_reference_2"`
-}
-
-// Conditional on the posting reference the caller last saw, so that two posters
-// cannot both believe they succeeded.
-func (q *sqlQuerier) RevokeCredential(ctx context.Context, arg RevokeCredentialParams) (CredentialLedger, error) {
-	row := q.db.QueryRowContext(ctx, revokeCredential, arg.ID, arg.LifecyclePostingReference, arg.LifecyclePostingReference_2)
 	var i CredentialLedger
 	err := row.Scan(
 		&i.ID,
