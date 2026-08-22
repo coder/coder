@@ -36,7 +36,16 @@ export const DashboardContext = createContext<DashboardValue | undefined>(
 export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const { permissions } = useAuthenticated();
-	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
+	const entitlementsQuery = useQuery({
+		...entitlements(metadata.entitlements),
+		...(permissions.viewDeploymentConfig
+			? {
+					refetchInterval: 60_000,
+					refetchOnReconnect: "always",
+					refetchOnWindowFocus: "always",
+				}
+			: {}),
+	});
 	const experimentsQuery = useQuery(experiments(metadata.experiments));
 	const appearanceQuery = useQuery(appearance(metadata.appearance));
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));

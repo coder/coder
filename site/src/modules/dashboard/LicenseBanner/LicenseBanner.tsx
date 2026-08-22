@@ -7,6 +7,7 @@ import {
 	LicenseAIGovernanceOverLimitWarningText,
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
+	LicenseUsagePublishingFailingWarningText,
 } from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
@@ -57,6 +58,9 @@ const isDiagnosticMessage = (message: string): boolean =>
 const isAdvisoryMessage = (message: string): boolean =>
 	message.startsWith(aiGovernanceNearLimitWarningPrefix) ||
 	message.startsWith(agentRuntimeSoftLimitWarningPrefix);
+
+const isOperationalWarning = (message: string): boolean =>
+	message === LicenseUsagePublishingFailingWarningText;
 
 const aiGovernanceOverLimitMessage = (
 	feature: ReturnType<
@@ -154,6 +158,9 @@ const messageLink = (message: string): LicenseBannerLink | undefined => {
 	if (message.startsWith(agentRuntimeSoftLimitWarningPrefix)) {
 		return undefined;
 	}
+	if (isOperationalWarning(message)) {
+		return undefined;
+	}
 	return {
 		href: "mailto:sales@coder.com",
 		label: "Contact sales@coder.com.",
@@ -179,7 +186,10 @@ const toBannerMessage = (
 	}
 	return {
 		message,
-		variant: isAdvisoryMessage(message) ? "warning" : "warningProminent",
+		variant:
+			isAdvisoryMessage(message) || isOperationalWarning(message)
+				? "warning"
+				: "warningProminent",
 		link: messageLink(message),
 	};
 };
