@@ -712,6 +712,76 @@ export const RunWithNoSteps: Story = {
 	},
 };
 
+const mcpConnectRunId = "run-mcp-connect";
+const mcpConnectSummary = {
+	first_message: "MCP connect probe",
+	mcp_connect: [
+		{
+			config_id: "b8f9f3f2-4a3f-4f8a-9c5e-2f4f4be00001",
+			slug: "linear",
+			outcome: "connected",
+			duration_ms: 320,
+			tool_count: 12,
+		},
+		{
+			config_id: "b8f9f3f2-4a3f-4f8a-9c5e-2f4f4be00002",
+			slug: "registry",
+			outcome: "timeout",
+			duration_ms: 10000,
+			error: "connect: context deadline exceeded",
+		},
+	],
+};
+
+export const RunWithMCPConnectSummary: Story = {
+	parameters: {
+		queries: [
+			{
+				key: chatDebugRunsKey(CHAT_ID),
+				data: [
+					buildRunSummary({
+						id: mcpConnectRunId,
+						summary: mcpConnectSummary,
+					}),
+				],
+			},
+			{
+				key: chatDebugRunKey(CHAT_ID, mcpConnectRunId),
+				data: {
+					...MockRun,
+					id: mcpConnectRunId,
+					summary: mcpConnectSummary,
+					steps: [],
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		const runTrigger = await canvas.findByRole("button", {
+			name: /MCP connect probe/i,
+		});
+		await user.click(runTrigger);
+
+		const section = await canvas.findByRole("region", {
+			name: /MCP server connections/i,
+		});
+		const mcp = within(section);
+		await waitFor(() => {
+			expect(mcp.getByText("linear")).toBeVisible();
+			expect(mcp.getByText("connected")).toBeVisible();
+			expect(mcp.getByText("320ms")).toBeVisible();
+			expect(mcp.getByText("12 tools")).toBeVisible();
+			expect(mcp.getByText("registry")).toBeVisible();
+			expect(mcp.getByText("timeout")).toBeVisible();
+			expect(mcp.getByText("10.0s")).toBeVisible();
+			expect(mcp.getByText("connect: context deadline exceeded")).toBeVisible();
+		});
+	},
+};
+
 // ---------------------------------------------------------------------------
 // Core state stories.
 // ---------------------------------------------------------------------------
@@ -1216,6 +1286,46 @@ export const CompactionAndTitleGenerationBadges: Story = {
 		await expect(canvas.getByText(/compaction/i)).toBeInTheDocument();
 		await expect(canvas.getByText(/chat turn/i)).toBeInTheDocument();
 		await expect(canvas.getByText(/title generation/i)).toBeInTheDocument();
+	},
+};
+
+export const NonChatTurnKindShownWithFirstMessage: Story = {
+	parameters: {
+		queries: [
+			{
+				key: chatDebugRunsKey(CHAT_ID),
+				data: [
+					buildRunSummary({
+						id: "run-title-with-label",
+						kind: "title_generation",
+						status: "error",
+						model: "gpt-4o-mini",
+						summary: { first_message: "Summarize my workspace" },
+					}),
+					buildRunSummary({
+						id: "run-turn-with-label",
+						kind: "chat_turn",
+						status: "completed",
+						summary: { first_message: "Fix the login bug" },
+					}),
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// A failed title generation with a first_message label must
+		// still identify itself by kind so it is distinguishable from
+		// a failed chat turn.
+		const titleRun = await canvas.findByRole("button", {
+			name: /Summarize my workspace/i,
+		});
+		await expect(within(titleRun).getByText("Title Generation")).toBeVisible();
+		// Chat turns keep their metadata kind-free.
+		const chatRun = await canvas.findByRole("button", {
+			name: /Fix the login bug/i,
+		});
+		expect(within(chatRun).queryByText("Chat Turn")).toBeNull();
 	},
 };
 

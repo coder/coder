@@ -76,6 +76,15 @@ func (server *Server) prepareGeneration(
 		slog.F("owner_id", chat.OwnerID),
 	)
 
+	prepStart := server.clock.Now()
+	defer func() {
+		if prepDuration := server.clock.Since(prepStart); prepDuration >= slowPrepareThreshold {
+			logger.Warn(ctx, "slow generation preparation",
+				slog.F("duration", prepDuration),
+			)
+		}
+	}()
+
 	var (
 		promptRows []database.ChatMessage
 		mcpConfigs []database.MCPServerConfig
@@ -263,6 +272,7 @@ func (server *Server) prepareGeneration(
 		prompt             []fantasy.Message
 		instruction        string
 		mcpTools           []fantasy.AgentTool
+		mcpSummaries       []mcpclient.ConnectSummary
 		mcpCleanup         func()
 		workspaceMCPTools  []fantasy.AgentTool
 		workspaceSkills    []chattool.SkillMeta
@@ -336,7 +346,7 @@ func (server *Server) prepareGeneration(
 				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
 			}
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
-			mcpTools, mcpCleanup = mcpclient.ConnectAll(
+			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAll(
 				ctx,
 				logger,
 				mcpConnectConfigs,
@@ -652,6 +662,7 @@ func (server *Server) prepareGeneration(
 			HistoryTipMessageID: historyTipMessageID,
 			TriggerLabel:        triggerLabel,
 			ModelConfig:         modelConfig,
+			MCPConnectSummaries: mcpSummaries,
 		}
 	}
 

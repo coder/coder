@@ -68,6 +68,16 @@ func (d *runnerDebugTurn) Ensure(
 	seedSummary := chatdebug.SeedSummary(
 		chatdebug.TruncateLabel(debug.TriggerLabel, chatdebug.MaxLabelLength),
 	)
+	// Seed per-server MCP connect outcomes so slow or failing
+	// servers appear in the run instead of as a silent gap before
+	// the first step. Seeded keys survive FinalizeRun's summary
+	// aggregation.
+	if len(debug.MCPConnectSummaries) > 0 {
+		if seedSummary == nil {
+			seedSummary = make(map[string]any, 1)
+		}
+		seedSummary["mcp_connect"] = debug.MCPConnectSummaries
+	}
 	rootChatID := uuid.Nil
 	if chat.RootChatID.Valid {
 		rootChatID = chat.RootChatID.UUID
