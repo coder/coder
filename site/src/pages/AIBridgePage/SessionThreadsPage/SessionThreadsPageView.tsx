@@ -6,7 +6,6 @@ import type {
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
-import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
 import { SearchField } from "#/components/SearchField/SearchField";
 import {
 	Tooltip,
@@ -15,6 +14,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useDebouncedValue } from "#/hooks/debounce";
+import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { cn } from "#/utils/cn";
 import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { SessionSummaryTable } from "./SessionSummaryTable";
@@ -70,7 +70,12 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	const debouncedQuery = useDebouncedValue(searchQuery, 500);
 
 	if (!isAISessionsEntitled) {
-		return <PaywallAIGovernance variant="sessions" />;
+		return (
+			<PremiumPaywallAIGovernance
+				variant="sessions"
+				source="aibridge_session_threads"
+			/>
+		);
 	}
 
 	if (!isAISessionsEnabled) {

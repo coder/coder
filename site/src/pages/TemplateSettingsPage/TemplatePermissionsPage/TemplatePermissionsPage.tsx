@@ -7,7 +7,6 @@ import {
 	setUserRole,
 	templateACL,
 } from "#/api/queries/templates";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -16,6 +15,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
@@ -55,12 +55,14 @@ const TemplatePermissionsPage: FC = () => {
 				</SettingsHeader>
 
 				{!isTemplateRBACEnabled ? (
-					<PaywallPremium
+					<PremiumPaywall
+						source="template_permissions"
 						message="Template permissions"
 						description="Restrict template access by user or group."
 						features={[
 							"Choose Use or Admin-level access",
 							"Prevent unauthorized template use",
+							"Let teams self-serve templates without admin bottlenecks",
 						]}
 						canViewPremium={authPermissions.viewAllLicenses}
 					/>

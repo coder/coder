@@ -24,6 +24,7 @@ export type PaywallProps = React.ComponentProps<"div"> & {
 	compact?: boolean;
 	canViewPremium: boolean;
 	features?: string[];
+	onCTAClick?: () => void;
 };
 
 export const Paywall = ({

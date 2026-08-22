@@ -193,8 +193,8 @@ const createComponents = (
 		img: ({ src, alt }: MarkdownComponentProps) => (
 			<MarkdownImage src={src} alt={alt} />
 		),
-		// Horizontal rule: reset browser default inset/ridge border
-		// (preflight is disabled) to a clean 1px solid line.
+		// Horizontal rule: render a clean 1px solid line using theme
+		// tokens instead of the default border.
 		hr: () => (
 			<hr className="my-6 border-0 border-t border-solid border-border-default" />
 		),

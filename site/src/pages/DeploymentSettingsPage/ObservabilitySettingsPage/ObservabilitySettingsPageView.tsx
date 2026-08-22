@@ -1,12 +1,12 @@
 import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import { deploymentGroupHasParent } from "#/utils/deployOptions";
 import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
@@ -45,7 +45,8 @@ export const ObservabilitySettingsPageView: FC<
 						options={options.filter((o) => o.name === "Audit Logs Retention")}
 					/>
 				) : (
-					<PaywallPremium
+					<PremiumPaywall
+						source="observability"
 						message="Audit Logging"
 						description="Monitor user operations across your deployment."
 						features={[

@@ -3,7 +3,6 @@ import type { FC } from "react";
 import type { AIGatewayKey } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -20,6 +19,7 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { relativeTime } from "#/utils/time";
@@ -70,12 +70,14 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 			</SettingsHeader>
 
 			{showPaywall && (
-				<PaywallPremium
+				<PremiumPaywall
+					source="ai_gateway_keys"
 					message="AI Gateway"
 					description="Authenticate standalone AI Gateway replicas securely."
 					features={[
 						"Authenticate without shared secrets",
 						"Works inside coderd or standalone",
+						"Independently scale, rotate, or revoke keys per deployment",
 					]}
 					canViewPremium={permissions.viewAllLicenses}
 				/>

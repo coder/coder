@@ -5,7 +5,6 @@ import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { Link } from "#/components/Link/Link";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -26,6 +25,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { LastConnectionHead } from "./LastConnectionHead";
@@ -99,7 +99,8 @@ export const OrganizationProvisionersPageView: FC<
 			)}
 
 			{showPaywall ? (
-				<PaywallPremium
+				<PremiumPaywall
+					source="provisioners"
 					message="Provisioners"
 					description="Provisioners run your Terraform to create templates and workspaces."
 					features={[

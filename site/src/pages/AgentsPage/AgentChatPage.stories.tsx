@@ -73,6 +73,7 @@ const AgentChatPageLayout: FC = () => {
 							requestUnpinAgent: () => {},
 							isArchiving: false,
 							archivingChatId: undefined,
+							activeChatChildren: undefined,
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
 							onExpandSidebar: () => {},
