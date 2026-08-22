@@ -16130,17 +16130,17 @@ WITH
 			template_id,
 			user_id,
 			date_trunc('minute', created_at) AS minute,
-			BOOL_OR(session_counts ? 'ssh') AS ssh,
-			BOOL_OR(session_counts ? 'reconnecting_pty') AS reconnecting_pty,
-			BOOL_OR(session_counts ? 'vscode') AS vscode,
-			BOOL_OR(session_counts ? 'jetbrains') AS jetbrains,
+			BOOL_OR(session_counts ?| $1::text[]) AS ssh,
+			BOOL_OR(session_counts ?| $2::text[]) AS reconnecting_pty,
+			BOOL_OR(session_counts ?| $3::text[]) AS vscode,
+			BOOL_OR(session_counts ?| $4::text[]) AS jetbrains,
 			BOOL_OR(connection_count > 0) AS has_connection
 		FROM
 			workspace_agent_stats
 		WHERE
-			created_at >= $1::timestamptz
-			AND created_at < $2::timestamptz
-			AND session_counts ?| ARRAY['ssh', 'reconnecting_pty', 'vscode', 'jetbrains']
+			created_at >= $5::timestamptz
+			AND created_at < $6::timestamptz
+			AND session_counts <> '{}'::jsonb
 		GROUP BY
 			template_id, user_id, minute
 	),
@@ -16179,8 +16179,12 @@ GROUP BY
 `
 
 type GetTemplateInsightsByTemplateParams struct {
-	StartTime time.Time `db:"start_time" json:"start_time"`
-	EndTime   time.Time `db:"end_time" json:"end_time"`
+	SshApps             []string  `db:"ssh_apps" json:"ssh_apps"`
+	ReconnectingPtyApps []string  `db:"reconnecting_pty_apps" json:"reconnecting_pty_apps"`
+	VscodeApps          []string  `db:"vscode_apps" json:"vscode_apps"`
+	JetbrainsApps       []string  `db:"jetbrains_apps" json:"jetbrains_apps"`
+	StartTime           time.Time `db:"start_time" json:"start_time"`
+	EndTime             time.Time `db:"end_time" json:"end_time"`
 }
 
 type GetTemplateInsightsByTemplateRow struct {
@@ -16195,7 +16199,14 @@ type GetTemplateInsightsByTemplateRow struct {
 // GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 // in sync with GetTemplateInsights and UpsertTemplateUsageStats.
 func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime)
+	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate,
+		pq.Array(arg.SshApps),
+		pq.Array(arg.ReconnectingPtyApps),
+		pq.Array(arg.VscodeApps),
+		pq.Array(arg.JetbrainsApps),
+		arg.StartTime,
+		arg.EndTime,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -16769,10 +16780,10 @@ WITH
 			user_id,
 			-- Store each unique minute bucket for later merge between datasets.
 			array_agg(DISTINCT date_trunc('minute', created_at)) AS minute_buckets,
-			COUNT(DISTINCT CASE WHEN session_counts ? 'ssh' THEN date_trunc('minute', created_at) ELSE NULL END) AS ssh_mins,
-			COUNT(DISTINCT CASE WHEN session_counts ? 'reconnecting_pty' THEN date_trunc('minute', created_at) ELSE NULL END) AS reconnecting_pty_mins,
-			COUNT(DISTINCT CASE WHEN session_counts ? 'vscode' THEN date_trunc('minute', created_at) ELSE NULL END) AS vscode_mins,
-			COUNT(DISTINCT CASE WHEN session_counts ? 'jetbrains' THEN date_trunc('minute', created_at) ELSE NULL END) AS jetbrains_mins,
+			COUNT(DISTINCT CASE WHEN session_counts ?| $1::text[] THEN date_trunc('minute', created_at) ELSE NULL END) AS ssh_mins,
+			COUNT(DISTINCT CASE WHEN session_counts ?| $2::text[] THEN date_trunc('minute', created_at) ELSE NULL END) AS reconnecting_pty_mins,
+			COUNT(DISTINCT CASE WHEN session_counts ?| $3::text[] THEN date_trunc('minute', created_at) ELSE NULL END) AS vscode_mins,
+			COUNT(DISTINCT CASE WHEN session_counts ?| $4::text[] THEN date_trunc('minute', created_at) ELSE NULL END) AS jetbrains_mins,
 			-- NOTE(mafredri): The agent stats are currently very unreliable, and
 			-- sometimes the connections are missing, even during active sessions.
 			-- Since we can't fully rely on this, we check for "any connection
@@ -16785,7 +16796,7 @@ WITH
 			-- AND created_at < @end_time::timestamptz
 			created_at >= (SELECT t FROM latest_start)
 			AND created_at < NOW()
-			AND session_counts ?| ARRAY['ssh', 'reconnecting_pty', 'vscode', 'jetbrains']
+			AND session_counts <> '{}'::jsonb
 		GROUP BY
 			time_bucket, template_id, user_id
 	),
@@ -16934,12 +16945,24 @@ WHERE
 	(tus.*) IS DISTINCT FROM (EXCLUDED.*)
 `
 
+type UpsertTemplateUsageStatsParams struct {
+	SshApps             []string `db:"ssh_apps" json:"ssh_apps"`
+	ReconnectingPtyApps []string `db:"reconnecting_pty_apps" json:"reconnecting_pty_apps"`
+	VscodeApps          []string `db:"vscode_apps" json:"vscode_apps"`
+	JetbrainsApps       []string `db:"jetbrains_apps" json:"jetbrains_apps"`
+}
+
 // This query aggregates the workspace_agent_stats and workspace_app_stats data
 // into a single table for efficient storage and querying. Half-hour buckets are
 // used to store the data, and the minutes are summed for each user and template
 // combination. The result is stored in the template_usage_stats table.
-func (q *sqlQuerier) UpsertTemplateUsageStats(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, upsertTemplateUsageStats)
+func (q *sqlQuerier) UpsertTemplateUsageStats(ctx context.Context, arg UpsertTemplateUsageStatsParams) error {
+	_, err := q.db.ExecContext(ctx, upsertTemplateUsageStats,
+		pq.Array(arg.SshApps),
+		pq.Array(arg.ReconnectingPtyApps),
+		pq.Array(arg.VscodeApps),
+		pq.Array(arg.JetbrainsApps),
+	)
 	return err
 }
 
@@ -35192,9 +35215,21 @@ WITH stats AS (
 		rx_bytes,
 		tx_bytes,
 		connection_median_latency_ms,
-		session_counts,
+		family.vscode,
+		family.ssh,
+		family.jetbrains,
+		family.reconnecting_pty,
 		ROW_NUMBER() OVER (PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 	FROM workspace_agent_stats
+	-- One pass per row folds app names into the families reporting can hold.
+	LEFT JOIN LATERAL (
+		SELECT
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($2::text[])), 0)::bigint AS vscode,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($3::text[])), 0)::bigint AS ssh,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($4::text[])), 0)::bigint AS jetbrains,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($5::text[])), 0)::bigint AS reconnecting_pty
+		FROM jsonb_each_text(workspace_agent_stats.session_counts) AS entry
+	) AS family ON true
 	WHERE created_at > $1
 )
 SELECT
@@ -35203,12 +35238,20 @@ SELECT
 	-- Positive latency values exclude legacy agents that do not report latency.
 	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_50,
 	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms) FILTER (WHERE connection_median_latency_ms > 0)), -1)::FLOAT AS workspace_connection_latency_95,
-	coalesce(SUM((session_counts ->> 'vscode')::bigint) FILTER (WHERE rn = 1), 0)::bigint AS session_count_vscode,
-	coalesce(SUM((session_counts ->> 'ssh')::bigint) FILTER (WHERE rn = 1), 0)::bigint AS session_count_ssh,
-	coalesce(SUM((session_counts ->> 'jetbrains')::bigint) FILTER (WHERE rn = 1), 0)::bigint AS session_count_jetbrains,
-	coalesce(SUM((session_counts ->> 'reconnecting_pty')::bigint) FILTER (WHERE rn = 1), 0)::bigint AS session_count_reconnecting_pty
+	coalesce(SUM(vscode) FILTER (WHERE rn = 1), 0)::bigint AS session_count_vscode,
+	coalesce(SUM(ssh) FILTER (WHERE rn = 1), 0)::bigint AS session_count_ssh,
+	coalesce(SUM(jetbrains) FILTER (WHERE rn = 1), 0)::bigint AS session_count_jetbrains,
+	coalesce(SUM(reconnecting_pty) FILTER (WHERE rn = 1), 0)::bigint AS session_count_reconnecting_pty
 FROM stats
 `
+
+type GetDeploymentWorkspaceAgentStatsParams struct {
+	CreatedAt           time.Time `db:"created_at" json:"created_at"`
+	VscodeApps          []string  `db:"vscode_apps" json:"vscode_apps"`
+	SshApps             []string  `db:"ssh_apps" json:"ssh_apps"`
+	JetbrainsApps       []string  `db:"jetbrains_apps" json:"jetbrains_apps"`
+	ReconnectingPtyApps []string  `db:"reconnecting_pty_apps" json:"reconnecting_pty_apps"`
+}
 
 type GetDeploymentWorkspaceAgentStatsRow struct {
 	WorkspaceRxBytes             int64   `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
@@ -35221,8 +35264,14 @@ type GetDeploymentWorkspaceAgentStatsRow struct {
 	SessionCountReconnectingPTY  int64   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 }
 
-func (q *sqlQuerier) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentStatsRow, error) {
-	row := q.db.QueryRowContext(ctx, getDeploymentWorkspaceAgentStats, createdAt)
+func (q *sqlQuerier) GetDeploymentWorkspaceAgentStats(ctx context.Context, arg GetDeploymentWorkspaceAgentStatsParams) (GetDeploymentWorkspaceAgentStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getDeploymentWorkspaceAgentStats,
+		arg.CreatedAt,
+		pq.Array(arg.VscodeApps),
+		pq.Array(arg.SshApps),
+		pq.Array(arg.JetbrainsApps),
+		pq.Array(arg.ReconnectingPtyApps),
+	)
 	var i GetDeploymentWorkspaceAgentStatsRow
 	err := row.Scan(
 		&i.WorkspaceRxBytes,
@@ -35264,14 +35313,23 @@ latest_minutes AS (
 ),
 latest_agent_stats AS (
 	SELECT
-		coalesce(SUM((stats.session_counts ->> 'vscode')::bigint), 0)::bigint AS session_count_vscode,
-		coalesce(SUM((stats.session_counts ->> 'ssh')::bigint), 0)::bigint AS session_count_ssh,
-		coalesce(SUM((stats.session_counts ->> 'jetbrains')::bigint), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM((stats.session_counts ->> 'reconnecting_pty')::bigint), 0)::bigint AS session_count_reconnecting_pty
+		coalesce(SUM(family.vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(family.ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(family.jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(family.reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
 	FROM
 		latest_minutes
 	JOIN
 		workspace_agent_stats AS stats
+	-- One pass per row folds app names into the families reporting can hold.
+	LEFT JOIN LATERAL (
+		SELECT
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($2::text[])), 0)::bigint AS vscode,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($3::text[])), 0)::bigint AS ssh,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($4::text[])), 0)::bigint AS jetbrains,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($5::text[])), 0)::bigint AS reconnecting_pty
+		FROM jsonb_each_text(stats.session_counts) AS entry
+	) AS family ON true
 	ON
 		stats.agent_id = latest_minutes.agent_id
 		AND stats.created_at >= $1
@@ -35281,6 +35339,14 @@ latest_agent_stats AS (
 )
 SELECT workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats, latest_agent_stats
 `
+
+type GetDeploymentWorkspaceAgentUsageStatsParams struct {
+	CreatedAt           time.Time `db:"created_at" json:"created_at"`
+	VscodeApps          []string  `db:"vscode_apps" json:"vscode_apps"`
+	SshApps             []string  `db:"ssh_apps" json:"ssh_apps"`
+	JetbrainsApps       []string  `db:"jetbrains_apps" json:"jetbrains_apps"`
+	ReconnectingPtyApps []string  `db:"reconnecting_pty_apps" json:"reconnecting_pty_apps"`
+}
 
 type GetDeploymentWorkspaceAgentUsageStatsRow struct {
 	WorkspaceRxBytes             int64   `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
@@ -35293,8 +35359,14 @@ type GetDeploymentWorkspaceAgentUsageStatsRow struct {
 	SessionCountReconnectingPTY  int64   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 }
 
-func (q *sqlQuerier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error) {
-	row := q.db.QueryRowContext(ctx, getDeploymentWorkspaceAgentUsageStats, createdAt)
+func (q *sqlQuerier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, arg GetDeploymentWorkspaceAgentUsageStatsParams) (GetDeploymentWorkspaceAgentUsageStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getDeploymentWorkspaceAgentUsageStats,
+		arg.CreatedAt,
+		pq.Array(arg.VscodeApps),
+		pq.Array(arg.SshApps),
+		pq.Array(arg.JetbrainsApps),
+		pq.Array(arg.ReconnectingPtyApps),
+	)
 	var i GetDeploymentWorkspaceAgentUsageStatsRow
 	err := row.Scan(
 		&i.WorkspaceRxBytes,
@@ -35328,19 +35400,36 @@ WITH agent_stats AS (
 ), latest_agent_stats AS (
 	SELECT
 		a.agent_id,
-		coalesce(SUM((a.session_counts ->> 'vscode')::bigint), 0)::bigint AS session_count_vscode,
-		coalesce(SUM((a.session_counts ->> 'ssh')::bigint), 0)::bigint AS session_count_ssh,
-		coalesce(SUM((a.session_counts ->> 'jetbrains')::bigint), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM((a.session_counts ->> 'reconnecting_pty')::bigint), 0)::bigint AS session_count_reconnecting_pty
+		coalesce(SUM(family.vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(family.ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(family.jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(family.reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
 	 FROM (
 		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, usage, session_counts, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats WHERE created_at > $1
 	) AS a
+	-- One pass per row folds app names into the families reporting can hold.
+	LEFT JOIN LATERAL (
+		SELECT
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($2::text[])), 0)::bigint AS vscode,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($3::text[])), 0)::bigint AS ssh,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($4::text[])), 0)::bigint AS jetbrains,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($5::text[])), 0)::bigint AS reconnecting_pty
+		FROM jsonb_each_text(a.session_counts) AS entry
+	) AS family ON true
 	WHERE a.rn = 1
 	GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
 )
 SELECT user_id, agent_stats.agent_id, workspace_id, template_id, aggregated_from, workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, latest_agent_stats.agent_id, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id
 `
+
+type GetWorkspaceAgentStatsParams struct {
+	CreatedAt           time.Time `db:"created_at" json:"created_at"`
+	VscodeApps          []string  `db:"vscode_apps" json:"vscode_apps"`
+	SshApps             []string  `db:"ssh_apps" json:"ssh_apps"`
+	JetbrainsApps       []string  `db:"jetbrains_apps" json:"jetbrains_apps"`
+	ReconnectingPtyApps []string  `db:"reconnecting_pty_apps" json:"reconnecting_pty_apps"`
+}
 
 type GetWorkspaceAgentStatsRow struct {
 	UserID                       uuid.UUID `db:"user_id" json:"user_id"`
@@ -35359,8 +35448,14 @@ type GetWorkspaceAgentStatsRow struct {
 	SessionCountReconnectingPTY  int64     `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 }
 
-func (q *sqlQuerier) GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentStats, createdAt)
+func (q *sqlQuerier) GetWorkspaceAgentStats(ctx context.Context, arg GetWorkspaceAgentStatsParams) ([]GetWorkspaceAgentStatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentStats,
+		arg.CreatedAt,
+		pq.Array(arg.VscodeApps),
+		pq.Array(arg.SshApps),
+		pq.Array(arg.JetbrainsApps),
+		pq.Array(arg.ReconnectingPtyApps),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -35411,10 +35506,10 @@ WITH agent_stats AS (
 ), latest_agent_stats AS (
 	SELECT
 		a.agent_id,
-		coalesce(SUM((a.session_counts ->> 'vscode')::bigint), 0)::bigint AS session_count_vscode,
-		coalesce(SUM((a.session_counts ->> 'ssh')::bigint), 0)::bigint AS session_count_ssh,
-		coalesce(SUM((a.session_counts ->> 'jetbrains')::bigint), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM((a.session_counts ->> 'reconnecting_pty')::bigint), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM(family.vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(family.ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(family.jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(family.reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
 		coalesce(SUM(a.connection_count), 0)::bigint AS connection_count,
 		coalesce(MAX(a.connection_median_latency_ms), 0)::float AS connection_median_latency_ms
 	 FROM (
@@ -35423,6 +35518,15 @@ WITH agent_stats AS (
 		-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 		WHERE created_at > $1 AND connection_median_latency_ms > 0
 	) AS a
+	-- One pass per row folds app names into the families reporting can hold.
+	LEFT JOIN LATERAL (
+		SELECT
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($2::text[])), 0)::bigint AS vscode,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($3::text[])), 0)::bigint AS ssh,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($4::text[])), 0)::bigint AS jetbrains,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($5::text[])), 0)::bigint AS reconnecting_pty
+		FROM jsonb_each_text(a.session_counts) AS entry
+	) AS family ON true
 	WHERE a.rn = 1
 	GROUP BY a.user_id, a.agent_id, a.workspace_id
 )
@@ -35450,6 +35554,14 @@ ON
 	workspaces.id = agent_stats.workspace_id
 `
 
+type GetWorkspaceAgentStatsAndLabelsParams struct {
+	CreatedAt           time.Time `db:"created_at" json:"created_at"`
+	VscodeApps          []string  `db:"vscode_apps" json:"vscode_apps"`
+	SshApps             []string  `db:"ssh_apps" json:"ssh_apps"`
+	JetbrainsApps       []string  `db:"jetbrains_apps" json:"jetbrains_apps"`
+	ReconnectingPtyApps []string  `db:"reconnecting_pty_apps" json:"reconnecting_pty_apps"`
+}
+
 type GetWorkspaceAgentStatsAndLabelsRow struct {
 	Username                    string  `db:"username" json:"username"`
 	AgentName                   string  `db:"agent_name" json:"agent_name"`
@@ -35464,8 +35576,14 @@ type GetWorkspaceAgentStatsAndLabelsRow struct {
 	ConnectionMedianLatencyMS   float64 `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
 }
 
-func (q *sqlQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsAndLabelsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentStatsAndLabels, createdAt)
+func (q *sqlQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, arg GetWorkspaceAgentStatsAndLabelsParams) ([]GetWorkspaceAgentStatsAndLabelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentStatsAndLabels,
+		arg.CreatedAt,
+		pq.Array(arg.VscodeApps),
+		pq.Array(arg.SshApps),
+		pq.Array(arg.JetbrainsApps),
+		pq.Array(arg.ReconnectingPtyApps),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -35511,11 +35629,23 @@ WITH stats AS (
 		tx_bytes,
 		connection_median_latency_ms,
 		usage,
-		session_counts,
+		family.vscode,
+		family.ssh,
+		family.jetbrains,
+		family.reconnecting_pty,
 		MAX(date_trunc('minute', created_at)) FILTER (
 			WHERE usage AND created_at < date_trunc('minute', now())
 		) OVER (PARTITION BY agent_id) AS latest_usage_minute
 	FROM workspace_agent_stats
+	-- One pass per row folds app names into the families reporting can hold.
+	LEFT JOIN LATERAL (
+		SELECT
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($2::text[])), 0)::bigint AS vscode,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($3::text[])), 0)::bigint AS ssh,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($4::text[])), 0)::bigint AS jetbrains,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($5::text[])), 0)::bigint AS reconnecting_pty
+		FROM jsonb_each_text(workspace_agent_stats.session_counts) AS entry
+	) AS family ON true
 	WHERE created_at >= $1
 )
 SELECT
@@ -35539,22 +35669,30 @@ SELECT
 		WHERE created_at > $1 AND connection_median_latency_ms > 0
 	)), -1)::FLOAT AS workspace_connection_latency_95,
 	agent_id,
-	coalesce(SUM((session_counts ->> 'vscode')::bigint) FILTER (
+	coalesce(SUM(vscode) FILTER (
 		WHERE usage AND date_trunc('minute', created_at) = latest_usage_minute
 	), 0)::bigint AS session_count_vscode,
-	coalesce(SUM((session_counts ->> 'ssh')::bigint) FILTER (
+	coalesce(SUM(ssh) FILTER (
 		WHERE usage AND date_trunc('minute', created_at) = latest_usage_minute
 	), 0)::bigint AS session_count_ssh,
-	coalesce(SUM((session_counts ->> 'jetbrains')::bigint) FILTER (
+	coalesce(SUM(jetbrains) FILTER (
 		WHERE usage AND date_trunc('minute', created_at) = latest_usage_minute
 	), 0)::bigint AS session_count_jetbrains,
-	coalesce(SUM((session_counts ->> 'reconnecting_pty')::bigint) FILTER (
+	coalesce(SUM(reconnecting_pty) FILTER (
 		WHERE usage AND date_trunc('minute', created_at) = latest_usage_minute
 	), 0)::bigint AS session_count_reconnecting_pty
 FROM stats
 GROUP BY user_id, agent_id, workspace_id, template_id
 HAVING BOOL_OR(created_at > $1 AND connection_median_latency_ms > 0)
 `
+
+type GetWorkspaceAgentUsageStatsParams struct {
+	CreatedAt           time.Time `db:"created_at" json:"created_at"`
+	VscodeApps          []string  `db:"vscode_apps" json:"vscode_apps"`
+	SshApps             []string  `db:"ssh_apps" json:"ssh_apps"`
+	JetbrainsApps       []string  `db:"jetbrains_apps" json:"jetbrains_apps"`
+	ReconnectingPtyApps []string  `db:"reconnecting_pty_apps" json:"reconnecting_pty_apps"`
+}
 
 type GetWorkspaceAgentUsageStatsRow struct {
 	UserID                       uuid.UUID `db:"user_id" json:"user_id"`
@@ -35573,8 +35711,14 @@ type GetWorkspaceAgentUsageStatsRow struct {
 	SessionCountReconnectingPTY  int64     `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 }
 
-func (q *sqlQuerier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentUsageStatsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentUsageStats, createdAt)
+func (q *sqlQuerier) GetWorkspaceAgentUsageStats(ctx context.Context, arg GetWorkspaceAgentUsageStatsParams) ([]GetWorkspaceAgentUsageStatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentUsageStats,
+		arg.CreatedAt,
+		pq.Array(arg.VscodeApps),
+		pq.Array(arg.SshApps),
+		pq.Array(arg.JetbrainsApps),
+		pq.Array(arg.ReconnectingPtyApps),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -35627,12 +35771,21 @@ WITH agent_stats AS (
 ), latest_agent_stats AS (
 	SELECT
 		agent_id,
-		coalesce(SUM((session_counts ->> 'vscode')::bigint), 0)::bigint AS session_count_vscode,
-		coalesce(SUM((session_counts ->> 'ssh')::bigint), 0)::bigint AS session_count_ssh,
-		coalesce(SUM((session_counts ->> 'jetbrains')::bigint), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM((session_counts ->> 'reconnecting_pty')::bigint), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM(family.vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(family.ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(family.jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(family.reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
 		coalesce(SUM(connection_count), 0)::bigint AS connection_count
 	FROM workspace_agent_stats
+	-- One pass per row folds app names into the families reporting can hold.
+	LEFT JOIN LATERAL (
+		SELECT
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($2::text[])), 0)::bigint AS vscode,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($3::text[])), 0)::bigint AS ssh,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($4::text[])), 0)::bigint AS jetbrains,
+			coalesce(SUM(entry.value::bigint) FILTER (WHERE entry.key = ANY($5::text[])), 0)::bigint AS reconnecting_pty
+		FROM jsonb_each_text(workspace_agent_stats.session_counts) AS entry
+	) AS family ON true
 	-- We only want the latest stats, but those stats might be
 	-- spread across multiple rows.
 	WHERE usage AND created_at > now() - '1 minute'::interval
@@ -35666,6 +35819,14 @@ ON
 	workspaces.id = agent_stats.workspace_id
 `
 
+type GetWorkspaceAgentUsageStatsAndLabelsParams struct {
+	CreatedAt           time.Time `db:"created_at" json:"created_at"`
+	VscodeApps          []string  `db:"vscode_apps" json:"vscode_apps"`
+	SshApps             []string  `db:"ssh_apps" json:"ssh_apps"`
+	JetbrainsApps       []string  `db:"jetbrains_apps" json:"jetbrains_apps"`
+	ReconnectingPtyApps []string  `db:"reconnecting_pty_apps" json:"reconnecting_pty_apps"`
+}
+
 type GetWorkspaceAgentUsageStatsAndLabelsRow struct {
 	Username                    string  `db:"username" json:"username"`
 	AgentName                   string  `db:"agent_name" json:"agent_name"`
@@ -35680,8 +35841,14 @@ type GetWorkspaceAgentUsageStatsAndLabelsRow struct {
 	ConnectionMedianLatencyMS   float64 `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
 }
 
-func (q *sqlQuerier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentUsageStatsAndLabels, createdAt)
+func (q *sqlQuerier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, arg GetWorkspaceAgentUsageStatsAndLabelsParams) ([]GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentUsageStatsAndLabels,
+		arg.CreatedAt,
+		pq.Array(arg.VscodeApps),
+		pq.Array(arg.SshApps),
+		pq.Array(arg.JetbrainsApps),
+		pq.Array(arg.ReconnectingPtyApps),
+	)
 	if err != nil {
 		return nil, err
 	}

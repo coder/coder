@@ -1,6 +1,7 @@
 package codersdk
 
 import (
+	"slices"
 	"strings"
 
 	utilstrings "github.com/coder/coder/v2/coderd/util/strings"
@@ -47,6 +48,29 @@ var appNameFamilies = map[string]AppFamilyName{
 	"zed":              AppFamilySSH,
 	"ssh":              AppFamilySSH,
 	"reconnecting_pty": AppFamilyReconnectingPTY,
+}
+
+// AttributedAppFamilies are the families usage reporting has somewhere to
+// put. Every value in appNameFamilies must appear here or its sessions go
+// uncounted, which TestEveryFamilyIsAttributed enforces.
+var AttributedAppFamilies = []AppFamilyName{
+	AppFamilyVSCode,
+	AppFamilyJetBrains,
+	AppFamilySSH,
+	AppFamilyReconnectingPTY,
+}
+
+// AppNamesInFamily returns the app names belonging to a family, sorted so
+// query parameters stay stable across calls.
+func AppNamesInFamily(family AppFamilyName) []string {
+	var names []string
+	for appName, appFamily := range appNameFamilies {
+		if appFamily == family {
+			names = append(names, appName)
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 // AppNameFamily normalizes an app name and returns its family, or

@@ -3787,11 +3787,11 @@ func (q *querier) GetDeploymentID(ctx context.Context) (string, error) {
 	return q.db.GetDeploymentID(ctx)
 }
 
-func (q *querier) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAfter time.Time) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
+func (q *querier) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAfter database.GetDeploymentWorkspaceAgentStatsParams) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
 	return q.db.GetDeploymentWorkspaceAgentStats(ctx, createdAfter)
 }
 
-func (q *querier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (database.GetDeploymentWorkspaceAgentUsageStatsRow, error) {
+func (q *querier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt database.GetDeploymentWorkspaceAgentUsageStatsParams) (database.GetDeploymentWorkspaceAgentUsageStatsRow, error) {
 	return q.db.GetDeploymentWorkspaceAgentUsageStats(ctx, createdAt)
 }
 
@@ -5486,19 +5486,19 @@ func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []
 	return q.db.GetWorkspaceAgentScriptsByAgentIDs(ctx, ids)
 }
 
-func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
+func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAfter database.GetWorkspaceAgentStatsParams) ([]database.GetWorkspaceAgentStatsRow, error) {
 	return q.db.GetWorkspaceAgentStats(ctx, createdAfter)
 }
 
-func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
+func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAfter database.GetWorkspaceAgentStatsAndLabelsParams) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
 	return q.db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
 }
 
-func (q *querier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
+func (q *querier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt database.GetWorkspaceAgentUsageStatsParams) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
 	return q.db.GetWorkspaceAgentUsageStats(ctx, createdAt)
 }
 
-func (q *querier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
+func (q *querier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt database.GetWorkspaceAgentUsageStatsAndLabelsParams) ([]database.GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
 	return q.db.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt)
 }
 
@@ -9186,11 +9186,11 @@ func (q *querier) UpsertTelemetryItem(ctx context.Context, arg database.UpsertTe
 	return q.db.UpsertTelemetryItem(ctx, arg)
 }
 
-func (q *querier) UpsertTemplateUsageStats(ctx context.Context) error {
+func (q *querier) UpsertTemplateUsageStats(ctx context.Context, arg database.UpsertTemplateUsageStatsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.UpsertTemplateUsageStats(ctx)
+	return q.db.UpsertTemplateUsageStats(ctx, arg)
 }
 
 func (q *querier) UpsertUserAIBudgetOverride(ctx context.Context, arg database.UpsertUserAIBudgetOverrideParams) (database.UserAIBudgetOverride, error) {

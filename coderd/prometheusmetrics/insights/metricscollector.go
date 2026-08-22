@@ -98,8 +98,12 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		eg.Go(func() error {
 			var err error
 			templateInsights, err = mc.database.GetTemplateInsightsByTemplate(egCtx, database.GetTemplateInsightsByTemplateParams{
-				StartTime: startTime,
-				EndTime:   endTime,
+				StartTime:           startTime,
+				EndTime:             endTime,
+				VscodeApps:          codersdk.AppNamesInFamily(codersdk.AppFamilyVSCode),
+				SshApps:             codersdk.AppNamesInFamily(codersdk.AppFamilySSH),
+				JetbrainsApps:       codersdk.AppNamesInFamily(codersdk.AppFamilyJetBrains),
+				ReconnectingPtyApps: codersdk.AppNamesInFamily(codersdk.AppFamilyReconnectingPTY),
 			})
 			if err != nil {
 				mc.logger.Error(ctx, "unable to fetch template insights from database", slog.Error(err))

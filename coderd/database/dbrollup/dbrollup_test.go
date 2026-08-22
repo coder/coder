@@ -43,9 +43,9 @@ func (w *wrapUpsertDB) InTx(fn func(database.Store) error, opts *database.TxOpti
 	}, opts)
 }
 
-func (w *wrapUpsertDB) UpsertTemplateUsageStats(ctx context.Context) error {
+func (w *wrapUpsertDB) UpsertTemplateUsageStats(ctx context.Context, arg database.UpsertTemplateUsageStatsParams) error {
 	<-w.resume
-	return w.Store.UpsertTemplateUsageStats(ctx)
+	return w.Store.UpsertTemplateUsageStats(ctx, arg)
 }
 
 func TestRollup_TwoInstancesUseLocking(t *testing.T) {

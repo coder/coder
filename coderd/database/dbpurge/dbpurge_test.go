@@ -355,7 +355,13 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 			buf := &bytes.Buffer{}
 			enc := json.NewEncoder(buf)
 			enc.SetIndent("", "\t")
-			wasRows, err := db.GetWorkspaceAgentStats(ctx, now.AddDate(0, -7, 0))
+			wasRows, err := db.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
+				CreatedAt:           now.AddDate(0, -7, 0),
+				VscodeApps:          codersdk.AppNamesInFamily(codersdk.AppFamilyVSCode),
+				SshApps:             codersdk.AppNamesInFamily(codersdk.AppFamilySSH),
+				JetbrainsApps:       codersdk.AppNamesInFamily(codersdk.AppFamilyJetBrains),
+				ReconnectingPtyApps: codersdk.AppNamesInFamily(codersdk.AppFamilyReconnectingPTY),
+			})
 			if err == nil {
 				_, _ = fmt.Fprintf(buf, "workspace agent stats: ")
 				_ = enc.Encode(wasRows)
@@ -414,7 +420,13 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	var err error
 	require.Eventuallyf(t, func() bool {
 		// Query all stats created not earlier than ~7 months ago
-		stats, err = db.GetWorkspaceAgentStats(ctx, now.AddDate(0, 0, -210))
+		stats, err = db.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
+			CreatedAt:           now.AddDate(0, 0, -210),
+			VscodeApps:          codersdk.AppNamesInFamily(codersdk.AppFamilyVSCode),
+			SshApps:             codersdk.AppNamesInFamily(codersdk.AppFamilySSH),
+			JetbrainsApps:       codersdk.AppNamesInFamily(codersdk.AppFamilyJetBrains),
+			ReconnectingPtyApps: codersdk.AppNamesInFamily(codersdk.AppFamilyReconnectingPTY),
+		})
 		if err != nil {
 			return false
 		}
@@ -437,7 +449,13 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	// then
 	require.Eventuallyf(t, func() bool {
 		// Query all stats created not earlier than ~7 months ago
-		stats, err = db.GetWorkspaceAgentStats(ctx, now.AddDate(0, 0, -210))
+		stats, err = db.GetWorkspaceAgentStats(ctx, database.GetWorkspaceAgentStatsParams{
+			CreatedAt:           now.AddDate(0, 0, -210),
+			VscodeApps:          codersdk.AppNamesInFamily(codersdk.AppFamilyVSCode),
+			SshApps:             codersdk.AppNamesInFamily(codersdk.AppFamilySSH),
+			JetbrainsApps:       codersdk.AppNamesInFamily(codersdk.AppFamilyJetBrains),
+			ReconnectingPtyApps: codersdk.AppNamesInFamily(codersdk.AppFamilyReconnectingPTY),
+		})
 		if err != nil {
 			return false
 		}
