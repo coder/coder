@@ -621,27 +621,30 @@ func (s *MethodTestSuite) TestCredentialLifecycle() {
 		dbm.EXPECT().NextCredentialLifecycleJournalEntryID(gomock.Any()).Return(int64(1), nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
-	s.Run("InsertCredentialLifecycleJournalFirstLine", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.InsertCredentialLifecycleJournalFirstLineParams{
+	s.Run("InsertCredentialLifecycleJournalEntry", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertCredentialLifecycleJournalEntryParams{
 			EntryID:       1,
-			EffectiveDate: sql.NullTime{Time: dbtime.Now(), Valid: true},
-			ActorType:     sql.NullString{String: "user", Valid: true},
-			Actor:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			EffectiveDate: dbtime.Now(),
+			ActorType:     "user",
+			Actor:         uuid.New(),
 			Event:         "issue",
 			Subject:       uuid.New(),
 		}
-		dbm.EXPECT().InsertCredentialLifecycleJournalFirstLine(gomock.Any(), arg).Return(database.CredentialLifecycleJournal{}, nil).AnyTimes()
+		dbm.EXPECT().InsertCredentialLifecycleJournalEntry(gomock.Any(), arg).Return(database.CredentialLifecycleJournal{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
-	s.Run("InsertCredentialLifecycleJournalSubsequentLine", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.InsertCredentialLifecycleJournalSubsequentLineParams{
-			EntryID: 1,
-			Line:    1,
-			Event:   "revoke",
-			Subject: uuid.New(),
+	s.Run("InsertCredentialPassword", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertCredentialPasswordParams{
+			ID:                  uuid.New(),
+			HashedAuthenticator: "deadbeef",
 		}
-		dbm.EXPECT().InsertCredentialLifecycleJournalSubsequentLine(gomock.Any(), arg).Return(database.CredentialLifecycleJournal{}, nil).AnyTimes()
+		dbm.EXPECT().InsertCredentialPassword(gomock.Any(), arg).Return(database.CredentialPassword{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetCredentialPasswordByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().GetCredentialPasswordByID(gomock.Any(), id).Return(database.CredentialPassword{}, nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("InsertCredentialLifecycleLedgerRow", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertCredentialLifecycleLedgerRowParams{
@@ -649,7 +652,6 @@ func (s *MethodTestSuite) TestCredentialLifecycle() {
 			HolderType:       "ai_agent",
 			HolderID:         uuid.New(),
 			CredentialType:   "password",
-			CredentialValue:  "deadbeef",
 			State:            "valid",
 			PostingReference: 1,
 		}

@@ -5490,18 +5490,17 @@ type ConnectionLog struct {
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
 }
 
-// Journal of persistent state changes to credentials. One journal per entity: sharing one would assert that two lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.
+// Journal of persistent state changes to credentials, in the normalized form: this is the entry table. Line tables join to it as credential operations acquire parameters. One journal per entity: sharing one would assert that two lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.
 type CredentialLifecycleJournal struct {
 	// Identifies the entry. An entry may occupy several lines sharing this value, expressing an atomic group: rotation issues one credential and revokes another as a single event, so that no interval passes without a valid one.
-	EntryID       int64        `db:"entry_id" json:"entry_id"`
-	Line          int16        `db:"line" json:"line"`
-	RecordingDate sql.NullTime `db:"recording_date" json:"recording_date"`
+	EntryID       int64     `db:"entry_id" json:"entry_id"`
+	RecordingDate time.Time `db:"recording_date" json:"recording_date"`
 	// When the event occurred. For an expiry this is the expiry time and not the moment a sweep noticed, so an entry written late records the same fact at the same moment. It is the earlier of the event time and the recording time, which keeps it from ever claiming the journal foresaw something.
-	EffectiveDate sql.NullTime   `db:"effective_date" json:"effective_date"`
-	ActorType     sql.NullString `db:"actor_type" json:"actor_type"`
-	Actor         uuid.NullUUID  `db:"actor" json:"actor"`
-	Event         string         `db:"event" json:"event"`
-	Subject       uuid.UUID      `db:"subject" json:"subject"`
+	EffectiveDate time.Time `db:"effective_date" json:"effective_date"`
+	ActorType     string    `db:"actor_type" json:"actor_type"`
+	Actor         uuid.UUID `db:"actor" json:"actor"`
+	Event         string    `db:"event" json:"event"`
+	Subject       uuid.UUID `db:"subject" json:"subject"`
 }
 
 // Current state of each credential. A credential is a means of exercising authority and not the authority itself: a grant stands whether or not one has been issued, and the two are reconciled against each other only because neither determines the other. Carries no creation time, the journal recording when.
@@ -5512,13 +5511,18 @@ type CredentialLifecycleLedger struct {
 	HolderID   uuid.UUID `db:"holder_id" json:"holder_id"`
 	// Two types exist in the proof of concept. A password holds the hex of an unsalted SHA-256 digest of the secret, unsalted because the secret is randomly generated and high entropy, and matching what coderd/apikey already does. A null credential always validates and holds an empty value; it exists for fault isolation in tests, would never be issued in production, and its always-validates path is a proof of concept hazard recorded with the other cheats.
 	CredentialType string `db:"credential_type" json:"credential_type"`
-	// A container whose interpretation belongs to credential_type rather than to this column, which is why it is text. Postgres bytea holds raw binary and suits a column holding exactly one kind of thing, as api_keys.hashed_secret does; here each type chooses its own encoding, and text keeps that choice self describing. The password type stores a SHA-256 digest as lowercase hex. Hex rather than base64 because it has a single canonical form where base64 has several, and because sha256sum and its equivalents speak it, which matters for a value nobody can recover from the secret. The encoding belongs to the type and can change without a migration.
-	CredentialValue string `db:"credential_value" json:"credential_value"`
-	State           string `db:"state" json:"state"`
+	State          string `db:"state" json:"state"`
 	// The latest moment this credential can be valid. It promises nothing about the credential remaining valid until then, revocation being unconditional. Nothing prevents a row sitting in state valid past this time, since the entries recording expiry are written by a sweep that runs on a period; a reader wanting what is presently usable must test both, and must not do so through a view when verifying, which would be a time of check to time of use error.
 	ExpiresAt sql.NullTime `db:"expires_at" json:"expires_at"`
 	// Identifies the journal entry most recently posted to this row, after the folio that cross references a paper ledger back to its journal.
 	PostingReference int64 `db:"posting_reference" json:"posting_reference"`
+}
+
+// What a password credential holds beyond what every credential holds. Keyed on the ledger row it belongs to, which is why this needs no foreign key into a union: the ledger mints the identifier and the type says which table to look in.
+type CredentialPassword struct {
+	ID uuid.UUID `db:"id" json:"id"`
+	// Hex of an unsalted SHA-256 digest. No salt is needed for a randomly generated high entropy secret, which is the reasoning coderd/apikey follows.
+	HashedAuthenticator string `db:"hashed_authenticator" json:"hashed_authenticator"`
 }
 
 type CryptoKey struct {

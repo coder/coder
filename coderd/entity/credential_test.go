@@ -124,10 +124,15 @@ func TestCredentials(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, entity.CredentialTypePassword, row.CredentialType)
 		require.Equal(t, entity.CredentialStateValid, row.State)
-		require.NotEqual(t, issued.Authenticator, row.CredentialValue,
-			"the ledger must not hold what was handed out")
-		require.Len(t, row.CredentialValue, 64, "a SHA-256 digest in hex")
 		require.False(t, row.ExpiresAt.Valid, "nothing issues an expiry yet")
+
+		// The digest is in the password type's own table, which the ledger row
+		// names by carrying its type.
+		password, err := db.GetCredentialPasswordByID(ctx, issued.ID)
+		require.NoError(t, err, "a password credential should have a password row")
+		require.NotEqual(t, issued.Authenticator, password.HashedAuthenticator,
+			"the ledger must not hold what was handed out")
+		require.Len(t, password.HashedAuthenticator, 64, "a SHA-256 digest in hex")
 	})
 
 	t.Run("ANullCredentialAlwaysVerifies", func(t *testing.T) {

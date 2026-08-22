@@ -56,11 +56,6 @@ const (
 	CheckUsersEmailNotEmpty                                    CheckConstraint = "users_email_not_empty"                                        // users
 	CheckUsersServiceAccountLoginType                          CheckConstraint = "users_service_account_login_type"                             // users
 	CheckUsersUsernameMinLength                                CheckConstraint = "users_username_min_length"                                    // users
-	CheckCredentialLifecycleJournalActorOnFirstLine            CheckConstraint = "credential_lifecycle_journal_actor_on_first_line"             // credential_lifecycle_journal
-	CheckCredentialLifecycleJournalActorTypeOnFirstLine        CheckConstraint = "credential_lifecycle_journal_actor_type_on_first_line"        // credential_lifecycle_journal
-	CheckCredentialLifecycleJournalEffectiveDateOnFirstLine    CheckConstraint = "credential_lifecycle_journal_effective_date_on_first_line"    // credential_lifecycle_journal
-	CheckCredentialLifecycleJournalLineNonNegative             CheckConstraint = "credential_lifecycle_journal_line_non_negative"               // credential_lifecycle_journal
-	CheckCredentialLifecycleJournalRecordingDateOnFirstLine    CheckConstraint = "credential_lifecycle_journal_recording_date_on_first_line"    // credential_lifecycle_journal
 	CheckCredentialLifecycleLedgerState                        CheckConstraint = "credential_lifecycle_ledger_state"                            // credential_lifecycle_ledger
 	CheckOrganizationIDNotZero                                 CheckConstraint = "organization_id_not_zero"                                     // custom_roles
 	CheckGroupAIBudgetsSpendLimitMicrosCheck                   CheckConstraint = "group_ai_budgets_spend_limit_micros_check"                    // group_ai_budgets

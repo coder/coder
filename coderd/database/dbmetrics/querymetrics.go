@@ -2017,6 +2017,14 @@ func (m queryMetricsStore) GetCredentialLifecycleLedgerRowByID(ctx context.Conte
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetCredentialPasswordByID(ctx context.Context, id uuid.UUID) (database.CredentialPassword, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCredentialPasswordByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetCredentialPasswordByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCredentialPasswordByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg database.GetCryptoKeyByFeatureAndSequenceParams) (database.CryptoKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetCryptoKeyByFeatureAndSequence(ctx, arg)
@@ -4369,19 +4377,11 @@ func (m queryMetricsStore) InsertChatQueuedMessageWithCreator(ctx context.Contex
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertCredentialLifecycleJournalFirstLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalFirstLineParams) (database.CredentialLifecycleJournal, error) {
+func (m queryMetricsStore) InsertCredentialLifecycleJournalEntry(ctx context.Context, arg database.InsertCredentialLifecycleJournalEntryParams) (database.CredentialLifecycleJournal, error) {
 	start := time.Now()
-	r0, r1 := m.s.InsertCredentialLifecycleJournalFirstLine(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertCredentialLifecycleJournalFirstLine").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialLifecycleJournalFirstLine").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) InsertCredentialLifecycleJournalSubsequentLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalSubsequentLineParams) (database.CredentialLifecycleJournal, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertCredentialLifecycleJournalSubsequentLine(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertCredentialLifecycleJournalSubsequentLine").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialLifecycleJournalSubsequentLine").Inc()
+	r0, r1 := m.s.InsertCredentialLifecycleJournalEntry(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertCredentialLifecycleJournalEntry").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialLifecycleJournalEntry").Inc()
 	return r0, r1
 }
 
@@ -4390,6 +4390,14 @@ func (m queryMetricsStore) InsertCredentialLifecycleLedgerRow(ctx context.Contex
 	r0, r1 := m.s.InsertCredentialLifecycleLedgerRow(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertCredentialLifecycleLedgerRow").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialLifecycleLedgerRow").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertCredentialPassword(ctx context.Context, arg database.InsertCredentialPasswordParams) (database.CredentialPassword, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertCredentialPassword(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertCredentialPassword").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialPassword").Inc()
 	return r0, r1
 }
 

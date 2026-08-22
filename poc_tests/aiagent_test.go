@@ -219,10 +219,13 @@ func TestAIAgentIdentity(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, credentials, 1, "creation should issue exactly one credential")
 
-		// The ledger holds the digest rather than the authenticator, so the
-		// comparison is direct: what is on record against what the executable
-		// received, hashed the same way.
-		require.Equal(t, credentials[0].CredentialValue, reportedCredentialDigest(t, scriptLog),
+		// The digest is on the password type's own row, which the ledger row
+		// names by carrying its type. The comparison is then direct: what is on
+		// record against what the executable received, hashed the same way.
+		require.Equal(t, entity.CredentialTypePassword, credentials[0].CredentialType)
+		password, err := db.GetCredentialPasswordByID(systemCtx, credentials[0].ID)
+		require.NoError(t, err)
+		require.Equal(t, password.HashedAuthenticator, reportedCredentialDigest(t, scriptLog),
 			"the authenticator the executable received should be the one on record")
 	})
 

@@ -3804,6 +3804,13 @@ func (q *querier) GetCredentialLifecycleLedgerRowByID(ctx context.Context, id uu
 	return q.db.GetCredentialLifecycleLedgerRowByID(ctx, id)
 }
 
+func (q *querier) GetCredentialPasswordByID(ctx context.Context, id uuid.UUID) (database.CredentialPassword, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.CredentialPassword{}, err
+	}
+	return q.db.GetCredentialPasswordByID(ctx, id)
+}
+
 func (q *querier) GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg database.GetCryptoKeyByFeatureAndSequenceParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -6296,18 +6303,11 @@ func (q *querier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg da
 	return q.db.InsertChatQueuedMessageWithCreator(ctx, arg)
 }
 
-func (q *querier) InsertCredentialLifecycleJournalFirstLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalFirstLineParams) (database.CredentialLifecycleJournal, error) {
+func (q *querier) InsertCredentialLifecycleJournalEntry(ctx context.Context, arg database.InsertCredentialLifecycleJournalEntryParams) (database.CredentialLifecycleJournal, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.CredentialLifecycleJournal{}, err
 	}
-	return q.db.InsertCredentialLifecycleJournalFirstLine(ctx, arg)
-}
-
-func (q *querier) InsertCredentialLifecycleJournalSubsequentLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalSubsequentLineParams) (database.CredentialLifecycleJournal, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.CredentialLifecycleJournal{}, err
-	}
-	return q.db.InsertCredentialLifecycleJournalSubsequentLine(ctx, arg)
+	return q.db.InsertCredentialLifecycleJournalEntry(ctx, arg)
 }
 
 func (q *querier) InsertCredentialLifecycleLedgerRow(ctx context.Context, arg database.InsertCredentialLifecycleLedgerRowParams) (database.CredentialLifecycleLedger, error) {
@@ -6315,6 +6315,13 @@ func (q *querier) InsertCredentialLifecycleLedgerRow(ctx context.Context, arg da
 		return database.CredentialLifecycleLedger{}, err
 	}
 	return q.db.InsertCredentialLifecycleLedgerRow(ctx, arg)
+}
+
+func (q *querier) InsertCredentialPassword(ctx context.Context, arg database.InsertCredentialPasswordParams) (database.CredentialPassword, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.CredentialPassword{}, err
+	}
+	return q.db.InsertCredentialPassword(ctx, arg)
 }
 
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {

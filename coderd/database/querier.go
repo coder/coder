@@ -597,6 +597,7 @@ type sqlcQuerier interface {
 	GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCredentialLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (CredentialLifecycleLedger, error)
+	GetCredentialPasswordByID(ctx context.Context, id uuid.UUID) (CredentialPassword, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
 	GetCryptoKeys(ctx context.Context) ([]CryptoKey, error)
 	GetCryptoKeysByFeature(ctx context.Context, feature CryptoKeyFeature) ([]CryptoKey, error)
@@ -1025,6 +1026,9 @@ type sqlcQuerier interface {
 	//
 	// State only. Expiry is not considered here: nothing writes expires_at yet, and
 	// evaluating it belongs to the work package that does.
+	//
+	// Type specific state is not joined in. A caller that needs it knows the type
+	// from the row and fetches it, which is what the type discriminator is for.
 	GetValidCredentialsByHolder(ctx context.Context, arg GetValidCredentialsByHolderParams) ([]CredentialLifecycleLedger, error)
 	GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]WebpushSubscription, error)
 	GetWebpushVAPIDKeys(ctx context.Context) (GetWebpushVAPIDKeysRow, error)
@@ -1212,17 +1216,14 @@ type sqlcQuerier interface {
 	// sequence) and an explicit created_by reference. Use this when the
 	// queued-message creator differs from the chat owner.
 	InsertChatQueuedMessageWithCreator(ctx context.Context, arg InsertChatQueuedMessageWithCreatorParams) (ChatQueuedMessage, error)
-	// Line 0 carries the entry level values. recording_date is absent from this
-	// statement on purpose: the column default supplies it, so no caller can
-	// supply, override, or backdate it.
-	InsertCredentialLifecycleJournalFirstLine(ctx context.Context, arg InsertCredentialLifecycleJournalFirstLineParams) (CredentialLifecycleJournal, error)
-	// NOT LIVE CODE. Nothing calls this. It is here to show what a line after the
-	// first looks like, since the proof of concept writes no multiline entry:
-	// rotation, the case that needs one, is out of scope. It deserves a unit test
-	// of its own and does not have one, so treat it as documentation rather than
-	// as a tested path. In production this would rot; this is not production.
-	InsertCredentialLifecycleJournalSubsequentLine(ctx context.Context, arg InsertCredentialLifecycleJournalSubsequentLineParams) (CredentialLifecycleJournal, error)
+	// recording_date is absent from this statement on purpose: the column default
+	// supplies it, so no caller can supply, override, or backdate it.
+	InsertCredentialLifecycleJournalEntry(ctx context.Context, arg InsertCredentialLifecycleJournalEntryParams) (CredentialLifecycleJournal, error)
 	InsertCredentialLifecycleLedgerRow(ctx context.Context, arg InsertCredentialLifecycleLedgerRowParams) (CredentialLifecycleLedger, error)
+	// The password type's own state, keyed on the ledger row it belongs to. Written
+	// in the same transaction as that row: a ledger row of type password with no
+	// row here is a credential nothing can verify.
+	InsertCredentialPassword(ctx context.Context, arg InsertCredentialPasswordParams) (CredentialPassword, error)
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
@@ -1413,7 +1414,8 @@ type sqlcQuerier interface {
 	// column default cannot serve, allocating per row where the lines of an entry
 	// must agree.
 	NextAuthorizationLifecycleJournalEntryID(ctx context.Context) (int64, error)
-	// One call per entry, whose value every line of that entry then carries.
+	// One call per entry. The journal is in the normalized form, so this is the
+	// key of the entry table and of any line rows that later join to it.
 	NextCredentialLifecycleJournalEntryID(ctx context.Context) (int64, error)
 	OIDCClaimFieldValues(ctx context.Context, arg OIDCClaimFieldValuesParams) ([]string, error)
 	// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
@@ -1444,8 +1446,8 @@ type sqlcQuerier interface {
 	// Posting a retirement. Conditioned on the posting reference the caller expects
 	// to find, so that two concurrent posters cannot both believe they succeeded.
 	RetireAIAgent(ctx context.Context, arg RetireAIAgentParams) (AIAgentLifecycleLedger, error)
-	// Posting a revocation. Conditioned on the posting reference the caller expects
-	// to find, so that two concurrent posters cannot both believe they succeeded.
+	// Conditional on the posting reference the caller last saw, so that two posters
+	// cannot both believe they succeeded.
 	RevokeCredential(ctx context.Context, arg RevokeCredentialParams) (CredentialLifecycleLedger, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Marks chat-origin AI agent identities deleted when their chat no longer

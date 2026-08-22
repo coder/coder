@@ -15108,7 +15108,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 
 const getCredentialLifecycleLedgerRowByID = `-- name: GetCredentialLifecycleLedgerRowByID :one
 SELECT
-	id, holder_type, holder_id, credential_type, credential_value, state, expires_at, posting_reference
+	id, holder_type, holder_id, credential_type, state, expires_at, posting_reference
 FROM
 	credential_lifecycle_ledger
 WHERE
@@ -15123,7 +15123,6 @@ func (q *sqlQuerier) GetCredentialLifecycleLedgerRowByID(ctx context.Context, id
 		&i.HolderType,
 		&i.HolderID,
 		&i.CredentialType,
-		&i.CredentialValue,
 		&i.State,
 		&i.ExpiresAt,
 		&i.PostingReference,
@@ -15131,9 +15130,25 @@ func (q *sqlQuerier) GetCredentialLifecycleLedgerRowByID(ctx context.Context, id
 	return i, err
 }
 
+const getCredentialPasswordByID = `-- name: GetCredentialPasswordByID :one
+SELECT
+	id, hashed_authenticator
+FROM
+	credential_password
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) GetCredentialPasswordByID(ctx context.Context, id uuid.UUID) (CredentialPassword, error) {
+	row := q.db.QueryRowContext(ctx, getCredentialPasswordByID, id)
+	var i CredentialPassword
+	err := row.Scan(&i.ID, &i.HashedAuthenticator)
+	return i, err
+}
+
 const getValidCredentialsByHolder = `-- name: GetValidCredentialsByHolder :many
 SELECT
-	id, holder_type, holder_id, credential_type, credential_value, state, expires_at, posting_reference
+	id, holder_type, holder_id, credential_type, state, expires_at, posting_reference
 FROM
 	credential_lifecycle_ledger
 WHERE
@@ -15153,6 +15168,9 @@ type GetValidCredentialsByHolderParams struct {
 //
 // State only. Expiry is not considered here: nothing writes expires_at yet, and
 // evaluating it belongs to the work package that does.
+//
+// Type specific state is not joined in. A caller that needs it knows the type
+// from the row and fetches it, which is what the type discriminator is for.
 func (q *sqlQuerier) GetValidCredentialsByHolder(ctx context.Context, arg GetValidCredentialsByHolderParams) ([]CredentialLifecycleLedger, error) {
 	rows, err := q.db.QueryContext(ctx, getValidCredentialsByHolder, arg.HolderType, arg.HolderID)
 	if err != nil {
@@ -15167,7 +15185,6 @@ func (q *sqlQuerier) GetValidCredentialsByHolder(ctx context.Context, arg GetVal
 			&i.HolderType,
 			&i.HolderID,
 			&i.CredentialType,
-			&i.CredentialValue,
 			&i.State,
 			&i.ExpiresAt,
 			&i.PostingReference,
@@ -15185,11 +15202,10 @@ func (q *sqlQuerier) GetValidCredentialsByHolder(ctx context.Context, arg GetVal
 	return items, nil
 }
 
-const insertCredentialLifecycleJournalFirstLine = `-- name: InsertCredentialLifecycleJournalFirstLine :one
+const insertCredentialLifecycleJournalEntry = `-- name: InsertCredentialLifecycleJournalEntry :one
 INSERT INTO
 	credential_lifecycle_journal (
 		entry_id,
-		line,
 		effective_date,
 		actor_type,
 		actor,
@@ -15197,23 +15213,22 @@ INSERT INTO
 		subject
 	)
 VALUES
-	($1, 0, $2, $3, $4, $5, $6) RETURNING entry_id, line, recording_date, effective_date, actor_type, actor, event, subject
+	($1, $2, $3, $4, $5, $6) RETURNING entry_id, recording_date, effective_date, actor_type, actor, event, subject
 `
 
-type InsertCredentialLifecycleJournalFirstLineParams struct {
-	EntryID       int64          `db:"entry_id" json:"entry_id"`
-	EffectiveDate sql.NullTime   `db:"effective_date" json:"effective_date"`
-	ActorType     sql.NullString `db:"actor_type" json:"actor_type"`
-	Actor         uuid.NullUUID  `db:"actor" json:"actor"`
-	Event         string         `db:"event" json:"event"`
-	Subject       uuid.UUID      `db:"subject" json:"subject"`
+type InsertCredentialLifecycleJournalEntryParams struct {
+	EntryID       int64     `db:"entry_id" json:"entry_id"`
+	EffectiveDate time.Time `db:"effective_date" json:"effective_date"`
+	ActorType     string    `db:"actor_type" json:"actor_type"`
+	Actor         uuid.UUID `db:"actor" json:"actor"`
+	Event         string    `db:"event" json:"event"`
+	Subject       uuid.UUID `db:"subject" json:"subject"`
 }
 
-// Line 0 carries the entry level values. recording_date is absent from this
-// statement on purpose: the column default supplies it, so no caller can
-// supply, override, or backdate it.
-func (q *sqlQuerier) InsertCredentialLifecycleJournalFirstLine(ctx context.Context, arg InsertCredentialLifecycleJournalFirstLineParams) (CredentialLifecycleJournal, error) {
-	row := q.db.QueryRowContext(ctx, insertCredentialLifecycleJournalFirstLine,
+// recording_date is absent from this statement on purpose: the column default
+// supplies it, so no caller can supply, override, or backdate it.
+func (q *sqlQuerier) InsertCredentialLifecycleJournalEntry(ctx context.Context, arg InsertCredentialLifecycleJournalEntryParams) (CredentialLifecycleJournal, error) {
+	row := q.db.QueryRowContext(ctx, insertCredentialLifecycleJournalEntry,
 		arg.EntryID,
 		arg.EffectiveDate,
 		arg.ActorType,
@@ -15224,56 +15239,6 @@ func (q *sqlQuerier) InsertCredentialLifecycleJournalFirstLine(ctx context.Conte
 	var i CredentialLifecycleJournal
 	err := row.Scan(
 		&i.EntryID,
-		&i.Line,
-		&i.RecordingDate,
-		&i.EffectiveDate,
-		&i.ActorType,
-		&i.Actor,
-		&i.Event,
-		&i.Subject,
-	)
-	return i, err
-}
-
-const insertCredentialLifecycleJournalSubsequentLine = `-- name: InsertCredentialLifecycleJournalSubsequentLine :one
-INSERT INTO
-	credential_lifecycle_journal (
-		entry_id,
-		line,
-		recording_date,
-		effective_date,
-		actor_type,
-		actor,
-		event,
-		subject
-	)
-VALUES
-	($1, $2, NULL, NULL, NULL, NULL, $3, $4) RETURNING entry_id, line, recording_date, effective_date, actor_type, actor, event, subject
-`
-
-type InsertCredentialLifecycleJournalSubsequentLineParams struct {
-	EntryID int64     `db:"entry_id" json:"entry_id"`
-	Line    int16     `db:"line" json:"line"`
-	Event   string    `db:"event" json:"event"`
-	Subject uuid.UUID `db:"subject" json:"subject"`
-}
-
-// NOT LIVE CODE. Nothing calls this. It is here to show what a line after the
-// first looks like, since the proof of concept writes no multiline entry:
-// rotation, the case that needs one, is out of scope. It deserves a unit test
-// of its own and does not have one, so treat it as documentation rather than
-// as a tested path. In production this would rot; this is not production.
-func (q *sqlQuerier) InsertCredentialLifecycleJournalSubsequentLine(ctx context.Context, arg InsertCredentialLifecycleJournalSubsequentLineParams) (CredentialLifecycleJournal, error) {
-	row := q.db.QueryRowContext(ctx, insertCredentialLifecycleJournalSubsequentLine,
-		arg.EntryID,
-		arg.Line,
-		arg.Event,
-		arg.Subject,
-	)
-	var i CredentialLifecycleJournal
-	err := row.Scan(
-		&i.EntryID,
-		&i.Line,
 		&i.RecordingDate,
 		&i.EffectiveDate,
 		&i.ActorType,
@@ -15291,13 +15256,12 @@ INSERT INTO
 		holder_type,
 		holder_id,
 		credential_type,
-		credential_value,
 		state,
 		expires_at,
 		posting_reference
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, holder_type, holder_id, credential_type, credential_value, state, expires_at, posting_reference
+	($1, $2, $3, $4, $5, $6, $7) RETURNING id, holder_type, holder_id, credential_type, state, expires_at, posting_reference
 `
 
 type InsertCredentialLifecycleLedgerRowParams struct {
@@ -15305,7 +15269,6 @@ type InsertCredentialLifecycleLedgerRowParams struct {
 	HolderType       string       `db:"holder_type" json:"holder_type"`
 	HolderID         uuid.UUID    `db:"holder_id" json:"holder_id"`
 	CredentialType   string       `db:"credential_type" json:"credential_type"`
-	CredentialValue  string       `db:"credential_value" json:"credential_value"`
 	State            string       `db:"state" json:"state"`
 	ExpiresAt        sql.NullTime `db:"expires_at" json:"expires_at"`
 	PostingReference int64        `db:"posting_reference" json:"posting_reference"`
@@ -15317,7 +15280,6 @@ func (q *sqlQuerier) InsertCredentialLifecycleLedgerRow(ctx context.Context, arg
 		arg.HolderType,
 		arg.HolderID,
 		arg.CredentialType,
-		arg.CredentialValue,
 		arg.State,
 		arg.ExpiresAt,
 		arg.PostingReference,
@@ -15328,11 +15290,32 @@ func (q *sqlQuerier) InsertCredentialLifecycleLedgerRow(ctx context.Context, arg
 		&i.HolderType,
 		&i.HolderID,
 		&i.CredentialType,
-		&i.CredentialValue,
 		&i.State,
 		&i.ExpiresAt,
 		&i.PostingReference,
 	)
+	return i, err
+}
+
+const insertCredentialPassword = `-- name: InsertCredentialPassword :one
+INSERT INTO
+	credential_password (id, hashed_authenticator)
+VALUES
+	($1, $2) RETURNING id, hashed_authenticator
+`
+
+type InsertCredentialPasswordParams struct {
+	ID                  uuid.UUID `db:"id" json:"id"`
+	HashedAuthenticator string    `db:"hashed_authenticator" json:"hashed_authenticator"`
+}
+
+// The password type's own state, keyed on the ledger row it belongs to. Written
+// in the same transaction as that row: a ledger row of type password with no
+// row here is a credential nothing can verify.
+func (q *sqlQuerier) InsertCredentialPassword(ctx context.Context, arg InsertCredentialPasswordParams) (CredentialPassword, error) {
+	row := q.db.QueryRowContext(ctx, insertCredentialPassword, arg.ID, arg.HashedAuthenticator)
+	var i CredentialPassword
+	err := row.Scan(&i.ID, &i.HashedAuthenticator)
 	return i, err
 }
 
@@ -15341,7 +15324,8 @@ SELECT
 	nextval('credential_lifecycle_journal_entry_seq')::bigint
 `
 
-// One call per entry, whose value every line of that entry then carries.
+// One call per entry. The journal is in the normalized form, so this is the
+// key of the entry table and of any line rows that later join to it.
 func (q *sqlQuerier) NextCredentialLifecycleJournalEntryID(ctx context.Context) (int64, error) {
 	row := q.db.QueryRowContext(ctx, nextCredentialLifecycleJournalEntryID)
 	var column_1 int64
@@ -15357,7 +15341,7 @@ SET
 	posting_reference = $2
 WHERE
 	id = $1
-	AND posting_reference = $3 RETURNING id, holder_type, holder_id, credential_type, credential_value, state, expires_at, posting_reference
+	AND posting_reference = $3 RETURNING id, holder_type, holder_id, credential_type, state, expires_at, posting_reference
 `
 
 type RevokeCredentialParams struct {
@@ -15366,8 +15350,8 @@ type RevokeCredentialParams struct {
 	PostingReference_2 int64     `db:"posting_reference_2" json:"posting_reference_2"`
 }
 
-// Posting a revocation. Conditioned on the posting reference the caller expects
-// to find, so that two concurrent posters cannot both believe they succeeded.
+// Conditional on the posting reference the caller last saw, so that two posters
+// cannot both believe they succeeded.
 func (q *sqlQuerier) RevokeCredential(ctx context.Context, arg RevokeCredentialParams) (CredentialLifecycleLedger, error) {
 	row := q.db.QueryRowContext(ctx, revokeCredential, arg.ID, arg.PostingReference, arg.PostingReference_2)
 	var i CredentialLifecycleLedger
@@ -15376,7 +15360,6 @@ func (q *sqlQuerier) RevokeCredential(ctx context.Context, arg RevokeCredentialP
 		&i.HolderType,
 		&i.HolderID,
 		&i.CredentialType,
-		&i.CredentialValue,
 		&i.State,
 		&i.ExpiresAt,
 		&i.PostingReference,

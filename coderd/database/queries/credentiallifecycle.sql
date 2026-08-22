@@ -1,16 +1,15 @@
 -- name: NextCredentialLifecycleJournalEntryID :one
--- One call per entry, whose value every line of that entry then carries.
+-- One call per entry. The journal is in the normalized form, so this is the
+-- key of the entry table and of any line rows that later join to it.
 SELECT
 	nextval('credential_lifecycle_journal_entry_seq')::bigint;
 
--- name: InsertCredentialLifecycleJournalFirstLine :one
--- Line 0 carries the entry level values. recording_date is absent from this
--- statement on purpose: the column default supplies it, so no caller can
--- supply, override, or backdate it.
+-- name: InsertCredentialLifecycleJournalEntry :one
+-- recording_date is absent from this statement on purpose: the column default
+-- supplies it, so no caller can supply, override, or backdate it.
 INSERT INTO
 	credential_lifecycle_journal (
 		entry_id,
-		line,
 		effective_date,
 		actor_type,
 		actor,
@@ -18,27 +17,7 @@ INSERT INTO
 		subject
 	)
 VALUES
-	($1, 0, $2, $3, $4, $5, $6) RETURNING *;
-
--- name: InsertCredentialLifecycleJournalSubsequentLine :one
--- NOT LIVE CODE. Nothing calls this. It is here to show what a line after the
--- first looks like, since the proof of concept writes no multiline entry:
--- rotation, the case that needs one, is out of scope. It deserves a unit test
--- of its own and does not have one, so treat it as documentation rather than
--- as a tested path. In production this would rot; this is not production.
-INSERT INTO
-	credential_lifecycle_journal (
-		entry_id,
-		line,
-		recording_date,
-		effective_date,
-		actor_type,
-		actor,
-		event,
-		subject
-	)
-VALUES
-	($1, $2, NULL, NULL, NULL, NULL, $3, $4) RETURNING *;
+	($1, $2, $3, $4, $5, $6) RETURNING *;
 
 -- name: InsertCredentialLifecycleLedgerRow :one
 INSERT INTO
@@ -47,19 +26,35 @@ INSERT INTO
 		holder_type,
 		holder_id,
 		credential_type,
-		credential_value,
 		state,
 		expires_at,
 		posting_reference
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+
+-- name: InsertCredentialPassword :one
+-- The password type's own state, keyed on the ledger row it belongs to. Written
+-- in the same transaction as that row: a ledger row of type password with no
+-- row here is a credential nothing can verify.
+INSERT INTO
+	credential_password (id, hashed_authenticator)
+VALUES
+	($1, $2) RETURNING *;
 
 -- name: GetCredentialLifecycleLedgerRowByID :one
 SELECT
 	*
 FROM
 	credential_lifecycle_ledger
+WHERE
+	id = $1;
+
+-- name: GetCredentialPasswordByID :one
+SELECT
+	*
+FROM
+	credential_password
 WHERE
 	id = $1;
 
@@ -70,6 +65,9 @@ WHERE
 --
 -- State only. Expiry is not considered here: nothing writes expires_at yet, and
 -- evaluating it belongs to the work package that does.
+--
+-- Type specific state is not joined in. A caller that needs it knows the type
+-- from the row and fetches it, which is what the type discriminator is for.
 SELECT
 	*
 FROM
@@ -80,8 +78,8 @@ WHERE
 	AND state = 'valid';
 
 -- name: RevokeCredential :one
--- Posting a revocation. Conditioned on the posting reference the caller expects
--- to find, so that two concurrent posters cannot both believe they succeeded.
+-- Conditional on the posting reference the caller last saw, so that two posters
+-- cannot both believe they succeeded.
 UPDATE
 	credential_lifecycle_ledger
 SET

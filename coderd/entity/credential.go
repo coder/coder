@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -133,11 +134,11 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 			return xerrors.Errorf("take an entry identifier: %w", err)
 		}
 
-		_, err = tx.InsertCredentialLifecycleJournalFirstLine(ctx, database.InsertCredentialLifecycleJournalFirstLineParams{
+		_, err = tx.InsertCredentialLifecycleJournalEntry(ctx, database.InsertCredentialLifecycleJournalEntryParams{
 			EntryID:       entryID,
-			EffectiveDate: sql.NullTime{Time: effective, Valid: true},
-			ActorType:     sql.NullString{String: string(params.Actor.Type), Valid: true},
-			Actor:         uuid.NullUUID{UUID: params.Actor.ID, Valid: true},
+			EffectiveDate: effective,
+			ActorType:     string(params.Actor.Type),
+			Actor:         params.Actor.ID,
 			Event:         string(EventCredentialIssue),
 			Subject:       issued.ID,
 		})
@@ -146,12 +147,11 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 		}
 
 		_, err = tx.InsertCredentialLifecycleLedgerRow(ctx, database.InsertCredentialLifecycleLedgerRowParams{
-			ID:              issued.ID,
-			HolderType:      string(params.Holder.Type),
-			HolderID:        params.Holder.ID,
-			CredentialType:  credentialType,
-			CredentialValue: stored,
-			State:           CredentialStateValid,
+			ID:             issued.ID,
+			HolderType:     string(params.Holder.Type),
+			HolderID:       params.Holder.ID,
+			CredentialType: credentialType,
+			State:          CredentialStateValid,
 			// Nothing issues an expiry yet. The column is here so that the
 			// work package which does changes no schema, and an absent expiry
 			// means no expiry: the null stands exactly where a row would have
@@ -161,6 +161,18 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 		})
 		if err != nil {
 			return xerrors.Errorf("post to the ledger: %w", err)
+		}
+
+		// The type's own state, in the same transaction as the row it belongs
+		// to. A password credential whose digest is missing is one nothing can
+		// verify, so the two are written together or not at all.
+		if credentialType == CredentialTypePassword {
+			if _, err := tx.InsertCredentialPassword(ctx, database.InsertCredentialPasswordParams{
+				ID:                  issued.ID,
+				HashedAuthenticator: stored,
+			}); err != nil {
+				return xerrors.Errorf("post the password: %w", err)
+			}
 		}
 		return nil
 	}, nil)
@@ -200,15 +212,29 @@ func VerifyCredential(ctx context.Context, store database.Store, holder Ref, pre
 		return false, xerrors.Errorf("read valid credentials: %w", err)
 	}
 
+	presentedDigest := hashAuthenticator(presented)
+
 	matched := 0
 	for _, candidate := range candidates {
 		switch candidate.CredentialType {
 		case CredentialTypeNull:
 			matched = 1
 		case CredentialTypePassword:
+			// The digest lives in the password type's own table, which the
+			// ledger row names by carrying its type. A ledger row of this type
+			// with no row there is a credential nothing can verify, and it
+			// verifies nothing rather than erroring, which is the same answer
+			// a wrong authenticator gets.
+			password, err := store.GetCredentialPasswordByID(ctx, candidate.ID)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					continue
+				}
+				return false, xerrors.Errorf("read the password credential: %w", err)
+			}
 			matched |= subtle.ConstantTimeCompare(
-				[]byte(candidate.CredentialValue),
-				[]byte(hashAuthenticator(presented)),
+				[]byte(password.HashedAuthenticator),
+				[]byte(presentedDigest),
 			)
 		default:
 			// A type with no code able to validate it validates nothing. That
@@ -246,11 +272,11 @@ func RevokeCredential(ctx context.Context, store database.Store, id uuid.UUID, a
 			return xerrors.Errorf("take an entry identifier: %w", err)
 		}
 
-		_, err = tx.InsertCredentialLifecycleJournalFirstLine(ctx, database.InsertCredentialLifecycleJournalFirstLineParams{
+		_, err = tx.InsertCredentialLifecycleJournalEntry(ctx, database.InsertCredentialLifecycleJournalEntryParams{
 			EntryID:       entryID,
-			EffectiveDate: sql.NullTime{Time: time.Now(), Valid: true},
-			ActorType:     sql.NullString{String: string(actor.Type), Valid: true},
-			Actor:         uuid.NullUUID{UUID: actor.ID, Valid: true},
+			EffectiveDate: time.Now(),
+			ActorType:     string(actor.Type),
+			Actor:         actor.ID,
 			Event:         string(EventCredentialRevoke),
 			Subject:       id,
 		})
