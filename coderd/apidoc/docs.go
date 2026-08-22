@@ -20982,6 +20982,9 @@ const docTemplate = `{
                 "trial": {
                     "type": "boolean"
                 },
+                "usage_publishing": {
+                    "$ref": "#/definitions/codersdk.UsagePublishingStatus"
+                },
                 "warnings": {
                     "type": "array",
                     "items": {
@@ -27339,6 +27342,25 @@ const docTemplate = `{
                 "start": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.UsagePublishingStatus": {
+            "type": "object",
+            "properties": {
+                "failing_since": {
+                    "description": "FailingSince is the start of this process's current failure streak. It is\nnull until the streak reaches the sustained failure threshold.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "last_published_at": {
+                    "description": "LastPublishedAt is the latest time this process successfully persisted at\nleast one accepted event. It is null until a successful publish occurs.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "publishing_enabled": {
+                    "description": "PublishingEnabled is true if a currently valid license enables usage\nevent publishing.",
+                    "type": "boolean"
                 }
             }
         },
