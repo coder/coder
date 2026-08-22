@@ -20,6 +20,7 @@ func (a *agent) apiHandler() http.Handler {
 	r.Use(
 		httpmw.Recover(a.logger),
 		tracing.StatusWriterMiddleware,
+		tracing.SessionIDMiddleware,
 		loggermw.Logger(a.logger, nil),
 		agentchat.Middleware,
 	)
