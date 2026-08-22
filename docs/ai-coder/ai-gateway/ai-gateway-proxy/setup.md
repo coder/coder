@@ -55,7 +55,7 @@ Intercepted requests are forwarded to the AI Gateway, configured via [`CODER_AI_
 By default, this is the embedded AI Gateway at `<coderd-access-url>/api/v2/ai-gateway`, and no configuration is needed.
 
 AI Gateway Proxy remains part of the `coder server` process when you [deploy AI Gateway as a standalone service](../standalone.md).
-To forward intercepted requests to the standalone Gateway, set:
+To forward intercepted requests to the standalone gateway, set the following:
 
 ```sh
 CODER_AI_GATEWAY_PROXY_TARGET=https://ai-gateway.example.com/
@@ -73,7 +73,7 @@ For additional configuration options, see the [Coder server configuration](../..
 > The AI Gateway Proxy should only be accessible within a trusted network and **must not** be directly exposed to the public internet.
 > Without proper network restrictions, unauthorized users could route traffic through the proxy or intercept credentials.
 
-### Encrypting client connections
+### Encrypt client connections
 
 By default, AI tools send the Coder session token in the proxy credentials over unencrypted HTTP.
 This only applies to the initial connection between the client and the proxy.
@@ -89,7 +89,7 @@ See [Proxy TLS Configuration](#proxy-tls-configuration) for configuration steps.
 * Internal network only: If the proxy and all clients are on the same trusted network, credentials are not exposed to external attackers.
 * TLS-terminating load balancer: Place a TLS-terminating load balancer in front of the proxy that terminates TLS and forwards requests over HTTP.
 
-### Restricting proxy access
+### Restrict proxy access
 
 Requests to non-allowlisted domains are tunneled through the proxy, but connections to private and reserved IP ranges are blocked by default.
 The IP validation and TCP connect happen atomically, preventing DNS rebinding attacks where the resolved address could change between the check and the connection.
@@ -151,7 +151,7 @@ CODER_AI_GATEWAY_PROXY_CERT_FILE=/path/to/intermediate-ca.crt
 CODER_AI_GATEWAY_PROXY_KEY_FILE=/path/to/intermediate-ca.key
 ```
 
-### Securing the private key
+### Secure the private key
 
 > [!WARNING]
 > The CA private key is used to sign certificates for MITM interception.
@@ -162,7 +162,7 @@ Best practices:
 * Restrict file permissions so only the Coder process can read the key.
 * Use a secrets manager to store the key where possible.
 
-### Distributing the certificate
+### Distribute the certificate
 
 AI tools need to trust the CA certificate before connecting through the proxy.
 
@@ -235,7 +235,7 @@ The certificate must include a SAN matching the proxy's hostname or IP address.
 
 If clients already trust your organization's root CA, no additional certificate configuration is needed for the TLS connection to the proxy.
 
-### Trusting the TLS certificate
+### Trust the TLS certificate
 
 For **self-signed certificates**, AI tools must be configured to trust the TLS certificate.
 
@@ -290,7 +290,7 @@ To use AI Gateway Proxy, AI tools must be configured to:
 1. Route traffic through the proxy
 1. Trust the proxy's CA certificate
 
-### Configuring the proxy
+### Configure the proxy
 
 The preferred approach is to configure the proxy directly in the AI tool's settings, as this avoids routing unnecessary traffic through the proxy.
 Consult the tool's documentation for specific instructions.
@@ -311,7 +311,7 @@ Note: if [TLS is not enabled](#proxy-tls-configuration) on the proxy, replace `h
 
 In order for AI tools that communicate with AI Gateway Proxy to authenticate with Coder via AI Gateway, the Coder session token needs to be passed in the proxy credentials as the password field.
 
-### Trusting the CA certificate
+### Trust the CA certificate
 
 The preferred approach is to configure the CA certificate directly in the AI tool's settings, as this limits the scope of the trusted certificate to that specific application.
 Consult the tool's documentation for specific instructions.
@@ -418,7 +418,7 @@ x509: certificate signed by unknown authority
 ```
 
 it has not been configured to trust the proxy's
-MITM CA certificate. See [Trusting the CA certificate](#trusting-the-ca-certificate). If
+MITM CA certificate. See [Trust the CA certificate](#trust-the-ca-certificate). If
 [TLS is enabled on the listener](#proxy-tls-configuration), the tool must trust that certificate as well.
 
 ### Requests are not being intercepted
@@ -465,4 +465,4 @@ WARN  blocking connection to private/reserved IP  hostname=... port=... resolved
 ```
 
 To allow specific internal networks, set
-[`CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS`](#restricting-proxy-access).
+[`CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS`](#restrict-proxy-access).
