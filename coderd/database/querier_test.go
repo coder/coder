@@ -12429,6 +12429,60 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 	require.ErrorIs(t, err, sql.ErrNoRows)
 }
 
+func TestGetEnabledChatModelConfigsByOrganization(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	defaultOrg, err := store.GetDefaultOrganization(ctx)
+	require.NoError(t, err)
+	provider := dbgen.AIProvider(t, store, database.AIProvider{
+		Type: database.AIProviderTypeOpenrouter,
+		Name: "effective-openrouter-" + uuid.NewString(),
+	})
+	defaultConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
+		Model:          "default-model-" + uuid.NewString(),
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: defaultOrg.ID,
+		IsDefault:      true,
+	})
+	localOrg := dbgen.Organization(t, store, database.Organization{})
+	localDefault := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
+		Model:          "local-default-" + uuid.NewString(),
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: localOrg.ID,
+		IsDefault:      true,
+	})
+	localConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
+		Model:          "local-model-" + uuid.NewString(),
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: localOrg.ID,
+	})
+	thirdOrg := dbgen.Organization(t, store, database.Organization{})
+	thirdConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
+		Model:          "third-model-" + uuid.NewString(),
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: thirdOrg.ID,
+	})
+
+	rows, err := store.GetEnabledChatModelConfigsByOrganization(ctx, localOrg.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		require.Equal(t, localOrg.ID, row.ChatModelConfig.OrganizationID)
+		ids = append(ids, row.ChatModelConfig.ID)
+	}
+	require.ElementsMatch(t, []uuid.UUID{localDefault.ID, localConfig.ID}, ids)
+	require.NotContains(t, ids, defaultConfig.ID)
+	require.NotContains(t, ids, thirdConfig.ID)
+
+	emptyOrg := dbgen.Organization(t, store, database.Organization{})
+	rows, err = store.GetEnabledChatModelConfigsByOrganization(ctx, emptyOrg.ID)
+	require.NoError(t, err)
+	require.Empty(t, rows)
+}
+
 func insertChatModelConfigForTest(
 	ctx context.Context,
 	t testing.TB,
@@ -12437,32 +12491,46 @@ func insertChatModelConfigForTest(
 	params database.InsertChatModelConfigParams,
 ) (database.ChatModelConfig, error) {
 	t.Helper()
-	if params.AIProviderID.Valid {
-		return store.InsertChatModelConfig(ctx, params)
-	}
-	providerName := providerType
-	if providerName == "" {
-		providerName = "openai"
-	}
-	providers, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
-	if err != nil {
-		return database.ChatModelConfig{}, err
-	}
-	var provider database.AIProvider
-	for _, candidate := range providers {
-		if candidate.Type != database.AIProviderType(providerName) {
-			continue
+	if !params.AIProviderID.Valid {
+		providerName := providerType
+		if providerName == "" {
+			providerName = "openai"
 		}
-		if provider.ID == uuid.Nil || candidate.CreatedAt.After(provider.CreatedAt) {
-			provider = candidate
+		providers, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
+		if err != nil {
+			return database.ChatModelConfig{}, err
+		}
+		var provider database.AIProvider
+		for _, candidate := range providers {
+			if candidate.Type != database.AIProviderType(providerName) {
+				continue
+			}
+			if provider.ID == uuid.Nil || candidate.CreatedAt.After(provider.CreatedAt) {
+				provider = candidate
+			}
+		}
+		if provider.ID == uuid.Nil {
+			provider = dbgen.AIProvider(t, store, database.AIProvider{
+				Type: database.AIProviderType(providerName),
+			})
+		}
+		params.AIProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
+	}
+	if params.OrganizationID == uuid.Nil {
+		defaultOrg, err := store.GetDefaultOrganization(ctx)
+		if err != nil {
+			return database.ChatModelConfig{}, err
+		}
+		params.OrganizationID = defaultOrg.ID
+	}
+	if params.GroupACL == nil {
+		params.GroupACL = database.ChatACL{
+			params.OrganizationID.String(): {Permissions: []policy.Action{policy.ActionRead}},
 		}
 	}
-	if provider.ID == uuid.Nil {
-		provider = dbgen.AIProvider(t, store, database.AIProvider{
-			Type: database.AIProviderType(providerName),
-		})
+	if params.UserACL == nil {
+		params.UserACL = database.ChatACL{}
 	}
-	params.AIProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
 	return store.InsertChatModelConfig(ctx, params)
 }
 
@@ -17681,6 +17749,9 @@ func TestGetChatsFilter(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		OrganizationID:       org.ID,
+		GroupACL:             database.ChatACL{},
+		UserACL:              database.ChatACL{},
 	})
 	require.NoError(t, err)
 
@@ -17973,6 +18044,9 @@ func TestGetChatsSearch(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		OrganizationID:       org.ID,
+		GroupACL:             database.ChatACL{},
+		UserACL:              database.ChatACL{},
 	})
 	require.NoError(t, err)
 

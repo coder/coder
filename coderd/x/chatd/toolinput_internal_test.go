@@ -133,8 +133,9 @@ func TestBuiltinToolSchemasDescribeTheirInputs(t *testing.T) {
 		Type: database.AIProviderTypeOpenai,
 	}, "test-key")
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:          "gpt-4o-mini",
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
 	}, func(p *database.InsertChatModelConfigParams) {
 		p.Enabled = true
 	})

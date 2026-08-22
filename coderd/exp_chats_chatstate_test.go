@@ -308,8 +308,8 @@ func TestPromoteChatQueuedMessageMissingReturns404(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, res.StatusCode)
 }
 
-// TestPromoteChatQueuedMessageEmptyQueueReturnsConflict verifies the
-// state-conflict 409 path when the chat has no queued messages.
+// TestPromoteChatQueuedMessageEmptyQueueReturnsConflict verifies
+// the state-conflict 409 path when the chat has no queued messages.
 func TestPromoteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
 	t.Parallel()
 

@@ -800,7 +800,7 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 	t.Run("chooses the highest-priority configured lightweight model", func(t *testing.T) {
 		t.Parallel()
 
-		configs := []database.GetEnabledChatModelConfigsRow{
+		configs := []database.GetEnabledChatModelConfigsByOrganizationRow{
 			{ChatModelConfig: database.ChatModelConfig{Model: preferredTitleModels[2].model}, Provider: preferredTitleModels[2].provider},
 			{ChatModelConfig: database.ChatModelConfig{Model: preferredTitleModels[1].model}, Provider: preferredTitleModels[1].provider},
 			{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1"}, Provider: "openai"},
@@ -814,7 +814,7 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 	t.Run("returns false when no preferred lightweight model is configured", func(t *testing.T) {
 		t.Parallel()
 
-		got, ok := selectPreferredConfiguredShortTextModelConfig([]database.GetEnabledChatModelConfigsRow{{
+		got, ok := selectPreferredConfiguredShortTextModelConfig([]database.GetEnabledChatModelConfigsByOrganizationRow{{
 			ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1"},
 			Provider:        "openai",
 		}})

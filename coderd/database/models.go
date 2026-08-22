@@ -5238,6 +5238,9 @@ type ChatModelConfig struct {
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
 	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
+	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
+	GroupACL             ChatACL         `db:"group_acl" json:"group_acl"`
+	UserACL              ChatACL         `db:"user_acl" json:"user_acl"`
 }
 
 type ChatQueuedMessage struct {

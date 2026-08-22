@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -1074,12 +1075,12 @@ func (p cookieOnlySessionTokenProvider) SetDialOption(opts *websocket.DialOption
 	opts.HTTPHeader.Set("Cookie", cookieName+"="+p.token)
 }
 
-func TestCreateChatNonDefaultOrg(t *testing.T) {
+func TestCreateChatUsesOrganizationLocalModel(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+	client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			DeploymentValues: func() *codersdk.DeploymentValues {
 				v := coderdtest.DeploymentValues(t)
@@ -1095,29 +1096,36 @@ func TestCreateChatNonDefaultOrg(t *testing.T) {
 	expClient := codersdk.NewExperimentalClient(client)
 
 	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
-	_, err := expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	defaultModel, err := expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4o-mini",
-		DisplayName:          "Test Model",
+		DisplayName:          "Default Organization Model",
 		IsDefault:            ptr.Ref(true),
 		ContextLimit:         ptr.Ref(int64(1000)),
 		CompressionThreshold: ptr.Ref(int32(70)),
 	})
 	require.NoError(t, err)
 
-	// Create a second (non-default) org via the API.
 	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+	localModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "gpt-4o-mini-local",
+		DisplayName:    "Second Organization Model",
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: secondOrg.ID,
+		IsDefault:      true,
+	})
+	require.NotEqual(t, defaultModel.ID, localModel.ID)
 
-	// Create a member with agents-access in both orgs.
 	memberClientRaw, member := coderdtest.CreateAnotherUser(
 		t, client, firstUser.OrganizationID,
 		rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
 		rbac.ScopedRoleAgentsAccess(secondOrg.ID),
 	)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-	// Create a chat in the non-default org.
+
 	chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: secondOrg.ID,
+		ModelConfigID:  &localModel.ID,
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
@@ -1128,19 +1136,7 @@ func TestCreateChatNonDefaultOrg(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, secondOrg.ID, chat.OrganizationID)
 	require.Equal(t, member.ID, chat.OwnerID)
-
-	// Verify the chat is visible when listing.
-	chats, err := memberClient.ListChats(ctx, nil)
-	require.NoError(t, err)
-	var found bool
-	for _, c := range chats {
-		if c.ID == chat.ID {
-			found = true
-			require.Equal(t, secondOrg.ID, c.OrganizationID)
-			break
-		}
-	}
-	require.True(t, found, "chat should be visible in list")
+	require.Equal(t, localModel.ID, chat.LastModelConfigID)
 }
 
 func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
@@ -1148,7 +1144,7 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+	client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			DeploymentValues: func() *codersdk.DeploymentValues {
 				v := coderdtest.DeploymentValues(t)
@@ -1176,6 +1172,13 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 
 	// Create a second (non-default) org.
 	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+	localModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "gpt-4o-mini-local",
+		DisplayName:    "Second Organization Model",
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: secondOrg.ID,
+		IsDefault:      true,
+	})
 
 	// Create a member with agents-access in both orgs.
 	memberClientRaw, _ := coderdtest.CreateAnotherUser(
@@ -1187,6 +1190,7 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 	// Member creates a chat in the second org.
 	memberChat, err := memberExp.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: secondOrg.ID,
+		ModelConfigID:  &localModel.ID,
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
@@ -1207,6 +1211,7 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 	// Admin creates a chat in the second org.
 	adminChat, err := adminExp.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: secondOrg.ID,
+		ModelConfigID:  &localModel.ID,
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
