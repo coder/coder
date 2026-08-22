@@ -2250,7 +2250,8 @@ CREATE VIEW visible_users AS
  SELECT users.id,
     users.username,
     users.name,
-    users.avatar_url
+    users.avatar_url,
+    users.email
    FROM users;
 
 COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
@@ -3482,11 +3483,12 @@ CREATE VIEW template_version_with_user AS
     template_versions.has_external_agent,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
-    COALESCE(visible_users.name, ''::text) AS created_by_name
+    COALESCE(visible_users.name, ''::text) AS created_by_name,
+    COALESCE(visible_users.email, ''::text) AS created_by_email
    FROM (template_versions
      LEFT JOIN visible_users ON ((template_versions.created_by = visible_users.id)));
 
-COMMENT ON VIEW template_version_with_user IS 'Joins in the username + avatar url of the created by user.';
+COMMENT ON VIEW template_version_with_user IS 'Joins in the username, name, avatar url, and email of the created by user.';
 
 CREATE TABLE template_version_workspace_tags (
     template_version_id uuid NOT NULL,

@@ -6387,6 +6387,11 @@ func TestWorkspaceAvailableUsers(t *testing.T) {
 		// Verify the users we created are in the list
 		usernames := make([]string, 0, len(users))
 		for _, u := range users {
+			// This endpoint runs GetUsers under a system context with no
+			// organization filter, so it must not leak email cross-tenant until
+			// #28241 org-scopes it. When that lands, this flips to require the
+			// seeded email.
+			require.Empty(t, u.Email, "email must not be returned until #28241 org-scopes this endpoint")
 			usernames = append(usernames, u.Username)
 		}
 		require.Contains(t, usernames, user1.Username)

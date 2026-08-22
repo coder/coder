@@ -150,6 +150,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_by_avatar_url":   ActionIgnore,
 		"created_by_username":     ActionIgnore,
 		"created_by_name":         ActionIgnore,
+		"created_by_email":        ActionIgnore,
 		"archived":                ActionTrack,
 		"source_example_id":       ActionIgnore, // Never changes.
 		"has_ai_task":             ActionIgnore, // Never changes.
