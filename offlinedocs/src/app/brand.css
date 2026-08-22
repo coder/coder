@@ -1,0 +1,303 @@
+/*
+ * Coder brand theme for Fumadocs.
+ *
+ * This file is the only theming surface: it overrides Fumadocs's documented
+ * CSS custom properties (the --color-fd-* tokens from
+ * fumadocs-ui/css/preset.css) and the font stack. No Fumadocs component is
+ * forked or patched.
+ *
+ * Tokens are copied from the Coder product frontend design system
+ * (site/src/index.css): the semantic `--surface-*`, `--content-*`, and
+ * `--border-*` HSL values for the light (`:root`/`.light`) and dark
+ * (`.dark`) themes. The Fumadocs `--color-fd-*` tokens are mapped onto
+ * those product tokens so offlinedocs matches the product exactly. Keep
+ * these in sync with site/src/index.css when the product theme changes.
+ *
+ * Must be imported AFTER fumadocs-ui/css/preset.css so these win.
+ */
+
+:root {
+	/* Brand typography matching the Coder product (site/tailwind.config.js).
+	   The product ships the self-hosted variable faces Geist Variable and
+	   Geist Mono Variable (imported in src/app/layout.tsx); fall back to the
+	   system stack if they ever fail to load. */
+	--font-sans: "Geist Variable", system-ui, sans-serif;
+	--font-mono: "Geist Mono Variable", monospace, monospace;
+
+	/* ----- Light theme (maps to site/src/index.css :root) ----- */
+	--color-fd-background: hsl(0 0% 100%); /* surface-primary */
+	--color-fd-foreground: hsl(240 10% 4%); /* content-primary */
+	--color-fd-muted: hsl(240 5% 96%); /* surface-secondary */
+	--color-fd-muted-foreground: hsl(240 5% 34%); /* content-secondary */
+	--color-fd-popover: hsl(0 0% 100%); /* surface-primary */
+	--color-fd-popover-foreground: hsl(240 10% 4%); /* content-primary */
+	--color-fd-card: hsl(240 5% 96%); /* surface-secondary */
+	--color-fd-card-foreground: hsl(240 10% 4%); /* content-primary */
+	--color-fd-border: hsl(240 6% 90%); /* border-default */
+	--color-fd-primary: hsl(221 83% 53%); /* content-link */
+	--color-fd-primary-foreground: hsl(0 0% 100%); /* surface-primary */
+	--color-fd-secondary: hsl(240 5% 96%); /* surface-secondary */
+	--color-fd-secondary-foreground: hsl(240 10% 4%); /* content-primary */
+	--color-fd-accent: hsl(240 6% 90%); /* surface-tertiary (hover) */
+	--color-fd-accent-foreground: hsl(240 10% 4%); /* content-primary */
+	--color-fd-ring: hsl(221 83% 53%); /* content-link */
+}
+
+.dark {
+	/* ----- Dark theme (maps to site/src/index.css .dark) ----- */
+	--color-fd-background: hsl(240 10% 4%); /* surface-primary */
+	--color-fd-foreground: hsl(0 0% 100%); /* content-primary */
+	--color-fd-muted: hsl(240 6% 10%); /* surface-secondary */
+	--color-fd-muted-foreground: hsl(240 5% 65%); /* content-secondary */
+	--color-fd-popover: hsl(240 6% 10%); /* surface-secondary */
+	--color-fd-popover-foreground: hsl(0 0% 100%); /* content-primary */
+	--color-fd-card: hsl(240 6% 10%); /* surface-secondary */
+	--color-fd-card-foreground: hsl(0 0% 100%); /* content-primary */
+	--color-fd-border: hsl(240 4% 16%); /* border-default */
+	--color-fd-primary: hsl(213 94% 68%); /* content-link */
+	--color-fd-primary-foreground: hsl(240 10% 4%); /* surface-primary */
+	--color-fd-secondary: hsl(240 6% 10%); /* surface-secondary */
+	--color-fd-secondary-foreground: hsl(0 0% 100%); /* content-primary */
+	--color-fd-accent: hsl(240 4% 16%); /* surface-tertiary (hover) */
+	--color-fd-accent-foreground: hsl(0 0% 100%); /* content-primary */
+	--color-fd-ring: hsl(213 94% 68%); /* content-link */
+}
+
+body {
+	font-family: var(--font-sans);
+	/* Match the product's base body weight (400). Fumadocs' preset leans on
+	   heavier defaults, which read too bold with Geist. */
+	font-weight: 400;
+}
+
+code,
+kbd,
+pre,
+samp {
+	font-family: var(--font-mono);
+}
+
+/* Clearly visible focus indicators (WCAG 2.4.7). */
+:where(a, button, input, summary, [tabindex]):focus-visible {
+	outline: 2px solid var(--color-fd-ring);
+	outline-offset: 2px;
+	border-radius: 2px;
+}
+
+/*
+ * Left navigation items match the Coder product Settings sidebar
+ * (site/src/components/Sidebar.tsx SettingsSidebarNavItem): the active
+ * item is rendered in the primary content color (white on dark) at medium
+ * weight with NO persistent row background. A row background appears only
+ * on hover. This overrides the Fumadocs defaults, which give the active
+ * item a tinted background (`bg-fd-primary/10`) and primary-colored text.
+ * Scoped to `#nd-sidebar` so the docs content and TOC are unaffected. The
+ * id + attribute + element selector outranks Fumadocs' utility classes.
+ */
+#nd-sidebar a[data-active="true"] {
+	background-color: transparent;
+	color: var(--color-fd-foreground);
+	font-weight: 500;
+}
+
+#nd-sidebar a[data-active="true"]:hover {
+	background-color: var(--color-fd-accent);
+	color: var(--color-fd-foreground);
+}
+
+/*
+ * Active submenu items render a vertical indicator bar via a ::before
+ * pseudo-element (Fumadocs uses bg-fd-primary/blue). Recolor it to the
+ * foreground (white on dark) to match the rest of the active styling.
+ */
+#nd-sidebar a[data-active="true"]::before {
+	background-color: var(--color-fd-foreground);
+}
+
+/*
+ * The left navigation shares the page background instead of the tinted
+ * card surface Fumadocs applies (`bg-fd-card`). Only the trailing border
+ * (`border-e`) separates the nav from the content. The id selector
+ * outranks the utility class, so the divider is preserved.
+ */
+#nd-sidebar {
+	background-color: var(--color-fd-background);
+}
+
+/*
+ * The left navigation already scrolls when its content exceeds the viewport
+ * (e.g. when a submenu is unfolded), but Fumadocs/Radix hides the
+ * scrollbar, so the scroll affordance is invisible. Show a thin scrollbar
+ * in the sidebar scroll area so it is clear the nav can scroll.
+ */
+#nd-sidebar [data-radix-scroll-area-viewport] {
+	scrollbar-width: thin !important;
+	scrollbar-color: var(--color-fd-border) transparent;
+}
+
+#nd-sidebar [data-radix-scroll-area-viewport]::-webkit-scrollbar {
+	display: block !important;
+	width: 8px;
+}
+
+#nd-sidebar [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb {
+	background-color: var(--color-fd-border);
+	border-radius: 4px;
+}
+
+/*
+ * Fumadocs' own ScrollArea also renders a Radix scrollbar (client-side, it
+ * fades when idle). With the native scrollbar re-enabled above, an overflowing
+ * nav shows two scrollbars at once. Hide the Radix one so only the always-on
+ * native scrollbar remains. The Radix scrollbar carries no dedicated
+ * attribute, so it is matched as the viewport's sibling.
+ */
+#nd-sidebar [data-radix-scroll-area-viewport] ~ [data-orientation] {
+	display: none !important;
+}
+
+/*
+ * Doc screenshots sit on a Coder brand backdrop. The frame adds padding so
+ * the backdrop shows as a border around the screenshot, and swaps the
+ * backdrop image with the theme (light vs dark brand art). The images are
+ * bundled locally under /brand so the offline bundle needs no network.
+ */
+.doc-image-frame {
+	display: block;
+	padding: clamp(0.5rem, 1.5vw, 1rem);
+	margin-block: 1.5rem;
+	border-radius: 8px;
+	border: 1px solid var(--color-fd-border);
+	background-image: url("/brand/screenshot-bg-light.webp");
+	background-size: cover;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.dark .doc-image-frame {
+	background-image: url("/brand/screenshot-bg-dark.webp");
+}
+
+/*
+ * Frosted-glass frame around each screenshot (inspired by coder.com): a
+ * ~10px translucent white pad with a white outline and a blur that frosts
+ * the brand backdrop showing through. ImageZoom wraps the <img> in
+ * `[data-rmiz]` > `[data-rmiz-content]`, so the glass lives on the outer
+ * wrapper and the padding separates the outline from the screenshot.
+ * Scoped to `.doc-image-frame` so the zoomed overlay (portaled to <body>)
+ * is unaffected.
+ */
+.doc-image-frame [data-rmiz] {
+	display: block;
+	padding: 6px;
+	border-radius: 8px;
+	border: 1px solid rgb(255 255 255 / 0.5);
+	background-color: rgb(255 255 255 / 0.15);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	box-shadow:
+		0 10px 30px -12px rgb(0 0 0 / 0.45),
+		0 2px 8px -4px rgb(0 0 0 / 0.3);
+}
+
+.doc-image-frame [data-rmiz-content] {
+	display: block;
+}
+
+/* The screenshot itself: fill the glass width, rounded to sit inside the
+ * 10px pad. Applies to the <img> even though ImageZoom wraps it. */
+.doc-image-frame img {
+	display: block;
+	width: 100%;
+	height: auto;
+	margin: 0;
+	border-radius: 4px;
+}
+
+/*
+ * Docs body copy: 16px text on a 28px line. Scoped to the content container
+ * so the sidebar/TOC scale is untouched.
+ */
+#nd-page .prose {
+	font-size: 16px;
+	line-height: 1.75rem;
+}
+
+/*
+ * Body links keep Fumadocs' default styling (accent-colored text with an
+ * underline); only the underline color is overridden from the accent to the
+ * foreground (white on dark). The `:not([data-card])` selector matches
+ * Fumadocs' own body-link rule, leaving heading permalink anchors untouched.
+ */
+#nd-page .prose a:not([data-card]) {
+	text-decoration-color: var(--color-fd-foreground);
+}
+
+/*
+ * Breadcrumb link above the page title (the parent category, e.g. "Install"
+ * or "Get started"). Rendered in the muted (grey) color (not the
+ * accent/blue) with a leading left arrow to signal it navigates back up, and
+ * no underline.
+ */
+#nd-page a.text-fd-primary {
+	color: var(--color-fd-muted-foreground);
+	text-decoration: none;
+}
+
+#nd-page a.text-fd-primary::before {
+	content: "\2190";
+	margin-inline-end: 0.375rem;
+	display: inline-block;
+}
+
+/*
+ * Active tab in the OS/code tab groups uses Fumadocs' accent/blue for its
+ * label and underline indicator. Render both in the foreground color
+ * (white on dark) instead. Scoped to the docs content.
+ */
+#nd-page [role="tab"][data-state="active"] {
+	color: var(--color-fd-foreground);
+	border-color: var(--color-fd-foreground);
+}
+
+/*
+ * Right-hand TOC: hide the trailing "Next up" / "Next steps" heading from the
+ * "On this page" list (it duplicates the prev/next footer navigation). The
+ * heading still renders in the page body; only its TOC entry is removed.
+ */
+#nd-toc a[href="#next-up"],
+#nd-toc a[href="#next-steps"] {
+	display: none;
+}
+
+/*
+ * Theme switch: drop the bordered container box Fumadocs wraps the sun/moon
+ * icons in, so the toggle reads as plain icons flush with the sidebar. The
+ * active icon keeps its subtle highlight so the current theme is clear.
+ */
+[data-theme-toggle] {
+	border: none;
+	padding: 0;
+}
+
+/*
+ * Sidebar footer action bar (the container wrapping the GitHub icon and the
+ * theme switch) drops its border and secondary-surface background so the
+ * icons sit flush with the sidebar instead of inside a pill/box.
+ */
+#nd-sidebar div:has(> [data-theme-toggle]) {
+	border: none;
+	background-color: transparent;
+}
+
+/*
+ * Page footer navigation (the previous/next "next up" cards at the end of a
+ * page) is separated from the article with extra top spacing and a divider
+ * line. Matched via the cards' truncated description (`p.truncate`), which
+ * is unique to these nav cards, so in-content card grids are unaffected.
+ */
+#nd-page div:has(> a p.truncate) {
+	margin-top: 3rem;
+	padding-top: 2rem;
+	border-top: 1px solid var(--color-fd-border);
+}

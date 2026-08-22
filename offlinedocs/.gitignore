@@ -11,9 +11,21 @@
 # next.js
 /.next/
 /out/
+next-env.d.ts
 
 # production
 /build
+
+# fumadocs-mdx generated index
+/.source
+
+# generated docs content (synced from ../docs by scripts/sync-docs.mjs);
+# keep the directory itself so fumadocs-mdx has a source dir on a clean checkout
+/content/docs/*
+!/content/docs/.gitkeep
+
+# doc images copied into the bundle by the sync step
+/public/images/
 
 # misc
 .DS_Store
@@ -31,6 +43,3 @@ pnpm-debug.log*
 
 # typescript
 *.tsbuildinfo
-
-# content
-public/images/

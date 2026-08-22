@@ -1153,6 +1153,11 @@ jobs:
           cd offlinedocs
           pnpm lint
 
+      - name: Test
+        run: |
+          cd offlinedocs
+          pnpm test
+
       - name: Build
         # no `-j` flag as `make` fails with:
         # coderd/rbac/object_gen.go:1:1: syntax error: package statement must be first

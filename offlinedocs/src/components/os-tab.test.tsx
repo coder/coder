@@ -1,0 +1,158 @@
+import assert from "node:assert/strict";
+import { afterEach, beforeEach, test } from "node:test";
+import { Tab } from "fumadocs-ui/components/tabs";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { OSTab, detectOS } from "./os-tab";
+
+// These tests render OSTab against the real fumadocs-ui Tabs in a jsdom DOM
+// (set up by the test/jsdom-setup.mjs preload), so they exercise the actual
+// coupling between OSTab's shared-group clamp and fumadocs' group store rather
+// than a reimplementation of it. document/window/sessionStorage here are the
+// jsdom globals.
+
+let container: HTMLElement;
+let root: Root;
+
+beforeEach(() => {
+	window.sessionStorage.clear();
+	window.localStorage.clear();
+	container = document.createElement("div");
+	document.body.appendChild(container);
+	root = createRoot(container);
+});
+
+afterEach(async () => {
+	await act(async () => {
+		root.unmount();
+	});
+	container.remove();
+});
+
+async function renderOSTab(items: string[]) {
+	await act(async () => {
+		root.render(
+			<OSTab items={items}>
+				{items.map((os) => (
+					<Tab key={os} value={os}>
+						{`${os} panel`}
+					</Tab>
+				))}
+			</OSTab>,
+		);
+	});
+}
+
+function activePanelText(): string | undefined {
+	const active = container.querySelector(
+		'[role="tabpanel"][data-state="active"]',
+	);
+	return active?.textContent?.trim();
+}
+
+function panelStates() {
+	return [...container.querySelectorAll('[role="tabpanel"]')].map((panel) => ({
+		state: panel.getAttribute("data-state"),
+		text: (panel.textContent ?? "").trim(),
+	}));
+}
+
+test("OSTab keeps a non-empty panel when the stored OS is not in the set", async () => {
+	// A sibling set stored `linux` in the shared `os` group; this macOS/Windows
+	// set does not offer it. Before the clamp, fumadocs applied `linux`, matched
+	// no panel, and rendered an empty box. The set must fall back to its own
+	// default (the first item) and show a real panel.
+	window.sessionStorage.setItem("os", "linux");
+	await renderOSTab(["macOS", "Windows"]);
+
+	assert.equal(
+		activePanelText(),
+		"macOS panel",
+		`expected the default panel to stay active, got: ${JSON.stringify(
+			panelStates(),
+		)}`,
+	);
+});
+
+test("OSTab adopts the shared OS when the set offers it", async () => {
+	// The stored OS is one this set offers, so the shared group value wins over
+	// the default first tab. This is the behavior the clamp must not break.
+	window.sessionStorage.setItem("os", "windows");
+	await renderOSTab(["Linux", "macOS", "Windows"]);
+
+	assert.equal(
+		activePanelText(),
+		"Windows panel",
+		`expected the stored OS to be adopted, got: ${JSON.stringify(
+			panelStates(),
+		)}`,
+	);
+});
+
+test("detectOS maps Linux, macOS, and Windows user agents to an offered label", () => {
+	// detectOS is UA-driven and pure once the UA is injected, so the three regexes
+	// are asserted directly rather than through a browser (the first-visit render
+	// test also drives this path through the component under jsdom's Linux UA).
+	const all = ["macOS", "Linux", "Windows"];
+	assert.equal(
+		detectOS(all, "Mozilla/5.0 (X11; Linux x86_64) Gecko Firefox/130.0"),
+		"Linux",
+	);
+	assert.equal(
+		detectOS(all, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari"),
+		"macOS",
+	);
+	assert.equal(
+		detectOS(all, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome"),
+		"Windows",
+	);
+});
+
+test("detectOS returns undefined when the OS is not offered or is unknown", () => {
+	// The detected OS (Linux) is not one this set offers, so it falls through and
+	// the component keeps its default tab.
+	assert.equal(detectOS(["macOS", "Windows"], "X11; Linux x86_64"), undefined);
+	// iOS is not treated as macOS.
+	assert.equal(
+		detectOS(
+			["macOS"],
+			"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+		),
+		undefined,
+	);
+	// Android contains the string "Linux" but must not be treated as Linux.
+	assert.equal(
+		detectOS(
+			["macOS", "Linux", "Windows"],
+			"Mozilla/5.0 (Linux; Android 11) AppleWebKit",
+		),
+		undefined,
+	);
+	// An empty UA (server render) detects nothing.
+	assert.equal(detectOS(["macOS", "Windows", "Linux"], ""), undefined);
+});
+
+test("OSTab seeds the detected OS on a first visit with empty storage", async () => {
+	// The other render tests preseed storage; this one exercises the first-visit
+	// detection branch. jsdom's UA is Linux, so a set that offers Linux must seed
+	// it (detectOS -> sessionStorage) and activate the Linux panel, never the empty
+	// box. Linux is listed second on purpose: the active tab defaults to the first
+	// item (macOS here), so a Linux panel can only win via the seed. If Linux led
+	// the set, the panel assertion below would pass on the default alone even if
+	// seeding never ran, so we also assert the sessionStorage write directly.
+	await renderOSTab(["macOS", "Linux", "Windows"]);
+	// The detected OS is written to the shared group store...
+	assert.equal(
+		window.sessionStorage.getItem("os"),
+		"linux",
+		"expected detectOS to seed the shared group store on a first visit",
+	);
+	// ...and that seed, not the macOS default, is what activates the panel.
+	assert.equal(
+		activePanelText(),
+		"Linux panel",
+		`expected the seeded OS panel to be active, got: ${JSON.stringify(
+			panelStates(),
+		)}`,
+	);
+});

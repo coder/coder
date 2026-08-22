@@ -1,0 +1,14 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+/* Coder brand overrides. Must come after the Fumadocs preset. */
+@import "./brand.css";
+
+html {
+	scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+	margin-right: 0px !important;
+	--removed-body-scroll-bar-size: 0px !important;
+}
