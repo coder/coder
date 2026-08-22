@@ -5,7 +5,6 @@ import { MockLicenseResponse } from "#/testHelpers/entities";
 
 import { LicenseCard } from "./LicenseCard";
 
-const EXPIRED_DATE = dayjs("2000-01-01T12:00:00Z").unix();
 const FUTURE_START_DATE = dayjs("2099-01-01T12:00:00Z").unix();
 
 const meta: Meta<typeof LicenseCard> = {
@@ -125,18 +124,12 @@ export const Premium: Story = {
 			claims: {
 				...MockLicenseResponse[1].claims,
 				// A seat-limit claim without addons is not enough to show
-				// the AI Governance add-on; that requires addons: ["ai_governance"].
+				// the AI Governance product; that requires addons: ["ai_governance"].
 				features: {
 					...MockLicenseResponse[1].claims.features,
 					ai_governance_user_limit: 1000,
 				},
 			},
-		},
-		aiGovernanceUserFeature: {
-			enabled: true,
-			entitlement: "entitled",
-			actual: 100,
-			limit: 1000,
 		},
 		// Premium licenses without agent hour claims are grandfathered
 		// into a zero-hour allocation, so the merged entitlement exists.
@@ -157,7 +150,7 @@ export const Premium: Story = {
 			getIncludedProducts(canvas, "Workspaces + Agents"),
 		).not.toBeInTheDocument();
 		await expect(
-			getMetricValue(canvas, "Max concurrent chats"),
+			getMetricValue(canvas, "Max concurrent agents"),
 		).toHaveTextContent("5");
 		await expect(getMetricValue(canvas, "Agent hours used")).toHaveTextContent(
 			"137.3",
@@ -226,7 +219,7 @@ export const PremiumWithAgentHours: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"12,264.3 / 20,000",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 		await expect(
@@ -263,7 +256,7 @@ export const PremiumWithAgentHoursSoftLimitReached: Story = {
 		await expect(canvas.getByRole("status")).toHaveTextContent(
 			"Approaching hours limit",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 	},
@@ -289,7 +282,7 @@ export const PremiumWithAgentHoursExceeded: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"21,000.0 / 20,000",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 	},
@@ -315,7 +308,7 @@ export const PremiumWithAgentHoursHardLimitExceeded: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"25,000.0 / 20,000",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"5",
 		);
 		await expect(canvas.getByRole("status")).toHaveTextContent("Limit reached");
@@ -392,7 +385,7 @@ export const PremiumWithUnlimitedAgentHours: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"Unlimited",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 	},
@@ -449,7 +442,7 @@ export const ReplacedDuplicateAllocationShowsNoUsage: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"\u2014 / 20,000",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 	},
@@ -488,7 +481,7 @@ export const SameIssuedAtDifferentTermEndShowsNoUsage: Story = {
 		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
 			"\u2014 / 20,000",
 		);
-		await expect(getMetricValue(canvas, "Concurrent chats")).toHaveTextContent(
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
 	},
@@ -537,37 +530,65 @@ export const EnterpriseWithAgentHours: Story = {
 	},
 };
 
+const premiumLicenseWithAIGovernance = {
+	...MockLicenseResponse[1],
+	claims: {
+		...MockLicenseResponse[1].claims,
+		addons: ["ai_governance"],
+	},
+};
+
 export const PremiumWithAIGovernance: Story = {
 	args: {
-		license: {
-			...MockLicenseResponse[1],
-			claims: {
-				...MockLicenseResponse[1].claims,
-				features: {
-					...MockLicenseResponse[1].claims.features,
-					ai_governance_user_limit: 1000,
-				},
-				addons: ["ai_governance"],
-			},
-		},
-		aiGovernanceUserFeature: {
+		license: premiumLicenseWithAIGovernance,
+		aibridgeFeature: {
 			enabled: true,
 			entitlement: "entitled",
-			actual: 750,
-			limit: 1000,
+		},
+		boundaryFeature: {
+			enabled: true,
+			entitlement: "entitled",
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText(/add-ons/i)).toBeInTheDocument();
-		// Matches both the included-products line and the add-on card title.
+		await expect(canvas.queryByText("Add-ons")).not.toBeInTheDocument();
+		// Matches both the included-products line and the product card title.
 		await expect(canvas.getAllByText(/ai governance/i)).toHaveLength(2);
 		await expect(
 			getIncludedProducts(canvas, "Workspaces + AI Governance"),
 		).toBeInTheDocument();
-		const seatsLabel = canvas.getByText("Seats");
-		const seatsValue = seatsLabel.nextElementSibling;
-		await expect(seatsValue).toHaveTextContent("750 / 1,000");
+		await expect(getMetricValue(canvas, "AI Gateway")).toHaveTextContent(
+			"Enabled",
+		);
+		await expect(getMetricValue(canvas, "Agent Firewall")).toHaveTextContent(
+			"In use",
+		);
+		const aiSettings = canvas.getByRole("link", { name: "AI settings" });
+		await expect(aiSettings).toHaveAttribute("href", "/ai/settings");
+	},
+};
+
+export const PremiumWithAIGovernanceNotInUse: Story = {
+	args: {
+		license: premiumLicenseWithAIGovernance,
+		aibridgeFeature: {
+			enabled: false,
+			entitlement: "not_entitled",
+		},
+		boundaryFeature: {
+			enabled: false,
+			entitlement: "not_entitled",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(getMetricValue(canvas, "AI Gateway")).toHaveTextContent(
+			"Not enabled",
+		);
+		await expect(getMetricValue(canvas, "Agent Firewall")).toHaveTextContent(
+			"Not in use",
+		);
 	},
 };
 
@@ -581,97 +602,6 @@ export const ExceededUserLimit: Story = {
 	args: {
 		userLimitActual: 15,
 		userLimitLimit: 10,
-	},
-};
-
-export const ExceededAIGovernance: Story = {
-	args: {
-		license: {
-			...MockLicenseResponse[1],
-			claims: {
-				...MockLicenseResponse[1].claims,
-				features: {
-					...MockLicenseResponse[1].claims.features,
-					ai_governance_user_limit: 1000,
-				},
-				addons: ["ai_governance"],
-			},
-		},
-		aiGovernanceUserFeature: {
-			enabled: true,
-			entitlement: "entitled",
-			actual: 1200,
-			limit: 1000,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Add-on exceeded")).toBeInTheDocument();
-		const seatsLabel = canvas.getByText("Seats");
-		const seatsValue = seatsLabel.nextElementSibling;
-		await expect(seatsValue).toHaveTextContent("1,200 / 1,000");
-	},
-};
-
-export const ExpiredAIGovernanceOverageShowsExpired: Story = {
-	args: {
-		license: {
-			...MockLicenseResponse[1],
-			claims: {
-				...MockLicenseResponse[1].claims,
-				license_expires: EXPIRED_DATE,
-				features: {
-					...MockLicenseResponse[1].claims.features,
-					ai_governance_user_limit: 1000,
-				},
-				addons: ["ai_governance"],
-			},
-		},
-		aiGovernanceUserFeature: {
-			enabled: true,
-			entitlement: "entitled",
-			actual: 1200,
-			limit: 1000,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Expired")).toBeInTheDocument();
-		await expect(canvas.queryByText("Add-on exceeded")).not.toBeInTheDocument();
-		const seatsLabel = canvas.getByText("Seats");
-		const seatsValue = seatsLabel.nextElementSibling;
-		await expect(seatsValue).toHaveTextContent("—");
-		await expect(seatsValue).toHaveTextContent("/ 1,000");
-	},
-};
-
-export const ExpiredAIGovernanceInGracePeriodShowsExceeded: Story = {
-	args: {
-		license: {
-			...MockLicenseResponse[1],
-			claims: {
-				...MockLicenseResponse[1].claims,
-				license_expires: EXPIRED_DATE,
-				features: {
-					...MockLicenseResponse[1].claims.features,
-					ai_governance_user_limit: 1000,
-				},
-				addons: ["ai_governance"],
-			},
-		},
-		aiGovernanceUserFeature: {
-			enabled: true,
-			entitlement: "grace_period",
-			actual: 1200,
-			limit: 1000,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Add-on exceeded")).toBeInTheDocument();
-		const seatsLabel = canvas.getByText("Seats");
-		const seatsValue = seatsLabel.nextElementSibling;
-		await expect(seatsValue).toHaveTextContent("1,200 / 1,000");
 	},
 };
 
@@ -691,122 +621,27 @@ export const NotYetValid: Story = {
 	},
 };
 
-export const FutureAIGovernanceOverageShowsStartsOn: Story = {
+export const EnterpriseDoesNotShowAIGovernance: Story = {
 	args: {
 		license: {
 			...MockLicenseResponse[1],
 			claims: {
 				...MockLicenseResponse[1].claims,
-				nbf: FUTURE_START_DATE,
-				features: {
-					...MockLicenseResponse[1].claims.features,
-					ai_governance_user_limit: 1000,
-				},
-				addons: ["ai_governance"],
-			},
-		},
-		aiGovernanceUserFeature: {
-			enabled: true,
-			entitlement: "entitled",
-			actual: 1200,
-			limit: 1000,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText(/Not started/)).toBeInTheDocument();
-		await expect(canvas.queryByText("Add-on exceeded")).not.toBeInTheDocument();
-		const seatsLabel = canvas.getByText("Seats");
-		const seatsValue = seatsLabel.nextElementSibling;
-		await expect(seatsValue).toHaveTextContent("—");
-		await expect(seatsValue).toHaveTextContent("/ 1,000");
-	},
-};
-
-export const FutureAIGovernanceUsageShowsNoCurrentSeats: Story = {
-	args: {
-		license: {
-			...MockLicenseResponse[1],
-			claims: {
-				...MockLicenseResponse[1].claims,
-				nbf: FUTURE_START_DATE,
-				features: {
-					...MockLicenseResponse[1].claims.features,
-					ai_governance_user_limit: 1000,
-				},
-				addons: ["ai_governance"],
-			},
-		},
-		aiGovernanceUserFeature: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 1000,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const seatsLabel = canvas.getByText("Seats");
-		const seatsValue = seatsLabel.nextElementSibling;
-		await expect(seatsValue).toHaveTextContent("—");
-		await expect(seatsValue).toHaveTextContent("/ 1,000");
-		await expect(seatsValue).not.toHaveTextContent("0 / 1,000");
-	},
-};
-
-export const LowerLimitCardUsesMergedEntitlement: Story = {
-	args: {
-		license: {
-			...MockLicenseResponse[1],
-			claims: {
-				...MockLicenseResponse[1].claims,
-				features: {
-					...MockLicenseResponse[1].claims.features,
-					ai_governance_user_limit: 500,
-				},
-				addons: ["ai_governance"],
-			},
-		},
-		aiGovernanceUserFeature: {
-			enabled: true,
-			entitlement: "entitled",
-			actual: 750,
-			limit: 1000,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const seatsLabel = canvas.getByText("Seats");
-		const seatsValue = seatsLabel.nextElementSibling;
-		await expect(seatsValue).toHaveTextContent("—");
-		await expect(seatsValue).toHaveTextContent("/ 500");
-		await expect(seatsValue).not.toHaveTextContent("750 / 500");
-		await expect(canvas.queryByText("Add-on exceeded")).not.toBeInTheDocument();
-	},
-};
-
-export const EnterpriseDoesNotShowAIGovernanceAddOn: Story = {
-	args: {
-		license: {
-			...MockLicenseResponse[1],
-			claims: {
-				...MockLicenseResponse[1].claims,
-				features: {
-					...MockLicenseResponse[1].claims.features,
-					ai_governance_user_limit: 1000,
-				},
 				feature_set: "enterprise",
 				addons: ["ai_governance"],
 			},
 		},
-		aiGovernanceUserFeature: {
+		aibridgeFeature: {
 			enabled: true,
 			entitlement: "entitled",
-			actual: 750,
-			limit: 1000,
+		},
+		boundaryFeature: {
+			enabled: true,
+			entitlement: "entitled",
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.queryByText("Add-ons")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("AI Governance")).not.toBeInTheDocument();
 	},
 };

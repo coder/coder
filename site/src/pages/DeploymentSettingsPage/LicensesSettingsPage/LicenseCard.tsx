@@ -17,16 +17,19 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { cn } from "#/utils/cn";
-import { AIGovernanceAddOnCard } from "./AIGovernanceAddOnCard";
 import { licenseShowsAiGovernanceAddOn } from "./AIGovernanceLicensing";
+import { AIGovernanceProductCard } from "./AIGovernanceProductCard";
 import { CoderAgentsProductCard } from "./CoderAgentsProductCard";
 import { CoderWorkspacesProductCard } from "./CoderWorkspacesProductCard";
 import { isLicenseApplicableForFeatureUsage } from "./licenseApplicability";
 
 type LicenseCardProps = {
 	license: GetLicensesResponse;
-	aiGovernanceUserFeature?: Feature;
 	agentRuntimeHoursFeature?: Feature;
+	/** The merged aibridge entitlement feature (AI Gateway). */
+	aibridgeFeature?: Feature;
+	/** The merged boundary entitlement feature (Agent Firewall). */
+	boundaryFeature?: Feature;
 	userLimitActual?: number;
 	userLimitLimit?: number;
 	onRemove: (licenseId: number) => void;
@@ -35,8 +38,9 @@ type LicenseCardProps = {
 
 export const LicenseCard: FC<LicenseCardProps> = ({
 	license,
-	aiGovernanceUserFeature,
 	agentRuntimeHoursFeature,
+	aibridgeFeature,
+	boundaryFeature,
 	userLimitActual,
 	userLimitLimit,
 	onRemove,
@@ -56,37 +60,10 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		license.claims.nbf !== undefined &&
 		dayjs.unix(license.claims.nbf).isAfter(dayjs());
 	const isPremium = license.claims.feature_set?.toLowerCase() === "premium";
-	const aiGovernanceActual = aiGovernanceUserFeature?.actual;
-	const aiGovernanceMergedLimit = aiGovernanceUserFeature?.limit;
-	const aiGovernanceLimit =
-		license.claims.features?.ai_governance_user_limit ?? 0;
 
 	const licenseType = isPremium ? "Premium" : "Enterprise";
 
 	const hasExplicitAiGovernanceAddOn = licenseShowsAiGovernanceAddOn(license);
-	// Overage/display checks only apply to licenses that are currently effective.
-	const isLicenseApplicable = isLicenseApplicableForFeatureUsage(
-		license,
-		aiGovernanceUserFeature,
-	);
-	// A license "wins" when its AI Governance limit matches the merged limit.
-	const isWinningAiGovernanceLicense =
-		aiGovernanceMergedLimit !== undefined &&
-		aiGovernanceLimit > 0 &&
-		aiGovernanceLimit === aiGovernanceMergedLimit;
-	const canUseAiGovernanceUsageForThisLicense =
-		isLicenseApplicable &&
-		hasExplicitAiGovernanceAddOn &&
-		isWinningAiGovernanceLicense;
-	// Show the add-on as exceeded only for the winning, active add-on license.
-	const isAiGovernanceAddOnExceeded =
-		canUseAiGovernanceUsageForThisLicense &&
-		aiGovernanceActual !== undefined &&
-		aiGovernanceActual > aiGovernanceLimit;
-	// Show actual usage only when this license is the one providing the limit.
-	const aiGovernanceDisplayActual = canUseAiGovernanceUsageForThisLicense
-		? aiGovernanceActual
-		: undefined;
 
 	// Agent runtime hour claims, in hours. -1 means unlimited; other
 	// negatives are ignored and zero grants the feature disabled.
@@ -194,10 +171,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		agentHoursDisplayActual < agentHoursAllocation;
 
 	const statusClassName =
-		isAgentHoursHardLimitExceeded ||
-		isAgentHoursExceeded ||
-		isAiGovernanceAddOnExceeded ||
-		isExpired
+		isAgentHoursHardLimitExceeded || isAgentHoursExceeded || isExpired
 			? "text-content-destructive"
 			: isNotYetValid
 				? "text-content-warning"
@@ -206,13 +180,11 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		? "Limit exceeded"
 		: isAgentHoursExceeded
 			? "Agent hours exceeded"
-			: isAiGovernanceAddOnExceeded
-				? "Add-on exceeded"
-				: isExpired
-					? "Expired"
-					: isNotYetValid
-						? "Not started"
-						: "Active";
+			: isExpired
+				? "Expired"
+				: isNotYetValid
+					? "Not started"
+					: "Active";
 	const includesAgents =
 		Boolean(license.claims.trial) || licenseGrantsAgentHours;
 	const includedProducts = isPremium
@@ -365,6 +337,12 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 								userLimitActual={userLimitActual}
 								userLimitLimit={currentUserLimit}
 							/>
+							{hasExplicitAiGovernanceAddOn && (
+								<AIGovernanceProductCard
+									aibridgeFeature={aibridgeFeature}
+									boundaryFeature={boundaryFeature}
+								/>
+							)}
 							{(isPremium || hasAgentHoursClaim) && (
 								<CoderAgentsProductCard
 									allocation={agentHoursAllocation}
@@ -375,22 +353,6 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 								/>
 							)}
 						</div>
-						{hasExplicitAiGovernanceAddOn && (
-							<>
-								<div className="mt-4 text-sm font-medium text-content-secondary">
-									Add-ons
-								</div>
-								<div className="mt-3 flex flex-wrap gap-3">
-									<AIGovernanceAddOnCard
-										title="AI Governance"
-										unit="Seats"
-										actual={aiGovernanceDisplayActual}
-										limit={aiGovernanceLimit}
-										isExceeded={isAiGovernanceAddOnExceeded}
-									/>
-								</div>
-							</>
-						)}
 					</div>
 				</CollapsibleContent>
 			</div>

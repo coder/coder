@@ -43,6 +43,8 @@ type Props = {
 	managedAgentFeature?: Feature;
 	aiGovernanceUserFeature?: Feature;
 	agentRuntimeHoursFeature?: Feature;
+	aibridgeFeature?: Feature;
+	boundaryFeature?: Feature;
 };
 
 const LicensesSettingsPageView: FC<Props> = ({
@@ -60,6 +62,8 @@ const LicensesSettingsPageView: FC<Props> = ({
 	managedAgentFeature,
 	aiGovernanceUserFeature,
 	agentRuntimeHoursFeature,
+	aibridgeFeature,
+	boundaryFeature,
 }) => {
 	const theme = useTheme();
 	const { width, height } = useWindowSize();
@@ -127,8 +131,9 @@ const LicensesSettingsPageView: FC<Props> = ({
 									license={license}
 									userLimitActual={userLimitActual}
 									userLimitLimit={userLimitLimit}
-									aiGovernanceUserFeature={aiGovernanceUserFeature}
 									agentRuntimeHoursFeature={agentRuntimeHoursFeature}
+									aibridgeFeature={aibridgeFeature}
+									boundaryFeature={boundaryFeature}
 									isRemoving={isRemovingLicense}
 									onRemove={removeLicense}
 								/>

@@ -1,15 +1,11 @@
-import { InfoIcon, TriangleAlertIcon } from "lucide-react";
+import { TriangleAlertIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { ProductCardMetricLabel } from "./ProductCardMetricLabel";
 
 // Allocation sentinel for unlimited agent runtime hours
 // (AgentRuntimeHoursUnlimitedAllocation in enterprise/coderd/license).
@@ -41,29 +37,6 @@ type CoderAgentsProductCardProps = {
 	isHardLimitExceeded: boolean;
 };
 
-const MetricLabel: FC<{ label: string; tooltip: string }> = ({
-	label,
-	tooltip,
-}) => (
-	<div className="flex items-center gap-1 font-medium text-content-secondary">
-		<span>{label}</span>
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<button
-					type="button"
-					aria-label={`${label} information`}
-					className="m-0 inline-flex appearance-none border-0 bg-transparent p-0 text-content-secondary"
-				>
-					<InfoIcon className="size-3" />
-				</button>
-			</TooltipTrigger>
-			<TooltipContent side="top" className="max-w-xs">
-				{tooltip}
-			</TooltipContent>
-		</Tooltip>
-	</div>
-);
-
 const CardContainer: FC<{
 	className?: string;
 	headerEnd?: ReactNode;
@@ -88,9 +61,9 @@ const CardContainer: FC<{
 // TODO: placeholder tooltip copy pending product review.
 const totalAgentHoursTooltip =
 	"Total agent runtime hours used out of the hours included in this license.";
-const concurrentChatsTooltip =
-	"Number of Coder Agents chats that can run at the same time.";
-const concurrentChatsHardLimitTooltip = `${concurrentChatsTooltip} You've reached your limit: concurrent chats are now capped at ${maxConcurrentChatsOverHardLimit} (down from unlimited).`;
+const concurrentAgentsTooltip =
+	"The number of simultaneous active agents working deployment-wide.";
+const concurrentAgentsHardLimitTooltip = `${concurrentAgentsTooltip} You've reached your limit: concurrent agents are now capped at ${maxConcurrentChatsOverHardLimit} (down from unlimited).`;
 
 // The value is already floored to tenths, so no rounding happens here.
 const formatHoursUsed = (hours: number) =>
@@ -115,9 +88,9 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 			<CardContainer className="border-dashed border-highlight-purple">
 				<div className="mt-3 flex flex-wrap gap-x-12 gap-y-3 text-xs">
 					<div>
-						<MetricLabel
-							label="Max concurrent chats"
-							tooltip={concurrentChatsTooltip}
+						<ProductCardMetricLabel
+							label="Max concurrent agents"
+							tooltip={concurrentAgentsTooltip}
 						/>
 						<div className="mt-0.5 text-sm font-medium text-content-primary">
 							{maxConcurrentChatsOverHardLimit}
@@ -176,7 +149,7 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 		>
 			<div className="mt-3 flex flex-wrap gap-x-12 gap-y-3 text-xs">
 				<div>
-					<MetricLabel
+					<ProductCardMetricLabel
 						label="Total Agent hours"
 						tooltip={totalAgentHoursTooltip}
 					/>
@@ -192,12 +165,12 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 					</div>
 				</div>
 				<div>
-					<MetricLabel
-						label="Concurrent chats"
+					<ProductCardMetricLabel
+						label="Concurrent agents"
 						tooltip={
 							isHardLimitExceeded
-								? concurrentChatsHardLimitTooltip
-								: concurrentChatsTooltip
+								? concurrentAgentsHardLimitTooltip
+								: concurrentAgentsTooltip
 						}
 					/>
 					<div
