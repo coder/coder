@@ -3,11 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
-import {
-	chatModelAvailability,
-	chatModels,
-	createChatModel,
-} from "#/api/queries/chats";
+import { chatModels, createChatModel } from "#/api/queries/chats";
 import {
 	canManageProviderModels,
 	deriveProviderStates,
@@ -32,19 +28,15 @@ const AddModelPage: FC = () => {
 		useOrganizationModels();
 
 	const organizationModelsQuery = useQuery(chatModels(organization.id));
-	const availableModelsQuery = useQuery(chatModelAvailability(organization.id));
 	const createMutation = useMutation(createChatModel(queryClient));
 	const models = organizationModelsQuery.data?.models ?? [];
 	const providerStates = deriveProviderStates(
 		models,
 		organizationModelsQuery.data?.providers ?? [],
-		availableModelsQuery.data,
 	);
-	const isLoading =
-		organizationModelsQuery.isLoading || availableModelsQuery.isLoading;
+	const isLoading = organizationModelsQuery.isLoading;
 	const { loadError, refetchError } = splitModelQueryErrors(
 		organizationModelsQuery,
-		availableModelsQuery,
 	);
 
 	if (requestedOrganizationDenied) {

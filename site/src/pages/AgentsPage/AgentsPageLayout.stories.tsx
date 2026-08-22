@@ -348,24 +348,6 @@ const meta: Meta<typeof AgentsPageLayout> = {
 			custom_prompt: "",
 		});
 		// Mocks for child route pages that fetch their own data.
-		spyOn(API.experimental, "getChatModelAvailability").mockResolvedValue({
-			models: defaultModels,
-			providers: [
-				{
-					provider: "openai",
-					available: true,
-					models: [
-						{
-							id: "openai:gpt-4o",
-							provider: "openai",
-							model: "gpt-4o",
-							display_name: "GPT-4o",
-						},
-					],
-				},
-			],
-			unsupported_providers: [],
-		});
 		spyOn(API.experimental, "getChatModels").mockImplementation(
 			async (organizationId) => ({
 				models: [
@@ -378,7 +360,21 @@ const meta: Meta<typeof AgentsPageLayout> = {
 						organization_id: organizationId,
 					},
 				],
-				providers: [],
+				providers: [
+					{
+						id: defaultModels[0].ai_provider_id,
+						type: "openai",
+						display_name: "OpenAI",
+						icon: "",
+						enabled: true,
+						has_api_key: true,
+						has_user_api_key: false,
+						has_effective_api_key: true,
+						allow_user_api_key: false,
+						available: true,
+					},
+				],
+				unsupported_providers: [],
 			}),
 		);
 		spyOn(API.experimental, "getUserAIProviderKeyConfigs").mockResolvedValue([
