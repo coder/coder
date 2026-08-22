@@ -42,11 +42,18 @@ func TestOAuth2AuthorizationServerMetadata(t *testing.T) {
 	require.Contains(t, metadata.GrantTypesSupported, codersdk.OAuth2ProviderGrantTypeAuthorizationCode)
 	require.Contains(t, metadata.GrantTypesSupported, codersdk.OAuth2ProviderGrantTypeRefreshToken)
 	require.Contains(t, metadata.CodeChallengeMethodsSupported, codersdk.OAuth2PKCECodeChallengeMethodS256)
-	// Pins the exact advertised set, not just that it contains something
-	// expected: a hardcoded list that dropped an accepted method or kept an
-	// unhonored one ("none": the token endpoint doesn't accept it yet) would
-	// still pass a Contains-only check.
-	require.ElementsMatch(t, codersdk.AdvertisedOAuth2TokenEndpointAuthMethods(), metadata.TokenEndpointAuthMethodsSupported)
+	// Pinned to a literal rather than to
+	// codersdk.AdvertisedOAuth2TokenEndpointAuthMethods(), which the handler
+	// already returns: comparing the handler to its own source holds for
+	// whatever that function returns, so it cannot catch a method being
+	// advertised that the token endpoint does not honor. "none" in particular
+	// is how a public client learns secretless registration is available
+	// (RFC 8414 §2).
+	require.ElementsMatch(t, []codersdk.OAuth2TokenEndpointAuthMethod{
+		codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+		codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost,
+		codersdk.OAuth2TokenEndpointAuthMethodNone,
+	}, metadata.TokenEndpointAuthMethodsSupported)
 	// Supported scopes are published from the curated catalog
 	require.Equal(t, rbac.ExternalScopeNames(), metadata.ScopesSupported)
 }
