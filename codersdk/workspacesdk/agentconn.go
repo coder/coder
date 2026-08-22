@@ -1229,7 +1229,12 @@ type MCPToolInfo struct {
 	Name string `json:"name"`
 	// Description is the tool's human-readable description.
 	Description string `json:"description"`
-	// Schema is the JSON Schema for the tool's input parameters.
+	// InputSchema is the tool's complete JSON Schema object as pushed
+	// by the agent. When non-nil it wins over Schema and Required,
+	// which carry only the flattened properties map and required list.
+	InputSchema map[string]any `json:"input_schema,omitempty"`
+	// Schema is the JSON Schema properties object for the tool's input
+	// parameters.
 	Schema map[string]any `json:"schema"`
 	// Required lists required parameter names.
 	Required []string `json:"required"`
