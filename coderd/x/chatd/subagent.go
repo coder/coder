@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -328,13 +329,6 @@ func (p *Server) resolveConfiguredModelOverride(
 	return modelConfig, providerName, parsed.reasoningEffort, true, nil
 }
 
-func nullStringPtr(v sql.NullString) *string {
-	if !v.Valid {
-		return nil
-	}
-	return &v.String
-}
-
 // resolveOrganizationModelOverride resolves an override row whose composite
 // foreign key already binds the model config to the same organization.
 func (p *Server) resolveOrganizationModelOverride(
@@ -352,20 +346,20 @@ func (p *Server) resolveOrganizationModelOverride(
 			label := modelOverrideErrorLabel(overrideContext)
 			switch {
 			case errors.Is(err, sql.ErrNoRows):
-				return database.ChatModelConfig{}, "", nullStringPtr(override.ReasoningEffort), true, xerrors.Errorf(
+				return database.ChatModelConfig{}, "", ptr.FromNullString(override.ReasoningEffort), true, xerrors.Errorf(
 					"%s model override is unavailable: %s",
 					label,
 					override.ModelConfigID,
 				)
 			case errors.Is(err, errInvalidModelOverrideMetadata):
-				return database.ChatModelConfig{}, "", nullStringPtr(override.ReasoningEffort), true, xerrors.Errorf(
+				return database.ChatModelConfig{}, "", ptr.FromNullString(override.ReasoningEffort), true, xerrors.Errorf(
 					"%s model override metadata is invalid for %s: %w",
 					label,
 					override.ModelConfigID,
 					err,
 				)
 			default:
-				return database.ChatModelConfig{}, "", nullStringPtr(override.ReasoningEffort), true, xerrors.Errorf(
+				return database.ChatModelConfig{}, "", ptr.FromNullString(override.ReasoningEffort), true, xerrors.Errorf(
 					"resolve %s model override %s: %w",
 					label,
 					override.ModelConfigID,
@@ -408,7 +402,7 @@ func (p *Server) resolveOrganizationModelOverride(
 	}
 	if !userCanUseProviderKeys(providerKeys, providerName) {
 		if failureMode == modelOverrideFailureModeHard {
-			return database.ChatModelConfig{}, "", nullStringPtr(override.ReasoningEffort), true, xerrors.Errorf(
+			return database.ChatModelConfig{}, "", ptr.FromNullString(override.ReasoningEffort), true, xerrors.Errorf(
 				"%s model override credentials are unavailable for provider %q",
 				modelOverrideErrorLabel(overrideContext),
 				providerName,
@@ -422,7 +416,7 @@ func (p *Server) resolveOrganizationModelOverride(
 		)
 		return database.ChatModelConfig{}, "", nil, false, nil
 	}
-	return modelConfig, providerName, nullStringPtr(override.ReasoningEffort), true, nil
+	return modelConfig, providerName, ptr.FromNullString(override.ReasoningEffort), true, nil
 }
 
 func (p *Server) resolvePersonalSubagentModelConfigID(
@@ -474,7 +468,7 @@ func (p *Server) resolvePersonalSubagentModelConfigID(
 			return uuid.Nil, nil, false, err
 		}
 		if ok {
-			return modelConfig.ID, nullStringPtr(override.ReasoningEffort), true, nil
+			return modelConfig.ID, ptr.FromNullString(override.ReasoningEffort), true, nil
 		}
 	default:
 		p.logger.Warn(ctx,

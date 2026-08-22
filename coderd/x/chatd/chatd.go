@@ -316,7 +316,7 @@ func (p *Server) resolveAdvisorModelOverride(
 		purpose:         "advisor",
 		chat:            chat,
 		explicitConfig:  &overrideConfig,
-		requestedEffort: nullStringPtr(override.ReasoningEffort),
+		requestedEffort: ptr.FromNullString(override.ReasoningEffort),
 		maxOutputTokens: ptr.Ref(maxOutputTokens),
 		buildOptions:    modelOpts,
 	})
