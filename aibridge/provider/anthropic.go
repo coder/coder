@@ -50,7 +50,6 @@ var anthropicIsFailure = func(statusCode int) bool {
 }
 
 func NewAnthropic(_ context.Context, cfg config.Anthropic) (*Anthropic, error) {
-	// ctx is kept for API stability; no context work is needed yet.
 	if cfg.Name == "" {
 		cfg.Name = config.ProviderAnthropic
 	}
