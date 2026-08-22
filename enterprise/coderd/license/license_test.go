@@ -94,6 +94,37 @@ func TestEntitlements(t *testing.T) {
 			require.Equal(t, codersdk.EntitlementNotEntitled, entitlements.Features[featureName].Entitlement)
 		}
 	})
+	t.Run("UsagePublishingEligibility", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name             string
+			accountType      string
+			publishUsageData bool
+			enabled          bool
+		}{
+			{name: "salesforce", accountType: license.AccountTypeSalesforce, publishUsageData: true, enabled: true},
+			{name: "publishing-disabled", accountType: license.AccountTypeSalesforce, enabled: false},
+			{name: "non-salesforce", accountType: "trial", publishUsageData: true, enabled: false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				db, _ := dbtestutil.NewDB(t)
+				_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
+					JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+						AccountType:      tc.accountType,
+						PublishUsageData: tc.publishUsageData,
+					}),
+					Exp: dbtime.Now().Add(time.Hour),
+				})
+				require.NoError(t, err)
+
+				entitlements, err := license.Entitlements(context.Background(), testutil.Logger(t), db, 1, 1, coderdenttest.Keys, empty, testAuthorizer, nil)
+				require.NoError(t, err)
+				require.Equal(t, tc.enabled, entitlements.UsagePublishing.PublishingEnabled)
+			})
+		}
+	})
+
 	t.Run("Always return the current user count", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)

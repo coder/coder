@@ -25,6 +25,9 @@ const (
 	LicenseAgentRuntimeHoursAllocationReachedWarningText = "Your deployment has used %d of the %d Coder Agent runtime hours included in the current license term."
 	LicenseAgentRuntimeUsageUnavailableErrorText         = "Unable to determine Coder Agent runtime usage. Reported runtime hours are unavailable until the next successful refresh; workspaces are unaffected. Check the coderd logs for details."
 	LicenseAgentRuntimeHoursClaimsIgnoredWarningText     = "A license contains unusable Coder Agent runtime hour claims, which were ignored. The rest of that license is unaffected. Check the coderd logs for the affected license and claims, and contact support to have the license re-issued."
+	// LicenseUsagePublishingFailingWarningText is appended to entitlements
+	// warnings after a sustained usage publishing failure.
+	LicenseUsagePublishingFailingWarningText = "Coder has been unable to publish usage data to Coder's servers. Please check the deployment's connectivity and contact support if the issue persists."
 )
 
 type AddLicenseRequest struct {

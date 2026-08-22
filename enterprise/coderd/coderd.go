@@ -999,6 +999,23 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			return codersdk.Entitlements{}, err
 		}
 
+		if !reloadedEntitlements.UsagePublishing.PublishingEnabled {
+			api.UsagePublishHealth.Reset()
+		} else {
+			snapshot := api.UsagePublishHealth.Snapshot()
+			if !snapshot.LastPublishedAt.IsZero() {
+				lastPublishedAt := snapshot.LastPublishedAt
+				reloadedEntitlements.UsagePublishing.LastPublishedAt = &lastPublishedAt
+			}
+			if !snapshot.FailureStartedAt.IsZero() &&
+				dbtime.Now().Sub(snapshot.FailureStartedAt) >= license.UsagePublishingFailureThreshold {
+				failingSince := snapshot.FailureStartedAt
+				reloadedEntitlements.UsagePublishing.FailingSince = &failingSince
+				reloadedEntitlements.Warnings = append(reloadedEntitlements.Warnings,
+					codersdk.LicenseUsagePublishingFailingWarningText)
+			}
+		}
+
 		if reloadedEntitlements.RequireTelemetry && !api.DeploymentValues.Telemetry.Enable.Value() {
 			api.Logger.Error(ctx, "license requires telemetry enabled")
 			return codersdk.Entitlements{}, entitlements.ErrLicenseRequiresTelemetry
