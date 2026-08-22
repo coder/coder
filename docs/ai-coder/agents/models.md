@@ -308,6 +308,12 @@ layers:
   enable the toggle on the same admin page; once on, each user sees an
   **Agents** tab in their personal **Agents** > **Settings**.
 
+> [!IMPORTANT]
+> Overrides are stored per organization. When a deployment upgrades from the
+> older deployment-wide override storage, existing admin and personal
+> overrides are deleted rather than migrated. Admins and users must re-select
+> their override models in settings after the upgrade.
+
 The configurable contexts:
 
 | Context              | Layer        | Applies to                                                                     |
