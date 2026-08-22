@@ -838,6 +838,26 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpsertChatPersonalModelOverridesEnabled(gomock.Any(), true).Return(nil).AnyTimes()
 		check.Args(true).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
+	s.Run("GetAgentRuntimeInsightsTotal", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		params := database.GetAgentRuntimeInsightsTotalParams{}
+		dbm.EXPECT().GetAgentRuntimeInsightsTotal(gomock.Any(), params).Return(int64(0), nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
+	s.Run("GetAgentRuntimeInsightsByDay", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		params := database.GetAgentRuntimeInsightsByDayParams{}
+		dbm.EXPECT().GetAgentRuntimeInsightsByDay(gomock.Any(), params).Return([]database.GetAgentRuntimeInsightsByDayRow{}, nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
+	s.Run("GetAgentRuntimeInsightsByUserCount", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		params := database.GetAgentRuntimeInsightsByUserCountParams{}
+		dbm.EXPECT().GetAgentRuntimeInsightsByUserCount(gomock.Any(), params).Return(int64(0), nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
+	s.Run("GetAgentRuntimeInsightsByUser", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		params := database.GetAgentRuntimeInsightsByUserParams{}
+		dbm.EXPECT().GetAgentRuntimeInsightsByUser(gomock.Any(), params).Return([]database.GetAgentRuntimeInsightsByUserRow{}, nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
 	s.Run("GetChatACLByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		row := database.GetChatACLByIDRow{

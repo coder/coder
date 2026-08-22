@@ -12,6 +12,7 @@ import {
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -2288,6 +2289,50 @@ export const deleteChatModelConfig = (queryClient: QueryClient) => ({
 
 export const chatFileTextKey = (fileId: string) =>
 	[...chatFilesKey, fileId, "text"] as const;
+
+const agentRuntimeInsightsKey = ["chats", "agent-runtime-insights"] as const;
+
+export type AgentRuntimeInsightsRange = Readonly<{
+	startTime: string;
+	endTime: string;
+}>;
+
+export const agentRuntimeInsights = (range: AgentRuntimeInsightsRange) =>
+	queryOptions({
+		queryKey: [...agentRuntimeInsightsKey, "summary", range] as const,
+		queryFn: () =>
+			API.getAgentRuntimeInsights({
+				start_time: range.startTime,
+				end_time: range.endTime,
+			}),
+	});
+
+export type AgentRuntimeInsightsByUserParams = {
+	limit: number;
+	offset: number;
+};
+
+export function agentRuntimeInsightsByUserPaginated(
+	range: AgentRuntimeInsightsRange,
+	searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<
+	TypesGen.AgentRuntimeInsightsByUserResponse,
+	AgentRuntimeInsightsByUserParams
+> {
+	return {
+		searchParams,
+		queryPayload: ({ limit, offset }) => ({ limit, offset }),
+		queryKey: ({ payload }) =>
+			[...agentRuntimeInsightsKey, "by-user", range, payload] as const,
+		queryFn: ({ payload }) =>
+			API.getAgentRuntimeInsightsByUser({
+				start_time: range.startTime,
+				end_time: range.endTime,
+				limit: payload.limit,
+				offset: payload.offset,
+			}),
+	};
+}
 
 const GATEWAY_REQUEST_STALE_MS = 30_000;
 

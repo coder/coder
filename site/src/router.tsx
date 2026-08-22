@@ -380,6 +380,9 @@ const AISettingsLifecyclePage = lazy(
 const CoderAgentsPage = lazy(
 	() => import("./pages/AISettingsPage/CoderAgentsPage/CoderAgentsPage"),
 );
+const CoderAgentsUsagePage = lazy(
+	() => import("./pages/AISettingsPage/CoderAgentsPage/CoderAgentsUsagePage"),
+);
 const AgentSettingsUserAgentsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsUserAgentsPage"),
 );
@@ -774,6 +777,10 @@ export const router = createBrowserRouter(
 						/>
 						<Route path="lifecycle" element={<AISettingsLifecyclePage />} />
 						<Route path="coder-agents" element={<CoderAgentsPage />} />
+						<Route
+							path="coder-agents/usage"
+							element={<CoderAgentsUsagePage />}
+						/>
 						<Route path="templates" element={<AISettingsTemplatesPage />} />
 						<Route path="models/add" element={<AISettingsAddModelPage />} />
 						<Route

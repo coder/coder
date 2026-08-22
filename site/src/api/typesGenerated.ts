@@ -1506,6 +1506,74 @@ export interface AgentHookUserPromptSubmitData {
 	readonly parts?: unknown;
 }
 
+// From codersdk/agentruntimeinsights.go
+/**
+ * AgentRuntimeInsightsByUserRequest is the request for the paginated,
+ * per-user agent runtime insights endpoint.
+ */
+export interface AgentRuntimeInsightsByUserRequest extends Pagination {
+	readonly start_time: string;
+	readonly end_time: string;
+}
+
+// From codersdk/agentruntimeinsights.go
+/**
+ * AgentRuntimeInsightsByUserResponse is a page of per-user agent runtime
+ * totals, ordered by total runtime descending.
+ */
+export interface AgentRuntimeInsightsByUserResponse {
+	readonly users: readonly AgentRuntimeInsightsUser[];
+	/**
+	 * Count is the total number of users with agent runtime in the
+	 * requested range, for pagination.
+	 */
+	readonly count: number;
+}
+
+// From codersdk/agentruntimeinsights.go
+/**
+ * AgentRuntimeInsightsDay is a single day's total agent runtime.
+ */
+export interface AgentRuntimeInsightsDay {
+	readonly day: string;
+	readonly total_ms: number;
+}
+
+// From codersdk/agentruntimeinsights.go
+/**
+ * AgentRuntimeInsightsRequest is the request for the agent runtime insights
+ * summary and chart endpoint.
+ */
+export interface AgentRuntimeInsightsRequest {
+	readonly start_time: string;
+	readonly end_time: string;
+}
+
+// From codersdk/agentruntimeinsights.go
+/**
+ * AgentRuntimeInsightsResponse is the response from the agent runtime
+ * insights endpoint. It backs the Coder Agents usage dashboard's summary
+ * figure and chart.
+ */
+export interface AgentRuntimeInsightsResponse {
+	readonly start_time: string;
+	readonly end_time: string;
+	readonly total_ms: number;
+	readonly by_day: readonly AgentRuntimeInsightsDay[];
+}
+
+// From codersdk/agentruntimeinsights.go
+/**
+ * AgentRuntimeInsightsUser is a single user's agent runtime total.
+ */
+export interface AgentRuntimeInsightsUser {
+	readonly user_id: string;
+	readonly username: string;
+	readonly avatar_url: string;
+	readonly total_ms: number;
+	readonly message_count: number;
+}
+
 // From codersdk/workspacebuilds.go
 export interface AgentScriptTiming {
 	readonly started_at: string;

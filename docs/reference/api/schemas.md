@@ -1553,6 +1553,93 @@ None
 |-----------|-----------------------------------------------------------------|----------|--------------|-------------|
 | `results` | array of [codersdk.AgentFirewallLog](#codersdkagentfirewalllog) | false    |              |             |
 
+## codersdk.AgentRuntimeInsightsByUserResponse
+
+```json
+{
+  "count": 0,
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "message_count": 120,
+      "total_ms": 3600000,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                                            | Required | Restrictions | Description                                                                                   |
+|---------|---------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------|
+| `count` | integer                                                                         | false    |              | Count is the total number of users with agent runtime in the requested range, for pagination. |
+| `users` | array of [codersdk.AgentRuntimeInsightsUser](#codersdkagentruntimeinsightsuser) | false    |              |                                                                                               |
+
+## codersdk.AgentRuntimeInsightsDay
+
+```json
+{
+  "day": "2019-08-24",
+  "total_ms": 3600000
+}
+```
+
+### Properties
+
+| Name       | Type    | Required | Restrictions | Description |
+|------------|---------|----------|--------------|-------------|
+| `day`      | string  | false    |              |             |
+| `total_ms` | integer | false    |              |             |
+
+## codersdk.AgentRuntimeInsightsResponse
+
+```json
+{
+  "by_day": [
+    {
+      "day": "2019-08-24",
+      "total_ms": 3600000
+    }
+  ],
+  "end_time": "2019-08-24T14:15:22Z",
+  "start_time": "2019-08-24T14:15:22Z",
+  "total_ms": 3600000
+}
+```
+
+### Properties
+
+| Name         | Type                                                                          | Required | Restrictions | Description |
+|--------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
+| `by_day`     | array of [codersdk.AgentRuntimeInsightsDay](#codersdkagentruntimeinsightsday) | false    |              |             |
+| `end_time`   | string                                                                        | false    |              |             |
+| `start_time` | string                                                                        | false    |              |             |
+| `total_ms`   | integer                                                                       | false    |              |             |
+
+## codersdk.AgentRuntimeInsightsUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "message_count": 120,
+  "total_ms": 3600000,
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name            | Type    | Required | Restrictions | Description |
+|-----------------|---------|----------|--------------|-------------|
+| `avatar_url`    | string  | false    |              |             |
+| `message_count` | integer | false    |              |             |
+| `total_ms`      | integer | false    |              |             |
+| `user_id`       | string  | false    |              |             |
+| `username`      | string  | false    |              |             |
+
 ## codersdk.AgentScriptTiming
 
 ```json

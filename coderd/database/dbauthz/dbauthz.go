@@ -3044,6 +3044,46 @@ func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, temp
 	return q.db.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
 }
 
+func (q *querier) GetAgentRuntimeInsightsByDay(ctx context.Context, arg database.GetAgentRuntimeInsightsByDayParams) ([]database.GetAgentRuntimeInsightsByDayRow, error) {
+	// Backs the Coder Agents usage dashboard. Gated on the same permission
+	// as editing deployment config (owners only, not auditors) since it
+	// exposes per-user runtime data, not just aggregate deployment stats.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetAgentRuntimeInsightsByDay(ctx, arg)
+}
+
+func (q *querier) GetAgentRuntimeInsightsByUser(ctx context.Context, arg database.GetAgentRuntimeInsightsByUserParams) ([]database.GetAgentRuntimeInsightsByUserRow, error) {
+	// Backs the Coder Agents usage dashboard. Gated on the same permission
+	// as editing deployment config (owners only, not auditors) since it
+	// exposes per-user runtime data, not just aggregate deployment stats.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetAgentRuntimeInsightsByUser(ctx, arg)
+}
+
+func (q *querier) GetAgentRuntimeInsightsByUserCount(ctx context.Context, arg database.GetAgentRuntimeInsightsByUserCountParams) (int64, error) {
+	// Backs the Coder Agents usage dashboard. Gated on the same permission
+	// as editing deployment config (owners only, not auditors) since it
+	// exposes per-user runtime data, not just aggregate deployment stats.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return 0, err
+	}
+	return q.db.GetAgentRuntimeInsightsByUserCount(ctx, arg)
+}
+
+func (q *querier) GetAgentRuntimeInsightsTotal(ctx context.Context, arg database.GetAgentRuntimeInsightsTotalParams) (int64, error) {
+	// Backs the Coder Agents usage dashboard. Gated on the same permission
+	// as editing deployment config (owners only, not auditors) since it
+	// exposes per-user runtime data, not just aggregate deployment stats.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return 0, err
+	}
+	return q.db.GetAgentRuntimeInsightsTotal(ctx, arg)
+}
+
 func (q *querier) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
 		return nil, err

@@ -377,6 +377,21 @@ type sqlcQuerier interface {
 	// TestGetActiveUsersAuthorizationRolesParity enforces this.
 	GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
+	// Daily agent runtime totals within the range, for the usage dashboard's
+	// chart. Buckets are in UTC.
+	GetAgentRuntimeInsightsByDay(ctx context.Context, arg GetAgentRuntimeInsightsByDayParams) ([]GetAgentRuntimeInsightsByDayRow, error)
+	// Per-user agent runtime totals within the range, ordered by total runtime
+	// descending, for the usage dashboard's sortable, paginated user table.
+	GetAgentRuntimeInsightsByUser(ctx context.Context, arg GetAgentRuntimeInsightsByUserParams) ([]GetAgentRuntimeInsightsByUserRow, error)
+	// Count of distinct users with agent runtime within the range. Used to
+	// paginate GetAgentRuntimeInsightsByUser.
+	GetAgentRuntimeInsightsByUserCount(ctx context.Context, arg GetAgentRuntimeInsightsByUserCountParams) (int64, error)
+	// Total agent runtime across all users within the range. Backs the Coder
+	// Agents usage dashboard's summary figure. Distinct from
+	// GetTotalChatMessageRuntimeMsInRange, which is gated on usage-event
+	// creation for billing telemetry; this is gated on deployment-config read
+	// for the admin-facing usage dashboard.
+	GetAgentRuntimeInsightsTotal(ctx context.Context, arg GetAgentRuntimeInsightsTotalParams) (int64, error)
 	// For PG Coordinator HTMLDebug
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
 	GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error)

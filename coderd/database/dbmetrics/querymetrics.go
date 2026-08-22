@@ -1328,6 +1328,38 @@ func (m queryMetricsStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Cont
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAgentRuntimeInsightsByDay(ctx context.Context, arg database.GetAgentRuntimeInsightsByDayParams) ([]database.GetAgentRuntimeInsightsByDayRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentRuntimeInsightsByDay(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAgentRuntimeInsightsByDay").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentRuntimeInsightsByDay").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAgentRuntimeInsightsByUser(ctx context.Context, arg database.GetAgentRuntimeInsightsByUserParams) ([]database.GetAgentRuntimeInsightsByUserRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentRuntimeInsightsByUser(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAgentRuntimeInsightsByUser").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentRuntimeInsightsByUser").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAgentRuntimeInsightsByUserCount(ctx context.Context, arg database.GetAgentRuntimeInsightsByUserCountParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentRuntimeInsightsByUserCount(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAgentRuntimeInsightsByUserCount").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentRuntimeInsightsByUserCount").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAgentRuntimeInsightsTotal(ctx context.Context, arg database.GetAgentRuntimeInsightsTotalParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentRuntimeInsightsTotal(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAgentRuntimeInsightsTotal").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentRuntimeInsightsTotal").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAllTailnetCoordinators(ctx)

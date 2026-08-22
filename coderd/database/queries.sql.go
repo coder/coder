@@ -7371,6 +7371,175 @@ func (q *sqlQuerier) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.U
 	return items, nil
 }
 
+const getAgentRuntimeInsightsByDay = `-- name: GetAgentRuntimeInsightsByDay :many
+SELECT
+    date_trunc('day', cm.created_at AT TIME ZONE 'UTC')::date AS day,
+    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
+FROM chat_messages cm
+WHERE cm.created_at >= $1::timestamptz
+  AND cm.created_at < $2::timestamptz
+  AND cm.deleted = false
+  AND cm.runtime_ms IS NOT NULL
+GROUP BY day
+ORDER BY day ASC
+`
+
+type GetAgentRuntimeInsightsByDayParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+type GetAgentRuntimeInsightsByDayRow struct {
+	Day            time.Time `db:"day" json:"day"`
+	TotalRuntimeMs int64     `db:"total_runtime_ms" json:"total_runtime_ms"`
+}
+
+// Daily agent runtime totals within the range, for the usage dashboard's
+// chart. Buckets are in UTC.
+func (q *sqlQuerier) GetAgentRuntimeInsightsByDay(ctx context.Context, arg GetAgentRuntimeInsightsByDayParams) ([]GetAgentRuntimeInsightsByDayRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAgentRuntimeInsightsByDay, arg.StartTime, arg.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAgentRuntimeInsightsByDayRow
+	for rows.Next() {
+		var i GetAgentRuntimeInsightsByDayRow
+		if err := rows.Scan(&i.Day, &i.TotalRuntimeMs); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAgentRuntimeInsightsByUser = `-- name: GetAgentRuntimeInsightsByUser :many
+SELECT
+    u.id AS user_id,
+    u.username,
+    u.avatar_url,
+    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms,
+    COUNT(*)::bigint AS message_count
+FROM chat_messages cm
+JOIN chats c ON c.id = cm.chat_id
+JOIN users u ON u.id = c.owner_id
+WHERE cm.created_at >= $1::timestamptz
+  AND cm.created_at < $2::timestamptz
+  AND cm.deleted = false
+  AND cm.runtime_ms IS NOT NULL
+GROUP BY u.id, u.username, u.avatar_url
+ORDER BY total_runtime_ms DESC, u.username ASC
+LIMIT $4::int
+OFFSET $3::int
+`
+
+type GetAgentRuntimeInsightsByUserParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+	OffsetOpt int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt  int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type GetAgentRuntimeInsightsByUserRow struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	Username       string    `db:"username" json:"username"`
+	AvatarURL      string    `db:"avatar_url" json:"avatar_url"`
+	TotalRuntimeMs int64     `db:"total_runtime_ms" json:"total_runtime_ms"`
+	MessageCount   int64     `db:"message_count" json:"message_count"`
+}
+
+// Per-user agent runtime totals within the range, ordered by total runtime
+// descending, for the usage dashboard's sortable, paginated user table.
+func (q *sqlQuerier) GetAgentRuntimeInsightsByUser(ctx context.Context, arg GetAgentRuntimeInsightsByUserParams) ([]GetAgentRuntimeInsightsByUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAgentRuntimeInsightsByUser,
+		arg.StartTime,
+		arg.EndTime,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAgentRuntimeInsightsByUserRow
+	for rows.Next() {
+		var i GetAgentRuntimeInsightsByUserRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Username,
+			&i.AvatarURL,
+			&i.TotalRuntimeMs,
+			&i.MessageCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAgentRuntimeInsightsByUserCount = `-- name: GetAgentRuntimeInsightsByUserCount :one
+SELECT COUNT(DISTINCT c.owner_id)::bigint AS count
+FROM chat_messages cm
+JOIN chats c ON c.id = cm.chat_id
+WHERE cm.created_at >= $1::timestamptz
+  AND cm.created_at < $2::timestamptz
+  AND cm.deleted = false
+  AND cm.runtime_ms IS NOT NULL
+`
+
+type GetAgentRuntimeInsightsByUserCountParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+// Count of distinct users with agent runtime within the range. Used to
+// paginate GetAgentRuntimeInsightsByUser.
+func (q *sqlQuerier) GetAgentRuntimeInsightsByUserCount(ctx context.Context, arg GetAgentRuntimeInsightsByUserCountParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getAgentRuntimeInsightsByUserCount, arg.StartTime, arg.EndTime)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getAgentRuntimeInsightsTotal = `-- name: GetAgentRuntimeInsightsTotal :one
+SELECT COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
+FROM chat_messages cm
+WHERE cm.created_at >= $1::timestamptz
+  AND cm.created_at < $2::timestamptz
+  AND cm.deleted = false
+  AND cm.runtime_ms IS NOT NULL
+`
+
+type GetAgentRuntimeInsightsTotalParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+// Total agent runtime across all users within the range. Backs the Coder
+// Agents usage dashboard's summary figure. Distinct from
+// GetTotalChatMessageRuntimeMsInRange, which is gated on usage-event
+// creation for billing telemetry; this is gated on deployment-config read
+// for the admin-facing usage dashboard.
+func (q *sqlQuerier) GetAgentRuntimeInsightsTotal(ctx context.Context, arg GetAgentRuntimeInsightsTotalParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getAgentRuntimeInsightsTotal, arg.StartTime, arg.EndTime)
+	var total_runtime_ms int64
+	err := row.Scan(&total_runtime_ms)
+	return total_runtime_ms, err
+}
+
 const getAutoArchiveInactiveChatCandidates = `-- name: GetAutoArchiveInactiveChatCandidates :many
 SELECT
     chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,

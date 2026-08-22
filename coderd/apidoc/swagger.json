@@ -13236,6 +13236,96 @@
 				]
 			}
 		},
+		"/experimental/chats/agent-runtime-insights": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Get insights about Coder Agents runtime",
+				"operationId": "get-insights-about-coder-agents-runtime",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "date-time",
+						"description": "Start time",
+						"name": "start_time",
+						"in": "query",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "date-time",
+						"description": "End time",
+						"name": "end_time",
+						"in": "query",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AgentRuntimeInsightsResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/experimental/chats/agent-runtime-insights/users": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Get insights about Coder Agents runtime by user",
+				"operationId": "get-insights-about-coder-agents-runtime-by-user",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "date-time",
+						"description": "Start time",
+						"name": "start_time",
+						"in": "query",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "date-time",
+						"description": "End time",
+						"name": "end_time",
+						"in": "query",
+						"required": true
+					},
+					{
+						"type": "integer",
+						"description": "Page limit",
+						"name": "limit",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Page offset",
+						"name": "offset",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AgentRuntimeInsightsByUserResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/oauth2/authorize": {
 			"get": {
 				"tags": ["Enterprise"],
@@ -15400,6 +15490,81 @@
 					"items": {
 						"$ref": "#/definitions/codersdk.AgentFirewallLog"
 					}
+				}
+			}
+		},
+		"codersdk.AgentRuntimeInsightsByUserResponse": {
+			"type": "object",
+			"properties": {
+				"count": {
+					"description": "Count is the total number of users with agent runtime in the\nrequested range, for pagination.",
+					"type": "integer"
+				},
+				"users": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AgentRuntimeInsightsUser"
+					}
+				}
+			}
+		},
+		"codersdk.AgentRuntimeInsightsDay": {
+			"type": "object",
+			"properties": {
+				"day": {
+					"type": "string",
+					"format": "date"
+				},
+				"total_ms": {
+					"type": "integer",
+					"example": 3600000
+				}
+			}
+		},
+		"codersdk.AgentRuntimeInsightsResponse": {
+			"type": "object",
+			"properties": {
+				"by_day": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AgentRuntimeInsightsDay"
+					}
+				},
+				"end_time": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"start_time": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"total_ms": {
+					"type": "integer",
+					"example": 3600000
+				}
+			}
+		},
+		"codersdk.AgentRuntimeInsightsUser": {
+			"type": "object",
+			"properties": {
+				"avatar_url": {
+					"type": "string",
+					"format": "uri"
+				},
+				"message_count": {
+					"type": "integer",
+					"example": 120
+				},
+				"total_ms": {
+					"type": "integer",
+					"example": 3600000
+				},
+				"user_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"username": {
+					"type": "string"
 				}
 			}
 		},

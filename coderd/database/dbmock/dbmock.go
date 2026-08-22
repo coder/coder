@@ -2338,6 +2338,66 @@ func (mr *MockStoreMockRecorder) GetActiveWorkspaceBuildsByTemplateID(ctx, templ
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveWorkspaceBuildsByTemplateID", reflect.TypeOf((*MockStore)(nil).GetActiveWorkspaceBuildsByTemplateID), ctx, templateID)
 }
 
+// GetAgentRuntimeInsightsByDay mocks base method.
+func (m *MockStore) GetAgentRuntimeInsightsByDay(ctx context.Context, arg database.GetAgentRuntimeInsightsByDayParams) ([]database.GetAgentRuntimeInsightsByDayRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentRuntimeInsightsByDay", ctx, arg)
+	ret0, _ := ret[0].([]database.GetAgentRuntimeInsightsByDayRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentRuntimeInsightsByDay indicates an expected call of GetAgentRuntimeInsightsByDay.
+func (mr *MockStoreMockRecorder) GetAgentRuntimeInsightsByDay(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentRuntimeInsightsByDay", reflect.TypeOf((*MockStore)(nil).GetAgentRuntimeInsightsByDay), ctx, arg)
+}
+
+// GetAgentRuntimeInsightsByUser mocks base method.
+func (m *MockStore) GetAgentRuntimeInsightsByUser(ctx context.Context, arg database.GetAgentRuntimeInsightsByUserParams) ([]database.GetAgentRuntimeInsightsByUserRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentRuntimeInsightsByUser", ctx, arg)
+	ret0, _ := ret[0].([]database.GetAgentRuntimeInsightsByUserRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentRuntimeInsightsByUser indicates an expected call of GetAgentRuntimeInsightsByUser.
+func (mr *MockStoreMockRecorder) GetAgentRuntimeInsightsByUser(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentRuntimeInsightsByUser", reflect.TypeOf((*MockStore)(nil).GetAgentRuntimeInsightsByUser), ctx, arg)
+}
+
+// GetAgentRuntimeInsightsByUserCount mocks base method.
+func (m *MockStore) GetAgentRuntimeInsightsByUserCount(ctx context.Context, arg database.GetAgentRuntimeInsightsByUserCountParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentRuntimeInsightsByUserCount", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentRuntimeInsightsByUserCount indicates an expected call of GetAgentRuntimeInsightsByUserCount.
+func (mr *MockStoreMockRecorder) GetAgentRuntimeInsightsByUserCount(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentRuntimeInsightsByUserCount", reflect.TypeOf((*MockStore)(nil).GetAgentRuntimeInsightsByUserCount), ctx, arg)
+}
+
+// GetAgentRuntimeInsightsTotal mocks base method.
+func (m *MockStore) GetAgentRuntimeInsightsTotal(ctx context.Context, arg database.GetAgentRuntimeInsightsTotalParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentRuntimeInsightsTotal", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentRuntimeInsightsTotal indicates an expected call of GetAgentRuntimeInsightsTotal.
+func (mr *MockStoreMockRecorder) GetAgentRuntimeInsightsTotal(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentRuntimeInsightsTotal", reflect.TypeOf((*MockStore)(nil).GetAgentRuntimeInsightsTotal), ctx, arg)
+}
+
 // GetAllTailnetCoordinators mocks base method.
 func (m *MockStore) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
 	m.ctrl.T.Helper()

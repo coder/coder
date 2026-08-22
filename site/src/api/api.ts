@@ -401,6 +401,11 @@ export type InsightsParams = {
 	template_ids: string;
 };
 
+export type AgentRuntimeInsightsParams = {
+	start_time: string;
+	end_time: string;
+};
+
 export type InsightsTemplateParams = InsightsParams & {
 	interval: "day" | "week";
 };
@@ -2770,6 +2775,35 @@ class ApiMethods {
 		const params = new URLSearchParams(filters);
 		const response = await this.axios.get(
 			`/api/v2/insights/user-activity?${params}`,
+		);
+
+		return response.data;
+	};
+
+	getAgentRuntimeInsights = async (
+		filters: AgentRuntimeInsightsParams,
+	): Promise<TypesGen.AgentRuntimeInsightsResponse> => {
+		const params = new URLSearchParams(filters);
+		const response = await this.axios.get(
+			`/api/experimental/chats/agent-runtime-insights?${params}`,
+		);
+
+		return response.data;
+	};
+
+	getAgentRuntimeInsightsByUser = async (
+		filters: AgentRuntimeInsightsParams & { limit?: number; offset?: number },
+	): Promise<TypesGen.AgentRuntimeInsightsByUserResponse> => {
+		const { limit, offset, ...rest } = filters;
+		const params = new URLSearchParams(rest);
+		if (limit !== undefined) {
+			params.set("limit", String(limit));
+		}
+		if (offset !== undefined) {
+			params.set("offset", String(offset));
+		}
+		const response = await this.axios.get(
+			`/api/experimental/chats/agent-runtime-insights/users?${params}`,
 		);
 
 		return response.data;

@@ -2209,6 +2209,65 @@ WHERE cm.created_at >= @start_time::timestamptz
   AND cm.created_at < @end_time::timestamptz
   AND cm.runtime_ms IS NOT NULL;
 
+-- name: GetAgentRuntimeInsightsTotal :one
+-- Total agent runtime across all users within the range. Backs the Coder
+-- Agents usage dashboard's summary figure. Distinct from
+-- GetTotalChatMessageRuntimeMsInRange, which is gated on usage-event
+-- creation for billing telemetry; this is gated on deployment-config read
+-- for the admin-facing usage dashboard.
+SELECT COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
+FROM chat_messages cm
+WHERE cm.created_at >= @start_time::timestamptz
+  AND cm.created_at < @end_time::timestamptz
+  AND cm.deleted = false
+  AND cm.runtime_ms IS NOT NULL;
+
+-- name: GetAgentRuntimeInsightsByDay :many
+-- Daily agent runtime totals within the range, for the usage dashboard's
+-- chart. Buckets are in UTC.
+SELECT
+    date_trunc('day', cm.created_at AT TIME ZONE 'UTC')::date AS day,
+    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
+FROM chat_messages cm
+WHERE cm.created_at >= @start_time::timestamptz
+  AND cm.created_at < @end_time::timestamptz
+  AND cm.deleted = false
+  AND cm.runtime_ms IS NOT NULL
+GROUP BY day
+ORDER BY day ASC;
+
+-- name: GetAgentRuntimeInsightsByUserCount :one
+-- Count of distinct users with agent runtime within the range. Used to
+-- paginate GetAgentRuntimeInsightsByUser.
+SELECT COUNT(DISTINCT c.owner_id)::bigint AS count
+FROM chat_messages cm
+JOIN chats c ON c.id = cm.chat_id
+WHERE cm.created_at >= @start_time::timestamptz
+  AND cm.created_at < @end_time::timestamptz
+  AND cm.deleted = false
+  AND cm.runtime_ms IS NOT NULL;
+
+-- name: GetAgentRuntimeInsightsByUser :many
+-- Per-user agent runtime totals within the range, ordered by total runtime
+-- descending, for the usage dashboard's sortable, paginated user table.
+SELECT
+    u.id AS user_id,
+    u.username,
+    u.avatar_url,
+    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms,
+    COUNT(*)::bigint AS message_count
+FROM chat_messages cm
+JOIN chats c ON c.id = cm.chat_id
+JOIN users u ON u.id = c.owner_id
+WHERE cm.created_at >= @start_time::timestamptz
+  AND cm.created_at < @end_time::timestamptz
+  AND cm.deleted = false
+  AND cm.runtime_ms IS NOT NULL
+GROUP BY u.id, u.username, u.avatar_url
+ORDER BY total_runtime_ms DESC, u.username ASC
+LIMIT sqlc.arg('limit_opt')::int
+OFFSET @offset_opt::int;
+
 -- name: GetChatsByWorkspaceIDs :many
 SELECT *
 FROM chats_expanded

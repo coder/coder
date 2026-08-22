@@ -1417,6 +1417,11 @@ func New(options *Options) *API {
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)
 			r.Get("/watch", api.watchChats)
+			// Always available regardless of usage-stats collection settings,
+			// unlike the /insights endpoints, since it's pure reporting over
+			// data every deployment already has.
+			r.Get("/agent-runtime-insights", api.agentRuntimeInsights)
+			r.Get("/agent-runtime-insights/users", api.agentRuntimeInsightsByUser)
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
 				r.Post("/", api.postChatFile)

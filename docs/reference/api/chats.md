@@ -3268,3 +3268,98 @@ Experimental: this endpoint is subject to change.
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Chat](schemas.md#codersdkchat) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get insights about Coder Agents runtime
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/experimental/chats/agent-runtime-insights?start_time=2019-08-24T14%3A15%3A22Z&end_time=2019-08-24T14%3A15%3A22Z \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /experimental/chats/agent-runtime-insights`
+
+### Parameters
+
+| Name         | In    | Type              | Required | Description |
+|--------------|-------|-------------------|----------|-------------|
+| `start_time` | query | string(date-time) | true     | Start time  |
+| `end_time`   | query | string(date-time) | true     | End time    |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "by_day": [
+    {
+      "day": "2019-08-24",
+      "total_ms": 3600000
+    }
+  ],
+  "end_time": "2019-08-24T14:15:22Z",
+  "start_time": "2019-08-24T14:15:22Z",
+  "total_ms": 3600000
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                   |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentRuntimeInsightsResponse](schemas.md#codersdkagentruntimeinsightsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get insights about Coder Agents runtime by user
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/experimental/chats/agent-runtime-insights/users?start_time=2019-08-24T14%3A15%3A22Z&end_time=2019-08-24T14%3A15%3A22Z \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /experimental/chats/agent-runtime-insights/users`
+
+### Parameters
+
+| Name         | In    | Type              | Required | Description |
+|--------------|-------|-------------------|----------|-------------|
+| `start_time` | query | string(date-time) | true     | Start time  |
+| `end_time`   | query | string(date-time) | true     | End time    |
+| `limit`      | query | integer           | false    | Page limit  |
+| `offset`     | query | integer           | false    | Page offset |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "count": 0,
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "message_count": 120,
+      "total_ms": 3600000,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                               |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentRuntimeInsightsByUserResponse](schemas.md#codersdkagentruntimeinsightsbyuserresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
