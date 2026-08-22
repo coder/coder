@@ -173,20 +173,29 @@ SELECT
         ELSE NULL
     END
 FROM parsed p
-CROSS JOIN organizations o
-WHERE o.is_default
-  AND (
+JOIN organizations o ON NOT o.deleted
+WHERE (
+      -- Legacy mode-only settings applied deployment-wide, so seed them into
+      -- every organization the user belongs to.
       trim(p.value) IN ('chat_default', 'deployment_default')
-      OR (
-          split_part(trim(p.value), ':', 1) = 'model'
-          AND p.config_id IS NOT NULL
-          AND EXISTS (
-              SELECT 1
-              FROM chat_model_configs cmc
-              WHERE cmc.id = p.config_id
-                AND cmc.organization_id = o.id
-                AND NOT cmc.deleted
-          )
+      AND EXISTS (
+          SELECT 1
+          FROM organization_members om
+          WHERE om.user_id = p.user_id
+            AND om.organization_id = o.id
+      )
+  )
+  OR (
+      -- A model reference is only representable in the organization that owns
+      -- the model (composite foreign key).
+      split_part(trim(p.value), ':', 1) = 'model'
+      AND p.config_id IS NOT NULL
+      AND EXISTS (
+          SELECT 1
+          FROM chat_model_configs cmc
+          WHERE cmc.id = p.config_id
+            AND cmc.organization_id = o.id
+            AND NOT cmc.deleted
       )
   )
 ON CONFLICT ON CONSTRAINT chat_user_model_overrides_user_organization_context_key

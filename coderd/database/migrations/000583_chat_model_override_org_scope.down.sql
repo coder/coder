@@ -63,7 +63,7 @@ END;
 $$;
 
 INSERT INTO user_configs (user_id, key, value)
-SELECT
+SELECT DISTINCT ON (umo.user_id, umo.context)
     umo.user_id,
     'chat_personal_model_override:' || umo.context,
     CASE
@@ -76,17 +76,17 @@ SELECT
     END
 FROM chat_user_model_overrides umo
 JOIN organizations o ON o.id = umo.organization_id
-WHERE o.is_default
-  AND (
-      umo.mode IN ('chat_default', 'deployment_default')
-      OR EXISTS (
-          SELECT 1
-          FROM chat_model_configs cmc
-          WHERE cmc.id = umo.model_config_id
-            AND cmc.organization_id = umo.organization_id
-            AND NOT cmc.deleted
-      )
+WHERE umo.mode IN ('chat_default', 'deployment_default')
+  OR EXISTS (
+      SELECT 1
+      FROM chat_model_configs cmc
+      WHERE cmc.id = umo.model_config_id
+        AND cmc.organization_id = umo.organization_id
+        AND NOT cmc.deleted
   )
+-- The legacy setting was deployment-wide; prefer the default organization's
+-- row when a user has rows in several organizations.
+ORDER BY umo.user_id, umo.context, o.is_default DESC
 ON CONFLICT ON CONSTRAINT user_configs_pkey
 DO UPDATE SET value = EXCLUDED.value;
 
