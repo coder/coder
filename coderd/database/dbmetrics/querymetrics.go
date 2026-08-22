@@ -1097,19 +1097,19 @@ func (m queryMetricsStore) GetAIAgentByUserID(ctx context.Context, userID uuid.U
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIAgentLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AIAgentLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIAgentLedgerRowByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAIAgentLedgerRowByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIAgentLedgerRowByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIAgentLifecycleEntriesBySubject(ctx context.Context, arg database.GetAIAgentLifecycleEntriesBySubjectParams) ([]database.AIAgentLifecycleJournal, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIAgentLifecycleEntriesBySubject(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetAIAgentLifecycleEntriesBySubject").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIAgentLifecycleEntriesBySubject").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetAIAgentLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AIAgentLifecycleLedger, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAIAgentLifecycleLedgerRowByID(ctx, id)
-	m.queryLatencies.WithLabelValues("GetAIAgentLifecycleLedgerRowByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIAgentLifecycleLedgerRowByID").Inc()
 	return r0, r1
 }
 
@@ -1489,27 +1489,27 @@ func (m queryMetricsStore) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAuthorizationLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AuthorizationLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizationLedgerRowByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAuthorizationLedgerRowByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizationLedgerRowByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizationLedgerRowsByAgent(ctx context.Context, arg database.GetAuthorizationLedgerRowsByAgentParams) ([]database.AuthorizationLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizationLedgerRowsByAgent(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAuthorizationLedgerRowsByAgent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizationLedgerRowsByAgent").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAuthorizationLifecycleJournalEntriesBySubject(ctx context.Context, arg database.GetAuthorizationLifecycleJournalEntriesBySubjectParams) ([]database.AuthorizationLifecycleJournal, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAuthorizationLifecycleJournalEntriesBySubject(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetAuthorizationLifecycleJournalEntriesBySubject").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizationLifecycleJournalEntriesBySubject").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetAuthorizationLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AuthorizationLifecycleLedger, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAuthorizationLifecycleLedgerRowByID(ctx, id)
-	m.queryLatencies.WithLabelValues("GetAuthorizationLifecycleLedgerRowByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizationLifecycleLedgerRowByID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetAuthorizationLifecycleLedgerRowsByAgent(ctx context.Context, arg database.GetAuthorizationLifecycleLedgerRowsByAgentParams) ([]database.AuthorizationLifecycleLedger, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAuthorizationLifecycleLedgerRowsByAgent(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetAuthorizationLifecycleLedgerRowsByAgent").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizationLifecycleLedgerRowsByAgent").Inc()
 	return r0, r1
 }
 
@@ -2017,6 +2017,14 @@ func (m queryMetricsStore) GetCredentialAPIKeyByID(ctx context.Context, id uuid.
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetCredentialLedgerRowByID(ctx context.Context, id uuid.UUID) (database.CredentialLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCredentialLedgerRowByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetCredentialLedgerRowByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCredentialLedgerRowByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, entryID int64) ([]database.CredentialLifecycleJournalApiKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetCredentialLifecycleJournalAPIKeyLines(ctx, entryID)
@@ -2025,19 +2033,19 @@ func (m queryMetricsStore) GetCredentialLifecycleJournalAPIKeyLines(ctx context.
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetCredentialLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.CredentialLifecycleLedger, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetCredentialLifecycleLedgerRowByID(ctx, id)
-	m.queryLatencies.WithLabelValues("GetCredentialLifecycleLedgerRowByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCredentialLifecycleLedgerRowByID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetCredentialPasswordByID(ctx context.Context, id uuid.UUID) (database.CredentialPassword, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetCredentialPasswordByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetCredentialPasswordByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCredentialPasswordByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetCredentialUseJournalEntriesBySubject(ctx context.Context, arg database.GetCredentialUseJournalEntriesBySubjectParams) ([]database.CredentialUseJournal, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCredentialUseJournalEntriesBySubject(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetCredentialUseJournalEntriesBySubject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCredentialUseJournalEntriesBySubject").Inc()
 	return r0, r1
 }
 
@@ -3593,7 +3601,7 @@ func (m queryMetricsStore) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) (
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetValidCredentialsByHolder(ctx context.Context, arg database.GetValidCredentialsByHolderParams) ([]database.CredentialLifecycleLedger, error) {
+func (m queryMetricsStore) GetValidCredentialsByHolder(ctx context.Context, arg database.GetValidCredentialsByHolderParams) ([]database.CredentialLedger, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetValidCredentialsByHolder(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetValidCredentialsByHolder").Observe(time.Since(start).Seconds())
@@ -4145,6 +4153,14 @@ func (m queryMetricsStore) InsertAIAgent(ctx context.Context, arg database.Inser
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertAIAgentLedgerRow(ctx context.Context, arg database.InsertAIAgentLedgerRowParams) (database.AIAgentLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIAgentLedgerRow(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIAgentLedgerRow").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIAgentLedgerRow").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAIAgentLifecycleJournalFirstLine(ctx context.Context, arg database.InsertAIAgentLifecycleJournalFirstLineParams) (database.AIAgentLifecycleJournal, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAIAgentLifecycleJournalFirstLine(ctx, arg)
@@ -4158,14 +4174,6 @@ func (m queryMetricsStore) InsertAIAgentLifecycleJournalSubsequentLine(ctx conte
 	r0, r1 := m.s.InsertAIAgentLifecycleJournalSubsequentLine(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertAIAgentLifecycleJournalSubsequentLine").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIAgentLifecycleJournalSubsequentLine").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) InsertAIAgentLifecycleLedgerRow(ctx context.Context, arg database.InsertAIAgentLifecycleLedgerRowParams) (database.AIAgentLifecycleLedger, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertAIAgentLifecycleLedgerRow(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertAIAgentLifecycleLedgerRow").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIAgentLifecycleLedgerRow").Inc()
 	return r0, r1
 }
 
@@ -4289,6 +4297,14 @@ func (m queryMetricsStore) InsertAuditLog(ctx context.Context, arg database.Inse
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertAuthorizationLedgerRow(ctx context.Context, arg database.InsertAuthorizationLedgerRowParams) (database.AuthorizationLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAuthorizationLedgerRow(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAuthorizationLedgerRow").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAuthorizationLedgerRow").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAuthorizationLifecycleJournalFirstLine(ctx context.Context, arg database.InsertAuthorizationLifecycleJournalFirstLineParams) (database.AuthorizationLifecycleJournal, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAuthorizationLifecycleJournalFirstLine(ctx, arg)
@@ -4302,14 +4318,6 @@ func (m queryMetricsStore) InsertAuthorizationLifecycleJournalSubsequentLine(ctx
 	r0, r1 := m.s.InsertAuthorizationLifecycleJournalSubsequentLine(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertAuthorizationLifecycleJournalSubsequentLine").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAuthorizationLifecycleJournalSubsequentLine").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) InsertAuthorizationLifecycleLedgerRow(ctx context.Context, arg database.InsertAuthorizationLifecycleLedgerRowParams) (database.AuthorizationLifecycleLedger, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertAuthorizationLifecycleLedgerRow(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertAuthorizationLifecycleLedgerRow").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAuthorizationLifecycleLedgerRow").Inc()
 	return r0, r1
 }
 
@@ -4401,6 +4409,14 @@ func (m queryMetricsStore) InsertCredentialAPIKey(ctx context.Context, arg datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertCredentialLedgerRow(ctx context.Context, arg database.InsertCredentialLedgerRowParams) (database.CredentialLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertCredentialLedgerRow(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertCredentialLedgerRow").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialLedgerRow").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertCredentialLifecycleJournalAPIKeyLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalAPIKeyLineParams) (database.CredentialLifecycleJournalApiKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertCredentialLifecycleJournalAPIKeyLine(ctx, arg)
@@ -4417,19 +4433,19 @@ func (m queryMetricsStore) InsertCredentialLifecycleJournalEntry(ctx context.Con
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertCredentialLifecycleLedgerRow(ctx context.Context, arg database.InsertCredentialLifecycleLedgerRowParams) (database.CredentialLifecycleLedger, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertCredentialLifecycleLedgerRow(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertCredentialLifecycleLedgerRow").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialLifecycleLedgerRow").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) InsertCredentialPassword(ctx context.Context, arg database.InsertCredentialPasswordParams) (database.CredentialPassword, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertCredentialPassword(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertCredentialPassword").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialPassword").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertCredentialUseJournalEntry(ctx context.Context, arg database.InsertCredentialUseJournalEntryParams) (database.CredentialUseJournal, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertCredentialUseJournalEntry(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertCredentialUseJournalEntry").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialUseJournalEntry").Inc()
 	return r0, r1
 }
 
@@ -5209,6 +5225,14 @@ func (m queryMetricsStore) NextCredentialLifecycleJournalEntryID(ctx context.Con
 	return r0, r1
 }
 
+func (m queryMetricsStore) NextCredentialUseJournalEntryID(ctx context.Context) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.NextCredentialUseJournalEntryID(ctx)
+	m.queryLatencies.WithLabelValues("NextCredentialUseJournalEntryID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "NextCredentialUseJournalEntryID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) OIDCClaimFieldValues(ctx context.Context, arg database.OIDCClaimFieldValuesParams) ([]string, error) {
 	start := time.Now()
 	r0, r1 := m.s.OIDCClaimFieldValues(ctx, arg)
@@ -5257,6 +5281,14 @@ func (m queryMetricsStore) PopNextQueuedMessage(ctx context.Context, chatID uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) PostCredentialPresentation(ctx context.Context, arg database.PostCredentialPresentationParams) (database.CredentialLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.PostCredentialPresentation(ctx, arg)
+	m.queryLatencies.WithLabelValues("PostCredentialPresentation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PostCredentialPresentation").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, templateID)
@@ -5297,7 +5329,7 @@ func (m queryMetricsStore) ReorderChatQueuedMessageToHead(ctx context.Context, a
 	return r0, r1
 }
 
-func (m queryMetricsStore) RetireAIAgent(ctx context.Context, arg database.RetireAIAgentParams) (database.AIAgentLifecycleLedger, error) {
+func (m queryMetricsStore) RetireAIAgent(ctx context.Context, arg database.RetireAIAgentParams) (database.AIAgentLedger, error) {
 	start := time.Now()
 	r0, r1 := m.s.RetireAIAgent(ctx, arg)
 	m.queryLatencies.WithLabelValues("RetireAIAgent").Observe(time.Since(start).Seconds())
@@ -5305,7 +5337,7 @@ func (m queryMetricsStore) RetireAIAgent(ctx context.Context, arg database.Retir
 	return r0, r1
 }
 
-func (m queryMetricsStore) RevokeCredential(ctx context.Context, arg database.RevokeCredentialParams) (database.CredentialLifecycleLedger, error) {
+func (m queryMetricsStore) RevokeCredential(ctx context.Context, arg database.RevokeCredentialParams) (database.CredentialLedger, error) {
 	start := time.Now()
 	r0, r1 := m.s.RevokeCredential(ctx, arg)
 	m.queryLatencies.WithLabelValues("RevokeCredential").Observe(time.Since(start).Seconds())

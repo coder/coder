@@ -40,9 +40,9 @@ INSERT INTO
 VALUES
 	($1, $2, NULL, NULL, NULL, NULL, $3, $4) RETURNING *;
 
--- name: InsertAIAgentLifecycleLedgerRow :one
+-- name: InsertAIAgentLedgerRow :one
 INSERT INTO
-	ai_agent_lifecycle_ledger (
+	ai_agent_ledger (
 		id,
 		owner_type,
 		owner_id,
@@ -52,11 +52,11 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5) RETURNING *;
 
--- name: GetAIAgentLifecycleLedgerRowByID :one
+-- name: GetAIAgentLedgerRowByID :one
 SELECT
 	*
 FROM
-	ai_agent_lifecycle_ledger
+	ai_agent_ledger
 WHERE
 	id = $1;
 
@@ -64,7 +64,7 @@ WHERE
 -- Posting a retirement. Conditioned on the posting reference the caller expects
 -- to find, so that two concurrent posters cannot both believe they succeeded.
 UPDATE
-	ai_agent_lifecycle_ledger
+	ai_agent_ledger
 SET
 	state = 'retired',
 	posting_reference = $2

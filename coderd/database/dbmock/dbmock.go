@@ -1890,6 +1890,21 @@ func (mr *MockStoreMockRecorder) GetAIAgentByUserID(ctx, userID any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentByUserID", reflect.TypeOf((*MockStore)(nil).GetAIAgentByUserID), ctx, userID)
 }
 
+// GetAIAgentLedgerRowByID mocks base method.
+func (m *MockStore) GetAIAgentLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AIAgentLedger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIAgentLedgerRowByID", ctx, id)
+	ret0, _ := ret[0].(database.AIAgentLedger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIAgentLedgerRowByID indicates an expected call of GetAIAgentLedgerRowByID.
+func (mr *MockStoreMockRecorder) GetAIAgentLedgerRowByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentLedgerRowByID", reflect.TypeOf((*MockStore)(nil).GetAIAgentLedgerRowByID), ctx, id)
+}
+
 // GetAIAgentLifecycleEntriesBySubject mocks base method.
 func (m *MockStore) GetAIAgentLifecycleEntriesBySubject(ctx context.Context, arg database.GetAIAgentLifecycleEntriesBySubjectParams) ([]database.AIAgentLifecycleJournal, error) {
 	m.ctrl.T.Helper()
@@ -1903,21 +1918,6 @@ func (m *MockStore) GetAIAgentLifecycleEntriesBySubject(ctx context.Context, arg
 func (mr *MockStoreMockRecorder) GetAIAgentLifecycleEntriesBySubject(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentLifecycleEntriesBySubject", reflect.TypeOf((*MockStore)(nil).GetAIAgentLifecycleEntriesBySubject), ctx, arg)
-}
-
-// GetAIAgentLifecycleLedgerRowByID mocks base method.
-func (m *MockStore) GetAIAgentLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AIAgentLifecycleLedger, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAIAgentLifecycleLedgerRowByID", ctx, id)
-	ret0, _ := ret[0].(database.AIAgentLifecycleLedger)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAIAgentLifecycleLedgerRowByID indicates an expected call of GetAIAgentLifecycleLedgerRowByID.
-func (mr *MockStoreMockRecorder) GetAIAgentLifecycleLedgerRowByID(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentLifecycleLedgerRowByID", reflect.TypeOf((*MockStore)(nil).GetAIAgentLifecycleLedgerRowByID), ctx, id)
 }
 
 // GetAIAgentsByOwnerID mocks base method.
@@ -2625,6 +2625,36 @@ func (mr *MockStoreMockRecorder) GetAuthenticatedWorkspaceAgentAndBuildByAuthTok
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthenticatedWorkspaceAgentAndBuildByAuthToken", reflect.TypeOf((*MockStore)(nil).GetAuthenticatedWorkspaceAgentAndBuildByAuthToken), ctx, authToken)
 }
 
+// GetAuthorizationLedgerRowByID mocks base method.
+func (m *MockStore) GetAuthorizationLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AuthorizationLedger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAuthorizationLedgerRowByID", ctx, id)
+	ret0, _ := ret[0].(database.AuthorizationLedger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAuthorizationLedgerRowByID indicates an expected call of GetAuthorizationLedgerRowByID.
+func (mr *MockStoreMockRecorder) GetAuthorizationLedgerRowByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizationLedgerRowByID", reflect.TypeOf((*MockStore)(nil).GetAuthorizationLedgerRowByID), ctx, id)
+}
+
+// GetAuthorizationLedgerRowsByAgent mocks base method.
+func (m *MockStore) GetAuthorizationLedgerRowsByAgent(ctx context.Context, arg database.GetAuthorizationLedgerRowsByAgentParams) ([]database.AuthorizationLedger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAuthorizationLedgerRowsByAgent", ctx, arg)
+	ret0, _ := ret[0].([]database.AuthorizationLedger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAuthorizationLedgerRowsByAgent indicates an expected call of GetAuthorizationLedgerRowsByAgent.
+func (mr *MockStoreMockRecorder) GetAuthorizationLedgerRowsByAgent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizationLedgerRowsByAgent", reflect.TypeOf((*MockStore)(nil).GetAuthorizationLedgerRowsByAgent), ctx, arg)
+}
+
 // GetAuthorizationLifecycleJournalEntriesBySubject mocks base method.
 func (m *MockStore) GetAuthorizationLifecycleJournalEntriesBySubject(ctx context.Context, arg database.GetAuthorizationLifecycleJournalEntriesBySubjectParams) ([]database.AuthorizationLifecycleJournal, error) {
 	m.ctrl.T.Helper()
@@ -2638,36 +2668,6 @@ func (m *MockStore) GetAuthorizationLifecycleJournalEntriesBySubject(ctx context
 func (mr *MockStoreMockRecorder) GetAuthorizationLifecycleJournalEntriesBySubject(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizationLifecycleJournalEntriesBySubject", reflect.TypeOf((*MockStore)(nil).GetAuthorizationLifecycleJournalEntriesBySubject), ctx, arg)
-}
-
-// GetAuthorizationLifecycleLedgerRowByID mocks base method.
-func (m *MockStore) GetAuthorizationLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AuthorizationLifecycleLedger, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAuthorizationLifecycleLedgerRowByID", ctx, id)
-	ret0, _ := ret[0].(database.AuthorizationLifecycleLedger)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAuthorizationLifecycleLedgerRowByID indicates an expected call of GetAuthorizationLifecycleLedgerRowByID.
-func (mr *MockStoreMockRecorder) GetAuthorizationLifecycleLedgerRowByID(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizationLifecycleLedgerRowByID", reflect.TypeOf((*MockStore)(nil).GetAuthorizationLifecycleLedgerRowByID), ctx, id)
-}
-
-// GetAuthorizationLifecycleLedgerRowsByAgent mocks base method.
-func (m *MockStore) GetAuthorizationLifecycleLedgerRowsByAgent(ctx context.Context, arg database.GetAuthorizationLifecycleLedgerRowsByAgentParams) ([]database.AuthorizationLifecycleLedger, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAuthorizationLifecycleLedgerRowsByAgent", ctx, arg)
-	ret0, _ := ret[0].([]database.AuthorizationLifecycleLedger)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAuthorizationLifecycleLedgerRowsByAgent indicates an expected call of GetAuthorizationLifecycleLedgerRowsByAgent.
-func (mr *MockStoreMockRecorder) GetAuthorizationLifecycleLedgerRowsByAgent(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizationLifecycleLedgerRowsByAgent", reflect.TypeOf((*MockStore)(nil).GetAuthorizationLifecycleLedgerRowsByAgent), ctx, arg)
 }
 
 // GetAuthorizationUserRoles mocks base method.
@@ -3735,6 +3735,21 @@ func (mr *MockStoreMockRecorder) GetCredentialAPIKeyByID(ctx, id any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCredentialAPIKeyByID", reflect.TypeOf((*MockStore)(nil).GetCredentialAPIKeyByID), ctx, id)
 }
 
+// GetCredentialLedgerRowByID mocks base method.
+func (m *MockStore) GetCredentialLedgerRowByID(ctx context.Context, id uuid.UUID) (database.CredentialLedger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCredentialLedgerRowByID", ctx, id)
+	ret0, _ := ret[0].(database.CredentialLedger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCredentialLedgerRowByID indicates an expected call of GetCredentialLedgerRowByID.
+func (mr *MockStoreMockRecorder) GetCredentialLedgerRowByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCredentialLedgerRowByID", reflect.TypeOf((*MockStore)(nil).GetCredentialLedgerRowByID), ctx, id)
+}
+
 // GetCredentialLifecycleJournalAPIKeyLines mocks base method.
 func (m *MockStore) GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, entryID int64) ([]database.CredentialLifecycleJournalApiKey, error) {
 	m.ctrl.T.Helper()
@@ -3750,21 +3765,6 @@ func (mr *MockStoreMockRecorder) GetCredentialLifecycleJournalAPIKeyLines(ctx, e
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCredentialLifecycleJournalAPIKeyLines", reflect.TypeOf((*MockStore)(nil).GetCredentialLifecycleJournalAPIKeyLines), ctx, entryID)
 }
 
-// GetCredentialLifecycleLedgerRowByID mocks base method.
-func (m *MockStore) GetCredentialLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.CredentialLifecycleLedger, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCredentialLifecycleLedgerRowByID", ctx, id)
-	ret0, _ := ret[0].(database.CredentialLifecycleLedger)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetCredentialLifecycleLedgerRowByID indicates an expected call of GetCredentialLifecycleLedgerRowByID.
-func (mr *MockStoreMockRecorder) GetCredentialLifecycleLedgerRowByID(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCredentialLifecycleLedgerRowByID", reflect.TypeOf((*MockStore)(nil).GetCredentialLifecycleLedgerRowByID), ctx, id)
-}
-
 // GetCredentialPasswordByID mocks base method.
 func (m *MockStore) GetCredentialPasswordByID(ctx context.Context, id uuid.UUID) (database.CredentialPassword, error) {
 	m.ctrl.T.Helper()
@@ -3778,6 +3778,21 @@ func (m *MockStore) GetCredentialPasswordByID(ctx context.Context, id uuid.UUID)
 func (mr *MockStoreMockRecorder) GetCredentialPasswordByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCredentialPasswordByID", reflect.TypeOf((*MockStore)(nil).GetCredentialPasswordByID), ctx, id)
+}
+
+// GetCredentialUseJournalEntriesBySubject mocks base method.
+func (m *MockStore) GetCredentialUseJournalEntriesBySubject(ctx context.Context, arg database.GetCredentialUseJournalEntriesBySubjectParams) ([]database.CredentialUseJournal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCredentialUseJournalEntriesBySubject", ctx, arg)
+	ret0, _ := ret[0].([]database.CredentialUseJournal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCredentialUseJournalEntriesBySubject indicates an expected call of GetCredentialUseJournalEntriesBySubject.
+func (mr *MockStoreMockRecorder) GetCredentialUseJournalEntriesBySubject(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCredentialUseJournalEntriesBySubject", reflect.TypeOf((*MockStore)(nil).GetCredentialUseJournalEntriesBySubject), ctx, arg)
 }
 
 // GetCryptoKeyByFeatureAndSequence mocks base method.
@@ -6721,10 +6736,10 @@ func (mr *MockStoreMockRecorder) GetUsersByIDs(ctx, ids any) *gomock.Call {
 }
 
 // GetValidCredentialsByHolder mocks base method.
-func (m *MockStore) GetValidCredentialsByHolder(ctx context.Context, arg database.GetValidCredentialsByHolderParams) ([]database.CredentialLifecycleLedger, error) {
+func (m *MockStore) GetValidCredentialsByHolder(ctx context.Context, arg database.GetValidCredentialsByHolderParams) ([]database.CredentialLedger, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetValidCredentialsByHolder", ctx, arg)
-	ret0, _ := ret[0].([]database.CredentialLifecycleLedger)
+	ret0, _ := ret[0].([]database.CredentialLedger)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -7769,6 +7784,21 @@ func (mr *MockStoreMockRecorder) InsertAIAgent(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIAgent", reflect.TypeOf((*MockStore)(nil).InsertAIAgent), ctx, arg)
 }
 
+// InsertAIAgentLedgerRow mocks base method.
+func (m *MockStore) InsertAIAgentLedgerRow(ctx context.Context, arg database.InsertAIAgentLedgerRowParams) (database.AIAgentLedger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAIAgentLedgerRow", ctx, arg)
+	ret0, _ := ret[0].(database.AIAgentLedger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAIAgentLedgerRow indicates an expected call of InsertAIAgentLedgerRow.
+func (mr *MockStoreMockRecorder) InsertAIAgentLedgerRow(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIAgentLedgerRow", reflect.TypeOf((*MockStore)(nil).InsertAIAgentLedgerRow), ctx, arg)
+}
+
 // InsertAIAgentLifecycleJournalFirstLine mocks base method.
 func (m *MockStore) InsertAIAgentLifecycleJournalFirstLine(ctx context.Context, arg database.InsertAIAgentLifecycleJournalFirstLineParams) (database.AIAgentLifecycleJournal, error) {
 	m.ctrl.T.Helper()
@@ -7797,21 +7827,6 @@ func (m *MockStore) InsertAIAgentLifecycleJournalSubsequentLine(ctx context.Cont
 func (mr *MockStoreMockRecorder) InsertAIAgentLifecycleJournalSubsequentLine(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIAgentLifecycleJournalSubsequentLine", reflect.TypeOf((*MockStore)(nil).InsertAIAgentLifecycleJournalSubsequentLine), ctx, arg)
-}
-
-// InsertAIAgentLifecycleLedgerRow mocks base method.
-func (m *MockStore) InsertAIAgentLifecycleLedgerRow(ctx context.Context, arg database.InsertAIAgentLifecycleLedgerRowParams) (database.AIAgentLifecycleLedger, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertAIAgentLifecycleLedgerRow", ctx, arg)
-	ret0, _ := ret[0].(database.AIAgentLifecycleLedger)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertAIAgentLifecycleLedgerRow indicates an expected call of InsertAIAgentLifecycleLedgerRow.
-func (mr *MockStoreMockRecorder) InsertAIAgentLifecycleLedgerRow(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIAgentLifecycleLedgerRow", reflect.TypeOf((*MockStore)(nil).InsertAIAgentLifecycleLedgerRow), ctx, arg)
 }
 
 // InsertAIAgentUser mocks base method.
@@ -8038,6 +8053,21 @@ func (mr *MockStoreMockRecorder) InsertAuditLog(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAuditLog", reflect.TypeOf((*MockStore)(nil).InsertAuditLog), ctx, arg)
 }
 
+// InsertAuthorizationLedgerRow mocks base method.
+func (m *MockStore) InsertAuthorizationLedgerRow(ctx context.Context, arg database.InsertAuthorizationLedgerRowParams) (database.AuthorizationLedger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAuthorizationLedgerRow", ctx, arg)
+	ret0, _ := ret[0].(database.AuthorizationLedger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAuthorizationLedgerRow indicates an expected call of InsertAuthorizationLedgerRow.
+func (mr *MockStoreMockRecorder) InsertAuthorizationLedgerRow(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAuthorizationLedgerRow", reflect.TypeOf((*MockStore)(nil).InsertAuthorizationLedgerRow), ctx, arg)
+}
+
 // InsertAuthorizationLifecycleJournalFirstLine mocks base method.
 func (m *MockStore) InsertAuthorizationLifecycleJournalFirstLine(ctx context.Context, arg database.InsertAuthorizationLifecycleJournalFirstLineParams) (database.AuthorizationLifecycleJournal, error) {
 	m.ctrl.T.Helper()
@@ -8066,21 +8096,6 @@ func (m *MockStore) InsertAuthorizationLifecycleJournalSubsequentLine(ctx contex
 func (mr *MockStoreMockRecorder) InsertAuthorizationLifecycleJournalSubsequentLine(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAuthorizationLifecycleJournalSubsequentLine", reflect.TypeOf((*MockStore)(nil).InsertAuthorizationLifecycleJournalSubsequentLine), ctx, arg)
-}
-
-// InsertAuthorizationLifecycleLedgerRow mocks base method.
-func (m *MockStore) InsertAuthorizationLifecycleLedgerRow(ctx context.Context, arg database.InsertAuthorizationLifecycleLedgerRowParams) (database.AuthorizationLifecycleLedger, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertAuthorizationLifecycleLedgerRow", ctx, arg)
-	ret0, _ := ret[0].(database.AuthorizationLifecycleLedger)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertAuthorizationLifecycleLedgerRow indicates an expected call of InsertAuthorizationLifecycleLedgerRow.
-func (mr *MockStoreMockRecorder) InsertAuthorizationLifecycleLedgerRow(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAuthorizationLifecycleLedgerRow", reflect.TypeOf((*MockStore)(nil).InsertAuthorizationLifecycleLedgerRow), ctx, arg)
 }
 
 // InsertBoundaryLogs mocks base method.
@@ -8248,6 +8263,21 @@ func (mr *MockStoreMockRecorder) InsertCredentialAPIKey(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertCredentialAPIKey", reflect.TypeOf((*MockStore)(nil).InsertCredentialAPIKey), ctx, arg)
 }
 
+// InsertCredentialLedgerRow mocks base method.
+func (m *MockStore) InsertCredentialLedgerRow(ctx context.Context, arg database.InsertCredentialLedgerRowParams) (database.CredentialLedger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertCredentialLedgerRow", ctx, arg)
+	ret0, _ := ret[0].(database.CredentialLedger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertCredentialLedgerRow indicates an expected call of InsertCredentialLedgerRow.
+func (mr *MockStoreMockRecorder) InsertCredentialLedgerRow(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertCredentialLedgerRow", reflect.TypeOf((*MockStore)(nil).InsertCredentialLedgerRow), ctx, arg)
+}
+
 // InsertCredentialLifecycleJournalAPIKeyLine mocks base method.
 func (m *MockStore) InsertCredentialLifecycleJournalAPIKeyLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalAPIKeyLineParams) (database.CredentialLifecycleJournalApiKey, error) {
 	m.ctrl.T.Helper()
@@ -8278,21 +8308,6 @@ func (mr *MockStoreMockRecorder) InsertCredentialLifecycleJournalEntry(ctx, arg 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertCredentialLifecycleJournalEntry", reflect.TypeOf((*MockStore)(nil).InsertCredentialLifecycleJournalEntry), ctx, arg)
 }
 
-// InsertCredentialLifecycleLedgerRow mocks base method.
-func (m *MockStore) InsertCredentialLifecycleLedgerRow(ctx context.Context, arg database.InsertCredentialLifecycleLedgerRowParams) (database.CredentialLifecycleLedger, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertCredentialLifecycleLedgerRow", ctx, arg)
-	ret0, _ := ret[0].(database.CredentialLifecycleLedger)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertCredentialLifecycleLedgerRow indicates an expected call of InsertCredentialLifecycleLedgerRow.
-func (mr *MockStoreMockRecorder) InsertCredentialLifecycleLedgerRow(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertCredentialLifecycleLedgerRow", reflect.TypeOf((*MockStore)(nil).InsertCredentialLifecycleLedgerRow), ctx, arg)
-}
-
 // InsertCredentialPassword mocks base method.
 func (m *MockStore) InsertCredentialPassword(ctx context.Context, arg database.InsertCredentialPasswordParams) (database.CredentialPassword, error) {
 	m.ctrl.T.Helper()
@@ -8306,6 +8321,21 @@ func (m *MockStore) InsertCredentialPassword(ctx context.Context, arg database.I
 func (mr *MockStoreMockRecorder) InsertCredentialPassword(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertCredentialPassword", reflect.TypeOf((*MockStore)(nil).InsertCredentialPassword), ctx, arg)
+}
+
+// InsertCredentialUseJournalEntry mocks base method.
+func (m *MockStore) InsertCredentialUseJournalEntry(ctx context.Context, arg database.InsertCredentialUseJournalEntryParams) (database.CredentialUseJournal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertCredentialUseJournalEntry", ctx, arg)
+	ret0, _ := ret[0].(database.CredentialUseJournal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertCredentialUseJournalEntry indicates an expected call of InsertCredentialUseJournalEntry.
+func (mr *MockStoreMockRecorder) InsertCredentialUseJournalEntry(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertCredentialUseJournalEntry", reflect.TypeOf((*MockStore)(nil).InsertCredentialUseJournalEntry), ctx, arg)
 }
 
 // InsertCryptoKey mocks base method.
@@ -9807,6 +9837,21 @@ func (mr *MockStoreMockRecorder) NextCredentialLifecycleJournalEntryID(ctx any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NextCredentialLifecycleJournalEntryID", reflect.TypeOf((*MockStore)(nil).NextCredentialLifecycleJournalEntryID), ctx)
 }
 
+// NextCredentialUseJournalEntryID mocks base method.
+func (m *MockStore) NextCredentialUseJournalEntryID(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NextCredentialUseJournalEntryID", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NextCredentialUseJournalEntryID indicates an expected call of NextCredentialUseJournalEntryID.
+func (mr *MockStoreMockRecorder) NextCredentialUseJournalEntryID(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NextCredentialUseJournalEntryID", reflect.TypeOf((*MockStore)(nil).NextCredentialUseJournalEntryID), ctx)
+}
+
 // OIDCClaimFieldValues mocks base method.
 func (m *MockStore) OIDCClaimFieldValues(ctx context.Context, arg database.OIDCClaimFieldValuesParams) ([]string, error) {
 	m.ctrl.T.Helper()
@@ -9926,6 +9971,21 @@ func (mr *MockStoreMockRecorder) PopNextQueuedMessage(ctx, chatID any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PopNextQueuedMessage", reflect.TypeOf((*MockStore)(nil).PopNextQueuedMessage), ctx, chatID)
 }
 
+// PostCredentialPresentation mocks base method.
+func (m *MockStore) PostCredentialPresentation(ctx context.Context, arg database.PostCredentialPresentationParams) (database.CredentialLedger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PostCredentialPresentation", ctx, arg)
+	ret0, _ := ret[0].(database.CredentialLedger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PostCredentialPresentation indicates an expected call of PostCredentialPresentation.
+func (mr *MockStoreMockRecorder) PostCredentialPresentation(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PostCredentialPresentation", reflect.TypeOf((*MockStore)(nil).PostCredentialPresentation), ctx, arg)
+}
+
 // ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate mocks base method.
 func (m *MockStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -10001,10 +10061,10 @@ func (mr *MockStoreMockRecorder) ReorderChatQueuedMessageToHead(ctx, arg any) *g
 }
 
 // RetireAIAgent mocks base method.
-func (m *MockStore) RetireAIAgent(ctx context.Context, arg database.RetireAIAgentParams) (database.AIAgentLifecycleLedger, error) {
+func (m *MockStore) RetireAIAgent(ctx context.Context, arg database.RetireAIAgentParams) (database.AIAgentLedger, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RetireAIAgent", ctx, arg)
-	ret0, _ := ret[0].(database.AIAgentLifecycleLedger)
+	ret0, _ := ret[0].(database.AIAgentLedger)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -10016,10 +10076,10 @@ func (mr *MockStoreMockRecorder) RetireAIAgent(ctx, arg any) *gomock.Call {
 }
 
 // RevokeCredential mocks base method.
-func (m *MockStore) RevokeCredential(ctx context.Context, arg database.RevokeCredentialParams) (database.CredentialLifecycleLedger, error) {
+func (m *MockStore) RevokeCredential(ctx context.Context, arg database.RevokeCredentialParams) (database.CredentialLedger, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RevokeCredential", ctx, arg)
-	ret0, _ := ret[0].(database.CredentialLifecycleLedger)
+	ret0, _ := ret[0].(database.CredentialLedger)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

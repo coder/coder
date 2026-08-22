@@ -2815,18 +2815,18 @@ func (q *querier) GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (dat
 	return q.db.GetAIAgentByUserID(ctx, userID)
 }
 
+func (q *querier) GetAIAgentLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AIAgentLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.AIAgentLedger{}, err
+	}
+	return q.db.GetAIAgentLedgerRowByID(ctx, id)
+}
+
 func (q *querier) GetAIAgentLifecycleEntriesBySubject(ctx context.Context, arg database.GetAIAgentLifecycleEntriesBySubjectParams) ([]database.AIAgentLifecycleJournal, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
 	return q.db.GetAIAgentLifecycleEntriesBySubject(ctx, arg)
-}
-
-func (q *querier) GetAIAgentLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AIAgentLifecycleLedger, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.AIAgentLifecycleLedger{}, err
-	}
-	return q.db.GetAIAgentLifecycleLedgerRowByID(ctx, id)
 }
 
 func (q *querier) GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]database.GetAIAgentsByOwnerIDRow, error) {
@@ -3171,25 +3171,25 @@ func (q *querier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.
 	return q.db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, authToken)
 }
 
+func (q *querier) GetAuthorizationLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AuthorizationLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.AuthorizationLedger{}, err
+	}
+	return q.db.GetAuthorizationLedgerRowByID(ctx, id)
+}
+
+func (q *querier) GetAuthorizationLedgerRowsByAgent(ctx context.Context, arg database.GetAuthorizationLedgerRowsByAgentParams) ([]database.AuthorizationLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetAuthorizationLedgerRowsByAgent(ctx, arg)
+}
+
 func (q *querier) GetAuthorizationLifecycleJournalEntriesBySubject(ctx context.Context, arg database.GetAuthorizationLifecycleJournalEntriesBySubjectParams) ([]database.AuthorizationLifecycleJournal, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
 	return q.db.GetAuthorizationLifecycleJournalEntriesBySubject(ctx, arg)
-}
-
-func (q *querier) GetAuthorizationLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AuthorizationLifecycleLedger, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.AuthorizationLifecycleLedger{}, err
-	}
-	return q.db.GetAuthorizationLifecycleLedgerRowByID(ctx, id)
-}
-
-func (q *querier) GetAuthorizationLifecycleLedgerRowsByAgent(ctx context.Context, arg database.GetAuthorizationLifecycleLedgerRowsByAgentParams) ([]database.AuthorizationLifecycleLedger, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetAuthorizationLifecycleLedgerRowsByAgent(ctx, arg)
 }
 
 func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
@@ -3804,6 +3804,13 @@ func (q *querier) GetCredentialAPIKeyByID(ctx context.Context, id uuid.UUID) (da
 	return q.db.GetCredentialAPIKeyByID(ctx, id)
 }
 
+func (q *querier) GetCredentialLedgerRowByID(ctx context.Context, id uuid.UUID) (database.CredentialLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.CredentialLedger{}, err
+	}
+	return q.db.GetCredentialLedgerRowByID(ctx, id)
+}
+
 func (q *querier) GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, entryID int64) ([]database.CredentialLifecycleJournalApiKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -3811,18 +3818,18 @@ func (q *querier) GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, 
 	return q.db.GetCredentialLifecycleJournalAPIKeyLines(ctx, entryID)
 }
 
-func (q *querier) GetCredentialLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (database.CredentialLifecycleLedger, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.CredentialLifecycleLedger{}, err
-	}
-	return q.db.GetCredentialLifecycleLedgerRowByID(ctx, id)
-}
-
 func (q *querier) GetCredentialPasswordByID(ctx context.Context, id uuid.UUID) (database.CredentialPassword, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.CredentialPassword{}, err
 	}
 	return q.db.GetCredentialPasswordByID(ctx, id)
+}
+
+func (q *querier) GetCredentialUseJournalEntriesBySubject(ctx context.Context, arg database.GetCredentialUseJournalEntriesBySubjectParams) ([]database.CredentialUseJournal, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetCredentialUseJournalEntriesBySubject(ctx, arg)
 }
 
 func (q *querier) GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg database.GetCryptoKeyByFeatureAndSequenceParams) (database.CryptoKey, error) {
@@ -5466,7 +5473,7 @@ func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]databas
 	return q.db.GetUsersByIDs(ctx, ids)
 }
 
-func (q *querier) GetValidCredentialsByHolder(ctx context.Context, arg database.GetValidCredentialsByHolderParams) ([]database.CredentialLifecycleLedger, error) {
+func (q *querier) GetValidCredentialsByHolder(ctx context.Context, arg database.GetValidCredentialsByHolderParams) ([]database.CredentialLedger, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
@@ -6065,6 +6072,13 @@ func (q *querier) InsertAIAgent(ctx context.Context, arg database.InsertAIAgentP
 	return q.db.InsertAIAgent(ctx, arg)
 }
 
+func (q *querier) InsertAIAgentLedgerRow(ctx context.Context, arg database.InsertAIAgentLedgerRowParams) (database.AIAgentLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.AIAgentLedger{}, err
+	}
+	return q.db.InsertAIAgentLedgerRow(ctx, arg)
+}
+
 func (q *querier) InsertAIAgentLifecycleJournalFirstLine(ctx context.Context, arg database.InsertAIAgentLifecycleJournalFirstLineParams) (database.AIAgentLifecycleJournal, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.AIAgentLifecycleJournal{}, err
@@ -6077,13 +6091,6 @@ func (q *querier) InsertAIAgentLifecycleJournalSubsequentLine(ctx context.Contex
 		return database.AIAgentLifecycleJournal{}, err
 	}
 	return q.db.InsertAIAgentLifecycleJournalSubsequentLine(ctx, arg)
-}
-
-func (q *querier) InsertAIAgentLifecycleLedgerRow(ctx context.Context, arg database.InsertAIAgentLifecycleLedgerRowParams) (database.AIAgentLifecycleLedger, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.AIAgentLifecycleLedger{}, err
-	}
-	return q.db.InsertAIAgentLifecycleLedgerRow(ctx, arg)
 }
 
 func (q *querier) InsertAIAgentUser(ctx context.Context, arg database.InsertAIAgentUserParams) (database.User, error) {
@@ -6197,6 +6204,13 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertAuditLog)(ctx, arg)
 }
 
+func (q *querier) InsertAuthorizationLedgerRow(ctx context.Context, arg database.InsertAuthorizationLedgerRowParams) (database.AuthorizationLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.AuthorizationLedger{}, err
+	}
+	return q.db.InsertAuthorizationLedgerRow(ctx, arg)
+}
+
 func (q *querier) InsertAuthorizationLifecycleJournalFirstLine(ctx context.Context, arg database.InsertAuthorizationLifecycleJournalFirstLineParams) (database.AuthorizationLifecycleJournal, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.AuthorizationLifecycleJournal{}, err
@@ -6209,13 +6223,6 @@ func (q *querier) InsertAuthorizationLifecycleJournalSubsequentLine(ctx context.
 		return database.AuthorizationLifecycleJournal{}, err
 	}
 	return q.db.InsertAuthorizationLifecycleJournalSubsequentLine(ctx, arg)
-}
-
-func (q *querier) InsertAuthorizationLifecycleLedgerRow(ctx context.Context, arg database.InsertAuthorizationLifecycleLedgerRowParams) (database.AuthorizationLifecycleLedger, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.AuthorizationLifecycleLedger{}, err
-	}
-	return q.db.InsertAuthorizationLifecycleLedgerRow(ctx, arg)
 }
 
 func (q *querier) InsertBoundaryLogs(ctx context.Context, arg database.InsertBoundaryLogsParams) ([]database.BoundaryLog, error) {
@@ -6324,6 +6331,13 @@ func (q *querier) InsertCredentialAPIKey(ctx context.Context, arg database.Inser
 	return q.db.InsertCredentialAPIKey(ctx, arg)
 }
 
+func (q *querier) InsertCredentialLedgerRow(ctx context.Context, arg database.InsertCredentialLedgerRowParams) (database.CredentialLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.CredentialLedger{}, err
+	}
+	return q.db.InsertCredentialLedgerRow(ctx, arg)
+}
+
 func (q *querier) InsertCredentialLifecycleJournalAPIKeyLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalAPIKeyLineParams) (database.CredentialLifecycleJournalApiKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.CredentialLifecycleJournalApiKey{}, err
@@ -6338,18 +6352,18 @@ func (q *querier) InsertCredentialLifecycleJournalEntry(ctx context.Context, arg
 	return q.db.InsertCredentialLifecycleJournalEntry(ctx, arg)
 }
 
-func (q *querier) InsertCredentialLifecycleLedgerRow(ctx context.Context, arg database.InsertCredentialLifecycleLedgerRowParams) (database.CredentialLifecycleLedger, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.CredentialLifecycleLedger{}, err
-	}
-	return q.db.InsertCredentialLifecycleLedgerRow(ctx, arg)
-}
-
 func (q *querier) InsertCredentialPassword(ctx context.Context, arg database.InsertCredentialPasswordParams) (database.CredentialPassword, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.CredentialPassword{}, err
 	}
 	return q.db.InsertCredentialPassword(ctx, arg)
+}
+
+func (q *querier) InsertCredentialUseJournalEntry(ctx context.Context, arg database.InsertCredentialUseJournalEntryParams) (database.CredentialUseJournal, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.CredentialUseJournal{}, err
+	}
+	return q.db.InsertCredentialUseJournalEntry(ctx, arg)
 }
 
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
@@ -7273,6 +7287,13 @@ func (q *querier) NextCredentialLifecycleJournalEntryID(ctx context.Context) (in
 	return q.db.NextCredentialLifecycleJournalEntryID(ctx)
 }
 
+func (q *querier) NextCredentialUseJournalEntryID(ctx context.Context) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.NextCredentialUseJournalEntryID(ctx)
+}
+
 func (q *querier) OIDCClaimFieldValues(ctx context.Context, args database.OIDCClaimFieldValuesParams) ([]string, error) {
 	resource := rbac.ResourceIdpsyncSettings
 	if args.OrganizationID != uuid.Nil {
@@ -7330,6 +7351,13 @@ func (q *querier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (d
 	return q.db.PopNextQueuedMessage(ctx, chatID)
 }
 
+func (q *querier) PostCredentialPresentation(ctx context.Context, arg database.PostCredentialPresentationParams) (database.CredentialLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.CredentialLedger{}, err
+	}
+	return q.db.PostCredentialPresentation(ctx, arg)
+}
+
 func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	template, err := q.db.GetTemplateByID(ctx, templateID)
 	if err != nil {
@@ -7381,16 +7409,16 @@ func (q *querier) ReorderChatQueuedMessageToHead(ctx context.Context, arg databa
 	return q.db.ReorderChatQueuedMessageToHead(ctx, arg)
 }
 
-func (q *querier) RetireAIAgent(ctx context.Context, arg database.RetireAIAgentParams) (database.AIAgentLifecycleLedger, error) {
+func (q *querier) RetireAIAgent(ctx context.Context, arg database.RetireAIAgentParams) (database.AIAgentLedger, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return database.AIAgentLifecycleLedger{}, err
+		return database.AIAgentLedger{}, err
 	}
 	return q.db.RetireAIAgent(ctx, arg)
 }
 
-func (q *querier) RevokeCredential(ctx context.Context, arg database.RevokeCredentialParams) (database.CredentialLifecycleLedger, error) {
+func (q *querier) RevokeCredential(ctx context.Context, arg database.RevokeCredentialParams) (database.CredentialLedger, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return database.CredentialLifecycleLedger{}, err
+		return database.CredentialLedger{}, err
 	}
 	return q.db.RevokeCredential(ctx, arg)
 }

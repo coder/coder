@@ -305,13 +305,13 @@ type sqlcQuerier interface {
 	// "identity was revoked" (deleted = true) and fail closed on the latter.
 	GetAIAgentByOriginIncludingDeleted(ctx context.Context, arg GetAIAgentByOriginIncludingDeletedParams) (AIAgent, error)
 	GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (AIAgent, error)
+	GetAIAgentLedgerRowByID(ctx context.Context, id uuid.UUID) (AIAgentLedger, error)
 	// Entries about one AI agent, ordered as they were made. This machine has a
 	// cycle, `transfer` being a self-transition, so one subject can accumulate
 	// entries without limit and the bound is one the caller chooses rather than one
 	// the machine guarantees. Callers pass one more than they will accept, so
 	// receiving it tells them the set was larger.
 	GetAIAgentLifecycleEntriesBySubject(ctx context.Context, arg GetAIAgentLifecycleEntriesBySubjectParams) ([]AIAgentLifecycleJournal, error)
-	GetAIAgentLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (AIAgentLifecycleLedger, error)
 	GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]GetAIAgentsByOwnerIDRow, error)
 	// AI Gateway cost for one chat tree: the root chat plus every subagent
 	// beneath it. The spawning chat's ID is recorded as the interception session
@@ -422,13 +422,7 @@ type sqlcQuerier interface {
 	// the STOP build is executing, allowing shutdown scripts to authenticate (see
 	// issue #19467).
 	GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error)
-	// Entries about one authorization, ordered as they were made. Unlike the AI
-	// agent's, this machine has no cycle, so one subject's entries are bounded by
-	// the sequences it allows and the limit only caps what a caller will take.
-	// Callers pass one more than they will accept, so receiving it tells them the
-	// set was larger.
-	GetAuthorizationLifecycleJournalEntriesBySubject(ctx context.Context, arg GetAuthorizationLifecycleJournalEntriesBySubjectParams) ([]AuthorizationLifecycleJournal, error)
-	GetAuthorizationLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (AuthorizationLifecycleLedger, error)
+	GetAuthorizationLedgerRowByID(ctx context.Context, id uuid.UUID) (AuthorizationLedger, error)
 	// Every authorization held by one agent, whatever its state.
 	//
 	// This exists for `lapse`. When an AI agent reaches `retired`, every
@@ -442,7 +436,13 @@ type sqlcQuerier interface {
 	// Unlike the credential equivalent it does not filter to the live rows, since
 	// both callers have to tell an authorization that already ended from one they
 	// must end.
-	GetAuthorizationLifecycleLedgerRowsByAgent(ctx context.Context, arg GetAuthorizationLifecycleLedgerRowsByAgentParams) ([]AuthorizationLifecycleLedger, error)
+	GetAuthorizationLedgerRowsByAgent(ctx context.Context, arg GetAuthorizationLedgerRowsByAgentParams) ([]AuthorizationLedger, error)
+	// Entries about one authorization, ordered as they were made. Unlike the AI
+	// agent's, this machine has no cycle, so one subject's entries are bounded by
+	// the sequences it allows and the limit only caps what a caller will take.
+	// Callers pass one more than they will accept, so receiving it tells them the
+	// set was larger.
+	GetAuthorizationLifecycleJournalEntriesBySubject(ctx context.Context, arg GetAuthorizationLifecycleJournalEntriesBySubjectParams) ([]AuthorizationLifecycleJournal, error)
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	// Must stay semantically in sync with GetActiveUsersAuthorizationRoles
@@ -597,10 +597,14 @@ type sqlcQuerier interface {
 	GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCredentialAPIKeyByID(ctx context.Context, id uuid.UUID) (CredentialApiKey, error)
+	GetCredentialLedgerRowByID(ctx context.Context, id uuid.UUID) (CredentialLedger, error)
 	// The api_key lines of one entry, in line order.
 	GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, entryID int64) ([]CredentialLifecycleJournalApiKey, error)
-	GetCredentialLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (CredentialLifecycleLedger, error)
 	GetCredentialPasswordByID(ctx context.Context, id uuid.UUID) (CredentialPassword, error)
+	// Entries about one credential's use, in journal order. Unbounded in principle:
+	// a variable takes assignments without limit, so the caller's limit is a cap it
+	// chooses rather than one the model guarantees.
+	GetCredentialUseJournalEntriesBySubject(ctx context.Context, arg GetCredentialUseJournalEntriesBySubjectParams) ([]CredentialUseJournal, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
 	GetCryptoKeys(ctx context.Context) ([]CryptoKey, error)
 	GetCryptoKeysByFeature(ctx context.Context, feature CryptoKeyFeature) ([]CryptoKey, error)
@@ -1032,7 +1036,7 @@ type sqlcQuerier interface {
 	//
 	// Type specific state is not joined in. A caller that needs it knows the type
 	// from the row and fetches it, which is what the type discriminator is for.
-	GetValidCredentialsByHolder(ctx context.Context, arg GetValidCredentialsByHolderParams) ([]CredentialLifecycleLedger, error)
+	GetValidCredentialsByHolder(ctx context.Context, arg GetValidCredentialsByHolderParams) ([]CredentialLedger, error)
 	GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]WebpushSubscription, error)
 	GetWebpushVAPIDKeys(ctx context.Context) (GetWebpushVAPIDKeysRow, error)
 	GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (GetWorkspaceACLByIDRow, error)
@@ -1141,6 +1145,7 @@ type sqlcQuerier interface {
 	// The day parameter is normalized to its UTC calendar day before storage.
 	IncrementUserAIDailySpend(ctx context.Context, arg IncrementUserAIDailySpendParams) (AIUserDailySpend, error)
 	InsertAIAgent(ctx context.Context, arg InsertAIAgentParams) (AIAgent, error)
+	InsertAIAgentLedgerRow(ctx context.Context, arg InsertAIAgentLedgerRowParams) (AIAgentLedger, error)
 	// Line 0 carries the entry level values. recording_date is absent from this
 	// statement on purpose: the column default supplies it, so no caller can
 	// supply, override, or backdate it.
@@ -1151,7 +1156,6 @@ type sqlcQuerier interface {
 	// it as documentation rather than as a tested path. In production this would
 	// rot; this is not production.
 	InsertAIAgentLifecycleJournalSubsequentLine(ctx context.Context, arg InsertAIAgentLifecycleJournalSubsequentLineParams) (AIAgentLifecycleJournal, error)
-	InsertAIAgentLifecycleLedgerRow(ctx context.Context, arg InsertAIAgentLifecycleLedgerRowParams) (AIAgentLifecycleLedger, error)
 	InsertAIAgentUser(ctx context.Context, arg InsertAIAgentUserParams) (User, error)
 	InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error)
 	InsertAIBridgeModelThought(ctx context.Context, arg InsertAIBridgeModelThoughtParams) (AIBridgeModelThought, error)
@@ -1176,6 +1180,7 @@ type sqlcQuerier interface {
 	// every member of the org.
 	InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
+	InsertAuthorizationLedgerRow(ctx context.Context, arg InsertAuthorizationLedgerRowParams) (AuthorizationLedger, error)
 	// Line 0 carries the entry level values. recording_date is absent from this
 	// statement on purpose: the column default supplies it, so no caller can
 	// supply, override, or backdate it.
@@ -1191,7 +1196,6 @@ type sqlcQuerier interface {
 	// null rather than as a parameter, for the same reason line 0 omits the
 	// recording date: what a caller cannot name, a caller cannot get wrong.
 	InsertAuthorizationLifecycleJournalSubsequentLine(ctx context.Context, arg InsertAuthorizationLifecycleJournalSubsequentLineParams) (AuthorizationLifecycleJournal, error)
-	InsertAuthorizationLifecycleLedgerRow(ctx context.Context, arg InsertAuthorizationLifecycleLedgerRowParams) (AuthorizationLifecycleLedger, error)
 	InsertBoundaryLogs(ctx context.Context, arg InsertBoundaryLogsParams) ([]BoundaryLog, error)
 	InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error)
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
@@ -1222,17 +1226,21 @@ type sqlcQuerier interface {
 	// The api_key type's own state, keyed on the ledger row it belongs to and
 	// written in the same transaction as it.
 	InsertCredentialAPIKey(ctx context.Context, arg InsertCredentialAPIKeyParams) (CredentialApiKey, error)
+	InsertCredentialLedgerRow(ctx context.Context, arg InsertCredentialLedgerRowParams) (CredentialLedger, error)
 	// What an issuance of an api_key credential carried. The entry says an issuance
 	// occurred; this says with what.
 	InsertCredentialLifecycleJournalAPIKeyLine(ctx context.Context, arg InsertCredentialLifecycleJournalAPIKeyLineParams) (CredentialLifecycleJournalApiKey, error)
 	// recording_date is absent from this statement on purpose: the column default
 	// supplies it, so no caller can supply, override, or backdate it.
 	InsertCredentialLifecycleJournalEntry(ctx context.Context, arg InsertCredentialLifecycleJournalEntryParams) (CredentialLifecycleJournal, error)
-	InsertCredentialLifecycleLedgerRow(ctx context.Context, arg InsertCredentialLifecycleLedgerRowParams) (CredentialLifecycleLedger, error)
 	// The password type's own state, keyed on the ledger row it belongs to. Written
 	// in the same transaction as that row: a ledger row of type password with no
 	// row here is a credential nothing can verify.
 	InsertCredentialPassword(ctx context.Context, arg InsertCredentialPasswordParams) (CredentialPassword, error)
+	// recording_date is absent on purpose: the column default supplies it, so no
+	// caller can supply, override, or backdate it. The annotation column is not
+	// read by posting, which is what its name promises.
+	InsertCredentialUseJournalEntry(ctx context.Context, arg InsertCredentialUseJournalEntryParams) (CredentialUseJournal, error)
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
@@ -1426,6 +1434,9 @@ type sqlcQuerier interface {
 	// One call per entry. The journal is in the normalized form, so this is the
 	// key of the entry table and of any line rows that later join to it.
 	NextCredentialLifecycleJournalEntryID(ctx context.Context) (int64, error)
+	// One call per entry. The use journal has no line table, neither of its
+	// operations taking parameters.
+	NextCredentialUseJournalEntryID(ctx context.Context) (int64, error)
 	OIDCClaimFieldValues(ctx context.Context, arg OIDCClaimFieldValuesParams) ([]string, error)
 	// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
 	// This query is used to generate the list of available sync fields for idp sync settings.
@@ -1443,6 +1454,16 @@ type sqlcQuerier interface {
 	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
+	// Posting an assignment to the use model's variables.
+	//
+	// Conditional on the entry being newer than whatever last posted, which is how
+	// "post in journal order" is enforced for a variable. An older entry arriving
+	// late affects no rows, and that is correct rather than a failure: the fold in
+	// journal order would give the newer value anyway.
+	//
+	// last_used is assigned only when the presentation was accepted, which the
+	// caller states rather than the statement inferring.
+	PostCredentialPresentation(ctx context.Context, arg PostCredentialPresentationParams) (CredentialLedger, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
@@ -1454,10 +1475,10 @@ type sqlcQuerier interface {
 	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
 	// Posting a retirement. Conditioned on the posting reference the caller expects
 	// to find, so that two concurrent posters cannot both believe they succeeded.
-	RetireAIAgent(ctx context.Context, arg RetireAIAgentParams) (AIAgentLifecycleLedger, error)
+	RetireAIAgent(ctx context.Context, arg RetireAIAgentParams) (AIAgentLedger, error)
 	// Conditional on the posting reference the caller last saw, so that two posters
 	// cannot both believe they succeeded.
-	RevokeCredential(ctx context.Context, arg RevokeCredentialParams) (CredentialLifecycleLedger, error)
+	RevokeCredential(ctx context.Context, arg RevokeCredentialParams) (CredentialLedger, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Marks chat-origin AI agent identities deleted when their chat no longer
 	// exists (retention purge hard-deletes chats; ai_agents.origin_id has no

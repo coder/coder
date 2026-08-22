@@ -4808,6 +4808,16 @@ type AIAgent struct {
 	Deleted     bool          `db:"deleted" json:"deleted"`
 }
 
+// Current state of each AI agent identity. Three absences are deliberate. There is no workspace or sandbox reference, because an AI agent's identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema merging them forecloses reconstituting an AI agent from a previous session. There is no creation time, because the journal records when this row came to exist and a second copy could disagree with the first.
+type AIAgentLedger struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	OwnerType string    `db:"owner_type" json:"owner_type"`
+	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
+	// dormant is reserved for future use and is unreachable in the machine the proof of concept implements, which has active and retired only. It is in the enum now so that supporting reconstitution later costs no migration, which means code switching exhaustively over these values must handle a state that cannot occur.
+	State            string `db:"state" json:"state"`
+	PostingReference int64  `db:"posting_reference" json:"posting_reference"`
+}
+
 // Journal of persistent state changes to AI agent identities. One journal per entity: sharing one would assert that two lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.
 type AIAgentLifecycleJournal struct {
 	EntryID       int64        `db:"entry_id" json:"entry_id"`
@@ -4819,16 +4829,6 @@ type AIAgentLifecycleJournal struct {
 	Actor         uuid.NullUUID  `db:"actor" json:"actor"`
 	Event         string         `db:"event" json:"event"`
 	Subject       uuid.UUID      `db:"subject" json:"subject"`
-}
-
-// Current state of each AI agent identity. Three absences are deliberate. There is no workspace or sandbox reference, because an AI agent's identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema merging them forecloses reconstituting an AI agent from a previous session. There is no creation time, because the journal records when this row came to exist and a second copy could disagree with the first.
-type AIAgentLifecycleLedger struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	OwnerType string    `db:"owner_type" json:"owner_type"`
-	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
-	// dormant is reserved for future use and is unreachable in the machine the proof of concept implements, which has active and retired only. It is in the enum now so that supporting reconstitution later costs no migration, which means code switching exhaustively over these values must handle a state that cannot occur.
-	State            string `db:"state" json:"state"`
-	PostingReference int64  `db:"posting_reference" json:"posting_reference"`
 }
 
 // Audit log of requests intercepted by AI Bridge
@@ -5093,6 +5093,20 @@ type AuditLog struct {
 	OnBehalfOfUserID uuid.NullUUID   `db:"on_behalf_of_user_id" json:"on_behalf_of_user_id"`
 }
 
+// Current state of each authorization, an agency relation between a principal and an agent. Derived from authorization_lifecycle_journal, which is the book of original entry. Carries no timestamps: when anything happened is recorded there, and a second copy here could disagree with the first.
+type AuthorizationLedger struct {
+	ID            uuid.UUID `db:"id" json:"id"`
+	PrincipalType string    `db:"principal_type" json:"principal_type"`
+	PrincipalID   uuid.UUID `db:"principal_id" json:"principal_id"`
+	AgentType     string    `db:"agent_type" json:"agent_type"`
+	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
+	// Reserved for future use; always empty. An empty scope denotes a universal grant, the grant that restricts nothing and therefore has the shortest description. Authorization is not capacity: what an agent can in fact do is restricted by its sandbox, its gateway, and other technical means, and reconciling capacity against authorization is future work that is trivial while every grant is universal.
+	Scope string `db:"scope" json:"scope"`
+	State string `db:"state" json:"state"`
+	// Identifies the journal entry most recently posted to this row, after the folio that cross references a paper ledger back to its journal. It gives reconciliation a cheap handle, since an entry newer than this one is an entry not yet posted, and it makes posting safe against a race when the update is conditioned on the value it expects to find.
+	PostingReference int64 `db:"posting_reference" json:"posting_reference"`
+}
+
 // Journal of persistent state changes to authorizations, against which the ledger and the world can be reconciled. One journal per entity: sharing one with another entity would assert that their lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.
 type AuthorizationLifecycleJournal struct {
 	// Identifies the entry. An entry may occupy several lines, which share this value and differ by line number. Multiple lines express an atomic group: one event rather than several that coincide, so an entry that ends one authorization and begins another leaves no gap between them.
@@ -5106,20 +5120,6 @@ type AuthorizationLifecycleJournal struct {
 	Actor         uuid.NullUUID  `db:"actor" json:"actor"`
 	Event         string         `db:"event" json:"event"`
 	Subject       uuid.UUID      `db:"subject" json:"subject"`
-}
-
-// Current state of each authorization, an agency relation between a principal and an agent. Derived from authorization_lifecycle_journal, which is the book of original entry. Carries no timestamps: when anything happened is recorded there, and a second copy here could disagree with the first.
-type AuthorizationLifecycleLedger struct {
-	ID            uuid.UUID `db:"id" json:"id"`
-	PrincipalType string    `db:"principal_type" json:"principal_type"`
-	PrincipalID   uuid.UUID `db:"principal_id" json:"principal_id"`
-	AgentType     string    `db:"agent_type" json:"agent_type"`
-	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
-	// Reserved for future use; always empty. An empty scope denotes a universal grant, the grant that restricts nothing and therefore has the shortest description. Authorization is not capacity: what an agent can in fact do is restricted by its sandbox, its gateway, and other technical means, and reconciling capacity against authorization is future work that is trivial while every grant is universal.
-	Scope string `db:"scope" json:"scope"`
-	State string `db:"state" json:"state"`
-	// Identifies the journal entry most recently posted to this row, after the folio that cross references a paper ledger back to its journal. It gives reconciliation a cheap handle, since an entry newer than this one is an entry not yet posted, and it makes posting safe against a race when the update is conditioned on the value it expects to find.
-	PostingReference int64 `db:"posting_reference" json:"posting_reference"`
 }
 
 // Persisted boundary audit events. Each row is a single audit event processed by a Boundary proxy.
@@ -5500,6 +5500,27 @@ type CredentialApiKey struct {
 	AllowList    AllowList    `db:"allow_list" json:"allow_list"`
 }
 
+// Current state of each credential. A credential is a means of exercising authority and not the authority itself: a grant stands whether or not one has been issued, and the two are reconciled against each other only because neither determines the other. Carries no creation time, the journal recording when.
+type CredentialLedger struct {
+	// Identifies the credential, and is deliberately not derived from its secret. Letting a secret name the credential carrying it would assume every credential is a password, and would put a secret in every reference to one.
+	ID         uuid.UUID `db:"id" json:"id"`
+	HolderType string    `db:"holder_type" json:"holder_type"`
+	HolderID   uuid.UUID `db:"holder_id" json:"holder_id"`
+	// Two types exist in the proof of concept. A password holds the hex of an unsalted SHA-256 digest of the secret, unsalted because the secret is randomly generated and high entropy, and matching what coderd/apikey already does. A null credential always validates and holds an empty value; it exists for fault isolation in tests, would never be issued in production, and its always-validates path is a proof of concept hazard recorded with the other cheats.
+	CredentialType string `db:"credential_type" json:"credential_type"`
+	State          string `db:"state" json:"state"`
+	// The latest moment this credential can be valid. It promises nothing about the credential remaining valid until then, revocation being unconditional. Nothing prevents a row sitting in state valid past this time, since the entries recording expiry are written by a sweep that runs on a period; a reader wanting what is presently usable must test both, and must not do so through a view when verifying, which would be a time of check to time of use error.
+	ExpiresAt sql.NullTime `db:"expires_at" json:"expires_at"`
+	// Identifies the journal entry most recently posted to this row, after the folio that cross references a paper ledger back to its journal.
+	LifecyclePostingReference int64 `db:"lifecycle_posting_reference" json:"lifecycle_posting_reference"`
+	// When the credential was last offered, however it went. Null is the initial value every variable has, and means it has never been offered.
+	LastPresented sql.NullTime `db:"last_presented" json:"last_presented"`
+	// When the credential was last offered and accepted. Null means never.
+	LastUsed sql.NullTime `db:"last_used" json:"last_used"`
+	// Which entry of the use journal last posted here. Separate from the lifecycle reference because a posting reference follows its journal, which also keeps a posting under one model from making a posting under another lose a race it is not in.
+	UsePostingReference sql.NullInt64 `db:"use_posting_reference" json:"use_posting_reference"`
+}
+
 // Journal of persistent state changes to credentials, in the normalized form: this is the entry table. Line tables join to it as credential operations acquire parameters. One journal per entity: sharing one would assert that two lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.
 type CredentialLifecycleJournal struct {
 	// Identifies the entry. An entry may occupy several lines sharing this value, expressing an atomic group: rotation issues one credential and revokes another as a single event, so that no interval passes without a valid one.
@@ -5522,26 +5543,24 @@ type CredentialLifecycleJournalApiKey struct {
 	AllowList AllowList    `db:"allow_list" json:"allow_list"`
 }
 
-// Current state of each credential. A credential is a means of exercising authority and not the authority itself: a grant stands whether or not one has been issued, and the two are reconciled against each other only because neither determines the other. Carries no creation time, the journal recording when.
-type CredentialLifecycleLedger struct {
-	// Identifies the credential, and is deliberately not derived from its secret. Letting a secret name the credential carrying it would assume every credential is a password, and would put a secret in every reference to one.
-	ID         uuid.UUID `db:"id" json:"id"`
-	HolderType string    `db:"holder_type" json:"holder_type"`
-	HolderID   uuid.UUID `db:"holder_id" json:"holder_id"`
-	// Two types exist in the proof of concept. A password holds the hex of an unsalted SHA-256 digest of the secret, unsalted because the secret is randomly generated and high entropy, and matching what coderd/apikey already does. A null credential always validates and holds an empty value; it exists for fault isolation in tests, would never be issued in production, and its always-validates path is a proof of concept hazard recorded with the other cheats.
-	CredentialType string `db:"credential_type" json:"credential_type"`
-	State          string `db:"state" json:"state"`
-	// The latest moment this credential can be valid. It promises nothing about the credential remaining valid until then, revocation being unconditional. Nothing prevents a row sitting in state valid past this time, since the entries recording expiry are written by a sweep that runs on a period; a reader wanting what is presently usable must test both, and must not do so through a view when verifying, which would be a time of check to time of use error.
-	ExpiresAt sql.NullTime `db:"expires_at" json:"expires_at"`
-	// Identifies the journal entry most recently posted to this row, after the folio that cross references a paper ledger back to its journal.
-	PostingReference int64 `db:"posting_reference" json:"posting_reference"`
-}
-
 // What a password credential holds beyond what every credential holds. Keyed on the ledger row it belongs to, which is why this needs no foreign key into a union: the ledger mints the identifier and the type says which table to look in.
 type CredentialPassword struct {
 	ID uuid.UUID `db:"id" json:"id"`
 	// Hex of an unsalted SHA-256 digest. No salt is needed for a randomly generated high entropy secret, which is the reasoning coderd/apikey follows.
 	HashedAuthenticator string `db:"hashed_authenticator" json:"hashed_authenticator"`
+}
+
+// Journal of presentations of a credential. Both operations are observed and the actor is the verifier, the party the presentation was made to and so the party that noticed.
+type CredentialUseJournal struct {
+	EntryID       int64     `db:"entry_id" json:"entry_id"`
+	RecordingDate time.Time `db:"recording_date" json:"recording_date"`
+	EffectiveDate time.Time `db:"effective_date" json:"effective_date"`
+	ActorType     string    `db:"actor_type" json:"actor_type"`
+	Actor         uuid.UUID `db:"actor" json:"actor"`
+	Event         string    `db:"event" json:"event"`
+	Subject       uuid.UUID `db:"subject" json:"subject"`
+	// Where the presentation arrived from, as the verifier observed it. Reliable, being what the verifier knows about itself, and an annotation because it bears on nothing the operation assigns. There is deliberately no column for who the presenter claimed to be: the declaration of which credential is being presented is the only claim a presentation carries, and it is the subject.
+	AnnotationSource sql.NullString `db:"annotation_source" json:"annotation_source"`
 }
 
 type CryptoKey struct {

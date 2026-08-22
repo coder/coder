@@ -53,6 +53,13 @@ const (
 	EventCredentialRevoke Event = "revoke"
 )
 
+// Credential use events. Both name a presentation, because both are one: what
+// differs is how it went.
+const (
+	EventPresentationAccepted Event = "presentation_accepted"
+	EventPresentationRefused  Event = "presentation_refused"
+)
+
 // authenticatorLength is how many characters a minted password carries. It is
 // not a considered figure.
 const authenticatorLength = 32
@@ -188,7 +195,7 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 			return xerrors.Errorf("append issuance entry: %w", err)
 		}
 
-		_, err = tx.InsertCredentialLifecycleLedgerRow(ctx, database.InsertCredentialLifecycleLedgerRowParams{
+		_, err = tx.InsertCredentialLedgerRow(ctx, database.InsertCredentialLedgerRowParams{
 			ID:             issued.ID,
 			HolderType:     string(params.Holder.Type),
 			HolderID:       params.Holder.ID,
@@ -198,8 +205,8 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 			// work package which does changes no schema, and an absent expiry
 			// means no expiry: the null stands exactly where a row would have
 			// been absent had expirations been kept in a table of their own.
-			ExpiresAt:        sql.NullTime{},
-			PostingReference: entryID,
+			ExpiresAt:                 sql.NullTime{},
+			LifecyclePostingReference: entryID,
 		})
 		if err != nil {
 			return xerrors.Errorf("post to the ledger: %w", err)
@@ -247,82 +254,167 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 	return issued, nil
 }
 
-// VerifyCredential reports whether an authenticator output is accepted for a
-// holder.
+// Presentation is one offering of a credential to a verifier.
 //
-// This is the validation function, and it takes an identity because validation
-// always needs one. Where that identity comes from is a property of the
-// presentation rather than of validation: stated outright at a first
-// establishment, carried by a session, or implied by a sandbox that holds one
-// AI agent. Several presentations therefore share this one function.
+// It carries two things and their being two is the point: the presenter
+// **declares** which credential is being presented, and supplies an
+// authenticator output for it. Verifying the output establishes possession; the
+// declaration says what possession is being claimed of. A password style
+// exchange conflates them by sending one blob, and without the declaration a
+// refusal names no credential.
+type Presentation struct {
+	// Declared is the credential the presenter says they are presenting.
+	Declared uuid.UUID
+
+	// AuthenticatorOutput is what the presenter supplies as proof of
+	// possession.
+	AuthenticatorOutput string
+
+	// Verifier is the party the presentation was made to, and so the actor of
+	// whichever operation results. Both operations are observed and the
+	// verifier is what noticed.
+	Verifier Ref
+
+	// AnnotationSource records where the presentation arrived from, as the
+	// verifier observed it. Reliable, and an annotation because it bears on
+	// nothing the operation assigns.
+	//
+	// There is no field for who the presenter claimed to be. Declared is the
+	// only claim a presentation carries, and it is recorded as the entry's
+	// subject. A field for a presenter would want a claim distinct from the
+	// declaration, which arises under delegation and does not arise here.
+	AnnotationSource string
+}
+
+// VerifyCredential decides one presentation and records it.
 //
-// A holder may hold several valid credentials at once, so that a rotation can
-// overlap. Every candidate is compared and any match suffices. All are compared
-// even once one has matched, and each comparison is constant time, so neither
-// the duration nor the number of credentials is observable from outside.
+// The decision is whether the declared credential is valid and accepts the
+// authenticator output. The record is an entry in the credential's use journal,
+// posted to the two variables the use model holds, per "The credential use
+// model" in poc_audit/entity_model.md.
 //
-// **Expiry is not evaluated here.** Nothing writes an expiry yet, and the clock
+// **A declared credential that does not exist is refused and not recorded.**
+// There is no subject for an entry to be about. That leaves probing for
+// credential identifiers untraceable here, which is a gap rather than a
+// decision.
+//
+// **Expiry is not evaluated.** Nothing writes an expiry yet, and the clock
 // check belongs to the work package that will. A credential past an expiry this
-// function cannot see would verify.
-func VerifyCredential(ctx context.Context, store database.Store, holder Ref, presented string) (bool, error) {
-	if !holder.Type.Valid() {
-		return false, xerrors.Errorf("holder type %q names no kind of entity", holder.Type)
+// function cannot see would be accepted.
+func VerifyCredential(ctx context.Context, store database.Store, p Presentation) (bool, error) {
+	if !p.Verifier.Type.Valid() || p.Verifier.ID == uuid.Nil {
+		return false, xerrors.New("a presentation is observed by a verifier, so deciding one needs one")
 	}
 
-	candidates, err := store.GetValidCredentialsByHolder(ctx, database.GetValidCredentialsByHolderParams{
-		HolderType: string(holder.Type),
-		HolderID:   holder.ID,
-	})
+	credential, err := store.GetCredentialLedgerRowByID(ctx, p.Declared)
 	if err != nil {
-		return false, xerrors.Errorf("read valid credentials: %w", err)
-	}
-
-	presentedDigest := hashAuthenticator(presented)
-
-	matched := 0
-	for _, candidate := range candidates {
-		switch candidate.CredentialType {
-		case CredentialTypeNull:
-			matched = 1
-		case CredentialTypeAPIKey:
-			key, err := store.GetCredentialAPIKeyByID(ctx, candidate.ID)
-			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					continue
-				}
-				return false, xerrors.Errorf("read the api_key credential: %w", err)
-			}
-			matched |= subtle.ConstantTimeCompare(
-				[]byte(key.HashedSecret),
-				[]byte(presentedDigest),
-			)
-		case CredentialTypePassword:
-			// The digest lives in the password type's own table, which the
-			// ledger row names by carrying its type. A ledger row of this type
-			// with no row there is a credential nothing can verify, and it
-			// verifies nothing rather than erroring, which is the same answer
-			// a wrong authenticator gets.
-			password, err := store.GetCredentialPasswordByID(ctx, candidate.ID)
-			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					continue
-				}
-				return false, xerrors.Errorf("read the password credential: %w", err)
-			}
-			matched |= subtle.ConstantTimeCompare(
-				[]byte(password.HashedAuthenticator),
-				[]byte(presentedDigest),
-			)
-		default:
-			// A type with no code able to validate it validates nothing. That
-			// is what the absent database constraint leaves to be handled
-			// here.
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
 		}
+		return false, xerrors.Errorf("read the declared credential: %w", err)
 	}
 
-	// A holder with no valid credentials verifies nothing, including an empty
-	// presented value. The loop gives that for free: nothing to match against.
-	return matched == 1, nil
+	accepted, err := accepts(ctx, store, credential, p.AuthenticatorOutput)
+	if err != nil {
+		return false, err
+	}
+
+	event := EventPresentationRefused
+	if accepted {
+		event = EventPresentationAccepted
+	}
+	if err := recordPresentation(ctx, store, p, event); err != nil {
+		return false, xerrors.Errorf("record the presentation: %w", err)
+	}
+	return accepted, nil
+}
+
+// accepts reports whether a credential accepts an authenticator output, without
+// recording anything. A credential that is not valid accepts nothing, whatever
+// was presented, which is checked before the comparison so that a revoked
+// credential and a wrong output are refused alike.
+func accepts(ctx context.Context, store database.Store, credential database.CredentialLedger, output string) (bool, error) {
+	if credential.State != CredentialStateValid {
+		return false, nil
+	}
+
+	digest := hashAuthenticator(output)
+
+	switch credential.CredentialType {
+	case CredentialTypeNull:
+		return true, nil
+	case CredentialTypeAPIKey:
+		key, err := store.GetCredentialAPIKeyByID(ctx, credential.ID)
+		if err != nil {
+			// A ledger row of this type with no row there is a credential
+			// nothing can verify, and it verifies nothing rather than erroring,
+			// which is the answer a wrong output already gets.
+			if errors.Is(err, sql.ErrNoRows) {
+				return false, nil
+			}
+			return false, xerrors.Errorf("read the api_key credential: %w", err)
+		}
+		return subtle.ConstantTimeCompare([]byte(key.HashedSecret), []byte(digest)) == 1, nil
+	case CredentialTypePassword:
+		password, err := store.GetCredentialPasswordByID(ctx, credential.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return false, nil
+			}
+			return false, xerrors.Errorf("read the password credential: %w", err)
+		}
+		return subtle.ConstantTimeCompare([]byte(password.HashedAuthenticator), []byte(digest)) == 1, nil
+	default:
+		// A type with no code able to validate it validates nothing. That is
+		// what the absent database constraint leaves to be handled here.
+		return false, nil
+	}
+}
+
+// recordPresentation writes the entry and posts it.
+//
+// **The journal records every presentation.** That is the widest subsequence a
+// predicate can select and so needs no argument about gaps, and it is a proof
+// of concept cheat: the predicate is a constant here rather than state on the
+// ledger row, so nothing can order that recording be narrowed or widened.
+func recordPresentation(ctx context.Context, store database.Store, p Presentation, event Event) error {
+	accepted := event == EventPresentationAccepted
+	at := time.Now()
+
+	return store.InTx(func(tx database.Store) error {
+		entryID, err := tx.NextCredentialUseJournalEntryID(ctx)
+		if err != nil {
+			return xerrors.Errorf("take an entry identifier: %w", err)
+		}
+
+		if _, err := tx.InsertCredentialUseJournalEntry(ctx, database.InsertCredentialUseJournalEntryParams{
+			EntryID:       entryID,
+			EffectiveDate: at,
+			ActorType:     string(p.Verifier.Type),
+			Actor:         p.Verifier.ID,
+			Event:         string(event),
+			Subject:       p.Declared,
+			AnnotationSource: sql.NullString{
+				String: p.AnnotationSource,
+				Valid:  p.AnnotationSource != "",
+			},
+		}); err != nil {
+			return xerrors.Errorf("append the presentation entry: %w", err)
+		}
+
+		// Affecting no row means a later entry already posted, which is not a
+		// failure: the fold in journal order would give that later value
+		// anyway.
+		if _, err := tx.PostCredentialPresentation(ctx, database.PostCredentialPresentationParams{
+			ID:          p.Declared,
+			PresentedAt: sql.NullTime{Time: at, Valid: true},
+			Accepted:    accepted,
+			EntryID:     sql.NullInt64{Int64: entryID, Valid: true},
+		}); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("post the presentation: %w", err)
+		}
+		return nil
+	}, nil)
 }
 
 // RevokeCredential invalidates a credential and records it.
@@ -336,7 +428,7 @@ func RevokeCredential(ctx context.Context, store database.Store, id uuid.UUID, a
 	}
 
 	return store.InTx(func(tx database.Store) error {
-		current, err := tx.GetCredentialLifecycleLedgerRowByID(ctx, id)
+		current, err := tx.GetCredentialLedgerRowByID(ctx, id)
 		if err != nil {
 			return xerrors.Errorf("read the credential: %w", err)
 		}
@@ -362,9 +454,9 @@ func RevokeCredential(ctx context.Context, store database.Store, id uuid.UUID, a
 		}
 
 		if _, err := tx.RevokeCredential(ctx, database.RevokeCredentialParams{
-			ID:                 id,
-			PostingReference:   entryID,
-			PostingReference_2: current.PostingReference,
+			ID:                          id,
+			LifecyclePostingReference:   entryID,
+			LifecyclePostingReference_2: current.LifecyclePostingReference,
 		}); err != nil {
 			return xerrors.Errorf("post the revocation: %w", err)
 		}

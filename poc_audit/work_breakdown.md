@@ -284,7 +284,7 @@ Not started. Blocked on the credential lifecycle, which is not yet designed.
 
 ### What forces the work
 
-`authorization_lifecycle_journal` and `authorization_lifecycle_ledger` were
+`authorization_lifecycle_journal` and `authorization_ledger` were
 written to the current patterns. `entity_journal` was not, and predates most of
 them. It is one journal for every entity rather than one for each, so it carries
 a `subject_type` that per-entity journals make unnecessary; it has a single

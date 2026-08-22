@@ -6,12 +6,12 @@ type CheckConstraint string
 
 // CheckConstraint enums.
 const (
+	CheckAIAgentLedgerState                                    CheckConstraint = "ai_agent_ledger_state"                                        // ai_agent_ledger
 	CheckAIAgentLifecycleJournalActorOnFirstLine               CheckConstraint = "ai_agent_lifecycle_journal_actor_on_first_line"               // ai_agent_lifecycle_journal
 	CheckAIAgentLifecycleJournalActorTypeOnFirstLine           CheckConstraint = "ai_agent_lifecycle_journal_actor_type_on_first_line"          // ai_agent_lifecycle_journal
 	CheckAIAgentLifecycleJournalEffectiveDateOnFirstLine       CheckConstraint = "ai_agent_lifecycle_journal_effective_date_on_first_line"      // ai_agent_lifecycle_journal
 	CheckAIAgentLifecycleJournalLineNonNegative                CheckConstraint = "ai_agent_lifecycle_journal_line_non_negative"                 // ai_agent_lifecycle_journal
 	CheckAIAgentLifecycleJournalRecordingDateOnFirstLine       CheckConstraint = "ai_agent_lifecycle_journal_recording_date_on_first_line"      // ai_agent_lifecycle_journal
-	CheckAIAgentLifecycleLedgerState                           CheckConstraint = "ai_agent_lifecycle_ledger_state"                              // ai_agent_lifecycle_ledger
 	CheckAIGatewayKeysHashedSecretCheck                        CheckConstraint = "ai_gateway_keys_hashed_secret_check"                          // ai_gateway_keys
 	CheckAIGatewayKeysNameCheck                                CheckConstraint = "ai_gateway_keys_name_check"                                   // ai_gateway_keys
 	CheckAIGatewayKeysSecretPrefixCheck                        CheckConstraint = "ai_gateway_keys_secret_prefix_check"                          // ai_gateway_keys
@@ -32,13 +32,13 @@ const (
 	CheckAibridgeTokenUsagesOutputPriceMicrosCheck             CheckConstraint = "aibridge_token_usages_output_price_micros_check"              // aibridge_token_usages
 	CheckAPIKeysAllowListNotEmpty                              CheckConstraint = "api_keys_allow_list_not_empty"                                // api_keys
 	CheckAPIKeysHolderTypeCheck                                CheckConstraint = "api_keys_holder_type_check"                                   // api_keys
+	CheckAuthorizationLedgerScopeReserved                      CheckConstraint = "authorization_ledger_scope_reserved"                          // authorization_ledger
+	CheckAuthorizationLedgerState                              CheckConstraint = "authorization_ledger_state"                                   // authorization_ledger
 	CheckAuthorizationLifecycleJournalActorOnFirstLine         CheckConstraint = "authorization_lifecycle_journal_actor_on_first_line"          // authorization_lifecycle_journal
 	CheckAuthorizationLifecycleJournalActorTypeOnFirstLine     CheckConstraint = "authorization_lifecycle_journal_actor_type_on_first_line"     // authorization_lifecycle_journal
 	CheckAuthorizationLifecycleJournalEffectiveDateOnFirstLine CheckConstraint = "authorization_lifecycle_journal_effective_date_on_first_line" // authorization_lifecycle_journal
 	CheckAuthorizationLifecycleJournalLineNonNegative          CheckConstraint = "authorization_lifecycle_journal_line_non_negative"            // authorization_lifecycle_journal
 	CheckAuthorizationLifecycleJournalRecordingDateOnFirstLine CheckConstraint = "authorization_lifecycle_journal_recording_date_on_first_line" // authorization_lifecycle_journal
-	CheckAuthorizationLifecycleLedgerScopeReserved             CheckConstraint = "authorization_lifecycle_ledger_scope_reserved"                // authorization_lifecycle_ledger
-	CheckAuthorizationLifecycleLedgerState                     CheckConstraint = "authorization_lifecycle_ledger_state"                         // authorization_lifecycle_ledger
 	CheckBoundaryLogsSequenceNumberCheck                       CheckConstraint = "boundary_logs_sequence_number_check"                          // boundary_logs
 	CheckChatModelConfigsAIProviderRequiredWhenActive          CheckConstraint = "chat_model_configs_ai_provider_required_when_active"          // chat_model_configs
 	CheckChatModelConfigsCompressionThresholdCheck             CheckConstraint = "chat_model_configs_compression_threshold_check"               // chat_model_configs
@@ -57,8 +57,9 @@ const (
 	CheckUsersServiceAccountLoginType                          CheckConstraint = "users_service_account_login_type"                             // users
 	CheckUsersUsernameMinLength                                CheckConstraint = "users_username_min_length"                                    // users
 	CheckCredentialAPIKeyAllowListNotEmpty                     CheckConstraint = "credential_api_key_allow_list_not_empty"                      // credential_api_key
+	CheckCredentialLedgerState                                 CheckConstraint = "credential_ledger_state"                                      // credential_ledger
 	CheckCredentialLifecycleJournalAPIKeyLineNonNegative       CheckConstraint = "credential_lifecycle_journal_api_key_line_non_negative"       // credential_lifecycle_journal_api_key
-	CheckCredentialLifecycleLedgerState                        CheckConstraint = "credential_lifecycle_ledger_state"                            // credential_lifecycle_ledger
+	CheckCredentialUseJournalEvent                             CheckConstraint = "credential_use_journal_event"                                 // credential_use_journal
 	CheckOrganizationIDNotZero                                 CheckConstraint = "organization_id_not_zero"                                     // custom_roles
 	CheckGroupAIBudgetsSpendLimitMicrosCheck                   CheckConstraint = "group_ai_budgets_spend_limit_micros_check"                    // group_ai_budgets
 	CheckGroupsChatSpendLimitMicrosCheck                       CheckConstraint = "groups_chat_spend_limit_micros_check"                         // groups

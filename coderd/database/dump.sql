@@ -1495,6 +1495,19 @@ $$;
 
 COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv.';
 
+CREATE TABLE ai_agent_ledger (
+    id uuid NOT NULL,
+    owner_type text NOT NULL,
+    owner_id uuid NOT NULL,
+    state text NOT NULL,
+    posting_reference bigint NOT NULL,
+    CONSTRAINT ai_agent_ledger_state CHECK ((state = ANY (ARRAY['active'::text, 'dormant'::text, 'retired'::text])))
+);
+
+COMMENT ON TABLE ai_agent_ledger IS 'Current state of each AI agent identity. Three absences are deliberate. There is no workspace or sandbox reference, because an AI agent''s identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema merging them forecloses reconstituting an AI agent from a previous session. There is no creation time, because the journal records when this row came to exist and a second copy could disagree with the first.';
+
+COMMENT ON COLUMN ai_agent_ledger.state IS 'dormant is reserved for future use and is unreachable in the machine the proof of concept implements, which has active and retired only. It is in the enum now so that supporting reconstitution later costs no migration, which means code switching exhaustively over these values must handle a state that cannot occur.';
+
 CREATE TABLE ai_agent_lifecycle_journal (
     entry_id bigint NOT NULL,
     line smallint NOT NULL,
@@ -1521,19 +1534,6 @@ CREATE SEQUENCE ai_agent_lifecycle_journal_entry_seq
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
-
-CREATE TABLE ai_agent_lifecycle_ledger (
-    id uuid NOT NULL,
-    owner_type text NOT NULL,
-    owner_id uuid NOT NULL,
-    state text NOT NULL,
-    posting_reference bigint NOT NULL,
-    CONSTRAINT ai_agent_lifecycle_ledger_state CHECK ((state = ANY (ARRAY['active'::text, 'dormant'::text, 'retired'::text])))
-);
-
-COMMENT ON TABLE ai_agent_lifecycle_ledger IS 'Current state of each AI agent identity. Three absences are deliberate. There is no workspace or sandbox reference, because an AI agent''s identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema merging them forecloses reconstituting an AI agent from a previous session. There is no creation time, because the journal records when this row came to exist and a second copy could disagree with the first.';
-
-COMMENT ON COLUMN ai_agent_lifecycle_ledger.state IS 'dormant is reserved for future use and is unreachable in the machine the proof of concept implements, which has active and retired only. It is in the enum now so that supporting reconstitution later costs no migration, which means code switching exhaustively over these values must handle a state that cannot occur.';
 
 CREATE TABLE ai_agents (
     user_id uuid NOT NULL,
@@ -1890,6 +1890,25 @@ CREATE TABLE audit_logs (
     on_behalf_of_user_id uuid
 );
 
+CREATE TABLE authorization_ledger (
+    id uuid NOT NULL,
+    principal_type text NOT NULL,
+    principal_id uuid NOT NULL,
+    agent_type text NOT NULL,
+    agent_id uuid NOT NULL,
+    scope text NOT NULL,
+    state text NOT NULL,
+    posting_reference bigint NOT NULL,
+    CONSTRAINT authorization_ledger_scope_reserved CHECK ((scope = ''::text)),
+    CONSTRAINT authorization_ledger_state CHECK ((state = ANY (ARRAY['active'::text, 'terminated'::text])))
+);
+
+COMMENT ON TABLE authorization_ledger IS 'Current state of each authorization, an agency relation between a principal and an agent. Derived from authorization_lifecycle_journal, which is the book of original entry. Carries no timestamps: when anything happened is recorded there, and a second copy here could disagree with the first.';
+
+COMMENT ON COLUMN authorization_ledger.scope IS 'Reserved for future use; always empty. An empty scope denotes a universal grant, the grant that restricts nothing and therefore has the shortest description. Authorization is not capacity: what an agent can in fact do is restricted by its sandbox, its gateway, and other technical means, and reconciling capacity against authorization is future work that is trivial while every grant is universal.';
+
+COMMENT ON COLUMN authorization_ledger.posting_reference IS 'Identifies the journal entry most recently posted to this row, after the folio that cross references a paper ledger back to its journal. It gives reconciliation a cheap handle, since an entry newer than this one is an entry not yet posted, and it makes posting safe against a race when the update is conditioned on the value it expects to find.';
+
 CREATE TABLE authorization_lifecycle_journal (
     entry_id bigint NOT NULL,
     line smallint NOT NULL,
@@ -1920,25 +1939,6 @@ CREATE SEQUENCE authorization_lifecycle_journal_entry_seq
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
-
-CREATE TABLE authorization_lifecycle_ledger (
-    id uuid NOT NULL,
-    principal_type text NOT NULL,
-    principal_id uuid NOT NULL,
-    agent_type text NOT NULL,
-    agent_id uuid NOT NULL,
-    scope text NOT NULL,
-    state text NOT NULL,
-    posting_reference bigint NOT NULL,
-    CONSTRAINT authorization_lifecycle_ledger_scope_reserved CHECK ((scope = ''::text)),
-    CONSTRAINT authorization_lifecycle_ledger_state CHECK ((state = ANY (ARRAY['active'::text, 'terminated'::text])))
-);
-
-COMMENT ON TABLE authorization_lifecycle_ledger IS 'Current state of each authorization, an agency relation between a principal and an agent. Derived from authorization_lifecycle_journal, which is the book of original entry. Carries no timestamps: when anything happened is recorded there, and a second copy here could disagree with the first.';
-
-COMMENT ON COLUMN authorization_lifecycle_ledger.scope IS 'Reserved for future use; always empty. An empty scope denotes a universal grant, the grant that restricts nothing and therefore has the shortest description. Authorization is not capacity: what an agent can in fact do is restricted by its sandbox, its gateway, and other technical means, and reconciling capacity against authorization is future work that is trivial while every grant is universal.';
-
-COMMENT ON COLUMN authorization_lifecycle_ledger.posting_reference IS 'Identifies the journal entry most recently posted to this row, after the folio that cross references a paper ledger back to its journal. It gives reconciliation a cheap handle, since an entry newer than this one is an entry not yet posted, and it makes posting safe against a race when the update is conditioned on the value it expects to find.';
 
 CREATE TABLE boundary_logs (
     id uuid NOT NULL,
@@ -2475,6 +2475,36 @@ COMMENT ON TABLE credential_api_key IS 'What an api_key credential holds beyond 
 
 COMMENT ON COLUMN credential_api_key.hashed_secret IS 'Hex of an unsalted SHA-256 digest, as for a password credential. The column is separate rather than shared because a type owns its own state, and two types holding a digest apiece is not one column held in common.';
 
+CREATE TABLE credential_ledger (
+    id uuid NOT NULL,
+    holder_type text NOT NULL,
+    holder_id uuid NOT NULL,
+    credential_type text NOT NULL,
+    state text NOT NULL,
+    expires_at timestamp with time zone,
+    lifecycle_posting_reference bigint NOT NULL,
+    last_presented timestamp with time zone,
+    last_used timestamp with time zone,
+    use_posting_reference bigint,
+    CONSTRAINT credential_ledger_state CHECK ((state = ANY (ARRAY['valid'::text, 'invalid'::text])))
+);
+
+COMMENT ON TABLE credential_ledger IS 'Current state of each credential. A credential is a means of exercising authority and not the authority itself: a grant stands whether or not one has been issued, and the two are reconciled against each other only because neither determines the other. Carries no creation time, the journal recording when.';
+
+COMMENT ON COLUMN credential_ledger.id IS 'Identifies the credential, and is deliberately not derived from its secret. Letting a secret name the credential carrying it would assume every credential is a password, and would put a secret in every reference to one.';
+
+COMMENT ON COLUMN credential_ledger.credential_type IS 'Two types exist in the proof of concept. A password holds the hex of an unsalted SHA-256 digest of the secret, unsalted because the secret is randomly generated and high entropy, and matching what coderd/apikey already does. A null credential always validates and holds an empty value; it exists for fault isolation in tests, would never be issued in production, and its always-validates path is a proof of concept hazard recorded with the other cheats.';
+
+COMMENT ON COLUMN credential_ledger.expires_at IS 'The latest moment this credential can be valid. It promises nothing about the credential remaining valid until then, revocation being unconditional. Nothing prevents a row sitting in state valid past this time, since the entries recording expiry are written by a sweep that runs on a period; a reader wanting what is presently usable must test both, and must not do so through a view when verifying, which would be a time of check to time of use error.';
+
+COMMENT ON COLUMN credential_ledger.lifecycle_posting_reference IS 'Identifies the journal entry most recently posted to this row, after the folio that cross references a paper ledger back to its journal.';
+
+COMMENT ON COLUMN credential_ledger.last_presented IS 'When the credential was last offered, however it went. Null is the initial value every variable has, and means it has never been offered.';
+
+COMMENT ON COLUMN credential_ledger.last_used IS 'When the credential was last offered and accepted. Null means never.';
+
+COMMENT ON COLUMN credential_ledger.use_posting_reference IS 'Which entry of the use journal last posted here. Separate from the lifecycle reference because a posting reference follows its journal, which also keeps a posting under one model from making a posting under another lose a race it is not in.';
+
 CREATE TABLE credential_lifecycle_journal (
     entry_id bigint NOT NULL,
     recording_date timestamp with time zone DEFAULT now() NOT NULL,
@@ -2509,27 +2539,6 @@ CREATE SEQUENCE credential_lifecycle_journal_entry_seq
     NO MAXVALUE
     CACHE 1;
 
-CREATE TABLE credential_lifecycle_ledger (
-    id uuid NOT NULL,
-    holder_type text NOT NULL,
-    holder_id uuid NOT NULL,
-    credential_type text NOT NULL,
-    state text NOT NULL,
-    expires_at timestamp with time zone,
-    posting_reference bigint NOT NULL,
-    CONSTRAINT credential_lifecycle_ledger_state CHECK ((state = ANY (ARRAY['valid'::text, 'invalid'::text])))
-);
-
-COMMENT ON TABLE credential_lifecycle_ledger IS 'Current state of each credential. A credential is a means of exercising authority and not the authority itself: a grant stands whether or not one has been issued, and the two are reconciled against each other only because neither determines the other. Carries no creation time, the journal recording when.';
-
-COMMENT ON COLUMN credential_lifecycle_ledger.id IS 'Identifies the credential, and is deliberately not derived from its secret. Letting a secret name the credential carrying it would assume every credential is a password, and would put a secret in every reference to one.';
-
-COMMENT ON COLUMN credential_lifecycle_ledger.credential_type IS 'Two types exist in the proof of concept. A password holds the hex of an unsalted SHA-256 digest of the secret, unsalted because the secret is randomly generated and high entropy, and matching what coderd/apikey already does. A null credential always validates and holds an empty value; it exists for fault isolation in tests, would never be issued in production, and its always-validates path is a proof of concept hazard recorded with the other cheats.';
-
-COMMENT ON COLUMN credential_lifecycle_ledger.expires_at IS 'The latest moment this credential can be valid. It promises nothing about the credential remaining valid until then, revocation being unconditional. Nothing prevents a row sitting in state valid past this time, since the entries recording expiry are written by a sweep that runs on a period; a reader wanting what is presently usable must test both, and must not do so through a view when verifying, which would be a time of check to time of use error.';
-
-COMMENT ON COLUMN credential_lifecycle_ledger.posting_reference IS 'Identifies the journal entry most recently posted to this row, after the folio that cross references a paper ledger back to its journal.';
-
 CREATE TABLE credential_password (
     id uuid NOT NULL,
     hashed_authenticator text NOT NULL
@@ -2538,6 +2547,29 @@ CREATE TABLE credential_password (
 COMMENT ON TABLE credential_password IS 'What a password credential holds beyond what every credential holds. Keyed on the ledger row it belongs to, which is why this needs no foreign key into a union: the ledger mints the identifier and the type says which table to look in.';
 
 COMMENT ON COLUMN credential_password.hashed_authenticator IS 'Hex of an unsalted SHA-256 digest. No salt is needed for a randomly generated high entropy secret, which is the reasoning coderd/apikey follows.';
+
+CREATE TABLE credential_use_journal (
+    entry_id bigint NOT NULL,
+    recording_date timestamp with time zone DEFAULT now() NOT NULL,
+    effective_date timestamp with time zone DEFAULT now() NOT NULL,
+    actor_type text NOT NULL,
+    actor uuid NOT NULL,
+    event text NOT NULL,
+    subject uuid NOT NULL,
+    annotation_source text,
+    CONSTRAINT credential_use_journal_event CHECK ((event = ANY (ARRAY['presentation_accepted'::text, 'presentation_refused'::text])))
+);
+
+COMMENT ON TABLE credential_use_journal IS 'Journal of presentations of a credential. Both operations are observed and the actor is the verifier, the party the presentation was made to and so the party that noticed.';
+
+COMMENT ON COLUMN credential_use_journal.annotation_source IS 'Where the presentation arrived from, as the verifier observed it. Reliable, being what the verifier knows about itself, and an annotation because it bears on nothing the operation assigns. There is deliberately no column for who the presenter claimed to be: the declaration of which credential is being presented is the only claim a presentation carries, and it is the subject.';
+
+CREATE SEQUENCE credential_use_journal_entry_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
 
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,
@@ -4534,11 +4566,11 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_agent_ledger
+    ADD CONSTRAINT ai_agent_ledger_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY ai_agent_lifecycle_journal
     ADD CONSTRAINT ai_agent_lifecycle_journal_pkey PRIMARY KEY (entry_id, line);
-
-ALTER TABLE ONLY ai_agent_lifecycle_ledger
-    ADD CONSTRAINT ai_agent_lifecycle_ledger_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY ai_agents
     ADD CONSTRAINT ai_agents_pkey PRIMARY KEY (user_id);
@@ -4588,11 +4620,11 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY authorization_ledger
+    ADD CONSTRAINT authorization_ledger_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY authorization_lifecycle_journal
     ADD CONSTRAINT authorization_lifecycle_journal_pkey PRIMARY KEY (entry_id, line);
-
-ALTER TABLE ONLY authorization_lifecycle_ledger
-    ADD CONSTRAINT authorization_lifecycle_ledger_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY boundary_logs
     ADD CONSTRAINT boundary_logs_pkey PRIMARY KEY (id);
@@ -4648,17 +4680,20 @@ ALTER TABLE ONLY connection_logs
 ALTER TABLE ONLY credential_api_key
     ADD CONSTRAINT credential_api_key_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY credential_ledger
+    ADD CONSTRAINT credential_ledger_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY credential_lifecycle_journal_api_key
     ADD CONSTRAINT credential_lifecycle_journal_api_key_pkey PRIMARY KEY (entry_id, line);
 
 ALTER TABLE ONLY credential_lifecycle_journal
     ADD CONSTRAINT credential_lifecycle_journal_pkey PRIMARY KEY (entry_id);
 
-ALTER TABLE ONLY credential_lifecycle_ledger
-    ADD CONSTRAINT credential_lifecycle_ledger_pkey PRIMARY KEY (id);
-
 ALTER TABLE ONLY credential_password
     ADD CONSTRAINT credential_password_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY credential_use_journal
+    ADD CONSTRAINT credential_use_journal_pkey PRIMARY KEY (entry_id);
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_pkey PRIMARY KEY (feature, sequence);
@@ -4993,11 +5028,11 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
+CREATE INDEX ai_agent_ledger_owner_idx ON ai_agent_ledger USING btree (owner_type, owner_id);
+
 CREATE INDEX ai_agent_lifecycle_journal_actor_idx ON ai_agent_lifecycle_journal USING btree (actor_type, actor) WHERE (actor IS NOT NULL);
 
 CREATE INDEX ai_agent_lifecycle_journal_subject_idx ON ai_agent_lifecycle_journal USING btree (subject);
-
-CREATE INDEX ai_agent_lifecycle_ledger_owner_idx ON ai_agent_lifecycle_ledger USING btree (owner_type, owner_id);
 
 CREATE UNIQUE INDEX ai_gateway_keys_hashed_secret_idx ON ai_gateway_keys USING btree (hashed_secret);
 
@@ -5011,21 +5046,23 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
+CREATE INDEX authorization_ledger_agent_idx ON authorization_ledger USING btree (agent_type, agent_id);
+
+CREATE INDEX authorization_ledger_principal_idx ON authorization_ledger USING btree (principal_type, principal_id);
+
 CREATE INDEX authorization_lifecycle_journal_actor_idx ON authorization_lifecycle_journal USING btree (actor_type, actor) WHERE (actor IS NOT NULL);
 
 CREATE INDEX authorization_lifecycle_journal_subject_idx ON authorization_lifecycle_journal USING btree (subject);
 
-CREATE INDEX authorization_lifecycle_ledger_agent_idx ON authorization_lifecycle_ledger USING btree (agent_type, agent_id);
-
-CREATE INDEX authorization_lifecycle_ledger_principal_idx ON authorization_lifecycle_ledger USING btree (principal_type, principal_id);
-
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
+CREATE INDEX credential_ledger_holder_idx ON credential_ledger USING btree (holder_type, holder_id);
 
 CREATE INDEX credential_lifecycle_journal_actor_idx ON credential_lifecycle_journal USING btree (actor_type, actor) WHERE (actor IS NOT NULL);
 
 CREATE INDEX credential_lifecycle_journal_subject_idx ON credential_lifecycle_journal USING btree (subject);
 
-CREATE INDEX credential_lifecycle_ledger_holder_idx ON credential_lifecycle_ledger USING btree (holder_type, holder_id);
+CREATE INDEX credential_use_journal_subject_idx ON credential_use_journal USING btree (subject);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
@@ -5606,13 +5643,13 @@ ALTER TABLE ONLY connection_logs
     ADD CONSTRAINT connection_logs_workspace_owner_id_fkey FOREIGN KEY (workspace_owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY credential_api_key
-    ADD CONSTRAINT credential_api_key_id_fkey FOREIGN KEY (id) REFERENCES credential_lifecycle_ledger(id) ON DELETE CASCADE;
+    ADD CONSTRAINT credential_api_key_id_fkey FOREIGN KEY (id) REFERENCES credential_ledger(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY credential_lifecycle_journal_api_key
     ADD CONSTRAINT credential_lifecycle_journal_api_key_entry_fkey FOREIGN KEY (entry_id) REFERENCES credential_lifecycle_journal(entry_id);
 
 ALTER TABLE ONLY credential_password
-    ADD CONSTRAINT credential_password_id_fkey FOREIGN KEY (id) REFERENCES credential_lifecycle_ledger(id) ON DELETE CASCADE;
+    ADD CONSTRAINT credential_password_id_fkey FOREIGN KEY (id) REFERENCES credential_ledger(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);

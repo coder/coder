@@ -519,8 +519,8 @@ func (s *MethodTestSuite) TestAuthorizationLifecycle() {
 		dbm.EXPECT().InsertAuthorizationLifecycleJournalSubsequentLine(gomock.Any(), arg).Return(database.AuthorizationLifecycleJournal{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
-	s.Run("InsertAuthorizationLifecycleLedgerRow", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.InsertAuthorizationLifecycleLedgerRowParams{
+	s.Run("InsertAuthorizationLedgerRow", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertAuthorizationLedgerRowParams{
 			ID:               uuid.New(),
 			PrincipalType:    "user",
 			PrincipalID:      uuid.New(),
@@ -529,20 +529,20 @@ func (s *MethodTestSuite) TestAuthorizationLifecycle() {
 			State:            "active",
 			PostingReference: 1,
 		}
-		dbm.EXPECT().InsertAuthorizationLifecycleLedgerRow(gomock.Any(), arg).Return(database.AuthorizationLifecycleLedger{}, nil).AnyTimes()
+		dbm.EXPECT().InsertAuthorizationLedgerRow(gomock.Any(), arg).Return(database.AuthorizationLedger{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
-	s.Run("GetAuthorizationLifecycleLedgerRowByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("GetAuthorizationLedgerRowByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
-		dbm.EXPECT().GetAuthorizationLifecycleLedgerRowByID(gomock.Any(), id).Return(database.AuthorizationLifecycleLedger{}, nil).AnyTimes()
+		dbm.EXPECT().GetAuthorizationLedgerRowByID(gomock.Any(), id).Return(database.AuthorizationLedger{}, nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetAuthorizationLifecycleLedgerRowsByAgent", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetAuthorizationLifecycleLedgerRowsByAgentParams{
+	s.Run("GetAuthorizationLedgerRowsByAgent", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetAuthorizationLedgerRowsByAgentParams{
 			AgentType: "ai_agent",
 			AgentID:   uuid.New(),
 		}
-		dbm.EXPECT().GetAuthorizationLifecycleLedgerRowsByAgent(gomock.Any(), arg).Return([]database.AuthorizationLifecycleLedger{}, nil).AnyTimes()
+		dbm.EXPECT().GetAuthorizationLedgerRowsByAgent(gomock.Any(), arg).Return([]database.AuthorizationLedger{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetAuthorizationLifecycleJournalEntriesBySubject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -583,20 +583,20 @@ func (s *MethodTestSuite) TestAIAgentLifecycle() {
 		dbm.EXPECT().InsertAIAgentLifecycleJournalSubsequentLine(gomock.Any(), arg).Return(database.AIAgentLifecycleJournal{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
-	s.Run("InsertAIAgentLifecycleLedgerRow", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.InsertAIAgentLifecycleLedgerRowParams{
+	s.Run("InsertAIAgentLedgerRow", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertAIAgentLedgerRowParams{
 			ID:               uuid.New(),
 			OwnerType:        "user",
 			OwnerID:          uuid.New(),
 			State:            "active",
 			PostingReference: 1,
 		}
-		dbm.EXPECT().InsertAIAgentLifecycleLedgerRow(gomock.Any(), arg).Return(database.AIAgentLifecycleLedger{}, nil).AnyTimes()
+		dbm.EXPECT().InsertAIAgentLedgerRow(gomock.Any(), arg).Return(database.AIAgentLedger{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
-	s.Run("GetAIAgentLifecycleLedgerRowByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("GetAIAgentLedgerRowByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
-		dbm.EXPECT().GetAIAgentLifecycleLedgerRowByID(gomock.Any(), id).Return(database.AIAgentLifecycleLedger{}, nil).AnyTimes()
+		dbm.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), id).Return(database.AIAgentLedger{}, nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("RetireAIAgent", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -605,7 +605,7 @@ func (s *MethodTestSuite) TestAIAgentLifecycle() {
 			PostingReference:   2,
 			PostingReference_2: 1,
 		}
-		dbm.EXPECT().RetireAIAgent(gomock.Any(), arg).Return(database.AIAgentLifecycleLedger{}, nil).AnyTimes()
+		dbm.EXPECT().RetireAIAgent(gomock.Any(), arg).Return(database.AIAgentLedger{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("GetAIAgentLifecycleEntriesBySubject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -646,21 +646,21 @@ func (s *MethodTestSuite) TestCredentialLifecycle() {
 		dbm.EXPECT().GetCredentialPasswordByID(gomock.Any(), id).Return(database.CredentialPassword{}, nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("InsertCredentialLifecycleLedgerRow", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.InsertCredentialLifecycleLedgerRowParams{
-			ID:               uuid.New(),
-			HolderType:       "ai_agent",
-			HolderID:         uuid.New(),
-			CredentialType:   "password",
-			State:            "valid",
-			PostingReference: 1,
+	s.Run("InsertCredentialLedgerRow", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertCredentialLedgerRowParams{
+			ID:                        uuid.New(),
+			HolderType:                "ai_agent",
+			HolderID:                  uuid.New(),
+			CredentialType:            "password",
+			State:                     "valid",
+			LifecyclePostingReference: 1,
 		}
-		dbm.EXPECT().InsertCredentialLifecycleLedgerRow(gomock.Any(), arg).Return(database.CredentialLifecycleLedger{}, nil).AnyTimes()
+		dbm.EXPECT().InsertCredentialLedgerRow(gomock.Any(), arg).Return(database.CredentialLedger{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
-	s.Run("GetCredentialLifecycleLedgerRowByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("GetCredentialLedgerRowByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
-		dbm.EXPECT().GetCredentialLifecycleLedgerRowByID(gomock.Any(), id).Return(database.CredentialLifecycleLedger{}, nil).AnyTimes()
+		dbm.EXPECT().GetCredentialLedgerRowByID(gomock.Any(), id).Return(database.CredentialLedger{}, nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetValidCredentialsByHolder", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -668,17 +668,56 @@ func (s *MethodTestSuite) TestCredentialLifecycle() {
 			HolderType: "ai_agent",
 			HolderID:   uuid.New(),
 		}
-		dbm.EXPECT().GetValidCredentialsByHolder(gomock.Any(), arg).Return([]database.CredentialLifecycleLedger{}, nil).AnyTimes()
+		dbm.EXPECT().GetValidCredentialsByHolder(gomock.Any(), arg).Return([]database.CredentialLedger{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("RevokeCredential", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.RevokeCredentialParams{
-			ID:                 uuid.New(),
-			PostingReference:   2,
-			PostingReference_2: 1,
+			ID:                          uuid.New(),
+			LifecyclePostingReference:   2,
+			LifecyclePostingReference_2: 1,
 		}
-		dbm.EXPECT().RevokeCredential(gomock.Any(), arg).Return(database.CredentialLifecycleLedger{}, nil).AnyTimes()
+		dbm.EXPECT().RevokeCredential(gomock.Any(), arg).Return(database.CredentialLedger{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+}
+
+// TestCredentialUse covers the credential's second model, whose operations
+// assign rather than transition.
+func (s *MethodTestSuite) TestCredentialUse() {
+	s.Run("NextCredentialUseJournalEntryID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().NextCredentialUseJournalEntryID(gomock.Any()).Return(int64(1), nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("InsertCredentialUseJournalEntry", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertCredentialUseJournalEntryParams{
+			EntryID:       1,
+			EffectiveDate: dbtime.Now(),
+			ActorType:     "user",
+			Actor:         uuid.New(),
+			Event:         "presentation_accepted",
+			Subject:       uuid.New(),
+		}
+		dbm.EXPECT().InsertCredentialUseJournalEntry(gomock.Any(), arg).Return(database.CredentialUseJournal{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("PostCredentialPresentation", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.PostCredentialPresentationParams{
+			ID:          uuid.New(),
+			PresentedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+			Accepted:    true,
+			EntryID:     sql.NullInt64{Int64: 1, Valid: true},
+		}
+		dbm.EXPECT().PostCredentialPresentation(gomock.Any(), arg).Return(database.CredentialLedger{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("GetCredentialUseJournalEntriesBySubject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetCredentialUseJournalEntriesBySubjectParams{
+			Subject: uuid.New(),
+			Limit:   10,
+		}
+		dbm.EXPECT().GetCredentialUseJournalEntriesBySubject(gomock.Any(), arg).Return([]database.CredentialUseJournal{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 }
 

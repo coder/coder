@@ -21,15 +21,20 @@ document is about the shape, not the contents.
 
 ## Established
 
-### A table is named for its entity, its aspect, and its kind of book
+### A journal is named for its model, a ledger only for its subject
 
-`authorization_lifecycle_journal` and `authorization_lifecycle_ledger`: the
-entity, then what about it is being recorded, then whether the table is a book
-of original entry or the derived view of current state.
+`credential_lifecycle_journal`: the subject-entity, then the model recording
+it, then that the table is a book of original entry. `credential_use_journal`
+names the same subject and a different model.
 
-The aspect is not decoration. Nothing says a lifecycle is the only thing worth
-recording about an authorization, and a name that leaves it out would have to
-change the first time something else is.
+**The model is not decoration in a journal's name.** Nothing says a lifecycle is
+the only thing worth recording about a credential, and a name leaving it out
+would have to change the first time something else is.
+
+**A ledger's name carries no model**, because it serves every model of its
+subject: `credential_ledger`. A name claiming one model would be wrong as soon
+as a second recorded into the same row, which is the situation the credential
+reached first.
 
 ### A ledger keeps its retired rows, in one table
 
@@ -56,12 +61,38 @@ an existing table to a partitioned one calls for a rewrite, which costs less
 here than elsewhere: a ledger is derived from its journal and can be rebuilt
 from it.
 
+### One journal per model-entity, one ledger per subject-entity
+
+A journal records operations, and which operations there are is a property of
+the model rather than of the thing modelled. So a journal belongs to a model:
+a credential's lifecycle and its record of use have different operations and
+therefore different journals, though they concern one credential.
+
+A ledger holds what is currently true of the thing. That is a property of the
+subject, and every model of it contributes: a credential's row says both what
+state its lifecycle reached and when it was last presented. So there is **one
+ledger row per subject-entity**, however many models record into it.
+
+The two senses of entity are distinguished in `entity_model.md` under "A
+subject-entity and a model-entity are both entities". Everywhere else, "entity"
+without a qualifier is enough.
+
+**The posting reference is the exception that proves the rule.** It says which
+entry last posted, and entries belong to journals, so a shared ledger row
+carries one posting reference per model rather than one in total. Each is
+present on every row, since every subject has every model its kind has, so this
+is not the heterogeneity that forces columns to be null for some rows.
+
+Two consequences worth stating. A ledger's name does not carry the model, since
+it serves them all, while a journal's does. And an optimistic check on posting
+names the reference of its own model, so a posting under one model cannot make
+a posting under another lose a race it is not in.
+
 ### These patterns bind every journal
 
 Each pattern below applies to **every journal**, whether or not the journal
-being written appears to need it. There is one journal per entity, so the
-alternative is a set of journals that differ from each other for no reason but
-the order they were written in.
+being written appears to need it. Journals differing from one another for no
+reason but the order they were written in is the thing to avoid.
 
 Adopting a pattern late is not merely a migration. It is a migration plus a
 body of entries already written under the old shape, which cannot be rewritten

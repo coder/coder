@@ -162,7 +162,7 @@ func RetireAIAgent(ctx context.Context, store database.Store, id uuid.UUID, even
 	}
 
 	return store.InTx(func(tx database.Store) error {
-		current, err := tx.GetAIAgentLifecycleLedgerRowByID(ctx, id)
+		current, err := tx.GetAIAgentLedgerRowByID(ctx, id)
 		if err != nil {
 			return xerrors.Errorf("read the AI agent: %w", err)
 		}
@@ -218,7 +218,7 @@ func recordAIAgentCreation(ctx context.Context, tx database.Store, id uuid.UUID,
 		return xerrors.Errorf("append creation entry: %w", err)
 	}
 
-	if _, err := tx.InsertAIAgentLifecycleLedgerRow(ctx, database.InsertAIAgentLifecycleLedgerRowParams{
+	if _, err := tx.InsertAIAgentLedgerRow(ctx, database.InsertAIAgentLedgerRowParams{
 		ID:               id,
 		OwnerType:        string(owner.Type),
 		OwnerID:          owner.ID,

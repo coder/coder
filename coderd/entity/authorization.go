@@ -112,7 +112,7 @@ func GrantUniversalAuthorization(ctx context.Context, store database.Store, para
 			return xerrors.Errorf("append grant entry: %w", err)
 		}
 
-		_, err = tx.InsertAuthorizationLifecycleLedgerRow(ctx, database.InsertAuthorizationLifecycleLedgerRowParams{
+		_, err = tx.InsertAuthorizationLedgerRow(ctx, database.InsertAuthorizationLedgerRowParams{
 			ID:               id,
 			PrincipalType:    string(params.Principal.Type),
 			PrincipalID:      params.Principal.ID,

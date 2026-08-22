@@ -884,6 +884,28 @@ func (q *sqlQuerier) UpdateEncryptedAIProviderSettings(ctx context.Context, arg 
 	return i, err
 }
 
+const getAIAgentLedgerRowByID = `-- name: GetAIAgentLedgerRowByID :one
+SELECT
+	id, owner_type, owner_id, state, posting_reference
+FROM
+	ai_agent_ledger
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) GetAIAgentLedgerRowByID(ctx context.Context, id uuid.UUID) (AIAgentLedger, error) {
+	row := q.db.QueryRowContext(ctx, getAIAgentLedgerRowByID, id)
+	var i AIAgentLedger
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerType,
+		&i.OwnerID,
+		&i.State,
+		&i.PostingReference,
+	)
+	return i, err
+}
+
 const getAIAgentLifecycleEntriesBySubject = `-- name: GetAIAgentLifecycleEntriesBySubject :many
 SELECT
 	entry_id, line, recording_date, effective_date, actor_type, actor, event, subject
@@ -940,18 +962,36 @@ func (q *sqlQuerier) GetAIAgentLifecycleEntriesBySubject(ctx context.Context, ar
 	return items, nil
 }
 
-const getAIAgentLifecycleLedgerRowByID = `-- name: GetAIAgentLifecycleLedgerRowByID :one
-SELECT
-	id, owner_type, owner_id, state, posting_reference
-FROM
-	ai_agent_lifecycle_ledger
-WHERE
-	id = $1
+const insertAIAgentLedgerRow = `-- name: InsertAIAgentLedgerRow :one
+INSERT INTO
+	ai_agent_ledger (
+		id,
+		owner_type,
+		owner_id,
+		state,
+		posting_reference
+	)
+VALUES
+	($1, $2, $3, $4, $5) RETURNING id, owner_type, owner_id, state, posting_reference
 `
 
-func (q *sqlQuerier) GetAIAgentLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (AIAgentLifecycleLedger, error) {
-	row := q.db.QueryRowContext(ctx, getAIAgentLifecycleLedgerRowByID, id)
-	var i AIAgentLifecycleLedger
+type InsertAIAgentLedgerRowParams struct {
+	ID               uuid.UUID `db:"id" json:"id"`
+	OwnerType        string    `db:"owner_type" json:"owner_type"`
+	OwnerID          uuid.UUID `db:"owner_id" json:"owner_id"`
+	State            string    `db:"state" json:"state"`
+	PostingReference int64     `db:"posting_reference" json:"posting_reference"`
+}
+
+func (q *sqlQuerier) InsertAIAgentLedgerRow(ctx context.Context, arg InsertAIAgentLedgerRowParams) (AIAgentLedger, error) {
+	row := q.db.QueryRowContext(ctx, insertAIAgentLedgerRow,
+		arg.ID,
+		arg.OwnerType,
+		arg.OwnerID,
+		arg.State,
+		arg.PostingReference,
+	)
+	var i AIAgentLedger
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerType,
@@ -1061,46 +1101,6 @@ func (q *sqlQuerier) InsertAIAgentLifecycleJournalSubsequentLine(ctx context.Con
 	return i, err
 }
 
-const insertAIAgentLifecycleLedgerRow = `-- name: InsertAIAgentLifecycleLedgerRow :one
-INSERT INTO
-	ai_agent_lifecycle_ledger (
-		id,
-		owner_type,
-		owner_id,
-		state,
-		posting_reference
-	)
-VALUES
-	($1, $2, $3, $4, $5) RETURNING id, owner_type, owner_id, state, posting_reference
-`
-
-type InsertAIAgentLifecycleLedgerRowParams struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	OwnerType        string    `db:"owner_type" json:"owner_type"`
-	OwnerID          uuid.UUID `db:"owner_id" json:"owner_id"`
-	State            string    `db:"state" json:"state"`
-	PostingReference int64     `db:"posting_reference" json:"posting_reference"`
-}
-
-func (q *sqlQuerier) InsertAIAgentLifecycleLedgerRow(ctx context.Context, arg InsertAIAgentLifecycleLedgerRowParams) (AIAgentLifecycleLedger, error) {
-	row := q.db.QueryRowContext(ctx, insertAIAgentLifecycleLedgerRow,
-		arg.ID,
-		arg.OwnerType,
-		arg.OwnerID,
-		arg.State,
-		arg.PostingReference,
-	)
-	var i AIAgentLifecycleLedger
-	err := row.Scan(
-		&i.ID,
-		&i.OwnerType,
-		&i.OwnerID,
-		&i.State,
-		&i.PostingReference,
-	)
-	return i, err
-}
-
 const nextAIAgentLifecycleJournalEntryID = `-- name: NextAIAgentLifecycleJournalEntryID :one
 SELECT
 	nextval('ai_agent_lifecycle_journal_entry_seq')::bigint
@@ -1116,7 +1116,7 @@ func (q *sqlQuerier) NextAIAgentLifecycleJournalEntryID(ctx context.Context) (in
 
 const retireAIAgent = `-- name: RetireAIAgent :one
 UPDATE
-	ai_agent_lifecycle_ledger
+	ai_agent_ledger
 SET
 	state = 'retired',
 	posting_reference = $2
@@ -1133,9 +1133,9 @@ type RetireAIAgentParams struct {
 
 // Posting a retirement. Conditioned on the posting reference the caller expects
 // to find, so that two concurrent posters cannot both believe they succeeded.
-func (q *sqlQuerier) RetireAIAgent(ctx context.Context, arg RetireAIAgentParams) (AIAgentLifecycleLedger, error) {
+func (q *sqlQuerier) RetireAIAgent(ctx context.Context, arg RetireAIAgentParams) (AIAgentLedger, error) {
 	row := q.db.QueryRowContext(ctx, retireAIAgent, arg.ID, arg.PostingReference, arg.PostingReference_2)
-	var i AIAgentLifecycleLedger
+	var i AIAgentLedger
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerType,
@@ -5814,6 +5814,93 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const getAuthorizationLedgerRowByID = `-- name: GetAuthorizationLedgerRowByID :one
+SELECT
+	id, principal_type, principal_id, agent_type, agent_id, scope, state, posting_reference
+FROM
+	authorization_ledger
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) GetAuthorizationLedgerRowByID(ctx context.Context, id uuid.UUID) (AuthorizationLedger, error) {
+	row := q.db.QueryRowContext(ctx, getAuthorizationLedgerRowByID, id)
+	var i AuthorizationLedger
+	err := row.Scan(
+		&i.ID,
+		&i.PrincipalType,
+		&i.PrincipalID,
+		&i.AgentType,
+		&i.AgentID,
+		&i.Scope,
+		&i.State,
+		&i.PostingReference,
+	)
+	return i, err
+}
+
+const getAuthorizationLedgerRowsByAgent = `-- name: GetAuthorizationLedgerRowsByAgent :many
+SELECT
+	id, principal_type, principal_id, agent_type, agent_id, scope, state, posting_reference
+FROM
+	authorization_ledger
+WHERE
+	agent_type = $1
+	AND agent_id = $2
+ORDER BY
+	posting_reference
+`
+
+type GetAuthorizationLedgerRowsByAgentParams struct {
+	AgentType string    `db:"agent_type" json:"agent_type"`
+	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
+}
+
+// Every authorization held by one agent, whatever its state.
+//
+// This exists for `lapse`. When an AI agent reaches `retired`, every
+// authorization naming it as agent must reach `terminated`. Where the
+// retirement is ours to record the two go in one transaction, arising
+// together. Where it is not, an end of life nothing reported has to be found
+// by a sweep instead. See "What the existence of the parties requires" in
+// poc_audit/entity_model.md. Neither route performs the transition yet, so no
+// production code calls this.
+//
+// Unlike the credential equivalent it does not filter to the live rows, since
+// both callers have to tell an authorization that already ended from one they
+// must end.
+func (q *sqlQuerier) GetAuthorizationLedgerRowsByAgent(ctx context.Context, arg GetAuthorizationLedgerRowsByAgentParams) ([]AuthorizationLedger, error) {
+	rows, err := q.db.QueryContext(ctx, getAuthorizationLedgerRowsByAgent, arg.AgentType, arg.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AuthorizationLedger
+	for rows.Next() {
+		var i AuthorizationLedger
+		if err := rows.Scan(
+			&i.ID,
+			&i.PrincipalType,
+			&i.PrincipalID,
+			&i.AgentType,
+			&i.AgentID,
+			&i.Scope,
+			&i.State,
+			&i.PostingReference,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAuthorizationLifecycleJournalEntriesBySubject = `-- name: GetAuthorizationLifecycleJournalEntriesBySubject :many
 SELECT
 	entry_id, line, recording_date, effective_date, actor_type, actor, event, subject
@@ -5870,18 +5957,43 @@ func (q *sqlQuerier) GetAuthorizationLifecycleJournalEntriesBySubject(ctx contex
 	return items, nil
 }
 
-const getAuthorizationLifecycleLedgerRowByID = `-- name: GetAuthorizationLifecycleLedgerRowByID :one
-SELECT
-	id, principal_type, principal_id, agent_type, agent_id, scope, state, posting_reference
-FROM
-	authorization_lifecycle_ledger
-WHERE
-	id = $1
+const insertAuthorizationLedgerRow = `-- name: InsertAuthorizationLedgerRow :one
+INSERT INTO
+	authorization_ledger (
+		id,
+		principal_type,
+		principal_id,
+		agent_type,
+		agent_id,
+		scope,
+		state,
+		posting_reference
+	)
+VALUES
+	($1, $2, $3, $4, $5, '', $6, $7) RETURNING id, principal_type, principal_id, agent_type, agent_id, scope, state, posting_reference
 `
 
-func (q *sqlQuerier) GetAuthorizationLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (AuthorizationLifecycleLedger, error) {
-	row := q.db.QueryRowContext(ctx, getAuthorizationLifecycleLedgerRowByID, id)
-	var i AuthorizationLifecycleLedger
+type InsertAuthorizationLedgerRowParams struct {
+	ID               uuid.UUID `db:"id" json:"id"`
+	PrincipalType    string    `db:"principal_type" json:"principal_type"`
+	PrincipalID      uuid.UUID `db:"principal_id" json:"principal_id"`
+	AgentType        string    `db:"agent_type" json:"agent_type"`
+	AgentID          uuid.UUID `db:"agent_id" json:"agent_id"`
+	State            string    `db:"state" json:"state"`
+	PostingReference int64     `db:"posting_reference" json:"posting_reference"`
+}
+
+func (q *sqlQuerier) InsertAuthorizationLedgerRow(ctx context.Context, arg InsertAuthorizationLedgerRowParams) (AuthorizationLedger, error) {
+	row := q.db.QueryRowContext(ctx, insertAuthorizationLedgerRow,
+		arg.ID,
+		arg.PrincipalType,
+		arg.PrincipalID,
+		arg.AgentType,
+		arg.AgentID,
+		arg.State,
+		arg.PostingReference,
+	)
+	var i AuthorizationLedger
 	err := row.Scan(
 		&i.ID,
 		&i.PrincipalType,
@@ -5893,68 +6005,6 @@ func (q *sqlQuerier) GetAuthorizationLifecycleLedgerRowByID(ctx context.Context,
 		&i.PostingReference,
 	)
 	return i, err
-}
-
-const getAuthorizationLifecycleLedgerRowsByAgent = `-- name: GetAuthorizationLifecycleLedgerRowsByAgent :many
-SELECT
-	id, principal_type, principal_id, agent_type, agent_id, scope, state, posting_reference
-FROM
-	authorization_lifecycle_ledger
-WHERE
-	agent_type = $1
-	AND agent_id = $2
-ORDER BY
-	posting_reference
-`
-
-type GetAuthorizationLifecycleLedgerRowsByAgentParams struct {
-	AgentType string    `db:"agent_type" json:"agent_type"`
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-}
-
-// Every authorization held by one agent, whatever its state.
-//
-// This exists for `lapse`. When an AI agent reaches `retired`, every
-// authorization naming it as agent must reach `terminated`. Where the
-// retirement is ours to record the two go in one transaction, arising
-// together. Where it is not, an end of life nothing reported has to be found
-// by a sweep instead. See "What the existence of the parties requires" in
-// poc_audit/entity_model.md. Neither route performs the transition yet, so no
-// production code calls this.
-//
-// Unlike the credential equivalent it does not filter to the live rows, since
-// both callers have to tell an authorization that already ended from one they
-// must end.
-func (q *sqlQuerier) GetAuthorizationLifecycleLedgerRowsByAgent(ctx context.Context, arg GetAuthorizationLifecycleLedgerRowsByAgentParams) ([]AuthorizationLifecycleLedger, error) {
-	rows, err := q.db.QueryContext(ctx, getAuthorizationLifecycleLedgerRowsByAgent, arg.AgentType, arg.AgentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []AuthorizationLifecycleLedger
-	for rows.Next() {
-		var i AuthorizationLifecycleLedger
-		if err := rows.Scan(
-			&i.ID,
-			&i.PrincipalType,
-			&i.PrincipalID,
-			&i.AgentType,
-			&i.AgentID,
-			&i.Scope,
-			&i.State,
-			&i.PostingReference,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const insertAuthorizationLifecycleJournalFirstLine = `-- name: InsertAuthorizationLifecycleJournalFirstLine :one
@@ -6057,56 +6107,6 @@ func (q *sqlQuerier) InsertAuthorizationLifecycleJournalSubsequentLine(ctx conte
 		&i.Actor,
 		&i.Event,
 		&i.Subject,
-	)
-	return i, err
-}
-
-const insertAuthorizationLifecycleLedgerRow = `-- name: InsertAuthorizationLifecycleLedgerRow :one
-INSERT INTO
-	authorization_lifecycle_ledger (
-		id,
-		principal_type,
-		principal_id,
-		agent_type,
-		agent_id,
-		scope,
-		state,
-		posting_reference
-	)
-VALUES
-	($1, $2, $3, $4, $5, '', $6, $7) RETURNING id, principal_type, principal_id, agent_type, agent_id, scope, state, posting_reference
-`
-
-type InsertAuthorizationLifecycleLedgerRowParams struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	PrincipalType    string    `db:"principal_type" json:"principal_type"`
-	PrincipalID      uuid.UUID `db:"principal_id" json:"principal_id"`
-	AgentType        string    `db:"agent_type" json:"agent_type"`
-	AgentID          uuid.UUID `db:"agent_id" json:"agent_id"`
-	State            string    `db:"state" json:"state"`
-	PostingReference int64     `db:"posting_reference" json:"posting_reference"`
-}
-
-func (q *sqlQuerier) InsertAuthorizationLifecycleLedgerRow(ctx context.Context, arg InsertAuthorizationLifecycleLedgerRowParams) (AuthorizationLifecycleLedger, error) {
-	row := q.db.QueryRowContext(ctx, insertAuthorizationLifecycleLedgerRow,
-		arg.ID,
-		arg.PrincipalType,
-		arg.PrincipalID,
-		arg.AgentType,
-		arg.AgentID,
-		arg.State,
-		arg.PostingReference,
-	)
-	var i AuthorizationLifecycleLedger
-	err := row.Scan(
-		&i.ID,
-		&i.PrincipalType,
-		&i.PrincipalID,
-		&i.AgentType,
-		&i.AgentID,
-		&i.Scope,
-		&i.State,
-		&i.PostingReference,
 	)
 	return i, err
 }
@@ -15128,6 +15128,33 @@ func (q *sqlQuerier) GetCredentialAPIKeyByID(ctx context.Context, id uuid.UUID) 
 	return i, err
 }
 
+const getCredentialLedgerRowByID = `-- name: GetCredentialLedgerRowByID :one
+SELECT
+	id, holder_type, holder_id, credential_type, state, expires_at, lifecycle_posting_reference, last_presented, last_used, use_posting_reference
+FROM
+	credential_ledger
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) GetCredentialLedgerRowByID(ctx context.Context, id uuid.UUID) (CredentialLedger, error) {
+	row := q.db.QueryRowContext(ctx, getCredentialLedgerRowByID, id)
+	var i CredentialLedger
+	err := row.Scan(
+		&i.ID,
+		&i.HolderType,
+		&i.HolderID,
+		&i.CredentialType,
+		&i.State,
+		&i.ExpiresAt,
+		&i.LifecyclePostingReference,
+		&i.LastPresented,
+		&i.LastUsed,
+		&i.UsePostingReference,
+	)
+	return i, err
+}
+
 const getCredentialLifecycleJournalAPIKeyLines = `-- name: GetCredentialLifecycleJournalAPIKeyLines :many
 SELECT
 	entry_id, line, token_name, scopes, allow_list
@@ -15169,30 +15196,6 @@ func (q *sqlQuerier) GetCredentialLifecycleJournalAPIKeyLines(ctx context.Contex
 	return items, nil
 }
 
-const getCredentialLifecycleLedgerRowByID = `-- name: GetCredentialLifecycleLedgerRowByID :one
-SELECT
-	id, holder_type, holder_id, credential_type, state, expires_at, posting_reference
-FROM
-	credential_lifecycle_ledger
-WHERE
-	id = $1
-`
-
-func (q *sqlQuerier) GetCredentialLifecycleLedgerRowByID(ctx context.Context, id uuid.UUID) (CredentialLifecycleLedger, error) {
-	row := q.db.QueryRowContext(ctx, getCredentialLifecycleLedgerRowByID, id)
-	var i CredentialLifecycleLedger
-	err := row.Scan(
-		&i.ID,
-		&i.HolderType,
-		&i.HolderID,
-		&i.CredentialType,
-		&i.State,
-		&i.ExpiresAt,
-		&i.PostingReference,
-	)
-	return i, err
-}
-
 const getCredentialPasswordByID = `-- name: GetCredentialPasswordByID :one
 SELECT
 	id, hashed_authenticator
@@ -15209,11 +15212,64 @@ func (q *sqlQuerier) GetCredentialPasswordByID(ctx context.Context, id uuid.UUID
 	return i, err
 }
 
+const getCredentialUseJournalEntriesBySubject = `-- name: GetCredentialUseJournalEntriesBySubject :many
+SELECT
+	entry_id, recording_date, effective_date, actor_type, actor, event, subject, annotation_source
+FROM
+	credential_use_journal
+WHERE
+	subject = $1
+ORDER BY
+	entry_id
+LIMIT
+	$2
+`
+
+type GetCredentialUseJournalEntriesBySubjectParams struct {
+	Subject uuid.UUID `db:"subject" json:"subject"`
+	Limit   int32     `db:"limit" json:"limit"`
+}
+
+// Entries about one credential's use, in journal order. Unbounded in principle:
+// a variable takes assignments without limit, so the caller's limit is a cap it
+// chooses rather than one the model guarantees.
+func (q *sqlQuerier) GetCredentialUseJournalEntriesBySubject(ctx context.Context, arg GetCredentialUseJournalEntriesBySubjectParams) ([]CredentialUseJournal, error) {
+	rows, err := q.db.QueryContext(ctx, getCredentialUseJournalEntriesBySubject, arg.Subject, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CredentialUseJournal
+	for rows.Next() {
+		var i CredentialUseJournal
+		if err := rows.Scan(
+			&i.EntryID,
+			&i.RecordingDate,
+			&i.EffectiveDate,
+			&i.ActorType,
+			&i.Actor,
+			&i.Event,
+			&i.Subject,
+			&i.AnnotationSource,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getValidCredentialsByHolder = `-- name: GetValidCredentialsByHolder :many
 SELECT
-	id, holder_type, holder_id, credential_type, state, expires_at, posting_reference
+	id, holder_type, holder_id, credential_type, state, expires_at, lifecycle_posting_reference, last_presented, last_used, use_posting_reference
 FROM
-	credential_lifecycle_ledger
+	credential_ledger
 WHERE
 	holder_type = $1
 	AND holder_id = $2
@@ -15234,15 +15290,15 @@ type GetValidCredentialsByHolderParams struct {
 //
 // Type specific state is not joined in. A caller that needs it knows the type
 // from the row and fetches it, which is what the type discriminator is for.
-func (q *sqlQuerier) GetValidCredentialsByHolder(ctx context.Context, arg GetValidCredentialsByHolderParams) ([]CredentialLifecycleLedger, error) {
+func (q *sqlQuerier) GetValidCredentialsByHolder(ctx context.Context, arg GetValidCredentialsByHolderParams) ([]CredentialLedger, error) {
 	rows, err := q.db.QueryContext(ctx, getValidCredentialsByHolder, arg.HolderType, arg.HolderID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CredentialLifecycleLedger
+	var items []CredentialLedger
 	for rows.Next() {
-		var i CredentialLifecycleLedger
+		var i CredentialLedger
 		if err := rows.Scan(
 			&i.ID,
 			&i.HolderType,
@@ -15250,7 +15306,10 @@ func (q *sqlQuerier) GetValidCredentialsByHolder(ctx context.Context, arg GetVal
 			&i.CredentialType,
 			&i.State,
 			&i.ExpiresAt,
-			&i.PostingReference,
+			&i.LifecyclePostingReference,
+			&i.LastPresented,
+			&i.LastUsed,
+			&i.UsePostingReference,
 		); err != nil {
 			return nil, err
 		}
@@ -15297,6 +15356,57 @@ func (q *sqlQuerier) InsertCredentialAPIKey(ctx context.Context, arg InsertCrede
 		&i.TokenName,
 		&i.Scopes,
 		&i.AllowList,
+	)
+	return i, err
+}
+
+const insertCredentialLedgerRow = `-- name: InsertCredentialLedgerRow :one
+INSERT INTO
+	credential_ledger (
+		id,
+		holder_type,
+		holder_id,
+		credential_type,
+		state,
+		expires_at,
+		lifecycle_posting_reference
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6, $7) RETURNING id, holder_type, holder_id, credential_type, state, expires_at, lifecycle_posting_reference, last_presented, last_used, use_posting_reference
+`
+
+type InsertCredentialLedgerRowParams struct {
+	ID                        uuid.UUID    `db:"id" json:"id"`
+	HolderType                string       `db:"holder_type" json:"holder_type"`
+	HolderID                  uuid.UUID    `db:"holder_id" json:"holder_id"`
+	CredentialType            string       `db:"credential_type" json:"credential_type"`
+	State                     string       `db:"state" json:"state"`
+	ExpiresAt                 sql.NullTime `db:"expires_at" json:"expires_at"`
+	LifecyclePostingReference int64        `db:"lifecycle_posting_reference" json:"lifecycle_posting_reference"`
+}
+
+func (q *sqlQuerier) InsertCredentialLedgerRow(ctx context.Context, arg InsertCredentialLedgerRowParams) (CredentialLedger, error) {
+	row := q.db.QueryRowContext(ctx, insertCredentialLedgerRow,
+		arg.ID,
+		arg.HolderType,
+		arg.HolderID,
+		arg.CredentialType,
+		arg.State,
+		arg.ExpiresAt,
+		arg.LifecyclePostingReference,
+	)
+	var i CredentialLedger
+	err := row.Scan(
+		&i.ID,
+		&i.HolderType,
+		&i.HolderID,
+		&i.CredentialType,
+		&i.State,
+		&i.ExpiresAt,
+		&i.LifecyclePostingReference,
+		&i.LastPresented,
+		&i.LastUsed,
+		&i.UsePostingReference,
 	)
 	return i, err
 }
@@ -15384,54 +15494,6 @@ func (q *sqlQuerier) InsertCredentialLifecycleJournalEntry(ctx context.Context, 
 	return i, err
 }
 
-const insertCredentialLifecycleLedgerRow = `-- name: InsertCredentialLifecycleLedgerRow :one
-INSERT INTO
-	credential_lifecycle_ledger (
-		id,
-		holder_type,
-		holder_id,
-		credential_type,
-		state,
-		expires_at,
-		posting_reference
-	)
-VALUES
-	($1, $2, $3, $4, $5, $6, $7) RETURNING id, holder_type, holder_id, credential_type, state, expires_at, posting_reference
-`
-
-type InsertCredentialLifecycleLedgerRowParams struct {
-	ID               uuid.UUID    `db:"id" json:"id"`
-	HolderType       string       `db:"holder_type" json:"holder_type"`
-	HolderID         uuid.UUID    `db:"holder_id" json:"holder_id"`
-	CredentialType   string       `db:"credential_type" json:"credential_type"`
-	State            string       `db:"state" json:"state"`
-	ExpiresAt        sql.NullTime `db:"expires_at" json:"expires_at"`
-	PostingReference int64        `db:"posting_reference" json:"posting_reference"`
-}
-
-func (q *sqlQuerier) InsertCredentialLifecycleLedgerRow(ctx context.Context, arg InsertCredentialLifecycleLedgerRowParams) (CredentialLifecycleLedger, error) {
-	row := q.db.QueryRowContext(ctx, insertCredentialLifecycleLedgerRow,
-		arg.ID,
-		arg.HolderType,
-		arg.HolderID,
-		arg.CredentialType,
-		arg.State,
-		arg.ExpiresAt,
-		arg.PostingReference,
-	)
-	var i CredentialLifecycleLedger
-	err := row.Scan(
-		&i.ID,
-		&i.HolderType,
-		&i.HolderID,
-		&i.CredentialType,
-		&i.State,
-		&i.ExpiresAt,
-		&i.PostingReference,
-	)
-	return i, err
-}
-
 const insertCredentialPassword = `-- name: InsertCredentialPassword :one
 INSERT INTO
 	credential_password (id, hashed_authenticator)
@@ -15454,6 +15516,58 @@ func (q *sqlQuerier) InsertCredentialPassword(ctx context.Context, arg InsertCre
 	return i, err
 }
 
+const insertCredentialUseJournalEntry = `-- name: InsertCredentialUseJournalEntry :one
+INSERT INTO
+	credential_use_journal (
+		entry_id,
+		effective_date,
+		actor_type,
+		actor,
+		event,
+		subject,
+		annotation_source
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6, $7) RETURNING entry_id, recording_date, effective_date, actor_type, actor, event, subject, annotation_source
+`
+
+type InsertCredentialUseJournalEntryParams struct {
+	EntryID          int64          `db:"entry_id" json:"entry_id"`
+	EffectiveDate    time.Time      `db:"effective_date" json:"effective_date"`
+	ActorType        string         `db:"actor_type" json:"actor_type"`
+	Actor            uuid.UUID      `db:"actor" json:"actor"`
+	Event            string         `db:"event" json:"event"`
+	Subject          uuid.UUID      `db:"subject" json:"subject"`
+	AnnotationSource sql.NullString `db:"annotation_source" json:"annotation_source"`
+}
+
+// recording_date is absent on purpose: the column default supplies it, so no
+// caller can supply, override, or backdate it. The annotation column is not
+// read by posting, which is what its name promises.
+func (q *sqlQuerier) InsertCredentialUseJournalEntry(ctx context.Context, arg InsertCredentialUseJournalEntryParams) (CredentialUseJournal, error) {
+	row := q.db.QueryRowContext(ctx, insertCredentialUseJournalEntry,
+		arg.EntryID,
+		arg.EffectiveDate,
+		arg.ActorType,
+		arg.Actor,
+		arg.Event,
+		arg.Subject,
+		arg.AnnotationSource,
+	)
+	var i CredentialUseJournal
+	err := row.Scan(
+		&i.EntryID,
+		&i.RecordingDate,
+		&i.EffectiveDate,
+		&i.ActorType,
+		&i.Actor,
+		&i.Event,
+		&i.Subject,
+		&i.AnnotationSource,
+	)
+	return i, err
+}
+
 const nextCredentialLifecycleJournalEntryID = `-- name: NextCredentialLifecycleJournalEntryID :one
 SELECT
 	nextval('credential_lifecycle_journal_entry_seq')::bigint
@@ -15468,28 +15582,56 @@ func (q *sqlQuerier) NextCredentialLifecycleJournalEntryID(ctx context.Context) 
 	return column_1, err
 }
 
-const revokeCredential = `-- name: RevokeCredential :one
-UPDATE
-	credential_lifecycle_ledger
-SET
-	state = 'invalid',
-	posting_reference = $2
-WHERE
-	id = $1
-	AND posting_reference = $3 RETURNING id, holder_type, holder_id, credential_type, state, expires_at, posting_reference
+const nextCredentialUseJournalEntryID = `-- name: NextCredentialUseJournalEntryID :one
+SELECT
+	nextval('credential_use_journal_entry_seq')::bigint
 `
 
-type RevokeCredentialParams struct {
-	ID                 uuid.UUID `db:"id" json:"id"`
-	PostingReference   int64     `db:"posting_reference" json:"posting_reference"`
-	PostingReference_2 int64     `db:"posting_reference_2" json:"posting_reference_2"`
+// One call per entry. The use journal has no line table, neither of its
+// operations taking parameters.
+func (q *sqlQuerier) NextCredentialUseJournalEntryID(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, nextCredentialUseJournalEntryID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
-// Conditional on the posting reference the caller last saw, so that two posters
-// cannot both believe they succeeded.
-func (q *sqlQuerier) RevokeCredential(ctx context.Context, arg RevokeCredentialParams) (CredentialLifecycleLedger, error) {
-	row := q.db.QueryRowContext(ctx, revokeCredential, arg.ID, arg.PostingReference, arg.PostingReference_2)
-	var i CredentialLifecycleLedger
+const postCredentialPresentation = `-- name: PostCredentialPresentation :one
+UPDATE
+	credential_ledger
+SET
+	last_presented = $1,
+	last_used = CASE WHEN $2::boolean THEN $1 ELSE last_used END,
+	use_posting_reference = $3
+WHERE
+	id = $4
+	AND (use_posting_reference IS NULL OR use_posting_reference < $3) RETURNING id, holder_type, holder_id, credential_type, state, expires_at, lifecycle_posting_reference, last_presented, last_used, use_posting_reference
+`
+
+type PostCredentialPresentationParams struct {
+	PresentedAt sql.NullTime  `db:"presented_at" json:"presented_at"`
+	Accepted    bool          `db:"accepted" json:"accepted"`
+	EntryID     sql.NullInt64 `db:"entry_id" json:"entry_id"`
+	ID          uuid.UUID     `db:"id" json:"id"`
+}
+
+// Posting an assignment to the use model's variables.
+//
+// Conditional on the entry being newer than whatever last posted, which is how
+// "post in journal order" is enforced for a variable. An older entry arriving
+// late affects no rows, and that is correct rather than a failure: the fold in
+// journal order would give the newer value anyway.
+//
+// last_used is assigned only when the presentation was accepted, which the
+// caller states rather than the statement inferring.
+func (q *sqlQuerier) PostCredentialPresentation(ctx context.Context, arg PostCredentialPresentationParams) (CredentialLedger, error) {
+	row := q.db.QueryRowContext(ctx, postCredentialPresentation,
+		arg.PresentedAt,
+		arg.Accepted,
+		arg.EntryID,
+		arg.ID,
+	)
+	var i CredentialLedger
 	err := row.Scan(
 		&i.ID,
 		&i.HolderType,
@@ -15497,7 +15639,47 @@ func (q *sqlQuerier) RevokeCredential(ctx context.Context, arg RevokeCredentialP
 		&i.CredentialType,
 		&i.State,
 		&i.ExpiresAt,
-		&i.PostingReference,
+		&i.LifecyclePostingReference,
+		&i.LastPresented,
+		&i.LastUsed,
+		&i.UsePostingReference,
+	)
+	return i, err
+}
+
+const revokeCredential = `-- name: RevokeCredential :one
+UPDATE
+	credential_ledger
+SET
+	state = 'invalid',
+	lifecycle_posting_reference = $2
+WHERE
+	id = $1
+	AND lifecycle_posting_reference = $3 RETURNING id, holder_type, holder_id, credential_type, state, expires_at, lifecycle_posting_reference, last_presented, last_used, use_posting_reference
+`
+
+type RevokeCredentialParams struct {
+	ID                          uuid.UUID `db:"id" json:"id"`
+	LifecyclePostingReference   int64     `db:"lifecycle_posting_reference" json:"lifecycle_posting_reference"`
+	LifecyclePostingReference_2 int64     `db:"lifecycle_posting_reference_2" json:"lifecycle_posting_reference_2"`
+}
+
+// Conditional on the posting reference the caller last saw, so that two posters
+// cannot both believe they succeeded.
+func (q *sqlQuerier) RevokeCredential(ctx context.Context, arg RevokeCredentialParams) (CredentialLedger, error) {
+	row := q.db.QueryRowContext(ctx, revokeCredential, arg.ID, arg.LifecyclePostingReference, arg.LifecyclePostingReference_2)
+	var i CredentialLedger
+	err := row.Scan(
+		&i.ID,
+		&i.HolderType,
+		&i.HolderID,
+		&i.CredentialType,
+		&i.State,
+		&i.ExpiresAt,
+		&i.LifecyclePostingReference,
+		&i.LastPresented,
+		&i.LastUsed,
+		&i.UsePostingReference,
 	)
 	return i, err
 }

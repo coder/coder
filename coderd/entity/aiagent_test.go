@@ -38,13 +38,17 @@ func TestCreateAIAgent(t *testing.T) {
 		require.NotEqual(t, uuid.Nil, created.CredentialID, "the credential should be identified")
 
 		id := created.ID
-		row, err := db.GetAIAgentLifecycleLedgerRowByID(ctx, id)
+		row, err := db.GetAIAgentLedgerRowByID(ctx, id)
 		require.NoError(t, err, "the minted identity should name a ledger row")
 		require.Equal(t, string(entity.TypeUser), row.OwnerType)
 		require.Equal(t, owner.ID, row.OwnerID, "the AI agent should belong to its principal")
 		require.Equal(t, entity.AIAgentStateActive, row.State)
 
-		verified, err := entity.VerifyCredential(ctx, db, entity.Ref{Type: entity.TypeAIAgent, ID: id}, created.Authenticator)
+		verified, err := entity.VerifyCredential(ctx, db, entity.Presentation{
+			Declared:            created.CredentialID,
+			AuthenticatorOutput: created.Authenticator,
+			Verifier:            entity.Ref{Type: entity.TypeUser, ID: owner.ID},
+		})
 		require.NoError(t, err)
 		require.True(t, verified, "the credential handed back should verify")
 
@@ -78,7 +82,7 @@ func TestCreateAIAgent(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, created.AuthorizationID, "creation should grant authorization")
 
-		row, err := db.GetAuthorizationLifecycleLedgerRowByID(ctx, created.AuthorizationID)
+		row, err := db.GetAuthorizationLedgerRowByID(ctx, created.AuthorizationID)
 		require.NoError(t, err, "the grant should have posted to the ledger")
 		require.Equal(t, string(entity.TypeUser), row.PrincipalType)
 		require.Equal(t, owner.ID, row.PrincipalID, "the principal is the owner, not the relaying agent")
@@ -139,7 +143,7 @@ func TestCreateAIAgent(t *testing.T) {
 
 		// The row and its entry commit together or not at all, so neither
 		// should have survived.
-		_, err = db.GetAIAgentLifecycleLedgerRowByID(ctx, id)
+		_, err = db.GetAIAgentLedgerRowByID(ctx, id)
 		require.ErrorIs(t, err, sql.ErrNoRows,
 			"the AI agent should roll back with the entry accounting for it")
 
@@ -209,7 +213,7 @@ func TestRetireAIAgent(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			id, owner := newAgent(t, ctx, db)
 
-			before, err := db.GetAIAgentLifecycleLedgerRowByID(ctx, id)
+			before, err := db.GetAIAgentLedgerRowByID(ctx, id)
 			require.NoError(t, err)
 
 			// An observed transition may be recorded long after it happened,
@@ -217,7 +221,7 @@ func TestRetireAIAgent(t *testing.T) {
 			happened := dbtime.Now().Add(-time.Hour)
 			require.NoError(t, entity.RetireAIAgent(ctx, db, id, tc.event, owner, happened))
 
-			after, err := db.GetAIAgentLifecycleLedgerRowByID(ctx, id)
+			after, err := db.GetAIAgentLedgerRowByID(ctx, id)
 			require.NoError(t, err)
 			require.Equal(t, entity.AIAgentStateRetired, after.State,
 				"the row remains; a ledger keeps its retired rows")

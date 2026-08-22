@@ -47,9 +47,9 @@ INSERT INTO
 VALUES
 	($1, $2, NULL, NULL, NULL, NULL, $3, $4) RETURNING *;
 
--- name: InsertAuthorizationLifecycleLedgerRow :one
+-- name: InsertAuthorizationLedgerRow :one
 INSERT INTO
-	authorization_lifecycle_ledger (
+	authorization_ledger (
 		id,
 		principal_type,
 		principal_id,
@@ -62,11 +62,11 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5, '', $6, $7) RETURNING *;
 
--- name: GetAuthorizationLifecycleLedgerRowByID :one
+-- name: GetAuthorizationLedgerRowByID :one
 SELECT
 	*
 FROM
-	authorization_lifecycle_ledger
+	authorization_ledger
 WHERE
 	id = $1;
 
@@ -88,7 +88,7 @@ ORDER BY
 LIMIT
 	$2;
 
--- name: GetAuthorizationLifecycleLedgerRowsByAgent :many
+-- name: GetAuthorizationLedgerRowsByAgent :many
 -- Every authorization held by one agent, whatever its state.
 --
 -- This exists for `lapse`. When an AI agent reaches `retired`, every
@@ -105,7 +105,7 @@ LIMIT
 SELECT
 	*
 FROM
-	authorization_lifecycle_ledger
+	authorization_ledger
 WHERE
 	agent_type = $1
 	AND agent_id = $2

@@ -150,7 +150,7 @@ func TestAIAgentIdentity(t *testing.T) {
 		scriptLog := readScriptLog(scriptLogPath)
 		id := mintedAIAgentID(t, scriptLog)
 
-		aiAgent, err := db.GetAIAgentLifecycleLedgerRowByID(systemCtx, id)
+		aiAgent, err := db.GetAIAgentLedgerRowByID(systemCtx, id)
 		require.NoError(t, err, "the returned identity should name a row")
 		require.Equal(t, string(entity.TypeUser), aiAgent.OwnerType)
 		require.Equal(t, user.UserID, aiAgent.OwnerID,
@@ -180,7 +180,7 @@ func TestAIAgentIdentity(t *testing.T) {
 		// authorization is the only one of the three entities whose identifier
 		// never leaves coderd, so it is reached through the agent it was
 		// granted over rather than by identifier.
-		grants, err := db.GetAuthorizationLifecycleLedgerRowsByAgent(systemCtx, database.GetAuthorizationLifecycleLedgerRowsByAgentParams{
+		grants, err := db.GetAuthorizationLedgerRowsByAgent(systemCtx, database.GetAuthorizationLedgerRowsByAgentParams{
 			AgentType: string(entity.TypeAIAgent),
 			AgentID:   id,
 		})

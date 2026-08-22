@@ -124,6 +124,30 @@ what the question of origin above is for. And an entity **need not have a
 lifecycle**, which is one thing an entity may have rather than what makes it
 one.
 
+#### A subject-entity and a model-entity are both entities
+
+Two things are called an entity and the difference matters in a few places, of
+which one is the rule about how many journals and ledgers there are.
+
+A **subject-entity** is the thing itself: the credential as it travels through
+the system, the AI agent as it acts. It exists outside any journal or ledger and
+would exist if none had been written. It is an entity in the ordinary sense of
+the word.
+
+A **model-entity** is what a journal records through: a state machine, a
+variable, an account. It is a model of some subject-entity, chosen because it
+makes that subject tractable, and it is not the subject. The map is not the
+territory.
+
+**One subject-entity may have more than one model.** A credential has a
+lifecycle, which is a state machine, and it has a record of use, which is a pair
+of variables. Neither model is the credential and neither is more truly it than
+the other; they answer different questions about the same thing.
+
+Saying "entity" without the qualifier is normal and usually unambiguous. Use the
+longer form only where the two could be confused, as they can wherever the count
+of journals or ledgers is at issue.
+
 Corpus maturity has three levels. `named` means the term is defined and glossed
 and no more. `modelled` means identity, states and operations,
 and relations to other entities are stated. `settled` means modelled, plus how
@@ -1031,6 +1055,96 @@ to partition it by state if it ever matters, not a reason to give currently
 valid credentials a table of their own. Keeping the retired rows is what makes
 revocation a posting rather than a deletion. See "A ledger keeps its retired
 rows, in one table" in `poc_audit/implementation_patterns.md`.
+
+### The credential use model
+
+A second model of the credential, beside its lifecycle. The lifecycle says
+whether a credential is one the system will accept; this says when it was last
+offered and when it was last accepted. Neither is more truly the credential than
+the other, and each is silent about what the other records.
+
+It is not a state machine. Its values are two moments, and its operations
+assign them, so it is a pair of variables in the sense "Entities described by
+operations that are not transitions" gives that word.
+
+| Value            | Meaning                                                |
+|------------------|--------------------------------------------------------|
+| `last_presented` | When the credential was last offered, however it went. |
+| `last_used`      | When it was last offered and accepted.                 |
+
+Both begin unassigned, which is the initial value every variable has and here
+means the credential has never been offered. Nothing distinguishes that from a
+credential issued a moment ago, because nothing needs to.
+
+| Operation               | Assigns                       | Kind     |
+|-------------------------|-------------------------------|----------|
+| `presentation_accepted` | `last_presented`, `last_used` | observed |
+| `presentation_refused`  | `last_presented`              | observed |
+
+Both name a presentation, because both are one: what differs is how it went.
+
+#### How the credential use model is read
+
+A **presentation** is one offering of a credential to a verifier. It carries two
+things, and their being two is the point: the presenter **declares which
+credential** they are presenting, and supplies an **authenticator output** for
+it. Verifying the output establishes possession; the declaration says what
+possession is being claimed of. A password style exchange conflates them by
+sending one blob, and a challenge response protocol separates them visibly.
+Without the declaration a refusal names no credential, and there is nothing for
+`presentation_refused` to be about.
+
+**All of this model's operations are observed.** The actor is the verifier: the
+party the presentation was made to, and so the party that noticed. Nobody
+commands a presentation into the record. The nearest ordinary picture is an
+officer at a control point recording the decisions they make on what is put in
+front of them.
+
+**The model records that a presentation occurred and how it went, not who made
+it**, and the reason is the reason credentials exist at all.
+
+A credential is issued because the system has no reliable knowledge of who is
+presenting. Had it such knowledge the credential would be redundant, there being
+nothing left for possession of a secret to establish. **So a record of the
+presenter's identity is unreliable by construction**, and a record claiming
+otherwise would be claiming the credential was unnecessary. For an accepted
+presentation the holder is established by the acceptance, which is the
+credential doing its work. For a refused one nothing is established at all.
+
+Particulars of the presenter are therefore annotations at best: kept because an
+investigator may want them, never read by posting, and never to be mistaken for
+findings.
+
+**Particulars of the presentation are annotations too, for the opposite
+reason.** Which process, container or software version performed the
+verification, and what connection the presentation arrived on, are things the
+verifier knows about itself and knows reliably. They are annotations not because
+they cannot be trusted but because they bear on nothing the operation assigns.
+Where both kinds are recorded they sit in annotative fields alike, and the
+shared treatment should not be read as a shared justification.
+
+**Presenter particulars are not recorded at present, and the reason is worth
+keeping.** The declaration of which credential is being presented is the only
+claim a presentation carries, and it is already the entry's subject. A separate
+record of the presenter would need a claim distinct from that declaration, which
+arises where one party presents on behalf of another and does not arise here. A
+field standing empty until then would be filled with whatever identity came to
+hand, and the nearest one is the holder established by acceptance, which is a
+finding and belongs nowhere near an annotation.
+
+#### What this model does not record
+
+**It says nothing about the credential's existence.** When a credential began,
+whether it is still valid, and when it ended are the lifecycle model's, and this
+model neither duplicates nor contradicts them. A variable's own creation and
+destruction are not modelled at all, per "Not every entity has a lifecycle".
+
+**Its journal records a declared subsequence rather than every presentation.**
+Recording all of them is recording every authenticated request, and whether that
+is affordable is a customer's judgement. What the journal records is whatever
+its predicate selects, and the predicate is part of its definition, per
+"Completeness is measured against what a journal purports to record" in
+`journal_vs_log.md`.
 
 ### What happens when an AI agent comes into being
 
