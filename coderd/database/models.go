@@ -89,6 +89,64 @@ func AllAIBridgeInterceptionErrorTypeValues() []AIBridgeInterceptionErrorType {
 	}
 }
 
+type AIModelPriceSource string
+
+const (
+	AIModelPriceSourceDefault AIModelPriceSource = "default"
+	AIModelPriceSourceCustom  AIModelPriceSource = "custom"
+)
+
+func (e *AIModelPriceSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIModelPriceSource(s)
+	case string:
+		*e = AIModelPriceSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIModelPriceSource: %T", src)
+	}
+	return nil
+}
+
+type NullAIModelPriceSource struct {
+	AIModelPriceSource AIModelPriceSource `json:"ai_model_price_source"`
+	Valid              bool               `json:"valid"` // Valid is true if AIModelPriceSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIModelPriceSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIModelPriceSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIModelPriceSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIModelPriceSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIModelPriceSource), nil
+}
+
+func (e AIModelPriceSource) Valid() bool {
+	switch e {
+	case AIModelPriceSourceDefault,
+		AIModelPriceSourceCustom:
+		return true
+	}
+	return false
+}
+
+func AllAIModelPriceSourceValues() []AIModelPriceSource {
+	return []AIModelPriceSource{
+		AIModelPriceSourceDefault,
+		AIModelPriceSourceCustom,
+	}
+}
+
 type AIProviderType string
 
 const (
@@ -4827,6 +4885,8 @@ type AIModelPrice struct {
 	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
 	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+	// Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.
+	Source AIModelPriceSource `db:"source" json:"source"`
 }
 
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.
@@ -5343,6 +5403,8 @@ type ExternalAuthLink struct {
 	OAuthExtra             pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
 	// This error means the refresh token is invalid. Cached so we can avoid calling the external provider again for the same error.
 	OauthRefreshFailureReason string `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
+	// Indicates a replica is refreshing the token; prevents concurrent refreshes.
+	RefreshLeaseExpiresAt sql.NullTime `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
 }
 
 type File struct {

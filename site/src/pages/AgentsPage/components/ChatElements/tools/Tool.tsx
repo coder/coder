@@ -247,19 +247,28 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
+	modelIntent,
 	shellToolDisplayMode,
 }) => {
 	const rec = asRecord(result);
 	const output = rec ? asString(rec.output).trim() : "";
+	const command = rec ? asString(rec.command).trim() : "";
 	const exitCode = rec
 		? (asNumber(rec.exit_code, { parseString: true }) ?? null)
 		: null;
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
+	// The process may outlive the poll that produced this result
+	// (wait timeout); the result flags it explicitly. A later
+	// SIGKILL overrides the stale running snapshot; SIGTERM is
+	// catchable, so it does not.
+	const processRunning = rec?.running === true && killedBySignal !== "kill";
 
 	return (
 		<ProcessOutputTool
 			output={output}
-			isRunning={status === "running"}
+			command={command || undefined}
+			modelIntent={modelIntent}
+			isRunning={status === "running" || processRunning}
 			exitCode={exitCode}
 			isError={isError}
 			errorMessage={errorMessage || undefined}
@@ -836,6 +845,8 @@ const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
 		<ScrollArea
 			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 			viewportClassName="max-h-64"
+			viewportTabIndex={0}
+			viewportAriaLabel={`Contents of ${file.name}`}
 			orientation="both"
 			scrollBarClassName="w-1.5"
 			horizontalScrollBarClassName="h-1.5"

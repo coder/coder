@@ -7,14 +7,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 )
 
-func TestValidateRequestedScope(t *testing.T) {
+func TestNegotiateScope(t *testing.T) {
 	t.Parallel()
 
 	// Every scope name below is either in rbac.IsExternalScope's curated
@@ -30,16 +32,18 @@ func TestValidateRequestedScope(t *testing.T) {
 	noAllowlist := sql.NullString{}
 	emptyAllowlist := sql.NullString{String: "", Valid: true}
 
-	// wantErr names the branch a rejection must come from. The three reasons
-	// are separately reachable and separately meaningful, so asserting only
-	// that some error occurred would let a refactor route one branch through
-	// another unnoticed.
+	// wantErr names the branch a rejection must come from. The reasons are
+	// separately reachable and separately meaningful, so asserting only that
+	// some error occurred would let a refactor route one branch through
+	// another unnoticed. wantErrText, where set, additionally pins what the
+	// person reading error_description is shown.
 	tests := []struct {
-		name      string
-		requested []string
-		appScope  sql.NullString
-		want      string
-		wantErr   error
+		name        string
+		requested   []string
+		appScope    sql.NullString
+		want        string
+		wantErr     error
+		wantErrText string
 	}{
 		{
 			name:      "UnknownRequestedScopeRejected",
@@ -206,10 +210,16 @@ func TestValidateRequestedScope(t *testing.T) {
 			// A whitespace-only allowlist is a configured value that grants
 			// nothing, not an unset one, so it rejects rather than falling
 			// back to unrestricted.
-			name:      "WhitespaceOnlyAllowlistRejected",
-			requested: nil,
-			appScope:  sql.NullString{String: "   ", Valid: true},
-			wantErr:   errNoGrantableScope,
+			//
+			// The rendered text is pinned because this is the one allowlist
+			// whose entries all vanish before the message is built: naming the
+			// filter's input rather than the stored value would show the app
+			// owner an empty string where their configuration should be.
+			name:        "WhitespaceOnlyAllowlistRejected",
+			requested:   nil,
+			appScope:    sql.NullString{String: "   ", Valid: true},
+			wantErr:     errNoGrantableScope,
+			wantErrText: `"   "`,
 		},
 		{
 			// rbac.IsExternalScope accepts `all` as a backward-compatible
@@ -272,7 +282,8 @@ func TestValidateRequestedScope(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := validateRequestedScope(test.requested, test.appScope)
+			app := database.OAuth2ProviderApp{ID: uuid.New(), Scope: test.appScope}
+			got, err := negotiateScope(t.Context(), slogtest.Make(t, nil), app, test.requested)
 			if test.wantErr != nil {
 				require.ErrorIs(t, err, test.wantErr)
 				assert.Empty(t, got, "a rejected request must not return a persistable scope")
@@ -283,6 +294,10 @@ func TestValidateRequestedScope(t *testing.T) {
 				// errors.Is.
 				assert.Equal(t, 1, strings.Count(err.Error(), test.wantErr.Error()),
 					"the rejection reason must appear once, not doubled by the wrap")
+				if test.wantErrText != "" {
+					assert.Contains(t, err.Error(), test.wantErrText,
+						"the rejection must name the value the app owner has to change")
+				}
 				return
 			}
 			require.NoError(t, err)
@@ -312,6 +327,17 @@ func requirePersistableScope(t *testing.T, scope string) {
 		require.NoError(t, err, "scope %q cannot be expanded by RBAC, so it cannot be enforced", name)
 	}
 }
+
+// Rejection reasons handed to the package's black-box tests, which sit in
+// oauth2provider_test and so cannot reach the sentinels themselves. They
+// assert on what reaches the client, and the sentinel text is what reaches
+// it, so binding here beats re-typing the strings over there: a rewording
+// then moves both together instead of silently unpinning the branch mapping.
+var (
+	ReasonUnknownScope     = errUnknownScope.Error()
+	ReasonNoGrantableScope = errNoGrantableScope.Error()
+	ReasonScopeNotAllowed  = errScopeNotAllowed.Error()
+)
 
 func TestNoScopeAllowlist(t *testing.T) {
 	t.Parallel()

@@ -1,6 +1,7 @@
 package oauth2provider
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -16,6 +17,7 @@ import (
 	"github.com/justinas/nosurf"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -26,9 +28,9 @@ import (
 	"github.com/coder/coder/v2/site"
 )
 
-// Rejection reasons from validateRequestedScope. They are sentinels rather
-// than inline messages so a caller, and the tests, can tell which check
-// failed without matching on message text.
+// Rejection reasons from negotiateScope. They are sentinels rather than inline
+// messages so a caller, and the tests, can tell which check failed without
+// matching on message text.
 //
 // Each is wrapped with the offending value ahead of it, because xerrors only
 // wraps without repeating the sentinel's own text when %w is the final verb.
@@ -41,12 +43,21 @@ var (
 	// errNoGrantableScope is returned when every entry of the app's allowlist
 	// falls outside the catalog, leaving nothing the app can be granted. The
 	// request is not at fault here and may have carried no scope at all, so
-	// the message names the registered list and the only remedy, which is
-	// re-registering the app.
-	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; re-register the app with supported scopes")
-	// errScopeNotAllowed is returned for a catalog scope the app's allowlist
-	// does not cover.
-	errScopeNotAllowed = xerrors.New("scope is not in this app's allowed scope list")
+	// the message names the registered list and points at the remedy without
+	// prescribing a route to it: an admin edits the app, and a dynamically
+	// registered client updates itself through RFC 7592.
+	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; change the app's registered scopes to supported ones")
+	// errScopeNotAllowed is returned for a catalog scope whose permissions the
+	// app's allowlist does not cover. Phrased as coverage rather than list
+	// membership, because a scope absent from the allowlist by name is still
+	// granted when a listed composite already confers it.
+	errScopeNotAllowed = xerrors.New("scope requests permissions beyond this app's allowed scopes")
+	// errCoverageUndecidable is returned when the allowlist and the request
+	// cannot be compared at all. That is a deployment-side condition, not
+	// something the client can correct by asking differently, and the
+	// comparison's own error names RBAC internals, so it is logged rather
+	// than rendered into error_description.
+	errCoverageUndecidable = xerrors.New("scope coverage against this app's allowed scopes could not be determined")
 )
 
 // canonicalScopes rewrites each name to the spelling the api_key_scope enum
@@ -76,23 +87,23 @@ func canonicalScopes(names []string) []string {
 //
 // A whitespace-only allowlist is deliberately not this state. It is a
 // configured value that grants nothing, so it falls through to
-// validateRequestedScope's filtered-to-empty rejection instead of the
-// unrestricted fallback.
+// negotiateScope's filtered-to-empty rejection instead of the unrestricted
+// fallback.
 func noScopeAllowlist(appScope sql.NullString) bool {
 	return !appScope.Valid || appScope.String == ""
 }
 
-// validateRequestedScope negotiates the scope the authorization code will
-// carry. Every requested name must be in the external scope catalog (RFC 6749
-// §4.1.2.1 invalid_scope), and the request must be covered by the app's
-// configured allowlist.
+// negotiateScope decides the scope the authorization code will carry. Every
+// requested name must be in the external scope catalog (RFC 6749 §4.1.2.1
+// invalid_scope), and the request must be covered by the app's configured
+// allowlist.
 //
 // What each branch returns:
 //
 //	allowlist  request  result
 //	absent     absent   ApiKeyScopeCoderAll, the pre-enforcement grant
 //	absent     present  the request, which is narrower than unrestricted
-//	present    absent   the whole allowlist (RFC 6749 §3.3 default)
+//	present    absent   the allowlist, catalog-filtered (RFC 6749 §3.3 default)
 //	present    present  the request, once shown to be within the allowlist
 //
 // An allowlist is absent when NULL or empty, which noScopeAllowlist treats as
@@ -105,7 +116,11 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 // []string, and it is never empty alongside a nil error. Its names are
 // canonical api_key_scope spellings and carry no duplicates, so the value can
 // be stored as that enum without further rewriting.
-func validateRequestedScope(requested []string, appScope sql.NullString) (string, error) {
+//
+// The whole app is taken rather than just its scope because a coverage failure
+// is a deployment-side fault, and the log line that records it is only useful
+// if it names the app that provoked it.
+func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, requested []string) (string, error) {
 	// Only names in the external scope catalog (rbac.IsExternalScope) are
 	// user-requestable. That is a curation, not a validity check: RBAC can
 	// expand internal-only names such as debug_info:read just fine, and the
@@ -123,7 +138,7 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 	// as the client spelled it rather than as the server stores it.
 	granted := canonicalScopes(requested)
 
-	if noScopeAllowlist(appScope) {
+	if noScopeAllowlist(app.Scope) {
 		if len(requested) == 0 {
 			// Unrestricted, the same grant this app got before scope
 			// enforcement existed, but stated explicitly: an empty string
@@ -137,7 +152,7 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 	// anything. The allowlist was stored at registration time and may contain
 	// a scope name since removed from the curated catalog, or never in it at
 	// all. Filtering only ever narrows what is granted.
-	allowed := strings.Fields(appScope.String)
+	allowed := strings.Fields(app.Scope.String)
 	filtered := make([]string, 0, len(allowed))
 	for _, a := range allowed {
 		if rbac.IsExternalScope(rbac.ScopeName(a)) {
@@ -152,9 +167,11 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 		// filter above handles, and it must not share the no-allowlist
 		// branch's fallback.
 		//
-		// Named with the pre-filter list, since that is what was registered
-		// and what the app owner has to change.
-		return "", xerrors.Errorf("%q: %w", strings.Join(allowed, " "), errNoGrantableScope)
+		// Named with the stored value verbatim, since that is what was
+		// registered and what the app owner has to change. Rejoining the
+		// filter's input instead would render a whitespace-only allowlist as
+		// "", naming nothing for the one configuration that most needs it.
+		return "", xerrors.Errorf("%q: %w", app.Scope.String, errNoGrantableScope)
 	}
 	// Canonicalized so both sides expand: rbac.ExpandScope knows `coder:all`
 	// and not the `all` alias that IsExternalScope accepts.
@@ -179,10 +196,16 @@ func validateRequestedScope(requested []string, appScope sql.NullString) (string
 		covered, err := rbac.ScopesCover(allowedNames, rbac.ScopeName(s))
 		if err != nil {
 			// Coverage could not be decided, so the request is refused rather
-			// than granted on an incomplete comparison. %w is last because
-			// xerrors repeats a wrapped message that is not, and this text is
-			// rendered into error_description for a person to read.
-			return "", xerrors.Errorf("%q (%v): %w", s, err, errScopeNotAllowed)
+			// than granted on an incomplete comparison. The comparison's own
+			// error names RBAC internals the client can do nothing with, so it
+			// goes to the log alongside the app that provoked it, and only the
+			// sentinel reaches error_description.
+			logger.Warn(ctx, "oauth2 scope coverage could not be determined",
+				slog.Error(err),
+				slog.F("app_id", app.ID.String()),
+				slog.F("app_scope", app.Scope.String),
+				slog.F("requested_scope", s))
+			return "", xerrors.Errorf("%q: %w", s, errCoverageUndecidable)
 		}
 		if !covered {
 			return "", xerrors.Errorf("%q: %w", s, errScopeNotAllowed)
@@ -313,7 +336,7 @@ func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, redirectURL
 }
 
 // ShowAuthorizePage handles GET /oauth2/authorize requests to display the HTML authorization page.
-func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
+func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		app := httpmw.OAuth2ProviderApp(r)
 		ua := httpmw.UserAuthorization(r.Context())
@@ -379,7 +402,7 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 		// and whether it renders at all, the POST side to persist it. The two
 		// negotiate the same query string, since the consent form posts back
 		// to this URL.
-		grantedScope, err := validateRequestedScope(params.scope, app.Scope)
+		grantedScope, err := negotiateScope(r.Context(), logger, app, params.scope)
 		if err != nil {
 			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
 				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
@@ -428,7 +451,7 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 
 // ProcessAuthorize handles POST /oauth2/authorize requests to process the user's authorization decision
 // and generate an authorization code.
-func ProcessAuthorize(db database.Store) http.HandlerFunc {
+func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		apiKey := httpmw.APIKey(r)
@@ -465,7 +488,7 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 			return
 		}
 
-		grantedScope, err := validateRequestedScope(params.scope, app.Scope)
+		grantedScope, err := negotiateScope(ctx, logger, app, params.scope)
 		if err != nil {
 			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
 				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
@@ -509,8 +532,10 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 				StateHash:           hashOAuth2State(params.state),
 				RedirectUri:         sql.NullString{String: params.redirectURL.String(), Valid: params.redirectURIProvided},
 				// The negotiated scope, not the requested one: it has been
-				// checked against the scope catalog and the app's allowlist,
-				// and it is what the token minted from this code will carry.
+				// checked against the scope catalog and the app's allowlist.
+				// The exchange copies it onto the token row but does not yet
+				// put it on the API key it mints, so what is recorded here is
+				// what was agreed, not yet what is enforced.
 				Scope: grantedScope,
 			})
 			if err != nil {

@@ -1860,6 +1860,53 @@ export const WithPRStateIcons: Story = {
 			routing: agentsRouting,
 		}),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByLabelText("Pull request open")).toBeInTheDocument();
+			expect(canvas.getByLabelText("Draft pull request")).toBeInTheDocument();
+			expect(canvas.getByLabelText("Pull request merged")).toBeInTheDocument();
+			expect(canvas.getByLabelText("Pull request closed")).toBeInTheDocument();
+		});
+	},
+};
+
+export const ActiveChatKebabPersistent: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-chat",
+				title: "Active chat",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "other-chat",
+				title: "Other chat",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/active-chat",
+				pathParams: { agentId: "active-chat" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const activeTrigger = await canvas.findByLabelText(
+			"Open actions for Active chat",
+		);
+		// The active chat keeps its actions trigger visible without hover.
+		await waitFor(() => {
+			expect(window.getComputedStyle(activeTrigger).opacity).toBe("1");
+		});
+		const otherTrigger = canvas.getByLabelText("Open actions for Other chat");
+		expect(window.getComputedStyle(otherTrigger).opacity).toBe("0");
+	},
 };
 
 export const WithUnreadChats: Story = {

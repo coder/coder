@@ -4782,13 +4782,13 @@ curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&state=str
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                                                                                                                     |
-|-----------------|-------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------|
-| `client_id`     | query | string | true     | Client ID                                                                                                                       |
-| `state`         | query | string | true     | A random unguessable string                                                                                                     |
-| `response_type` | query | string | true     | Response type                                                                                                                   |
-| `redirect_uri`  | query | string | false    | Redirect here after authorization                                                                                               |
-| `scope`         | query | string | false    | Space-separated scopes to request. Must be within the app's configured scope allowlist; defaults to that allowlist when omitted |
+| Name            | In    | Type   | Required | Description                                                                                                                                                                                                                                                                               |
+|-----------------|-------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_id`     | query | string | true     | Client ID                                                                                                                                                                                                                                                                                 |
+| `state`         | query | string | true     | A random unguessable string                                                                                                                                                                                                                                                               |
+| `response_type` | query | string | true     | Response type                                                                                                                                                                                                                                                                             |
+| `redirect_uri`  | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                                         |
+| `scope`         | query | string | false    | Space-separated scopes to request. Each must be a scope this deployment supports, and the app's scope allowlist, when it has one, must cover the permissions requested rather than list each name. When omitted, defaults to that allowlist, or to coder:all for an app with no allowlist |
 
 #### Enumerated Values
 
@@ -4818,13 +4818,13 @@ curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&state=st
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                                                                                                                     |
-|-----------------|-------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------|
-| `client_id`     | query | string | true     | Client ID                                                                                                                       |
-| `state`         | query | string | true     | A random unguessable string                                                                                                     |
-| `response_type` | query | string | true     | Response type                                                                                                                   |
-| `redirect_uri`  | query | string | false    | Redirect here after authorization                                                                                               |
-| `scope`         | query | string | false    | Space-separated scopes to request. Must be within the app's configured scope allowlist; defaults to that allowlist when omitted |
+| Name            | In    | Type   | Required | Description                                                                                                                                                                                                                                                                               |
+|-----------------|-------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_id`     | query | string | true     | Client ID                                                                                                                                                                                                                                                                                 |
+| `state`         | query | string | true     | A random unguessable string                                                                                                                                                                                                                                                               |
+| `response_type` | query | string | true     | Response type                                                                                                                                                                                                                                                                             |
+| `redirect_uri`  | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                                         |
+| `scope`         | query | string | false    | Space-separated scopes to request. Each must be a scope this deployment supports, and the app's scope allowlist, when it has one, must cover the permissions requested rather than list each name. When omitted, defaults to that allowlist, or to coder:all for an app with no allowlist |
 
 #### Enumerated Values
 

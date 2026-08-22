@@ -67,6 +67,13 @@
 						"description": "Only return prices for this model",
 						"name": "model",
 						"in": "query"
+					},
+					{
+						"enum": ["default", "custom", "all"],
+						"type": "string",
+						"description": "Only return prices from this source, or all to return every price a model holds",
+						"name": "source",
+						"in": "query"
 					}
 				],
 				"responses": {
@@ -13203,7 +13210,7 @@
 					},
 					{
 						"type": "string",
-						"description": "Space-separated scopes to request. Must be within the app's configured scope allowlist; defaults to that allowlist when omitted",
+						"description": "Space-separated scopes to request. Each must be a scope this deployment supports, and the app's scope allowlist, when it has one, must cover the permissions requested rather than list each name. When omitted, defaults to that allowlist, or to coder:all for an app with no allowlist",
 						"name": "scope",
 						"in": "query"
 					}
@@ -13254,7 +13261,7 @@
 					},
 					{
 						"type": "string",
-						"description": "Space-separated scopes to request. Must be within the app's configured scope allowlist; defaults to that allowlist when omitted",
+						"description": "Space-separated scopes to request. Each must be a scope this deployment supports, and the app's scope allowlist, when it has one, must cover the permissions requested rather than list each name. When omitted, defaults to that allowlist, or to coder:all for an app with no allowlist",
 						"name": "scope",
 						"in": "query"
 					}
@@ -14466,11 +14473,22 @@
 				"provider": {
 					"type": "string"
 				},
+				"source": {
+					"$ref": "#/definitions/codersdk.AIModelPriceSource"
+				},
 				"updated_at": {
 					"type": "string",
 					"format": "date-time"
 				}
 			}
+		},
+		"codersdk.AIModelPriceSource": {
+			"type": "string",
+			"enum": ["default", "custom"],
+			"x-enum-varnames": [
+				"AIModelPriceSourceDefault",
+				"AIModelPriceSourceCustom"
+			]
 		},
 		"codersdk.AIModelPriceUpsert": {
 			"type": "object",
