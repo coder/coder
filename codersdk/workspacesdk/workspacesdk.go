@@ -190,6 +190,10 @@ type DialAgentOptions struct {
 	// Whether the client will send network telemetry events.
 	// Enable instead of Disable so it's initialized to false (in tests).
 	EnableTelemetry bool
+	// ClientSessionID, when set, is attached to network telemetry events as
+	// client_session_id so the session can be correlated across the client's
+	// logs, requests, and telemetry.
+	ClientSessionID string
 }
 
 // RewriteDERPMap rewrites the DERP map to use the configured access URL of the
@@ -263,6 +267,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		BlockEndpoints:      c.client.DisableDirectConnections || options.BlockEndpoints,
 		CaptureHook:         options.CaptureHook,
 		ClientType:          proto.TelemetryEvent_CLI,
+		ClientSessionID:     options.ClientSessionID,
 		TelemetrySink:       telemetrySink,
 	})
 	if err != nil {

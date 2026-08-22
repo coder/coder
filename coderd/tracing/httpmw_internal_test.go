@@ -8,6 +8,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNewSessionID(t *testing.T) {
+	t.Parallel()
+
+	id, err := NewSessionID()
+	require.NoError(t, err)
+	require.Len(t, id, 32)
+	require.True(t, ValidSessionID(id), "generated session ID must be valid")
+
+	// Two consecutive IDs must differ.
+	id2, err := NewSessionID()
+	require.NoError(t, err)
+	require.NotEqual(t, id, id2)
+}
+
 func TestValidSessionID(t *testing.T) {
 	t.Parallel()
 
@@ -29,7 +43,7 @@ func TestValidSessionID(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, c.valid, validSessionID(c.id))
+			require.Equal(t, c.valid, ValidSessionID(c.id))
 		})
 	}
 }
