@@ -299,8 +299,9 @@ SELECT (
 )::bigint as total_deleted;
 
 -- name: CountAIBridgeSessions :one
+SELECT COUNT(*) FROM (
 SELECT
-	COUNT(DISTINCT (aibridge_interceptions.session_id, aibridge_interceptions.initiator_id))
+	1
 FROM
 	aibridge_interceptions
 WHERE
@@ -347,16 +348,14 @@ WHERE
 	END
 	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
 	-- @authorize_filter
-;
+GROUP BY
+	aibridge_interceptions.session_id, aibridge_interceptions.initiator_id
+) grouped_sessions;
 
 -- name: ListAIBridgeSessions :many
 -- Returns paginated sessions with aggregated metadata, token counts, and
 -- the most recent user prompt. A "session" is a logical grouping of
 -- interceptions that share the same session_id (set by the client).
---
--- Pagination-first strategy: identify the page of sessions cheaply via a
--- single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
--- first-interception metadata) only for the ~page-size result set.
 WITH cursor_pos AS (
 	-- Resolve the cursor's last_active_at once, outside the HAVING clause,
 	-- so the planner cannot accidentally re-evaluate it per group. Direct
@@ -370,12 +369,8 @@ WITH cursor_pos AS (
 	WHERE ai.session_id = @after_session_id AND ai.ended_at IS NOT NULL
 ),
 session_page AS (
-	-- Paginate at the session level first; only cheap aggregates here.
-	-- A lateral correlated subquery for prompts keeps the join one-to-one
-	-- with aibridge_interceptions so COUNT(*) for thread tallies is not
-	-- inflated. LIMIT 1 combined with the (interception_id, created_at DESC)
-	-- index makes this an index-only lookup per interception row rather than
-	-- a full-table-scan GROUP BY over all prompts.
+	-- Aggregate prompts to one row per interception so prompt fan-out does not
+	-- inflate thread counts.
 	-- last_active_at is the latest prompt timestamp, falling back to
 	-- MIN(started_at) for sessions with no prompts. The COALESCE ensures
 	-- it is never NULL so the HAVING row-value cursor comparison is safe.
@@ -388,13 +383,11 @@ session_page AS (
 		COALESCE(MAX(latest_prompt.latest_prompt_at), MIN(ai.started_at))::timestamptz AS last_active_at
 	FROM
 		aibridge_interceptions ai
-	LEFT JOIN LATERAL (
-		SELECT created_at AS latest_prompt_at
+	LEFT JOIN (
+		SELECT interception_id, MAX(created_at) AS latest_prompt_at
 		FROM aibridge_user_prompts
-		WHERE interception_id = ai.id
-		ORDER BY created_at DESC
-		LIMIT 1
-	) latest_prompt ON true
+		GROUP BY interception_id
+	) latest_prompt ON latest_prompt.interception_id = ai.id
 	WHERE
 		-- Remove inflight interceptions (ones which lack an ended_at value).
 		ai.ended_at IS NOT NULL
