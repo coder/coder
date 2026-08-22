@@ -279,6 +279,28 @@ func Test_diff(t *testing.T) {
 	runDiffTests(t, []diffTest{
 		{
 			name: "Create",
+			left: audit.Empty[database.APIKey](),
+			right: database.APIKey{
+				ID:           "g9RWrdrBcL",
+				HashedSecret: []byte("a very secret hash"),
+				UserID:       uuid.UUID{1},
+				LastUsed:     time.Date(2024, 6, 20, 0, 0, 0, 0, time.UTC),
+				ExpiresAt:    time.Date(2024, 6, 21, 0, 0, 0, 0, time.UTC),
+				CreatedAt:    time.Date(2024, 6, 19, 0, 0, 0, 0, time.UTC),
+			},
+			exp: audit.Map{
+				"id":         audit.OldNew{Old: "", New: "g9RWrdrBcL"},
+				"user_id":    audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"last_used":  audit.OldNew{Old: time.Time{}, New: time.Date(2024, 6, 20, 0, 0, 0, 0, time.UTC)},
+				"expires_at": audit.OldNew{Old: time.Time{}, New: time.Date(2024, 6, 21, 0, 0, 0, 0, time.UTC)},
+				"created_at": audit.OldNew{Old: time.Time{}, New: time.Date(2024, 6, 19, 0, 0, 0, 0, time.UTC)},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "Create",
 			left: audit.Empty[database.Template](),
 			right: database.Template{
 				ID:              uuid.UUID{1},

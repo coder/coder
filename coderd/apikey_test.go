@@ -467,10 +467,16 @@ func TestAPIKey_OK(t *testing.T) {
 	assert.Equal(t, database.AuditActionCreate, al.Action)
 	assert.Equal(t, database.ResourceTypeApiKey, al.ResourceType)
 
-	// Then: the diff MUST NOT contain the generated key.
+	// Then: the audit log MUST identify the created key by its ID (the public
+	// token prefix), so the key can be revoked from audit logs alone.
+	keyID, _, found := strings.Cut(res.Key, "-")
+	require.True(t, found)
+	assert.Equal(t, keyID, al.ResourceTarget)
+
+	// Then: the diff MUST NOT contain the full key or its secret part.
 	raw, err := json.Marshal(al)
 	require.NoError(t, err)
-	require.NotContains(t, res.Key, string(raw))
+	require.NotContains(t, string(raw), res.Key)
 }
 
 func TestAPIKey_Deleted(t *testing.T) {
