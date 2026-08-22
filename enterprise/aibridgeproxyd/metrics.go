@@ -6,6 +6,11 @@ import (
 )
 
 const (
+	// PrometheusMetricPrefix is the canonical prefix applied to every metric
+	// defined in this package. The registration wiring wraps the registerer
+	// with it, so the metric options below omit it.
+	PrometheusMetricPrefix = "coder_ai_gateway_proxy_"
+
 	RequestTypeMITM     = "mitm"
 	RequestTypeTunneled = "tunneled"
 )
@@ -56,7 +61,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 
 		ConnectSessionsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Name: "connect_sessions_total",
-			Help: "Total number of CONNECT sessions established.",
+			Help: "Total number of CONNECT sessions established (type: mitm, tunneled).",
 		}, []string{"type"}),
 
 		MITMRequestsTotal: factory.NewCounterVec(prometheus.CounterOpts{
@@ -71,7 +76,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 
 		MITMResponsesTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Name: "mitm_responses_total",
-			Help: "Total number of MITM responses by HTTP status code class.",
+			Help: "Total number of MITM responses by complete HTTP status code.",
 		}, []string{"code", "provider"}),
 
 		ProviderInfo: factory.NewGaugeVec(prometheus.GaugeOpts{
