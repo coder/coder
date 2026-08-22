@@ -132,8 +132,13 @@ func checkAndRecover(ctx context.Context, logger slog.Logger, db *sql.DB, migrDi
 			slog.F("max_tracked", maxTracked))
 	}
 
+	files, err := migrationFiles(migrDir)
+	if err != nil {
+		return xerrors.Errorf("index migrations: %w", err)
+	}
+
 	// Check for missing files (rollback candidates).
-	rollbacks, err := findRollbacks(ctx, db, migrDir)
+	rollbacks, err := findRollbacks(ctx, db, files)
 	if err != nil {
 		return xerrors.Errorf("find rollbacks: %w", err)
 	}
@@ -180,7 +185,7 @@ func checkAndRecover(ctx context.Context, logger slog.Logger, db *sql.DB, migrDi
 	}
 
 	// Check for content changes (same filename, different SQL).
-	contentChanges, err := findContentChanges(ctx, db, migrDir)
+	contentChanges, err := findContentChanges(ctx, db, files)
 	if err != nil {
 		return xerrors.Errorf("check content changes: %w", err)
 	}
@@ -207,7 +212,7 @@ func checkAndRecover(ctx context.Context, logger slog.Logger, db *sql.DB, migrDi
 	}
 
 	// Capture current disk state.
-	if err := captureDownSQL(ctx, db, migrDir, dbVersion); err != nil {
+	if err := captureDownSQL(ctx, db, files, dbVersion); err != nil {
 		return xerrors.Errorf("capture migrations: %w", err)
 	}
 
@@ -229,9 +234,48 @@ type contentChange struct {
 	trackedDown, diskDown string
 }
 
+// migrationFiles indexes migration files by base name. Older migrations live in
+// archive directories one level below the migrations root, so a name from the
+// tracking table cannot be joined onto migrDir directly.
+func migrationFiles(migrDir string) (map[string]string, error) {
+	entries, err := os.ReadDir(migrDir)
+	if err != nil {
+		return nil, xerrors.Errorf("read migrations dir: %w", err)
+	}
+
+	files := make(map[string]string)
+	collect := func(dir string, entries []os.DirEntry) {
+		for _, e := range entries {
+			name := e.Name()
+			if e.IsDir() || !strings.HasSuffix(name, ".sql") {
+				continue
+			}
+			if _, ok := files[name]; !ok {
+				files[name] = filepath.Join(dir, name)
+			}
+		}
+	}
+	collect(migrDir, entries)
+
+	for _, e := range entries {
+		// Fixtures and schema dumps under testdata reuse the migration naming
+		// scheme but are not migrations.
+		if !e.IsDir() || e.Name() == "testdata" {
+			continue
+		}
+		sub := filepath.Join(migrDir, e.Name())
+		subEntries, err := os.ReadDir(sub)
+		if err != nil {
+			return nil, xerrors.Errorf("read %s: %w", sub, err)
+		}
+		collect(sub, subEntries)
+	}
+	return files, nil
+}
+
 // findRollbacks returns tracked migrations whose file no longer
 // exists on disk, sorted in descending version order.
-func findRollbacks(ctx context.Context, db *sql.DB, migrDir string) ([]rollbackEntry, error) {
+func findRollbacks(ctx context.Context, db *sql.DB, files map[string]string) ([]rollbackEntry, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT version, filename, down_sql
 		FROM _develop.applied_migrations
@@ -248,8 +292,7 @@ func findRollbacks(ctx context.Context, db *sql.DB, migrDir string) ([]rollbackE
 		if err := rows.Scan(&rb.version, &rb.filename, &rb.downSQL); err != nil {
 			return nil, xerrors.Errorf("scan row: %w", err)
 		}
-		downPath := filepath.Join(migrDir, rb.filename)
-		if _, err := os.Stat(downPath); err != nil {
+		if _, ok := files[rb.filename]; !ok {
 			rollbacks = append(rollbacks, rb)
 		}
 	}
@@ -258,7 +301,7 @@ func findRollbacks(ctx context.Context, db *sql.DB, migrDir string) ([]rollbackE
 
 // findContentChanges compares tracked up/down SQL against disk
 // for all tracked versions whose files still exist.
-func findContentChanges(ctx context.Context, db *sql.DB, migrDir string) ([]contentChange, error) {
+func findContentChanges(ctx context.Context, db *sql.DB, files map[string]string) ([]contentChange, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT version, filename, up_sql, down_sql
 		FROM _develop.applied_migrations
@@ -279,19 +322,22 @@ func findContentChanges(ctx context.Context, db *sql.DB, migrDir string) ([]cont
 
 		// Only check files that exist on disk (missing files
 		// are handled by findRollbacks).
-		downPath := filepath.Join(migrDir, filename)
-		if _, err := os.Stat(downPath); err != nil {
+		downPath, ok := files[filename]
+		if !ok {
 			continue
 		}
 
 		// Derive up filename from down filename.
-		upFilename := strings.Replace(filename, ".down.sql", ".up.sql", 1)
+		upPath, ok := files[strings.Replace(filename, ".down.sql", ".up.sql", 1)]
+		if !ok {
+			continue
+		}
 
-		diskDown, err := os.ReadFile(filepath.Join(migrDir, filename))
+		diskDown, err := os.ReadFile(downPath)
 		if err != nil {
 			continue
 		}
-		diskUp, err := os.ReadFile(filepath.Join(migrDir, upFilename))
+		diskUp, err := os.ReadFile(upPath)
 		if err != nil {
 			continue
 		}
@@ -379,14 +425,8 @@ func applyRollback(ctx context.Context, db *sql.DB, rb rollbackEntry) error {
 // captureDownSQL scans migration files on disk and stores both
 // up and down SQL content in the tracking table for versions
 // <= dbVersion.
-func captureDownSQL(ctx context.Context, db *sql.DB, migrDir string, dbVersion int) error {
-	entries, err := os.ReadDir(migrDir)
-	if err != nil {
-		return xerrors.Errorf("read migrations dir: %w", err)
-	}
-
-	for _, e := range entries {
-		name := e.Name()
+func captureDownSQL(ctx context.Context, db *sql.DB, files map[string]string, dbVersion int) error {
+	for name, downPath := range files {
 		if !strings.HasSuffix(name, ".down.sql") || len(name) < 7 {
 			continue
 		}
@@ -395,16 +435,15 @@ func captureDownSQL(ctx context.Context, db *sql.DB, migrDir string, dbVersion i
 			continue
 		}
 
-		downContent, err := os.ReadFile(filepath.Join(migrDir, name))
+		downContent, err := os.ReadFile(downPath)
 		if err != nil {
 			return xerrors.Errorf("read %s: %w", name, err)
 		}
 
-		upName := strings.Replace(name, ".down.sql", ".up.sql", 1)
-		upContent, err := os.ReadFile(filepath.Join(migrDir, upName))
-		if err != nil {
-			// Up file might not exist for some migrations.
-			upContent = nil
+		// Up file might not exist for some migrations.
+		var upContent []byte
+		if upPath, ok := files[strings.Replace(name, ".down.sql", ".up.sql", 1)]; ok {
+			upContent, _ = os.ReadFile(upPath)
 		}
 
 		_, err = db.ExecContext(ctx, `
@@ -483,7 +522,11 @@ func updateMigrationTracking(ctx context.Context, _ slog.Logger, cfg *devConfig)
 	}
 
 	migrDir := filepath.Join(cfg.projectRoot, "coderd", "database", "migrations")
-	return captureDownSQL(ctx, db, migrDir, dbVersion)
+	files, err := migrationFiles(migrDir)
+	if err != nil {
+		return xerrors.Errorf("index migrations: %w", err)
+	}
+	return captureDownSQL(ctx, db, files, dbVersion)
 }
 
 func builtinPostgresURL(cfg *devConfig) (string, error) {
