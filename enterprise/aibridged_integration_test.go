@@ -637,7 +637,7 @@ func TestIntegrationRecordsUpstreamError(t *testing.T) {
 
 	// The interception rows should record the unauthorized upstream failure.
 	// Both blocking and streaming interceptors surface the centralized key-pool
-	// permanent exhaustion, which categorizes as unauthorized.
+	// auth-failure exhaustion, which categorizes as unauthorized.
 	intcs, err := db.GetAIBridgeInterceptions(ctx)
 	require.NoError(t, err)
 	require.Len(t, intcs, len(cases))

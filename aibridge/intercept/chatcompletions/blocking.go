@@ -315,7 +315,7 @@ func (i *BlockingInterception) newChatCompletionWithKey(ctx context.Context, svc
 
 // newChatCompletionWithKeyFailover walks the centralized key pool, trying each
 // key until one succeeds or the pool is exhausted. Keys are marked temporary
-// on 429 and permanent on 401/403. Errors that aren't key-specific don't
+// on 429 or 401. Errors that aren't key-specific don't
 // trigger failover and are returned to the caller. It returns the upstream
 // completion, the number of key attempts made for this call, and any error.
 func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Context, svc openai.ChatCompletionService, cp *intercept.CentralizedPool, opts []option.RequestOption) (*openai.ChatCompletion, int, error) {
