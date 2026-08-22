@@ -34,11 +34,11 @@ type Config struct {
 }
 
 func (c Config) Validate() error {
-	if !(c.Interval > 0) {
+	if c.Interval <= 0 {
 		return xerrors.Errorf("validate interval: must be greater than zero")
 	}
 
-	if !(c.Jitter < c.Interval) {
+	if c.Jitter >= c.Interval {
 		return xerrors.Errorf("validate jitter: must be less than interval")
 	}
 

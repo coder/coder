@@ -636,7 +636,7 @@ func (c *Config) ValidateToken(ctx context.Context, token *oauth2.Token) (bool, 
 	}
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
-	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceValidateToken, req)
+	res, err := c.Do(ctx, promoauth.SourceValidateToken, req)
 	if err != nil {
 		return false, nil, err
 	}
@@ -765,7 +765,7 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 		return nil, false, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceAppInstallations, req)
+	res, err := c.Do(ctx, promoauth.SourceAppInstallations, req)
 	if err != nil {
 		return nil, false, err
 	}
@@ -817,7 +817,7 @@ func (c *Config) RevokeToken(ctx context.Context, link database.ExternalAuthLink
 		return false, err
 	}
 
-	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceRevoke, req)
+	res, err := c.Do(ctx, promoauth.SourceRevoke, req)
 	if err != nil {
 		return false, err
 	}
@@ -1634,8 +1634,8 @@ func (s *entraV1TokenSource) Token() (*oauth2.Token, error) {
 		oauth2.SetAuthURLParam("grant_type", "refresh_token"),
 		oauth2.SetAuthURLParam("refresh_token", refreshToken),
 	}
-	if len(s.cfg.Config.Scopes) > 0 {
-		refreshOpts = append(refreshOpts, oauth2.SetAuthURLParam("scope", strings.Join(s.cfg.Config.Scopes, " ")))
+	if len(s.cfg.Scopes) > 0 {
+		refreshOpts = append(refreshOpts, oauth2.SetAuthURLParam("scope", strings.Join(s.cfg.Scopes, " ")))
 	}
 
 	token, err := s.cfg.Exchange(s.ctx, "", refreshOpts...)

@@ -161,7 +161,7 @@ func recordOpenAIRequest(req *chattest.OpenAIRequest) recordedOpenAIRequest {
 
 	var contentLength int64
 	if req.Request != nil {
-		contentLength = req.Request.ContentLength
+		contentLength = req.ContentLength
 	}
 
 	return recordedOpenAIRequest{
