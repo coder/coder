@@ -945,7 +945,7 @@ func TestPostChats(t *testing.T) {
 			ModelConfigID: ptr.Ref(disabledConfig.ID),
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid model_config_id: model config is disabled. Contact your Coder administrator to enable it.", sdkErr.Message)
 	})
 
 	t.Run("ProviderDisabledModelConfigRejected", func(t *testing.T) {
@@ -9441,7 +9441,7 @@ func TestPatchChatMessage(t *testing.T) {
 			ModelConfigID: &unknownID,
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid model_config_id: model config not found.", sdkErr.Message)
 	})
 
 	t.Run("ProviderDisabledModelConfigID", func(t *testing.T) {
@@ -14827,20 +14827,18 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 				wantMessageSubstring: "Invalid model_config_id",
 			},
 			{
-				name:          "Unknown",
-				client:        memberClient,
-				userID:        member.ID,
-				modelConfigID: uuid.NewString(),
-				wantMessageSubstring: "Invalid model_config_id: model config " +
-					"not found or disabled.",
+				name:                 "Unknown",
+				client:               memberClient,
+				userID:               member.ID,
+				modelConfigID:        uuid.NewString(),
+				wantMessageSubstring: "Invalid model_config_id: model config not found.",
 			},
 			{
-				name:          "Disabled",
-				client:        memberClient,
-				userID:        member.ID,
-				modelConfigID: disabledModelConfig.ID.String(),
-				wantMessageSubstring: "Invalid model_config_id: model config " +
-					"not found or disabled.",
+				name:                 "Disabled",
+				client:               memberClient,
+				userID:               member.ID,
+				modelConfigID:        disabledModelConfig.ID.String(),
+				wantMessageSubstring: "Invalid model_config_id: model config is disabled.",
 			},
 			{
 				name:                 "ProviderDisabled",
