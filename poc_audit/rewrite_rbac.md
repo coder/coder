@@ -10,6 +10,10 @@ scale, to find out whether it can be done at all. A production rewrite would
 want this document well ahead of the code. This one runs alongside it, recording
 the specific before any attempt is made to generalise.
 
+A section near the end collects **benefits and costs of the rewrite** as they
+are noticed, for later use in deciding whether to do this outside a proof of
+concept.
+
 Sections are separated by the standing of their contents. **Established**
 records positions that have been decided. **Derived** records reasoning built on
 top of them, offered for challenge rather than settled. **Findings** records
@@ -559,6 +563,239 @@ with nothing there receives blank values and no error.
 The seat query is the one worth copying. It requires `kind = 'human'` rather
 than excluding the kinds known at the time, so an actor kind added later is
 excluded without anyone remembering to exclude it.
+
+## Benefits and costs of the rewrite
+
+Collected as they appear rather than argued here. **This section exists to be
+harvested**: doing this change in production needs a case made to people who
+will not have followed the work, and both sides of it are easier to notice while
+working than to reconstruct afterwards.
+
+It is an account of cost against benefit, **not a case for and a case against**.
+Those are different things. A pro and con argument admits anything that can be
+said, weighted by how well it is said; an account admits only what is actually
+spent and what is actually got, and can be checked. The second is what a
+decision to spend real effort deserves.
+
+**Costs are of three kinds and the account is wrong if they are mixed.**
+
+- **Extra cost** is work that exists only because of this change. It is the only
+  kind that is a true additional charge.
+- **Brought forward cost** is work that has to happen regardless, arriving
+  sooner. Its true cost is the time value of doing it now rather than later,
+  which is usually small, plus the risk of doing it with less knowledge than
+  waiting would have supplied. Recording it as though it were extra overstates
+  the price of the change, sometimes by a great deal.
+- **A tradeoff** is something genuinely worse afterwards, which no amount of
+  effort removes. These deserve the most attention, being the only costs that do
+  not end.
+- **An unknown cost** is one whose kind or size has not been established. It is
+  marked as unknown rather than guessed, because a guess entered into an account
+  is indistinguishable from a measurement once it is written down.
+
+Every cost entry says which kind it is. A brought forward entry says what
+already requires the work. **An unknown entry says what research would settle
+it**, since those are the tasks that have to be done before the final argument
+can be made.
+
+Its standing is **Derived**. Each entry rests on something recorded elsewhere in
+this document or in the code, and is offered for challenge. An entry that cannot
+name its evidence does not belong here.
+
+### A credential's ending becomes recordable at all
+
+Credentials are destroyed rather than retired: both revocation paths delete the
+row, and a trigger deletes a user's keys on soft delete. A lifecycle whose
+terminal event removes the record of itself cannot be journaled, so no amount of
+work outside the table produces an auditable credential.
+
+Lands with anyone who has been asked when a credential stopped being valid and
+found the answer is not recorded anywhere.
+
+### A class of bug disappears rather than being swept
+
+The prebuilds system user already hits the case where a resource changes owner
+and a credential issued under the old owner stays valid. Two mitigations exist,
+neither part of the original design, and the second recovers a workspace
+identifier by slicing characters out of a token name because nothing records
+what a credential was issued for.
+
+Relating a credential to its holder and its subject by construction removes the
+need for both the eager deletion and the sweep, and removes the string parsing
+with them. This is not a new capability, it is deleted code.
+
+### The cost of the next actor kind stops rising
+
+`users` carries four kinds of actor under three discriminators, each added by a
+different mechanism as it arrived. Every kind so far has cost a column or an
+enum value plus the discovery of wherever it needed excluding.
+
+A typed holder makes the next kind a value rather than a schema change, which
+matters because the set has grown three times recently and is about to grow
+again when system actors leave `users`.
+
+Lands with whoever is asked to estimate the next one.
+
+### An unmeasured assumption becomes a number
+
+Before this work nobody could say how much of the codebase assumes a credential
+belongs to a person, only that the assumption was somewhere. Making it visible
+to the compiler produced a count of a hundred and eighty five.
+
+This is worth stating separately from the rewrite itself, because the count is
+available whether or not the rewrite proceeds, and no estimate of the work was
+possible without it.
+
+### A blanket prohibition can become a precise one
+
+The chat endpoint refuses every non-owner because processing forwards the
+owner's credentials outward, and there was no way to say that a particular
+non-owner had been authorized to do exactly that. Seven more gates in the same
+file and two on workspaces take the same shape.
+
+A recorded grant makes the legitimate case expressible, which converts a
+prohibition covering a whole class into a decision about one delegate. The
+demand for this already exists in the codebase, written as a refusal.
+
+### Wrong answers stop being found by accident
+
+The filters excluding system users correct statistics and hide non-people from
+listings. None prevents a failure, so each was added when somebody noticed a
+figure was wrong, and the set of places needing one has never been enumerated.
+
+The seat query shows the alternative: requiring `kind = 'human'` excludes an
+actor kind that does not exist yet. A typed holder makes that formulation the
+natural one rather than the exception.
+
+### Reliance on delete cascades goes away
+
+Independently of auditing, a foreign key cascade is a poor mechanism for
+revoking a credential: it runs inside the database with no actor in scope, it
+cannot be observed, and it cannot be made conditional. Removing the holder's
+foreign key removes the reliance, and the credential's ending becomes something
+code does rather than something the storage engine does silently.
+
+### Cost: deciding the hundred and eighty five sites
+
+**Unknown, and it is the largest line in the account.** Part is extra and part
+is brought forward, and nothing establishes the proportion.
+
+Each site reads a holder as though it were a user. For a human holder that is
+correct and always will be, so a site touched only by humans is extra work
+created by this change.
+
+But `users` already contains four kinds of actor, and the sites are already
+wrong for the three that are not human. The filters excluding system users from
+statistics and listings are that wrongness being paid down one instance at a
+time, reactively, by whoever noticed. **For any site an existing non-human
+already reaches, this is brought forward rather than extra**: a latent defect
+becoming visible and payable, rather than a new bill.
+
+**What would settle it:** determine, for each site, whether an actor already in
+`users` that is not a human reaches it. Those are brought forward, being a
+latent defect becoming payable. The remainder is extra. Until that is done, a
+hundred and eighty five is an upper bound on the extra cost and not an estimate
+of it, and quoting it as one would overstate the change badly.
+
+### Cost: the churn of renaming a column on a core table
+
+**Extra.** A hundred and nine files for one column. It is mechanical, the
+compiler finds every site, and a rename cannot be half done, but it is a large
+diff to review and it touches packages whose owners have no interest in this
+work.
+
+The mitigation is that the cost is paid once and does not recur, and that a
+mechanical diff is cheap to review per line even when there are many lines.
+
+### Cost: replacing triggered deletion with a recorded ending
+
+**Brought forward.** Credentials are presently destroyed by a trigger and by a
+cascade. Both have to be replaced by something that records the ending, because
+a credential lifecycle cannot be journaled otherwise, and that is required by
+the audit work whether or not the holder ever stops being a user.
+
+**So the charge is not the work, it is doing the work sooner.** For a piece of
+work that is certainly required, the cost of advancing it is the time value of
+the effort over the interval by which it moves, which is small unless the
+interval is long. Against that sits a second component worth naming: work done
+earlier is done with less knowledge, and may be done worse than it would have
+been later.
+
+Here that second component is small too, because the shape of the replacement is
+already settled and does not depend on anything the rewrite would teach us.
+**This is the clearest instance of a cost that would be overstated by being
+counted as extra.**
+
+### Cost: rewriting authentication to resolve a holder of either kind
+
+**Unknown, and probably the largest single piece of work.** Nothing has been
+attempted here. Authentication currently looks the holder up in `users` before
+anything else runs, and refuses the request if it is not there. Making it
+resolve either kind touches the path every request in the product takes.
+
+The prebuilds system user shows the destination exists, since a compiled in
+subject for a non-person already works, but it never authenticates: its subject
+is injected server side. Nothing yet demonstrates the authenticating case.
+
+**What would settle it:** build the smallest possible version, one holder, one
+credential, one request, and see what it costs. That is a day's work and it
+converts the largest unknown in the account into a measurement.
+
+### Cost: consulting a grant on every authenticated request
+
+**Unknown, and it is a running cost rather than a one off.** If an absent grant
+means no subject is built, the grant has to be read during authentication, which
+is a query added to the hottest path in the deployment.
+
+Nothing here has measured it, and the shape that would make it cheap, a cache, a
+join onto work already done, or a column carried on the credential itself, has
+not been chosen.
+
+**What would settle it:** decide where the grant is read, then measure the added
+latency against a realistic request rate. Until then this is the only cost in
+the account that recurs per request rather than per engineer.
+
+### Cost: migrating a large api_keys table
+
+**Unknown, and an operational cost rather than an engineering one.** Renaming a
+column and adding a constrained one is cheap in a development database. On a
+deployment with a large `api_keys` table the lock behaviour, the duration, and
+whether it can be done without a maintenance window are all unestablished.
+
+**What would settle it:** the row counts of the largest deployments, and a
+rehearsal against a copy of one. The technique for avoiding a long lock is
+known, adding the constraint as not valid and validating separately, so the
+question is whether it is needed rather than whether it exists.
+
+### Cost: referential integrity moves from a constraint to a reconciliation
+
+**A tradeoff, and the one that does not end.** No foreign key can point at a
+union of identity tables, so nothing in the schema prevents a credential naming
+a holder that does not exist. The remedy is a reconciliation, which finds such
+rows after the fact rather than refusing them.
+
+This corpus already accepts that trade elsewhere and has a standard place to put
+such checks, so it is a known quantity rather than a novelty. It is still a real
+loss: a constraint is free and always correct, and a reconciliation costs
+something to run and is only as current as its last run.
+
+### Cost: a destructive down migration
+
+**Extra, and a genuine downside.** Restoring the foreign key requires every
+holder to be a user, so reversing the change must remove any credential held by
+something else. A migration that deletes rows to go backwards is a migration
+that cannot be reversed casually.
+
+In production this is the kind of thing that turns a rollback into an incident,
+and it deserves more care than a proof of concept branch gives it. **How much
+more is unknown**, and depends on a rollback policy this work has not consulted.
+
+### Cost: a branch wherever a holder is displayed
+
+**A tradeoff, and a small one.** Showing a holder's name means switching on its
+type, where before there was one table to join. A function that resolves a pair
+to a name confines the branch to one place, and that function is wanted anyway
+in preference to storing a name that can go stale.
 
 ## Open
 
