@@ -5,10 +5,10 @@ import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { Link } from "#/components/Link/Link";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -25,6 +25,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { LastConnectionHead } from "./LastConnectionHead";
@@ -60,12 +61,13 @@ export const OrganizationProvisionersPageView: FC<
 }) => {
 	return (
 		<section className="w-full max-w-screen-2xl pb-10">
-			<SettingsHeader>
+			<SettingsHeader
+				actions={<SettingsHeaderDocsLink href={docs("/admin/provisioners")} />}
+			>
 				<SettingsHeaderTitle>Provisioners</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Coder server runs provisioner daemons which execute terraform during
-					workspace and template builds.{" "}
-					<Link href={docs("/admin/provisioners")}>View docs</Link>
+					workspace and template builds.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
@@ -97,10 +99,16 @@ export const OrganizationProvisionersPageView: FC<
 			)}
 
 			{showPaywall ? (
-				<PaywallPremium
+				<PremiumPaywall
+					source="provisioners"
 					message="Provisioners"
-					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
-					documentationLink={docs("/admin/provisioners")}
+					description="Provisioners run your Terraform to create templates and workspaces."
+					features={[
+						"Run build jobs in isolation",
+						"Isolate cloud APIs from Coder",
+						"Keep secrets off the Coder host",
+						"Reduce server load and queue times",
+					]}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (

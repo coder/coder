@@ -75,8 +75,9 @@ const (
 	SubjectTypeSystemReadProvisionerDaemons SubjectType = "system_read_provisioner_daemons"
 	SubjectTypeSystemRestricted             SubjectType = "system_restricted"
 	SubjectTypeSystemOAuth                  SubjectType = "system_oauth"
-	SubjectTypeAPIKeyRevoker                SubjectType = "api_key_revoker"  // #nosec G101, not a credential.
-	SubjectTypeChatdKeyMinter               SubjectType = "chatd_key_minter" // #nosec G101, not a credential.
+	SubjectTypeAPIKeyRevoker                SubjectType = "api_key_revoker"   // #nosec G101, not a credential.
+	SubjectTypeChatdKeyMinter               SubjectType = "chatd_key_minter"  // #nosec G101, not a credential.
+	SubjectTypeChatdTokenOwner              SubjectType = "chatd_token_owner" // #nosec G101, not a credential.
 	SubjectTypeNotifier                     SubjectType = "notifier"
 	SubjectTypeSubAgentAPI                  SubjectType = "sub_agent_api"
 	SubjectTypeFileReader                   SubjectType = "file_reader"
@@ -477,7 +478,7 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action p
 	// The caller should use either 1 or the other (or none).
 	// Using "AnyOrgOwner" and an OrgID is a contradiction.
 	// An empty uuid or a nil uuid means "no org owner".
-	if object.AnyOrgOwner && !(object.OrgID == "" || object.OrgID == "00000000-0000-0000-0000-000000000000") {
+	if object.AnyOrgOwner && object.OrgID != "" && object.OrgID != "00000000-0000-0000-0000-000000000000" {
 		return xerrors.Errorf("object cannot have 'any_org' and an 'org_id' specified, values are mutually exclusive")
 	}
 

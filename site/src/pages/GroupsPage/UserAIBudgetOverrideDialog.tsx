@@ -388,7 +388,9 @@ const OverrideForm: FC<OverrideFormProps> = ({
 									budgetInvalid ? `${budgetId}-error` : undefined
 								}
 							/>
-							<InputGroupAddon align="inline-end">USD</InputGroupAddon>
+							<InputGroupAddon align="inline-end" className="pr-3">
+								USD
+							</InputGroupAddon>
 						</InputGroup>
 						{budgetInvalid && (
 							<p

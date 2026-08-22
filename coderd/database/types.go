@@ -49,6 +49,27 @@ type OAuth2ProviderSettings struct {
 	DynamicClientRegistrationEnabled bool      `db:"dynamic_client_registration_enabled" json:"dynamic_client_registration_enabled"`
 }
 
+// ChatInstructionSettings is the auditable shape of the deployment-wide
+// chat instruction configuration, stored across the
+// agents_chat_system_prompt, agents_chat_include_default_system_prompt and
+// agents_chat_plan_mode_instructions site_configs keys. Both the
+// system-prompt and plan-mode-instructions endpoints audit this one type;
+// each populates only the fields its endpoint can change.
+type ChatInstructionSettings struct {
+	ID uuid.UUID `db:"id" json:"id"`
+	// Name identifies which setting an audit row concerns (e.g. "System
+	// prompt"). It is ignored in diffs and set identically on Old and New.
+	Name         string `db:"name" json:"name"`
+	SystemPrompt string `db:"system_prompt" json:"system_prompt"`
+	// IncludeDefaultSystemPromptSet records whether the override row
+	// exists, not only its effective value: writing explicit false over a
+	// legacy absent row does not move the effective value but changes
+	// future behavior, so presence must enter the diff.
+	IncludeDefaultSystemPromptSet bool   `db:"include_default_system_prompt_set" json:"include_default_system_prompt_set"`
+	IncludeDefaultSystemPrompt    bool   `db:"include_default_system_prompt" json:"include_default_system_prompt"`
+	PlanModeInstructions          string `db:"plan_mode_instructions" json:"plan_mode_instructions"`
+}
+
 type Actions []policy.Action
 
 func (a *Actions) Scan(src interface{}) error {
@@ -163,7 +184,7 @@ func (t *WorkspaceACL) Scan(src interface{}) error {
 	return xerrors.Errorf("unexpected type %T", src)
 }
 
-//nolint:revive
+//nolint:revive,staticcheck // Receiver name matches the other WorkspaceACL methods in this file.
 func (w WorkspaceACL) RBACACL() map[string][]policy.Action {
 	// Convert WorkspaceACL to a map of string to []policy.Action.
 	// This is used for RBAC checks.

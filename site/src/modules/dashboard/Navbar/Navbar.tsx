@@ -29,7 +29,11 @@ export const Navbar: React.FC = () => {
 	const canViewAISettings =
 		permissions.viewAnyAIProvider ||
 		permissions.viewAIGatewayKeys ||
-		permissions.editDeploymentConfig;
+		permissions.editDeploymentConfig ||
+		permissions.viewAnyMCPServerConfigs ||
+		permissions.createAnyMCPServerConfig ||
+		permissions.updateAnyMCPServerConfig ||
+		permissions.deleteAnyMCPServerConfig;
 	const canCreateChat = permissions.createChat;
 
 	const uniqueLinks = new Map<string, LinkConfig>();

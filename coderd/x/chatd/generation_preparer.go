@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"encoding/json"
 	"slices"
 	"strings"
 	"sync"
@@ -25,15 +24,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// effectiveMCPServerConfigs loads the MCP server configs for a turn:
-// the chat's stored selection plus every enabled Force On config.
-// Force On inclusion is enforced at generation time, not just at
-// write time, so chats persisted before enforcement existed (or
-// before an admin marked a server Force On) cannot dodge the policy
-// (Cure53 CDM-02-010). Explore chats are exempt: their spawn-time
-// snapshot is immutable by design and must never widen after spawn;
-// Force On servers reach the snapshot through the parent chat's
-// enforced ID list.
+// effectiveMCPServerConfigs loads the chat's stored selection plus
+// owner-readable Force On configs at generation time, so stored lists
+// predating enforcement cannot dodge the policy (Cure53 CDM-02-010).
+// Explore chats keep their immutable spawn-time snapshot instead.
 func (server *Server) effectiveMCPServerConfigs(
 	ctx context.Context,
 	logger slog.Logger,
@@ -42,7 +36,7 @@ func (server *Server) effectiveMCPServerConfigs(
 	var configs []database.MCPServerConfig
 	if len(chat.MCPServerIDs) > 0 {
 		var err error
-		configs, err = server.db.GetMCPServerConfigsByIDs(ctx, chat.MCPServerIDs)
+		configs, err = enabledMCPServerConfigsForChatOrg(ctx, server.db, chat.OrganizationID, chat.MCPServerIDs)
 		if err != nil {
 			// Best-effort for the user-selected set, matching prior
 			// behavior: a load failure degrades the turn rather than
@@ -54,11 +48,11 @@ func (server *Server) effectiveMCPServerConfigs(
 	if isExploreSubagentMode(chat.Mode) {
 		return configs, nil
 	}
-	forced, err := server.db.GetForcedMCPServerConfigs(ctx)
+	forced, err := forcedMCPServerConfigsForOwner(ctx, server.db, chat.OrganizationID, chat.OwnerID)
 	if err != nil {
 		// Fail closed: running the turn without the forced set would
 		// silently bypass a security policy.
-		return nil, xerrors.Errorf("get forced MCP server configs: %w", err)
+		return nil, err
 	}
 	seen := make(map[uuid.UUID]struct{}, len(configs))
 	for _, cfg := range configs {
@@ -83,17 +77,9 @@ func (server *Server) prepareGeneration(
 	)
 
 	var (
-		model            chatprovider.Model
-		modelConfig      database.ChatModelConfig
-		modelRoute       aiGatewayModelRoute
-		modelOpts        modelBuildOptions
-		callConfig       codersdk.ChatModelCallConfig
-		promptRows       []database.ChatMessage
-		mcpConfigs       []database.MCPServerConfig
-		mcpTokens        []database.MCPServerUserToken
-		debugEnabled     bool
-		resolvedProvider string
-		debugModel       string
+		promptRows []database.ChatMessage
+		mcpConfigs []database.MCPServerConfig
+		mcpTokens  []database.MCPServerUserToken
 	)
 
 	var g errgroup.Group
@@ -118,22 +104,21 @@ func (server *Server) prepareGeneration(
 	if err != nil {
 		return generationPrepared{}, xerrors.Errorf("ensure synthetic API key: %w", err)
 	}
-	modelOpts = modelBuildOptions{ActiveAPIKeyID: apiKeyID}
+	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
-	model, modelConfig, modelRoute, debugEnabled, resolvedProvider, debugModel, err = server.resolveChatModel(ctx, chat, modelOpts)
+	requestedEffort := chatRequestedEffort(chat)
+	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
+		purpose:         "standard_turn",
+		chat:            chat,
+		requestedEffort: requestedEffort,
+		buildOptions:    modelOpts,
+	})
 	if err != nil {
 		return generationPrepared{}, err
 	}
-	if len(modelConfig.Options) > 0 {
-		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
-			return generationPrepared{}, xerrors.Errorf("parse model call config: %w", err)
-		}
-	}
-
-	if callConfig.MaxOutputTokens == nil {
-		maxOutputTokens := int64(32_000)
-		callConfig.MaxOutputTokens = &maxOutputTokens
-	}
+	// The chat config keeps driving compaction, sanitization, and debug
+	// attribution even when computer use swaps the resolved call below.
+	modelConfig := resolved.dbConfig
 
 	// Computer-use turns swap in a specialized model, so the substitution
 	// must happen before anything model-sensitive runs: file-part
@@ -147,28 +132,30 @@ func (server *Server) prepareGeneration(
 		if err != nil {
 			return generationPrepared{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
 		}
-		computerUseRoute, keyErr := server.resolveModelRouteForProviderType(ctx, chat.OwnerID, cuModelProvider)
-		if keyErr != nil {
-			return generationPrepared{}, xerrors.Errorf("resolve computer use provider route: %w", keyErr)
-		}
-		modelRoute = computerUseRoute
-		cuModel, cuDebugEnabled, cuResolvedProvider, cuResolvedModel, cuErr := server.resolveComputerUseModel(
-			ctx,
-			chat,
-			computerUseRoute,
-			computerUseProvider,
-			cuModelProvider,
-			cuModelName,
-			modelOpts,
-		)
+		cuResolved, cuErr := server.resolveModelCall(ctx, modelCallSpec{
+			purpose: "computer_use",
+			chat:    chat,
+			fixedModel: &fixedModelCall{
+				providerType: cuModelProvider,
+				modelName:    cuModelName,
+				callConfig:   resolved.callConfig,
+			},
+			requestedEffort: requestedEffort,
+			buildOptions:    modelOpts,
+		})
 		if cuErr != nil {
-			return generationPrepared{}, cuErr
+			return generationPrepared{}, xerrors.Errorf(
+				"resolve computer use model for provider %q model %q: %w",
+				computerUseProvider,
+				cuModelName,
+				cuErr,
+			)
 		}
-		model = cuModel
-		debugEnabled = cuDebugEnabled
-		resolvedProvider = cuResolvedProvider
-		debugModel = cuResolvedModel
+		resolved = cuResolved
 	}
+	model := resolved.model
+	callConfig := resolved.callConfig
+	modelRoute := resolved.route
 
 	currentPlanMode := chat.PlanMode
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
@@ -197,8 +184,6 @@ func (server *Server) prepareGeneration(
 			ctx,
 			chat,
 			advisorCfg,
-			model,
-			callConfig,
 			modelOpts,
 			logger,
 		)
@@ -529,6 +514,19 @@ func (server *Server) prepareGeneration(
 		builtinToolNames[t.Info().Name] = true
 	}
 
+	mcpConfigByID := make(map[uuid.UUID]database.MCPServerConfig, len(mcpConnectConfigs))
+	for _, config := range mcpConnectConfigs {
+		mcpConfigByID[config.ID] = config
+	}
+	deferredCandidates := collectDeferredMCPCandidates(deferredMCPCandidateInput{
+		mcpTools:              mcpTools,
+		workspaceMCPTools:     workspaceMCPTools,
+		mcpConfigByID:         mcpConfigByID,
+		planMode:              currentPlanMode,
+		parentChatID:          chat.ParentChatID,
+		approvedMCPConfigIDs:  approvedPlanMCPConfigIDs,
+		includeWorkspaceTools: !isExploreSubagent,
+	})
 	tools = append(tools, mcpTools...)
 	if !isExploreSubagent {
 		tools = append(tools, workspaceMCPTools...)
@@ -580,15 +578,54 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
-	var requestedEffort *string
-	if chat.LastReasoningEffort.Valid {
-		requestedEffort = new(string(chat.LastReasoningEffort.ChatReasoningEffort))
-	}
-	providerOptions := chatprovider.ProviderOptionsForCall(model, callConfig, requestedEffort)
-
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
 		activeToolNames = allowedExploreToolNames(tools)
+	}
+	var allowInactiveTools map[string]bool
+	if decideMCPToolSearch(mcpToolSearchInput{
+		experimentEnabled: server.experiments.Enabled(codersdk.ExperimentMCPToolSearch),
+		candidates:        deferredCandidates,
+		dynamicToolNames:  dynamicToolNames,
+	}) {
+		activationTokenBudget := float64(modelConfig.ContextLimit) / mcpToolSearchBudgetDivisor
+		findTools := chattool.FindTools(chattool.FindToolsOptions{
+			Entries:            deferredMCPToolEntries(deferredCandidates),
+			SchemaTokenBudget:  activationTokenBudget,
+			CatalogTokenBudget: activationTokenBudget,
+			// Calls total is counted in executeLocalTools, which also
+			// sees calls rejected before the tool runs; OnCall covers
+			// only calls that reach the handler or its decode.
+			OnCall: func(callCtx context.Context, call chattool.FindToolsCall) {
+				if call.Rejection == "" {
+					server.metrics.FindToolsMatchCount.Observe(float64(call.MatchCount))
+					server.metrics.FindToolsActivationsTotal.Add(float64(len(call.Activated)))
+					if call.MatchCount == 0 {
+						server.metrics.FindToolsEmptyTotal.Inc()
+					}
+				}
+				// Queries and names are model output that can echo
+				// prompt content, so standard logs carry only
+				// aggregate fields; raw values are visible through
+				// the opt-in chat debug logging path.
+				logger.Info(callCtx, "deferred MCP tool search",
+					slog.F("query_count", len(call.Queries)),
+					slog.F("name_count", len(call.Names)),
+					slog.F("match_count", call.MatchCount),
+					slog.F("activated_count", len(call.Activated)),
+					slog.F("total_deferred", call.TotalDeferred),
+					slog.F("rejection", call.Rejection),
+				)
+			},
+		})
+		tools, activeToolNames, allowInactiveTools = configureDeferredMCPToolSearch(
+			tools,
+			activeToolNames,
+			deferredCandidates,
+			findTools,
+			deriveDeferredMCPActivations(promptRows, deferredCandidates, activationTokenBudget),
+		)
+		builtinToolNames[chattool.FindToolsName] = true
 	}
 
 	toolNameToConfigID := make(map[string]uuid.UUID)
@@ -601,7 +638,7 @@ func (server *Server) prepareGeneration(
 	triggerMessageID, historyTipMessageID, triggerLabel := deriveChatDebugSeed(promptRows)
 	debugSvc := server.existingDebugService()
 	var debug *generationDebug
-	if debugEnabled {
+	if resolved.debugEnabled {
 		if debugSvc == nil {
 			cleanup()
 			return generationPrepared{}, xerrors.New("chat debug service missing after enablement check")
@@ -609,8 +646,8 @@ func (server *Server) prepareGeneration(
 		debug = &generationDebug{
 			Enabled:             true,
 			Service:             debugSvc,
-			Provider:            resolvedProvider,
-			Model:               debugModel,
+			Provider:            resolved.resolvedProvider,
+			Model:               resolved.resolvedModel,
 			TriggerMessageID:    triggerMessageID,
 			HistoryTipMessageID: historyTipMessageID,
 			TriggerLabel:        triggerLabel,
@@ -653,10 +690,11 @@ func (server *Server) prepareGeneration(
 		DebugSvc:             debugSvc,
 		ChatID:               chat.ID,
 		HistoryTipMessageID:  historyTipMessageID,
-		ResolvedProvider:     resolvedProvider,
-		ResolvedModel:        debugModel,
+		ResolvedProvider:     resolved.resolvedProvider,
+		ResolvedModel:        resolved.resolvedModel,
 		ModelConfigID:        modelConfig.ID,
 		StepUsage:            compactionStepUsage,
+		SummaryCall:          compactionSummaryCall(resolved),
 	}
 
 	// workspaceCtx.currentChatSnapshot may carry a freshly persisted
@@ -675,13 +713,13 @@ func (server *Server) prepareGeneration(
 		Prompt:               prompt,
 		Tools:                tools,
 		ActiveTools:          activeToolNames,
+		AllowInactiveTools:   allowInactiveTools,
 		ProviderTools:        providerTools,
 		ModelRoute:           modelRoute,
 		ModelBuildOptions:    modelOpts,
-		ResolvedProvider:     resolvedProvider,
+		ResolvedProvider:     resolved.resolvedProvider,
 		ModelConfigID:        modelConfig.ID,
-		ModelConfig:          callConfig,
-		ProviderOptions:      providerOptions,
+		CallTemplate:         resolved.newCall(),
 		ContextLimitFallback: modelConfig.ContextLimit,
 		DynamicToolNames:     dynamicToolNames,
 		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
@@ -801,18 +839,19 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{}
 	}
 
-	// resolvedProvider/resolvedModel describe the model the fallback handle was
-	// built from; they only feed the status-label fallback candidate's labels.
 	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
 	if err != nil {
 		logger.Warn(ctx, "derive final turn status label: ensure synthetic API key", slog.Error(err))
 		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-	model, dbConfig, modelRoute, _, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelOpts)
+	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
+		purpose:      "turn_status_label",
+		chat:         chat,
+		buildOptions: modelOpts,
+	})
 	if err != nil {
-		// Return what we have; generateFinalTurnStatusLabel falls back to a
-		// generic label when StatusLabelModel is nil.
+		// Preserve the text and IDs for the generic-label fallback.
 		logger.Warn(ctx, "derive final turn status label: resolve model", slog.Error(err))
 		return runChatResult{
 			FinalAssistantText:  finalAssistantText,
@@ -823,12 +862,7 @@ func (server *Server) deriveFinalTurnRunResult(
 
 	return runChatResult{
 		FinalAssistantText:  finalAssistantText,
-		StatusLabelModel:    model,
-		FallbackProvider:    resolvedProvider,
-		FallbackRoute:       modelRoute,
-		FallbackModel:       resolvedModel,
-		ModelBuildOptions:   modelOpts,
-		StatusLabelOptions:  dbConfig.Options,
+		StatusLabelCall:     &resolved,
 		TriggerMessageID:    triggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
 	}
@@ -850,4 +884,23 @@ func latestAssistantText(messages []database.ChatMessage) string {
 		return strings.TrimSpace(textFromParts(parts))
 	}
 	return ""
+}
+
+// ACLs are deliberately not re-checked: revocation blocks new selection but
+// leaves already-selected servers usable, like template ACLs for running
+// workspaces. Disabling or deleting the config cuts off existing chats.
+func enabledMCPServerConfigsForChatOrg(
+	ctx context.Context,
+	db database.Store,
+	organizationID uuid.UUID,
+	ids []uuid.UUID,
+) ([]database.MCPServerConfig, error) {
+	configs, err := db.GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams{
+		OrganizationID: organizationID,
+		IDs:            ids,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get enabled MCP server configs for organization: %w", err)
+	}
+	return configs, nil
 }

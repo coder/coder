@@ -370,7 +370,7 @@ func TestAdvisorToolReportsLimitReached(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(second.Content), &result))
 	require.Equal(t, chatadvisor.ResultTypeLimitReached, result.Type)
 	require.Equal(t, 0, result.RemainingUses)
-	require.Empty(t, result.Advice)
+	require.Equal(t, chatadvisor.LimitReachedAdvice, result.Advice)
 	require.Empty(t, result.Error)
 	require.Empty(t, result.AdvisorModel)
 }

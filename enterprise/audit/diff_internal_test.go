@@ -2,6 +2,7 @@ package audit
 
 import (
 	"database/sql"
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
@@ -504,6 +505,188 @@ func Test_diff(t *testing.T) {
 			},
 		},
 	})
+
+	runDiffTests(t, []diffTest{
+		{
+			// Prompt text is tracked, not secret: reviewers must see what
+			// agents are told to do (CODAGT-719). The system-prompt
+			// endpoint populates only its two fields; the untouched
+			// plan-mode field stays zero on both sides and never diffs.
+			name: "SystemPromptChangeTracked",
+			left: database.ChatInstructionSettings{
+				SystemPrompt:               "old instructions",
+				IncludeDefaultSystemPrompt: true,
+			},
+			right: database.ChatInstructionSettings{
+				ID:                         uuid.UUID{1},
+				SystemPrompt:               "new instructions",
+				IncludeDefaultSystemPrompt: false,
+			},
+			exp: audit.Map{
+				"system_prompt":                 audit.OldNew{Old: "old instructions", New: "new instructions"},
+				"include_default_system_prompt": audit.OldNew{Old: true, New: false},
+			},
+		},
+		{
+			// The plan-mode endpoint populates only its own field; the
+			// system-prompt fields stay zero on both sides, so a
+			// plan-mode change diffs exactly one field.
+			name: "PlanModeInstructionsChangeTracked",
+			left: database.ChatInstructionSettings{
+				PlanModeInstructions: "old plan guidance",
+			},
+			right: database.ChatInstructionSettings{
+				ID:                   uuid.UUID{1},
+				PlanModeInstructions: "new plan guidance",
+			},
+			exp: audit.Map{
+				"plan_mode_instructions": audit.OldNew{Old: "old plan guidance", New: "new plan guidance"},
+			},
+		},
+		{
+			// The artificial ID is ignored, so a value-identical write
+			// would diff empty. Handlers additionally suppress the entry
+			// entirely by leaving both resource IDs nil.
+			name: "ArtificialIDIgnored",
+			left: database.ChatInstructionSettings{
+				SystemPrompt:               "same",
+				IncludeDefaultSystemPrompt: true,
+			},
+			right: database.ChatInstructionSettings{
+				ID:                         uuid.UUID{1},
+				SystemPrompt:               "same",
+				IncludeDefaultSystemPrompt: true,
+			},
+			exp: audit.Map{},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "CreateEmptyStoredValues",
+			left: audit.Empty[database.MCPServerConfig](),
+			right: database.MCPServerConfig{
+				CustomHeaders: "{}",
+				ToolAllowList: []string{},
+				ToolDenyList:  []string{},
+			},
+			exp: audit.Map{},
+		},
+		{
+			name: "Create",
+			left: audit.Empty[database.MCPServerConfig](),
+			right: database.MCPServerConfig{
+				ID:                 uuid.UUID{1},
+				DisplayName:        "GitHub MCP",
+				Slug:               "github",
+				Url:                "https://mcp.example.com/v1",
+				AuthType:           "api_key",
+				APIKeyHeader:       "X-Api-Key",
+				APIKeyValue:        "plaintext-api-key",
+				CustomHeaders:      `{"Authorization":"Bearer plaintext-header"}`,
+				ToolAllowList:      []string{"issues"},
+				ToolDenyList:       []string{"delete_repository"},
+				OAuth2ClientSecret: "plaintext-oauth-secret",
+				Enabled:            true,
+				CreatedBy:          uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
+				UpdatedBy:          uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
+				OrganizationID:     uuid.UUID{4},
+			},
+			exp: audit.Map{
+				"display_name":         audit.OldNew{Old: "", New: "GitHub MCP"},
+				"slug":                 audit.OldNew{Old: "", New: "github"},
+				"url":                  audit.OldNew{Old: "", New: "https://mcp.example.com/v1"},
+				"auth_type":            audit.OldNew{Old: "", New: "api_key"},
+				"api_key_header":       audit.OldNew{Old: "", New: "X-Api-Key"},
+				"api_key_value":        audit.OldNew{Old: "", New: "", Secret: true},
+				"custom_headers":       audit.OldNew{Old: "", New: "", Secret: true},
+				"tool_allow_list":      audit.OldNew{Old: []string(nil), New: []string{"issues"}},
+				"tool_deny_list":       audit.OldNew{Old: []string(nil), New: []string{"delete_repository"}},
+				"oauth2_client_secret": audit.OldNew{Old: "", New: "", Secret: true},
+				"enabled":              audit.OldNew{Old: false, New: true},
+				"created_by":           audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
+				"updated_by":           audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
+			},
+		},
+		{
+			name: "CustomHeadersAdded",
+			left: database.MCPServerConfig{
+				CustomHeaders: "{}",
+			},
+			right: database.MCPServerConfig{
+				CustomHeaders: `{"Authorization":"Bearer plaintext-header"}`,
+			},
+			exp: audit.Map{
+				"custom_headers": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+		{
+			name: "CustomHeadersRemoved",
+			left: database.MCPServerConfig{
+				CustomHeaders: `{"Authorization":"Bearer plaintext-header"}`,
+			},
+			right: database.MCPServerConfig{
+				CustomHeaders: "{}",
+			},
+			exp: audit.Map{
+				"custom_headers": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+		{
+			name: "SecretRotationRedacted",
+			left: database.MCPServerConfig{
+				ID:                 uuid.UUID{1},
+				DisplayName:        "GitHub MCP",
+				AuthType:           "api_key",
+				APIKeyValue:        "old-plaintext-api-key",
+				APIKeyValueKeyID:   sql.NullString{String: "key-1", Valid: true},
+				CustomHeaders:      `{"Authorization":"Bearer old-plaintext"}`,
+				CustomHeadersKeyID: sql.NullString{String: "key-1", Valid: true},
+				OrganizationID:     uuid.UUID{4},
+			},
+			right: database.MCPServerConfig{
+				ID:             uuid.UUID{1},
+				DisplayName:    "Renamed MCP",
+				AuthType:       "api_key",
+				APIKeyValue:    "new-plaintext-api-key",
+				CustomHeaders:  `{"Authorization":"Bearer new-plaintext"}`,
+				OrganizationID: uuid.UUID{4},
+			},
+			exp: audit.Map{
+				"display_name":   audit.OldNew{Old: "GitHub MCP", New: "Renamed MCP"},
+				"api_key_value":  audit.OldNew{Old: "", New: "", Secret: true},
+				"custom_headers": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+	})
+}
+
+func Test_mcpServerConfigSecretsNeverSerialized(t *testing.T) {
+	t.Parallel()
+
+	secrets := []string{
+		"plaintext-oauth-secret",
+		"plaintext-api-key",
+		"Bearer plaintext-header",
+	}
+	left := audit.Empty[database.MCPServerConfig]()
+	right := database.MCPServerConfig{
+		ID:                 uuid.UUID{1},
+		DisplayName:        "GitHub MCP",
+		AuthType:           "oauth2",
+		OAuth2ClientID:     "client-id",
+		OAuth2ClientSecret: secrets[0],
+		APIKeyValue:        secrets[1],
+		CustomHeaders:      `{"Authorization":"` + secrets[2] + `"}`,
+		OrganizationID:     uuid.UUID{4},
+	}
+
+	raw, err := json.Marshal(diffValues(left, right, AuditableResources))
+	require.NoError(t, err)
+	for _, secret := range secrets {
+		require.NotContains(t, string(raw), secret)
+	}
+	require.Contains(t, string(raw), "client-id")
 }
 
 func runDiffTests(t *testing.T, tests []diffTest) {

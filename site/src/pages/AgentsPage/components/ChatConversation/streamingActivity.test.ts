@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LiveStatusModel } from "./liveStatusModel";
 import { shouldShowGenericThinking } from "./streamingActivity";
-import type { MergedTool, StreamState } from "./types";
+import type { MergedTool } from "./types";
 
 const liveStatus = (phase: LiveStatusModel["phase"]): LiveStatusModel => {
 	switch (phase) {
@@ -38,15 +38,10 @@ const liveStatus = (phase: LiveStatusModel["phase"]): LiveStatusModel => {
 				title: "Failed",
 				message: "Failed",
 			};
+		case "interrupting":
+			return { phase: "interrupting", hasAccumulatedOutput: false };
 	}
 };
-
-const streamState = (blocks: StreamState["blocks"]): StreamState => ({
-	blocks,
-	toolCalls: {},
-	toolResults: {},
-	sources: [],
-});
 
 const tool = (status: MergedTool["status"]): MergedTool => ({
 	id: status,
@@ -60,8 +55,8 @@ describe("shouldShowGenericThinking", () => {
 		expect(
 			shouldShowGenericThinking({
 				liveStatus: liveStatus("starting"),
-				streamState: null,
-				streamTools: [],
+				blocks: [],
+				tools: [],
 			}),
 		).toBe(true);
 	});
@@ -70,8 +65,8 @@ describe("shouldShowGenericThinking", () => {
 		expect(
 			shouldShowGenericThinking({
 				liveStatus: liveStatus("streaming"),
-				streamState: null,
-				streamTools: [],
+				blocks: [],
+				tools: [],
 			}),
 		).toBe(true);
 	});
@@ -80,8 +75,8 @@ describe("shouldShowGenericThinking", () => {
 		expect(
 			shouldShowGenericThinking({
 				liveStatus: liveStatus("streaming"),
-				streamState: streamState([{ type: "tool", id: "read-1" }]),
-				streamTools: [tool("running")],
+				blocks: [{ type: "tool", id: "read-1" }],
+				tools: [tool("running")],
 			}),
 		).toBe(false);
 	});
@@ -90,8 +85,8 @@ describe("shouldShowGenericThinking", () => {
 		expect(
 			shouldShowGenericThinking({
 				liveStatus: liveStatus("streaming"),
-				streamState: streamState([{ type: "tool", id: "read-1" }]),
-				streamTools: [tool("completed")],
+				blocks: [{ type: "tool", id: "read-1" }],
+				tools: [tool("completed")],
 			}),
 		).toBe(true);
 	});
@@ -100,8 +95,8 @@ describe("shouldShowGenericThinking", () => {
 		expect(
 			shouldShowGenericThinking({
 				liveStatus: liveStatus("streaming"),
-				streamState: streamState([{ type: "response", text: "hello" }]),
-				streamTools: [],
+				blocks: [{ type: "response", text: "hello" }],
+				tools: [],
 			}),
 		).toBe(false);
 	});
@@ -110,8 +105,8 @@ describe("shouldShowGenericThinking", () => {
 		expect(
 			shouldShowGenericThinking({
 				liveStatus: liveStatus("streaming"),
-				streamState: streamState([{ type: "thinking", text: "thinking" }]),
-				streamTools: [],
+				blocks: [{ type: "thinking", text: "thinking" }],
+				tools: [],
 			}),
 		).toBe(false);
 	});
@@ -125,8 +120,8 @@ describe("shouldShowGenericThinking", () => {
 		expect(
 			shouldShowGenericThinking({
 				liveStatus: liveStatus(phase),
-				streamState: null,
-				streamTools: [],
+				blocks: [],
+				tools: [],
 			}),
 		).toBe(false);
 	});

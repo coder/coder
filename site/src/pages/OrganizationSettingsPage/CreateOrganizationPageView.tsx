@@ -11,9 +11,10 @@ import { Button } from "#/components/Button/Button";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
@@ -75,6 +76,9 @@ export const CreateOrganizationPageView: FC<
 					Go Back
 				</Link>
 			</div>
+			<div className="absolute right-12">
+				<SettingsHeaderDocsLink href={docs("/admin/users/organizations")} />
+			</div>
 			<div className="flex flex-col gap-4 w-full min-w-96 mx-auto">
 				<div className="flex flex-col items-center">
 					{Boolean(error) && !isApiValidationError(error) && (
@@ -98,11 +102,16 @@ export const CreateOrganizationPageView: FC<
 					</header>
 				</div>
 				{!isEntitled ? (
-					<div className="min-w-fit mx-auto">
-						<PaywallPremium
+					<div className="mx-auto w-full max-w-4xl">
+						<PremiumPaywall
+							source="multiple_organizations"
 							message="Organizations"
-							description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
-							documentationLink={docs("/admin/users/organizations")}
+							description="Run isolated business units on one deployment, each with its own users, templates, provisioners, and infrastructure."
+							features={[
+								"Isolate provisioners & infrastructure",
+								"Sync org membership from your IdP",
+								"Manage orgs at scale via Terraform",
+							]}
 							canViewPremium={permissions.viewAllLicenses}
 						/>
 					</div>

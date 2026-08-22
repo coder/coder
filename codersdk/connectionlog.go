@@ -46,10 +46,8 @@ const (
 	ConnectionTypeReconnectingPTY ConnectionType = "reconnecting_pty"
 	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
 	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
-	// ConnectionTypeTunnel is recorded by coderd when a client
-	// establishes a tailnet tunnel to a workspace agent, and carries
-	// the authenticated user's identity. Tunnels via the user-scoped
-	// tailnet API (e.g. Coder Desktop) are not currently recorded.
+	// ConnectionTypeTunnel records accepted and denied tailnet tunnel
+	// requests made by authenticated users.
 	ConnectionTypeTunnel ConnectionType = "tunnel"
 )
 
@@ -73,10 +71,10 @@ func (s ConnectionLogStatus) Valid() bool {
 
 type ConnectionLogWebInfo struct {
 	UserAgent string `json:"user_agent"`
-	// User is omitted if the connection event was from an unauthenticated user.
+	// User is omitted if the connection event was unauthenticated.
 	User       *User  `json:"user"`
 	SlugOrPort string `json:"slug_or_port"`
-	// StatusCode is the HTTP status code of the request.
+	// StatusCode is the HTTP status code or tunnel authorization outcome.
 	StatusCode int32 `json:"status_code"`
 }
 
@@ -105,7 +103,7 @@ type ConnectionLogResponse struct {
 }
 
 func (c *Client) ConnectionLogs(ctx context.Context, req ConnectionLogsRequest) (ConnectionLogResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/connectionlog", nil, req.Pagination.asRequestOption(), func(r *http.Request) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/connectionlog", nil, req.asRequestOption(), func(r *http.Request) {
 		q := r.URL.Query()
 		var params []string
 		if req.SearchQuery != "" {

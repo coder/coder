@@ -967,28 +967,6 @@ func TestWorkspaceAgentClientCoordinate_ConnectionLog(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 	err = conn.Close()
 	require.NoError(t, err)
-
-	// A second handshake within the audit session stale interval is a
-	// reconnection and must be deduplicated rather than producing a
-	// second row.
-	conn2, err := workspacesdk.New(client).
-		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
-			Logger: testutil.Logger(t).Named("client2"),
-		})
-	require.NoError(t, err)
-	defer conn2.Close()
-	// The connection log write happens in the coordinate handler
-	// before any coordination traffic is served, so once the tunnel is
-	// reachable the second handshake has already been processed.
-	require.True(t, conn2.AwaitReachable(ctx))
-
-	tunnelRows := 0
-	for _, cl := range connLogger.ConnectionLogs() {
-		if cl.Type == database.ConnectionTypeTunnel {
-			tunnelRows++
-		}
-	}
-	require.Equal(t, 1, tunnelRows)
 }
 
 func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
@@ -3104,6 +3082,87 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	})
 }
 
+func TestUserTailnetConnectionLog(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	connLogger := connectionlog.NewFake()
+	firstClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		ConnectionLogger: connLogger,
+		Coordinator:      tailnet.NewCoordinator(logger),
+		Logger:           &logger,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, firstClient)
+	member, memberUser := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID)
+
+	allowedWorkspace := buildWorkspaceWithAgent(t, member, firstUser.OrganizationID, memberUser.ID, api.Database, api.Pubsub)
+	allowedSDKWorkspace, err := member.Workspace(ctx, allowedWorkspace.ID)
+	require.NoError(t, err)
+	allowedAgentID := allowedSDKWorkspace.LatestBuild.Resources[0].Agents[0].ID
+
+	deniedWorkspace := buildWorkspaceWithAgent(t, firstClient, firstUser.OrganizationID, firstUser.UserID, api.Database, api.Pubsub)
+	deniedSDKWorkspace, err := firstClient.Workspace(ctx, deniedWorkspace.ID)
+	require.NoError(t, err)
+	deniedAgentID := deniedSDKWorkspace.LatestBuild.Resources[0].Agents[0].ID
+
+	dial := func() (*websocket.Conn, tailnetproto.DRPCTailnet_CoordinateClient) {
+		u, err := member.URL.Parse("/api/v2/tailnet?version=2.0")
+		require.NoError(t, err)
+		//nolint:bodyclose // websocket.Dial owns the HTTP response body on success.
+		wsConn, response, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+			HTTPHeader: http.Header{
+				"Coder-Session-Token": []string{member.SessionToken()},
+			},
+		})
+		if err != nil && response != nil {
+			err = codersdk.ReadBodyAsError(response)
+		}
+		require.NoError(t, err)
+		rpcClient, err := tailnet.NewDRPCClient(
+			websocket.NetConn(ctx, wsConn, websocket.MessageBinary),
+			logger,
+		)
+		require.NoError(t, err)
+		stream, err := rpcClient.Coordinate(ctx)
+		require.NoError(t, err)
+		return wsConn, stream
+	}
+
+	acceptedConn, acceptedStream := dial()
+	require.NoError(t, acceptedStream.Send(&tailnetproto.CoordinateRequest{
+		AddTunnel: &tailnetproto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(allowedAgentID)},
+	}))
+	require.Eventually(t, func() bool {
+		return connLogger.Contains(t, database.UpsertConnectionLogParams{
+			WorkspaceID:      allowedWorkspace.ID,
+			AgentName:        allowedSDKWorkspace.LatestBuild.Resources[0].Agents[0].Name,
+			Type:             database.ConnectionTypeTunnel,
+			Code:             sql.NullInt32{Int32: http.StatusSwitchingProtocols, Valid: true},
+			UserID:           uuid.NullUUID{UUID: memberUser.ID, Valid: true},
+			UserAgent:        sql.NullString{},
+			ConnectionStatus: database.ConnectionStatusConnected,
+		})
+	}, testutil.WaitShort, testutil.IntervalFast)
+	require.NoError(t, acceptedConn.Close(websocket.StatusNormalClosure, "done"))
+
+	deniedConn, deniedStream := dial()
+	require.NoError(t, deniedStream.Send(&tailnetproto.CoordinateRequest{
+		AddTunnel: &tailnetproto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(deniedAgentID)},
+	}))
+	require.Eventually(t, func() bool {
+		return connLogger.Contains(t, database.UpsertConnectionLogParams{
+			WorkspaceID:      deniedWorkspace.ID,
+			AgentName:        deniedSDKWorkspace.LatestBuild.Resources[0].Agents[0].Name,
+			Type:             database.ConnectionTypeTunnel,
+			Code:             sql.NullInt32{Int32: http.StatusForbidden, Valid: true},
+			UserID:           uuid.NullUUID{UUID: memberUser.ID, Valid: true},
+			ConnectionStatus: database.ConnectionStatusConnected,
+		})
+	}, testutil.WaitShort, testutil.IntervalFast)
+	require.NoError(t, deniedConn.Close(websocket.StatusNormalClosure, "done"))
+}
+
 func TestUserTailnetTelemetry(t *testing.T) {
 	t.Parallel()
 
@@ -3323,8 +3382,8 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 	return manifest
 }
 
-func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
-	aAPI, _, err := client.ConnectRPC210(ctx)
+func postStartup(ctx context.Context, t testing.TB, client *agentsdk.Client, startup *agentproto.Startup) error {
+	aAPI, _, err := client.ConnectRPC211WithRole(ctx, "")
 	require.NoError(t, err)
 	defer func() {
 		cErr := aAPI.DRPCConn().Close()

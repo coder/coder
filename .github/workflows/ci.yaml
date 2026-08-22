@@ -59,7 +59,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - name: check changed files
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
@@ -333,7 +333,7 @@ jobs:
         uses: ./.github/actions/pnpm-install
 
       - name: Install Go mise tools
-        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx go:github.com/rhysd/actionlint/cmd/actionlint
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/v2/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx go:github.com/rhysd/actionlint/cmd/actionlint
 
       - name: Get golangci-lint cache dir
         run: |
@@ -1004,7 +1004,7 @@ jobs:
       - run: make site/e2e/bin/coder
         name: make coder
 
-      - run: pnpm playwright:install
+      - run: pnpm exec playwright install chromium
         working-directory: site
 
       # Cache the Coder release binaries downloaded by the outdatedCLI /
@@ -1100,7 +1100,7 @@ jobs:
         working-directory: site/
         name: Build Storybook
 
-      - run: pnpm playwright:install
+      - run: pnpm exec playwright install chromium
         working-directory: site/
         name: Install Chromium
 

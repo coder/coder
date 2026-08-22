@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { PlusIcon, RotateCwIcon } from "lucide-react";
 import type { FC } from "react";
 import Confetti from "react-confetti";
@@ -20,11 +19,14 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useWindowSize } from "#/hooks/useWindowSize";
+import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
+import { useTheme } from "#/theme/context";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
 import { ManagedAgentsConsumption } from "./ManagedAgentsConsumption";
 import { SeatUsageBarCard } from "./SeatUsageBarCard";
+import { TotalAgentHoursCard } from "./TotalAgentHoursCard";
 
 type Props = {
 	showConfetti: boolean;
@@ -40,6 +42,7 @@ type Props = {
 	activeUsers: UserStatusChangeCount[] | undefined;
 	managedAgentFeature?: Feature;
 	aiGovernanceUserFeature?: Feature;
+	agentRuntimeHoursFeature?: Feature;
 };
 
 const LicensesSettingsPageView: FC<Props> = ({
@@ -56,6 +59,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 	activeUsers,
 	managedAgentFeature,
 	aiGovernanceUserFeature,
+	agentRuntimeHoursFeature,
 }) => {
 	const theme = useTheme();
 	const { width, height } = useWindowSize();
@@ -124,6 +128,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 									userLimitActual={userLimitActual}
 									userLimitLimit={userLimitLimit}
 									aiGovernanceUserFeature={aiGovernanceUserFeature}
+									agentRuntimeHoursFeature={agentRuntimeHoursFeature}
 									isRemoving={isRemovingLicense}
 									onRemove={removeLicense}
 								/>
@@ -142,20 +147,19 @@ const LicensesSettingsPageView: FC<Props> = ({
 									You&apos;re missing out on high availability, RBAC, quotas,
 									and much more. Contact{" "}
 									<Link
-										href="mailto:sales@coder.com"
+										href={CONTACT_SALES_LINK}
 										className="m-0 p-0 text-base"
 										showExternalIcon={false}
 									>
 										sales
 									</Link>{" "}
 									or{" "}
-									<Link
-										href="https://coder.com/trial"
-										className="m-0 p-0 text-base"
-										showExternalIcon={false}
+									<RouterLink
+										to="/deployment/premium"
+										className="m-0 p-0 text-content-link"
 									>
 										request a trial license
-									</Link>{" "}
+									</RouterLink>{" "}
 									to get started.
 								</span>
 							</div>
@@ -188,6 +192,8 @@ const LicensesSettingsPageView: FC<Props> = ({
 								licenses={licenses}
 							/>
 						</div>
+
+						<TotalAgentHoursCard feature={agentRuntimeHoursFeature} />
 
 						<ManagedAgentsConsumption
 							managedAgentFeature={managedAgentFeature}

@@ -285,9 +285,15 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// Unauthorized errors return a 404 to not leak information about the
+	// existence of resources.
+	if httpapi.IsUnauthorizedError(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to add or remove non-existent group member",
+			Message: "Failed to update group.",
 			Detail:  err.Error(),
 		})
 		return
@@ -500,6 +506,8 @@ func (api *API) groupMembers(rw http.ResponseWriter, r *http.Request) {
 		IncludeSystem:    false,
 		Search:           userFilterParams.Search,
 		Name:             userFilterParams.Name,
+		ExactUsername:    userFilterParams.ExactUsername,
+		ExactEmail:       userFilterParams.ExactEmail,
 		Status:           userFilterParams.Status,
 		IsServiceAccount: userFilterParams.IsServiceAccount,
 		RbacRole:         userFilterParams.RbacRole,

@@ -52,9 +52,7 @@ function restorePersistedAttachments(currentOrgId: string): {
 	uploadStates: Map<File, UploadState>;
 	previewUrls: Map<File, string>;
 } {
-	// Skip when org ID isn't loaded yet so we don't prune valid
-	// entries. The initializer runs once, so callers must wait for
-	// the org ID before mounting.
+	// An unknown org must not prune entries persisted for the eventual org.
 	if (!currentOrgId) {
 		return {
 			attachments: [],
@@ -164,6 +162,11 @@ function clearPersistedAttachments() {
 }
 
 interface UseFileAttachmentsReturn {
+	/**
+	 * True after the post-commit effect assigns in-memory attachment state to
+	 * the supplied organization. Keep attach and send controls disabled until then.
+	 */
+	organizationAdopted: boolean;
 	attachments: File[];
 	textContents: Map<File, string>;
 	uploadStates: Map<File, UploadState>;
@@ -192,19 +195,14 @@ export function useFileAttachments(
 		providerRef.current = provider;
 	}, [provider]);
 
-	const [restored] = useState(() =>
-		persist
-			? restorePersistedAttachments(organizationId ?? "")
-			: {
-					attachments: [] as File[],
-					uploadStates: new Map<File, UploadState>(),
-					previewUrls: new Map<File, string>(),
-				},
+	const [attachments, setAttachments] = useState<File[]>([]);
+	const [uploadStates, setUploadStates] = useState(
+		() => new Map<File, UploadState>(),
 	);
-
-	const [attachments, setAttachments] = useState<File[]>(restored.attachments);
-	const [uploadStates, setUploadStates] = useState(restored.uploadStates);
-	const [previewUrls, setPreviewUrls] = useState(restored.previewUrls);
+	const [previewUrls, setPreviewUrls] = useState(() => new Map<File, string>());
+	// Persisted state remains unowned until post-commit org adoption; restoring
+	// against a provisional org would prune entries for the eventual org.
+	const [stateOrgId, setStateOrgId] = useState<string | null>(null);
 	const [textContents, setTextContents] = useState(
 		() => new Map<File, string>(),
 	);
@@ -220,6 +218,27 @@ export function useFileAttachments(
 		return () => revokePreviewUrls();
 	}, []);
 
+	// Every adoption invalidates older upload completions, including A-to-B-to-A
+	// round trips where stateOrgId matches again. Otherwise a stale completion
+	// could persist and later restore an abandoned upload.
+	const adoptionEpochRef = useRef(0);
+	const commitUploadOutcome = useEffectEvent(
+		(
+			file: File,
+			uploadOrgId: string,
+			uploadEpoch: number,
+			state: UploadState,
+		) => {
+			if (persist && adoptionEpochRef.current !== uploadEpoch) {
+				return;
+			}
+			setUploadStates((prev) => new Map(prev).set(file, state));
+			if (persist && state.status === "uploaded" && state.fileId) {
+				addPersistedAttachment(file, state.fileId, uploadOrgId);
+			}
+		},
+	);
+
 	const startUpload = (file: File) => {
 		if (!organizationId) {
 			setUploadStates((prev) =>
@@ -231,25 +250,18 @@ export function useFileAttachments(
 			return;
 		}
 
-		const shouldPersist = persist && Boolean(organizationId);
+		const uploadOrgId = organizationId;
+		const uploadEpoch = adoptionEpochRef.current;
 		const isImage = file.type.startsWith("image/");
 
 		setUploadStates((prev) => new Map(prev).set(file, { status: "uploading" }));
 		void (async () => {
 			try {
-				const result = await API.experimental.uploadChatFile(
-					file,
-					organizationId,
-				);
-				setUploadStates((prev) =>
-					new Map(prev).set(file, {
-						status: "uploaded",
-						fileId: result.id,
-					}),
-				);
-				if (shouldPersist) {
-					addPersistedAttachment(file, result.id, organizationId!);
-				}
+				const result = await API.experimental.uploadChatFile(file, uploadOrgId);
+				commitUploadOutcome(file, uploadOrgId, uploadEpoch, {
+					status: "uploaded",
+					fileId: result.id,
+				});
 				if (isImage) {
 					// Pre-warm the HTTP cache so the timeline can
 					// render the image instantly after send. Text
@@ -257,13 +269,10 @@ export function useFileAttachments(
 					void fetch(getChatFileURL(result.id));
 				}
 			} catch (err: unknown) {
-				const errorMessage = formatAgentAttachmentUploadError(err);
-				setUploadStates((prev) =>
-					new Map(prev).set(file, {
-						status: "error",
-						error: errorMessage,
-					}),
-				);
+				commitUploadOutcome(file, uploadOrgId, uploadEpoch, {
+					status: "error",
+					error: formatAgentAttachmentUploadError(err),
+				});
 			}
 		})();
 	};
@@ -272,6 +281,28 @@ export function useFileAttachments(
 	// checks this before swapping in a replacement so a dismissed
 	// file can't be resurrected. WeakSet lets entries get GC'd.
 	const abandonedResizesRef = useRef<WeakSet<File>>(new WeakSet());
+
+	// Permission refetches can change the org without user action. Replace state
+	// after commit so stale file IDs cannot cross orgs and an abandoned render
+	// cannot prune localStorage through restorePersistedAttachments.
+	const adoptOrganization = useEffectEvent((orgId: string) => {
+		adoptionEpochRef.current += 1;
+		for (const file of attachments) {
+			abandonedResizesRef.current.add(file);
+		}
+		revokePreviewUrls();
+		setTextContents(new Map());
+		setStateOrgId(orgId);
+		const restored = restorePersistedAttachments(orgId);
+		setAttachments(restored.attachments);
+		setUploadStates(restored.uploadStates);
+		setPreviewUrls(restored.previewUrls);
+	});
+	useEffect(() => {
+		if (persist && organizationId && stateOrgId !== organizationId) {
+			adoptOrganization(organizationId);
+		}
+	}, [persist, stateOrgId, organizationId]);
 
 	type AttachItem = { file: File; needsResize: boolean };
 
@@ -508,11 +539,18 @@ export function useFileAttachments(
 		}
 	};
 
+	// Hide state that belongs to another organization. Exposing it could send
+	// stale file IDs or remove persisted attachments from the previous org.
+	const orgMismatch =
+		persist && stateOrgId !== null && stateOrgId !== organizationId;
+
 	return {
-		attachments,
-		textContents,
-		uploadStates,
-		previewUrls,
+		organizationAdopted:
+			!persist || (Boolean(organizationId) && stateOrgId === organizationId),
+		attachments: orgMismatch ? [] : attachments,
+		textContents: orgMismatch ? new Map<File, string>() : textContents,
+		uploadStates: orgMismatch ? new Map<File, UploadState>() : uploadStates,
+		previewUrls: orgMismatch ? new Map<File, string>() : previewUrls,
 		handleAttach,
 		handleRemoveAttachment,
 		startUpload,

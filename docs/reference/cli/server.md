@@ -722,6 +722,16 @@ The custom text to show on the error page informing about disabled OIDC signups.
 
 OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the well-known configuration. This flag disables that requirement, and can lead to an insecure OIDC configuration. It is not recommended to use this flag.
 
+### --oidc-redirect-url
+
+|             |                                       |
+|-------------|---------------------------------------|
+| Type        | <code>url</code>                      |
+| Environment | <code>$CODER_OIDC_REDIRECT_URL</code> |
+| YAML        | <code>oidc.oidc-redirect-url</code>   |
+
+Optional override of the default redirect url which uses the deployment's access url. Useful in situations where a deployment has more than 1 domain. Using this setting can also break OIDC, so use with caution.
+
 ### --telemetry
 
 |             |                                      |
@@ -1727,17 +1737,6 @@ The upper limit of attempts to send a notification.
 | Default     | <code>1m0s</code>                                               |
 
 How often to reconcile workspace prebuilds state.
-
-### --hide-ai-tasks
-
-|             |                                   |
-|-------------|-----------------------------------|
-| Type        | <code>bool</code>                 |
-| Environment | <code>$CODER_HIDE_AI_TASKS</code> |
-| YAML        | <code>client.hideAITasks</code>   |
-| Default     | <code>false</code>                |
-
-Hide AI tasks from the dashboard.
 
 ### --chat-debug-logging-enabled
 

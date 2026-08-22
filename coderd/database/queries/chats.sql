@@ -335,11 +335,6 @@ SET search_tsv = COALESCE(
     ''::tsvector)
 FROM batch WHERE cm.id = batch.id;
 
--- name: ChatSearchQueryIsEmpty :one
--- Reports whether search text tokenizes to an empty tsquery (e.g. '!!!').
--- Used to reject input that would silently match nothing.
-SELECT numnode(websearch_to_tsquery('simple', @search::text)) = 0 AS is_empty;
-
 -- name: GetChatByID :one
 SELECT *
 FROM chats_expanded
@@ -2308,46 +2303,64 @@ WHERE chat_id = @chat_id::uuid
     AND content::jsonb @> '[{"type": "context-file"}]';
 
 -- name: GetChatWorkerAcquisitionCandidates :many
--- Returns chats that workers may try to acquire. Candidates must be:
---   - in a worker-runnable execution status;
---   - unarchived; and
---   - missing ownership, carrying inconsistent ownership, or lacking a
---     fresh heartbeat for the assigned runner.
---
--- Missing ownership is worker_id IS NULL. Inconsistent ownership is
--- runner_id IS NULL while worker_id is set. Stale ownership is no
--- heartbeat row for (chat_id, runner_id), or one older than
--- @stale_seconds by database time. Candidates are ordered by oldest
--- updated_at first so workers drain stale runnable chats predictably.
+-- Returns a bounded, pool-interleaved set of chats that workers may acquire.
+-- Interrupting chats finish active work first. Requires-action chats follow so
+-- their runner can enforce the action deadline before new generations start.
+WITH candidate_partitions AS (
+    SELECT true AS is_root, 'interrupting'::chat_status AS status, 0 AS status_priority, 0 AS pool_priority
+    UNION ALL
+    SELECT false, 'interrupting'::chat_status, 0, 1
+    UNION ALL
+    SELECT true, 'requires_action'::chat_status, 1, 0
+    UNION ALL
+    SELECT false, 'requires_action'::chat_status, 1, 1
+    UNION ALL
+    SELECT true, 'running'::chat_status, 2, 0
+    UNION ALL
+    SELECT false, 'running'::chat_status, 2, 1
+),
+candidates AS (
+    SELECT
+        candidate.id,
+        candidate_partitions.status_priority,
+        candidate_partitions.pool_priority,
+        ROW_NUMBER() OVER (
+            PARTITION BY candidate_partitions.status_priority, candidate_partitions.is_root
+            ORDER BY candidate.updated_at ASC, candidate.id ASC
+        ) AS pool_position
+    FROM candidate_partitions
+    CROSS JOIN LATERAL (
+        SELECT chats.id, chats.updated_at
+        FROM chats
+        WHERE (chats.parent_chat_id IS NULL) = candidate_partitions.is_root
+          AND chats.status = candidate_partitions.status
+          AND chats.archived = false
+          AND (
+              chats.worker_id IS NULL
+              OR chats.runner_id IS NULL
+              OR NOT EXISTS (
+                  SELECT 1
+                  FROM chat_heartbeats current_lease
+                  WHERE current_lease.chat_id = chats.id
+                    AND current_lease.runner_id = chats.runner_id
+                    AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+              )
+          )
+        ORDER BY chats.updated_at ASC, chats.id ASC
+        LIMIT @limit_count::int
+    ) candidate
+)
 SELECT
-    chats_expanded.*,
-    chat_heartbeats.heartbeat_at AS current_heartbeat_at,
-    NOT EXISTS (
-        SELECT 1
-        FROM chat_heartbeats current_lease
-        WHERE current_lease.chat_id = chats_expanded.id
-          AND current_lease.runner_id = chats_expanded.runner_id
-          AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
-    ) AS heartbeat_stale
-FROM chats_expanded
-LEFT JOIN chat_heartbeats
-    ON chat_heartbeats.chat_id = chats_expanded.id
-    AND chat_heartbeats.runner_id = chats_expanded.runner_id
-WHERE
-    chats_expanded.status IN ('running'::chat_status, 'interrupting'::chat_status, 'requires_action'::chat_status)
-    AND chats_expanded.archived = false
-    AND (
-        chats_expanded.worker_id IS NULL
-        OR chats_expanded.runner_id IS NULL
-        OR NOT EXISTS (
-            SELECT 1
-            FROM chat_heartbeats current_lease
-            WHERE current_lease.chat_id = chats_expanded.id
-              AND current_lease.runner_id = chats_expanded.runner_id
-              AND current_lease.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
-        )
-    )
-ORDER BY chats_expanded.updated_at ASC, chats_expanded.id ASC
+    chats.id,
+    chats.status,
+    chats.parent_chat_id
+FROM candidates
+JOIN chats ON chats.id = candidates.id
+ORDER BY
+    candidates.status_priority ASC,
+    candidates.pool_position ASC,
+    candidates.pool_priority ASC,
+    chats.id ASC
 LIMIT @limit_count::int;
 
 -- name: GetChatsByIDsForRunnerSync :many
@@ -2475,6 +2488,10 @@ FROM chats_expanded;
 -- requires-action deadline, and the manual compaction request marker.
 -- Callers compose this with transition mutations inside a single
 -- ChatMachine.Update transaction.
+--
+-- grant_history_epoch gives a turn that inserts no history the same
+-- fresh retry budget and message part episode keys a history change
+-- would grant, mirroring the chat_messages trigger postcondition.
 WITH updated_chat AS (
     UPDATE chats
     SET
@@ -2485,6 +2502,9 @@ WITH updated_chat AS (
         last_error = sqlc.narg('last_error')::jsonb,
         requires_action_deadline_at = sqlc.narg('requires_action_deadline_at')::timestamptz,
         compaction_requested_at = sqlc.narg('compaction_requested_at')::timestamptz,
+        history_version = CASE WHEN @grant_history_epoch::boolean THEN snapshot_version ELSE history_version END,
+        generation_attempt = CASE WHEN @grant_history_epoch::boolean THEN 0 ELSE generation_attempt END,
+        retry_state = CASE WHEN @grant_history_epoch::boolean THEN NULL ELSE retry_state END,
         pin_order = CASE WHEN @archived::boolean THEN 0 ELSE pin_order END,
         updated_at = NOW()
     WHERE id = @id::uuid
@@ -2798,3 +2818,71 @@ LEFT JOIN to_archive t ON t.id = a.id
 -- created_at ASC flows through to dbpurge's digest truncation; see
 -- buildDigestData in dbpurge.go for the tradeoff rationale.
 ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;
+
+-- name: CountChatCapacityActiveByPool :one
+-- Excluding the candidate keeps ownership takeover capacity-neutral.
+SELECT
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS active_root_count,
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS active_subagent_count
+FROM chat_heartbeats hb
+JOIN chats c
+  ON c.id = hb.chat_id
+ AND c.runner_id = hb.runner_id
+WHERE c.worker_id IS NOT NULL
+  AND c.id != @exclude_chat_id::uuid
+  AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int);
+
+-- name: CountChatCapacityQueuedByPool :one
+SELECT
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS queued_root_count,
+    COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS queued_subagent_count
+FROM chats c
+WHERE c.status = 'running'::chat_status
+  AND c.archived = false
+  AND (
+      c.worker_id IS NULL
+      OR c.runner_id IS NULL
+      OR NOT EXISTS (
+          SELECT 1
+          FROM chat_heartbeats hb
+          WHERE hb.chat_id = c.id
+            AND hb.runner_id = c.runner_id
+            AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+      )
+  );
+
+-- name: GetChatQueuedForCapacity :one
+-- Pool fullness distinguishes capacity waits from worker pickup delays.
+WITH active AS (
+    SELECT
+        COUNT(*) FILTER (WHERE a.parent_chat_id IS NULL)::bigint AS root_count,
+        COUNT(*) FILTER (WHERE a.parent_chat_id IS NOT NULL)::bigint AS subagent_count
+    FROM chat_heartbeats hb
+    JOIN chats a
+      ON a.id = hb.chat_id
+     AND a.runner_id = hb.runner_id
+    WHERE a.worker_id IS NOT NULL
+      AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+)
+SELECT (
+    c.status = 'running'::chat_status
+    AND c.archived = false
+    AND (
+        c.worker_id IS NULL
+        OR c.runner_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1
+            FROM chat_heartbeats hb
+            WHERE hb.chat_id = c.id
+              AND hb.runner_id = c.runner_id
+              AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+        )
+    )
+    AND CASE
+        WHEN c.parent_chat_id IS NULL THEN active.root_count >= @root_capacity::bigint
+        ELSE active.subagent_count >= @subagent_capacity::bigint
+    END
+)::boolean AS queued_for_capacity
+FROM chats c
+CROSS JOIN active
+WHERE c.id = @chat_id::uuid;

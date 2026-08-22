@@ -72,10 +72,6 @@
 	// We discourage people from various older libraries that
 	// are no longer recommended/being migrated from.
 	"typescript.preferences.autoImportSpecifierExcludeRegexes": [
-		// discourage people from using MUI components
-		"^@mui(?:/.*)?$",
-		// discourage people from using Emotion CSS
-		"^@emotion(?:/.*)?$",
 		// we prefer people use `lodash/foo` over `lodash`
 		"^lodash$"
 	]

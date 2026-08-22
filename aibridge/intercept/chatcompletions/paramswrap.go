@@ -1,6 +1,8 @@
 package chatcompletions
 
 import (
+	"encoding/json"
+
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/tidwall/gjson"
@@ -13,6 +15,11 @@ import (
 type ChatCompletionNewParamsWrapper struct {
 	openai.ChatCompletionNewParams `json:""`
 	Stream                         bool `json:"stream,omitempty"`
+	// ExtraBody preserves the OpenAI SDK's extra_body passthrough object,
+	// which the typed params drop on unmarshal. It is forwarded only to
+	// Google upstreams, which read provider-specific settings such as
+	// Gemini's thinking_config from it.
+	ExtraBody json.RawMessage `json:"-"`
 }
 
 func (c ChatCompletionNewParamsWrapper) MarshalJSON() ([]byte, error) {
@@ -28,13 +35,17 @@ func (c *ChatCompletionNewParamsWrapper) UnmarshalJSON(raw []byte) error {
 		return err
 	}
 
+	if extraBody := gjson.GetBytes(raw, "extra_body"); extraBody.IsObject() {
+		c.ExtraBody = json.RawMessage(extraBody.Raw)
+	}
+
 	c.Stream = gjson.GetBytes(raw, "stream").Bool()
 	if c.Stream {
-		c.ChatCompletionNewParams.StreamOptions = openai.ChatCompletionStreamOptionsParam{
+		c.StreamOptions = openai.ChatCompletionStreamOptionsParam{
 			IncludeUsage: openai.Bool(true), // Always include usage when streaming.
 		}
 	} else {
-		c.ChatCompletionNewParams.StreamOptions = openai.ChatCompletionStreamOptionsParam{}
+		c.StreamOptions = openai.ChatCompletionStreamOptionsParam{}
 	}
 
 	return nil

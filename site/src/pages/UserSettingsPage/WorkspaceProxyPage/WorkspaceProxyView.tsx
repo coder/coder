@@ -1,7 +1,6 @@
 import type { FC } from "react";
 import type { Region } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -18,6 +17,7 @@ import {
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { ProxyRow } from "./WorkspaceProxyRow";
@@ -45,7 +45,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 	permissions,
 }) => {
 	return (
-		<div className="flex flex-col gap-4">
+		<div>
 			<SettingsHeader
 				actions={
 					<SettingsHeaderDocsLink
@@ -61,14 +61,20 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 			</SettingsHeader>
 
 			{showPaywall ? (
-				<PaywallPremium
+				<PremiumPaywall
+					source="workspace_proxies"
 					message="Workspace Proxies"
-					description="Workspace proxies provide low-latency connections for geo-distributed teams. You need a Premium license to use this feature."
-					documentationLink={docs("/admin/networking/workspace-proxies")}
+					description="Provide low-latency connections for geo-distributed teams."
+					features={[
+						"Low-latency connections for global teams",
+						"Automatic lowest-latency proxy selection",
+						"Relay for SSH, apps, and ports",
+						"Per-proxy latency and health metrics",
+					]}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (
-				<>
+				<div className="flex flex-col gap-4">
 					{Boolean(getWorkspaceProxiesError) && (
 						<ErrorAlert error={getWorkspaceProxiesError} />
 					)}
@@ -91,7 +97,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 							/>
 						</TableBody>
 					</Table>
-				</>
+				</div>
 			)}
 		</div>
 	);

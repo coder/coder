@@ -141,9 +141,12 @@ type Chat struct {
 	// Context reports the chat's pinned workspace-context state and
 	// whether it has drifted from the agent's latest pushed snapshot.
 	// Nil when the chat has no pinned context yet.
-	Context    *ChatContext   `json:"context,omitempty"`
-	Warnings   []string       `json:"warnings,omitempty"`
-	ClientType ChatClientType `json:"client_type"`
+	Context *ChatContext `json:"context,omitempty"`
+	// QueuedForCapacity reports that the chat is waiting for a concurrent
+	// agent slot. Single-chat reads derive it; list responses leave it false.
+	QueuedForCapacity bool           `json:"queued_for_capacity,omitempty"`
+	Warnings          []string       `json:"warnings,omitempty"`
+	ClientType        ChatClientType `json:"client_type"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
 	// is present as []. Child chats cannot create their own
@@ -239,6 +242,7 @@ type ChatFileMetadata struct {
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 	Name           string    `json:"name"`
 	MimeType       string    `json:"mime_type"`
+	SizeBytes      int64     `json:"size_bytes"`
 	CreatedAt      time.Time `json:"created_at" format:"date-time"`
 }
 
@@ -672,6 +676,16 @@ type EditChatMessageResponse struct {
 // UploadChatFileResponse is the response from uploading a chat file.
 type UploadChatFileResponse struct {
 	ID uuid.UUID `json:"id" format:"uuid"`
+}
+
+// ChatFileDownloadURLResponse contains a short-lived URL for downloading a chat file.
+type ChatFileDownloadURLResponse struct {
+	URL       string    `json:"url" format:"uri"`
+	ExpiresAt time.Time `json:"expires_at" format:"date-time"`
+	SHA256    string    `json:"sha256"`
+	SizeBytes int64     `json:"size_bytes"`
+	Name      string    `json:"name"`
+	MimeType  string    `json:"mime_type"`
 }
 
 // ChatMessagesResponse contains the messages and queued messages for a chat.
@@ -1377,8 +1391,9 @@ type ChatModelAnthropicProviderOptions struct {
 
 // ChatModelGoogleThinkingConfig configures Google thinking behavior.
 type ChatModelGoogleThinkingConfig struct {
-	ThinkingBudget  *int64 `json:"thinking_budget,omitempty" description:"Maximum number of tokens the model may use for thinking"`
-	IncludeThoughts *bool  `json:"include_thoughts,omitempty" description:"Whether to include thinking content in the response"`
+	ThinkingBudget  *int64  `json:"thinking_budget,omitempty" description:"Maximum number of tokens the model may use for thinking (cannot be used with thinking_level)" conflicts_with:"thinking_config.thinking_level"`
+	ThinkingLevel   *string `json:"thinking_level,omitempty" description:"Thinking level for Gemini 3+ models, used when the user has not selected a reasoning effort (cannot be used with thinking_budget)" enum:"minimal,low,medium,high" conflicts_with:"thinking_config.thinking_budget"`
+	IncludeThoughts *bool   `json:"include_thoughts,omitempty" description:"Whether to include thinking content in the response"`
 }
 
 // ChatModelGoogleSafetySetting configures Google safety filtering.
@@ -1967,7 +1982,7 @@ type ListChatsOptions struct {
 func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat, error) {
 	var reqOpts []RequestOption
 	if opts != nil {
-		reqOpts = append(reqOpts, opts.Pagination.asRequestOption())
+		reqOpts = append(reqOpts, opts.asRequestOption())
 		query := opts.Query
 		if opts.Source != "" {
 			if query != "" {
@@ -3064,10 +3079,10 @@ func (c *ExperimentalClient) InterruptChat(ctx context.Context, chatID uuid.UUID
 	return chat, ReadBodyAsJSON(res, &chat)
 }
 
-// CompactChat requests a manual context compaction on an idle chat.
-// The compaction runs asynchronously through the chat worker and
-// bypasses the automatic usage threshold; the chat returns to waiting
-// once the summary is committed.
+// CompactChat requests a manual context compaction on an idle or
+// errored chat, clearing any stored error. The compaction runs
+// asynchronously through the chat worker and bypasses the automatic
+// usage threshold.
 func (c *ExperimentalClient) CompactChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/compact", chatID), nil)
 	if err != nil {
@@ -3161,6 +3176,20 @@ func (c *ExperimentalClient) UploadChatFile(ctx context.Context, organizationID 
 		return UploadChatFileResponse{}, ReadBodyAsError(res)
 	}
 	var resp UploadChatFileResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// ChatFileDownloadURL creates a short-lived download URL for a chat file.
+func (c *ExperimentalClient) ChatFileDownloadURL(ctx context.Context, fileID uuid.UUID) (ChatFileDownloadURLResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/files/%s/download-url", fileID), nil)
+	if err != nil {
+		return ChatFileDownloadURLResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatFileDownloadURLResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatFileDownloadURLResponse
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 

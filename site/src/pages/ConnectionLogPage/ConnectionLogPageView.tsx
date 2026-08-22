@@ -10,11 +10,12 @@ import {
 	PaginationContainer,
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
 import { Table, TableBody } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { ConnectionLogFilter } from "./ConnectionLogFilter";
@@ -49,7 +50,13 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 
 	return (
 		<Margins className="pb-12">
-			<PageHeader>
+			<PageHeader
+				actions={
+					<SettingsHeaderDocsLink
+						href={docs("/admin/monitoring/connection-logs")}
+					/>
+				}
+			>
 				<PageHeaderTitle>
 					<div className="flex flex-row gap-2 items-center">
 						<span>Connection Log</span>
@@ -83,10 +90,15 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 					</PaginationContainer>
 				</>
 			) : (
-				<PaywallPremium
+				<PremiumPaywall
+					source="connection_log"
 					message="Connection logs"
-					description="Connection logs allow you to see how and when users connect to workspaces. You need a Premium license to use this feature."
-					documentationLink={docs("/admin/monitoring/connection-logs")}
+					description="Track every SSH, IDE & port-forward connection."
+					features={[
+						"Full record of SSH, IDE & app sessions",
+						"Filter by organization, user & type",
+						"Export to Splunk & other SIEMs",
+					]}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}

@@ -762,3 +762,52 @@ export const UnsavedChangesPrompt: Story = {
 		).toBeInTheDocument();
 	},
 };
+
+// Regression coverage for #27980. The create form must accept endpoints with
+// single-label hosts such as http://localai:8080/v1.
+export const AddOpenAICompatSingleLabelHost: Story = {
+	args: {
+		initialValues: {
+			type: "openai-compat",
+			name: "localai",
+			baseUrl: "http://localai:8080/v1",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		await userEvent.type(apiKeyInput, "sk-local");
+
+		const submitButton = canvas.getByRole("button", { name: /add provider/i });
+
+		await waitFor(() => expect(submitButton).toBeEnabled());
+
+		await userEvent.click(submitButton);
+		await waitFor(() =>
+			expect(args.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({ baseUrl: "http://localai:8080/v1" }),
+			),
+		);
+	},
+};
+
+export const AddOpenAICompatEmptyEndpointBlocked: Story = {
+	args: {
+		initialValues: {
+			type: "openai-compat",
+			name: "localai",
+			baseUrl: "",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		await userEvent.type(apiKeyInput, "sk-local");
+
+		const submitButton = canvas.getByRole("button", { name: /add provider/i });
+
+		await waitFor(() => expect(submitButton).toBeDisabled());
+	},
+};

@@ -1144,7 +1144,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		require.Equal(t, codersdk.WorkspaceAgentPortShareLevelPublic, template.MaxPortShareLevel)
 
-		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelAuthenticated
+		level := codersdk.WorkspaceAgentPortShareLevelAuthenticated
 		req := codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		}

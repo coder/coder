@@ -27,6 +27,7 @@ import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import {
 	ChatActionsMenuItems,
+	chatFamilyAllowsArchive,
 	chatHasMenuActions,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
@@ -39,9 +40,16 @@ import { getChatDisplayConfig } from "./statusConfig";
 interface ChatTreeNodeProps {
 	readonly chat: Chat;
 	readonly isChildNode: boolean;
+	readonly depth?: number;
 }
 
-export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
+const CHILD_INDENT_PX = 26;
+
+export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
+	chat,
+	isChildNode,
+	depth = 0,
+}) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
 	const {
@@ -126,8 +134,11 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const {
 		icon: StatusIcon,
 		className: statusClassName,
+		label: statusLabel,
+		prIcon,
 		diffStatus,
 	} = getChatDisplayConfig(chat);
+	const PRIcon = prIcon?.icon;
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;
@@ -144,12 +155,21 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		isArchived: chat.archived,
 		isChildChat: isChildNode,
 	});
+
+	const hoverLayout =
+		"[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
+	const activeLayout =
+		"has-[[aria-current=page]]:-mx-2 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[11px]";
 	const sharedMenuItemProps = {
 		isArchived: chat.archived,
 		isPinned: chat.pin_order > 0,
 		isChildChat: isChildNode,
 		hasWorkspace: Boolean(workspaceId),
 		isArchiving,
+		isArchiveBlocked: !chatFamilyAllowsArchive(chat.status, chat.children),
+		subagentCount: childIDs.length,
+		isSubagentsExpanded: isExpanded,
+		onToggleSubagents: () => toggleExpanded(chatID),
 		onPinAgent: () => onPinAgent(chat.id),
 		onUnpinAgent: () => onUnpinAgent(chat.id),
 		onArchiveAgent: () => onArchiveAgent(chat.id),
@@ -173,9 +193,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						className={cn(
 							"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
 							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
-							"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
-							isChildNode &&
-								"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
+							"has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+							hoverLayout,
+							activeLayout,
 						)}
 					>
 						<div
@@ -183,6 +203,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								"group/icon relative mt-1.5 size-5 shrink-0",
 								hasChildren && "cursor-pointer",
 							)}
+							style={
+								depth > 0 ? { marginLeft: depth * CHILD_INDENT_PX } : undefined
+							}
 						>
 							<div
 								className={cn(
@@ -197,6 +220,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											? `agents-tree-executing-${chat.id}`
 											: undefined
 									}
+									role="img"
+									aria-label={statusLabel}
 									className={cn("size-3.5 shrink-0", statusClassName)}
 								/>
 							</div>
@@ -230,7 +255,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										<span
 											className={cn(
 												"block flex-1 truncate text-[13px] text-content-primary",
-												isActive && "font-medium",
+												!isActive &&
+													"opacity-85 [@media(hover:hover)]:group-hover:opacity-100",
 											)}
 										>
 											{chat.title}
@@ -240,6 +266,13 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										)}
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
+										{PRIcon && prIcon && (
+											<PRIcon
+												role="img"
+												aria-label={prIcon.label}
+												className={cn("size-3.5 shrink-0", prIcon.className)}
+											/>
+										)}
 										{hasLinkedDiffStatus && hasLineStats && (
 											<span
 												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
@@ -284,14 +317,17 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											// keep the timestamp visible.
 											hasMenuActions &&
 												"[@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden",
+											hasMenuActions && isActiveChat && "hidden",
 										)}
 									>
 										{chat.has_unread && !isActiveChat ? (
-											<span
-												className="size-2 shrink-0 rounded-full bg-content-link pr-1"
-												data-testid={`unread-indicator-${chat.id}`}
-												aria-hidden="true"
-											/>
+											<span className="flex w-3.5 shrink-0 justify-center">
+												<span
+													className="size-2 rounded-full bg-content-link"
+													data-testid={`unread-indicator-${chat.id}`}
+													aria-hidden="true"
+												/>
+											</span>
 										) : (
 											<>
 												{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
@@ -312,14 +348,33 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									aria-label="Shared chat"
 								/>
 							)}
-							{hasMenuActions && (
+							{hasMenuActions && !isArchivingThisChat && (
 								<DropdownMenu>
 									<DropdownMenuTrigger asChild>
 										<Button
 											size="icon"
 											variant="subtle"
-											className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+											className={cn(
+												"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
+												isActiveChat && "opacity-100",
+											)}
 											aria-label={`Open actions for ${chat.title}`}
+											onContextMenuCapture={(e) => {
+												e.preventDefault();
+												e.stopPropagation();
+											}}
+											onMouseDownCapture={(e) => {
+												if (e.button === 2) {
+													e.preventDefault();
+													e.stopPropagation();
+												}
+											}}
+											onPointerDownCapture={(e) => {
+												if (e.button === 2) {
+													e.preventDefault();
+													e.stopPropagation();
+												}
+											}}
 										>
 											<EllipsisVerticalIcon className="size-3.5" />
 										</Button>
@@ -327,6 +382,14 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									<DropdownMenuContent
 										align="end"
 										className="[&_[role=menuitem]]:text-[13px]"
+										// The dropdown is portaled to the body, but React
+										// portals bubble events through the React tree, so a
+										// right-click inside the menu would still reach the
+										// row's context-menu trigger and open a duplicate menu.
+										onContextMenu={(e) => {
+											e.preventDefault();
+											e.stopPropagation();
+										}}
 									>
 										<ChatActionsMenuItems
 											{...sharedMenuItemProps}
@@ -349,12 +412,17 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			</ContextMenu>
 
 			{hasChildren && isExpanded && (
-				<div className="relative ml-4 flex flex-col border-l border-border-default/60 pl-2.5">
+				<div className="relative flex flex-col">
 					{childIDs.map((childID) => {
 						const childChat = chatById.get(childID);
 						if (!childChat) return null;
 						return (
-							<ChatTreeNode key={childChat.id} chat={childChat} isChildNode />
+							<ChatTreeNode
+								key={childChat.id}
+								chat={childChat}
+								isChildNode
+								depth={depth + 1}
+							/>
 						);
 					})}
 				</div>

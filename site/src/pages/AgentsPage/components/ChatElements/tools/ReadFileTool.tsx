@@ -1,7 +1,7 @@
-import { useTheme } from "@emotion/react";
 import { File as FileViewer } from "@pierre/diffs/react";
 import type React from "react";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { useTheme } from "#/theme/context";
 import { getPathBasename } from "../../../utils/path";
 import { asRecord, asString } from "../runtimeTypeUtils";
 import { ToolCall } from "./ToolCall";
@@ -23,6 +23,8 @@ const ReadFileContent: React.FC<{
 		<ScrollArea
 			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 			viewportClassName="max-h-64"
+			viewportTabIndex={0}
+			viewportAriaLabel={`Contents of ${path}`}
 			orientation="both"
 			scrollBarClassName="w-1.5"
 			horizontalScrollBarClassName="h-1.5"

@@ -508,9 +508,6 @@ export const getWriteFileDiff = (
 	return buildWriteFileDiff(path, content);
 };
 
-/** Height that fits roughly 3 lines of monospace text-xs output. */
-export const COLLAPSED_OUTPUT_HEIGHT = 54;
-
 /** Height for the collapsed report preview (~3 lines of rendered markdown). */
 export const COLLAPSED_REPORT_HEIGHT = 72;
 

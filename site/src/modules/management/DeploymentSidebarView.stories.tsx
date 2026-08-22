@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import {
 	MockBuildInfo,
 	MockNoPermissions,
@@ -14,6 +15,7 @@ const meta: Meta<typeof DeploymentSidebarView> = {
 	parameters: { showOrganizations: true },
 	args: {
 		permissions: MockPermissions,
+		hidePremiumTab: false,
 		experiments: [],
 		buildInfo: MockBuildInfo,
 	},
@@ -62,5 +64,34 @@ export const NoDeploymentValues: Story = {
 export const NoPermissions: Story = {
 	args: {
 		permissions: MockNoPermissions,
+	},
+};
+
+export const PremiumTabVisible: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByRole("link", { name: "Premium" })).toHaveAttribute(
+			"href",
+			"/deployment/premium",
+		);
+	},
+};
+
+// A licensed, non-trialing deployment has nothing to upsell.
+export const PremiumTabHidden: Story = {
+	args: {
+		hidePremiumTab: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.queryByRole("link", { name: "Premium" }),
+		).not.toBeInTheDocument();
+		// A neighbouring item must survive the change.
+		await expect(
+			canvas.getByRole("link", { name: "Licenses" }),
+		).toBeInTheDocument();
 	},
 };

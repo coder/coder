@@ -658,21 +658,6 @@ func orderProviders(providerSet map[string]struct{}) []string {
 	return ordered
 }
 
-// isGatewayProvider reports whether the provider routes requests to
-// multiple upstream model providers using a "<provider>/<model>" model
-// identifier, where the slash is part of the upstream model ID rather
-// than a hint.
-func isGatewayProvider(provider string) bool {
-	switch provider {
-	case fantasyvercel.Name,
-		fantasyopenrouter.Name,
-		fantasyopenaicompat.Name:
-		return true
-	default:
-		return false
-	}
-}
-
 // NormalizeProvider canonicalizes a provider name.
 func NormalizeProvider(provider string) string {
 	switch strings.ToLower(strings.TrimSpace(provider)) {
@@ -703,21 +688,14 @@ func ResolveModelWithProviderHint(modelName, providerHint string) (provider stri
 		return "", "", xerrors.New("model is required")
 	}
 
-	// Gateway providers (vercel, openrouter, openai-compat) treat the
-	// "<provider>/<model>" slash as part of the upstream model ID, so
-	// parseCanonicalModelRef would incorrectly strip the prefix and
-	// route to the embedded provider name instead. Honor an explicit
-	// gateway hint before attempting canonical-ref parsing.
-	if normalized := NormalizeProvider(providerHint); normalized != "" && isGatewayProvider(normalized) {
-		return normalized, modelName, nil
+	// A valid provider hint is authoritative, so preserve the model ID
+	// instead of interpreting its namespace as a different provider.
+	if provider := NormalizeProvider(providerHint); provider != "" {
+		return provider, modelName, nil
 	}
 
 	if provider, modelID, ok := parseCanonicalModelRef(modelName); ok {
 		return provider, modelID, nil
-	}
-
-	if provider := NormalizeProvider(providerHint); provider != "" {
-		return provider, modelName, nil
 	}
 
 	normalized := strings.ToLower(modelName)
@@ -805,6 +783,27 @@ func AnthropicThinkingDisplayFromChat(value *string) *fantasyanthropic.ThinkingD
 	}
 	valueCopy := fantasyanthropic.ThinkingDisplay(*display)
 	return &valueCopy
+}
+
+// GoogleThinkingLevelFromChat normalizes chat-config thinking level values
+// for Google and returns the canonical provider level value.
+func GoogleThinkingLevelFromChat(value *string) *fantasygoogle.ThinkingLevel {
+	if value == nil {
+		return nil
+	}
+
+	normalized := strings.ToLower(strings.TrimSpace(*value))
+	if normalized == "" {
+		return nil
+	}
+
+	return chatutil.NormalizedEnumValue(
+		normalized,
+		fantasygoogle.ThinkingLevelMinimal,
+		fantasygoogle.ThinkingLevelLow,
+		fantasygoogle.ThinkingLevelMedium,
+		fantasygoogle.ThinkingLevelHigh,
+	)
 }
 
 // Header constants sent on upstream LLM API requests so that
@@ -903,7 +902,7 @@ func ModelFromConfig(
 
 	apiKey := providerKeys.APIKey(provider)
 	if apiKey == "" &&
-		!(ProviderAllowsAmbientCredentials(provider) && providerKeys.HasProvider(provider)) {
+		(!ProviderAllowsAmbientCredentials(provider) || !providerKeys.HasProvider(provider)) {
 		return Model{}, missingProviderAPIKeyError(provider)
 	}
 	baseURL := providerKeys.BaseURL(provider)
@@ -1121,7 +1120,12 @@ func providerOptionsFromChatModelConfig(
 		)
 	}
 	if options.Google != nil {
+		var modelID string
+		if model.Valid() {
+			modelID = model.ModelID()
+		}
 		result[fantasygoogle.Name] = googleProviderOptionsFromChatConfig(
+			modelID,
 			options.Google,
 		)
 	}
@@ -1139,6 +1143,18 @@ func providerOptionsFromChatModelConfig(
 		result[fantasyvercel.Name] = vercelProviderOptionsFromChatConfig(
 			options.Vercel,
 		)
+	}
+
+	// Google models backed by an AI Provider route through the
+	// OpenAI-compatible client, which ignores the fantasygoogle options key,
+	// so a pinned thinking configuration must also travel as the compat
+	// request's extra_body for the transport patch to honor it.
+	if options.Google != nil && options.Google.ThinkingConfig != nil &&
+		model.Valid() && NormalizeProvider(model.Provider()) == fantasyopenaicompat.Name {
+		if extraBody := googleCompatExtraBodyFromThinkingConfig(model.ModelID(), options.Google.ThinkingConfig); extraBody != nil {
+			compatOptions := ensureProviderOptions[fantasyopenaicompat.ProviderOptions](result, fantasyopenaicompat.Name)
+			compatOptions.ExtraBody = extraBody
+		}
 	}
 
 	if len(result) == 0 {
@@ -1164,6 +1180,7 @@ func anthropicProviderOptionsFromChatConfig(
 }
 
 func googleProviderOptionsFromChatConfig(
+	modelID string,
 	options *codersdk.ChatModelGoogleProviderOptions,
 ) *fantasygoogle.ProviderOptions {
 	result := &fantasygoogle.ProviderOptions{
@@ -1174,6 +1191,18 @@ func googleProviderOptionsFromChatConfig(
 		result.ThinkingConfig = &fantasygoogle.ThinkingConfig{
 			ThinkingBudget:  options.ThinkingConfig.ThinkingBudget,
 			IncludeThoughts: options.ThinkingConfig.IncludeThoughts,
+		}
+		// Each Gemini model accepts a different thinking_level subset and
+		// pre-Gemini-3 models reject the field entirely, so clamp a pinned
+		// level into the model's supported set and drop it for models
+		// without support. Gating here rather than at config save time
+		// also covers updates that switch a config's model without
+		// resubmitting options.
+		if pinned := GoogleThinkingLevelFromChat(options.ThinkingConfig.ThinkingLevel); pinned != nil {
+			if supported := googleSupportedThinkingLevels(modelID); len(supported) > 0 {
+				level := clampGoogleThinkingLevel(*pinned, supported)
+				result.ThinkingConfig.ThinkingLevel = &level
+			}
 		}
 	}
 	if options.SafetySettings != nil {

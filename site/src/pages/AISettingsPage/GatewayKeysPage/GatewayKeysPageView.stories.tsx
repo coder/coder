@@ -5,6 +5,7 @@ import {
 	MockPermissions,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { docs } from "#/utils/docs";
 import { GatewayKeysPageView } from "./GatewayKeysPageView";
 
 const meta: Meta<typeof GatewayKeysPageView> = {
@@ -79,8 +80,14 @@ export const Paywall: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const cta = canvas.getByRole("link", { name: "Learn about Premium" });
+		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+		await expect(
+			canvas.getByRole("link", { name: /Read the docs/ }),
+		).toHaveAttribute(
+			"href",
+			docs("/ai-coder/ai-gateway/standalone#create-a-gateway-key"),
+		);
 	},
 };
 
@@ -96,7 +103,7 @@ export const PaywallWithoutLicenseAccess: Story = {
 			canvas.getByText(/contact your deployment administrator/i),
 		).toBeVisible();
 		await expect(
-			canvas.queryByRole("link", { name: "Learn about Premium" }),
+			canvas.queryByRole("link", { name: "Start trial for free" }),
 		).not.toBeInTheDocument();
 	},
 };

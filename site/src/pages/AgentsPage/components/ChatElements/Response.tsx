@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import {
 	File as FileViewer,
 	type SupportedLanguages,
@@ -11,6 +10,7 @@ import {
 	type UrlTransform,
 } from "streamdown";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { useTheme } from "#/theme/context";
 import { cn } from "#/utils/cn";
 import { MarkdownImage } from "./MarkdownImage";
 
@@ -193,8 +193,8 @@ const createComponents = (
 		img: ({ src, alt }: MarkdownComponentProps) => (
 			<MarkdownImage src={src} alt={alt} />
 		),
-		// Horizontal rule: reset browser default inset/ridge border
-		// (preflight is disabled) to a clean 1px solid line.
+		// Horizontal rule: render a clean 1px solid line using theme
+		// tokens instead of the default border.
 		hr: () => (
 			<hr className="my-6 border-0 border-t border-solid border-border-default" />
 		),
