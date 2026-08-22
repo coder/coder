@@ -234,6 +234,15 @@ value means spend is under-counted. Because the price book ships with the
 release, a newly launched model is unpriced until you upgrade Coder or set a
 price for it yourself.
 
+Owners also receive a weekly notification listing the models used without a
+price in the past week, so unpriced usage does not depend on watching metrics.
+A model that is priced by any means, including the price book shipped with an
+upgrade, stops appearing. A model that stops being used stops appearing too,
+while one that is still in use is reported every week until it is priced. The
+notification lists at most 100 models and reports the rest as a count. Models
+served by `openai-compat` providers are never listed, because they cannot be
+priced.
+
 ### Configure model prices
 
 Use the experimental `coder exp ai-model-prices` command to set model prices

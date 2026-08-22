@@ -3407,6 +3407,64 @@ func (q *sqlQuerier) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart
 	return items, nil
 }
 
+const getUnpricedAIModelsSince = `-- name: GetUnpricedAIModelsSince :many
+SELECT
+	providers.type::text AS provider_type,
+	interceptions.model AS model,
+	COUNT(*)::bigint AS interceptions
+FROM aibridge_interceptions AS interceptions
+JOIN ai_providers AS providers
+	ON providers.name = interceptions.provider_name
+	AND providers.deleted = false
+WHERE interceptions.started_at >= $1::timestamptz
+	AND providers.type != 'openai-compat'
+	AND NOT EXISTS (
+		SELECT 1
+		FROM ai_model_prices AS prices
+		WHERE prices.provider = providers.type::text
+			AND prices.model = interceptions.model
+	)
+GROUP BY providers.type, interceptions.model
+ORDER BY interceptions DESC, provider_type ASC, model ASC
+`
+
+type GetUnpricedAIModelsSinceRow struct {
+	ProviderType  string `db:"provider_type" json:"provider_type"`
+	Model         string `db:"model" json:"model"`
+	Interceptions int64  `db:"interceptions" json:"interceptions"`
+}
+
+// Returns the models used since the given time that hold no price, most used
+// first. Prices are keyed by the configured provider type, so interceptions
+// are resolved to their provider the same way cost recording resolves them:
+// by provider name, which is unique among live providers. An interception
+// whose provider has since been deleted cannot be resolved to a type and is
+// excluded, matching the unknown-provider path in cost recording.
+// openai-compat providers pass through to any upstream vendor and cannot be
+// priced, so their models are never reported as unpriced.
+func (q *sqlQuerier) GetUnpricedAIModelsSince(ctx context.Context, since time.Time) ([]GetUnpricedAIModelsSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUnpricedAIModelsSince, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUnpricedAIModelsSinceRow
+	for rows.Next() {
+		var i GetUnpricedAIModelsSinceRow
+		if err := rows.Scan(&i.ProviderType, &i.Model, &i.Interceptions); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserAIBudgetOverride = `-- name: GetUserAIBudgetOverride :one
 SELECT user_id, group_id, spend_limit_micros, created_at, updated_at
 FROM user_ai_budget_overrides
