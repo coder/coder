@@ -199,6 +199,91 @@ The rest are worth listing rather than arguing. Each follows from the six above.
 | Mutability     | Trimmed on a retention schedule        | Append only                                     |
 | When written   | Out of band, after the fact            | With the state change it accounts for           |
 
+### Completeness is measured against what a journal purports to record
+
+**Beginning with the case that raised the question.** Every presentation of a
+credential is worth recording, and there are as many of them as there are
+authenticated requests.
+
+**Whether recording all of them is affordable is not ours to settle.** It is a
+customer's judgement about what a complete record is worth against what it
+costs, and different customers will reach different answers. What the design
+owes them is the choice, and a record that stays honest whichever way they take
+it.
+
+The reflex, faced with a volume that may be too high for some, is to record some
+fraction, and recording a fraction is what makes a record a log rather than a
+journal. That looks like a choice between an unaffordable journal and an
+inadequate log. It is not, and the way through is a distinction worth stating on
+its own.
+
+#### The general rule
+
+The requirement that a journal have no gaps is a requirement about gaps in
+**what it says it records**. It has never been a requirement to record
+everything that happens; a credential journal records what happened to
+credentials and is silent about the weather, and nobody calls that a gap.
+
+**So a journal may record a declared subsequence of the events it concerns,
+provided the predicate selecting that subsequence is deterministic.**
+
+**The test supposes a complete record.** Had every event been written down,
+could membership be recomputed from the predicate alone? A predicate over the
+events themselves passes, because nothing about which events it selects was ever
+unknown.
+
+**What is supposed is the record, not the events.** They occurred, and their
+having occurred is not in question; what is hypothetical is only that something
+wrote them all down. An unrecorded event is not thereby a nonexistent one, and a
+rule that would pick it out is a rule that picks it out.
+
+**Sampling fails that test, and the failure can be measured.** Where selection
+is arbitrary, an absent event is ambiguous between not having happened and not
+having been selected, and resolving that ambiguity needs one bit per event that
+nobody recorded. **That missing bit is the gap.** It is why a sampled record
+cannot answer a skeptical party and a declared subsequence can.
+
+The honest formulation is therefore not that a journal records everything, but
+that a journal **records everything it says it records, and says so precisely
+enough that the claim could be checked against the full sequence, were it to
+hand**.
+
+**The membership predicate is part of the journal's definition.** It is not a
+setting applied to a journal, but a term within the definition of which journal
+this is. Two journals with the same columns and different **fixed** predicates
+would be two different journals, and reading the entries of one under the
+other's definition would give wrong answers.
+
+Where the predicate is a parameter rather than fixed, a journal does not become
+a second journal when the parameter changes, precisely because the change is
+recorded. The parameter's value is state, and a change to it is an operation
+recorded as an entry like any other. An order to record everything is such a
+change, and the entry recording it is what keeps membership computable either
+side. A parameter that changed silently would leave it uncomputable across the
+change, which is the earlier ambiguity returning by another route.
+
+#### Returning to the case
+
+The credential journal's predicate, absent an order changing it, selects
+refused presentations and the first accepted presentation in each interval.
+Both are predicates over the events, so an auditor can say of any presentation
+whether an entry was owed for it. What the journal will not answer is how many
+accepted presentations occurred in an interval, and it does not purport to.
+
+**One choice within that predicate is unsettled and worth noting**, because the
+easier reading is probably also the better one. "The first accepted presentation
+in each interval" can mean a sliding window, which asks whether an hour has
+passed since the last entry, or a fixed bucket, which rounds the event's own
+timestamp down and asks whether that bucket already has an entry. The two select
+slightly different events.
+
+The bucket is easier to implement, needing no stored last-recorded time, and
+easier to check, since the bucket an event belongs to is a function of the event
+alone. Nothing has decided between them.
+
+`implementation_patterns.md` carries the mechanism, under "The rule selecting
+what is recorded is itself recorded".
+
 ### Two hazards in the word "journal"
 
 **A journal is not a ledger.** A journal is chronological and a ledger is

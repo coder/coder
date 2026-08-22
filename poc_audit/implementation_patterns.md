@@ -79,6 +79,22 @@ can be read back before the rest are written, which orders the inserts around a
 bookkeeping detail. A named sequence states in the schema what the number is,
 an identifier for an entry rather than for a row.
 
+**An auditor wants to detect a gap in the numbering**, because a missing number
+is what a deleted entry looks like from outside. Consecutive identifiers are
+therefore worth something beyond ordering: they let absence be noticed without
+comparing the journal against anything else.
+
+**This identifier does not support that inference, and the reason is worth
+knowing.** A sequence is not transactional. A transaction that takes a number
+and then rolls back does not give it back, so a gap appears wherever a write
+failed, and failed writes are ordinary. The sequences here are declared
+`CACHE 1`, which removes the other common source of gaps but not this one.
+
+So a gap presently means either a deletion or a rolled back transaction, and
+nothing distinguishes them. Closing that would mean allocating gaplessly, which
+serializes writers, or detecting deletion some other way. **Neither is attempted
+here, and an auditor should not be told the numbering is gapless.**
+
 ### Lines are numbered from zero
 
 The line number is a `smallint` checked non negative, and the first line of
@@ -256,6 +272,63 @@ a row in silence.
 **No foreign key, and none is available.** A journal's primary key is the entry
 identifier together with the line number, so the entry identifier alone is not
 unique, and it cannot be made unique because the lines of one entry share it.
+
+### Annotative fields are named so, and posting never reads them
+
+A journal entry may carry particulars of the event that are no part of what
+posting does with it: which address a credential was presented from, what a
+refusal said, which request an operation belonged to. The paper practice is to
+write them on the same line and ignore them when posting, and that is exactly
+the arrangement wanted here.
+
+**A field whose value posting must not read is named with an `annotation_`
+prefix, or named `annotation` where an entry carries only one.** The name is the
+contract. A reader of the posting code can see at a glance that a field is not
+consulted, and a reader of the journal can see which of an entry's contents bear
+on the ledger and which are there to be read by a person later.
+
+Where a second annotation is added to an entry that had one, the first is
+renamed to take the prefix, so that a reader never has to wonder whether the
+bare name means something the prefixed ones do not.
+
+**Make it checkable rather than reviewable.** A convention enforced by review
+holds until the number of fields outgrows the reviewer's attention, which is the
+same failure the exclusions of system users show elsewhere. A check that posting
+code names no field called `annotation`, or beginning `annotation_`, is cheap
+and does not tire.
+
+Annotations are not a place for anything the ledger needs. A value that turns
+out to affect posting was misnamed, and renaming it is the fix rather than
+making an exception.
+
+### The rule selecting what is recorded is itself recorded
+
+Where a journal records a declared subsequence of events rather than all of
+them, per "Completeness is measured against what a journal purports to record"
+in `journal_vs_log.md`, the declaration has to be recoverable for every entry.
+
+The rule doing the selecting is **state of the entity**, which makes changing it
+an operation like any other, which makes the change an entry. Two mechanisms
+follow and they answer different needs.
+
+**The definition in force is part of the entity's state**, held on the ledger
+row beside the value. It is there because an operator must be able to change it:
+a security responder investigating an incident wants to order the system to
+record everything, and that instruction is a change to the subsequence
+definition rather than a change to the code. An entry recording that change is
+an ordinary entry, so the order to record everything is itself recorded.
+
+**Changes to the default are versioned.** What an entity's definition is when
+nobody has set one comes from the software, and that answer changes between
+releases. A version identifier carried on the entry says which default produced
+it, so an entry written under an earlier release stays interpretable. This is
+the arrangement `ai_sandbox_network_events.policy_revision` uses for the same
+reason: a decision has to remain reconstructable after the rule that produced it
+moves.
+
+Together these make membership computable for any entry: the definition was
+either the one on the row at that time, recorded there by an entry, or the
+default of the version the entry names.
 
 ### A view over a ledger answers "what is usable", and must not verify
 

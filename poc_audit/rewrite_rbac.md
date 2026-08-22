@@ -675,6 +675,63 @@ cannot be observed, and it cannot be made conditional. Removing the holder's
 foreign key removes the reliance, and the credential's ending becomes something
 code does rather than something the storage engine does silently.
 
+### Credential use becomes visible, including the uses that failed
+
+`api_keys.last_used` records when a key was last accepted, and nothing records
+when one was presented and refused. The two differ exactly where it matters: a
+credential being offered after it stopped being valid is the signature of a
+leaked or stale secret, and today it leaves no trace beyond whatever the request
+log happens to keep.
+
+Separating **presentation** from **use** makes that difference recordable, and
+recording each presentation as an entry rather than only its latest time makes
+the particulars available: which credential, offered where, refused why.
+
+Lands with security, and it is the kind of improvement that is hard to retrofit
+onto a column and nearly free once presentation is an event with a record.
+
+### Capability becomes checkable against authorization
+
+An API key's scopes and allow list are **capability**: what the machinery will
+permit the holder to do. Authorization is a different level, an institutional
+fact about what the holder has been permitted to do. Neither reduces to the
+other, and requiring that all capability granting pass through authorization
+would be a category error.
+
+What the rewrite adds is the second level for actors that presently have only
+the first. An AI agent's reach is bounded by its key's scopes and by the roles
+it borrows, and nothing on record says what it was authorized to, so there is
+nothing for those bounds to be compared against.
+
+While the only grant is universal, little comes of the comparison beyond whether
+the grant is valid and whether a credential exists for it. **The value is in
+what it becomes.** Once authorization is elaborated, the reconciliation is that
+an
+actor's capabilities do not exceed their authorization, which is a question
+nothing in the system can presently ask.
+
+### Cost: last use has to move off the credential row
+
+**Extra, and smaller than it first appeared.** This entry is amended: it
+originally concluded that last use belongs in neither a journal nor a ledger,
+which the entity model has since answered.
+
+`last_used` is written on every authenticated request, which makes `api_keys` a
+hot write table. A ledger row changes when something is posted to it, and
+`posting_reference` exists to detect concurrent posting, so a credential ledger
+cannot simply absorb a column rewritten per request. That much stands, and it
+constrains how the two credential stores can be joined.
+
+Where last use goes is now settled rather than open. It is a variable, with a
+journal recording assignments and a ledger holding the value last assigned. The
+cost is moving it and amending the code that reads it, which is mechanical.
+
+**It does not follow that the write volume rises.** The existing behaviour
+already writes at most once per key per hour, and that throttle is expressible
+as the predicate selecting which presentations the journal records. At the
+default the cost is what it is today. A customer ordering that everything be
+recorded raises it, and that is their decision to make.
+
 ### Cost: deciding the hundred and eighty five sites
 
 **Unknown, and it is the largest line in the account.** Part is extra and part

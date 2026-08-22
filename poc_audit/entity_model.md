@@ -116,17 +116,19 @@ subscriber once it is. See below: an AI agent is never one.
 
 ### What is an entity, and which things are
 
-**Everything whose lifecycle needs journaling is an entity.** Two consequences
-decide most hard cases. An entity **need not be an actor**: a sandbox is one and
-does not act, an authorization is one and cannot. And an entity **need not be
-material**: an authorization is purely institutional, which is what the question
-of origin above is for.
+**Everything whose state deserves a complete history is an entity.** Three
+consequences decide most hard cases. An entity **need not be an actor**: a
+sandbox is one and does not act, an authorization is one and cannot. An entity
+**need not be material**: an authorization is purely institutional, which is
+what the question of origin above is for. And an entity **need not have a
+lifecycle**, which is one thing an entity may have rather than what makes it
+one.
 
 Corpus maturity has three levels. `named` means the term is defined and glossed
-and no more. `modelled` means identity, lifecycle, and relations to other
-entities are stated. `settled` means modelled, plus how the machine is read,
-plus the reconciliations it generates. How much of an entity exists in code is a
-separate question, answered in
+and no more. `modelled` means identity, states and operations,
+and relations to other entities are stated. `settled` means modelled, plus how
+those operations are read, plus the reconciliations they generate. How much of
+an entity exists in code is a separate question, answered in
 [Implementation of Entities](implementation_of_entities.md) and nowhere here.
 
 | Entity            | Corpus  |
@@ -434,55 +436,177 @@ is determined by the AI agent alone. **It stops working the moment either an AI
 agent outlives a sandbox or a sandbox holds more than one session**, and it is
 not expected to survive sandboxes becoming journaled entities.
 
-### Lifecycles are state machines either way
+### Entities are described by their states and their operations
 
-Entities and relationships both have lifecycles, and both are describable by a
-state machine. That is the point of commonality, and it is what lets the two be
-treated alike in schema and in code.
+An entity has state, and a set of operations that change it. A journal entry
+records that a particular operation occurred; posting applies it to the ledger.
+**That is the whole of what entities have in common**, and it is what lets them
+be treated alike in schema and in code.
+
+**An entity's definition includes an initial state**, the value its ledger holds
+before anything has been posted to it. For a state machine that state is
+nonexistence, which is analytical: nothing in code need represent it, but a
+machine that omits it cannot say what its first transition proceeds from. An
+account begins at zero. A variable begins uninitialized.
 
 The theory exists for a practical reason: so that people can reason coherently
 about institutional facts by analogy with material entities, which is the mode
 of thought that comes naturally. The analogy is a working convenience and not a
 claim that the two are the same kind of thing.
 
-**Every machine states how it is embodied and how it is read**, in the section
-defining it. A machine says which transitions are legal. It does not say what in
-the world corresponds to one, where the transition arises, or where it is
-perfected. A reader left to infer that will infer something plausible, and the
-next reader will infer something else plausible. Writing the interpretation down
-lets consistency be checked at the start rather than discovered as drift later.
+#### A state machine is the case where every operation is a transition
 
-### Commanded and observed transitions
+Where the operations available to an entity are exactly the transitions of a
+state machine, everything the machine formalism offers comes with them: a finite
+set of states, a legality condition on each operation, and diagrams. That is a
+great convenience and it suits lifecycles particularly well, which is why most
+of the entities here are described that way.
 
-Every transition in a lifecycle state machine is of one of two kinds, and the
-kind settles whose identity the entry carries.
+**It is a special case and not the definition.** A state machine can describe
+things that are not lifecycles, and a lifecycle can be described without one.
+Every entity here that has a lifecycle happens also to be described by a state
+machine, and **that coincidence is historical rather than principled**. Nothing
+should be inferred from it.
 
-A **commanded** transition happens because some party decided it should. The
+#### Not every entity has a lifecycle
+
+A variable does not. Its journal records operations upon it and nothing about
+its beginning or its end.
+
+An upper bound on when it began could be read off its first entry, and a lower
+bound on when it ended off its last. **That is inference from the journal rather
+than something the journal records**, and the difference decides what is in the
+model. Direct evidence is what an entry says. Indirect evidence is what can be
+worked out from a body of entries, and it is not part of the model however
+reliable it is.
+
+To bring a variable's creation into the model, the **container** it is created
+in has to be modelled first, and creation then becomes an operation on that
+container rather than on the variable. Nothing here needs that yet.
+
+#### Entities described by operations that are not transitions
+
+These form a category rather than a single shape. What its members have in
+common is only what the section above gives every entity: a ledger row holding
+a **value**, and entries each recording an operation to apply to it. An entry is
+pending until posted; posting applies the operation. There is no transition, no
+state and no diagram, because the machine vocabulary has nothing to attach to.
+
+**Two members of that category are described below, and they are the two this
+work needs rather than an exhaustive list.** What unites them is not a further
+principle to be stated here; it is the account given under "What an entity is,
+stated formally", which covers transitions equally. The nearest familiar thing
+to each is an account in a conventional ledger.
+
+**A variable takes destructive assignment.** Its row holds the value last
+assigned, and an entry says what to assign. Posting overwrites. The word carries
+the sense it has in a programming language rather than in mathematics.
+
+**An account takes a debit or a credit.** Its row holds a balance, and an entry
+says what to add. Posting accumulates, so the current value is the sum of what
+has been posted rather than the last thing posted.
+
+**They differ in whether posting can fail.** An assignment always succeeds,
+since nothing about the value being replaced can refuse the replacement. A debit
+can be refused, by an insufficient balance or any other condition on the result.
+The pending to posted step is therefore trivial for a variable and consequential
+for an account, and the two want separate posting code rather than one
+implementation with a flag.
+
+Both correct an error the same way, by a further entry, and the two dates
+distinguish a correction from a later genuine operation: a correction carries
+the effective date of the entry it corrects, and a genuine later operation
+carries its own.
+
+#### What an entity is, stated formally
+
+This restates the whole of the section, transitions included, and not only the
+two kinds described just above. It is brief because its purpose is to let a
+reader who knows the vocabulary of functional programming arrive quickly at the
+same place, not to do work the prose has not already done. A reader who does not
+recognise the vocabulary loses nothing by skipping it.
+
+**Take `S` for the state a ledger row holds, and `M` for a monad expressing
+whether an operation may decline to produce one. Then an operation is a Kleisli
+arrow `S -> M S`, the journal is a sequence of them, and the ledger is their
+fold under bind, starting from the initial state the entity's definition
+gives.**
+
+**Posting is where that fold advances.** It applies bind for one entry, so the
+ledger at any moment is the fold over the entries posted so far. An entry not
+yet posted is one the fold has not reached, which is what pending and posted
+name.
+
+**The fold takes journal order**, which is neither the order posting happened to
+run in nor the order the operations occurred in the world. For a state machine
+the difference rarely shows, since a late transition is usually illegal from the
+state reached without it. For a variable it decides the answer outright, the
+value being whatever the last operation folded assigned.
+
+Journal order must therefore be total, which is what the entry identifier taken
+from a sequence is for. A journal whose order is not settled leaves its ledger
+undefined.
+
+Deriving a ledger in journal order is universal bookkeeping practice, with
+perhaps some exception we have not looked for.
+
+**The policy here is to post in journal order, always.** In most cases that
+costs nothing, being had by posting an entry in the same transaction that
+creates it: an entry that is never pending cannot be posted out of order. Where
+that does not hold, and it will not always, either the rule or its
+implementation needs more care than is given here, and the case should be
+settled where it arises rather than by weakening the rule in advance.
+
+**The choice of `M` is the difference between a variable and an account.** Take
+`M` to be the identity monad and every operation is total, so posting cannot
+fail. Take it to be one carrying failure and an operation may refuse, which is
+what a debit needs.
+
+Associativity of Kleisli composition is the useful law: posting entries in
+batches gives the same ledger as posting them one at a time. It is worth
+checking against any new kind of operation, since a kind that broke it would
+make the ledger depend on when posting happened to run.
+
+**Where to start, for a curious reader.** Begin with the distinction described
+just above, between an operation that cannot fail and one that can. Then read
+what a monad is in the two instances used here and no others: the identity
+monad, where nothing can go wrong, and the option or maybe monad, where an
+operation may decline to produce a result. Those two are the formal statement of
+that one distinction, and everything else the word carries elsewhere is unused
+here.
+
+### Commanded and observed operations
+
+Every operation is of one of two kinds, and the kind settles whose identity the
+entry carries. A transition is the case this was first written for, and nothing
+in it is particular to transitions.
+
+A **commanded** operation happens because some party decided it should. The
 actor is the party who commanded it.
 
-An **observed** transition happens of its own accord, and is recorded because
+An **observed** operation happens of its own accord, and is recorded because
 some party noticed. The actor is the party who noticed.
 
-The kind is a property of the transition and not of the occasion. A process
+The kind is a property of the operation and not of the occasion. A process
 returning of its own accord is never something anybody decided, so that
-transition is observed whenever it occurs. Which party fills the role does vary
+operation is observed whenever it occurs. Which party fills the role does vary
 with the occasion, and the entry records whichever it was.
 
 Two things follow. An entity can never be the actor of its own observed
-transitions, which is the rule against an entity writing about itself arriving
-by another road. And an observed transition may be recorded long after it
+operations, which is the rule against an entity writing about itself arriving
+by another road. And an observed operation may be recorded long after it
 occurred, by whoever eventually noticed, which the audit approach addresses
 under the entry's timestamp.
 
-**Transitions are named with the bare verb**: `create`, `finish`, `suspend`.
-Not `created`, and not `creating`. The imperative reads naturally for a
-commanded transition and the declarative for an observed one, and English
+**Operations are named with the bare verb**: `create`, `finish`, `suspend`,
+`assign`. Not `created`, and not `creating`. The imperative reads naturally for
+a commanded operation and the declarative for an observed one, and English
 spells the two alike, so one form serves both.
 
-**A state machine is defined without reference to actors.** The states and the
-transitions stand on their own. An actor is recorded on every entry, but that
-record is kept for forensic purposes. What live operation needs from the machine
-is the current state, not who brought it about.
+**Operations are defined without reference to actors.** The states and the
+operations upon them stand on their own. An actor is recorded on every entry,
+but that record is kept for forensic purposes. What live operation needs is the
+current value, not who brought it about.
 
 ### The AI agent lifecycle
 

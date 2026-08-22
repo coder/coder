@@ -68,20 +68,26 @@ by the thing each entry concerns, and carries the result of those entries taken
 together. So it holds what is currently true, and every word of it is
 downstream of the journal.
 
-Where what is being recorded has a lifecycle, the distinction takes a
-particular and useful form: **with respect to a state machine, a journal
-records transitions and a ledger records states.** That holds for every entity
-in this work, each of which has one. It is a specialization and not the
-definition, and should not be used to gloss the general case: a ledger
-accumulating money carries a balance, which is the state of no machine.
+**A ledger row is the fold of the entries about its subject.** What that fold
+produces depends on what the entries record, which is a property of the entity
+rather than of ledgers; `entity_model.md` gives the account under "Entities are
+described by their states and their operations".
 
-A ledger here is a row for each entity holding its present state, updated in
+Two cases arise in this work. Where the entries record the transitions of a
+state machine, the row holds a state, and the familiar formulation applies: a
+journal records transitions and a ledger records states. Where they record
+assignments or additions, the row holds the value last assigned or the balance
+accumulated, neither of which is the state of any machine. **The first case is
+the more common here and is not the definition**, and using it as one obscures
+the second.
+
+A ledger here is a row for each entity holding its present value, updated in
 place. A reader who has kept paper books should note the difference in form. A
 paper ledger account is a growing list of postings, because paper cannot be
 updated in place, and in the running balance form each line carries the balance
-that resulted from it. That is the same fold over the same transitions, kept as
+that resulted from it. That is the same fold over the same operations, kept as
 a sequence of snapshots rather than in one mutable cell. Nothing is lost by
-keeping it the other way, since the journal already holds every transition.
+keeping it the other way, since the journal already holds every operation.
 
 **Journalizing, posting, and auditing.** Three actions, deliberately
 distinguished from each other. Journalizing is making the original entry.
@@ -416,6 +422,27 @@ with no grant behind it is a capability nobody authorized, which is precisely
 the condition worth detecting. A grant with no credential is authority the
 system has not equipped anyone to exercise, which is a different fault and
 ordinarily a less alarming one.
+
+### What the entry numbering does and does not establish
+
+Entries are numbered from a sequence, which settles their order and so settles
+what the ledger derived from them says. That much can be relied on.
+
+**It does not establish that no entry is missing.** A missing number is what a
+deleted entry would look like from outside, and an auditor reading a gap that
+way would be wrong as often as right: the mechanism allocating the numbers gives
+one out before the write is known to have succeeded, and does not take it back
+when the write fails. Failed writes are ordinary, so gaps are ordinary.
+
+A gap therefore means a deletion or a failed write, indistinguishably. Nothing
+here tells them apart, and no reconciliation can, because both leave exactly the
+same absence and there is nothing outside the journal recording which occurred.
+
+**So the numbering is not evidence of completeness and must not be offered as
+such.** Completeness rests instead on unbypassability, that every path changing
+the state writes an entry, which is a property of the code rather than of the
+numbers. `implementation_patterns.md` carries the mechanism and what closing
+this would cost, under "The entry identifier comes from an explicit sequence".
 
 ### Events that arise together
 
