@@ -435,6 +435,12 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// All users can see OAuth2 provider applications.
 				ResourceOauth2App.Type:      {policy.ActionRead},
 				ResourceWorkspaceProxy.Type: {policy.ActionRead},
+				// All authenticated users can read the non-secret AI
+				// provider catalog so API clients can discover which
+				// providers exist and how to call them through the AI
+				// Gateway. Full provider configuration (keys, base URL,
+				// settings) stays owner-only via ResourceAIProvider.
+				ResourceAIProviderCatalog.Type: {policy.ActionRead},
 			}),
 			denyPermissions...,
 		),

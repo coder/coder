@@ -284,7 +284,9 @@ CREATE TYPE api_key_scope AS ENUM (
     'mcp_server_config:read',
     'mcp_server_config:update',
     'mcp_server_config:delete',
-    'mcp_server_config:share'
+    'mcp_server_config:share',
+    'ai_provider_catalog:*',
+    'ai_provider_catalog:read'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (

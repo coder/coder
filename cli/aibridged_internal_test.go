@@ -500,3 +500,49 @@ func providerNames(providers []aibridge.Provider) []string {
 	}
 	return names
 }
+
+// TestDialectMatchesRoutePrefix pins codersdk.AIProviderType.Dialect and
+// codersdk.AIProviderDialect.GatewayRoutePrefix to the route prefixes the
+// constructed aibridge providers actually mount. The provider catalog
+// endpoint advertises gateway paths computed from those helpers, so this
+// test fails if the advertised path and the mounted route ever drift. It
+// also forces every database provider type to carry a dialect mapping.
+func TestDialectMatchesRoutePrefix(t *testing.T) {
+	t.Parallel()
+
+	for _, typ := range database.AllAIProviderTypeValues() {
+		t.Run(string(typ), func(t *testing.T) {
+			t.Parallel()
+
+			dialect, err := codersdk.AIProviderType(typ).Dialect()
+			require.NoError(t, err, "every ai_provider_type needs a dialect mapping")
+
+			name := "prefix-" + string(typ)
+			spec := aiProviderSpec{
+				Type:    typ,
+				Name:    name,
+				Enabled: true,
+				BaseURL: "https://upstream.example.com",
+				Keys:    []string{"sk-test"},
+			}
+			switch typ {
+			case database.AIProviderTypeBedrock:
+				// Bedrock authenticates via settings, not bearer keys.
+				spec.Keys = nil
+				spec.Bedrock = &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          "anthropic.claude-sonnet-4-20250514-v1:0",
+					SmallFastModel: "anthropic.claude-3-5-haiku-20241022-v1:0",
+				}
+			case database.AIProviderTypeCopilot:
+				// Copilot is always BYOK and accepts no pre-shared keys.
+				spec.Keys = nil
+			}
+
+			provider, err := buildProvider(t.Context(), spec, codersdk.AIBridgeConfig{}, nil)
+			require.NoError(t, err)
+			require.Equal(t, dialect.GatewayRoutePrefix(name), provider.RoutePrefix(),
+				"advertised catalog gateway path must match the mounted aibridge route prefix")
+		})
+	}
+}

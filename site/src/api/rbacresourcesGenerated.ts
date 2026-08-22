@@ -24,6 +24,9 @@ export const RBACResourceActions: Partial<
 		read: "read AI provider configuration",
 		update: "update an AI provider",
 	},
+	ai_provider_catalog: {
+		read: "read the non-secret AI provider catalog",
+	},
 	ai_seat: {
 		create: "record AI seat usage",
 		read: "read AI seat state",

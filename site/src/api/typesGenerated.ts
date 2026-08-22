@@ -487,6 +487,35 @@ export interface AIProviderBedrockSettings {
  */
 export const AIProviderBedrockSettingsVersion = 1;
 
+// From codersdk/aiproviders.go
+/**
+ * AIProviderCatalogEntry describes one configured AI provider with
+ * only the non-secret metadata an API client needs to call it through
+ * the AI Gateway. It intentionally carries no key material, no
+ * upstream base URL, and no type-specific settings.
+ */
+export interface AIProviderCatalogEntry {
+	readonly type: AIProviderType;
+	readonly name: string;
+	readonly display_name: string;
+	readonly icon: string;
+	readonly enabled: boolean;
+	/**
+	 * Dialect is the wire protocol the AI Gateway serves for this
+	 * provider.
+	 */
+	readonly dialect: AIProviderDialect;
+	/**
+	 * GatewayPath is the base path, relative to the deployment access
+	 * URL, that a client should use to reach this provider through the
+	 * AI Gateway, for example /api/v2/ai-gateway/openai/v1. The OpenAI
+	 * dialect includes the /v1 suffix; the Anthropic and Copilot
+	 * dialects expect the version segment in the request path (for
+	 * example /v1/messages).
+	 */
+	readonly gateway_path: string;
+}
+
 // From codersdk/deployment.go
 /**
  * AIProviderConfig represents a single AI provider instance,
@@ -514,6 +543,15 @@ export interface AIProviderConfig {
 	readonly bedrock_model?: string;
 	readonly bedrock_small_fast_model?: string;
 }
+
+// From codersdk/aiproviders.go
+export type AIProviderDialect = "anthropic" | "copilot" | "openai";
+
+export const AIProviderDialects: AIProviderDialect[] = [
+	"anthropic",
+	"copilot",
+	"openai",
+];
 
 // From codersdk/aiproviders.go
 /**
@@ -664,6 +702,8 @@ export type APIKeyScope =
 	| "ai_model_price:read"
 	| "ai_model_price:update"
 	| "ai_provider:*"
+	| "ai_provider_catalog:*"
+	| "ai_provider_catalog:read"
 	| "ai_provider:create"
 	| "ai_provider:delete"
 	| "ai_provider:read"
@@ -910,6 +950,8 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"ai_model_price:read",
 	"ai_model_price:update",
 	"ai_provider:*",
+	"ai_provider_catalog:*",
+	"ai_provider_catalog:read",
 	"ai_provider:create",
 	"ai_provider:delete",
 	"ai_provider:read",
@@ -7875,6 +7917,7 @@ export const RBACActions: RBACAction[] = [
 export type RBACResource =
 	| "ai_gateway_key"
 	| "ai_provider"
+	| "ai_provider_catalog"
 	| "ai_model_price"
 	| "ai_seat"
 	| "aibridge_interception"
@@ -7929,6 +7972,7 @@ export type RBACResource =
 export const RBACResources: RBACResource[] = [
 	"ai_gateway_key",
 	"ai_provider",
+	"ai_provider_catalog",
 	"ai_model_price",
 	"ai_seat",
 	"aibridge_interception",

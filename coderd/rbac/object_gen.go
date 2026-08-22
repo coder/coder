@@ -43,6 +43,13 @@ var (
 		Type: "ai_provider",
 	}
 
+	// ResourceAIProviderCatalog
+	// Valid Actions
+	//  - "ActionRead" :: read the non-secret AI provider catalog
+	ResourceAIProviderCatalog = Object{
+		Type: "ai_provider_catalog",
+	}
+
 	// ResourceAiSeat
 	// Valid Actions
 	//  - "ActionCreate" :: record AI seat usage
@@ -513,6 +520,7 @@ func AllResources() []Objecter {
 		ResourceAIGatewayKey,
 		ResourceAiModelPrice,
 		ResourceAIProvider,
+		ResourceAIProviderCatalog,
 		ResourceAiSeat,
 		ResourceAibridgeInterception,
 		ResourceApiKey,

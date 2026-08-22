@@ -346,7 +346,7 @@ export const QueuedForCapacityCommunityAdmin: Story = {
 		const trialLink = canvas.getByRole("link", {
 			name: /start an unlimited trial/i,
 		});
-		expect(trialLink).toHaveAttribute("href", "https://coder.com/trial");
+		expect(trialLink).toHaveAttribute("href", "/deployment/premium");
 		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
 		expect(learnMoreLink).toHaveAttribute(
 			"href",

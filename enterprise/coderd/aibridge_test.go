@@ -5891,3 +5891,47 @@ func setupGroupAIBudgetTest(t *testing.T) (adminClient *codersdk.Client, group c
 	require.NoError(t, err)
 	return adminClient, g
 }
+
+// TestAIBridgeListModelsResponseShape pins the usage-history models
+// endpoint to its bare-array-of-strings response shape on both the
+// canonical /ai-gateway path and the backward-compatible /aibridge
+// alias. Provider discovery lives on the AI provider catalog endpoint
+// (GET /api/v2/ai/providers/catalog); this response must stay
+// unchanged for existing clients.
+func TestAIBridgeListModelsResponseShape(t *testing.T) {
+	t.Parallel()
+
+	client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	now := dbtime.Now()
+	endedAt := now.Add(time.Minute)
+	_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID:  firstUser.UserID,
+		Provider:     "anthropic",
+		ProviderName: "anthropic-prod",
+		Model:        "claude-4",
+		StartedAt:    now,
+	}, &endedAt)
+	_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID:  firstUser.UserID,
+		Provider:     "openai",
+		ProviderName: "openai-prod",
+		Model:        "gpt-5",
+		StartedAt:    now,
+	}, &endedAt)
+
+	for _, path := range []string{"/api/v2/ai-gateway/models", "/api/v2/aibridge/models"} {
+		res, err := client.Request(ctx, http.MethodGet, path, nil)
+		require.NoError(t, err)
+		body, err := io.ReadAll(res.Body)
+		_ = res.Body.Close()
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, res.StatusCode, "path %s: %s", path, body)
+
+		// A bare JSON array of model strings, no provider attribution.
+		var models []string
+		require.NoError(t, json.Unmarshal(body, &models), "path %s must keep returning a bare []string", path)
+		require.ElementsMatch(t, []string{"claude-4", "gpt-5"}, models)
+	}
+}

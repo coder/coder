@@ -153,6 +153,67 @@ curl -X POST http://coder-server:8080/api/v2/ai/providers \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get the AI provider catalog
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai/providers/catalog \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/ai/providers/catalog`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "dialect": "openai",
+    "display_name": "string",
+    "enabled": true,
+    "gateway_path": "string",
+    "icon": "string",
+    "name": "string",
+    "type": "openai"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AIProviderCatalogEntry](schemas.md#codersdkaiprovidercatalogentry) |
+
+<h3 id="get-the-ai-provider-catalog-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name             | Type                                                               | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                       |
+|------------------|--------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`   | array                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                   |
+| `» dialect`      | [codersdk.AIProviderDialect](schemas.md#codersdkaiproviderdialect) | false    |              | Dialect is the wire protocol the AI Gateway serves for this provider.                                                                                                                                                                                                                                                                             |
+| `» display_name` | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                   |
+| `» enabled`      | boolean                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                   |
+| `» gateway_path` | string                                                             | false    |              | Gateway path is the base path, relative to the deployment access URL, that a client should use to reach this provider through the AI Gateway, for example /api/v2/ai-gateway/openai/v1. The OpenAI dialect includes the /v1 suffix; the Anthropic and Copilot dialects expect the version segment in the request path (for example /v1/messages). |
+| `» icon`         | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                   |
+| `» name`         | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                   |
+| `» type`         | [codersdk.AIProviderType](schemas.md#codersdkaiprovidertype)       | false    |              |                                                                                                                                                                                                                                                                                                                                                   |
+
+#### Enumerated Values
+
+| Property  | Value(s)                                                                                                |
+|-----------|---------------------------------------------------------------------------------------------------------|
+| `dialect` | `anthropic`, `copilot`, `openai`                                                                        |
+| `type`    | `anthropic`, `azure`, `bedrock`, `copilot`, `google`, `openai`, `openai-compat`, `openrouter`, `vercel` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get an AI provider
 
 ### Code samples

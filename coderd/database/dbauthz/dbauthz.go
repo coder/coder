@@ -2937,6 +2937,16 @@ func (q *querier) GetAIProviderByName(ctx context.Context, name string) (databas
 	return q.db.GetAIProviderByName(ctx, name)
 }
 
+func (q *querier) GetAIProviderCatalog(ctx context.Context) ([]database.GetAIProviderCatalogRow, error) {
+	// The catalog row type carries only non-secret provider metadata,
+	// so it is guarded by the broadly-readable ResourceAIProviderCatalog
+	// rather than the owner-only ResourceAIProvider.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProviderCatalog); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIProviderCatalog(ctx)
+}
+
 func (q *querier) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (database.AIProviderKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
 		return database.AIProviderKey{}, err
