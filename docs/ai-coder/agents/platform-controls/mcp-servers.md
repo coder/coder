@@ -58,8 +58,8 @@ read-only field when only one organization is available.
 Each MCP server uses one of five authentication modes. When you change the
 auth type, fields from the previous type are automatically cleared.
 
-Secrets are never returned in API responses — boolean flags indicate whether
-a value is set.
+OAuth2 client secrets, API keys, and custom headers are never returned in API responses.
+Boolean flags indicate whether each value is set.
 
 ### None
 
@@ -149,35 +149,141 @@ Control which tools from a server are available in chat:
 
 ## Coder identity headers
 
-MCP servers configured with `forward_coder_headers = true` receive the
-following identity headers on every outgoing request, alongside the
-auth header for the configured `auth_type`:
+MCP servers configured with `forward_coder_headers = true` receive Coder identity headers on every outgoing request.
+When the server config has a signing secret, Coder also signs the request body and the effective identity header values.
 
-| Header                 | Description                                                                                                  |
-|------------------------|--------------------------------------------------------------------------------------------------------------|
-| `X-Coder-Owner-Id`     | Coder user who owns the chat that issued the tool call.                                                      |
-| `X-Coder-Chat-Id`      | Top-level (parent) chat ID. For root chats this is the chat's own ID; for subchats it is the parent chat ID. |
-| `X-Coder-Subchat-Id`   | Subchat ID. Only present when the request originates from a child chat.                                      |
-| `X-Coder-Workspace-Id` | Workspace associated with the chat, if any.                                                                  |
+| Header                        | Description                                                                               |
+|-------------------------------|-------------------------------------------------------------------------------------------|
+| `X-Coder-Owner-Id`            | Coder user who owns the chat that issued the tool call.                                   |
+| `X-Coder-Chat-Id`             | Top-level parent chat ID. For root chats, this is the chat's own ID.                      |
+| `X-Coder-Subchat-Id`          | Subchat ID. This header is absent for root chats.                                         |
+| `X-Coder-Workspace-Id`        | Workspace associated with the chat. This header is absent when the chat has no workspace. |
+| `X-Coder-Signature-Timestamp` | Unix timestamp in seconds used to limit replay.                                           |
+| `X-Coder-Signature`           | Request signature in the form `v1=<lowercase hexadecimal HMAC-SHA256>`.                   |
 
-Coder sends the same identity headers to LLM providers, so a first-party
-MCP server can correlate a tool call back to the originating chat.
+Coder sends the same identity headers to LLM providers, so a first-party MCP server can correlate a tool call with the originating chat.
 
-Because the headers leak chat identity, the option is **off by
-default** and should only be enabled for first-party or trusted
-internal MCP servers. If the auth header for the configured
-`auth_type` collides with one of these headers, the auth header
-wins.
+### Manage the signing secret
+
+Coder generates a 32-byte random signing secret when you create or update a server with **Forward Coder identity headers** enabled and the server has no secret.
+The mutation response returns the hexadecimal `signing_secret` once.
+Later list and get responses omit `signing_secret` and return only `has_signing_secret`.
+
+> [!WARNING]
+> Copy the signing secret before you close the response.
+> Coder cannot display the same secret again, so losing it requires regeneration and receiver reconfiguration.
+
+To replace the secret in the UI, open the server's actions menu and select **Regenerate signing secret**.
+You can also send `POST /api/experimental/organizations/{organization}/mcp-servers/{id}/regenerate-signing-secret`.
+The response returns the new `signing_secret` once, and the old secret stops verifying requests immediately.
+
+### Signature format
+
+Coder builds this canonical string from the outgoing request.
+The lines use `\n` separators with no trailing newline:
+
+```txt
+v1
+<timestamp from X-Coder-Signature-Timestamp>
+<HTTP method, uppercase>
+<request path including query, for example /api/mcp?x=1>
+<lowercase hexadecimal SHA-256 of the exact request body bytes>
+owner=<value of X-Coder-Owner-Id>
+chat=<value of X-Coder-Chat-Id>
+subchat=<value of X-Coder-Subchat-Id>
+workspace=<value of X-Coder-Workspace-Id>
+```
+
+An absent identity header contributes an empty value after the equals sign.
+A request without a body uses the SHA-256 hash of the empty byte string.
+Coder sets `X-Coder-Signature` to `v1=` followed by the lowercase hexadecimal HMAC-SHA256 of the canonical string, keyed with the server's signing secret.
+The `v1=` prefix identifies the signing algorithm version.
+
+If an auth header for the configured `auth_type` collides with an identity header, the auth header wins.
+Coder signs the effective header value that the request sends.
+
+### Verify signatures
+
+The receiver must hash the raw request body before JSON parsing or other transformations.
+The following TypeScript example verifies the signature and enforces a 300-second timestamp window:
+
+```ts
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+
+type VerifyCoderRequest = {
+  method: string;
+  pathWithQuery: string;
+  rawBody: Uint8Array;
+  headers: Headers;
+  signingSecret: string;
+  nowSeconds?: number;
+};
+
+export function verifyCoderRequest({
+  method,
+  pathWithQuery,
+  rawBody,
+  headers,
+  signingSecret,
+  nowSeconds = Math.floor(Date.now() / 1000),
+}: VerifyCoderRequest): boolean {
+  const timestamp = headers.get("x-coder-signature-timestamp") ?? "";
+  const received = headers.get("x-coder-signature") ?? "";
+  if (!/^\d+$/.test(timestamp) || !received.startsWith("v1=")) {
+    return false;
+  }
+
+  const timestampSeconds = Number(timestamp);
+  if (
+    !Number.isSafeInteger(timestampSeconds) ||
+    Math.abs(nowSeconds - timestampSeconds) > 300
+  ) {
+    return false;
+  }
+
+  const bodyHash = createHash("sha256").update(rawBody).digest("hex");
+  const canonical = [
+    "v1",
+    timestamp,
+    method.toUpperCase(),
+    pathWithQuery,
+    bodyHash,
+    `owner=${headers.get("x-coder-owner-id") ?? ""}`,
+    `chat=${headers.get("x-coder-chat-id") ?? ""}`,
+    `subchat=${headers.get("x-coder-subchat-id") ?? ""}`,
+    `workspace=${headers.get("x-coder-workspace-id") ?? ""}`,
+  ].join("\n");
+  const expected = `v1=${createHmac("sha256", signingSecret)
+    .update(canonical)
+    .digest("hex")}`;
+  const receivedBytes = Buffer.from(received, "utf8");
+  const expectedBytes = Buffer.from(expected, "utf8");
+
+  return (
+    receivedBytes.length === expectedBytes.length &&
+    timingSafeEqual(receivedBytes, expectedBytes)
+  );
+}
+```
+
+Use the raw request target for `pathWithQuery`, including its leading slash and query string.
+Receivers MUST use constant-time comparison for the signature.
+Receivers MUST treat the identity headers as trustworthy only after signature verification succeeds.
+Reject requests when the timestamp differs from the receiver's current time by more than 300 seconds.
+This timestamp window is the `v1` replay bound because `v1` has no nonce or replay cache.
+
+Because the identity headers disclose chat identity, **Forward Coder identity headers** is off by default.
+Enable it only for first-party or trusted internal MCP servers.
 
 ## Permissions
 
-| Action                    | Required role              |
-|---------------------------|----------------------------|
-| Create, update, or delete | Organization admin         |
-| View enabled servers      | Member granted through ACL |
-| OAuth2 connect            | Member granted through ACL |
-| OAuth2 disconnect         | Token owner                |
-| Manage ACLs               | Organization admin         |
+| Action                                                   | Required role              |
+|----------------------------------------------------------|----------------------------|
+| Create, update, delete, or regenerate the signing secret | Organization admin         |
+| View enabled servers                                     | Member granted through ACL |
+| OAuth2 connect                                           | Member granted through ACL |
+| OAuth2 disconnect                                        | Token owner                |
+| Manage ACLs                                              | Organization admin         |
 
 Disconnect only needs a valid session: users removed from the ACL or the
 organization can still delete their stored token and revoke the provider

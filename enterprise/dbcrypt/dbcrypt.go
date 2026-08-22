@@ -657,7 +657,10 @@ func (db *dbCrypt) decryptMCPServerConfig(cfg *database.MCPServerConfig) error {
 	if err := db.decryptField(&cfg.APIKeyValue, cfg.APIKeyValueKeyID); err != nil {
 		return err
 	}
-	return db.decryptField(&cfg.CustomHeaders, cfg.CustomHeadersKeyID)
+	if err := db.decryptField(&cfg.CustomHeaders, cfg.CustomHeadersKeyID); err != nil {
+		return err
+	}
+	return db.decryptField(&cfg.SigningSecret, cfg.SigningSecretKeyID)
 }
 
 // decryptMCPServerUserToken decrypts all encrypted fields on a
@@ -832,6 +835,11 @@ func (db *dbCrypt) InsertMCPServerConfig(ctx context.Context, params database.In
 	} else if err := db.encryptField(&params.CustomHeaders, &params.CustomHeadersKeyID); err != nil {
 		return database.MCPServerConfig{}, err
 	}
+	if strings.TrimSpace(params.SigningSecret) == "" {
+		params.SigningSecretKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.SigningSecret, &params.SigningSecretKeyID); err != nil {
+		return database.MCPServerConfig{}, err
+	}
 
 	cfg, err := db.Store.InsertMCPServerConfig(ctx, params)
 	if err != nil {
@@ -859,8 +867,30 @@ func (db *dbCrypt) UpdateMCPServerConfig(ctx context.Context, params database.Up
 	} else if err := db.encryptField(&params.CustomHeaders, &params.CustomHeadersKeyID); err != nil {
 		return database.MCPServerConfig{}, err
 	}
+	if strings.TrimSpace(params.SigningSecret) == "" {
+		params.SigningSecretKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.SigningSecret, &params.SigningSecretKeyID); err != nil {
+		return database.MCPServerConfig{}, err
+	}
 
 	cfg, err := db.Store.UpdateMCPServerConfig(ctx, params)
+	if err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	if err := db.decryptMCPServerConfig(&cfg); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	return cfg, nil
+}
+
+func (db *dbCrypt) UpdateMCPServerConfigSigningSecret(ctx context.Context, params database.UpdateMCPServerConfigSigningSecretParams) (database.MCPServerConfig, error) {
+	if strings.TrimSpace(params.SigningSecret) == "" {
+		params.SigningSecretKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.SigningSecret, &params.SigningSecretKeyID); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+
+	cfg, err := db.Store.UpdateMCPServerConfigSigningSecret(ctx, params)
 	if err != nil {
 		return database.MCPServerConfig{}, err
 	}

@@ -10353,6 +10353,21 @@ func (mr *MockStoreMockRecorder) UpdateMCPServerConfigACLByID(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMCPServerConfigACLByID", reflect.TypeOf((*MockStore)(nil).UpdateMCPServerConfigACLByID), ctx, arg)
 }
 
+// UpdateMCPServerConfigSigningSecret mocks base method.
+func (m *MockStore) UpdateMCPServerConfigSigningSecret(ctx context.Context, arg database.UpdateMCPServerConfigSigningSecretParams) (database.MCPServerConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateMCPServerConfigSigningSecret", ctx, arg)
+	ret0, _ := ret[0].(database.MCPServerConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateMCPServerConfigSigningSecret indicates an expected call of UpdateMCPServerConfigSigningSecret.
+func (mr *MockStoreMockRecorder) UpdateMCPServerConfigSigningSecret(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMCPServerConfigSigningSecret", reflect.TypeOf((*MockStore)(nil).UpdateMCPServerConfigSigningSecret), ctx, arg)
+}
+
 // UpdateMCPServerUserTokenFromRefresh mocks base method.
 func (m *MockStore) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
 	m.ctrl.T.Helper()

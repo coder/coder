@@ -7,10 +7,7 @@ import { MockCoderMCPServer } from "../testFixtures";
 import UpdateMCPServerPageView from "./UpdateMCPServerPageView";
 
 const onUpdateServer = fn(
-	async (
-		_id: string,
-		req: TypesGen.UpdateMCPServerConfigRequest,
-	): Promise<unknown> => req,
+	async (_id: string, _req: TypesGen.UpdateMCPServerConfigRequest) => ({}),
 );
 
 const meta: Meta<typeof UpdateMCPServerPageView> = {
@@ -22,10 +19,12 @@ const meta: Meta<typeof UpdateMCPServerPageView> = {
 		organization: MockDefaultOrganization,
 		listPath: "/ai/settings/mcp-servers",
 		isSaving: false,
+		isRegeneratingSigningSecret: false,
 		canSelectUserOIDC: true,
 		isDeleting: false,
 		onUpdateServer,
 		onDeleteServer: fn(async () => undefined),
+		onRegenerateSigningSecret: fn(),
 		onToggleEnabled: fn(),
 		onCancel: fn(),
 	},
@@ -49,6 +48,7 @@ export const Default: Story = {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		).toBeVisible();
+		await expect(canvas.getByText("Signing enabled")).toBeVisible();
 		await expect(canvas.getByLabelText(/display name/i)).toHaveValue("Coder");
 		await userEvent.click(
 			canvas.getByRole("button", { name: /authentication/i }),
@@ -71,6 +71,20 @@ export const Default: Story = {
 			);
 		});
 		expect(onUpdateServer.mock.calls[0]?.[1]).not.toHaveProperty("enabled");
+	},
+};
+
+export const RegenerateSigningSecret: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Server actions" }),
+		);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			body.getByRole("menuitem", { name: "Regenerate signing secret" }),
+		);
+		await expect(args.onRegenerateSigningSecret).toHaveBeenCalledOnce();
 	},
 };
 
@@ -100,6 +114,7 @@ export const UserOIDCRequiresDeploymentPermission: Story = {
 export const DeleteOnly: Story = {
 	args: {
 		onUpdateServer: undefined,
+		onRegenerateSigningSecret: undefined,
 		onToggleEnabled: undefined,
 	},
 	play: async ({ canvasElement }) => {

@@ -1,4 +1,9 @@
-import { ArrowLeftIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
+import {
+	ArrowLeftIcon,
+	EllipsisVerticalIcon,
+	RefreshCwIcon,
+	TrashIcon,
+} from "lucide-react";
 import { type FC, useId } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -39,6 +44,7 @@ interface MCPServerFormHeaderProps {
 	isEditing: boolean;
 	isDisabled: boolean;
 	onRequestDelete?: () => void;
+	onRegenerateSigningSecret?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
 }
 
@@ -50,6 +56,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	isEditing,
 	isDisabled,
 	onRequestDelete,
+	onRegenerateSigningSecret,
 	onToggleEnabled,
 }) => {
 	const disabledReasonId = useId();
@@ -59,30 +66,41 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 		<>
 			<div className="flex items-center justify-between">
 				{listPath && <MCPServerFormBackLink to={listPath} />}
-				{isEditing && server && onRequestDelete && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="subtle"
-								size="icon"
-								type="button"
-								disabled={isDisabled}
-								aria-label="Server actions"
-							>
-								<EllipsisVerticalIcon />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onClick={onRequestDelete}
-							>
-								<TrashIcon />
-								Remove
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				)}
+				{isEditing &&
+					server &&
+					(onRequestDelete ||
+						(server.has_signing_secret && onRegenerateSigningSecret)) && (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="subtle"
+									size="icon"
+									type="button"
+									disabled={isDisabled}
+									aria-label="Server actions"
+								>
+									<EllipsisVerticalIcon />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								{server.has_signing_secret && onRegenerateSigningSecret && (
+									<DropdownMenuItem onClick={onRegenerateSigningSecret}>
+										<RefreshCwIcon />
+										Regenerate signing secret
+									</DropdownMenuItem>
+								)}
+								{onRequestDelete && (
+									<DropdownMenuItem
+										className="text-content-destructive focus:text-content-destructive"
+										onClick={onRequestDelete}
+									>
+										<TrashIcon />
+										Remove
+									</DropdownMenuItem>
+								)}
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)}
 			</div>
 			<div className="flex items-center justify-between gap-4">
 				<div className="flex min-w-0 items-center gap-4">
@@ -102,6 +120,11 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 					{isEditing && server && !server.enabled && (
 						<Badge variant="default">Disabled</Badge>
 					)}
+					{isEditing &&
+						server?.forward_coder_headers &&
+						server.has_signing_secret && (
+							<Badge variant="default">Signing enabled</Badge>
+						)}
 				</div>
 				{isEditing && server && (
 					<div className="flex shrink-0 items-center gap-2">

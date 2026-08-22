@@ -5472,6 +5472,14 @@ func (m queryMetricsStore) UpdateMCPServerConfigACLByID(ctx context.Context, arg
 	return r0
 }
 
+func (m queryMetricsStore) UpdateMCPServerConfigSigningSecret(ctx context.Context, arg database.UpdateMCPServerConfigSigningSecretParams) (database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateMCPServerConfigSigningSecret(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateMCPServerConfigSigningSecret").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateMCPServerConfigSigningSecret").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateMCPServerUserTokenFromRefresh(ctx, arg)

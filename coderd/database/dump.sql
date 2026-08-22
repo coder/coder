@@ -2566,6 +2566,8 @@ CREATE TABLE mcp_server_configs (
     organization_id uuid NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    signing_secret text DEFAULT ''::text NOT NULL,
+    signing_secret_key_id text,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
@@ -5354,6 +5356,9 @@ ALTER TABLE ONLY mcp_server_configs
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_signing_secret_key_id_fkey FOREIGN KEY (signing_secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;

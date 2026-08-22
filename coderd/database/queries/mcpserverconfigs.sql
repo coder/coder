@@ -94,6 +94,8 @@ INSERT INTO mcp_server_configs (
     api_key_value_key_id,
     custom_headers,
     custom_headers_key_id,
+    signing_secret,
+    signing_secret_key_id,
     tool_allow_list,
     tool_deny_list,
     availability,
@@ -127,6 +129,8 @@ INSERT INTO mcp_server_configs (
     sqlc.narg('api_key_value_key_id')::text,
     @custom_headers::text,
     sqlc.narg('custom_headers_key_id')::text,
+    @signing_secret::text,
+    sqlc.narg('signing_secret_key_id')::text,
     @tool_allow_list::text[],
     @tool_deny_list::text[],
     @availability::text,
@@ -165,6 +169,8 @@ SET
     api_key_value_key_id = sqlc.narg('api_key_value_key_id')::text,
     custom_headers = @custom_headers::text,
     custom_headers_key_id = sqlc.narg('custom_headers_key_id')::text,
+    signing_secret = @signing_secret::text,
+    signing_secret_key_id = sqlc.narg('signing_secret_key_id')::text,
     tool_allow_list = @tool_allow_list::text[],
     tool_deny_list = @tool_deny_list::text[],
     availability = @availability::text,
@@ -188,6 +194,19 @@ SET
     updated_at = NOW()
 WHERE
     id = @id::uuid;
+
+-- name: UpdateMCPServerConfigSigningSecret :one
+UPDATE
+    mcp_server_configs
+SET
+    signing_secret = @signing_secret::text,
+    signing_secret_key_id = sqlc.narg('signing_secret_key_id')::text,
+    updated_by = @updated_by::uuid,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
 
 -- name: DeleteMCPServerConfigByID :exec
 DELETE FROM
