@@ -750,6 +750,7 @@ type DeploymentValues struct {
 	WorkspaceHostnameSuffix                 serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 	Prebuilds                               PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	EnableAITasks                           serpent.Bool                         `json:"enable_ai_tasks,omitempty" typescript:",notnull"`
+	MCPAllowedPrivateCIDRs                  serpent.StringArray                  `json:"mcp_allowed_private_cidrs,omitempty" typescript:",notnull"`
 	AI                                      AIConfig                             `json:"ai,omitempty"`
 	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
 	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
@@ -1548,6 +1549,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 communicating directly.`,
 			YAML: "cluster",
 		}
+		deploymentGroupMCP = serpent.Group{
+			Name: "MCP",
+			YAML: "mcp",
+		}
 		deploymentGroupIntrospection = serpent.Group{
 			Name:        "Introspection",
 			Description: `Configure logging, tracing, stat collection, and metrics exporting.`,
@@ -2273,6 +2278,16 @@ communicating directly.`,
 		Group:       &deploymentGroupAIGatewayProxy,
 		YAML:        "upstream_proxy_ca",
 	}
+	mcpAllowedPrivateCIDRs := serpent.Option{
+		Name:        "MCP Allowed Private CIDRs",
+		Description: "MCP server destinations in private or reserved IP ranges are blocked by default for SSRF protection. This applies to OAuth2 discovery, OAuth2 token and revocation exchanges, and runtime MCP connections from coderd. This option exempts specific CIDRs.",
+		Flag:        "mcp-allowed-private-cidrs",
+		Env:         "CODER_MCP_ALLOWED_PRIVATE_CIDRS",
+		Value:       &c.MCPAllowedPrivateCIDRs,
+		Default:     "",
+		Group:       &deploymentGroupMCP,
+		YAML:        "allowed_private_cidrs",
+	}
 	aiGatewayProxyAllowedPrivateCIDRs := serpent.Option{
 		Name:        "AI Gateway Proxy Allowed Private CIDRs",
 		Description: "Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.",
@@ -2294,6 +2309,7 @@ communicating directly.`,
 		YAML:        "api_dump_dir",
 	}
 	opts := serpent.OptionSet{
+		mcpAllowedPrivateCIDRs,
 		{
 			Name:        "Access URL",
 			Description: `The URL that users will use to access the Coder deployment.`,

@@ -344,6 +344,7 @@ func (server *Server) prepareGeneration(
 				chat.OwnerID,
 				server.oidcTokenSource,
 				chatprovider.CoderHeaders(chat),
+				server.mcpHTTPClient,
 			)
 			return nil
 		})

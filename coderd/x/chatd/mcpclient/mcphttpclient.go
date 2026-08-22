@@ -1,22 +1,28 @@
 package mcpclient
 
 import (
-	"flag"
 	"net/http"
+
+	"github.com/coder/safedial"
 )
 
-func httpClientWithHeaders(headers map[string]string) *http.Client {
-	base := http.DefaultTransport
-	if isolated := mcpHTTPClient(); isolated != nil {
-		base = isolated.Transport
+func httpClientWithHeaders(base *http.Client, headers map[string]string) *http.Client {
+	if base == nil {
+		base = safedial.NewHTTPClient(&http.Client{})
+	} else if base.Transport == nil {
+		base = safedial.NewHTTPClient(base)
 	}
+	client := *base
+	client.CheckRedirect = safedial.CheckSameOriginRedirect
 	if len(headers) == 0 {
-		return &http.Client{Transport: base}
+		return &client
 	}
-	return &http.Client{Transport: &headerRoundTripper{
-		base:    base,
+	transport := base.Transport
+	client.Transport = &headerRoundTripper{
+		base:    transport,
 		headers: headers,
-	}}
+	}
+	return &client
 }
 
 type headerRoundTripper struct {
@@ -30,23 +36,4 @@ func (h *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 		clone.Header.Set(k, v)
 	}
 	return h.base.RoundTrip(clone)
-}
-
-// mcpHTTPClient returns an isolated *http.Client when running
-// inside tests, or nil for production. During tests,
-// httptest.Server.Close() calls
-// http.DefaultTransport.CloseIdleConnections(), which disrupts
-// any MCP client sharing that transport. When DefaultTransport
-// is a *http.Transport it is cloned; otherwise a minimal
-// transport with ProxyFromEnvironment is created as a fallback.
-func mcpHTTPClient() *http.Client {
-	if flag.Lookup("test.v") == nil {
-		return nil
-	}
-	if dt, ok := http.DefaultTransport.(*http.Transport); ok {
-		return &http.Client{Transport: dt.Clone()}
-	}
-	return &http.Client{Transport: &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-	}}
 }
