@@ -1913,9 +1913,13 @@ export const updateChatPlanModeInstructions = (queryClient: QueryClient) => ({
 	},
 });
 
-const chatPersonalModelOverridesAdminSettingsKey = [
+const userChatPersonalModelOverridesKeyRoot = [
 	...chatConfigKey,
 	"personal-model-overrides",
+] as const;
+
+const chatPersonalModelOverridesAdminSettingsKey = [
+	...userChatPersonalModelOverridesKeyRoot,
 	"admin",
 ] as const;
 
@@ -1935,7 +1939,7 @@ export const updateChatPersonalModelOverridesAdminSettings = (
 			queryKey: chatPersonalModelOverridesAdminSettingsKey,
 		});
 		await queryClient.invalidateQueries({
-			queryKey: userChatPersonalModelOverridesKey,
+			queryKey: userChatPersonalModelOverridesKeyRoot,
 		});
 	},
 });
@@ -2101,16 +2105,19 @@ export const updateUserChatCustomPrompt = (queryClient: QueryClient) => ({
 	},
 });
 
-const userChatPersonalModelOverridesKey = [
-	...chatConfigKey,
-	"personal-model-overrides",
-	"me",
-] as const;
+const userChatPersonalModelOverridesKey = (
+	organizationId: string,
+	user: string,
+) => [...userChatPersonalModelOverridesKeyRoot, organizationId, user] as const;
 
-export const userChatPersonalModelOverrides = () => ({
-	queryKey: userChatPersonalModelOverridesKey,
+export const userChatPersonalModelOverrides = (
+	organizationId: string,
+	user = "me",
+) => ({
+	queryKey: userChatPersonalModelOverridesKey(organizationId, user),
 	queryFn: (): Promise<TypesGen.UserChatPersonalModelOverridesResponse> =>
-		API.experimental.getUserChatPersonalModelOverrides(),
+		API.experimental.getUserChatPersonalModelOverrides(organizationId, user),
+	enabled: organizationId !== "",
 });
 
 type UpdateUserChatPersonalModelOverrideArgs = {
@@ -2120,12 +2127,19 @@ type UpdateUserChatPersonalModelOverrideArgs = {
 
 export const updateUserChatPersonalModelOverride = (
 	queryClient: QueryClient,
+	organizationId: string,
+	user = "me",
 ) => ({
 	mutationFn: ({ context, req }: UpdateUserChatPersonalModelOverrideArgs) =>
-		API.experimental.updateUserChatPersonalModelOverride(context, req),
+		API.experimental.updateUserChatPersonalModelOverride(
+			organizationId,
+			user,
+			context,
+			req,
+		),
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
-			queryKey: userChatPersonalModelOverridesKey,
+			queryKey: userChatPersonalModelOverridesKey(organizationId, user),
 		});
 	},
 });
@@ -2385,25 +2399,30 @@ export const chatCost = (rootChatId: string) => ({
 	staleTime: GATEWAY_REQUEST_STALE_MS,
 });
 
-const chatModelOverrideKey = (context: TypesGen.ChatModelOverrideContext) =>
-	[...chatConfigKey, "model-overrides", context] as const;
+const organizationChatModelOverridesKey = (organizationId: string) =>
+	[...chatConfigKey, "model-overrides", organizationId] as const;
 
-export const chatModelOverride = (
-	context: TypesGen.ChatModelOverrideContext,
-) => ({
-	queryKey: chatModelOverrideKey(context),
-	queryFn: () => API.experimental.getChatModelOverride(context),
+export const organizationChatModelOverrides = (organizationId: string) => ({
+	queryKey: organizationChatModelOverridesKey(organizationId),
+	queryFn: () =>
+		API.experimental.getOrganizationChatModelOverrides(organizationId),
+	enabled: organizationId !== "",
 });
 
-export const updateChatModelOverride = (
+export const updateOrganizationChatModelOverride = (
 	queryClient: QueryClient,
+	organizationId: string,
 	context: TypesGen.ChatModelOverrideContext,
 ) => ({
 	mutationFn: (req: TypesGen.UpdateChatModelOverrideRequest) =>
-		API.experimental.updateChatModelOverride(context, req),
+		API.experimental.updateOrganizationChatModelOverride(
+			organizationId,
+			context,
+			req,
+		),
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
-			queryKey: chatModelOverrideKey(context),
+			queryKey: organizationChatModelOverridesKey(organizationId),
 			exact: true,
 		});
 	},

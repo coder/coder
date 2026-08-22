@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatModels,
@@ -14,26 +14,70 @@ import { AgentSettingsUserAgentsPageView } from "./AgentSettingsUserAgentsPageVi
 import { resolveModelSelector } from "./utils/modelOptions";
 
 const AgentSettingsUserAgentsPage: FC = () => {
-	const queryClient = useQueryClient();
 	const { organizations } = useDashboard();
-	const overridesQuery = useQuery(userChatPersonalModelOverrides());
 	const defaultOrganizationId = getDefaultOrganizationId(organizations);
-	const modelsQuery = useQuery(chatModels(defaultOrganizationId));
+	const [selectedOrganizationId, setSelectedOrganizationId] = useState(
+		defaultOrganizationId,
+	);
+	const selectedOrganization =
+		organizations.find(
+			(organization) => organization.id === selectedOrganizationId,
+		) ??
+		organizations.find(
+			(organization) => organization.id === defaultOrganizationId,
+		) ??
+		organizations[0];
+	const organizationId = selectedOrganization?.id ?? "";
+	// Remount on organization change so mutation state (pending saves,
+	// errors) from one organization never renders on another's form.
+	return (
+		<AgentSettingsUserAgentsPageContent
+			key={organizationId}
+			organizations={organizations}
+			selectedOrganization={selectedOrganization}
+			organizationId={organizationId}
+			onSelectOrganization={(organization) =>
+				setSelectedOrganizationId(organization.id)
+			}
+		/>
+	);
+};
+
+interface AgentSettingsUserAgentsPageContentProps {
+	organizations: readonly TypesGen.Organization[];
+	selectedOrganization: TypesGen.Organization | undefined;
+	organizationId: string;
+	onSelectOrganization: (organization: TypesGen.Organization) => void;
+}
+
+const AgentSettingsUserAgentsPageContent: FC<
+	AgentSettingsUserAgentsPageContentProps
+> = ({
+	organizations,
+	selectedOrganization,
+	organizationId,
+	onSelectOrganization,
+}) => {
+	const queryClient = useQueryClient();
+	const overridesQuery = useQuery(
+		userChatPersonalModelOverrides(organizationId),
+	);
+	const modelsQuery = useQuery(chatModels(organizationId));
 	const saveRootModelOverrideMutation = useMutation(
-		updateUserChatPersonalModelOverride(queryClient),
+		updateUserChatPersonalModelOverride(queryClient, organizationId),
 	);
 	const saveGeneralModelOverrideMutation = useMutation(
-		updateUserChatPersonalModelOverride(queryClient),
+		updateUserChatPersonalModelOverride(queryClient, organizationId),
 	);
 	const saveExploreModelOverrideMutation = useMutation(
-		updateUserChatPersonalModelOverride(queryClient),
+		updateUserChatPersonalModelOverride(queryClient, organizationId),
 	);
 
-	const defaultOrgModelConfigs = modelsQuery.data?.models ?? [];
-	const hasDefaultOrgModels = defaultOrgModelConfigs.length > 0;
+	const organizationModelConfigs = modelsQuery.data?.models ?? [];
+	const hasOrganizationModels = organizationModelConfigs.length > 0;
 
 	const { options: modelOptions, isModelCatalogLoading } = resolveModelSelector(
-		defaultOrganizationId,
+		organizationId,
 		modelsQuery,
 	);
 
@@ -59,16 +103,19 @@ const AgentSettingsUserAgentsPage: FC = () => {
 			isRetryingOverrides={overridesQuery.isFetching}
 			isLoadingOverrides={overridesQuery.isLoading}
 			modelOptions={modelOptions}
-			models={defaultOrgModelConfigs}
+			organizations={organizations}
+			selectedOrganization={selectedOrganization}
+			onSelectOrganization={onSelectOrganization}
+			models={organizationModelConfigs}
 			modelsError={modelsQuery.error}
 			isLoadingModels={isModelCatalogLoading}
-			isDefaultOrganizationUnresolved={defaultOrganizationId === ""}
-			hasNoDefaultOrgModels={
-				defaultOrganizationId !== "" &&
+			isOrganizationUnresolved={organizationId === ""}
+			hasNoOrganizationModels={
+				organizationId !== "" &&
 				!modelsQuery.isLoading &&
 				modelsQuery.error === null &&
 				modelsQuery.data !== undefined &&
-				!hasDefaultOrgModels
+				!hasOrganizationModels
 			}
 			onSaveRootModelOverride={saveModelOverride(
 				"root",

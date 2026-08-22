@@ -634,42 +634,6 @@ func validateChatPlanMode(mode codersdk.ChatPlanMode) bool {
 	}
 }
 
-type parsedChatModelOverride struct {
-	modelConfigID   *uuid.UUID
-	reasoningEffort *string
-}
-
-func parseChatModelOverride(raw string) (parsedChatModelOverride, error) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return parsedChatModelOverride{}, nil
-	}
-	rawID, rawEffort, hasEffort := strings.Cut(trimmed, ":")
-	modelConfigID, err := uuid.Parse(rawID)
-	if err != nil {
-		return parsedChatModelOverride{}, xerrors.Errorf("parse chat model override: %w", err)
-	}
-	if hasEffort && rawEffort == "" {
-		return parsedChatModelOverride{}, xerrors.New("parse chat model override: reasoning effort is empty")
-	}
-	parsed := parsedChatModelOverride{modelConfigID: &modelConfigID}
-	if hasEffort {
-		parsed.reasoningEffort = &rawEffort
-	}
-	return parsed, nil
-}
-
-func formatChatModelOverride(id *uuid.UUID, effort *string) string {
-	if id == nil {
-		return ""
-	}
-	formatted := id.String()
-	if effort != nil {
-		formatted += ":" + *effort
-	}
-	return formatted
-}
-
 func lookupEnabledChatModelConfigByID(
 	ctx context.Context,
 	db database.Store,
@@ -763,104 +727,12 @@ func validateChatModelOverride(
 	return validateChatModelOverrideEffort(modelConfig, effort)
 }
 
-func (api *API) getChatModelOverrideConfig(
-	ctx context.Context,
-	settingName string,
-	getter func(context.Context) (string, error),
-) (*uuid.UUID, *string, bool, error) {
-	raw, err := getter(ctx)
-	if err != nil {
-		return nil, nil, false, xerrors.Errorf("get %s model override: %w", settingName, err)
-	}
-	parsed, err := parseChatModelOverride(raw)
-	if err != nil {
-		// Degrade malformed values to unset so the admin settings page
-		// remains accessible and the bad value can be cleared.
-		api.Logger.Warn(
-			ctx,
-			"malformed model override in site config, treating as unset",
-			slog.F("setting", settingName),
-			slog.F("raw_value", raw),
-			slog.Error(err),
-		)
-		return nil, nil, true, nil
-	}
-	return parsed.modelConfigID, parsed.reasoningEffort, false, nil
-}
-
 func parseChatModelOverrideContext(raw string) (codersdk.ChatModelOverrideContext, error) {
 	overrideContext := codersdk.ChatModelOverrideContext(raw)
 	if overrideContext.Valid() {
 		return overrideContext, nil
 	}
 	return "", xerrors.Errorf("unknown chat model override context %q", raw)
-}
-
-type chatModelOverrideSiteConfig struct {
-	label  string
-	getter func(context.Context) (string, error)
-	upsert func(context.Context, string) error
-}
-
-func (api *API) chatModelOverrideSiteConfig(
-	overrideContext codersdk.ChatModelOverrideContext,
-) (chatModelOverrideSiteConfig, error) {
-	switch overrideContext {
-	case codersdk.ChatModelOverrideContextGeneral:
-		return chatModelOverrideSiteConfig{
-			label:  "general",
-			getter: api.Database.GetChatGeneralModelOverride,
-			upsert: api.Database.UpsertChatGeneralModelOverride,
-		}, nil
-	case codersdk.ChatModelOverrideContextExplore:
-		return chatModelOverrideSiteConfig{
-			label:  "explore",
-			getter: api.Database.GetChatExploreModelOverride,
-			upsert: api.Database.UpsertChatExploreModelOverride,
-		}, nil
-	case codersdk.ChatModelOverrideContextTitleGeneration:
-		return chatModelOverrideSiteConfig{
-			label:  "title generation",
-			getter: api.Database.GetChatTitleGenerationModelOverride,
-			upsert: api.Database.UpsertChatTitleGenerationModelOverride,
-		}, nil
-	case codersdk.ChatModelOverrideContextCompaction:
-		return chatModelOverrideSiteConfig{
-			label:  "compaction",
-			getter: api.Database.GetChatCompactionModelOverride,
-			upsert: api.Database.UpsertChatCompactionModelOverride,
-		}, nil
-	default:
-		return chatModelOverrideSiteConfig{}, xerrors.Errorf(
-			"unknown chat model override context %q",
-			overrideContext,
-		)
-	}
-}
-
-func (api *API) readChatModelOverrideConfig(
-	ctx context.Context,
-	overrideContext codersdk.ChatModelOverrideContext,
-) (*uuid.UUID, *string, bool, string, error) {
-	siteConfig, err := api.chatModelOverrideSiteConfig(overrideContext)
-	if err != nil {
-		return nil, nil, false, "", err
-	}
-	id, effort, isMalformed, err := api.getChatModelOverrideConfig(ctx, siteConfig.label, siteConfig.getter)
-	return id, effort, isMalformed, siteConfig.label, err
-}
-
-func (api *API) upsertChatModelOverrideConfig(
-	ctx context.Context,
-	overrideContext codersdk.ChatModelOverrideContext,
-	modelConfigID *uuid.UUID,
-	reasoningEffort *string,
-) (string, error) {
-	siteConfig, err := api.chatModelOverrideSiteConfig(overrideContext)
-	if err != nil {
-		return "", err
-	}
-	return siteConfig.label, siteConfig.upsert(ctx, formatChatModelOverride(modelConfigID, reasoningEffort))
 }
 
 var chatPersonalModelOverrideContexts = []codersdk.ChatPersonalModelOverrideContext{
@@ -891,87 +763,73 @@ func defaultChatPersonalModelOverrideMode(
 	return codersdk.ChatPersonalModelOverrideModeDeploymentDefault
 }
 
-func parseChatPersonalModelOverrideValue(
-	raw string,
-	overrideContext codersdk.ChatPersonalModelOverrideContext,
-) chatd.ParsedChatPersonalModelOverride {
-	defaultMode := defaultChatPersonalModelOverrideMode(overrideContext)
-	parsed := chatd.ParseChatPersonalModelOverride(raw, defaultMode)
-	if overrideContext == codersdk.ChatPersonalModelOverrideContextRoot &&
-		parsed.Mode == codersdk.ChatPersonalModelOverrideModeDeploymentDefault {
-		return chatd.ParsedChatPersonalModelOverride{
-			Mode:      defaultMode,
-			Malformed: true,
-		}
-	}
-	return parsed
-}
-
-func formatChatPersonalModelOverrideValue(
-	mode codersdk.ChatPersonalModelOverrideMode,
-	modelConfigID string,
-	reasoningEffort *string,
-) string {
-	if mode == codersdk.ChatPersonalModelOverrideModeModel {
-		value := string(mode) + ":" + strings.TrimSpace(modelConfigID)
-		if reasoningEffort != nil {
-			value += ":" + *reasoningEffort
-		}
-		return value
-	}
-	return string(mode)
-}
-
 func chatPersonalModelOverrideResponse(
 	overrideContext codersdk.ChatPersonalModelOverrideContext,
-	raw string,
-	isSet bool,
+	row *database.ChatUserModelOverride,
 ) codersdk.ChatPersonalModelOverride {
-	parsed := parseChatPersonalModelOverrideValue(raw, overrideContext)
-	modelConfigID := ""
-	var reasoningEffort *string
-	if parsed.Mode == codersdk.ChatPersonalModelOverrideModeModel {
-		modelConfigID = parsed.ModelConfigID.String()
-		reasoningEffort = parsed.ReasoningEffort
+	response := codersdk.ChatPersonalModelOverride{
+		Context: overrideContext,
+		Mode:    defaultChatPersonalModelOverrideMode(overrideContext),
 	}
-	return codersdk.ChatPersonalModelOverride{
-		Context:         overrideContext,
-		Mode:            parsed.Mode,
-		ModelConfigID:   modelConfigID,
-		ReasoningEffort: reasoningEffort,
-		IsSet:           isSet,
-		IsMalformed:     parsed.Malformed,
+	if row == nil {
+		return response
 	}
+	response.Mode = codersdk.ChatPersonalModelOverrideMode(row.Mode)
+	response.IsSet = true
+	if row.ModelConfigID.Valid {
+		response.ModelConfigID = row.ModelConfigID.UUID.String()
+	}
+	if row.ReasoningEffort.Valid {
+		response.ReasoningEffort = &row.ReasoningEffort.String
+	}
+	return response
+}
+
+func derefOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func chatOrganizationModelOverrideResponse(
+	row database.ChatOrganizationModelOverride,
+) codersdk.ChatModelOverrideResponse {
+	response := codersdk.ChatModelOverrideResponse{
+		Context:       codersdk.ChatModelOverrideContext(row.Context),
+		ModelConfigID: row.ModelConfigID.String(),
+	}
+	if row.ReasoningEffort.Valid {
+		response.ReasoningEffort = &row.ReasoningEffort.String
+	}
+	return response
 }
 
 func (api *API) chatPersonalModelOverrideDeploymentDefaultResponse(
 	ctx context.Context,
+	organizationID uuid.UUID,
 	overrideContext codersdk.ChatModelOverrideContext,
 ) (codersdk.ChatModelOverrideResponse, error) {
-	// The deployment defaults are global chat configuration, not user-owned
-	// resources. Users may read these values here because the personal settings
-	// UI must explain what deployment_default resolves to.
-	//nolint:gocritic // System context is required to read deployment config.
-	modelConfigID, reasoningEffort, isMalformed, _, err := api.readChatModelOverrideConfig(
-		dbauthz.AsSystemRestricted(ctx),
-		overrideContext,
-	)
+	row, err := api.Database.GetChatOrganizationModelOverride(ctx, database.GetChatOrganizationModelOverrideParams{
+		OrganizationID: organizationID,
+		Context:        string(overrideContext),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return codersdk.ChatModelOverrideResponse{Context: overrideContext}, nil
+	}
 	if err != nil {
 		return codersdk.ChatModelOverrideResponse{}, err
 	}
-	return codersdk.ChatModelOverrideResponse{
-		Context:         overrideContext,
-		ModelConfigID:   formatChatModelOverride(modelConfigID, nil),
-		ReasoningEffort: reasoningEffort,
-		IsMalformed:     isMalformed,
-	}, nil
+	return chatOrganizationModelOverrideResponse(row), nil
 }
 
 func (api *API) chatPersonalModelOverrideDeploymentDefaults(
 	ctx context.Context,
+	organizationID uuid.UUID,
 ) (codersdk.ChatPersonalModelOverrideDeploymentDefaults, error) {
 	general, err := api.chatPersonalModelOverrideDeploymentDefaultResponse(
 		ctx,
+		organizationID,
 		codersdk.ChatModelOverrideContextGeneral,
 	)
 	if err != nil {
@@ -979,6 +837,7 @@ func (api *API) chatPersonalModelOverrideDeploymentDefaults(
 	}
 	explore, err := api.chatPersonalModelOverrideDeploymentDefaultResponse(
 		ctx,
+		organizationID,
 		codersdk.ChatModelOverrideContextExplore,
 	)
 	if err != nil {
@@ -1009,18 +868,6 @@ const (
 	chatModelConfigUnavailableCredentialsMissing      chatModelConfigUnavailableReason = "credentials_missing"
 	chatModelConfigUnavailableOutsideOrganization     chatModelConfigUnavailableReason = "outside_organization"
 )
-
-func defaultOrganizationID(
-	ctx context.Context,
-	db database.Store,
-) (uuid.UUID, error) {
-	//nolint:gocritic // Runtime configuration must be independent of caller permissions.
-	organization, err := db.GetDefaultOrganization(dbauthz.AsChatd(ctx))
-	if err != nil {
-		return uuid.Nil, err
-	}
-	return organization.ID, nil
-}
 
 // getUserChatProviderAvailability returns the enabled chat providers and models
 // the user can access in one organization. Provider configuration uses Chatd
@@ -4353,9 +4200,10 @@ func (api *API) resolveCreateChatModelConfigID(
 		return id, nil, status, resp
 	}
 
-	raw, err := api.Database.GetUserChatPersonalModelOverride(ctx, database.GetUserChatPersonalModelOverrideParams{
-		UserID: userID,
-		Key:    chatd.ChatPersonalModelOverrideKey(codersdk.ChatPersonalModelOverrideContextRoot),
+	override, err := api.Database.GetChatUserModelOverride(ctx, database.GetChatUserModelOverrideParams{
+		UserID:         userID,
+		OrganizationID: req.OrganizationID,
+		Context:        string(codersdk.ChatPersonalModelOverrideContextRoot),
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
@@ -4364,50 +4212,43 @@ func (api *API) resolveCreateChatModelConfigID(
 		}
 	}
 	if err == nil {
-		parsed := parseChatPersonalModelOverrideValue(
-			raw,
-			codersdk.ChatPersonalModelOverrideContextRoot,
-		)
-		if parsed.Malformed {
-			api.Logger.Debug(
-				ctx,
-				"unsupported personal root model override mode, using default model",
-				slog.F("user_id", userID),
-				slog.F("raw_value", raw),
-			)
-		}
-		switch parsed.Mode {
+		switch codersdk.ChatPersonalModelOverrideMode(override.Mode) {
 		case codersdk.ChatPersonalModelOverrideModeChatDefault:
-		// Root chat_default uses the chat organization default.
 		case codersdk.ChatPersonalModelOverrideModeModel:
-			_, reason, err := api.userCanUseChatModelConfig(
-				ctx,
-				userID,
-				req.OrganizationID,
-				parsed.ModelConfigID,
-			)
-			if err != nil {
-				return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
-					Message: "Failed to resolve chat model config.",
-					Detail:  err.Error(),
+			if override.ModelConfigID.Valid {
+				_, reason, err := api.userCanUseChatModelConfig(
+					ctx,
+					userID,
+					req.OrganizationID,
+					override.ModelConfigID.UUID,
+				)
+				if err != nil {
+					return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
+						Message: "Failed to resolve chat model config.",
+						Detail:  err.Error(),
+					}
 				}
+				if reason == chatModelConfigAvailable {
+					var effort *string
+					if override.ReasoningEffort.Valid {
+						effort = &override.ReasoningEffort.String
+					}
+					return override.ModelConfigID.UUID, effort, 0, nil
+				}
+				api.Logger.Debug(
+					ctx,
+					"personal root model override is unavailable, using default model",
+					slog.F("user_id", userID),
+					slog.F("model_config_id", override.ModelConfigID.UUID),
+					slog.F("reason", reason),
+				)
 			}
-			if reason == chatModelConfigAvailable {
-				return parsed.ModelConfigID, parsed.ReasoningEffort, 0, nil
-			}
-			api.Logger.Debug(
-				ctx,
-				"personal root model override is unavailable, using default model",
-				slog.F("user_id", userID),
-				slog.F("model_config_id", parsed.ModelConfigID),
-				slog.F("reason", reason),
-			)
 		default:
 			api.Logger.Warn(
 				ctx,
 				"unsupported personal root model override mode, using default model",
 				slog.F("user_id", userID),
-				slog.F("mode", parsed.Mode),
+				slog.F("mode", override.Mode),
 			)
 		}
 	}
@@ -4856,12 +4697,61 @@ func readChatModelOverrideContext(
 	return "", false
 }
 
+// @Summary List organization chat model overrides
+// @ID list-organization-chat-model-overrides
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param organization path string true "Organization name or ID"
+// @Success 200 {object} codersdk.ChatModelOverridesResponse
+// @Router /api/experimental/organizations/{organization}/chats/model-overrides [get]
+// @x-apidocgen {"skip": true}
+//
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
-func (api *API) getChatModelOverride(rw http.ResponseWriter, r *http.Request) {
+func (api *API) getOrganizationChatModelOverrides(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+	organization := httpmw.OrganizationParam(r)
+	rows, err := api.Database.GetChatOrganizationModelOverrides(ctx, organization.ID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching model overrides.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	response := codersdk.ChatModelOverridesResponse{
+		Overrides: make([]codersdk.ChatModelOverrideResponse, 0, len(rows)),
+	}
+	for _, row := range rows {
+		response.Overrides = append(response.Overrides, chatOrganizationModelOverrideResponse(row))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, response)
+}
+
+// @Summary Update organization chat model override
+// @ID update-organization-chat-model-override
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param organization path string true "Organization name or ID"
+// @Param context path string true "Override context" Enums(general,explore,title_generation,compaction,advisor)
+// @Param request body codersdk.UpdateChatModelOverrideRequest true "Model override"
+// @Success 200 {object} codersdk.ChatModelOverrideResponse
+// @Router /api/experimental/organizations/{organization}/chats/model-overrides/{context} [put]
+// @x-apidocgen {"skip": true}
+//
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putOrganizationChatModelOverride(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceChatModelConfig.InOrg(organization.ID)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -4869,38 +4759,9 @@ func (api *API) getChatModelOverride(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
-	modelConfigID, reasoningEffort, isMalformed, label, err := api.readChatModelOverrideConfig(ctx, overrideContext)
-	if err != nil {
-		if label == "" {
-			label = string(overrideContext)
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: fmt.Sprintf("Internal error fetching %s model override.", label),
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resp := codersdk.ChatModelOverrideResponse{
-		Context:         overrideContext,
-		ModelConfigID:   formatChatModelOverride(modelConfigID, nil),
-		ReasoningEffort: reasoningEffort,
-		IsMalformed:     isMalformed,
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
-}
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) putChatModelOverride(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
-	overrideContext, ok := readChatModelOverrideContext(rw, r)
-	if !ok {
+	if overrideContext == codersdk.ChatModelOverrideContextAdvisor &&
+		!api.Experiments.Enabled(codersdk.ExperimentChatAdvisor) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -4909,54 +4770,80 @@ func (api *API) putChatModelOverride(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var modelConfigID *uuid.UUID
+	response := codersdk.ChatModelOverrideResponse{Context: overrideContext}
 	trimmedModelConfigID := strings.TrimSpace(req.ModelConfigID)
-	if trimmedModelConfigID != "" {
-		if strings.Contains(trimmedModelConfigID, ":") {
+	if trimmedModelConfigID == "" {
+		if req.ReasoningEffort != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid model_config_id.",
-				Detail:  fmt.Sprintf("Value %q is not a valid UUID.", req.ModelConfigID),
+				Message: "reasoning_effort requires model_config_id.",
 			})
 			return
 		}
-		parsedModelConfigID, err := uuid.Parse(trimmedModelConfigID)
+		err := api.Database.DeleteChatOrganizationModelOverride(ctx, database.DeleteChatOrganizationModelOverrideParams{
+			OrganizationID: organization.ID,
+			Context:        string(overrideContext),
+		})
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid model_config_id.",
-				Detail:  fmt.Sprintf("Value %q is not a valid UUID.", req.ModelConfigID),
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: fmt.Sprintf("Internal error clearing %s model override.", overrideContext),
+				Detail:  err.Error(),
 			})
 			return
 		}
-		modelConfigID = &parsedModelConfigID
+		httpapi.Write(ctx, rw, http.StatusOK, response)
+		return
 	}
 
-	defaultOrgID, err := defaultOrganizationID(ctx, api.Database)
+	modelConfigID, err := uuid.Parse(trimmedModelConfigID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid model_config_id.",
+			Detail:  fmt.Sprintf("Value %q is not a valid UUID.", req.ModelConfigID),
+		})
+		return
+	}
+	// The explicit ActionUpdate authorization above gates this endpoint. Look
+	// the referenced model up under a system context so a custom role that
+	// grants update without read can still use the endpoint; organization
+	// ownership is enforced inside the validation.
+	//nolint:gocritic // See above.
+	status, validationResponse := validateChatModelOverride(
+		dbauthz.AsSystemRestricted(ctx),
+		api.Database,
+		organization.ID,
+		&modelConfigID,
+		req.ReasoningEffort,
+	)
+	if validationResponse != nil {
+		httpapi.Write(ctx, rw, status, *validationResponse)
+		return
+	}
+
+	row := database.ChatOrganizationModelOverride{
+		OrganizationID:  organization.ID,
+		Context:         string(overrideContext),
+		ModelConfigID:   modelConfigID,
+		ReasoningEffort: sql.NullString{String: derefOrEmpty(req.ReasoningEffort), Valid: req.ReasoningEffort != nil},
+	}
+	err = api.Database.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+		OrganizationID:  row.OrganizationID,
+		Context:         row.Context,
+		ModelConfigID:   row.ModelConfigID,
+		ReasoningEffort: row.ReasoningEffort,
+	})
+	if database.IsForeignKeyViolation(err) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid model_config_id."})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error validating model config override.",
+			Message: fmt.Sprintf("Internal error updating %s model override.", overrideContext),
 			Detail:  err.Error(),
 		})
 		return
 	}
-	status, resp := validateChatModelOverride(ctx, api.Database, defaultOrgID, modelConfigID, req.ReasoningEffort)
-	if resp != nil {
-		httpapi.Write(ctx, rw, status, *resp)
-		return
-	}
-
-	label, err := api.upsertChatModelOverrideConfig(ctx, overrideContext, modelConfigID, req.ReasoningEffort)
-	if err != nil {
-		if label == "" {
-			label = string(overrideContext)
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: fmt.Sprintf("Internal error updating %s model override.", label),
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	rw.WriteHeader(http.StatusNoContent)
+	response = chatOrganizationModelOverrideResponse(row)
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 func readChatPersonalModelOverrideContext(
@@ -5025,12 +4912,24 @@ func (api *API) putChatPersonalModelOverridesAdminSettings(rw http.ResponseWrite
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Get organization member chat model overrides
+// @ID get-organization-member-chat-model-overrides
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param organization path string true "Organization name or ID"
+// @Param user path string true "User name, ID, or me"
+// @Success 200 {object} codersdk.UserChatPersonalModelOverridesResponse
+// @Router /api/experimental/organizations/{organization}/members/{user}/chats/model-overrides [get]
+// @x-apidocgen {"skip": true}
+//
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatPersonalModelOverrides(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
+	organization := httpmw.OrganizationParam(r)
+	member := httpmw.OrganizationMemberParam(r)
 
 	enabled, err := api.Database.GetChatPersonalModelOverridesEnabled(ctx)
 	if err != nil {
@@ -5041,32 +4940,30 @@ func (api *API) getUserChatPersonalModelOverrides(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	rows, err := api.Database.ListUserChatPersonalModelOverrides(ctx, apiKey.UserID)
+	rows, err := api.Database.GetChatUserModelOverrides(ctx, database.GetChatUserModelOverridesParams{
+		UserID:         member.UserID,
+		OrganizationID: organization.ID,
+	})
 	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user personal model overrides.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-
-	values := make(map[codersdk.ChatPersonalModelOverrideContext]string, len(rows))
+	byContext := make(map[string]database.ChatUserModelOverride, len(rows))
 	for _, row := range rows {
-		rawContext, ok := strings.CutPrefix(row.Key, chatd.ChatPersonalModelOverrideKeyPrefix)
-		if !ok {
-			continue
-		}
-		overrideContext, ok := parseChatPersonalModelOverrideContext(rawContext)
-		if !ok {
-			continue
-		}
-		values[overrideContext] = row.Value
+		byContext[row.Context] = row
 	}
 
-	deploymentDefaults, err := api.chatPersonalModelOverrideDeploymentDefaults(ctx)
+	deploymentDefaults, err := api.chatPersonalModelOverrideDeploymentDefaults(ctx, organization.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching deployment model defaults.",
+			Message: "Internal error fetching organization model defaults.",
 			Detail:  err.Error(),
 		})
 		return
@@ -5077,8 +4974,11 @@ func (api *API) getUserChatPersonalModelOverrides(rw http.ResponseWriter, r *htt
 		DeploymentDefaults: deploymentDefaults,
 	}
 	for _, overrideContext := range chatPersonalModelOverrideContexts {
-		raw, isSet := values[overrideContext]
-		override := chatPersonalModelOverrideResponse(overrideContext, raw, isSet)
+		var row *database.ChatUserModelOverride
+		if contextRow, ok := byContext[string(overrideContext)]; ok {
+			row = &contextRow
+		}
+		override := chatPersonalModelOverrideResponse(overrideContext, row)
 		switch overrideContext {
 		case codersdk.ChatPersonalModelOverrideContextRoot:
 			response.Root = override
@@ -5091,10 +4991,25 @@ func (api *API) getUserChatPersonalModelOverrides(rw http.ResponseWriter, r *htt
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
+// @Summary Update organization member chat model override
+// @ID update-organization-member-chat-model-override
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param organization path string true "Organization name or ID"
+// @Param user path string true "User name, ID, or me"
+// @Param context path string true "Override context" Enums(root,general,explore)
+// @Param request body codersdk.UpdateUserChatPersonalModelOverrideRequest true "Personal model override"
+// @Success 204
+// @Router /api/experimental/organizations/{organization}/members/{user}/chats/model-overrides/{context} [put]
+// @x-apidocgen {"skip": true}
+//
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	organization := httpmw.OrganizationParam(r)
+	member := httpmw.OrganizationMemberParam(r)
 
 	enabled, err := api.Database.GetChatPersonalModelOverridesEnabled(ctx)
 	if err != nil {
@@ -5104,7 +5019,8 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 		})
 		return
 	}
-	if !enabled {
+	if !enabled && apiKey.UserID == member.UserID &&
+		!api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "An administrator has not enabled user personal model overrides.",
 		})
@@ -5121,99 +5037,97 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 		return
 	}
 
-	modelConfigID := ""
+	modelConfigID := uuid.NullUUID{}
 	reasoningEffort := req.ReasoningEffort
 	rawModelConfigID := strings.TrimSpace(req.ModelConfigID)
 	switch req.Mode {
 	case codersdk.ChatPersonalModelOverrideModeChatDefault:
 		if rawModelConfigID != "" {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "model_config_id must be empty unless mode is model.",
-			})
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "model_config_id must be empty unless mode is model."})
 			return
 		}
 		if reasoningEffort != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "reasoning_effort requires mode model.",
-			})
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "reasoning_effort requires mode model."})
 			return
 		}
 	case codersdk.ChatPersonalModelOverrideModeDeploymentDefault:
 		if overrideContext == codersdk.ChatPersonalModelOverrideContextRoot {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "deployment_default is not supported for root personal model overrides.",
-			})
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "deployment_default is not supported for root personal model overrides."})
 			return
 		}
 		if rawModelConfigID != "" {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "model_config_id must be empty unless mode is model.",
-			})
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "model_config_id must be empty unless mode is model."})
 			return
 		}
 		if reasoningEffort != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "reasoning_effort requires mode model.",
-			})
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "reasoning_effort requires mode model."})
 			return
 		}
 	case codersdk.ChatPersonalModelOverrideModeModel:
 		if rawModelConfigID == "" {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "model_config_id is required when mode is model.",
-			})
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "model_config_id is required when mode is model."})
 			return
 		}
 		parsedModelConfigID, err := uuid.Parse(rawModelConfigID)
-		if err != nil {
+		if err != nil || parsedModelConfigID == uuid.Nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid model_config_id.",
 				Detail:  fmt.Sprintf("Value %q is not a valid UUID.", req.ModelConfigID),
 			})
 			return
 		}
-		if parsedModelConfigID == uuid.Nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid model_config_id.",
-			})
-			return
+		// Validate with the target member's ACLs so a model visible only to
+		// an administrator caller is rejected instead of persisted; chatd
+		// resolves the override under the member's actor at runtime.
+		validateCtx := ctx
+		if apiKey.UserID != member.UserID {
+			memberSubject, _, err := httpmw.UserRBACSubject(ctx, api.Database, member.UserID, rbac.ScopeAll)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error validating model config override.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			validateCtx = dbauthz.As(ctx, memberSubject)
 		}
-		defaultOrgID, err := defaultOrganizationID(ctx, api.Database)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to resolve default organization.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		modelConfig, status, resp := api.validateUserChatModelConfigAvailable(
-			ctx,
-			apiKey.UserID,
-			defaultOrgID,
-			parsedModelConfigID,
+		modelConfig, status, validationResponse := api.validateUserChatModelConfigAvailable(
+			validateCtx, member.UserID, organization.ID, parsedModelConfigID,
 		)
-		if resp != nil {
-			httpapi.Write(ctx, rw, status, *resp)
+		if validationResponse != nil {
+			httpapi.Write(ctx, rw, status, *validationResponse)
 			return
 		}
-		status, resp = validateChatModelOverrideEffort(modelConfig, reasoningEffort)
-		if resp != nil {
-			httpapi.Write(ctx, rw, status, *resp)
+		status, validationResponse = validateChatModelOverrideEffort(modelConfig, reasoningEffort)
+		if validationResponse != nil {
+			httpapi.Write(ctx, rw, status, *validationResponse)
 			return
 		}
-		modelConfigID = parsedModelConfigID.String()
+		modelConfigID = uuid.NullUUID{UUID: parsedModelConfigID, Valid: true}
 	default:
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid personal model override mode.",
-		})
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid personal model override mode."})
 		return
 	}
 
-	if err := api.Database.UpsertUserChatPersonalModelOverride(ctx, database.UpsertUserChatPersonalModelOverrideParams{
-		UserID: apiKey.UserID,
-		Key:    chatd.ChatPersonalModelOverrideKey(overrideContext),
-		Value:  formatChatPersonalModelOverrideValue(req.Mode, modelConfigID, reasoningEffort),
-	}); err != nil {
+	err = api.Database.UpsertChatUserModelOverride(ctx, database.UpsertChatUserModelOverrideParams{
+		UserID:          member.UserID,
+		OrganizationID:  organization.ID,
+		Context:         string(overrideContext),
+		Mode:            string(req.Mode),
+		ModelConfigID:   modelConfigID,
+		ReasoningEffort: sql.NullString{String: derefOrEmpty(reasoningEffort), Valid: reasoningEffort != nil},
+	})
+	if database.IsForeignKeyViolation(err) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid model_config_id: model config not found or disabled.",
+		})
+		return
+	}
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating user personal model override.",
 			Detail:  err.Error(),
@@ -5433,9 +5347,6 @@ func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 	resp.MaxUsesPerRun = max(resp.MaxUsesPerRun, 0)
 	resp.MaxOutputTokens = max(resp.MaxOutputTokens, 0)
-	if resp.ModelConfigID == uuid.Nil {
-		resp.ReasoningEffort = nil
-	}
 	resp.Enabled = api.Experiments.Enabled(codersdk.ExperimentChatAdvisor)
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -5453,6 +5364,12 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
+	if req.DeprecatedModelConfigID != nil || req.DeprecatedReasoningEffort != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Advisor model settings moved to PUT /api/experimental/organizations/{organization}/chats/model-overrides/advisor.",
+		})
+		return
+	}
 	if req.MaxUsesPerRun < 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("max_uses_per_run %d must be non-negative.", req.MaxUsesPerRun),
@@ -5465,46 +5382,13 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if req.ModelConfigID == uuid.Nil {
-		if req.ReasoningEffort != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "reasoning_effort requires model_config_id.",
-			})
-			return
-		}
-	} else {
-		defaultOrgID, err := defaultOrganizationID(ctx, api.Database)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error validating advisor model config.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		modelConfig, err := lookupEnabledChatModelConfigByID(ctx, api.Database, req.ModelConfigID)
-		if err == nil && modelConfig.OrganizationID != defaultOrgID {
-			err = sql.ErrNoRows
-		}
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: fmt.Sprintf("model_config_id %q does not match any enabled model config.", req.ModelConfigID),
-				})
-				return
-			}
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error validating advisor model config.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if status, response := validateChatModelOverrideEffort(modelConfig, req.ReasoningEffort); response != nil {
-			httpapi.Write(ctx, rw, status, *response)
-			return
-		}
+
+	runtimeConfig := codersdk.AdvisorConfig{
+		MaxUsesPerRun:   req.MaxUsesPerRun,
+		MaxOutputTokens: req.MaxOutputTokens,
 	}
 
-	raw, err := json.Marshal(req)
+	raw, err := json.Marshal(runtimeConfig)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error encoding advisor configuration.",

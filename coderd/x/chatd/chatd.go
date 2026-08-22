@@ -210,11 +210,11 @@ type Server struct {
 	chatHeartbeatInterval      time.Duration
 }
 
-func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) codersdk.AdvisorConfig {
+func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) advisorRuntimeConfig {
 	cfg, err := p.configCache.AdvisorConfig(ctx)
 	if err != nil {
 		logger.Warn(ctx, "failed to load advisor config", slog.Error(err))
-		return codersdk.AdvisorConfig{}
+		return advisorRuntimeConfig{}
 	}
 	return cfg
 }
@@ -245,19 +245,36 @@ func isAdvisorGuidanceMessage(msg fantasy.Message) bool {
 	return strings.TrimSpace(text.Text) == strings.TrimSpace(chatadvisor.ParentGuidanceBlock)
 }
 
-// resolveAdvisorModelOverride resolves the configured advisor override
-// model. ok is false when no override is configured or the override is
-// unavailable, in which case the advisor uses the chat model. An error is
-// a hard failure: the override has a linked provider and failed to build.
+const advisorOverrideContext = "advisor"
+
+// resolveAdvisorModelOverride resolves the advisor model override for the
+// chat's organization. Missing or unusable overrides fall back to the chat
+// model. Linked-provider route and client failures remain hard failures.
 func (p *Server) resolveAdvisorModelOverride(
 	ctx context.Context,
 	chat database.Chat,
-	advisorCfg codersdk.AdvisorConfig,
 	maxOutputTokens int64,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (resolvedModelCall, bool, error) {
-	if advisorCfg.ModelConfigID == uuid.Nil {
+	//nolint:gocritic // Chatd reads organization-scoped runtime configuration.
+	override, err := p.db.GetChatOrganizationModelOverride(
+		dbauthz.AsChatd(ctx),
+		database.GetChatOrganizationModelOverrideParams{
+			OrganizationID: chat.OrganizationID,
+			Context:        advisorOverrideContext,
+		},
+	)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return resolvedModelCall{}, false, nil
+		}
+		logger.Warn(
+			ctx,
+			"failed to load advisor model override, continuing with chat model",
+			slog.F("organization_id", chat.OrganizationID),
+			slog.Error(err),
+		)
 		return resolvedModelCall{}, false, nil
 	}
 
@@ -266,17 +283,14 @@ func (p *Server) resolveAdvisorModelOverride(
 		logger.Warn(
 			ctx,
 			"failed to load advisor model authorization, continuing with chat model",
-			slog.F("model_config_id", advisorCfg.ModelConfigID),
+			slog.F("model_config_id", override.ModelConfigID),
 			slog.Error(modelCtxErr),
 		)
 		return resolvedModelCall{}, false, nil
 	}
-	// Re-read the override instead of using the cache so disabled models
-	// or providers stop routing advisor prompts immediately.
-	overrideConfig, err := p.db.GetEnabledChatModelConfigByID(
-		modelCtx,
-		advisorCfg.ModelConfigID,
-	)
+	// Re-read the model row for every runtime so disabled models or providers
+	// stop routing advisor prompts immediately.
+	overrideConfig, err := p.db.GetEnabledChatModelConfigByID(modelCtx, override.ModelConfigID)
 	if err == nil && overrideConfig.OrganizationID != chat.OrganizationID {
 		err = sql.ErrNoRows
 	}
@@ -285,14 +299,14 @@ func (p *Server) resolveAdvisorModelOverride(
 			logger.Warn(
 				ctx,
 				"advisor model config is disabled or unavailable, continuing with chat model",
-				slog.F("model_config_id", advisorCfg.ModelConfigID),
+				slog.F("model_config_id", override.ModelConfigID),
 			)
 			return resolvedModelCall{}, false, nil
 		}
 		logger.Warn(
 			ctx,
 			"failed to resolve advisor model config, continuing with chat model",
-			slog.F("model_config_id", advisorCfg.ModelConfigID),
+			slog.F("model_config_id", override.ModelConfigID),
 			slog.Error(err),
 		)
 		return resolvedModelCall{}, false, nil
@@ -302,13 +316,11 @@ func (p *Server) resolveAdvisorModelOverride(
 		purpose:         "advisor",
 		chat:            chat,
 		explicitConfig:  &overrideConfig,
-		requestedEffort: advisorCfg.ReasoningEffort,
+		requestedEffort: ptr.FromNullString(override.ReasoningEffort),
 		maxOutputTokens: ptr.Ref(maxOutputTokens),
 		buildOptions:    modelOpts,
 	})
 	if err != nil {
-		// Malformed options always fall back; route and client errors are
-		// hard failures only when the config has a linked provider.
 		var parseErr modelCallConfigParseError
 		if overrideConfig.AIProviderID.Valid && !xerrors.As(err, &parseErr) {
 			return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
@@ -316,19 +328,18 @@ func (p *Server) resolveAdvisorModelOverride(
 		logger.Warn(
 			ctx,
 			"failed to resolve advisor override model, continuing with chat model",
-			slog.F("model_config_id", advisorCfg.ModelConfigID),
+			slog.F("model_config_id", override.ModelConfigID),
 			slog.Error(err),
 		)
 		return resolvedModelCall{}, false, nil
 	}
-
 	return resolved, true, nil
 }
 
 func (p *Server) newAdvisorRuntime(
 	ctx context.Context,
 	chat database.Chat,
-	advisorCfg codersdk.AdvisorConfig,
+	advisorCfg advisorRuntimeConfig,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (*chatadvisor.Runtime, error) {
@@ -357,7 +368,6 @@ func (p *Server) newAdvisorRuntime(
 	advisor, ok, err := p.resolveAdvisorModelOverride(
 		ctx,
 		chat,
-		advisorCfg,
 		maxOutputTokens,
 		modelOpts,
 		logger,

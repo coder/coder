@@ -3,7 +3,11 @@ import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
-import { chatModels, mcpServerConfigs } from "#/api/queries/chats";
+import {
+	chatModels,
+	mcpServerConfigs,
+	userChatPersonalModelOverrides,
+} from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
@@ -131,8 +135,6 @@ interface AgentCreateFormProps {
 	canCreateChat: boolean;
 	canConfigureAgentSetup: boolean;
 	aiGatewayDisabled?: boolean;
-	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
-	isPersonalModelOverridesLoading?: boolean;
 	workspaceCount: number | undefined;
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
@@ -147,8 +149,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	canCreateChat,
 	canConfigureAgentSetup,
 	aiGatewayDisabled,
-	rootPersonalModelOverride,
-	isPersonalModelOverridesLoading = false,
 	workspaceCount: _workspaceCount,
 	workspaceOptions,
 	workspacesError,
@@ -272,6 +272,20 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	}, [selectedWorkspaceId]);
 	const modelsQuery = useQuery(chatModels(organizationId));
+	const personalModelOverridesQuery = useQuery(
+		userChatPersonalModelOverrides(organizationId),
+	);
+	const organizationRootPersonalModelOverride = personalModelOverridesQuery.data
+		?.enabled
+		? personalModelOverridesQuery.data.root
+		: undefined;
+	const effectiveRootPersonalModelOverride =
+		organizationRootPersonalModelOverride;
+	// A failed overrides fetch must keep the form blocked: submitting with an
+	// undefined override would send a catalog fallback as an explicit
+	// model_config_id, silently bypassing the user's saved root override.
+	const isPersonalModelOverridesUnresolved =
+		organizationId !== "" && personalModelOverridesQuery.data === undefined;
 	const availableModelConfigs = modelsQuery.data?.models ?? [];
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
@@ -299,19 +313,19 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		organizationId,
 	);
 	const isUsableRootPersonalOverride =
-		rootPersonalModelOverride?.is_set === true &&
-		!rootPersonalModelOverride.is_malformed;
+		effectiveRootPersonalModelOverride?.is_set === true;
 	const rootOverrideModelID =
 		isUsableRootPersonalOverride &&
-		rootPersonalModelOverride.mode === "model" &&
+		effectiveRootPersonalModelOverride.mode === "model" &&
 		modelOptions.some(
-			(option) => option.id === rootPersonalModelOverride.model_config_id,
+			(option) =>
+				option.id === effectiveRootPersonalModelOverride.model_config_id,
 		)
-			? rootPersonalModelOverride.model_config_id
+			? effectiveRootPersonalModelOverride.model_config_id
 			: "";
 	const isRootOverrideChatDefault =
 		isUsableRootPersonalOverride &&
-		rootPersonalModelOverride.mode === "chat_default";
+		effectiveRootPersonalModelOverride.mode === "chat_default";
 	const rootOverrideDisplayModelID = isRootOverrideChatDefault
 		? defaultModelID || (modelOptions[0]?.id ?? "")
 		: rootOverrideModelID;
@@ -348,7 +362,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// override applies to its own model even after a manual re-select.
 	const rootOverrideReasoningEffort =
 		selectedModel === rootOverrideModelID
-			? rootPersonalModelOverride?.reasoning_effort
+			? effectiveRootPersonalModelOverride?.reasoning_effort
 			: undefined;
 	const persistedReasoningEffort = (() => {
 		const stored = getReasoningEffortForModel(selectedModel);
@@ -574,6 +588,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{modelsQuery.error != null && (
 						<ErrorAlert error={modelsQuery.error} />
 					)}
+					{personalModelOverridesQuery.error != null && (
+						<ErrorAlert error={personalModelOverridesQuery.error} />
+					)}
+					{mcpServersQuery.error != null && (
+						<ErrorAlert error={mcpServersQuery.error} />
+					)}
 					{organizationId !== "" &&
 						modelsQuery.data !== undefined &&
 						modelsQuery.error == null &&
@@ -622,7 +642,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							// Sending before adoption would omit persisted files not yet restored.
 							!organizationAdopted ||
 							workspaceValidationPending ||
-							isPersonalModelOverridesLoading ||
+							isPersonalModelOverridesUnresolved ||
 							isMCPSelectionUnresolved ||
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)
