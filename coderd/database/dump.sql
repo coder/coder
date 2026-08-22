@@ -10,6 +10,11 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
     'no_user_data'
 );
 
+CREATE TYPE ai_model_price_source AS ENUM (
+    'default',
+    'custom'
+);
+
 CREATE TYPE ai_provider_type AS ENUM (
     'openai',
     'anthropic',
@@ -1573,6 +1578,7 @@ CREATE TABLE ai_model_prices (
     cache_write_price bigint,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    source ai_model_price_source NOT NULL,
     CONSTRAINT ai_model_prices_cache_read_price_check CHECK ((cache_read_price >= 0)),
     CONSTRAINT ai_model_prices_cache_write_price_check CHECK ((cache_write_price >= 0)),
     CONSTRAINT ai_model_prices_input_price_check CHECK ((input_price >= 0)),
@@ -1580,6 +1586,8 @@ CREATE TABLE ai_model_prices (
 );
 
 COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to compute interception cost.';
+
+COMMENT ON COLUMN ai_model_prices.source IS 'Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.';
 
 CREATE TABLE ai_provider_keys (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -4315,7 +4323,7 @@ ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY ai_model_prices
-    ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
+    ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model, source);
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_pkey PRIMARY KEY (id);

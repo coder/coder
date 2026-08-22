@@ -97,7 +97,7 @@ export const SettingsHeaderDescription: FC<SettingsHeaderDescriptionProps> = ({
 	return (
 		<p
 			className={cn(
-				"m-0 text-content-secondary font-medium leading-normal",
+				"m-0 text-content-secondary font-medium leading-6",
 				className,
 			)}
 		>

@@ -52,6 +52,7 @@ type ChatTopBarProps = {
 	hasWorkspace?: boolean;
 	isArchived?: boolean;
 	isArchiving?: boolean;
+	isArchiveBlocked?: boolean;
 	isChildChat?: boolean;
 	isPinned?: boolean;
 	isSidebarCollapsed: boolean;
@@ -107,6 +108,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	hasWorkspace = false,
 	isArchived = false,
 	isArchiving = false,
+	isArchiveBlocked = false,
 	isChildChat = false,
 	isPinned = false,
 	isSidebarCollapsed,
@@ -223,6 +225,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 									isChildChat={isChildChat}
 									hasWorkspace={hasWorkspace}
 									isArchiving={isArchiving}
+									isArchiveBlocked={isArchiveBlocked}
 									onPinAgent={onPinAgent}
 									onUnpinAgent={onUnpinAgent}
 									onArchiveAgent={onArchiveAgent}
