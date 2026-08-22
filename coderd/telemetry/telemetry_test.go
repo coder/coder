@@ -1662,7 +1662,7 @@ func TestChatsTelemetry(t *testing.T) {
 		DisplayName:  "Deleted Model",
 		ContextLimit: 100000,
 	})
-	err := db.DeleteChatModelConfigByID(ctx, deletedCfg.ID)
+	_, err := db.DeleteChatModelConfigByID(ctx, deletedCfg.ID)
 	require.NoError(t, err)
 
 	// Create a root chat with a workspace.

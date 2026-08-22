@@ -443,42 +443,141 @@ func (s *lockSwitchChatPlanModeInstructionsStore) GetChatPlanModeInstructions(ct
 	return instructions, err
 }
 
-// failNextUpdateChatModelConfigStore shares its failure state across InTx
-// wrappers so tests can force a specific in-transaction model-config update to
-// return sql.ErrNoRows.
-type failNextUpdateChatModelConfigStore struct {
-	database.Store
-
-	failNextUpdateChatModelConfig   *atomic.Bool
-	failNextUpdateChatModelConfigID uuid.UUID
+type chatModelConfigLockedReadMutation struct {
+	id    uuid.UUID
+	model string
 }
 
-func newFailNextUpdateChatModelConfigStore(store database.Store) *failNextUpdateChatModelConfigStore {
-	return &failNextUpdateChatModelConfigStore{
-		Store:                         store,
-		failNextUpdateChatModelConfig: &atomic.Bool{},
+// chatModelConfigHookStore forces a specific in-transaction chat model config
+// operation to behave abnormally. Each hook targets one ID and consumes
+// itself on first match. The single-consume gate uses atomic.Pointer so a
+// concurrent InTx wrapper cannot race with the arming goroutine.
+type chatModelConfigHookStore struct {
+	database.Store
+
+	inTx bool
+
+	failNextUpdate            *atomic.Pointer[uuid.UUID]
+	failNextDelete            *atomic.Pointer[uuid.UUID]
+	failProviderReferenceLock *atomic.Pointer[uuid.UUID]
+	vanishAtLockedRead        *atomic.Pointer[uuid.UUID]
+	mutateAtLockedRead        *atomic.Pointer[chatModelConfigLockedReadMutation]
+}
+
+func newChatModelConfigHookStore(store database.Store) *chatModelConfigHookStore {
+	return &chatModelConfigHookStore{
+		Store:                     store,
+		failNextUpdate:            &atomic.Pointer[uuid.UUID]{},
+		failNextDelete:            &atomic.Pointer[uuid.UUID]{},
+		failProviderReferenceLock: &atomic.Pointer[uuid.UUID]{},
+		vanishAtLockedRead:        &atomic.Pointer[uuid.UUID]{},
+		mutateAtLockedRead:        &atomic.Pointer[chatModelConfigLockedReadMutation]{},
 	}
 }
 
-func (s *failNextUpdateChatModelConfigStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
+func newChatClientWithModelConfigHookStore(t testing.TB) (*codersdk.ExperimentalClient, *chatModelConfigHookStore) {
+	t.Helper()
+
+	rawDB, pubsub := dbtestutil.NewDB(t)
+	store := newChatModelConfigHookStore(rawDB)
+	client := newChatClient(t, func(opts *coderdtest.Options) {
+		opts.Database = store
+		opts.Pubsub = pubsub
+	})
+	return client, store
+}
+
+func (s *chatModelConfigHookStore) armFailNextUpdate(id uuid.UUID) {
+	s.failNextUpdate.Store(&id)
+}
+
+func (s *chatModelConfigHookStore) armFailNextDelete(id uuid.UUID) {
+	s.failNextDelete.Store(&id)
+}
+
+func (s *chatModelConfigHookStore) armFailProviderReferenceLock(id uuid.UUID) {
+	s.failProviderReferenceLock.Store(&id)
+}
+
+func (s *chatModelConfigHookStore) armVanishAtLockedRead(id uuid.UUID) {
+	s.vanishAtLockedRead.Store(&id)
+}
+
+func (s *chatModelConfigHookStore) armMutateAtLockedRead(id uuid.UUID, model string) {
+	s.mutateAtLockedRead.Store(&chatModelConfigLockedReadMutation{id: id, model: model})
+}
+
+func (s *chatModelConfigHookStore) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
 	return s.Store.InTx(func(tx database.Store) error {
-		return function(&failNextUpdateChatModelConfigStore{
-			Store:                           tx,
-			failNextUpdateChatModelConfig:   s.failNextUpdateChatModelConfig,
-			failNextUpdateChatModelConfigID: s.failNextUpdateChatModelConfigID,
+		return function(&chatModelConfigHookStore{
+			Store:                     tx,
+			inTx:                      true,
+			failNextUpdate:            s.failNextUpdate,
+			failNextDelete:            s.failNextDelete,
+			failProviderReferenceLock: s.failProviderReferenceLock,
+			vanishAtLockedRead:        s.vanishAtLockedRead,
+			mutateAtLockedRead:        s.mutateAtLockedRead,
 		})
 	}, txOpts)
 }
 
-func (s *failNextUpdateChatModelConfigStore) UpdateChatModelConfig(
+func consumeChatModelConfigHook(hook *atomic.Pointer[uuid.UUID], id uuid.UUID) bool {
+	target := hook.Load()
+	if target == nil || *target != id {
+		return false
+	}
+	return hook.CompareAndSwap(target, nil)
+}
+
+func (s *chatModelConfigHookStore) GetAIProviderByIDForReferenceLock(
+	ctx context.Context,
+	id uuid.UUID,
+) (database.AIProvider, error) {
+	if consumeChatModelConfigHook(s.failProviderReferenceLock, id) {
+		return database.AIProvider{}, stderrors.New("forced provider reference lock failure")
+	}
+	return s.Store.GetAIProviderByIDForReferenceLock(ctx, id)
+}
+
+func (s *chatModelConfigHookStore) UpdateChatModelConfig(
 	ctx context.Context,
 	arg database.UpdateChatModelConfigParams,
 ) (database.ChatModelConfig, error) {
-	if arg.ID == s.failNextUpdateChatModelConfigID &&
-		s.failNextUpdateChatModelConfig.CompareAndSwap(true, false) {
+	if consumeChatModelConfigHook(s.failNextUpdate, arg.ID) {
 		return database.ChatModelConfig{}, sql.ErrNoRows
 	}
 	return s.Store.UpdateChatModelConfig(ctx, arg)
+}
+
+func (s *chatModelConfigHookStore) DeleteChatModelConfigByID(
+	ctx context.Context,
+	id uuid.UUID,
+) (uuid.UUID, error) {
+	if consumeChatModelConfigHook(s.failNextDelete, id) {
+		return uuid.Nil, sql.ErrNoRows
+	}
+	return s.Store.DeleteChatModelConfigByID(ctx, id)
+}
+
+func (s *chatModelConfigHookStore) GetChatModelConfigByID(
+	ctx context.Context,
+	id uuid.UUID,
+) (database.ChatModelConfig, error) {
+	if s.inTx && consumeChatModelConfigHook(s.vanishAtLockedRead, id) {
+		return database.ChatModelConfig{}, sql.ErrNoRows
+	}
+	if s.inTx {
+		mutation := s.mutateAtLockedRead.Load()
+		if mutation != nil && mutation.id == id && s.mutateAtLockedRead.CompareAndSwap(mutation, nil) {
+			row, err := s.Store.GetChatModelConfigByID(ctx, id)
+			if err != nil {
+				return row, err
+			}
+			row.Model = mutation.model
+			return row, nil
+		}
+	}
+	return s.Store.GetChatModelConfigByID(ctx, id)
 }
 
 func insertAssistantMessage(
@@ -4444,6 +4543,28 @@ func TestCreateChatModelConfig(t *testing.T) {
 		require.Len(t, configs, 1)
 	})
 
+	t.Run("ProviderReferenceLockFailureUsesCreateErrorText", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, store := newChatClientWithModelConfigHookStore(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+
+		store.armFailProviderReferenceLock(aiProvider.ID)
+
+		contextLimit := int64(4096)
+		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o-mini",
+			ContextLimit: &contextLimit,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusInternalServerError)
+		require.Equal(t, "Failed to create chat model config.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "get AI provider for create")
+		require.NotContains(t, sdkErr.Detail, "get AI provider for update")
+	})
+
 	t.Run("ConcurrentCreatesElectSingleDefault", func(t *testing.T) {
 		t.Parallel()
 
@@ -5127,20 +5248,11 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newFailNextUpdateChatModelConfigStore(rawDB)
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
+		client, store := newChatClientWithModelConfigHookStore(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		store.failNextUpdateChatModelConfigID = modelConfig.ID
-		store.failNextUpdateChatModelConfig.Store(true)
+		store.armFailNextUpdate(modelConfig.ID)
 
 		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
 			DisplayName: "missing in tx",
@@ -5152,15 +5264,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		rawDB, pubsub := dbtestutil.NewDB(t)
-		store := newFailNextUpdateChatModelConfigStore(rawDB)
-		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database:         store,
-			Pubsub:           pubsub,
-			DeploymentValues: coderdtest.DeploymentValues(t),
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		client := codersdk.NewExperimentalClient(rawClient)
+		client, store := newChatClientWithModelConfigHookStore(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		defaultConfig := createChatModelConfig(t, client)
 
@@ -5176,8 +5280,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		store.failNextUpdateChatModelConfigID = candidateConfig.ID
-		store.failNextUpdateChatModelConfig.Store(true)
+		store.armFailNextUpdate(candidateConfig.ID)
 
 		_, err = client.UpdateChatModelConfig(ctx, defaultConfig.ID, codersdk.UpdateChatModelConfigRequest{
 			IsDefault: ptr.Ref(false),
@@ -5213,6 +5316,135 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Context limit must be greater than zero.", sdkErr.Message)
+	})
+
+	// A row that disappears between the pre-read and the locked read must
+	// 404, not silently no-op the update.
+	t.Run("NotFoundWhenTargetRowDisappearsAtLockedRead", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, store := newChatClientWithModelConfigHookStore(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		store.armVanishAtLockedRead(modelConfig.ID)
+
+		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			DisplayName: "vanished before update",
+		})
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("MergesFromLockedCopy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, store := newChatClientWithModelConfigHookStore(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		const sentinel = "locked-copy-sentinel-model"
+		store.armMutateAtLockedRead(modelConfig.ID, sentinel)
+
+		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			DisplayName: "only-display-name",
+		})
+		require.NoError(t, err)
+		require.Equal(t, sentinel, updated.Model)
+		require.Equal(t, "only-display-name", updated.DisplayName)
+	})
+
+	t.Run("StoredProviderDisabledOnModelOnlyUpdate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		disabled := false
+		_, err := client.UpdateAIProvider(ctx, modelConfig.AIProviderID.String(), codersdk.UpdateAIProviderRequest{
+			Enabled: &disabled,
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			Model: "gpt-4o-different",
+		})
+		sdkErr := requireSDKError(t, err, http.StatusPreconditionFailed)
+		require.Equal(t, "AI provider is disabled.", sdkErr.Message)
+	})
+
+	t.Run("StoredProviderMissingOnModelOnlyUpdate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		err := client.DeleteAIProvider(ctx, modelConfig.AIProviderID.String())
+		require.NoError(t, err)
+
+		_, err = client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			Model: "gpt-4o-different",
+		})
+		sdkErr := requireSDKError(t, err, http.StatusPreconditionFailed)
+		require.Equal(t, "AI provider is not configured.", sdkErr.Message)
+	})
+
+	t.Run("CompressionThresholdOutOfRange", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			CompressionThreshold: ptr.Ref(int32(150)),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid compression threshold.", sdkErr.Message)
+	})
+
+	t.Run("CompressionThresholdInRange", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			CompressionThreshold: ptr.Ref(int32(55)),
+		})
+		require.NoError(t, err)
+		require.Equal(t, int32(55), updated.CompressionThreshold)
+	})
+
+	t.Run("ModelConfigUpdated", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+					Default: ptr.Ref("high"),
+					Max:     ptr.Ref("high"),
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.ModelConfig)
+		require.NotNil(t, updated.ModelConfig.ReasoningEffort)
+		require.NotNil(t, updated.ModelConfig.ReasoningEffort.Default)
+		require.Equal(t, "high", *updated.ModelConfig.ReasoningEffort.Default)
 	})
 
 	t.Run("InvalidModelConfigID", func(t *testing.T) {
@@ -5322,6 +5554,20 @@ func TestDeleteChatModelConfig(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		err := client.DeleteChatModelConfig(ctx, uuid.New())
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("NotFoundWhenTargetRowDisappearsAtDelete", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, store := newChatClientWithModelConfigHookStore(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		store.armFailNextDelete(modelConfig.ID)
+
+		err := client.DeleteChatModelConfig(ctx, modelConfig.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
@@ -12604,10 +12850,11 @@ func seedChatWithDeletedModelConfig(
 		Title:             "chat without model config",
 	})
 	seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
-	require.NoError(t, db.DeleteChatModelConfigByID(
+	_, err := db.DeleteChatModelConfigByID(
 		dbauthz.AsSystemRestricted(ctx),
 		modelConfig.ID,
-	))
+	)
+	require.NoError(t, err)
 	return chat
 }
 

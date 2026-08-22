@@ -12351,6 +12351,21 @@ func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
 	}
 }
 
+func TestDeleteChatModelConfigByID(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	config := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{})
+
+	deletedID, err := store.DeleteChatModelConfigByID(ctx, config.ID)
+	require.NoError(t, err)
+	require.Equal(t, config.ID, deletedID)
+
+	_, err = store.DeleteChatModelConfigByID(ctx, config.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
 func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 	t.Parallel()
 
