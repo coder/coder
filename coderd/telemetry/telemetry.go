@@ -1104,11 +1104,11 @@ func buildTaskEvent(
 		// Below only relevant for "resumed" tasks, not when initially created.
 		if isResumed {
 			event.LastResumedAt = &row.StartBuildCreatedAt.Time
-			switch {
+			switch row.StartBuildReason.BuildReason {
 			// TODO(Cian): will this exist? Future readers may know better than I.
 			// case row.StartBuildReason == database.BuildReasonTaskAutoResume:
 			//	event.ResumeReason = ptr.Ref("auto")
-			case row.StartBuildReason.BuildReason == database.BuildReasonTaskResume:
+			case database.BuildReasonTaskResume:
 				event.ResumeReason = ptr.Ref("manual")
 			default: // Task resumed by starting workspace?
 				event.ResumeReason = ptr.Ref("other")
