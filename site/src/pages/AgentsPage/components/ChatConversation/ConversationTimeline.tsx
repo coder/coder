@@ -233,6 +233,7 @@ const ChatMessageItem = memo<{
 						<UserMessageContent
 							displayState={displayState}
 							markdown={parsed.markdown}
+							urlTransform={urlTransform}
 							isEditing={
 								messageId !== undefined && editingMessageId === messageId
 							}

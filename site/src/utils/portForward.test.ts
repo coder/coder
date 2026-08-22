@@ -116,6 +116,32 @@ describe("rewriteLocalhostURL", () => {
 		);
 	});
 
+	it("preserves the fragment", () => {
+		const result = rewriteLocalhostURL(
+			"http://localhost:3000/#/settings",
+			proxyHost,
+			agent,
+			workspace,
+			username,
+		);
+		expect(result).toEqual(
+			"http://3000--my-agent--my-workspace--my-username.proxy-host.tld/#/settings",
+		);
+	});
+
+	it("preserves path, query, and fragment together", () => {
+		const result = rewriteLocalhostURL(
+			"http://localhost:3000/app?tab=1#section",
+			proxyHost,
+			agent,
+			workspace,
+			username,
+		);
+		expect(result).toEqual(
+			"http://3000--my-agent--my-workspace--my-username.proxy-host.tld/app?tab=1#section",
+		);
+	});
+
 	it("defaults to port 80 when no port is specified", () => {
 		const result = rewriteLocalhostURL(
 			"http://localhost/path",
