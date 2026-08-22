@@ -47,10 +47,10 @@ type responsesInterceptionBase struct {
 
 	cfg  intercept.Config
 	cred intercept.Credential
-	// bedrock is nil for non-Bedrock providers. When set, upstream calls are
-	// SigV4-signed against the Bedrock Mantle endpoint instead of using a key
-	// pool or BYOK secret.
-	bedrock *bedrocksig.MantleConfig
+	// bedrockMantle is nil for non-Bedrock providers. When set, upstream
+	// calls are SigV4-signed against the Bedrock Mantle endpoint instead of
+	// using a key pool or BYOK secret.
+	bedrockMantle *bedrocksig.MantleConfig
 
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
@@ -65,23 +65,8 @@ type responsesInterceptionBase struct {
 // newResponsesService builds the SDK service used for upstream calls.
 func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) responses.ResponseService {
 	var opts []option.RequestOption
-	// Only BYOK sets its credential here. Centralized keys are injected
-	// per-attempt in the failover loop. Bedrock (mantle) sets neither: it
-	// signs via SigV4 middleware installed below.
-	if i.bedrock == nil {
-		if byok, ok := intercept.AsBYOK(i.cred); ok {
-			i.logger.Debug(ctx, "using byok auth",
-				slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
-			)
-			opts = append(opts, option.WithAPIKey(byok.Secret))
-		}
-	}
-
-	// Bedrock mantle: resolve the per-model base URL. The signing middleware
-	// is appended last (below) so it runs innermost and signs after all
-	// other headers are set.
-	if i.bedrock != nil {
-		base, err := bedrocksig.BaseURLForModel(i.bedrock.BaseURL, i.Model())
+	if i.bedrockMantle != nil {
+		base, err := bedrocksig.BaseURLForModel(i.bedrockMantle.BaseURL, i.Model())
 		if err != nil {
 			// Fail the request loudly: a malformed base URL is a provider
 			// misconfiguration, not a retryable upstream error.
@@ -92,6 +77,14 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 		}
 		opts = append(opts, option.WithBaseURL(base))
 	} else {
+		// Only BYOK sets its credential here. Centralized keys are injected
+		// per-attempt in the failover loop.
+		if byok, ok := intercept.AsBYOK(i.cred); ok {
+			i.logger.Debug(ctx, "using byok auth",
+				slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
+			)
+			opts = append(opts, option.WithAPIKey(byok.Secret))
+		}
 		opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
 	}
 
@@ -113,9 +106,9 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 	// Bedrock mantle: install the SigV4 signing middleware last so it runs
 	// innermost (right before the HTTP send) and signs the request after all
 	// other headers are set.
-	if i.bedrock != nil {
+	if i.bedrockMantle != nil {
 		//nolint:bodyclose // signing middleware hands the response to the transport, which closes the body.
-		opts = append(opts, option.WithMiddleware(bedrocksig.SignMiddleware(i.bedrock.Creds, i.bedrock.Region)))
+		opts = append(opts, option.WithMiddleware(bedrocksig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region)))
 	}
 
 	return responses.NewResponseService(opts...)
