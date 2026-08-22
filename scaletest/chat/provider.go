@@ -38,11 +38,10 @@ const (
 	scaletestAIProviderActionReused  scaletestAIProviderAction = "reused"
 )
 
-// EnsureScaletestModelConfig bootstraps the shared AI provider and model
-// config used by chat scaletests. When the provider was created or updated,
-// it sleeps for propagationWait so every coderd replica's cached provider
-// config expires before chats start.
-func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, logger slog.Logger, llmMockURL string, propagationWait time.Duration) (uuid.UUID, error) {
+// EnsureScaletestChatModel bootstraps the shared AI provider and ChatModel
+// used by chat scaletests. When the provider was created or updated, it waits
+// for propagationWait so every coderd replica's cached provider expires.
+func EnsureScaletestChatModel(ctx context.Context, client *codersdk.Client, logger slog.Logger, llmMockURL string, propagationWait time.Duration) (uuid.UUID, error) {
 	expClient := codersdk.NewExperimentalClient(client)
 
 	logger.Info(ctx, "bootstrapping mock LLM provider", slog.F("llm_mock_url", llmMockURL))
@@ -72,7 +71,7 @@ func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, lo
 		)
 	}
 
-	modelConfigID, err := ensureScaletestChatModelConfig(ctx, expClient, logger, provider)
+	modelID, err := ensureScaletestChatModelRecord(ctx, expClient, logger, provider)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -89,33 +88,33 @@ func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, lo
 		}
 	}
 
-	return modelConfigID, nil
+	return modelID, nil
 }
 
-func ensureScaletestChatModelConfig(ctx context.Context, client chatModelConfigClient, logger slog.Logger, provider codersdk.AIProvider) (uuid.UUID, error) {
-	modelConfigs, err := client.ListChatModelConfigs(ctx)
+func ensureScaletestChatModelRecord(ctx context.Context, client chatModelClient, logger slog.Logger, provider codersdk.AIProvider) (uuid.UUID, error) {
+	models, err := client.ChatModels(ctx)
 	if err != nil {
-		return uuid.Nil, xerrors.Errorf("list chat model configs: %w", err)
+		return uuid.Nil, xerrors.Errorf("list chat models: %w", err)
 	}
 
-	for i := range modelConfigs {
-		matchesProvider := modelConfigs[i].AIProviderID == provider.ID
-		matchesModel := modelConfigs[i].Model == scaletestModelName
+	for i := range models {
+		matchesProvider := models[i].AIProviderID == provider.ID
+		matchesModel := models[i].Model == scaletestModelName
 		if !matchesProvider || !matchesModel {
 			continue
 		}
-		if !modelConfigs[i].Enabled {
-			return uuid.Nil, xerrors.Errorf("existing scaletest chat model config %s is disabled; re-enable or delete it before running scaletests", modelConfigs[i].ID)
+		if !models[i].Enabled {
+			return uuid.Nil, xerrors.Errorf("existing scaletest ChatModel %s is disabled; re-enable or delete it before running scaletests", models[i].ID)
 		}
-		modelConfigID := modelConfigs[i].ID
-		logger.Info(ctx, "reusing scaletest model config", slog.F("model_config_id", modelConfigID))
-		return modelConfigID, nil
+		modelID := models[i].ID
+		logger.Info(ctx, "reusing scaletest ChatModel", slog.F("model_id", modelID))
+		return modelID, nil
 	}
 
 	enabled := true
 	isDefault := false
 	contextLimit := scaletestModelContextLimit
-	created, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	created, err := client.CreateChatModel(ctx, codersdk.CreateChatModelRequest{
 		AIProviderID: &provider.ID,
 		Model:        scaletestModelName,
 		DisplayName:  scaletestModelDisplayName,
@@ -124,9 +123,9 @@ func ensureScaletestChatModelConfig(ctx context.Context, client chatModelConfigC
 		ContextLimit: &contextLimit,
 	})
 	if err != nil {
-		return uuid.Nil, xerrors.Errorf("create scaletest chat model config: %w", err)
+		return uuid.Nil, xerrors.Errorf("create scaletest ChatModel: %w", err)
 	}
-	logger.Info(ctx, "created scaletest model config", slog.F("model_config_id", created.ID))
+	logger.Info(ctx, "created scaletest ChatModel", slog.F("model_id", created.ID))
 	return created.ID, nil
 }
 

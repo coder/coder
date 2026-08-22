@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { Chat, ChatModelConfig } from "#/api/typesGenerated";
+import type { Chat, ChatModel } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "../../ChatElements";
 import type { ChatTree } from "./chatTree";
 
@@ -10,7 +10,7 @@ export interface ChatTreeContextValue {
 	readonly normalizedSearch: string;
 	readonly expandedById: Record<string, boolean>;
 	readonly modelOptions: readonly ModelSelectorOption[];
-	readonly modelConfigs: readonly ChatModelConfig[];
+	readonly models: readonly ChatModel[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly activeChatId: string | undefined;
 	readonly isArchiving: boolean;

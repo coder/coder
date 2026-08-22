@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
-	MockChatModelConfig,
+	MockChatModel,
 	MockChatModelProvider,
 	MockChatProviderConfig,
 } from "#/testHelpers/chatModels";
@@ -16,7 +16,7 @@ const baseProviderState: ProviderState = {
 	provider: "openai",
 	label: "OpenAI",
 	providerConfig: MockChatProviderConfig,
-	modelConfigs: [],
+	models: [],
 	catalogModelCount: 0,
 	hasManagedAPIKey: true,
 	hasCatalogAPIKey: false,
@@ -36,7 +36,7 @@ describe("deriveProviderStates", () => {
 				display_name: "OpenAI",
 			},
 		];
-		const catalog: TypesGen.ChatModelsResponse = {
+		const catalog: TypesGen.ChatModelAvailabilityResponse = {
 			providers: [
 				{ ...MockChatModelProvider, provider: "google" },
 				{ ...MockChatModelProvider, provider: "anthropic" },
@@ -65,20 +65,20 @@ describe("deriveProviderStates", () => {
 		const providerConfigs = [
 			{ ...MockChatProviderConfig, id: "prov-openai", provider: "openai" },
 		];
-		const modelConfigs = [
+		const models = [
 			{
-				...MockChatModelConfig,
+				...MockChatModel,
 				id: "m1",
 				ai_provider_id: "prov-openai",
 			},
-			{ ...MockChatModelConfig, id: "m2", ai_provider_id: "prov-openai" },
+			{ ...MockChatModel, id: "m2", ai_provider_id: "prov-openai" },
 		];
 
-		const states = deriveProviderStates(modelConfigs, providerConfigs, null);
+		const states = deriveProviderStates(models, providerConfigs, null);
 
 		expect(states).toHaveLength(1);
 		expect(states[0].key).toBe("prov-openai");
-		expect(states[0].modelConfigs.map((m) => m.id)).toEqual(["m1", "m2"]);
+		expect(states[0].models.map((m) => m.id)).toEqual(["m1", "m2"]);
 	});
 
 	it("treats bedrock with central_api_key_enabled as having an effective key", () => {
@@ -102,17 +102,15 @@ describe("deriveProviderStates", () => {
 			{ ...MockChatProviderConfig, id: "prov-a", provider: "openai" },
 			{ ...MockChatProviderConfig, id: "prov-b", provider: "openai" },
 		];
-		const modelConfigs = [
-			{ ...MockChatModelConfig, id: "m1", ai_provider_id: "" },
-		];
+		const models = [{ ...MockChatModel, id: "m1", ai_provider_id: "" }];
 
-		const states = deriveProviderStates(modelConfigs, providerConfigs, null);
+		const states = deriveProviderStates(models, providerConfigs, null);
 
-		expect(states.flatMap((s) => s.modelConfigs)).toHaveLength(0);
+		expect(states.flatMap((s) => s.models)).toHaveLength(0);
 	});
 
 	it("detects env-preset providers from the catalog when no config exists", () => {
-		const catalog: TypesGen.ChatModelsResponse = {
+		const catalog: TypesGen.ChatModelAvailabilityResponse = {
 			providers: [
 				{ ...MockChatModelProvider, provider: "openai", available: true },
 			],
@@ -144,7 +142,7 @@ describe("deriveProviderStates", () => {
 	});
 
 	it("treats an unavailable catalog provider as having a key unless the api key is missing", () => {
-		const catalog: TypesGen.ChatModelsResponse = {
+		const catalog: TypesGen.ChatModelAvailabilityResponse = {
 			providers: [
 				{
 					...MockChatModelProvider,
@@ -171,7 +169,7 @@ describe("deriveProviderStates", () => {
 				base_url: "https://custom.example.com/v1",
 			},
 		];
-		const catalog: TypesGen.ChatModelsResponse = {
+		const catalog: TypesGen.ChatModelAvailabilityResponse = {
 			providers: [
 				{
 					...MockChatModelProvider,

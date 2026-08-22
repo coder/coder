@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
-	chatModelConfigs,
+	chatModelAvailability,
 	chatModels,
 	createChat,
 	userChatPersonalModelOverrides,
@@ -42,8 +42,8 @@ const AgentCreatePage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 
+	const chatModelAvailabilityQuery = useQuery(chatModelAvailability());
 	const chatModelsQuery = useQuery(chatModels());
-	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
@@ -60,25 +60,25 @@ const AgentCreatePage: FC = () => {
 
 	const { options: catalogModelOptions, isModelCatalogLoading } =
 		resolveModelSelector(
-			chatModelConfigsQuery,
 			chatModelsQuery,
+			chatModelAvailabilityQuery,
 			userProviderConfigsQuery,
 		);
 	const providerCount =
 		permissions.editDeploymentConfig &&
 		chatProviderConfigsQuery.isSuccess &&
-		chatModelsQuery.isSuccess
+		chatModelAvailabilityQuery.isSuccess
 			? countConfiguredProviderConfigs(
 					chatProviderConfigsQuery.data,
-					chatModelsQuery.data,
+					chatModelAvailabilityQuery.data,
 				)
 			: undefined;
 	const modelCount =
-		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
+		chatModelsQuery.isSuccess && chatModelAvailabilityQuery.isSuccess
 			? catalogModelOptions.length
 			: undefined;
 	const unsupportedProviderNames = getUnsupportedProviderNames(
-		chatModelsQuery.data,
+		chatModelAvailabilityQuery.data,
 	);
 
 	const handleCreateChat = async ({
@@ -165,16 +165,16 @@ const AgentCreatePage: FC = () => {
 				isCreating={createMutation.isPending}
 				createError={createMutation.error}
 				canCreateChat={permissions.createChat}
-				modelCatalog={chatModelsQuery.data}
+				modelCatalog={chatModelAvailabilityQuery.data}
 				modelOptions={catalogModelOptions}
 				canConfigureAgentSetup={permissions.editDeploymentConfig}
 				providerCount={providerCount}
 				modelCount={modelCount}
 				unsupportedProviderNames={unsupportedProviderNames}
 				aiGatewayDisabled={aiGatewayDisabled}
-				modelConfigs={chatModelConfigsQuery.data ?? []}
+				models={chatModelsQuery.data ?? []}
 				isModelCatalogLoading={isModelCatalogLoading}
-				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
+				isModelsLoading={chatModelsQuery.isLoading}
 				rootPersonalModelOverride={rootPersonalModelOverride}
 				isPersonalModelOverridesLoading={personalModelOverridesQuery.isLoading}
 				workspaceCount={workspacesQuery.data?.count}

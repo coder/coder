@@ -278,7 +278,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		)
 	})
 
-	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
 
 	// Create a root chat whose first model call will spawn a subagent.
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -446,7 +446,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 		)
 	})
 
-	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
 
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
@@ -587,7 +587,7 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 		)
 	})
 
-	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
 
 	_, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
@@ -4465,7 +4465,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		)
 	})
 
-	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
 
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
@@ -4620,7 +4620,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		)
 	})
 
-	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
 
 	// Create a chat with the stopped workspace pre-associated.
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -12146,7 +12146,7 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 		)
 	})
 
-	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
 
 	workspaceID := workspace.ID
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{

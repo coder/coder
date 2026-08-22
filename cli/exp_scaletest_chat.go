@@ -77,7 +77,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			}
 
 			logger := inv.Logger
-			modelConfigID, err := chat.EnsureScaletestModelConfig(ctx, client, logger, llmMockURL, providerPropagationWait)
+			modelID, err := chat.EnsureScaletestChatModel(ctx, client, logger, llmMockURL, providerPropagationWait)
 			if err != nil {
 				return err
 			}
@@ -128,7 +128,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 						OrganizationID:          targetWorkspace.OrganizationID,
 						WorkspaceID:             targetWorkspace.ID,
 						Prompt:                  prompt,
-						ModelConfigID:           modelConfigID,
+						ModelConfigID:           modelID,
 						Turns:                   int(turns),
 						TurnStartDelay:          turnStartDelay,
 						TurnStartReadyWaitGroup: turnStartReadyWaitGroup,

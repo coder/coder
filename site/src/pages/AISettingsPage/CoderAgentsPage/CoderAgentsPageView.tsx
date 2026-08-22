@@ -9,7 +9,7 @@ import {
 import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
 import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
 import {
-	filterConfigsWithEnabledProvider,
+	filterModelsWithEnabledProvider,
 	type ProviderInfo,
 } from "#/pages/AgentsPage/utils/modelOptions";
 import {
@@ -38,11 +38,11 @@ export interface CoderAgentsPageViewProps {
 	titleGenerationModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	compactionModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	exploreModelOverrideData?: TypesGen.ChatModelOverrideResponse;
-	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
+	models: TypesGen.ChatModel[] | undefined;
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
-	modelConfigsError: unknown;
-	isLoadingModelConfigs: boolean;
-	isFetchingModelConfigs: boolean;
+	modelsError: unknown;
+	isLoadingModels: boolean;
+	isFetchingModels: boolean;
 	onSaveGeneralModelOverride?: SaveModelOverride;
 	isSavingGeneralModelOverride?: boolean;
 	isSaveGeneralModelOverrideError?: boolean;
@@ -92,11 +92,11 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	titleGenerationModelOverrideData,
 	compactionModelOverrideData,
 	exploreModelOverrideData,
-	modelConfigsData,
+	models,
 	providerInfoByID,
-	modelConfigsError,
-	isLoadingModelConfigs,
-	isFetchingModelConfigs,
+	modelsError,
+	isLoadingModels,
+	isFetchingModels,
 	onSaveGeneralModelOverride,
 	isSavingGeneralModelOverride = false,
 	isSaveGeneralModelOverrideError = false,
@@ -125,8 +125,8 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	isSavingComputerUseProvider,
 	computerUseProviderSaveError,
 }) => {
-	const enabledModelConfigs = filterConfigsWithEnabledProvider(
-		(modelConfigsData ?? []).filter((modelConfig) => modelConfig.enabled),
+	const enabledModels = filterModelsWithEnabledProvider(
+		(models ?? []).filter((modelConfig) => modelConfig.enabled),
 		providerInfoByID,
 	);
 	const showGeneralModelSection =
@@ -159,10 +159,10 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 						title="General model"
 						description="Used by delegated agents that can edit files or run commands."
 						modelOverrideData={generalModelOverrideData}
-						enabledModelConfigs={enabledModelConfigs}
+						enabledModels={enabledModels}
 						providerInfoByID={providerInfoByID}
-						modelConfigsError={modelConfigsError}
-						isLoading={isLoadingModelConfigs}
+						modelsError={modelsError}
+						isLoading={isLoadingModels}
 						onSaveModelOverride={onSaveGeneralModelOverride}
 						isSaving={isSavingGeneralModelOverride}
 						isSaveError={isSaveGeneralModelOverrideError}
@@ -173,10 +173,10 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					title="Title generation model"
 					description="Leave unset to use Coder's title default, which prefers fast models from configured providers."
 					modelOverrideData={titleGenerationModelOverrideData}
-					enabledModelConfigs={enabledModelConfigs}
+					enabledModels={enabledModels}
 					providerInfoByID={providerInfoByID}
-					modelConfigsError={modelConfigsError}
-					isLoading={isLoadingModelConfigs}
+					modelsError={modelsError}
+					isLoading={isLoadingModels}
 					onSaveModelOverride={onSaveTitleGenerationModel}
 					isSaving={isSavingTitleGenerationModel}
 					isSaveError={isSaveTitleGenerationModelError}
@@ -188,10 +188,10 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					title="Compaction model"
 					description="Used to summarize long conversations when they approach the model's context limit. Leave unset to summarize with the chat model."
 					modelOverrideData={compactionModelOverrideData}
-					enabledModelConfigs={enabledModelConfigs}
+					enabledModels={enabledModels}
 					providerInfoByID={providerInfoByID}
-					modelConfigsError={modelConfigsError}
-					isLoading={isLoadingModelConfigs}
+					modelsError={modelsError}
+					isLoading={isLoadingModels}
 					onSaveModelOverride={onSaveCompactionModel}
 					isSaving={isSavingCompactionModel}
 					isSaveError={isSaveCompactionModelError}
@@ -202,10 +202,10 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					title="Explore subagent model"
 					description="Used for read-only codebase exploration before work returns to the main agent."
 					modelOverrideData={exploreModelOverrideData}
-					enabledModelConfigs={enabledModelConfigs}
+					enabledModels={enabledModels}
 					providerInfoByID={providerInfoByID}
-					modelConfigsError={modelConfigsError}
-					isLoading={isLoadingModelConfigs}
+					modelsError={modelsError}
+					isLoading={isLoadingModels}
 					onSaveModelOverride={onSaveExploreModelOverride}
 					isSaving={isSavingExploreModelOverride}
 					isSaveError={isSaveExploreModelOverrideError}
@@ -226,11 +226,11 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 						isAdvisorConfigLoading={isAdvisorConfigLoading}
 						isAdvisorConfigFetching={isAdvisorConfigFetching}
 						isAdvisorConfigLoadError={isAdvisorConfigLoadError}
-						enabledModelConfigs={enabledModelConfigs}
+						enabledModels={enabledModels}
 						providerInfoByID={providerInfoByID}
-						modelConfigsError={modelConfigsError}
-						isLoadingModelConfigs={isLoadingModelConfigs}
-						isFetchingModelConfigs={isFetchingModelConfigs}
+						modelsError={modelsError}
+						isLoadingModels={isLoadingModels}
+						isFetchingModels={isFetchingModels}
 						onSaveAdvisorConfig={onSaveAdvisorConfig}
 						isSavingAdvisorConfig={isSavingAdvisorConfig}
 						isSaveAdvisorConfigError={isSaveAdvisorConfigError}

@@ -3,7 +3,7 @@ import { type FC, useId } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type {
 	AdvisorConfig,
-	ChatModelConfig,
+	ChatModel,
 	UpdateAdvisorConfigRequest,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -26,11 +26,11 @@ interface AdvisorSettingsProps {
 	isAdvisorConfigLoading: boolean;
 	isAdvisorConfigFetching: boolean;
 	isAdvisorConfigLoadError: boolean;
-	enabledModelConfigs: readonly ChatModelConfig[];
+	enabledModels: readonly ChatModel[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
-	modelConfigsError: unknown;
-	isLoadingModelConfigs: boolean;
-	isFetchingModelConfigs: boolean;
+	modelsError: unknown;
+	isLoadingModels: boolean;
+	isFetchingModels: boolean;
 	onSaveAdvisorConfig: (
 		req: UpdateAdvisorConfigRequest,
 		options?: MutationCallbacks,
@@ -120,11 +120,11 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	isAdvisorConfigLoading,
 	isAdvisorConfigFetching,
 	isAdvisorConfigLoadError,
-	enabledModelConfigs,
+	enabledModels,
 	providerInfoByID,
-	modelConfigsError,
-	isLoadingModelConfigs,
-	isFetchingModelConfigs,
+	modelsError,
+	isLoadingModels,
+	isFetchingModels,
 	onSaveAdvisorConfig,
 	isSavingAdvisorConfig,
 	isSaveAdvisorConfigError,
@@ -134,7 +134,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	const maxOutputTokensId = useId();
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	const hasLoadedAdvisorConfig = advisorConfigData !== undefined;
-	const enabledModelOptions = enabledModelConfigs.map((config) => {
+	const enabledModelOptions = enabledModels.map((config) => {
 		const providerInfo = providerInfoByID.get(config.ai_provider_id);
 		const reasoningEffort = config.model_config?.reasoning_effort;
 		const reasoningEfforts = config.reasoning_efforts ?? [];
@@ -168,12 +168,10 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			let source = values;
 			if (
 				!isUnsetModelConfigId(source.model_config_id) &&
-				!isLoadingModelConfigs &&
-				!isFetchingModelConfigs &&
-				!modelConfigsError &&
-				!enabledModelConfigs.some(
-					(config) => config.id === source.model_config_id,
-				)
+				!isLoadingModels &&
+				!isFetchingModels &&
+				!modelsError &&
+				!enabledModels.some((config) => config.id === source.model_config_id)
 			) {
 				source = { ...source, model_config_id: "", reasoning_effort: "" };
 			}
@@ -199,11 +197,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 								submitOption.reasoningEffortDefault,
 							) ?? "",
 					};
-				} else if (
-					!isLoadingModelConfigs &&
-					!isFetchingModelConfigs &&
-					!modelConfigsError
-				) {
+				} else if (!isLoadingModels && !isFetchingModels && !modelsError) {
 					source = { ...source, reasoning_effort: "" };
 				}
 			}
@@ -224,7 +218,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 		isAdvisorConfigFetching ||
 		!hasLoadedAdvisorConfig;
 	const isModelSelectDisabled =
-		isFormDisabled || isLoadingModelConfigs || Boolean(modelConfigsError);
+		isFormDisabled || isLoadingModels || Boolean(modelsError);
 	const selectedModelOption = enabledModelOptions.find(
 		(option) => option.id === form.values.model_config_id,
 	);
@@ -236,7 +230,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			)
 		: undefined;
 	const hasUnavailableSelectedModel =
-		!isLoadingModelConfigs &&
+		!isLoadingModels &&
 		!isUnsetModelConfigId(form.values.model_config_id) &&
 		selectedModelOption === undefined;
 	const canSave = hasLoadedAdvisorConfig && form.dirty && form.isValid;
@@ -317,9 +311,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 				}
 				unsetLabel="Use chat model"
 				emptyMessage={
-					isLoadingModelConfigs
-						? "Loading models..."
-						: "No enabled models found."
+					isLoadingModels ? "Loading models..." : "No enabled models found."
 				}
 				className="h-10 w-[22rem] max-w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
 				contentClassName="min-w-[18rem]"

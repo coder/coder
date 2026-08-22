@@ -7,7 +7,7 @@ import {
 } from "../components/ChatElements/runtimeTypeUtils";
 
 type CatalogModelLike =
-	| TypesGen.ChatModel
+	| TypesGen.ChatModelCatalogEntry
 	| {
 			readonly id?: unknown;
 			readonly display_name?: unknown;
@@ -23,14 +23,14 @@ type ModelCatalogLike = {
 
 export const hasConfiguredProviderConfigs = (
 	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
+	catalog: TypesGen.ChatModelAvailabilityResponse | null | undefined,
 ): boolean => {
 	return countConfiguredProviderConfigs(providerConfigs, catalog) > 0;
 };
 
 export const countConfiguredProviderConfigs = (
 	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
+	catalog: TypesGen.ChatModelAvailabilityResponse | null | undefined,
 ): number => {
 	const availableProviders = getAvailableProviders(catalog);
 	return (
@@ -81,7 +81,7 @@ export const hasConfiguredModelsInCatalog = (
 };
 
 export const hasUserFixableProviders = (
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
+	catalog: TypesGen.ChatModelAvailabilityResponse | null | undefined,
 ): boolean => {
 	if (!catalog?.providers) {
 		return false;
@@ -92,7 +92,7 @@ export const hasUserFixableProviders = (
 };
 
 const getCatalogUnsupportedProviders = (
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
+	catalog: TypesGen.ChatModelAvailabilityResponse | null | undefined,
 ): readonly TypesGen.ChatUnsupportedProvider[] => {
 	const unsupported = catalog?.unsupported_providers;
 	return Array.isArray(unsupported) ? unsupported : [];
@@ -104,7 +104,7 @@ const getCatalogUnsupportedProviders = (
  * missing its API key returns an empty list, keeping normal setup guidance.
  */
 export const getUnsupportedProviderNames = (
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
+	catalog: TypesGen.ChatModelAvailabilityResponse | null | undefined,
 ): readonly string[] => {
 	const unsupported = getCatalogUnsupportedProviders(catalog);
 	if (unsupported.length === 0) {
@@ -121,7 +121,7 @@ export const getUnsupportedProviderNames = (
 };
 
 const getAvailableProviders = (
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
+	catalog: TypesGen.ChatModelAvailabilityResponse | null | undefined,
 ): ReadonlySet<string> => {
 	const availableProviders = new Set<string>();
 	for (const provider of getCatalogProviders(catalog)) {
@@ -137,7 +137,7 @@ const getAvailableProviders = (
 };
 
 /**
- * Resolves a stored model config ID to the ID of a matching model
+ * Resolves a stored ChatModel ID to the ID of a matching model
  * option. Returns the matched option ID, or an empty string when the
  * stored ID is blank or no longer matches an available option.
  */
@@ -168,7 +168,7 @@ export type ProviderInfo = {
 
 // providerInfoByIDFromConfigs and providerInfoByIDFromUserConfigs build
 // the ai_provider_id -> provider metadata lookup that
-// getModelOptionsFromConfigs needs. The admin and user provider endpoints
+// getModelOptionsFromModels needs. The admin and user provider endpoints
 // expose the provider id under different field names (id vs provider_id), so
 // each source has its own helper to bake in the correct field.
 export const providerInfoByIDFromConfigs = (
@@ -228,25 +228,25 @@ export const providerTypeByIDFromUserConfigs = (
 	);
 
 /**
- * Drops model configs whose provider row is disabled or missing. Both
+ * Drops models whose provider row is disabled or missing. Both
  * provider-info sources include every enabled provider, so a missing row
  * means the provider is disabled or deleted.
  */
-export const filterConfigsWithEnabledProvider = (
-	configs: readonly TypesGen.ChatModelConfig[],
+export const filterModelsWithEnabledProvider = (
+	models: readonly TypesGen.ChatModel[],
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
-): readonly TypesGen.ChatModelConfig[] =>
-	configs.filter((config) => {
-		const info = providerInfoByID.get(config.ai_provider_id);
+): readonly TypesGen.ChatModel[] =>
+	models.filter((model) => {
+		const info = providerInfoByID.get(model.ai_provider_id);
 		return info !== undefined && info.enabled !== false;
 	});
 
-export const getModelOptionsFromConfigs = (
-	configs: readonly TypesGen.ChatModelConfig[] | null | undefined,
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
+export const getModelOptionsFromModels = (
+	models: readonly TypesGen.ChatModel[] | null | undefined,
+	catalog: TypesGen.ChatModelAvailabilityResponse | null | undefined,
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
 ): readonly ModelSelectorOption[] => {
-	if (!configs || !catalog) {
+	if (!models || !catalog) {
 		return [];
 	}
 
@@ -255,37 +255,37 @@ export const getModelOptionsFromConfigs = (
 
 	// The catalog check below is keyed by provider type, so it cannot
 	// exclude a disabled provider when another of the same type is enabled.
-	for (const config of filterConfigsWithEnabledProvider(
-		configs,
+	for (const model of filterModelsWithEnabledProvider(
+		models,
 		providerInfoByID,
 	)) {
-		if (!config.enabled) {
+		if (!model.enabled) {
 			continue;
 		}
 
-		const configID = config.id.trim();
-		const providerInfo = providerInfoByID.get(config.ai_provider_id);
+		const modelID = model.id.trim();
+		const providerInfo = providerInfoByID.get(model.ai_provider_id);
 		const provider = asString(providerInfo?.provider).trim().toLowerCase();
-		const model = config.model.trim();
-		if (!configID || !providerInfo || !provider || !model) {
+		const modelName = model.model.trim();
+		if (!modelID || !providerInfo || !provider || !modelName) {
 			continue;
 		}
 		if (!availableProviders.has(provider)) {
 			continue;
 		}
 
-		const displayName = config.display_name.trim() || model;
-		const contextLimit = asNumber(config.context_limit);
-		const reasoningEffort = config.model_config?.reasoning_effort;
+		const displayName = model.display_name.trim() || modelName;
+		const contextLimit = asNumber(model.context_limit);
+		const reasoningEffort = model.model_config?.reasoning_effort;
 		const reasoningEffortDefault = asString(reasoningEffort?.default).trim();
-		const reasoningEfforts = config.reasoning_efforts ?? [];
+		const reasoningEfforts = model.reasoning_efforts ?? [];
 		options.push({
-			id: configID,
+			id: modelID,
 			provider,
-			providerId: config.ai_provider_id,
+			providerId: model.ai_provider_id,
 			providerLabel: providerInfo.displayName,
 			providerIcon: providerInfo.icon,
-			model,
+			model: modelName,
 			displayName,
 			...(contextLimit !== undefined ? { contextLimit } : {}),
 			...(reasoningEffortDefault ? { reasoningEffortDefault } : {}),
@@ -315,30 +315,26 @@ type SelectorQuery<T> = {
 interface ModelSelectorState {
 	readonly options: readonly ModelSelectorOption[];
 	readonly isModelCatalogLoading: boolean;
-	readonly modelCatalog: TypesGen.ChatModelsResponse | undefined;
+	readonly modelCatalog: TypesGen.ChatModelAvailabilityResponse | undefined;
 	readonly hasConfiguredModels: boolean;
 }
 
-// Provider identity comes from a separate query (userChatProviderConfigs).
+// Provider identity comes from a separate query (userChatProviderModels).
 // Folding all three loading states into one flag here spares every caller the
-// "configs loaded but providers still pending" window that would otherwise
+// "models loaded but providers still pending" window that would otherwise
 // build an empty provider map, drop every option, and flash "No Models".
 export const resolveModelSelector = (
-	modelConfigs: SelectorQuery<readonly TypesGen.ChatModelConfig[]>,
-	catalog: SelectorQuery<TypesGen.ChatModelsResponse>,
-	userProviderConfigs: SelectorQuery<
-		readonly TypesGen.UserChatProviderConfig[]
-	>,
+	models: SelectorQuery<readonly TypesGen.ChatModel[]>,
+	catalog: SelectorQuery<TypesGen.ChatModelAvailabilityResponse>,
+	userProviderModels: SelectorQuery<readonly TypesGen.UserChatProviderConfig[]>,
 ): ModelSelectorState => ({
-	options: getModelOptionsFromConfigs(
-		modelConfigs.data,
+	options: getModelOptionsFromModels(
+		models.data,
 		catalog.data,
-		providerInfoByIDFromUserConfigs(userProviderConfigs.data),
+		providerInfoByIDFromUserConfigs(userProviderModels.data),
 	),
 	isModelCatalogLoading:
-		modelConfigs.isLoading ||
-		catalog.isLoading ||
-		userProviderConfigs.isLoading,
+		models.isLoading || catalog.isLoading || userProviderModels.isLoading,
 	modelCatalog: catalog.data,
 	hasConfiguredModels: hasConfiguredModelsInCatalog(catalog.data),
 });
@@ -359,7 +355,7 @@ export const getModelSelectorPlaceholder = (
 	modelOptions: readonly ModelSelectorOption[],
 	isModelCatalogLoading: boolean,
 	hasConfiguredModels: boolean,
-	catalog?: TypesGen.ChatModelsResponse | null,
+	catalog?: TypesGen.ChatModelAvailabilityResponse | null,
 ): string => {
 	if (modelOptions.length > 0) {
 		return "Select model";

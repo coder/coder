@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
-import { chatModelConfigs, chatModels } from "#/api/queries/chats";
+import { chatModelAvailability, chatModels } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { deriveProviderStates } from "#/modules/aiModels/providerStates";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -16,14 +16,14 @@ const ModelsPage: FC = () => {
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
-	const modelConfigsQuery = useQuery(chatModelConfigs());
-	const modelCatalogQuery = useQuery(chatModels());
+	const modelsQuery = useQuery(chatModels());
+	const modelCatalogQuery = useQuery(chatModelAvailability());
 
 	const providerTypeByID = providerTypeByIDFromConfigs(
 		providerConfigsQuery.data,
 	);
 
-	const models = (modelConfigsQuery.data ?? []).slice().sort((a, b) => {
+	const models = (modelsQuery.data ?? []).slice().sort((a, b) => {
 		const aProvider = providerTypeByID.get(a.ai_provider_id) ?? "";
 		const bProvider = providerTypeByID.get(b.ai_provider_id) ?? "";
 		const cmp = aProvider.localeCompare(bProvider);
@@ -42,12 +42,12 @@ const ModelsPage: FC = () => {
 			<ModelsPageView
 				isLoading={
 					providerConfigsQuery.isLoading ||
-					modelConfigsQuery.isLoading ||
+					modelsQuery.isLoading ||
 					modelCatalogQuery.isLoading
 				}
 				error={
 					providerConfigsQuery.error ??
-					modelConfigsQuery.error ??
+					modelsQuery.error ??
 					modelCatalogQuery.error
 				}
 				models={models}

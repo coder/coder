@@ -15,7 +15,7 @@ import { API } from "#/api/api";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
-import { MockChatModelConfig } from "#/testHelpers/chatModels";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -36,12 +36,12 @@ const permittedOrgsKey = permittedOrganizationsKey({
 	action: "create",
 });
 
-const modelConfigID = "model-config-1";
+const modelID = "model-config-1";
 const claudeModelConfigID = "model-config-claude";
 
 const modelOptions = [
 	{
-		id: modelConfigID,
+		id: modelID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -55,10 +55,10 @@ const modelOptions = [
 ] as const;
 
 const buildModelConfig = (
-	overrides: Partial<TypesGen.ChatModelConfig> = {},
-): TypesGen.ChatModelConfig => ({
-	...MockChatModelConfig,
-	id: modelConfigID,
+	overrides: Partial<TypesGen.ChatModel> = {},
+): TypesGen.ChatModel => ({
+	...MockChatModel,
+	id: modelID,
 	model: "gpt-4o",
 	display_name: "GPT-4o",
 	created_at: "2026-02-18T00:00:00.000Z",
@@ -66,7 +66,7 @@ const buildModelConfig = (
 	...overrides,
 });
 
-const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
+const defaultModels: TypesGen.ChatModel[] = [
 	buildModelConfig({ is_default: true }),
 	buildModelConfig({
 		id: claudeModelConfigID,
@@ -120,8 +120,8 @@ const meta: Meta<typeof AgentCreateForm> = {
 		modelCatalog: null,
 		modelOptions: [...modelOptions],
 		isModelCatalogLoading: false,
-		modelConfigs: [],
-		isModelConfigsLoading: false,
+		models: [],
+		isModelsLoading: false,
 		workspaceCount: 0,
 		workspaceOptions: [],
 		workspacesError: undefined,
@@ -182,7 +182,7 @@ export const RootPersonalModelOverrideModelSelected: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
+		models: defaultModels,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "model",
 			model_config_id: claudeModelConfigID,
@@ -205,7 +205,7 @@ export const RootChatDefaultSubmitsDisplayedModel: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
+		models: defaultModels,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "chat_default",
 			model_config_id: "",
@@ -220,7 +220,7 @@ export const RootChatDefaultSubmitsDisplayedModel: Story = {
 		await waitFor(() => {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
-		expect(getCreateOptions(args.onCreateChat).model).toBe(modelConfigID);
+		expect(getCreateOptions(args.onCreateChat).model).toBe(modelID);
 	},
 };
 
@@ -228,7 +228,7 @@ export const RootOverrideMissingFromCatalog: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
+		models: defaultModels,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "model",
 			model_config_id: "model-does-not-exist",
@@ -245,7 +245,7 @@ export const RootOverrideMissingFromCatalog: Story = {
 		await waitFor(() => {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
-		expect(getCreateOptions(args.onCreateChat).model).toBe(modelConfigID);
+		expect(getCreateOptions(args.onCreateChat).model).toBe(modelID);
 	},
 };
 
@@ -253,7 +253,7 @@ export const MalformedRootOverrideUsesDefaultModel: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
+		models: defaultModels,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "model",
 			model_config_id: claudeModelConfigID,
@@ -272,7 +272,7 @@ export const MalformedRootOverrideUsesDefaultModel: Story = {
 		await waitFor(() => {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
-		expect(getCreateOptions(args.onCreateChat).model).toBe(modelConfigID);
+		expect(getCreateOptions(args.onCreateChat).model).toBe(modelID);
 	},
 };
 
@@ -280,7 +280,7 @@ export const LastUsedModelFallbackWithoutRootOverride: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
+		models: defaultModels,
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -303,7 +303,7 @@ export const ManualSelectionOverridesRootChatDefault: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
+		models: defaultModels,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "chat_default",
 			model_config_id: "",
@@ -354,7 +354,7 @@ export const RemembersReasoningEffortByModel: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		saveReasoningEffortForModel(modelConfigID, "high");
+		saveReasoningEffortForModel(modelID, "high");
 		saveReasoningEffortForModel(claudeModelConfigID, "medium");
 	},
 	play: async ({ canvasElement }) => {
@@ -386,7 +386,7 @@ export const RemembersReasoningEffortByModel: Story = {
 		restoredSlider.focus();
 		await userEvent.keyboard("{ArrowRight}");
 		await waitFor(() => {
-			expect(getReasoningEffortForModel(modelConfigID)).toBe("xhigh");
+			expect(getReasoningEffortForModel(modelID)).toBe("xhigh");
 		});
 		await userEvent.keyboard("{Escape}");
 	},
@@ -397,16 +397,16 @@ export const PersistedReasoningEffortOutranksRootOverride: Story = {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
 		modelOptions: [...effortModelOptions],
-		modelConfigs: defaultModelConfigs,
+		models: defaultModels,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "model",
-			model_config_id: modelConfigID,
+			model_config_id: modelID,
 			reasoning_effort: "high",
 		}),
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		saveReasoningEffortForModel(modelConfigID, "low");
+		saveReasoningEffortForModel(modelID, "low");
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -432,10 +432,10 @@ export const ManualReselectKeepsRootOverrideEffort: Story = {
 	args: {
 		...defaultArgs,
 		modelOptions: [...effortModelOptions],
-		modelConfigs: defaultModelConfigs,
+		models: defaultModels,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "model",
-			model_config_id: modelConfigID,
+			model_config_id: modelID,
 			reasoning_effort: "high",
 		}),
 	},
@@ -466,16 +466,16 @@ export const StalePersistedEffortFallsThroughToRootOverride: Story = {
 				reasoningEfforts: ["low", "medium"],
 			},
 		],
-		modelConfigs: defaultModelConfigs,
+		models: defaultModels,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "model",
-			model_config_id: modelConfigID,
+			model_config_id: modelID,
 			reasoning_effort: "medium",
 		}),
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		saveReasoningEffortForModel(modelConfigID, "max");
+		saveReasoningEffortForModel(modelID, "max");
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -535,7 +535,7 @@ export const SubmitsReasoningEffort: Story = {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
 		const options = getCreateOptions(args.onCreateChat);
-		expect(options.model).toBe(modelConfigID);
+		expect(options.model).toBe(modelID);
 		expect(options.reasoningEffort).toBe("high");
 	},
 };
@@ -673,7 +673,7 @@ export const LoadingModelCatalog: Story = {
 		modelCatalog: null,
 		modelOptions: [],
 		isModelCatalogLoading: true,
-		isModelConfigsLoading: true,
+		isModelsLoading: true,
 	},
 };
 
@@ -697,7 +697,7 @@ export const NoModelsConfigured: Story = {
 		modelCatalog: { providers: [], unsupported_providers: [] },
 		modelOptions: [],
 		isModelCatalogLoading: false,
-		isModelConfigsLoading: false,
+		isModelsLoading: false,
 	},
 };
 
@@ -710,7 +710,7 @@ export const MissingProviderAndModelSetup: Story = {
 		modelCatalog: { providers: [], unsupported_providers: [] },
 		modelOptions: [],
 		isModelCatalogLoading: false,
-		isModelConfigsLoading: false,
+		isModelsLoading: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
