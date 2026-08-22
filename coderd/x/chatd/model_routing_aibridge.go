@@ -231,10 +231,12 @@ type aibridgeFantasyConfig struct {
 }
 
 // bedrockIsAnthropicModel reports whether a model ID on a bedrock provider
-// uses the Anthropic Messages wire shape. Mantle routes are vendor-namespaced:
-// anthropic.* models speak Messages, and everything else speaks OpenAI.
+// uses the Anthropic Messages wire shape. InvokeModel configurations can use a
+// client-facing Claude alias while remapping it to an AWS model ID upstream.
 func bedrockIsAnthropicModel(model string) bool {
-	return strings.HasPrefix(model, "anthropic.")
+	return strings.HasPrefix(model, "claude-") ||
+		strings.HasPrefix(model, "anthropic.") ||
+		strings.Contains(model, ".anthropic.")
 }
 
 func fantasyConfigForAIBridge(providerType database.AIProviderType, model string) aibridgeFantasyConfig {
