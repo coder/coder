@@ -447,6 +447,40 @@ Distinguishing one from a human requires joining the users table on its kind
 discriminator, or joining the AI agent table. An identifier alone does not say
 what kind of thing it names, which is the same lack the pair exists to remedy.
 
+### api_keys cannot express a credential that does not expire
+
+`api_keys.expires_at` is `NOT NULL`, so every row asserts an end. That was
+sound while every key came from a login: the key expired when the session did,
+and no key existed for which "never" was the answer. A credential held by an AI
+agent has no session to outlive, and the intent is that it ends by revocation
+when its holder ends.
+
+The column has no way to say so. A mirror of a credential the ledger gives no
+expiry has to write a date, and the date it writes is a stand-in chosen to be
+recognisable rather than a fact anything recorded. The ledger's own column is
+nullable, and an absent expiry there stands where a row would have been absent
+had expirations been kept in a table of their own.
+
+This is small and it is the shape of the larger problem. A column that cannot
+represent the absent case forces every writer to invent a value, and a reader
+cannot afterwards tell an invented value from a stated one.
+
+### api_keys admits two kinds of holder where the ledger admits any
+
+The holder pair on `api_keys` carries a `CHECK` constraint naming `user` and
+`ai_agent`, which is the proof of concept scope. The credential ledger names no
+kinds at all: a credential authenticates whatever holds it, and the entity types
+are the journal's business rather than the ledger's.
+
+So the two disagree about what may hold a credential, and the narrower one is
+the one authentication reads. A credential for a `workspace_agent` can be
+recorded and cannot be mirrored, which means it can be recorded and cannot be
+used. Issuance refuses it rather than letting the constraint report it, because
+a caller that never named `api_keys` should not be told about its constraints.
+
+The disagreement is a consequence of the mirror rather than of either table.
+It disappears when the ledger is what authentication reads.
+
 ### Twenty one places ask whether the holder is a particular user
 
 Comparisons rather than lookups, and they behave differently from the rest
@@ -709,6 +743,27 @@ what it becomes.** Once authorization is elaborated, the reconciliation is that
 an
 actor's capabilities do not exceed their authorization, which is a question
 nothing in the system can presently ask.
+
+### Issuance can move to the journal before authentication moves
+
+Issuance and verification are separable, and separating them is what lets the
+rewrite be staged rather than landed whole.
+
+An api key issued through the journal is a row in the ledger and a row in
+`api_keys`, written in one transaction. The authentication path is untouched: it
+reads `api_keys`, splits a token, compares a digest, and knows nothing of any
+ledger. So the first half of the change can ship, and be exercised against the
+unchanged system, before the half that carries the risk.
+
+What that buys is a measurement. The claim that a credential's whole life can be
+journaled is otherwise argued from a schema; with issuance moved it is argued
+from a running system that authenticates tokens the journal minted.
+
+The cost it defers is real and appears below as its own item: while the mirror
+covers issuance alone, the two records diverge on every other path, and nothing
+detects it. **A ledger complete about beginnings and silent about endings is
+not yet authoritative**, and reading it as though it were is the mistake this
+staging makes available.
 
 ### Cost: last use has to move off the credential row
 

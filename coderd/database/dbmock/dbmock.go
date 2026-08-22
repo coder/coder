@@ -3735,6 +3735,21 @@ func (mr *MockStoreMockRecorder) GetCredentialAPIKeyByID(ctx, id any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCredentialAPIKeyByID", reflect.TypeOf((*MockStore)(nil).GetCredentialAPIKeyByID), ctx, id)
 }
 
+// GetCredentialAPIKeyByKeyID mocks base method.
+func (m *MockStore) GetCredentialAPIKeyByKeyID(ctx context.Context, keyID string) (database.CredentialApiKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCredentialAPIKeyByKeyID", ctx, keyID)
+	ret0, _ := ret[0].(database.CredentialApiKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCredentialAPIKeyByKeyID indicates an expected call of GetCredentialAPIKeyByKeyID.
+func (mr *MockStoreMockRecorder) GetCredentialAPIKeyByKeyID(ctx, keyID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCredentialAPIKeyByKeyID", reflect.TypeOf((*MockStore)(nil).GetCredentialAPIKeyByKeyID), ctx, keyID)
+}
+
 // GetCredentialLedgerRowByID mocks base method.
 func (m *MockStore) GetCredentialLedgerRowByID(ctx context.Context, id uuid.UUID) (database.CredentialLedger, error) {
 	m.ctrl.T.Helper()

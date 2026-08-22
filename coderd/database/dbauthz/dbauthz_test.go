@@ -671,6 +671,44 @@ func (s *MethodTestSuite) TestCredentialLifecycle() {
 		dbm.EXPECT().GetValidCredentialsByHolder(gomock.Any(), arg).Return([]database.CredentialLedger{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("InsertCredentialAPIKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertCredentialAPIKeyParams{
+			ID:           uuid.New(),
+			KeyID:        "0123456789",
+			HashedSecret: "deadbeef",
+			TokenName:    "ai-ws",
+			Scopes:       database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+			AllowList:    database.AllowList{{Type: "workspace", ID: uuid.NewString()}},
+		}
+		dbm.EXPECT().InsertCredentialAPIKey(gomock.Any(), arg).Return(database.CredentialApiKey{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetCredentialAPIKeyByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().GetCredentialAPIKeyByID(gomock.Any(), id).Return(database.CredentialApiKey{}, nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetCredentialAPIKeyByKeyID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		keyID := "0123456789"
+		dbm.EXPECT().GetCredentialAPIKeyByKeyID(gomock.Any(), keyID).Return(database.CredentialApiKey{}, nil).AnyTimes()
+		check.Args(keyID).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("InsertCredentialLifecycleJournalAPIKeyLine", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertCredentialLifecycleJournalAPIKeyLineParams{
+			EntryID:   1,
+			Line:      0,
+			TokenName: "ai-ws",
+			Scopes:    database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+			AllowList: database.AllowList{{Type: "workspace", ID: uuid.NewString()}},
+		}
+		dbm.EXPECT().InsertCredentialLifecycleJournalAPIKeyLine(gomock.Any(), arg).Return(database.CredentialLifecycleJournalApiKey{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetCredentialLifecycleJournalAPIKeyLines", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		entryID := int64(1)
+		dbm.EXPECT().GetCredentialLifecycleJournalAPIKeyLines(gomock.Any(), entryID).Return([]database.CredentialLifecycleJournalApiKey{}, nil).AnyTimes()
+		check.Args(entryID).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("RevokeCredential", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.RevokeCredentialParams{
 			ID:                          uuid.New(),

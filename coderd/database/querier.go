@@ -597,6 +597,10 @@ type sqlcQuerier interface {
 	GetChildChatsByParentIDs(ctx context.Context, arg GetChildChatsByParentIDsParams) ([]GetChildChatsByParentIDsRow, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCredentialAPIKeyByID(ctx context.Context, id uuid.UUID) (CredentialApiKey, error)
+	// Resolve the public half of a token into the credential it names. This is how
+	// a presentation arriving over the wire finds its subject, the wire carrying a
+	// key id where the model carries an identifier.
+	GetCredentialAPIKeyByKeyID(ctx context.Context, keyID string) (CredentialApiKey, error)
 	GetCredentialLedgerRowByID(ctx context.Context, id uuid.UUID) (CredentialLedger, error)
 	// The api_key lines of one entry, in line order.
 	GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, entryID int64) ([]CredentialLifecycleJournalApiKey, error)

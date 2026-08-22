@@ -2017,6 +2017,14 @@ func (m queryMetricsStore) GetCredentialAPIKeyByID(ctx context.Context, id uuid.
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetCredentialAPIKeyByKeyID(ctx context.Context, keyID string) (database.CredentialApiKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCredentialAPIKeyByKeyID(ctx, keyID)
+	m.queryLatencies.WithLabelValues("GetCredentialAPIKeyByKeyID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCredentialAPIKeyByKeyID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetCredentialLedgerRowByID(ctx context.Context, id uuid.UUID) (database.CredentialLedger, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetCredentialLedgerRowByID(ctx, id)

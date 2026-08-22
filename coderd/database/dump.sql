@@ -2468,12 +2468,15 @@ CREATE TABLE credential_api_key (
     token_name text NOT NULL,
     scopes api_key_scope[] NOT NULL,
     allow_list text[] NOT NULL,
+    key_id text NOT NULL,
     CONSTRAINT credential_api_key_allow_list_not_empty CHECK ((array_length(allow_list, 1) > 0))
 );
 
 COMMENT ON TABLE credential_api_key IS 'What an api_key credential holds beyond what every credential holds. Keyed on the ledger row it belongs to, so the type discriminator on that row says this is the table to read.';
 
 COMMENT ON COLUMN credential_api_key.hashed_secret IS 'Hex of an unsalted SHA-256 digest, as for a password credential. The column is separate rather than shared because a type owns its own state, and two types holding a digest apiece is not one column held in common.';
+
+COMMENT ON COLUMN credential_api_key.key_id IS 'The public half of the token, and the id of the api_keys row mirroring this credential.';
 
 CREATE TABLE credential_ledger (
     id uuid NOT NULL,
@@ -5055,6 +5058,8 @@ CREATE INDEX authorization_lifecycle_journal_actor_idx ON authorization_lifecycl
 CREATE INDEX authorization_lifecycle_journal_subject_idx ON authorization_lifecycle_journal USING btree (subject);
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
+CREATE UNIQUE INDEX credential_api_key_key_id_idx ON credential_api_key USING btree (key_id);
 
 CREATE INDEX credential_ledger_holder_idx ON credential_ledger USING btree (holder_type, holder_id);
 

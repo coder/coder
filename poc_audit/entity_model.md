@@ -1094,6 +1094,25 @@ sending one blob, and a challenge response protocol separates them visibly.
 Without the declaration a refusal names no credential, and there is nothing for
 `presentation_refused` to be about.
 
+**A wire format may pack the two into one string, and often does.** An API key
+token is a key identifier joined to a secret. Nothing about that makes it one
+thing: the first half is the declaration and the second is the authenticator
+output, and the verifier's first act is to take them apart. Which half is which
+is not discoverable from the string, so it is settled by the credential's type.
+
+Two things follow. **A credential type fixes the shape of its authenticator**,
+because the authenticator has to be readable by whatever verifies it. The shape
+is part of what the type is, alongside whatever the ledger holds for it. And
+something that cannot be parsed cannot be refused either: it fails before there
+is a credential for a refusal to be about, so it leaves no entry, which is the
+same gap a declaration naming no credential leaves.
+
+**The wire has its own name for the credential.** A key identifier is not the
+identifier the ledger minted. Resolving one into the other is the verifier's
+work rather than the presenter's, the presenter having supplied only what the
+wire carries, and the ledger has to have recorded the wire's name for its own
+credential or the resolution has nothing to go on.
+
 **All of this model's operations are observed.** The actor is the verifier: the
 party the presentation was made to, and so the party that noticed. Nobody
 commands a presentation into the record. The nearest ordinary picture is an

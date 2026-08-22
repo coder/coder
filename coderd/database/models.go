@@ -5498,6 +5498,8 @@ type CredentialApiKey struct {
 	TokenName    string       `db:"token_name" json:"token_name"`
 	Scopes       APIKeyScopes `db:"scopes" json:"scopes"`
 	AllowList    AllowList    `db:"allow_list" json:"allow_list"`
+	// The public half of the token, and the id of the api_keys row mirroring this credential.
+	KeyID string `db:"key_id" json:"key_id"`
 }
 
 // Current state of each credential. A credential is a means of exercising authority and not the authority itself: a grant stands whether or not one has been issued, and the two are reconciled against each other only because neither determines the other. Carries no creation time, the journal recording when.

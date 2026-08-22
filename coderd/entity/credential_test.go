@@ -3,6 +3,8 @@ package entity_test
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
+	"strings"
 	"testing"
 	"time"
 
@@ -266,7 +268,7 @@ func TestIssueAPIKeyCredential(t *testing.T) {
 		require.Equal(t, in.APIKey.AllowList, lines[0].AllowList)
 	})
 
-	t.Run("VerifiesItsOwnSecret", func(t *testing.T) {
+	t.Run("VerifiesItsOwnToken", func(t *testing.T) {
 		t.Parallel()
 
 		db, _ := dbtestutil.NewDB(t)
@@ -274,17 +276,87 @@ func TestIssueAPIKeyCredential(t *testing.T) {
 
 		holder := entity.Ref{Type: entity.TypeAIAgent, ID: uuid.New()}
 		actor := entity.Ref{Type: entity.TypeUser, ID: uuid.New()}
+		verifier := entity.Ref{Type: entity.TypeUser, ID: uuid.New()}
 
 		issued, err := entity.IssueCredential(ctx, db, params(holder, actor))
 		require.NoError(t, err)
 
-		ok, err := entity.VerifyCredential(ctx, db, present(issued.ID, issued.Authenticator))
+		// The round trip runs through the wire format rather than around it.
+		// Presenting the token whole would present the wrong thing: the key id
+		// is a declaration and only the secret half is an authenticator output.
+		p, err := entity.APIKeyPresentation(ctx, db, issued.Authenticator, verifier, "test")
 		require.NoError(t, err)
-		require.True(t, ok, "the secret handed back should verify")
+		require.Equal(t, issued.ID, p.Declared, "the key id names the credential")
 
-		ok, err = entity.VerifyCredential(ctx, db, present(issued.ID, "not-the-secret"))
+		ok, err := entity.VerifyCredential(ctx, db, p)
+		require.NoError(t, err)
+		require.True(t, ok, "the token handed back should verify")
+
+		keyID, _, found := strings.Cut(issued.Authenticator, "-")
+		require.True(t, found)
+
+		wrong, err := entity.APIKeyPresentation(ctx, db, keyID+"-"+strings.Repeat("x", 22), verifier, "test")
+		require.NoError(t, err)
+		ok, err = entity.VerifyCredential(ctx, db, wrong)
 		require.NoError(t, err)
 		require.False(t, ok, "another secret should not")
+
+		unknown, err := entity.APIKeyPresentation(ctx, db, strings.Repeat("z", 10)+"-"+strings.Repeat("x", 22), verifier, "test")
+		require.NoError(t, err)
+		require.Equal(t, uuid.Nil, unknown.Declared, "a key id naming nothing declares nothing")
+
+		_, err = entity.APIKeyPresentation(ctx, db, "not-a-token", verifier, "test")
+		require.Error(t, err, "a string that is not a token is no presentation")
+	})
+
+	t.Run("MirrorsIntoAPIKeys", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		holder := entity.Ref{Type: entity.TypeAIAgent, ID: uuid.New()}
+		actor := entity.Ref{Type: entity.TypeUser, ID: uuid.New()}
+		in := params(holder, actor)
+
+		issued, err := entity.IssueCredential(ctx, db, in)
+		require.NoError(t, err)
+
+		credential, err := db.GetCredentialAPIKeyByID(ctx, issued.ID)
+		require.NoError(t, err)
+
+		mirrored, err := db.GetAPIKeyByID(ctx, credential.KeyID)
+		require.NoError(t, err)
+		require.Equal(t, holder.ID, mirrored.HolderID.AsUserIDUnchecked(),
+			"the two tables must agree on who holds the credential")
+		require.Equal(t, database.HolderTypeAIAgent, mirrored.HolderType)
+		require.Equal(t, in.APIKey.TokenName, mirrored.TokenName)
+		require.Equal(t, in.APIKey.Scopes, mirrored.Scopes)
+		require.Equal(t, in.APIKey.AllowList, mirrored.AllowList)
+		require.Equal(t, database.LoginTypeToken, mirrored.LoginType)
+		require.True(t, mirrored.ExpiresAt.After(time.Now()),
+			"the mirror of a credential the ledger gives no expiry must not read as expired")
+
+		// The same digest in two encodings. The ledger keeps hex and api_keys
+		// keeps bytes, and a mirror that disagreed here would authenticate
+		// nothing while looking correct.
+		require.Equal(t, credential.HashedSecret, hex.EncodeToString(mirrored.HashedSecret))
+	})
+
+	t.Run("RefusesAHolderAPIKeysCannotHold", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// The ledger records a credential for any kind of entity. api_keys
+		// constrains its holder to two, so this one can be recorded and not
+		// mirrored, and issuing it would leave the two disagreeing.
+		holder := entity.Ref{Type: entity.TypeWorkspaceAgent, ID: uuid.New()}
+		actor := entity.Ref{Type: entity.TypeUser, ID: uuid.New()}
+
+		_, err := entity.IssueCredential(ctx, db, params(holder, actor))
+		require.ErrorContains(t, err, "api_keys holds no credential for a workspace_agent")
 	})
 
 	t.Run("ParametersAreRequiredExactlyForTheType", func(t *testing.T) {

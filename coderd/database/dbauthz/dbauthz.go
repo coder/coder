@@ -3804,6 +3804,13 @@ func (q *querier) GetCredentialAPIKeyByID(ctx context.Context, id uuid.UUID) (da
 	return q.db.GetCredentialAPIKeyByID(ctx, id)
 }
 
+func (q *querier) GetCredentialAPIKeyByKeyID(ctx context.Context, keyID string) (database.CredentialApiKey, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.CredentialApiKey{}, err
+	}
+	return q.db.GetCredentialAPIKeyByKeyID(ctx, keyID)
+}
+
 func (q *querier) GetCredentialLedgerRowByID(ctx context.Context, id uuid.UUID) (database.CredentialLedger, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.CredentialLedger{}, err

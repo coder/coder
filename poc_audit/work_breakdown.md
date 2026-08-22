@@ -348,9 +348,36 @@ a rehearsal.
 
 ### Status
 
-Not started. Depends on WP2, which brings the credential journal and ledger into
-existence, and on the entity model's account of operations, which landed on
-2026-08-22 and which the third milestone needs.
+Complete as of 2026-08-22. All four milestones landed, and both acceptance
+tests named below pass, the second of them against a running server.
+
+Four things were not foreseen when the package was written.
+
+**A credential type fixes the shape of its authenticator.** An api key token is
+`<key id>-<secret>` at exactly ten and twenty two characters, because
+`httpmw.SplitAPIToken` parses nothing else. So the api_key type mints something
+structurally different from a password, and the token is a wire format packing a
+declaration and an authenticator output rather than an authenticator. Splitting
+it is the verifier's work.
+
+**The ledger had to record the public half.** `credential_api_key.key_id` was
+added, uniquely indexed, so that a token arriving over the wire resolves to the
+credential it names and so that the mirror is traceable back from `api_keys`.
+Without it the column that connects the two records would be derived rather than
+recorded.
+
+**The mirror has to write an expiry the ledger does not hold**, because
+`api_keys.expires_at` is `NOT NULL`. Expiry remains out of scope in the sense
+the package intended: nothing reads or writes the ledger's own column. What the
+mirror writes is a stand-in, and the finding it produced is recorded in
+`rewrite_rbac.md` under "api_keys cannot express a credential that does not
+expire".
+
+**The second milestone left five methods untested in the dbauthz suite**, which
+asserts that every method is exercised at least once and so had been failing
+whenever it ran unfiltered. Found here and fixed here. The lesson is the one
+already learned once on this branch: a filtered test run is not evidence about
+the suite.
 
 ### What forces the work
 
@@ -394,13 +421,13 @@ describes credentials rather than recording them, which
 ### Milestones
 
 1. **Normalize the existing credential journal and ledger.** Per-type tables,
-   the existing test still passing.
-2. **Add the `api_key` credential type**, with its journal and its ledger.
+   the existing test still passing. Done.
+2. **Add the `api_key` credential type**, with its journal and its ledger. Done.
 3. **Model and build `credential_use`.** The corpus entry comes first, since
    this is the first entity that is not a state machine and the general form was
-   only settled recently.
+   only settled recently. Done.
 4. **Mirror `api_key` credentials into `api_keys` on issuance.** Posting is
-   already a transaction, so a third write joins it.
+   already a transaction, so a third write joins it. Done.
 
 ### What this package does not do
 
@@ -416,6 +443,12 @@ last use still write `api_keys` directly, so for the duration the ledger is
 complete about beginnings and silent about endings. **That is an interim and
 should not be read as the ledger being authoritative**, which it becomes only
 when every path that changes a credential goes through it.
+
+The divergence this leaves is asserted rather than described. A test issues a
+credential, revokes it through the ledger, and requires that the server still
+accepts the token, because revocation does not reach `api_keys`. It passes
+today; it is written so that the day revocation joins the mirror it fails and
+has to be rewritten, which is the notice wanted.
 
 ### Acceptance tests
 

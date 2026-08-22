@@ -15108,7 +15108,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 
 const getCredentialAPIKeyByID = `-- name: GetCredentialAPIKeyByID :one
 SELECT
-	id, hashed_secret, token_name, scopes, allow_list
+	id, hashed_secret, token_name, scopes, allow_list, key_id
 FROM
 	credential_api_key
 WHERE
@@ -15124,6 +15124,33 @@ func (q *sqlQuerier) GetCredentialAPIKeyByID(ctx context.Context, id uuid.UUID) 
 		&i.TokenName,
 		&i.Scopes,
 		&i.AllowList,
+		&i.KeyID,
+	)
+	return i, err
+}
+
+const getCredentialAPIKeyByKeyID = `-- name: GetCredentialAPIKeyByKeyID :one
+SELECT
+	id, hashed_secret, token_name, scopes, allow_list, key_id
+FROM
+	credential_api_key
+WHERE
+	key_id = $1
+`
+
+// Resolve the public half of a token into the credential it names. This is how
+// a presentation arriving over the wire finds its subject, the wire carrying a
+// key id where the model carries an identifier.
+func (q *sqlQuerier) GetCredentialAPIKeyByKeyID(ctx context.Context, keyID string) (CredentialApiKey, error) {
+	row := q.db.QueryRowContext(ctx, getCredentialAPIKeyByKeyID, keyID)
+	var i CredentialApiKey
+	err := row.Scan(
+		&i.ID,
+		&i.HashedSecret,
+		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
+		&i.KeyID,
 	)
 	return i, err
 }
@@ -15326,13 +15353,14 @@ func (q *sqlQuerier) GetValidCredentialsByHolder(ctx context.Context, arg GetVal
 
 const insertCredentialAPIKey = `-- name: InsertCredentialAPIKey :one
 INSERT INTO
-	credential_api_key (id, hashed_secret, token_name, scopes, allow_list)
+	credential_api_key (id, key_id, hashed_secret, token_name, scopes, allow_list)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING id, hashed_secret, token_name, scopes, allow_list
+	($1, $2, $3, $4, $5, $6) RETURNING id, hashed_secret, token_name, scopes, allow_list, key_id
 `
 
 type InsertCredentialAPIKeyParams struct {
 	ID           uuid.UUID    `db:"id" json:"id"`
+	KeyID        string       `db:"key_id" json:"key_id"`
 	HashedSecret string       `db:"hashed_secret" json:"hashed_secret"`
 	TokenName    string       `db:"token_name" json:"token_name"`
 	Scopes       APIKeyScopes `db:"scopes" json:"scopes"`
@@ -15344,6 +15372,7 @@ type InsertCredentialAPIKeyParams struct {
 func (q *sqlQuerier) InsertCredentialAPIKey(ctx context.Context, arg InsertCredentialAPIKeyParams) (CredentialApiKey, error) {
 	row := q.db.QueryRowContext(ctx, insertCredentialAPIKey,
 		arg.ID,
+		arg.KeyID,
 		arg.HashedSecret,
 		arg.TokenName,
 		arg.Scopes,
@@ -15356,6 +15385,7 @@ func (q *sqlQuerier) InsertCredentialAPIKey(ctx context.Context, arg InsertCrede
 		&i.TokenName,
 		&i.Scopes,
 		&i.AllowList,
+		&i.KeyID,
 	)
 	return i, err
 }

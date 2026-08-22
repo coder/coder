@@ -93,9 +93,9 @@ WHERE
 -- The api_key type's own state, keyed on the ledger row it belongs to and
 -- written in the same transaction as it.
 INSERT INTO
-	credential_api_key (id, hashed_secret, token_name, scopes, allow_list)
+	credential_api_key (id, key_id, hashed_secret, token_name, scopes, allow_list)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING *;
+	($1, $2, $3, $4, $5, $6) RETURNING *;
 
 -- name: GetCredentialAPIKeyByID :one
 SELECT
@@ -104,6 +104,17 @@ FROM
 	credential_api_key
 WHERE
 	id = $1;
+
+-- name: GetCredentialAPIKeyByKeyID :one
+-- Resolve the public half of a token into the credential it names. This is how
+-- a presentation arriving over the wire finds its subject, the wire carrying a
+-- key id where the model carries an identifier.
+SELECT
+	*
+FROM
+	credential_api_key
+WHERE
+	key_id = $1;
 
 -- name: InsertCredentialLifecycleJournalAPIKeyLine :one
 -- What an issuance of an api_key credential carried. The entry says an issuance

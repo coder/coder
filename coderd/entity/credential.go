@@ -7,9 +7,12 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"net"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -63,6 +66,30 @@ const (
 // authenticatorLength is how many characters a minted password carries. It is
 // not a considered figure.
 const authenticatorLength = 32
+
+// The shape of an api_key token, which is "<key id>-<secret>" at exactly these
+// lengths. httpmw.SplitAPIToken parses nothing else, and it is not imported
+// here because it would draw the middleware into this package; the acceptance
+// test in poc_tests is what catches the two drifting apart.
+//
+// A credential type is therefore not only what the ledger holds for it but
+// what shape its authenticator takes, because the authenticator has to be
+// readable by whatever verifies it.
+const (
+	apiKeyIDLength     = 10
+	apiKeySecretLength = 22
+)
+
+// apiKeyMirrorNoExpiry is the expiry the mirror writes for a credential the
+// ledger records no expiry for.
+//
+// **api_keys.expires_at is NOT NULL and so cannot say "never".** Every api key
+// that existed before this had been issued by a login and expired with the
+// session, so the case never arose. A credential held by an AI agent has no
+// session to outlive and ends by revocation instead. The mirror represents that
+// as faithfully as a narrower column allows, which is to say by a date chosen
+// to be recognizable rather than by a fact.
+var apiKeyMirrorNoExpiry = time.Date(9999, time.January, 1, 0, 0, 0, 0, time.UTC)
 
 // IssueCredentialParams are the inputs to issuing a credential.
 type IssueCredentialParams struct {
@@ -144,6 +171,9 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 
 	var issued IssuedCredential
 	var stored string
+	// The two halves of an api_key token, empty for every other type. The
+	// mirror needs both after the switch, so they outlive the case.
+	var keyID, keySecret string
 	// A type's own parameters are present exactly for that type. Absent where
 	// they are needed there is nothing to issue; present where they are not
 	// they parameterize an operation that takes none.
@@ -153,13 +183,31 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 	}
 
 	switch credentialType {
-	case CredentialTypePassword, CredentialTypeAPIKey:
+	case CredentialTypePassword:
 		authenticator, err := cryptorand.String(authenticatorLength)
 		if err != nil {
 			return IssuedCredential{}, xerrors.Errorf("generate authenticator: %w", err)
 		}
 		issued.Authenticator = authenticator
 		stored = hashAuthenticator(authenticator)
+	case CredentialTypeAPIKey:
+		id, err := cryptorand.String(apiKeyIDLength)
+		if err != nil {
+			return IssuedCredential{}, xerrors.Errorf("generate a key id: %w", err)
+		}
+		secret, err := cryptorand.String(apiKeySecretLength)
+		if err != nil {
+			return IssuedCredential{}, xerrors.Errorf("generate a key secret: %w", err)
+		}
+		keyID, keySecret = id, secret
+		// What is handed to the holder packs a declaration and an
+		// authenticator output into one string, and what is kept is a digest
+		// of the second half alone. Splitting the token is the verifier's
+		// work, so a presentation of this credential carries the secret half
+		// as its authenticator output and the credential's own identifier as
+		// its declaration.
+		issued.Authenticator = id + "-" + secret
+		stored = hashAuthenticator(secret)
 	case CredentialTypeNull:
 		// Nothing to mint and nothing to keep. Both halves are empty on
 		// purpose, and verification never consults either.
@@ -169,6 +217,20 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 
 	if params.APIKey != nil && len(params.APIKey.AllowList) == 0 {
 		return IssuedCredential{}, xerrors.New("an api_key credential with an empty allow list confers nothing")
+	}
+
+	// The mirror narrows what may hold a credential. api_keys constrains its
+	// holder to a user or an AI agent, so a credential for a workspace_agent
+	// can be recorded in the ledger and cannot be mirrored. Saying so here
+	// names the restriction; letting it through would report it as a
+	// constraint violation on a table the caller never mentioned.
+	var mirrorHolder database.HolderType
+	if credentialType == CredentialTypeAPIKey {
+		var err error
+		mirrorHolder, err = apiKeyHolderType(params.Holder.Type)
+		if err != nil {
+			return IssuedCredential{}, err
+		}
 	}
 
 	effective := params.EffectiveAt
@@ -238,12 +300,49 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 			}
 			if _, err := tx.InsertCredentialAPIKey(ctx, database.InsertCredentialAPIKeyParams{
 				ID:           issued.ID,
+				KeyID:        keyID,
 				HashedSecret: stored,
 				TokenName:    params.APIKey.TokenName,
 				Scopes:       params.APIKey.Scopes,
 				AllowList:    params.APIKey.AllowList,
 			}); err != nil {
 				return xerrors.Errorf("post the api_key: %w", err)
+			}
+
+			// The mirror, in the transaction that posted the credential.
+			// api_keys is what authenticates a request today, so a credential
+			// the ledger holds and that table does not is one the system will
+			// refuse. Writing both together is what makes issuance through the
+			// journal the same act as issuance, rather than a description of
+			// one that happened elsewhere.
+			//
+			// **This is one way and only for issuance.** Revocation, expiry
+			// and last use still write api_keys directly, so the two can
+			// diverge on every path but this one, and nothing detects it.
+			if _, err := tx.InsertAPIKey(ctx, database.InsertAPIKeyParams{
+				ID:              keyID,
+				HashedSecret:    hashAuthenticatorBytes(keySecret),
+				HolderID:        database.HolderID(params.Holder.ID),
+				HolderType:      mirrorHolder,
+				LastUsed:        time.Unix(0, 0).UTC(),
+				ExpiresAt:       apiKeyMirrorNoExpiry,
+				LifetimeSeconds: int64(apiKeyMirrorNoExpiry.Sub(effective).Seconds()),
+				CreatedAt:       effective,
+				UpdatedAt:       effective,
+				// A key minted on request rather than obtained by logging in.
+				// This is also what the unique index on (holder_id,
+				// token_name) is conditioned on, so a holder cannot be issued
+				// two credentials of the same name.
+				LoginType: database.LoginTypeToken,
+				IPAddress: pqtype.Inet{
+					IPNet: net.IPNet{IP: net.IPv4zero, Mask: net.CIDRMask(32, 32)},
+					Valid: true,
+				},
+				Scopes:    params.APIKey.Scopes,
+				AllowList: params.APIKey.AllowList,
+				TokenName: params.APIKey.TokenName,
+			}); err != nil {
+				return xerrors.Errorf("mirror into api_keys: %w", err)
 			}
 		}
 		return nil
@@ -284,6 +383,41 @@ type Presentation struct {
 	// subject. A field for a presenter would want a claim distinct from the
 	// declaration, which arises under delegation and does not arise here.
 	AnnotationSource string
+}
+
+// APIKeyPresentation reads an api key token as a presentation.
+//
+// The token packs a declaration and an authenticator output into one string.
+// This resolves the first into the credential it names and keeps the second
+// unchanged. Resolving is the verifier's act rather than the presenter's: what
+// the presenter supplied was a key id, which is what the wire has instead of an
+// identifier.
+//
+// A token naming no credential yields a presentation declaring none, which
+// VerifyCredential refuses without recording, for the reason given there. A
+// token that is not a token at all is an error, there being no presentation to
+// build from it.
+func APIKeyPresentation(ctx context.Context, store database.Store, token string, verifier Ref, source string) (Presentation, error) {
+	keyID, secret, ok := strings.Cut(token, "-")
+	if !ok || len(keyID) != apiKeyIDLength || len(secret) != apiKeySecretLength {
+		return Presentation{}, xerrors.New("an api key token is a key id and a secret joined by a hyphen")
+	}
+
+	p := Presentation{
+		AuthenticatorOutput: secret,
+		Verifier:            verifier,
+		AnnotationSource:    source,
+	}
+
+	key, err := store.GetCredentialAPIKeyByKeyID(ctx, keyID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return p, nil
+		}
+		return Presentation{}, xerrors.Errorf("resolve the declared key id: %w", err)
+	}
+	p.Declared = key.ID
+	return p, nil
 }
 
 // VerifyCredential decides one presentation and records it.
@@ -469,4 +603,25 @@ func RevokeCredential(ctx context.Context, store database.Store, id uuid.UUID, a
 func hashAuthenticator(authenticator string) string {
 	sum := sha256.Sum256([]byte(authenticator))
 	return hex.EncodeToString(sum[:])
+}
+
+// hashAuthenticatorBytes is the same digest api_keys holds. The ledger keeps
+// hex and that table keeps bytes, so the two columns differ in encoding and
+// agree in content.
+func hashAuthenticatorBytes(authenticator string) []byte {
+	sum := sha256.Sum256([]byte(authenticator))
+	return sum[:]
+}
+
+// apiKeyHolderType maps a holder onto what api_keys accepts, and reports the
+// kinds it does not.
+func apiKeyHolderType(t Type) (database.HolderType, error) {
+	switch t {
+	case TypeUser:
+		return database.HolderTypeUser, nil
+	case TypeAIAgent:
+		return database.HolderTypeAIAgent, nil
+	default:
+		return "", xerrors.Errorf("api_keys holds no credential for a %s", t)
+	}
 }
