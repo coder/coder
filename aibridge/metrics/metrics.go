@@ -43,6 +43,11 @@ type Metrics struct {
 	// Keys attempted before success or exhaustion, per interception for
 	// bridged requests and per request for passthrough requests.
 	KeyPoolFailoverAttempts *prometheus.HistogramVec
+
+	// Request bridge pool metrics.
+	BridgePoolUncachedServeAttempts prometheus.Counter
+	BridgePoolRetries               *prometheus.CounterVec
+	BridgePoolRetryExhausted        *prometheus.CounterVec
 }
 
 // NewMetrics creates AND registers metrics. It will panic if a collector has already been registered.
@@ -164,5 +169,22 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 				"passthrough requests.",
 			Buckets: []float64{1, 2, 3, 4, 5, 10, 25},
 		}, []string{"provider"}),
+
+		// Request bridge pool metrics.
+		BridgePoolUncachedServeAttempts: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+			Subsystem: "bridge_pool",
+			Name:      "uncached_serve_attempts_total",
+			Help:      "The number of attempts to serve through a bridge rejected by the request bridge cache.",
+		}),
+		BridgePoolRetries: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Subsystem: "bridge_pool",
+			Name:      "retries_total",
+			Help:      "The number of request bridge retries after admission or provider generation failure.",
+		}, []string{"reason"}),
+		BridgePoolRetryExhausted: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Subsystem: "bridge_pool",
+			Name:      "retry_exhausted_total",
+			Help:      "The number of requests that exhausted the request bridge retry limit.",
+		}, []string{"reason"}),
 	}
 }

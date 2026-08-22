@@ -45,6 +45,9 @@ Some metrics use the explicit `provider_name` or `provider_type` labels for clar
 | `coder_ai_gateway_key_pool_state_transitions_total`                | counter   | `provider`, `reason`                                                       | Provider key state transitions during failover.                                                                                                    |
 | `coder_ai_gateway_key_pool_exhaustions_total`                      | counter   | `outcome`, `provider`                                                      | Times a provider key pool had no usable key.                                                                                                       |
 | `coder_ai_gateway_key_pool_failover_attempts`                      | histogram | `provider`                                                                 | Keys attempted before a request succeeded or exhausted the provider key pool.                                                                      |
+| `coder_ai_gateway_bridge_pool_uncached_serve_attempts_total`       | counter   |                                                                            | Attempts to serve through a request bridge that the cache rejected.                                                                                |
+| `coder_ai_gateway_bridge_pool_retries_total`                       | counter   | `reason`                                                                   | Request bridge retries after an `admission` or provider `generation` failure.                                                                      |
+| `coder_ai_gateway_bridge_pool_retry_exhausted_total`               | counter   | `reason`                                                                   | Requests that exhausted the request bridge retry limit after an `admission` or provider `generation` failure.                                      |
 | `coder_ai_gateway_provider_info`                                   | gauge     | `provider_name`, `provider_type`, `status`                                 | Build status of each configured provider, including disabled and errored ones. Value is always `1`; `status` is `enabled`, `disabled`, or `error`. |
 | `coder_ai_gateway_providers_last_reload_timestamp_seconds`         | gauge     |                                                                            | Unix timestamp of the last attempt to rebuild the Gateway provider pool.                                                                           |
 | `coder_ai_gateway_providers_last_reload_success_timestamp_seconds` | gauge     |                                                                            | Unix timestamp of the last successful rebuild of the Gateway provider pool.                                                                        |
@@ -271,7 +274,7 @@ AI Gateway creates spans for the following operations:
 
 | Span name                                   | Description                                          |
 |---------------------------------------------|------------------------------------------------------|
-| `CachedBridgePool.Acquire`                  | Acquiring a request bridge instance from the pool    |
+| `CachedBridgePool.Serve`                    | Serving a request through a pooled request bridge    |
 | `Intercept`                                 | Top-level span for processing an intercepted request |
 | `Intercept.CreateInterceptor`               | Creating the request interceptor                     |
 | `Intercept.ProcessRequest`                  | Processing the request through the bridge            |

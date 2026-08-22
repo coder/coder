@@ -312,10 +312,10 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 				// Should pass authorization and budget check.
 				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
-				// But fail when acquiring a pool instance.
-				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("oops"))
+				// But fail when serving a pool instance.
+				pool.EXPECT().Serve(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(xerrors.New("oops"))
 			},
-			expectedErr:    aibridged.ErrAcquireRequestHandler,
+			expectedErr:    aibridged.ErrServeRequestHandler,
 			expectedStatus: http.StatusInternalServerError,
 		},
 	}
@@ -406,11 +406,12 @@ func TestServeHTTP_DelegatedAPIKey(t *testing.T) {
 						}, nil
 					})
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
-				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, req aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder) (http.Handler, error) {
+				pool.EXPECT().Serve(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, req aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder, rw http.ResponseWriter, r *http.Request) error {
 						assert.Empty(t, req.SessionKey,
 							"delegated centralized request carries no session token")
-						return mockH, nil
+						mockH.ServeHTTP(rw, r)
+						return nil
 					})
 			},
 			expectStatus:  http.StatusOK,
@@ -439,11 +440,12 @@ func TestServeHTTP_DelegatedAPIKey(t *testing.T) {
 					Username: "u",
 				}, nil)
 				client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
-				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-					func(_ context.Context, req aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder) (http.Handler, error) {
+				pool.EXPECT().Serve(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, req aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder, rw http.ResponseWriter, r *http.Request) error {
 						assert.Equal(t, "coder-token-byok", req.SessionKey,
 							"BYOK delegated request must still surface the extracted Coder token as SessionKey")
-						return mockH, nil
+						mockH.ServeHTTP(rw, r)
+						return nil
 					})
 			},
 			expectStatus:  http.StatusOK,
@@ -530,7 +532,11 @@ func TestServeHTTP_DelegatedAPIKey_BYOK_Integration(t *testing.T) {
 			}, nil
 		})
 	client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
-	pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(mockH, nil)
+	pool.EXPECT().Serve(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder, rw http.ResponseWriter, r *http.Request) error {
+			mockH.ServeHTTP(rw, r)
+			return nil
+		})
 
 	factory := aibridged.NewTransportFactory(srv)
 	rt, err := factory.TransportFor("openai", agplaibridge.SourceAgents)
@@ -583,7 +589,11 @@ func TestServeHTTP_DelegatedAPIKey_Integration(t *testing.T) {
 			}, nil
 		})
 	client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
-	pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(mockH, nil)
+	pool.EXPECT().Serve(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder, rw http.ResponseWriter, r *http.Request) error {
+			mockH.ServeHTTP(rw, r)
+			return nil
+		})
 
 	factory := aibridged.NewTransportFactory(srv)
 	rt, err := factory.TransportFor("openai", agplaibridge.SourceAgents)
@@ -670,7 +680,11 @@ func TestServeHTTP_StripCoderToken(t *testing.T) {
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
-			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(mockH, nil)
+			pool.EXPECT().Serve(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
+				func(_ context.Context, _ aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder, rw http.ResponseWriter, r *http.Request) error {
+					mockH.ServeHTTP(rw, r)
+					return nil
+				})
 
 			httpSrv := httptest.NewServer(srv)
 			t.Cleanup(httpSrv.Close)
@@ -1040,7 +1054,11 @@ func TestServeHTTP_StripInternalHeaders(t *testing.T) {
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
-			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(mockH, nil)
+			pool.EXPECT().Serve(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
+				func(_ context.Context, _ aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder, rw http.ResponseWriter, r *http.Request) error {
+					mockH.ServeHTTP(rw, r)
+					return nil
+				})
 
 			httpSrv := httptest.NewServer(srv)
 			t.Cleanup(httpSrv.Close)

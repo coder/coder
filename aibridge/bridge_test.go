@@ -13,12 +13,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/mcpmock"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	codertestutil "github.com/coder/coder/v2/testutil"
@@ -26,6 +28,105 @@ import (
 )
 
 var bridgeTestTracer = otel.Tracer("bridge_test")
+
+func TestRequestBridgeRetireDrainsAdmittedRequest(t *testing.T) {
+	t.Parallel()
+
+	ctx := codertestutil.Context(t, codertestutil.WaitLong)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	defer func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	}()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		close(started)
+		<-release
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(upstream.Close)
+
+	bridge, err := aibridge.NewRequestBridge(
+		ctx,
+		[]provider.Provider{aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL})},
+		&testutil.MockRecorder{},
+		nil,
+		slogtest.Make(t, nil),
+		nil,
+		bridgeTestTracer,
+	)
+	require.NoError(t, err)
+
+	served := make(chan bool, 1)
+	go func() {
+		served <- bridge.TryServe(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/openai/v1/models", nil))
+	}()
+	_ = codertestutil.TryReceive(ctx, t, started)
+
+	bridge.Retire()
+	require.False(t, bridge.TryServe(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/openai/v1/models", nil)))
+
+	shutdown := make(chan error, 1)
+	go func() {
+		shutdown <- bridge.Shutdown(ctx)
+	}()
+	select {
+	case err := <-shutdown:
+		t.Fatalf("shutdown completed before the admitted request: %v", err)
+	default:
+	}
+
+	close(release)
+	require.True(t, codertestutil.RequireReceive(ctx, t, served))
+	require.NoError(t, codertestutil.RequireReceive(ctx, t, shutdown))
+}
+
+func TestRequestBridgeShutdownContextCancelsAdmittedRequest(t *testing.T) {
+	t.Parallel()
+
+	ctx := codertestutil.Context(t, codertestutil.WaitLong)
+	started := make(chan struct{})
+	requestCanceled := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-r.Context().Done()
+		close(requestCanceled)
+	}))
+	t.Cleanup(func() {
+		upstream.CloseClientConnections()
+		upstream.Close()
+	})
+
+	ctrl := gomock.NewController(t)
+	mcpProxy := mcpmock.NewMockServerProxier(ctrl)
+	mcpProxy.EXPECT().Shutdown(gomock.Any()).Times(1).Return(nil)
+	bridge, err := aibridge.NewRequestBridge(
+		ctx,
+		[]provider.Provider{aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL})},
+		&testutil.MockRecorder{},
+		mcpProxy,
+		slogtest.Make(t, nil),
+		nil,
+		bridgeTestTracer,
+	)
+	require.NoError(t, err)
+
+	served := make(chan bool, 1)
+	go func() {
+		served <- bridge.TryServe(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/openai/v1/models", nil))
+	}()
+	_ = codertestutil.TryReceive(ctx, t, started)
+
+	shutdownCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	err = bridge.Shutdown(shutdownCtx)
+	require.ErrorIs(t, err, context.Canceled)
+	_ = codertestutil.TryReceive(ctx, t, requestCanceled)
+	require.True(t, codertestutil.RequireReceive(ctx, t, served))
+}
 
 // TestRequestBridgeShutdownAdmissionRace deterministically interleaves request
 // admission with Shutdown using the `serve_admission` quartz trap.
