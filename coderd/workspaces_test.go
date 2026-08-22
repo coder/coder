@@ -5242,12 +5242,12 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 			AppName: "ssh",
 		})
 		require.ErrorContains(t, err, "app_name")
-		// unknown app name fails
+		// unknown app names are accepted
 		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
 			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
-			AppName: "unknown",
+			AppName: "SomeFutureIDE",
 		})
-		require.ErrorContains(t, err, "app_name")
+		require.NoError(t, err)
 
 		// vscode works
 		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
