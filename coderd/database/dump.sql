@@ -1677,7 +1677,8 @@ CREATE TABLE aibridge_interceptions (
     agent_firewall_session_id uuid,
     agent_firewall_sequence_number integer,
     error_type aibridge_interception_error_type,
-    error_message character varying(1024)
+    error_message character varying(1024),
+    annotations jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1705,6 +1706,8 @@ COMMENT ON COLUMN aibridge_interceptions.agent_firewall_sequence_number IS 'The 
 COMMENT ON COLUMN aibridge_interceptions.error_type IS 'Categorised terminal upstream error for a failed interception; NULL when the interception succeeded.';
 
 COMMENT ON COLUMN aibridge_interceptions.error_message IS 'Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.';
+
+COMMENT ON COLUMN aibridge_interceptions.annotations IS 'Server-derived annotations captured when the interception was recorded, such as the capabilities the initiator held at that time. Distinct from metadata, which is supplied by the client or provider.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,

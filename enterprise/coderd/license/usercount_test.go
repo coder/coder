@@ -2,6 +2,7 @@ package license_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/capabilities"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -610,6 +612,89 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			require.ErrorIs(t, err, context.Canceled)
 		})
 	})
+}
+
+// TestWorkspaceCapabilityMatchesSeatCount pins the workspace capability
+// resolved per user to the workspace-create check that counts license seats.
+// The two evaluate the same permission through separate code paths, so they can
+// drift independently.
+func TestWorkspaceCapabilityMatchesSeatCount(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	authorizer := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
+	db, _ := dbtestutil.NewDB(t)
+
+	checker, err := capabilities.NewDBChecker(capabilities.Options{
+		DB:         db,
+		Authorizer: authorizer,
+		Logger:     testutil.Logger(t),
+	})
+	require.NoError(t, err)
+
+	orgA := dbgen.Organization(t, db, database.Organization{})
+	orgB := dbgen.Organization(t, db, database.Organization{})
+	for _, org := range []database.Organization{orgA, orgB} {
+		_, err := db.UpdateOrganization(ctx, database.UpdateOrganizationParams{
+			ID:                    org.ID,
+			UpdatedAt:             dbtime.Now(),
+			Name:                  org.Name,
+			DisplayName:           org.DisplayName,
+			Description:           org.Description,
+			Icon:                  org.Icon,
+			DefaultOrgMemberRoles: []string{},
+		})
+		require.NoError(t, err)
+	}
+
+	member := func(orgID uuid.UUID, user database.User, roles ...string) {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: orgID,
+			UserID:         user.ID,
+			Roles:          roles,
+		})
+	}
+
+	// Every seeded user is active and not a service account, so seat counting
+	// and capability resolution consider the same population.
+	var users []database.User
+	newUser := func(seed database.User) database.User {
+		seed.Status = database.UserStatusActive
+		user := dbgen.User(t, db, seed)
+		users = append(users, user)
+		return user
+	}
+
+	member(orgA.ID, newUser(database.User{}))
+	member(orgA.ID, newUser(database.User{}), rbac.RoleOrgWorkspaceAccess())
+	member(orgA.ID, newUser(database.User{}), rbac.RoleOrgWorkspaceAccess(), rbac.RoleOrgWorkspaceCreationBan())
+	member(orgA.ID, newUser(database.User{}), rbac.RoleOrgAdmin())
+	member(orgA.ID, newUser(database.User{}), rbac.RoleOrgAuditor())
+	member(orgA.ID, newUser(database.User{RBACRoles: []string{rbac.RoleOwner().Name}}))
+	member(orgA.ID, newUser(database.User{RBACRoles: []string{rbac.RoleTemplateAdmin().Name}}))
+	member(orgA.ID, newUser(database.User{RBACRoles: []string{rbac.RoleAuditor().Name}}))
+	newUser(database.User{})
+	newUser(database.User{RBACRoles: []string{rbac.RoleOwner().Name}})
+
+	split := newUser(database.User{})
+	member(orgA.ID, split)
+	member(orgB.ID, split, rbac.RoleOrgWorkspaceAccess())
+
+	bannedSplit := newUser(database.User{})
+	member(orgA.ID, bannedSplit, rbac.RoleOrgWorkspaceAccess(), rbac.RoleOrgWorkspaceCreationBan())
+	member(orgB.ID, bannedSplit, rbac.RoleOrgWorkspaceAccess())
+
+	var capable int64
+	for _, user := range users {
+		caps, err := checker.Capabilities(ctx, user.ID)
+		require.NoError(t, err)
+		if slices.Contains(caps, capabilities.Workspace) {
+			capable++
+		}
+	}
+
+	count, err := license.CountWorkspaceCapableUsers(ctx, testutil.Logger(t), db, authorizer)
+	require.NoError(t, err)
+	require.Equal(t, count, capable)
 }
 
 // TestCountWorkspaceCapableUsersErrors covers the count's database

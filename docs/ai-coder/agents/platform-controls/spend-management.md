@@ -69,7 +69,7 @@ curl -X GET "https://coder.example.com/api/v2/organizations/$ORGANIZATION/ai/spe
 A successful response has the `Content-Type` header `text/csv; charset=utf-8` and starts with this CSV header:
 
 ```csv
-user_id,username,group_id,group_name,organization_id,organization_name,model,provider,provider_name,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,cost_micros,period_start,period_end
+user_id,username,capabilities,group_id,group_name,organization_id,organization_name,model,provider,provider_name,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,cost_micros,period_start,period_end
 ```
 
 The AI Gateway [sessions views](../../ai-gateway/audit.md#navigating-the-ui) show per-request token usage, which is the input to those costs rather than the costs themselves.

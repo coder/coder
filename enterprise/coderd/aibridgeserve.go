@@ -134,10 +134,17 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 	go aiGatewayCheckEntitlementAndTrackKeyUsage(connCtx, keyCtxCancel, api, gatewayKey.ID, logger)
 
 	mux := drpcmux.New()
+	capabilityChecker, err := api.AGPL.AIBridgeCapabilityChecker()
+	if err != nil {
+		logger.Error(connCtx, "build capability checker failed", slog.Error(err))
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("build capability checker: %s", err))
+		return
+	}
 	srv, err := aibridgedserver.NewServer(connCtx, aibridgedserver.Options{
 		Store:               api.Database,
 		Pubsub:              api.AGPL.Pubsub,
 		AISeatTracker:       api.AGPL.AISeatTracker,
+		CapabilityChecker:   capabilityChecker,
 		Enqueuer:            api.AGPL.NotificationsEnqueuer,
 		AccessURL:           api.AccessURL.String(),
 		GatewayCfg:          api.DeploymentValues.AI.BridgeConfig,
