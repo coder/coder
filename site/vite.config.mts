@@ -179,6 +179,19 @@ export default defineConfig({
 		// Rolldown's native threads do not terminate on close,
 		// so vitest always hits this timeout. Keep it short.
 		teardownTimeout: 1000,
+		// xterm 5.5 can run a queued viewport sync after Terminal.dispose
+		// and throw from its own scheduler. Storybook tests that unmount a
+		// live terminal (for example sidebar tab switches) hit this
+		// reliably in headless Chromium, failing the run despite all tests
+		// passing. Ignore only that specific teardown race.
+		onUnhandledError(error) {
+			if (
+				error.message.includes("reading 'dimensions'") &&
+				error.stack?.includes("@xterm")
+			) {
+				return false;
+			}
+		},
 		projects: [
 			{
 				extends: true,
