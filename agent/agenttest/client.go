@@ -78,6 +78,7 @@ func NewClientWithSecrets(t testing.TB,
 	fakeAAPI := NewFakeAgentAPI(t, logger, mp, statsChan)
 	err = agentproto.DRPCRegisterAgent(mux, fakeAAPI)
 	require.NoError(t, err)
+	// Keep panics unrecovered in this test server so they fail tests loudly.
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
 		Manager: drpcsdk.DefaultDRPCOptions(nil),
 		Log: func(err error) {

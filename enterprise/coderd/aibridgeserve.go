@@ -159,7 +159,7 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
+	server := drpcsdk.NewServer(logger, &tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
 			Manager: drpcsdk.DefaultDRPCOptions(nil),
 			Log: func(err error) {
