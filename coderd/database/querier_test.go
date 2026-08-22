@@ -3858,7 +3858,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 	var allLogs []database.ConnectionLog
 	db, _ := dbtestutil.NewDB(t)
 	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
-	authDb := dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+	authDB := dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
 
 	orgA := dbfake.Organization(t, db).Do()
 	orgB := dbfake.Organization(t, db).Do()
@@ -3891,7 +3891,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 	}
 	for orgID, ids := range orgConnectionLogs {
 		for _, id := range ids {
-			allLogs = append(allLogs, dbgen.ConnectionLog(t, authDb, database.UpsertConnectionLogParams{
+			allLogs = append(allLogs, dbgen.ConnectionLog(t, authDB, database.UpsertConnectionLogParams{
 				WorkspaceID:      wsID,
 				WorkspaceOwnerID: user.ID,
 				ID:               id,
@@ -3928,12 +3928,12 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 		})
 
 		// When: The user queries for connection logs
-		logs, err := authDb.GetConnectionLogsOffset(memberCtx, database.GetConnectionLogsOffsetParams{})
+		logs, err := authDB.GetConnectionLogsOffset(memberCtx, database.GetConnectionLogsOffsetParams{})
 		require.NoError(t, err)
 		// Then: No logs returned
 		require.Len(t, logs, 0, "no logs should be returned")
 		// And: The count matches the number of logs returned
-		count, err := authDb.CountConnectionLogs(memberCtx, database.CountConnectionLogsParams{})
+		count, err := authDB.CountConnectionLogs(memberCtx, database.CountConnectionLogsParams{})
 		require.NoError(t, err)
 		require.EqualValues(t, len(logs), count)
 	})
@@ -3951,12 +3951,12 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 		})
 
 		// When: the auditor queries for connection logs
-		logs, err := authDb.GetConnectionLogsOffset(siteAuditorCtx, database.GetConnectionLogsOffsetParams{})
+		logs, err := authDB.GetConnectionLogsOffset(siteAuditorCtx, database.GetConnectionLogsOffsetParams{})
 		require.NoError(t, err)
 		// Then: All logs are returned
 		require.ElementsMatch(t, connectionOnlyIDs(allLogs), connectionOnlyIDs(logs))
 		// And: The count matches the number of logs returned
-		count, err := authDb.CountConnectionLogs(siteAuditorCtx, database.CountConnectionLogsParams{})
+		count, err := authDB.CountConnectionLogs(siteAuditorCtx, database.CountConnectionLogsParams{})
 		require.NoError(t, err)
 		require.EqualValues(t, len(logs), count)
 	})
@@ -3975,12 +3975,12 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 		})
 
 		// When: The auditor queries for connection logs
-		logs, err := authDb.GetConnectionLogsOffset(orgAuditCtx, database.GetConnectionLogsOffsetParams{})
+		logs, err := authDB.GetConnectionLogsOffset(orgAuditCtx, database.GetConnectionLogsOffsetParams{})
 		require.NoError(t, err)
 		// Then: Only the logs for the organization are returned
 		require.ElementsMatch(t, orgConnectionLogs[orgID], connectionOnlyIDs(logs))
 		// And: The count matches the number of logs returned
-		count, err := authDb.CountConnectionLogs(orgAuditCtx, database.CountConnectionLogsParams{})
+		count, err := authDB.CountConnectionLogs(orgAuditCtx, database.CountConnectionLogsParams{})
 		require.NoError(t, err)
 		require.EqualValues(t, len(logs), count)
 	})
@@ -4000,12 +4000,12 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 		})
 
 		// When: The user queries for connection logs
-		logs, err := authDb.GetConnectionLogsOffset(multiOrgAuditCtx, database.GetConnectionLogsOffsetParams{})
+		logs, err := authDB.GetConnectionLogsOffset(multiOrgAuditCtx, database.GetConnectionLogsOffsetParams{})
 		require.NoError(t, err)
 		// Then: All logs for both organizations are returned
 		require.ElementsMatch(t, append(orgConnectionLogs[first], orgConnectionLogs[second]...), connectionOnlyIDs(logs))
 		// And: The count matches the number of logs returned
-		count, err := authDb.CountConnectionLogs(multiOrgAuditCtx, database.CountConnectionLogsParams{})
+		count, err := authDB.CountConnectionLogs(multiOrgAuditCtx, database.CountConnectionLogsParams{})
 		require.NoError(t, err)
 		require.EqualValues(t, len(logs), count)
 	})
@@ -4023,12 +4023,12 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 		})
 
 		// When: The user queries for audit logs
-		logs, err := authDb.GetConnectionLogsOffset(userCtx, database.GetConnectionLogsOffsetParams{})
+		logs, err := authDB.GetConnectionLogsOffset(userCtx, database.GetConnectionLogsOffsetParams{})
 		require.NoError(t, err)
 		// Then: No logs are returned
 		require.Len(t, logs, 0, "no logs should be returned")
 		// And: The count matches the number of logs returned
-		count, err := authDb.CountConnectionLogs(userCtx, database.CountConnectionLogsParams{})
+		count, err := authDB.CountConnectionLogs(userCtx, database.CountConnectionLogsParams{})
 		require.NoError(t, err)
 		require.EqualValues(t, len(logs), count)
 	})
@@ -6207,15 +6207,17 @@ func TestGetUserStatusCounts(t *testing.T) {
 							case row.Date.Before(userCreatedAt):
 								require.Equal(t, int64(0), row.Count)
 							case row.Date.Before(firstStatusChange):
-								if row.Status == stc.initialStatus {
+								switch row.Status {
+								case stc.initialStatus:
 									require.Equal(t, int64(1), row.Count)
-								} else if row.Status == stc.targetStatus {
+								case stc.targetStatus:
 									require.Equal(t, int64(0), row.Count)
 								}
 							case !row.Date.After(tc.reportUntil):
-								if row.Status == stc.initialStatus {
+								switch row.Status {
+								case stc.initialStatus:
 									require.Equal(t, int64(0), row.Count)
-								} else if row.Status == stc.targetStatus {
+								case stc.targetStatus:
 									require.Equal(t, int64(1), row.Count)
 								}
 							default:

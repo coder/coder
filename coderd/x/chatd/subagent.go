@@ -419,38 +419,6 @@ func (p *Server) resolvePersonalModelOverride(
 	return modelConfig, true, nil
 }
 
-func withResolvedReasoningEffort(
-	modelConfig database.ChatModelConfig,
-	reasoningEffort *string,
-) database.ChatModelConfig {
-	if reasoningEffort == nil {
-		return modelConfig
-	}
-	callConfig := codersdk.ChatModelCallConfig{}
-	if len(modelConfig.Options) > 0 {
-		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
-			return modelConfig
-		}
-	}
-	resolvedEffort := chatprovider.ResolveReasoningEffort(
-		reasoningEffort,
-		callConfig.ReasoningEffort,
-	)
-	if resolvedEffort == nil {
-		return modelConfig
-	}
-	callConfig.ReasoningEffort = &codersdk.ChatModelReasoningEffortConfig{
-		Default: resolvedEffort,
-		Max:     resolvedEffort,
-	}
-	options, err := json.Marshal(callConfig)
-	if err != nil {
-		return modelConfig
-	}
-	modelConfig.Options = options
-	return modelConfig
-}
-
 func (p *Server) resolveSubagentModelConfigID(
 	ctx context.Context,
 	ownerID uuid.UUID,

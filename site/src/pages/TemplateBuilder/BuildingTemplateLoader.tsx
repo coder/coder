@@ -6,8 +6,8 @@ import {
 	PackageIcon,
 	WrenchIcon,
 } from "lucide-react";
-import { motion } from "motion/react";
-import type { FC } from "react";
+import { MotionConfigContext, motion } from "motion/react";
+import { type FC, useContext } from "react";
 
 type FloatingIcon = {
 	name: string;
@@ -34,6 +34,10 @@ const ICONS: FloatingIcon[] = [
  * label.
  */
 export const BuildingTemplateLoader: FC = () => {
+	// skipAnimations jumps to each loop's final keyframe, which is
+	// blank here (icons offscreen, dots faded), so hold a visible frame.
+	const { skipAnimations = false } = useContext(MotionConfigContext);
+
 	return (
 		<div
 			className="relative flex flex-col items-center justify-end w-full min-h-[480px] overflow-hidden"
@@ -50,10 +54,14 @@ export const BuildingTemplateLoader: FC = () => {
 							left: `calc(50% + ${x}%)`,
 							top: `calc(50% + ${y}%)`,
 						}}
-						animate={{
-							y: ["-100vh", "0vh", "0vh", "0vh", "-100vh", "-100vh"],
-							opacity: [0, 1, 1, 0, 0, 0],
-						}}
+						animate={
+							skipAnimations
+								? { y: "0vh", opacity: 1 }
+								: {
+										y: ["-100vh", "0vh", "0vh", "0vh", "-100vh", "-100vh"],
+										opacity: [0, 1, 1, 0, 0, 0],
+									}
+						}
 						transition={{
 							duration: 7,
 							delay,
@@ -89,7 +97,9 @@ export const BuildingTemplateLoader: FC = () => {
 					<span>Building your template</span>
 					<span className="inline-flex gap-0.5">
 						<motion.span
-							animate={{ opacity: [0, 1, 1, 0] }}
+							animate={
+								skipAnimations ? { opacity: 1 } : { opacity: [0, 1, 1, 0] }
+							}
 							transition={{
 								duration: 1.5,
 								repeat: Number.POSITIVE_INFINITY,
@@ -99,7 +109,9 @@ export const BuildingTemplateLoader: FC = () => {
 							.
 						</motion.span>
 						<motion.span
-							animate={{ opacity: [0, 1, 1, 0] }}
+							animate={
+								skipAnimations ? { opacity: 1 } : { opacity: [0, 1, 1, 0] }
+							}
 							transition={{
 								duration: 1.5,
 								delay: 0.2,
@@ -110,7 +122,9 @@ export const BuildingTemplateLoader: FC = () => {
 							.
 						</motion.span>
 						<motion.span
-							animate={{ opacity: [0, 1, 1, 0] }}
+							animate={
+								skipAnimations ? { opacity: 1 } : { opacity: [0, 1, 1, 0] }
+							}
 							transition={{
 								duration: 1.5,
 								delay: 0.4,
