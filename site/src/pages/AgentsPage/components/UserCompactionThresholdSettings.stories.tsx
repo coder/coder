@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
-import { MockUserOwner } from "#/testHelpers/entities";
+import { MockDefaultOrganization, MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -52,6 +52,9 @@ const meta = {
 		providerTypeByID: new Map<string, string>([
 			["provider-1", "openai"],
 			["provider-anthropic", "anthropic"],
+		]),
+		organizationNameByID: new Map<string, string>([
+			[MockChatModel.organization_id, MockDefaultOrganization.display_name],
 		]),
 		thresholds: [],
 		isThresholdsLoading: false,
@@ -280,5 +283,27 @@ export const ErrorState: Story = {
 	name: "Error",
 	args: {
 		thresholdsError: new globalThis.Error("Failed to load thresholds"),
+	},
+};
+
+export const PartialModelLoadError: Story = {
+	args: {
+		modelsError: new globalThis.Error(
+			"Failed to load models from one organization",
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to load models from one organization"),
+		).toBeVisible();
+		expect(
+			canvas.getAllByText(MockDefaultOrganization.display_name).length,
+		).toBeGreaterThan(0);
+		expect(
+			canvas.getByRole("textbox", {
+				name: `GPT-4o compaction threshold for ${MockDefaultOrganization.display_name}`,
+			}),
+		).toBeEnabled();
 	},
 };

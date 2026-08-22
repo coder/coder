@@ -1,206 +1,77 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	getDefaultProviderBaseURL,
-	normalizeProvider,
-} from "#/modules/aiModels/helpers";
+import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { formatProviderLabel } from "#/utils/aiProviders";
 
 export type ProviderState = {
 	key: string;
 	provider: string;
 	label: string;
-	providerConfig: TypesGen.ChatProviderConfig | undefined;
+	providerDescriptor: TypesGen.ChatModelProviderDescriptor;
 	models: readonly TypesGen.ChatModel[];
 	catalogModelCount: number;
-	hasManagedAPIKey: boolean;
-	hasCatalogAPIKey: boolean;
 	hasEffectiveAPIKey: boolean;
 	allowUserAPIKey: boolean;
-	isEnvPreset: boolean;
-	baseURL: string;
 };
 
-type CatalogProvider =
+type GeneratedAvailableProvider =
 	TypesGen.ChatModelAvailabilityResponse["providers"][number];
-
-const envPresetProviders = new Set(["openai", "anthropic"]);
-
-const readOptionalString = (value: unknown): string | undefined => {
-	if (typeof value !== "string") return undefined;
-	const trimmed = value.trim();
-	return trimmed || undefined;
+type AvailableProvider = Omit<GeneratedAvailableProvider, "models"> & {
+	models: GeneratedAvailableProvider["models"] | null;
+};
+type ChatModelAvailability = Omit<
+	TypesGen.ChatModelAvailabilityResponse,
+	"providers"
+> & {
+	providers: readonly AvailableProvider[];
 };
 
-const isDatabaseProviderConfig = (
-	providerConfig: TypesGen.ChatProviderConfig | undefined,
-	source: TypesGen.ChatProviderConfigSource | undefined,
-): providerConfig is TypesGen.ChatProviderConfig => {
-	if (!providerConfig) return false;
-	if (providerConfig.id === "00000000-0000-0000-0000-000000000000") {
-		return false;
-	}
-	return source === undefined || source === "database";
-};
-
-const getCatalogProviders = (
-	catalog: TypesGen.ChatModelAvailabilityResponse | null | undefined,
-): readonly CatalogProvider[] => {
-	const providers = catalog?.providers;
-	return Array.isArray(providers) ? providers : [];
-};
-
-const providerHasCatalogAPIKey = (provider: CatalogProvider): boolean =>
-	provider.available ||
-	(Boolean(provider.unavailable_reason) &&
-		provider.unavailable_reason !== "missing_api_key");
-
-const getProviderModels = (
-	provider: CatalogProvider | undefined,
-): readonly CatalogProvider["models"][number][] => {
-	const models = provider?.models;
-	return Array.isArray(models) ? models : [];
-};
-
-const getProviderBaseURL = (
-	providerConfig: TypesGen.ChatProviderConfig | undefined,
-): string => {
-	return (
-		readOptionalString(providerConfig?.base_url) ??
-		getDefaultProviderBaseURL(providerConfig?.provider ?? "")
-	);
-};
-
-const providerConfigStateKey = (
-	providerConfig: TypesGen.ChatProviderConfig,
-): string => {
-	const providerID = readOptionalString(providerConfig.id);
-	if (providerID && providerID !== "00000000-0000-0000-0000-000000000000") {
-		return providerID;
-	}
-	return normalizeProvider(providerConfig.provider);
-};
-
-type ProviderEntry = {
-	key: string;
-	provider: string;
-};
-
-// Returns provider states ordered alphabetically by display label.
 export const deriveProviderStates = (
-	models: readonly TypesGen.ChatModel[],
-	providerConfigs: TypesGen.ChatProviderConfig[] | null | undefined,
-	catalog: TypesGen.ChatModelAvailabilityResponse | null | undefined,
+	modelConfigs: readonly TypesGen.ChatModel[],
+	providerDescriptors: readonly TypesGen.ChatModelProviderDescriptor[],
+	availability: ChatModelAvailability | null | undefined,
 ): readonly ProviderState[] => {
-	const orderedEntries: ProviderEntry[] = [];
-	const seenEntries = new Set<string>();
-	const includeEntry = (keyValue: string, providerValue: string) => {
-		const key = readOptionalString(keyValue);
-		const provider = normalizeProvider(providerValue);
-		if (!key || !provider || seenEntries.has(key)) return;
-		seenEntries.add(key);
-		orderedEntries.push({ key, provider });
-	};
-
-	const catalogProviders = getCatalogProviders(catalog);
-	const catalogProvidersByProvider = new Map<string, CatalogProvider>();
-	for (const cp of catalogProviders) {
-		const provider = normalizeProvider(cp.provider);
-		if (!provider) continue;
-		catalogProvidersByProvider.set(provider, cp);
+	const availableProvidersByType = new Map<string, AvailableProvider>();
+	for (const availableProvider of availability?.providers ?? []) {
+		availableProvidersByType.set(
+			normalizeProvider(availableProvider.provider),
+			availableProvider,
+		);
 	}
 
-	const providerTypesWithConfigs = new Set<string>();
-	const providerConfigsByKey = new Map<string, TypesGen.ChatProviderConfig>();
-	for (const pc of providerConfigs ?? []) {
-		const provider = normalizeProvider(pc.provider);
-		if (!provider) continue;
-		const key = providerConfigStateKey(pc);
-		providerTypesWithConfigs.add(provider);
-		if (key) {
-			providerConfigsByKey.set(key, pc);
-		}
-		includeEntry(key, provider);
-	}
-	const modelStateKey = (modelConfig: TypesGen.ChatModel): string =>
-		readOptionalString(modelConfig.ai_provider_id) ?? "";
-
-	for (const cp of catalogProviders) {
-		const provider = normalizeProvider(cp.provider);
-		if (!provider || providerTypesWithConfigs.has(provider)) continue;
-		includeEntry(provider, provider);
-	}
-	for (const mc of models) {
-		const key = modelStateKey(mc);
-		includeEntry(key, providerConfigsByKey.get(key)?.provider ?? "");
-	}
-
-	const modelsByKey = new Map<string, TypesGen.ChatModel[]>();
-	for (const mc of models) {
-		const key = modelStateKey(mc);
-		if (!key) continue;
-		const existing = modelsByKey.get(key);
+	const modelConfigsByProviderID = new Map<string, TypesGen.ChatModel[]>();
+	for (const modelConfig of modelConfigs) {
+		const existing = modelConfigsByProviderID.get(modelConfig.ai_provider_id);
 		if (existing) {
-			existing.push(mc);
+			existing.push(modelConfig);
 		} else {
-			modelsByKey.set(key, [mc]);
+			modelConfigsByProviderID.set(modelConfig.ai_provider_id, [modelConfig]);
 		}
 	}
 
-	const states = orderedEntries.map(({ key, provider }) => {
-		const providerConfigEntry = providerConfigsByKey.get(key);
-		const providerConfigSource = providerConfigEntry?.source;
-		const providerConfig = isDatabaseProviderConfig(
-			providerConfigEntry,
-			providerConfigSource,
-		)
-			? providerConfigEntry
-			: undefined;
-		const catalogProvider = catalogProvidersByProvider.get(provider);
-		const hasManagedAPIKey = providerConfig?.has_api_key ?? false;
-		const hasProviderEntryAPIKey = providerConfigEntry?.has_api_key ?? false;
-		const hasCatalogAPIKey = catalogProvider
-			? providerHasCatalogAPIKey(catalogProvider)
-			: false;
-		const label =
-			readOptionalString(providerConfigEntry?.display_name) ??
-			formatProviderLabel(provider);
-		const hasBedrockAmbientCredentials =
-			provider === "bedrock" &&
-			providerConfig?.central_api_key_enabled === true;
-		const modelsForProvider = modelsByKey.get(key) ?? [];
-		const isCatalogEnvPreset =
-			!providerConfig && envPresetProviders.has(provider) && hasCatalogAPIKey;
-		const isEnvPreset =
-			providerConfigSource === "env_preset" || isCatalogEnvPreset;
-
-		return {
-			key,
-			provider,
-			label,
-			providerConfig,
-			models: modelsForProvider,
-			catalogModelCount: getProviderModels(catalogProvider).length,
-			hasManagedAPIKey,
-			hasCatalogAPIKey,
-			hasEffectiveAPIKey: providerConfigEntry
-				? hasProviderEntryAPIKey || hasBedrockAmbientCredentials
-				: hasManagedAPIKey || hasCatalogAPIKey,
-			allowUserAPIKey: providerConfigEntry?.allow_user_api_key ?? true,
-			isEnvPreset,
-			baseURL: getProviderBaseURL(providerConfigEntry),
-		};
-	});
-
-	return states.toSorted((a, b) => a.label.localeCompare(b.label));
+	return providerDescriptors
+		.map((providerDescriptor) => {
+			const provider = normalizeProvider(providerDescriptor.type);
+			const availableProvider = availableProvidersByType.get(provider);
+			return {
+				key: providerDescriptor.id,
+				provider,
+				label:
+					providerDescriptor.display_name.trim() ||
+					formatProviderLabel(provider),
+				providerDescriptor,
+				models: modelConfigsByProviderID.get(providerDescriptor.id) ?? [],
+				catalogModelCount: availableProvider?.models?.length ?? 0,
+				hasEffectiveAPIKey: providerDescriptor.has_effective_api_key,
+				allowUserAPIKey: providerDescriptor.allow_user_api_key,
+			};
+		})
+		.toSorted((a, b) => a.label.localeCompare(b.label));
 };
 
 export const canManageProviderModels = (
 	providerState: ProviderState | undefined,
-): boolean => {
-	return Boolean(
-		providerState?.providerConfig &&
-			providerState.providerConfig.enabled !== false &&
-			(providerState.hasEffectiveAPIKey ||
-				providerState.providerConfig.allow_user_api_key),
+): boolean =>
+	Boolean(
+		providerState?.providerDescriptor.enabled &&
+			(providerState.hasEffectiveAPIKey || providerState.allowUserAPIKey),
 	);
-};

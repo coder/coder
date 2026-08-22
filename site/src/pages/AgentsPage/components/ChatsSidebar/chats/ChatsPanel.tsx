@@ -37,7 +37,6 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
-import type { ModelSelectorOption } from "../../ChatElements";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
@@ -67,8 +66,7 @@ const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 interface ChatsPanelProps {
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
-	readonly modelOptions: readonly ModelSelectorOption[];
-	readonly models: readonly ChatModel[];
+	readonly modelConfigs: readonly ChatModel[];
 	readonly onArchiveAgent: (chatId: string) => void;
 	readonly onUnarchiveAgent: (chatId: string) => void;
 	readonly onArchiveAndDeleteWorkspace: (
@@ -103,8 +101,7 @@ interface ChatsPanelProps {
 export const ChatsPanel: FC<ChatsPanelProps> = ({
 	chats,
 	chatErrorReasons,
-	modelOptions,
-	models,
+	modelConfigs,
 	onArchiveAgent,
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
@@ -296,8 +293,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		visibleChatIDs,
 		normalizedSearch: "",
 		expandedById,
-		modelOptions,
-		models,
+		modelConfigs,
 		chatErrorReasons,
 		activeChatId,
 		isArchiving,

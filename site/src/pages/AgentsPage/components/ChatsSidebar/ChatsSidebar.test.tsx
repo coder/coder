@@ -10,6 +10,7 @@ import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -103,8 +104,7 @@ const defaultSidebarFilters: AgentSidebarFilters = {
 const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	chats: [buildChat({ id: "chat-1", title: "Chat One" })],
 	chatErrorReasons: {},
-	modelOptions: [],
-	models: [],
+	modelConfigs: [],
 	onArchiveAgent: vi.fn(),
 	onUnarchiveAgent: vi.fn(),
 	onArchiveAndDeleteWorkspace: vi.fn(),
@@ -564,139 +564,15 @@ describe("ChatsSidebar load-more behavior", () => {
 	});
 });
 
-describe("ChatsSidebar model display names", () => {
-	it("uses the chat model config ID to pick the correct duplicate model label", () => {
-		const modelOptions = [
-			{
-				id: "config-fast",
-				provider: "openai",
-				model: "gpt-4o",
-				displayName: "GPT-4o (Fast)",
-			},
-			{
-				id: "config-quality",
-				provider: "openai",
-				model: "gpt-4o",
-				displayName: "GPT-4o (Quality)",
-			},
-		];
-		const models: TypesGen.ChatModel[] = [
-			{
-				organization_id: "00000000-0000-0000-0000-000000000000",
-				id: "config-fast",
-				ai_provider_id: "prov-openai",
-				model: "gpt-4o",
-				display_name: "GPT-4o (Fast)",
-				enabled: true,
-				is_default: false,
-				context_limit: 128_000,
-				compression_threshold: 70,
-				created_at: oneWeekAgo,
-				updated_at: oneWeekAgo,
-			},
-			{
-				organization_id: "00000000-0000-0000-0000-000000000000",
-				id: "config-quality",
-				ai_provider_id: "prov-openai",
-				model: "gpt-4o",
-				display_name: "GPT-4o (Quality)",
-				enabled: true,
-				is_default: false,
-				context_limit: 128_000,
-				compression_threshold: 70,
-				created_at: oneWeekAgo,
-				updated_at: oneWeekAgo,
-			},
-		];
-
-		const { getByText, queryByText } = render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[
-						buildChat({
-							id: "chat-quality",
-							title: "Quality chat",
-							last_model_config_id: "config-quality",
-						}),
-					]}
-					modelOptions={modelOptions}
-					models={models}
-				/>
-			</Wrapper>,
-		);
-
-		expect(getByText("GPT-4o (Quality)")).toBeInTheDocument();
-		expect(queryByText("GPT-4o (Fast)")).not.toBeInTheDocument();
-	});
-
-	it("shows Default model when last_model_config_id is a nil UUID", () => {
-		const { getByText } = render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[
-						buildChat({
-							id: "nil-uuid-chat",
-							title: "Chat from pubsub",
-							last_model_config_id: "00000000-0000-0000-0000-000000000000",
-						}),
-					]}
-					modelOptions={[
-						{
-							id: "config-real",
-							provider: "openai",
-							model: "gpt-4o",
-							displayName: "GPT-4o",
-						},
-					]}
-				/>
-			</Wrapper>,
-		);
-
-		// A nil UUID means LastModelConfigID was left at its zero value,
-		// so the sidebar cannot resolve the model and falls back.
-		expect(getByText("Default model")).toBeInTheDocument();
-	});
-
-	it("shows model name when last_model_config_id matches a config", () => {
-		const { getByText, queryByText } = render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[
-						buildChat({
-							id: "matched-chat",
-							title: "Chat with valid model",
-							last_model_config_id: "config-real",
-						}),
-					]}
-					modelOptions={[
-						{
-							id: "config-real",
-							provider: "openai",
-							model: "gpt-4o",
-							displayName: "GPT-4o",
-						},
-					]}
-				/>
-			</Wrapper>,
-		);
-
-		// Regression guard: a valid last_model_config_id must resolve
-		// to the actual model display name, not "Default model".
-		expect(getByText("GPT-4o")).toBeInTheDocument();
-		expect(queryByText("Default model")).not.toBeInTheDocument();
-	});
-});
-
 describe("ChatsSidebar subtitles", () => {
-	const modelOptions = [
+	const modelConfigs: TypesGen.ChatModel[] = [
 		{
+			...MockChatModel,
 			id: "model-1",
-			provider: "openai",
 			model: "gpt-4o",
-			displayName: "GPT-4o",
+			display_name: "GPT-4o",
+			created_at: oneWeekAgo,
+			updated_at: oneWeekAgo,
 		},
 	];
 
@@ -712,7 +588,7 @@ describe("ChatsSidebar subtitles", () => {
 							last_turn_summary: "Updated the Terraform template",
 						}),
 					]}
-					modelOptions={modelOptions}
+					modelConfigs={modelConfigs}
 				/>
 			</Wrapper>,
 		);
@@ -740,7 +616,7 @@ describe("ChatsSidebar subtitles", () => {
 							last_turn_summary: "Provisioned a workspace",
 						}),
 					]}
-					modelOptions={modelOptions}
+					modelConfigs={modelConfigs}
 				/>
 			</Wrapper>,
 		);
@@ -762,7 +638,7 @@ describe("ChatsSidebar subtitles", () => {
 							title: "Model fallback chat",
 						}),
 					]}
-					modelOptions={modelOptions}
+					modelConfigs={modelConfigs}
 				/>
 			</Wrapper>,
 		);
@@ -782,7 +658,7 @@ describe("ChatsSidebar subtitles", () => {
 							last_turn_summary: "   ",
 						}),
 					]}
-					modelOptions={modelOptions}
+					modelConfigs={modelConfigs}
 				/>
 			</Wrapper>,
 		);

@@ -15,11 +15,13 @@ import {
 	getModelOptionsFromModels,
 	getModelSelectorPlaceholder,
 	getUnsupportedProviderNames,
+	getUsableDefaultModelIDForOrganization,
 	hasConfiguredProviderConfigs,
 	hasUserFixableProviders,
-	providerInfoByIDFromConfigs,
+	isUnavailableHistoricalModelID,
+	isUnsetModelRef,
+	NIL_UUID,
 	providerInfoByIDFromUserConfigs,
-	providerTypeByIDFromConfigs,
 	providerTypeByIDFromUserConfigs,
 	resolveModelOptionId,
 	resolveModelSelector,
@@ -36,6 +38,8 @@ const createConfig = (
 	updated_at: "",
 	...overrides,
 });
+
+const testOrganizationID = MockChatModel.organization_id;
 
 const providerInfoByID = new Map([
 	["prov-openai", { provider: "openai", displayName: "OpenAI", icon: "" }],
@@ -244,6 +248,20 @@ describe("getModelSelectorPlaceholder", () => {
 	});
 });
 
+describe("isUnsetModelRef", () => {
+	it.each([
+		[undefined, true],
+		[null, true],
+		["", true],
+		["   ", true],
+		[NIL_UUID, true],
+		[`  ${NIL_UUID}  `, true],
+		["config-1", false],
+	])("reports whether %j is unset", (modelRef, expected) => {
+		expect(isUnsetModelRef(modelRef)).toBe(expected);
+	});
+});
+
 describe("resolveModelOptionId", () => {
 	const modelOptions = [
 		{
@@ -276,12 +294,123 @@ describe("resolveModelOptionId", () => {
 		expect(resolveModelOptionId("config-2", modelOptions)).toBe("config-2");
 	});
 
+	it("treats a nil UUID as unset", () => {
+		expect(
+			resolveModelOptionId(
+				"00000000-0000-0000-0000-000000000000",
+				modelOptions,
+			),
+		).toBe("");
+	});
+
 	it("returns an empty string when no option matches", () => {
 		expect(resolveModelOptionId("openai:gpt-5", modelOptions)).toBe("");
+	});
+	it("detects only non-empty unavailable historical IDs", () => {
+		expect(isUnavailableHistoricalModelID("config-1", modelOptions)).toBe(
+			false,
+		);
+		expect(isUnavailableHistoricalModelID("foreign-config", modelOptions)).toBe(
+			true,
+		);
+		expect(isUnavailableHistoricalModelID("", modelOptions)).toBe(false);
+		expect(
+			isUnavailableHistoricalModelID(
+				"00000000-0000-0000-0000-000000000000",
+				modelOptions,
+			),
+		).toBe(false);
+	});
+});
+
+describe("getUsableDefaultModelIDForOrganization", () => {
+	const modelOptions = [
+		{
+			id: "local-default",
+			provider: "openai",
+			model: "gpt-4o",
+			displayName: "GPT-4o",
+		},
+	] as const;
+
+	it("selects only a usable default from the requested organization", () => {
+		const configs = [
+			createConfig({
+				id: "foreign-default",
+				organization_id: "foreign-org",
+				ai_provider_id: "prov-openai",
+				model: "gpt-4.1",
+				is_default: true,
+			}),
+			createConfig({
+				id: "local-default",
+				organization_id: testOrganizationID,
+				ai_provider_id: "prov-openai",
+				model: "gpt-4o",
+				is_default: true,
+			}),
+		];
+
+		expect(
+			getUsableDefaultModelIDForOrganization(
+				configs,
+				modelOptions,
+				testOrganizationID,
+			),
+		).toBe("local-default");
+	});
+
+	it("does not return a foreign or unusable default", () => {
+		const configs = [
+			createConfig({
+				id: "foreign-default",
+				organization_id: "foreign-org",
+				ai_provider_id: "prov-openai",
+				model: "gpt-4.1",
+				is_default: true,
+			}),
+		];
+
+		expect(
+			getUsableDefaultModelIDForOrganization(
+				configs,
+				modelOptions,
+				testOrganizationID,
+			),
+		).toBe("");
 	});
 });
 
 describe("getModelOptionsFromModels", () => {
+	it("excludes models from other organizations", () => {
+		const models = [
+			createConfig({
+				id: "foreign-config",
+				organization_id: "foreign-org",
+				ai_provider_id: "prov-openai",
+				model: "gpt-4.1",
+			}),
+			createConfig({
+				id: "local-config",
+				organization_id: testOrganizationID,
+				ai_provider_id: "prov-openai",
+				model: "gpt-4o",
+			}),
+		];
+		const catalog = createCatalog([
+			{ provider: "openai", available: true, models: [] },
+		]);
+
+		expect(
+			getModelOptionsFromModels(
+				models,
+				catalog,
+				providerInfoByID,
+				testOrganizationID,
+			).map((option) => option.id),
+		).toEqual(["local-config"]);
+	});
+
 	it("returns distinct options for models with the same provider and model", () => {
 		const models = [
 			createConfig({
@@ -308,7 +437,12 @@ describe("getModelOptionsFromModels", () => {
 		]);
 
 		expect(
-			getModelOptionsFromModels(models, catalog, providerInfoByID),
+			getModelOptionsFromModels(
+				models,
+				catalog,
+				providerInfoByID,
+				testOrganizationID,
+			),
 		).toEqual([
 			{
 				id: "config-1",
@@ -349,7 +483,12 @@ describe("getModelOptionsFromModels", () => {
 		]);
 
 		expect(
-			getModelOptionsFromModels(models, catalog, providerInfoByID),
+			getModelOptionsFromModels(
+				models,
+				catalog,
+				providerInfoByID,
+				testOrganizationID,
+			),
 		).toEqual([
 			{
 				id: "config-no-effort",
@@ -395,7 +534,12 @@ describe("getModelOptionsFromModels", () => {
 		]);
 
 		expect(
-			getModelOptionsFromModels(models, catalog, providerInfoByID),
+			getModelOptionsFromModels(
+				models,
+				catalog,
+				providerInfoByID,
+				testOrganizationID,
+			),
 		).toEqual([]);
 	});
 
@@ -426,9 +570,12 @@ describe("getModelOptionsFromModels", () => {
 		]);
 
 		expect(
-			getModelOptionsFromModels(models, catalog, providerInfoByID).map(
-				(option) => option.id,
-			),
+			getModelOptionsFromModels(
+				models,
+				catalog,
+				providerInfoByID,
+				testOrganizationID,
+			).map((option) => option.id),
 		).toEqual(["config-2"]);
 	});
 
@@ -451,7 +598,12 @@ describe("getModelOptionsFromModels", () => {
 		]);
 
 		expect(
-			getModelOptionsFromModels(models, catalog, providerInfoByID),
+			getModelOptionsFromModels(
+				models,
+				catalog,
+				providerInfoByID,
+				testOrganizationID,
+			),
 		).toEqual([
 			expect.objectContaining({
 				id: "config-1",
@@ -462,9 +614,21 @@ describe("getModelOptionsFromModels", () => {
 	});
 
 	it("returns an empty array for null and undefined inputs", () => {
-		expect(getModelOptionsFromModels(null, null, providerInfoByID)).toEqual([]);
 		expect(
-			getModelOptionsFromModels(undefined, undefined, providerInfoByID),
+			getModelOptionsFromModels(
+				null,
+				null,
+				providerInfoByID,
+				testOrganizationID,
+			),
+		).toEqual([]);
+		expect(
+			getModelOptionsFromModels(
+				undefined,
+				undefined,
+				providerInfoByID,
+				testOrganizationID,
+			),
 		).toEqual([]);
 	});
 
@@ -506,9 +670,12 @@ describe("getModelOptionsFromModels", () => {
 		]);
 
 		expect(
-			getModelOptionsFromModels(models, catalog, providerInfoByID).map(
-				(option) => option.id,
-			),
+			getModelOptionsFromModels(
+				models,
+				catalog,
+				providerInfoByID,
+				testOrganizationID,
+			).map((option) => option.id),
 		).toEqual([
 			"config-anthropic",
 			"config-openai-alpha",
@@ -542,9 +709,12 @@ describe("getModelOptionsFromModels", () => {
 		]);
 
 		expect(
-			getModelOptionsFromModels(models, catalog, providerInfoByID).map(
-				(option) => option.id,
-			),
+			getModelOptionsFromModels(
+				models,
+				catalog,
+				providerInfoByID,
+				testOrganizationID,
+			).map((option) => option.id),
 		).toEqual(["config-2", "config-1"]);
 	});
 
@@ -562,7 +732,9 @@ describe("getModelOptionsFromModels", () => {
 			{ provider: "openai", available: true, models: [] },
 		]);
 
-		expect(getModelOptionsFromModels(models, catalog, new Map())).toEqual([]);
+		expect(
+			getModelOptionsFromModels(models, catalog, new Map(), testOrganizationID),
+		).toEqual([]);
 	});
 
 	it("keeps only models whose ai_provider_id resolves in the provider map", () => {
@@ -591,9 +763,12 @@ describe("getModelOptionsFromModels", () => {
 		]);
 
 		expect(
-			getModelOptionsFromModels(models, catalog, partialMap).map(
-				(option) => option.id,
-			),
+			getModelOptionsFromModels(
+				models,
+				catalog,
+				partialMap,
+				testOrganizationID,
+			).map((option) => option.id),
 		).toEqual(["config-openai"]);
 	});
 
@@ -629,7 +804,12 @@ describe("getModelOptionsFromModels", () => {
 		]);
 
 		expect(
-			getModelOptionsFromModels(models, catalog, sameTypeProviders),
+			getModelOptionsFromModels(
+				models,
+				catalog,
+				sameTypeProviders,
+				testOrganizationID,
+			),
 		).toEqual([
 			expect.objectContaining({
 				id: "config-primary",
@@ -678,9 +858,12 @@ describe("getModelOptionsFromModels", () => {
 		]);
 
 		expect(
-			getModelOptionsFromModels(models, catalog, providers).map(
-				(option) => option.id,
-			),
+			getModelOptionsFromModels(
+				models,
+				catalog,
+				providers,
+				testOrganizationID,
+			).map((option) => option.id),
 		).toEqual(["config-enabled"]);
 	});
 
@@ -697,9 +880,12 @@ describe("getModelOptionsFromModels", () => {
 		]);
 
 		expect(
-			getModelOptionsFromModels(models, catalog, providerInfoByID).map(
-				(option) => option.id,
-			),
+			getModelOptionsFromModels(
+				models,
+				catalog,
+				providerInfoByID,
+				testOrganizationID,
+			).map((option) => option.id),
 		).toEqual(["config-openai"]);
 	});
 
@@ -743,9 +929,12 @@ describe("getModelOptionsFromModels", () => {
 		]);
 
 		expect(
-			getModelOptionsFromModels(models, catalog, sameTypeProviders).map(
-				(option) => option.id,
-			),
+			getModelOptionsFromModels(
+				models,
+				catalog,
+				sameTypeProviders,
+				testOrganizationID,
+			).map((option) => option.id),
 		).toEqual(["config-primary"]);
 	});
 });
@@ -805,28 +994,6 @@ describe("filterModelsWithEnabledProvider", () => {
 	});
 });
 
-describe("providerInfoByIDFromConfigs", () => {
-	it("maps ChatProviderConfig.id to provider metadata", () => {
-		const map = providerInfoByIDFromConfigs([
-			{
-				...MockChatProviderConfig,
-				id: "prov-openai",
-				provider: "openai",
-				display_name: "Primary OpenAI",
-				icon: "/icon/openai.svg",
-			},
-		]);
-
-		expect(map.get("prov-openai")).toEqual({
-			provider: "openai",
-			displayName: "Primary OpenAI",
-			icon: "/icon/openai.svg",
-			enabled: true,
-		});
-		expect(map.size).toBe(1);
-	});
-});
-
 describe("providerInfoByIDFromUserConfigs", () => {
 	it("maps UserChatProviderConfig.provider_id to provider metadata", () => {
 		const map = providerInfoByIDFromUserConfigs([
@@ -849,28 +1016,6 @@ describe("providerInfoByIDFromUserConfigs", () => {
 			enabled: true,
 		});
 		expect(map.size).toBe(1);
-	});
-});
-
-describe("providerTypeByIDFromConfigs", () => {
-	it("maps ChatProviderConfig.id to its provider type", () => {
-		const map = providerTypeByIDFromConfigs([
-			{ ...MockChatProviderConfig, id: "prov-openai", provider: "openai" },
-			{
-				...MockChatProviderConfig,
-				id: "prov-anthropic",
-				provider: "anthropic",
-			},
-		]);
-
-		expect(map.get("prov-openai")).toBe("openai");
-		expect(map.get("prov-anthropic")).toBe("anthropic");
-		expect(map.size).toBe(2);
-	});
-
-	it("returns an empty map for nullish input", () => {
-		expect(providerTypeByIDFromConfigs(undefined).size).toBe(0);
-		expect(providerTypeByIDFromConfigs(null).size).toBe(0);
 	});
 });
 
@@ -973,8 +1118,8 @@ describe("resolveModelSelector", () => {
 		// the provider map is empty. Options must be dropped and the flag must
 		// stay loading rather than flashing "No Models".
 		const state = resolveModelSelector(
-			{ data: [config], isLoading: false },
-			{ data: catalog, isLoading: false },
+			testOrganizationID,
+			{ data: { ...catalog, models: [config] }, isLoading: false },
 			{ data: undefined, isLoading: true },
 		);
 
@@ -983,14 +1128,15 @@ describe("resolveModelSelector", () => {
 	});
 
 	it("resolves options once every query settles", () => {
+		const runtimeCatalog = { ...catalog, models: [config] };
 		const state = resolveModelSelector(
-			{ data: [config], isLoading: false },
-			{ data: catalog, isLoading: false },
+			testOrganizationID,
+			{ data: runtimeCatalog, isLoading: false },
 			{ data: userProviderModels, isLoading: false },
 		);
 
 		expect(state.isModelCatalogLoading).toBe(false);
-		expect(state.modelCatalog).toBe(catalog);
+		expect(state.modelCatalog).toBe(runtimeCatalog);
 		expect(state.options).toEqual([
 			{
 				id: "config-openai",

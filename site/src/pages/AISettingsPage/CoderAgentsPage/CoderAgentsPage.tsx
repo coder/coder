@@ -1,6 +1,5 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
 	chatAdvisorConfig,
 	chatComputerUseProvider,
@@ -14,9 +13,12 @@ import {
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	getDefaultOrganizationId,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
-import { providerInfoByIDFromConfigs } from "#/pages/AgentsPage/utils/modelOptions";
+import { providerInfoByIDFromDescriptors } from "#/pages/AgentsPage/utils/modelOptions";
 import { pageTitle } from "#/utils/page";
 import { CoderAgentsPageView } from "./CoderAgentsPageView";
 
@@ -29,13 +31,14 @@ const compactionOverrideContext: TypesGen.ChatModelOverrideContext =
 
 const CoderAgentsPage: FC = () => {
 	const { permissions } = useAuthenticated();
-	const { experiments } = useDashboard();
+	const { experiments, organizations } = useDashboard();
 	const queryClient = useQueryClient();
 	const canEditDeploymentConfig = permissions.editDeploymentConfig;
 	const showAdvisorSettings = experiments.includes("chat-advisor");
 	const showVirtualDesktopSettings = experiments.includes(
 		"chat-virtual-desktop",
 	);
+	const defaultOrganizationId = getDefaultOrganizationId(organizations);
 
 	const personalModelOverridesAdminSettingsQuery = useQuery({
 		...chatPersonalModelOverridesAdminSettings(),
@@ -57,7 +60,7 @@ const CoderAgentsPage: FC = () => {
 		...chatModelOverride(compactionOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
-	const modelsQuery = useQuery(chatModels());
+	const modelsQuery = useQuery(chatModels(defaultOrganizationId));
 	const advisorConfigQuery = useQuery({
 		...chatAdvisorConfig(),
 		enabled: canEditDeploymentConfig && showAdvisorSettings,
@@ -65,10 +68,6 @@ const CoderAgentsPage: FC = () => {
 	const computerUseProviderQuery = useQuery({
 		...chatComputerUseProvider(),
 		enabled: canEditDeploymentConfig && showVirtualDesktopSettings,
-	});
-	const providerConfigsQuery = useQuery({
-		...chatProviderConfigs(),
-		enabled: canEditDeploymentConfig,
 	});
 	const savePersonalModelOverridesAdminSettingsMutation = useMutation(
 		updateChatPersonalModelOverridesAdminSettings(queryClient),
@@ -92,9 +91,10 @@ const CoderAgentsPage: FC = () => {
 		updateChatComputerUseProvider(queryClient),
 	);
 
-	const providerInfoByID = providerInfoByIDFromConfigs(
-		providerConfigsQuery.data,
+	const providerInfoByID = providerInfoByIDFromDescriptors(
+		modelsQuery.data?.providers,
 	);
+	const defaultOrganizationModels = modelsQuery.data?.models ?? [];
 
 	return (
 		<RequirePermission isFeatureVisible={canEditDeploymentConfig}>
@@ -121,15 +121,11 @@ const CoderAgentsPage: FC = () => {
 				titleGenerationModelOverrideData={titleGenerationModelQuery.data}
 				compactionModelOverrideData={compactionModelQuery.data}
 				exploreModelOverrideData={exploreModelOverrideQuery.data}
-				models={modelsQuery.data}
+				models={defaultOrganizationModels}
 				providerInfoByID={providerInfoByID}
-				modelsError={modelsQuery.error ?? providerConfigsQuery.error}
-				isLoadingModels={
-					modelsQuery.isLoading || providerConfigsQuery.isLoading
-				}
-				isFetchingModels={
-					modelsQuery.isFetching || providerConfigsQuery.isFetching
-				}
+				modelsError={modelsQuery.error}
+				isLoadingModels={modelsQuery.isLoading}
+				isFetchingModels={modelsQuery.isFetching}
 				onSaveGeneralModelOverride={saveGeneralModelOverrideMutation.mutate}
 				isSavingGeneralModelOverride={
 					saveGeneralModelOverrideMutation.isPending
