@@ -22,9 +22,9 @@ import (
 // newTestAnthropic is local (not aibridgetest.NewAnthropicProvider) because these
 // white-box tests need the concrete *Anthropic, and importing aibridgetest here
 // would create an import cycle.
-func newTestAnthropic(t testing.TB, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropic {
+func newTestAnthropic(t testing.TB, cfg config.Anthropic) *Anthropic {
 	t.Helper()
-	p, err := NewAnthropic(context.Background(), cfg, bedrockCfg)
+	p, err := NewAnthropic(context.Background(), cfg)
 	require.NoError(t, err)
 	return p
 }
@@ -56,7 +56,7 @@ func TestAnthropic_TypeAndName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			p := newTestAnthropic(t, tc.cfg, nil)
+			p := newTestAnthropic(t, tc.cfg)
 			assert.Equal(t, tc.expectType, p.Type())
 			assert.Equal(t, tc.expectName, p.Name())
 		})
@@ -92,7 +92,7 @@ func TestNewAnthropic_KeyResolution(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			p := newTestAnthropic(t, tc.cfg, nil)
+			p := newTestAnthropic(t, tc.cfg)
 
 			if tc.expectedKeys == nil {
 				assert.Nil(t, p.cfg.KeyPool, "expected no KeyPool")
@@ -115,45 +115,12 @@ func TestNewAnthropic_KeyResolution(t *testing.T) {
 }
 
 // NOTE: no t.Parallel() because the subtests use t.Setenv.
-func TestNewAnthropic_BedrockRegionResolution(t *testing.T) {
-	t.Run("mantle_region_from_env", func(t *testing.T) {
-		t.Setenv("AWS_REGION", "us-west-2")
-
-		p, err := NewAnthropic(context.Background(), config.Anthropic{}, &config.AWSBedrock{
-			BaseURL:         "https://bedrock-mantle.us-west-2.api.aws/anthropic",
-			Protocol:        config.BedrockProtocolMantle,
-			AccessKey:       "test-key",
-			AccessKeySecret: "test-secret",
-		})
-		require.NoError(t, err)
-		require.NotNil(t, p.bedrock)
-		require.Equal(t, "us-west-2", p.bedrock.Cfg.Region)
-	})
-
-	t.Run("mantle_no_region_anywhere", func(t *testing.T) {
-		// Clear every source the AWS SDK consults for a region so none
-		// resolves, then confirm construction rejects the mantle provider.
-		t.Setenv("AWS_REGION", "")
-		t.Setenv("AWS_DEFAULT_REGION", "")
-		t.Setenv("AWS_PROFILE", "")
-		t.Setenv("AWS_CONFIG_FILE", "/dev/null")
-		t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
-		t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
-
-		_, err := NewAnthropic(context.Background(), config.Anthropic{}, &config.AWSBedrock{
-			BaseURL:         "https://proxy.internal",
-			Protocol:        config.BedrockProtocolMantle,
-			AccessKey:       "test-key",
-			AccessKeySecret: "test-secret",
-		})
-		require.ErrorContains(t, err, "region required")
-	})
-}
+// Bedrock region resolution is tested in bedrock_internal_test.go.
 
 func TestAnthropic_CreateInterceptor(t *testing.T) {
 	t.Parallel()
 
-	provider := newTestAnthropic(t, config.Anthropic{KeyPool: testutil.SingleKeyPool(config.ProviderAnthropic, "test-key")}, nil)
+	provider := newTestAnthropic(t, config.Anthropic{KeyPool: testutil.SingleKeyPool(config.ProviderAnthropic, "test-key")})
 
 	t.Run("Messages_NonStreamingRequest_BlockingInterceptor", func(t *testing.T) {
 		t.Parallel()
@@ -214,7 +181,7 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 		provider := newTestAnthropic(t, config.Anthropic{
 			BaseURL: mockUpstream.URL,
 			KeyPool: testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
-		}, nil)
+		})
 
 		// Use a realistic multi-beta value as sent by Claude Code clients.
 		betaHeader := "claude-code-20250219,adaptive-thinking-2026-01-28,context-management-2025-06-27,prompt-caching-scope-2026-01-05,effort-2025-11-24"
@@ -265,20 +232,15 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		pool    bool // provider has a centralized "test-key" pool
-		bedrock bool // Bedrock-backed provider (authenticates via AWS signing)
-		// bedrockStatic, when bedrock is set, configures static AWS credentials.
-		// False means dynamic mode (AWS default credential chain).
-		bedrockStatic bool
-		setHeaders    map[string]string
+		name       string
+		pool       bool // provider has a centralized "test-key" pool
+		setHeaders map[string]string
 		// wantErr, when set, means CreateInterceptor must fail with it. The
 		// remaining expectations are then ignored.
 		wantErr            error
 		wantCredentialKind intercept.CredentialKind
 		wantCredentialHint string
-		// Upstream expectations after ProcessRequest. Not checked for Bedrock,
-		// which signs via AWS rather than forwarding a key header.
+		// Upstream expectations after ProcessRequest.
 		wantXApiKey       string
 		wantAuthorization string
 	}{
@@ -326,26 +288,6 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			wantXApiKey:        "test-key",
 		},
 		{
-			// Bedrock dynamic mode: no static access key, so the hint is the
-			// AWS-credential-chain placeholder.
-			name:               "bedrock_dynamic",
-			pool:               false,
-			bedrock:            true,
-			setHeaders:         map[string]string{},
-			wantCredentialKind: intercept.CredentialKindCentralized,
-			wantCredentialHint: "<aws chain>",
-		},
-		{
-			// Bedrock static mode: the hint masks the access key ID.
-			name:               "bedrock_static",
-			pool:               false,
-			bedrock:            true,
-			bedrockStatic:      true,
-			setHeaders:         map[string]string{},
-			wantCredentialKind: intercept.CredentialKindCentralized,
-			wantCredentialHint: "AKIA...MPLE",
-		},
-		{
 			name:       "centralized_without_pool_errors",
 			pool:       false,
 			setHeaders: map[string]string{},
@@ -370,15 +312,7 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			if tc.pool {
 				acfg.KeyPool = testutil.SingleKeyPool(config.ProviderAnthropic, "test-key")
 			}
-			var bedrock *config.AWSBedrock
-			if tc.bedrock {
-				bedrock = &config.AWSBedrock{Region: "us-west-2", Model: "m", SmallFastModel: "s"}
-				if tc.bedrockStatic {
-					bedrock.AccessKey = "AKIAIOSFODNN7EXAMPLE"
-					bedrock.AccessKeySecret = "wJalrXUtnFEMI-secret-value"
-				}
-			}
-			provider := newTestAnthropic(t, acfg, bedrock)
+			provider := newTestAnthropic(t, acfg)
 
 			body := `{"model": "claude-opus-4-5", "max_tokens": 1024, "messages": [{"role": "user", "content": "hello"}], "stream": false}`
 			req := httptest.NewRequest(http.MethodPost, routeMessages, bytes.NewBufferString(body))
@@ -400,12 +334,6 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			assert.Equal(t, tc.wantCredentialKind, cred.Kind(), "credential kind mismatch")
 			assert.Equal(t, tc.wantCredentialHint, cred.Hint(), "credential hint mismatch")
 
-			// Bedrock signs via AWS during ProcessRequest (needs real AWS
-			// credentials), covered by the integration tests.
-			if tc.bedrock {
-				return
-			}
-
 			interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
 			processReq := httptest.NewRequest(http.MethodPost, routeMessages, nil)
 			require.NoError(t, interceptor.ProcessRequest(w, processReq))
@@ -422,7 +350,7 @@ func TestAnthropic_KeyFailoverConfig(t *testing.T) {
 	pool, err := keypool.New(config.ProviderAnthropic, []string{"k0", "k1"}, quartz.NewMock(t), nil)
 	require.NoError(t, err)
 
-	p := newTestAnthropic(t, config.Anthropic{KeyPool: pool}, nil)
+	p := newTestAnthropic(t, config.Anthropic{KeyPool: pool})
 
 	cfg := p.KeyFailoverConfig(slog.Make())
 
