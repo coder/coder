@@ -7,6 +7,7 @@ const group = { id: "group-1", organization_id: "org-1" };
 const mockSpend: GroupMemberAISpend = {
 	user_id: "user-1",
 	effective_group_id: null,
+	effective_budget: null,
 	group_budget: null,
 	group_spend_micros: 0,
 };

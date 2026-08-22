@@ -23,6 +23,75 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
+func TestGroupMemberAISpend(t *testing.T) {
+	t.Parallel()
+
+	userID := uuid.New()
+	effectiveGroupID := uuid.New()
+	tests := []struct {
+		name string
+		row  database.GetGroupMembersAISpendRow
+		want codersdk.GroupMemberAISpend
+	}{
+		{
+			name: "EffectiveGroupIsQueriedGroup",
+			row: database.GetGroupMembersAISpendRow{
+				UserID:                    userID,
+				EffectiveGroupID:          uuid.NullUUID{UUID: effectiveGroupID, Valid: true},
+				EffectiveSpendLimitMicros: sql.NullInt64{Int64: 2_000_000, Valid: true},
+				EffectiveLimitSource:      sql.NullString{String: "user_override", Valid: true},
+				GroupSpendLimitMicros:     sql.NullInt64{Int64: 2_000_000, Valid: true},
+				LimitSource:               sql.NullString{String: "user_override", Valid: true},
+				GroupSpendMicros:          500_000,
+			},
+			want: codersdk.GroupMemberAISpend{
+				UserID:           userID,
+				EffectiveGroupID: &effectiveGroupID,
+				EffectiveBudget: &codersdk.AIBudgetLimit{
+					SpendLimitMicros: 2_000_000,
+					LimitSource:      codersdk.AIBudgetLimitSourceUserOverride,
+				},
+				GroupBudget: &codersdk.AIBudgetLimit{
+					SpendLimitMicros: 2_000_000,
+					LimitSource:      codersdk.AIBudgetLimitSourceUserOverride,
+				},
+				GroupSpendMicros: 500_000,
+			},
+		},
+		{
+			name: "EffectiveGroupDiffersFromQueriedGroup",
+			row: database.GetGroupMembersAISpendRow{
+				UserID:                    userID,
+				EffectiveGroupID:          uuid.NullUUID{UUID: effectiveGroupID, Valid: true},
+				EffectiveSpendLimitMicros: sql.NullInt64{Int64: 1_000_000, Valid: true},
+				EffectiveLimitSource:      sql.NullString{String: "group", Valid: true},
+				GroupSpendMicros:          250_000,
+			},
+			want: codersdk.GroupMemberAISpend{
+				UserID:           userID,
+				EffectiveGroupID: &effectiveGroupID,
+				EffectiveBudget: &codersdk.AIBudgetLimit{
+					SpendLimitMicros: 1_000_000,
+					LimitSource:      codersdk.AIBudgetLimitSourceGroup,
+				},
+				GroupSpendMicros: 250_000,
+			},
+		},
+		{
+			name: "NullFields",
+			row:  database.GetGroupMembersAISpendRow{UserID: userID},
+			want: codersdk.GroupMemberAISpend{UserID: userID},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, db2sdk.GroupMemberAISpend(tt.row))
+		})
+	}
+}
+
 func TestProvisionerJobStatus(t *testing.T) {
 	t.Parallel()
 

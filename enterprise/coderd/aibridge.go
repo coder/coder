@@ -1431,7 +1431,31 @@ func (api *API) groupMembersAISpend(rw http.ResponseWriter, r *http.Request) {
 		},
 		Members: make([]codersdk.GroupMemberAISpend, 0, len(rows)),
 	}
+	visibleEffectiveGroups := map[uuid.UUID]bool{group.ID: true}
 	for _, row := range rows {
+		if row.EffectiveGroupID.Valid {
+			effectiveGroupID := row.EffectiveGroupID.UUID
+			visible, ok := visibleEffectiveGroups[effectiveGroupID]
+			if !ok {
+				_, err := api.Database.GetGroupByID(ctx, effectiveGroupID)
+				switch {
+				case err == nil:
+					visible = true
+				case httpapi.IsUnauthorizedError(err), httpapi.Is404Error(err):
+					visible = false
+				default:
+					logger.Error(ctx, "failed to authorize effective AI budget group", slog.Error(err))
+					httpapi.InternalServerError(rw, err)
+					return
+				}
+				visibleEffectiveGroups[effectiveGroupID] = visible
+			}
+			if !visible {
+				row.EffectiveGroupID = uuid.NullUUID{}
+				row.EffectiveSpendLimitMicros = sql.NullInt64{}
+				row.EffectiveLimitSource = sql.NullString{}
+			}
+		}
 		resp.Members = append(resp.Members, db2sdk.GroupMemberAISpend(row))
 	}
 
