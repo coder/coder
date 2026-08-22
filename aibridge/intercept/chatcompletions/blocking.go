@@ -48,11 +48,11 @@ func NewBedrockBlockingInterceptor(
 	req *ChatCompletionNewParamsWrapper,
 	cfg intercept.Config,
 	cred intercept.Credential,
-	bedrock *bedrocksig.MantleConfig,
+	bedrockMantle *bedrocksig.MantleConfig,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingInterception {
-	return buildBlockingInterceptor(id, req, cfg, cred, bedrock, clientHeaders, tracer)
+	return buildBlockingInterceptor(id, req, cfg, cred, bedrockMantle, clientHeaders, tracer)
 }
 
 func buildBlockingInterceptor(
@@ -60,7 +60,7 @@ func buildBlockingInterceptor(
 	req *ChatCompletionNewParamsWrapper,
 	cfg intercept.Config,
 	cred intercept.Credential,
-	bedrock *bedrocksig.MantleConfig,
+	bedrockMantle *bedrocksig.MantleConfig,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingInterception {
@@ -69,7 +69,7 @@ func buildBlockingInterceptor(
 		req:           req,
 		cfg:           cfg,
 		cred:          cred,
-		bedrock:       bedrock,
+		bedrockMantle: bedrockMantle,
 		clientHeaders: clientHeaders,
 		tracer:        tracer,
 	}}

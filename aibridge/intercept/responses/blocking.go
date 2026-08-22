@@ -44,11 +44,11 @@ func NewBedrockBlockingInterceptor(
 	reqPayload RequestPayload,
 	cfg intercept.Config,
 	cred intercept.Credential,
-	bedrock *bedrocksig.MantleConfig,
+	bedrockMantle *bedrocksig.MantleConfig,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingResponsesInterceptor {
-	return buildBlockingInterceptor(id, reqPayload, cfg, cred, bedrock, clientHeaders, tracer)
+	return buildBlockingInterceptor(id, reqPayload, cfg, cred, bedrockMantle, clientHeaders, tracer)
 }
 
 func buildBlockingInterceptor(
@@ -56,7 +56,7 @@ func buildBlockingInterceptor(
 	reqPayload RequestPayload,
 	cfg intercept.Config,
 	cred intercept.Credential,
-	bedrock *bedrocksig.MantleConfig,
+	bedrockMantle *bedrocksig.MantleConfig,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingResponsesInterceptor {
@@ -66,7 +66,7 @@ func buildBlockingInterceptor(
 			reqPayload:    reqPayload,
 			cfg:           cfg,
 			cred:          cred,
-			bedrock:       bedrock,
+			bedrockMantle: bedrockMantle,
 			clientHeaders: clientHeaders,
 			tracer:        tracer,
 		},
