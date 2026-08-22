@@ -9,6 +9,7 @@ import (
 	htmltemplate "html/template"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -213,6 +214,24 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	return strings.Join(granted, " "), nil
 }
 
+// consentScopes lists a negotiated scope for the consent page. The
+// unrestricted grant is returned as nil, since "coder:all" states to a user
+// far less than the page's own full-access wording does.
+//
+// The negotiated value is canonical and deduplicated by the time it arrives
+// here, so this splits rather than rewrites.
+func consentScopes(granted string) []string {
+	names := strings.Fields(granted)
+	// Presence, not sole occupancy: an allowlist registered as
+	// `coder:all coder:workspaces.access` defaults to both names, and listing
+	// them would show the user the entry this function exists to avoid showing
+	// while understating a grant that is in fact unrestricted.
+	if slices.Contains(names, string(database.ApiKeyScopeCoderAll)) {
+		return nil
+	}
+	return names
+}
+
 type authorizeParams struct {
 	clientID            string
 	redirectURL         *url.URL
@@ -285,6 +304,37 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	return params, nil, nil
 }
 
+// redirectAuthorizeError returns an authorization error to the client by
+// redirecting to its callback with the error in the query, which is how
+// RFC 6749 §4.1.2.1 says an authorization request fails once the client is
+// known. Delivering it on Coder instead reaches only the user's screen: the
+// client's error handling never runs, and the state it sent is dropped, so it
+// cannot correlate the failure with the request that caused it.
+//
+// Only errors raised after extractAuthorizeParams returns may use this. Before
+// that point the redirect URI is whatever the request supplied, and §4.1.2.1
+// requires informing the user rather than redirecting to it. Afterwards it has
+// been exact-matched against the app's registered callback, so the destination
+// is the app's own no matter what the request carried.
+func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, redirectURL *url.URL, state string, code codersdk.OAuth2ErrorCode, description string) {
+	// Copied because the caller's URL is also the consent page's cancel link
+	// and, on the POST side, the success redirect.
+	errorURL := *redirectURL
+	query := errorURL.Query()
+	query.Set("error", string(code))
+	query.Set("error_description", description)
+	// RFC 6749 §4.1.2.1 requires the state back exactly as it arrived,
+	// whenever the client sent one.
+	if state != "" {
+		query.Set("state", state)
+	}
+	errorURL.RawQuery = query.Encode()
+
+	// 302 rather than 307, matching the success redirect below: some external
+	// OAuth2 apps and browsers do not handle 307.
+	http.Redirect(rw, r, errorURL.String(), http.StatusFound)
+}
+
 // ShowAuthorizePage handles GET /oauth2/authorize requests to display the HTML authorization page.
 func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
@@ -348,23 +398,14 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 
 		// Reject a scope the app can never be granted before the consent page
 		// renders, rather than after the user clicks Allow. Both handlers run
-		// the check for that reason: this one to decide whether the page
-		// renders at all, the POST side to persist the result. The two
+		// the check for that reason: this one to decide what the page states
+		// and whether it renders at all, the POST side to persist it. The two
 		// negotiate the same query string, since the consent form posts back
 		// to this URL.
-		if _, err := negotiateScope(r.Context(), logger, app, params.scope); err != nil {
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:      http.StatusBadRequest,
-				HideStatus:  false,
-				Title:       "Invalid Scope",
-				Description: err.Error(),
-				Actions: []site.Action{
-					{
-						URL:  accessURL.String(),
-						Text: "Back to site",
-					},
-				},
-			})
+		grantedScope, err := negotiateScope(r.Context(), logger, app, params.scope)
+		if err != nil {
+			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
+				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
 			return
 		}
 
@@ -403,6 +444,7 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 			DashboardURL: accessURL.String(),
 			CSRFToken:    nosurf.Token(r),
 			Username:     ua.FriendlyName,
+			Scopes:       consentScopes(grantedScope),
 		})
 	}
 }
@@ -448,7 +490,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 
 		grantedScope, err := negotiateScope(ctx, logger, app, params.scope)
 		if err != nil {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest,
+			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
 				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
 			return
 		}

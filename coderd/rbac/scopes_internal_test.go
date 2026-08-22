@@ -10,8 +10,10 @@ import (
 
 var (
 	workspaceRead         = Permission{ResourceType: "workspace", Action: policy.ActionRead}
+	workspaceDelete       = Permission{ResourceType: "workspace", Action: policy.ActionDelete}
 	workspaceWildcard     = Permission{ResourceType: "workspace", Action: policy.WildcardSymbol}
 	workspaceDeleteNegate = Permission{ResourceType: "workspace", Action: policy.ActionDelete, Negate: true}
+	wildcardResourceRead  = Permission{ResourceType: policy.WildcardSymbol, Action: policy.ActionRead}
 )
 
 // coverableScope is the shape every ExpandScope result has: site permissions
@@ -164,4 +166,36 @@ func TestScopesCoverGuards(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestScopesCoverWildcardResourceChecksAction pins that a wildcard resource
+// type is not on its own a grant: {*, read} authorizes read on every resource,
+// not every action on every resource. No ScopeName expands to that shape, since
+// the only wildcard resource the catalog spells is coder:all's {*, *}, so
+// permissionCovered could drop its action comparison and every ScopesCover test
+// would stay green.
+func TestScopesCoverWildcardResourceChecksAction(t *testing.T) {
+	t.Parallel()
+
+	allowed := []namedScope{{name: "wildcard_read", scope: coverableScope(wildcardResourceRead)}}
+
+	// The wildcard resource does match an unrelated resource, so the assertion
+	// below fails on the action and not on resource matching.
+	covered, err := scopesCoverExpanded(allowed, namedScope{name: "workspace_read", scope: coverableScope(workspaceRead)})
+	require.NoError(t, err)
+	require.True(t, covered)
+
+	covered, err = scopesCoverExpanded(allowed, namedScope{name: "workspace_delete", scope: coverableScope(workspaceDelete)})
+	require.NoError(t, err)
+	require.False(t, covered, "read on every resource must not cover delete")
+
+	// The mirror: a grant on one resource cannot cover a request for read on
+	// every resource. ScopeName inputs reach the action wildcard on the
+	// requested side but never the resource wildcard.
+	covered, err = scopesCoverExpanded(
+		[]namedScope{{name: "workspace_read", scope: coverableScope(workspaceRead)}},
+		namedScope{name: "wildcard_read", scope: coverableScope(wildcardResourceRead)},
+	)
+	require.NoError(t, err)
+	require.False(t, covered, "read on one resource must not cover read on every resource")
 }

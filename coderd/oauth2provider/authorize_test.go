@@ -3,7 +3,6 @@ package oauth2provider_test
 import (
 	"context"
 	"database/sql"
-	"html"
 	htmltemplate "html/template"
 	"io"
 	"net/http"
@@ -46,6 +45,54 @@ func TestOAuthConsentFormIncludesCSRFToken(t *testing.T) {
 	assert.Contains(t, body, `value="`+csrfFieldValue+`"`)
 	assert.Contains(t, body, `id="allow-form"`)
 	assert.Contains(t, body, `id="cancel-link"`)
+}
+
+// The consent page is the only place a person is told what they are about to
+// approve, so what it states has to follow the negotiated scope rather than a
+// fixed sentence. Both directions are asserted: a narrow grant must not be
+// described as full access, and a full grant must not be described by a scope
+// name no user would recognize.
+func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
+	t.Parallel()
+
+	render := func(t *testing.T, scopes []string) string {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "https://coder.com/oauth2/authorize", nil)
+		rec := httptest.NewRecorder()
+		site.RenderOAuthAllowPage(rec, req, site.RenderOAuthAllowData{
+			AppName:      "Test OAuth App",
+			CancelURI:    htmltemplate.URL("https://coder.com/cancel"),
+			DashboardURL: "https://coder.com/",
+			CSRFToken:    "csrf-field-value",
+			Username:     "test-user",
+			Scopes:       scopes,
+		})
+		require.Equal(t, http.StatusOK, rec.Result().StatusCode)
+		return rec.Body.String()
+	}
+
+	t.Run("NarrowScopeListed", func(t *testing.T) {
+		t.Parallel()
+
+		body := render(t, []string{"workspace:ssh", "template:read"})
+		assert.Contains(t, body, "workspace:ssh")
+		assert.Contains(t, body, "template:read")
+		assert.NotContains(t, body, "full access",
+			"a scoped grant must not be described as full access")
+		// The approval controls must survive the added branch, since a page
+		// that states the scope but cannot be submitted is worse than the
+		// fixed sentence it replaced.
+		assert.Contains(t, body, `id="allow-form"`)
+		assert.Contains(t, body, `id="cancel-link"`)
+	})
+
+	t.Run("UnrestrictedStaysFullAccess", func(t *testing.T) {
+		t.Parallel()
+
+		body := render(t, nil)
+		assert.Contains(t, body, "full access")
+		assert.NotContains(t, body, `id="scope-list"`)
+	})
 }
 
 // Scope names used by the negotiation tests. Whether a name is in
@@ -220,6 +267,84 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 
 		requireInvalidScope(t, resp, reasonNoGrantableScope)
 	})
+
+	// The GET handler rejects before the consent page renders, so the user is
+	// never asked to approve a request that cannot succeed.
+	t.Run("ConsentPageNotRenderedForInvalidScope", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{String: scopeInCatalog, Valid: true})
+
+		resp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeInCatalog+" "+scopeOutOfAllowlist)
+		defer resp.Body.Close()
+		requireInvalidScope(t, resp, reasonScopeNotAllowed)
+		require.NotContains(t, readBody(t, resp), `id="allow-form"`,
+			"the consent page must not render for a scope the app cannot be granted")
+	})
+
+	// The wiring rather than the template: the page a user is actually served
+	// must name the scope the code will carry. Its rejection counterpart is
+	// ConsentPageNotRenderedForInvalidScope above.
+	t.Run("ConsentPageStatesNegotiatedScope", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{String: scopeInCatalog, Valid: true})
+
+		resp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), "workspace:ssh")
+		defer resp.Body.Close()
+
+		body := readBody(t, resp)
+		require.Contains(t, body, `id="allow-form"`, "the consent page must render")
+		require.Contains(t, body, "workspace:ssh")
+		require.NotContains(t, body, "full access",
+			"a scoped grant must not be described as full access")
+		// The page must state the grant, not the ceiling it was drawn from.
+		// The allowlist here covers workspace:ssh and more, so showing the
+		// allowlist would still satisfy every assertion above while telling
+		// the user they are approving more than the code will carry.
+		require.NotContains(t, body, scopeInCatalog,
+			"the consent page must state the negotiated scope, not the app's allowlist")
+	})
+
+	// The other half of RFC 6749 §4.1.2.1: a redirect URI that does not match
+	// the app's registration is never a destination this server sends anyone
+	// to, however the request fails. That validation running first is what
+	// keeps the rejection redirect above from being reachable with a
+	// request-supplied URI.
+	t.Run("MismatchedRedirectURINotRedirected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{String: scopeInCatalog, Valid: true})
+
+		for _, method := range []string{http.MethodGet, http.MethodPost} {
+			query := authorizeQuery(t, app.ID.String(), "not_a_real_scope")
+			query.Set("redirect_uri", "https://not-the-registered-callback.example/cb")
+
+			resp := sendAuthorizeRequest(ctx, t, client, method, query)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode,
+				"%s: an unregistered redirect_uri must fail on Coder", method)
+			require.Empty(t, resp.Header.Get("Location"),
+				"%s: the user must not be redirected to a URI the app did not register", method)
+			// Pinned so the case cannot pass on some unrelated 400: the
+			// request also carries an invalid scope, and the redirect URI is
+			// what must reject it first.
+			require.Contains(t, readBody(t, resp), "must exactly match",
+				"%s: the rejection must come from redirect_uri validation", method)
+		}
+
+		// Positive control: the same handler still renders the consent page for
+		// a request the app can be granted, so the assertion above is about the
+		// scope and not about the request shape.
+		okResp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeInCatalog)
+		defer okResp.Body.Close()
+		require.Equal(t, http.StatusOK, okResp.StatusCode)
+		require.Contains(t, readBody(t, okResp), `id="allow-form"`)
+	})
 }
 
 // TestOAuth2AuthorizeDCRScopeCompatibility pins an accepted compatibility
@@ -262,19 +387,21 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 		requireInvalidScope(t, resp, reasonNoGrantableScope)
 	})
 
-	// The break is only recoverable by whoever registered the app, so the
-	// description has to name the scopes they registered: the request that
-	// triggered this carried none, and the registered list is what they have
-	// to change.
+	// The break is only recoverable by whoever registered the app, and the
+	// redirect is what reaches them: their own callback handler logs the
+	// description. It has to name the scopes they registered, since the
+	// request that triggered this carried none.
 	t.Run("RejectionNamesTheRegisteredScopes", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		resp := authorizeRequest(ctx, t, client, http.MethodGet, registration.ClientID, "")
 		defer resp.Body.Close()
-		body := requireInvalidScope(t, resp, reasonNoGrantableScope)
+		requireInvalidScope(t, resp, reasonNoGrantableScope)
 
-		require.Contains(t, body, "openid profile email",
+		location, err := url.Parse(resp.Header.Get("Location"))
+		require.NoError(t, err)
+		require.Contains(t, location.Query().Get("error_description"), "openid profile email",
 			"the app owner cannot act on this without knowing which registered scopes are the problem")
 	})
 }
@@ -360,33 +487,27 @@ var (
 	reasonScopeNotAllowed  = oauth2provider.ReasonScopeNotAllowed
 )
 
-// requireInvalidScope asserts that a rejected request is refused rather than
-// issued a code, and that the refusal names the branch the caller expects.
-//
-// Each handler answers in the form it already uses for its own errors: the GET
-// side renders a static error page, since a person is looking at a browser,
-// and the POST side writes an OAuth2 error body. Both carry the description in
-// the response and neither redirects, so the assertion is on the status and
-// the body rather than on a Location. Delivering these to the client's own
-// callback, which is what RFC 6749 §4.1.2.1 actually calls for, is a separate
-// change; this helper is rewritten there.
-//
-// The body is returned because reading it consumes it, so a caller asserting
-// anything further has to work from this copy. It is returned unescaped: the
-// GET side's HTML template renders an apostrophe as &#39;, and the reasons
-// contain apostrophes, so a caller matching on what the reason says would
-// otherwise have to know which of the two handlers answered it.
-func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) string {
+// requireInvalidScope asserts the RFC 6749 §4.1.2.1 rejection: the client
+// learns of the failure by a redirect to its own registered callback, carrying
+// the error code, a description from the branch the caller named, and the
+// state it sent, and carrying no authorization code.
+func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) {
 	t.Helper()
 
-	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	require.Empty(t, resp.Header.Get("Location"),
-		"a rejected request must not be redirected anywhere, least of all with a code")
+	require.Equal(t, http.StatusFound, resp.StatusCode)
 
-	body := html.UnescapeString(readBody(t, resp))
-	require.Contains(t, body, wantReason,
+	location, err := url.Parse(resp.Header.Get("Location"))
+	require.NoError(t, err)
+	require.Equal(t, appCallbackURL, location.Scheme+"://"+location.Host+location.Path,
+		"the error must go to the app's registered callback and nowhere else")
+
+	query := location.Query()
+	require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), query.Get("error"))
+	require.Contains(t, query.Get("error_description"), wantReason,
 		"the rejection must come from the branch this case covers")
-	return body
+	require.Equal(t, authorizeState, query.Get("state"),
+		"the client cannot correlate the failure with its request without its state")
+	require.Empty(t, query.Get("code"), "a rejected request must not issue a code")
 }
 
 func readBody(t *testing.T, resp *http.Response) string {
