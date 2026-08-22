@@ -884,10 +884,12 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 			}
 
 			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
-				Action:            WorkspaceCreate,
-				TemplateVersionID: tpl.ActiveVersionID,
-				NewWorkspaceName:  "scaletest-N", // TODO: the scaletest runner will pass in a different name here. Does this matter?
-				Owner:             codersdk.Me,
+				Action:               WorkspaceCreate,
+				TemplateVersionID:    tpl.ActiveVersionID,
+				NewWorkspaceName:     "scaletest-N", // TODO: the scaletest runner will pass in a different name here. Does this matter?
+				Owner:                codersdk.Me,
+				NonInteractive:       !isTTYIn(inv),
+				UseParameterDefaults: parameterFlags.useParameterDefaults,
 
 				RichParameterFile: parameterFlags.richParameterFile,
 				RichParameters:    cliRichParameters,
@@ -1143,6 +1145,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 	}
 
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
+	cmd.Options = append(cmd.Options, parameterFlags.useParameterDefaultsOption())
 	tracingFlags.attach(&cmd.Options)
 	strategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)
@@ -1232,9 +1235,11 @@ func (r *RootCmd) scaletestWorkspaceUpdates() *serpent.Command {
 			}
 
 			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
-				Action:            WorkspaceCreate,
-				TemplateVersionID: tpl.ActiveVersionID,
-				Owner:             codersdk.Me,
+				Action:               WorkspaceCreate,
+				TemplateVersionID:    tpl.ActiveVersionID,
+				Owner:                codersdk.Me,
+				NonInteractive:       !isTTYIn(inv),
+				UseParameterDefaults: parameterFlags.useParameterDefaults,
 
 				RichParameterFile: parameterFlags.richParameterFile,
 				RichParameters:    cliRichParameters,
@@ -1439,6 +1444,7 @@ func (r *RootCmd) scaletestWorkspaceUpdates() *serpent.Command {
 	}
 
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
+	cmd.Options = append(cmd.Options, parameterFlags.useParameterDefaultsOption())
 	tracingFlags.attach(&cmd.Options)
 	timeoutStrategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)
@@ -1956,9 +1962,11 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 			}
 
 			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
-				Action:            WorkspaceCreate,
-				TemplateVersionID: tpl.ActiveVersionID,
-				Owner:             codersdk.Me,
+				Action:               WorkspaceCreate,
+				TemplateVersionID:    tpl.ActiveVersionID,
+				Owner:                codersdk.Me,
+				NonInteractive:       !isTTYIn(inv),
+				UseParameterDefaults: parameterFlags.useParameterDefaults,
 
 				RichParameterFile: parameterFlags.richParameterFile,
 				RichParameters:    cliRichParameters,
@@ -2150,6 +2158,7 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 	}
 
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
+	cmd.Options = append(cmd.Options, parameterFlags.useParameterDefaultsOption())
 	tracingFlags.attach(&cmd.Options)
 	output.attach(&cmd.Options)
 	timeoutStrategy.attach(&cmd.Options)
