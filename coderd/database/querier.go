@@ -483,7 +483,6 @@ type sqlcQuerier interface {
 	GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
 	GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
-	// Returns all model configurations for telemetry snapshot collection.
 	// deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
 	GetChatModelConfigsForTelemetry(ctx context.Context) ([]GetChatModelConfigsForTelemetryRow, error)
 	// GetChatPersonalModelOverridesEnabled returns whether users may configure
