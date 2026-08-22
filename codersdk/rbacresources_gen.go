@@ -8,6 +8,7 @@ const (
 	ResourceAIGatewayKey                  RBACResource = "ai_gateway_key"
 	ResourceAiModelPrice                  RBACResource = "ai_model_price"
 	ResourceAIProvider                    RBACResource = "ai_provider"
+	ResourceAIProviderCatalog             RBACResource = "ai_provider_catalog"
 	ResourceAiSeat                        RBACResource = "ai_seat"
 	ResourceAibridgeInterception          RBACResource = "aibridge_interception"
 	ResourceApiKey                        RBACResource = "api_key"
@@ -88,6 +89,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceAIGatewayKey:                  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceAiModelPrice:                  {ActionRead, ActionUpdate},
 	ResourceAIProvider:                    {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceAIProviderCatalog:             {ActionRead},
 	ResourceAiSeat:                        {ActionCreate, ActionRead},
 	ResourceAibridgeInterception:          {ActionCreate, ActionRead, ActionUpdate},
 	ResourceApiKey:                        {ActionCreate, ActionDelete, ActionRead, ActionUpdate},

@@ -20,6 +20,7 @@ import (
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	aibridgeutils "github.com/coder/coder/v2/aibridge/utils"
+	coderdaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
@@ -72,6 +73,32 @@ func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersd
 	}
 	out.Settings = redactAIProviderSettings(s)
 	return out, nil
+}
+
+// AIProviderCatalogEntry converts a non-secret catalog row into its
+// public shape. The row carries only safe columns by construction; the
+// dialect and gateway path are computed from the provider type via the
+// shared codersdk.AIProviderType.Dialect helper, the same mapping the
+// aibridged provider constructor uses.
+func AIProviderCatalogEntry(row database.GetAIProviderCatalogRow) (codersdk.AIProviderCatalogEntry, error) {
+	typ := codersdk.AIProviderType(row.Type)
+	dialect, err := typ.Dialect()
+	if err != nil {
+		return codersdk.AIProviderCatalogEntry{}, xerrors.Errorf("provider %q: %w", row.Name, err)
+	}
+	display := row.Name
+	if row.DisplayName.Valid && row.DisplayName.String != "" {
+		display = row.DisplayName.String
+	}
+	return codersdk.AIProviderCatalogEntry{
+		Type:        typ,
+		Name:        row.Name,
+		DisplayName: display,
+		Icon:        row.Icon,
+		Enabled:     row.Enabled,
+		Dialect:     dialect,
+		GatewayPath: coderdaibridge.AIGatewayRootPath + dialect.GatewayRoutePrefix(row.Name),
+	}, nil
 }
 
 // AIProviderSettings parses the on-disk JSON form back into a codersdk

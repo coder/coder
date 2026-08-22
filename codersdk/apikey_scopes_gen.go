@@ -19,6 +19,8 @@ const (
 	APIKeyScopeAiProviderDelete                    APIKeyScope = "ai_provider:delete"
 	APIKeyScopeAiProviderRead                      APIKeyScope = "ai_provider:read"
 	APIKeyScopeAiProviderUpdate                    APIKeyScope = "ai_provider:update"
+	APIKeyScopeAiProviderCatalogAll                APIKeyScope = "ai_provider_catalog:*"
+	APIKeyScopeAiProviderCatalogRead               APIKeyScope = "ai_provider_catalog:read"
 	APIKeyScopeAiSeatAll                           APIKeyScope = "ai_seat:*"
 	APIKeyScopeAiSeatCreate                        APIKeyScope = "ai_seat:create"
 	APIKeyScopeAiSeatRead                          APIKeyScope = "ai_seat:read"

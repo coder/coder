@@ -253,14 +253,15 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 	// openai-compat, openrouter, vercel) route through the OpenAI
 	// provider because chatd configures them against their
 	// OpenAI-compatible endpoints. Bedrock routes through the Anthropic
-	// provider with a Bedrock discriminator in Settings.
-	switch spec.Type {
-	case database.AIProviderTypeOpenai,
-		database.AIProviderTypeAzure,
-		database.AIProviderTypeGoogle,
-		database.AIProviderTypeOpenaiCompat,
-		database.AIProviderTypeOpenrouter,
-		database.AIProviderTypeVercel:
+	// provider with a Bedrock discriminator in Settings. The mapping
+	// lives in codersdk.AIProviderType.Dialect so the provider catalog
+	// endpoint advertises the same dialect this constructor serves.
+	dialect, err := codersdk.AIProviderType(spec.Type).Dialect()
+	if err != nil {
+		return nil, err
+	}
+	switch dialect {
+	case codersdk.AIProviderDialectOpenAI:
 		if len(spec.Keys) == 0 && !cfg.AllowBYOK.Value() {
 			return nil, xerrors.Errorf("%s provider has no api keys configured and BYOK is not enabled", spec.Type)
 		}
@@ -281,7 +282,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			SendActorHeaders: sendActorHeaders,
 		}), nil
 
-	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock:
+	case codersdk.AIProviderDialectAnthropic:
 		bedrock := bedrockConfig(spec.BaseURL, spec.Bedrock)
 		// A spec typed 'bedrock' authenticates exclusively via settings;
 		// without populated Bedrock credentials it cannot make upstream
@@ -313,7 +314,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			SendActorHeaders: sendActorHeaders,
 		}, bedrock)
 
-	case database.AIProviderTypeCopilot:
+	case codersdk.AIProviderDialectCopilot:
 		// Copilot is always BYOK; the per-user token is supplied on each
 		// request via the Authorization header, so no keypool is built.
 		return aibridge.NewCopilotProvider(aibridge.CopilotConfig{
@@ -324,7 +325,8 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 		}), nil
 
 	default:
-		return nil, xerrors.Errorf("unsupported provider type: %q", spec.Type)
+		// Unreachable: Dialect returns an error for unknown types.
+		return nil, xerrors.Errorf("unsupported provider dialect %q for type %q", dialect, spec.Type)
 	}
 }
 

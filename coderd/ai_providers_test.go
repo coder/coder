@@ -1888,3 +1888,153 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 		require.Equal(t, externalIDReadOnlyMsg, sdkErr.Message)
 	})
 }
+
+func TestAIProviderCatalog(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// One provider per dialect plus a disabled one, so the catalog
+	// covers the full type -> dialect -> gateway path mapping.
+	//nolint:gocritic // Owner role is the audience for the create endpoint.
+	_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+		Type:        codersdk.AIProviderTypeOpenAI,
+		Name:        "cat-openai",
+		DisplayName: "OpenAI Prod",
+		Enabled:     true,
+		BaseURL:     "https://openai.internal.example.com/v1",
+		APIKeys:     []string{"sk-openai-super-secret"}, //nolint:gosec // test fixture, not a real credential
+	})
+	require.NoError(t, err)
+	_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+		Type:    codersdk.AIProviderTypeAnthropic,
+		Name:    "cat-anthropic",
+		Enabled: true,
+		BaseURL: "https://anthropic.internal.example.com",
+		APIKeys: []string{"sk-anthropic-super-secret"}, //nolint:gosec // test fixture, not a real credential
+	})
+	require.NoError(t, err)
+	_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+		Type:    codersdk.AIProviderTypeCopilot,
+		Name:    "cat-copilot",
+		Enabled: true,
+		BaseURL: "https://copilot.internal.example.com",
+	})
+	require.NoError(t, err)
+	_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+		Type:    codersdk.AIProviderTypeOpenrouter,
+		Name:    "cat-openrouter",
+		Enabled: false,
+		BaseURL: "https://openrouter.internal.example.com/api/v1",
+		APIKeys: []string{"sk-openrouter-super-secret"}, //nolint:gosec // test fixture, not a real credential
+	})
+	require.NoError(t, err)
+
+	memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+	t.Run("MemberCanRead", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		got, err := memberClient.AIProviderCatalog(ctx)
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.AIProviderCatalogEntry{
+			{
+				Type:        codersdk.AIProviderTypeAnthropic,
+				Name:        "cat-anthropic",
+				DisplayName: "cat-anthropic",
+				Enabled:     true,
+				Dialect:     codersdk.AIProviderDialectAnthropic,
+				GatewayPath: "/api/v2/ai-gateway/cat-anthropic",
+			},
+			{
+				Type:        codersdk.AIProviderTypeCopilot,
+				Name:        "cat-copilot",
+				DisplayName: "cat-copilot",
+				Enabled:     true,
+				Dialect:     codersdk.AIProviderDialectCopilot,
+				GatewayPath: "/api/v2/ai-gateway/cat-copilot",
+			},
+			{
+				Type:        codersdk.AIProviderTypeOpenAI,
+				Name:        "cat-openai",
+				DisplayName: "OpenAI Prod",
+				Enabled:     true,
+				Dialect:     codersdk.AIProviderDialectOpenAI,
+				GatewayPath: "/api/v2/ai-gateway/cat-openai/v1",
+			},
+			{
+				Type:        codersdk.AIProviderTypeOpenrouter,
+				Name:        "cat-openrouter",
+				DisplayName: "cat-openrouter",
+				Enabled:     false,
+				Dialect:     codersdk.AIProviderDialectOpenAI,
+				GatewayPath: "/api/v2/ai-gateway/cat-openrouter/v1",
+			},
+		}, got)
+	})
+
+	t.Run("NoSecretFields", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		res, err := memberClient.Request(ctx, http.MethodGet, "/api/v2/ai/providers/catalog", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+
+		// No credential material or upstream URL may leak, not even in
+		// masked form.
+		require.NotContains(t, string(body), "sk-")
+		require.NotContains(t, string(body), "internal.example.com")
+
+		var entries []map[string]any
+		require.NoError(t, json.Unmarshal(body, &entries))
+		require.Len(t, entries, 4)
+		for _, entry := range entries {
+			require.NotContains(t, entry, "api_keys")
+			require.NotContains(t, entry, "settings")
+			require.NotContains(t, entry, "base_url")
+			// Assert the exact key set so any future field addition is
+			// a deliberate decision about member visibility.
+			require.ElementsMatch(t,
+				[]string{"type", "name", "display_name", "icon", "enabled", "dialect", "gateway_path"},
+				mapKeys(entry),
+			)
+		}
+	})
+
+	t.Run("AdminListStillOwnerOnly", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := memberClient.AIProviders(ctx)
+		requireSDKError(t, err, http.StatusForbidden)
+
+		_, err = memberClient.AIProvider(ctx, "cat-openai")
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("UnauthenticatedRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		anonClient := codersdk.New(client.URL)
+		_, err := anonClient.AIProviderCatalog(ctx)
+		requireSDKError(t, err, http.StatusUnauthorized)
+	})
+}
+
+// mapKeys returns the key set of a decoded JSON object for exact
+// response-shape assertions.
+func mapKeys(m map[string]any) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}

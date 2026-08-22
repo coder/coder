@@ -1304,6 +1304,26 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			// Any authenticated user can read the non-secret AI
+			// provider catalog. It carries no credentials, upstream
+			// base URLs, or type-specific settings, only what a client
+			// needs to call a provider through the AI Gateway.
+			Name:     "AIProviderCatalog",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceAIProviderCatalog,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {
+					owner,
+					orgWorkspaceAccessUser, memberMe, agentsAccessUser,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+				false: {},
+			},
+		},
+		{
 			// Only owners can manage AI Gateway keys. They hold
 			// a hashed bearer secret used to authenticate Gateway
 			// replicas to coderd. Keys are deployment-wide.

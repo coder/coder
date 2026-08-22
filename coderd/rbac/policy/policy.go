@@ -432,6 +432,12 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: "delete an AI provider",
 		},
 	},
+	"ai_provider_catalog": {
+		Name: "AIProviderCatalog",
+		Actions: map[Action]ActionDefinition{
+			ActionRead: "read the non-secret AI provider catalog",
+		},
+	},
 	"ai_seat": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "record AI seat usage",
