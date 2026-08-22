@@ -88,9 +88,15 @@ export const Unlimited: Story = {
 		await expect(await canvas.findByTestId(testId)).toHaveTextContent(
 			"$1,250 / Unlimited USD",
 		);
+		await expect(canvas.getAllByRole("cell")[1]).toHaveTextContent(
+			"Everyone (not allocated)",
+		);
 		await expect(
-			canvas.getByText("Everyone (not allocated)"),
-		).toBeInTheDocument();
+			canvas.getByRole("link", { name: "Everyone" }),
+		).toHaveAttribute(
+			"href",
+			`/organizations/${group.organization_name}/groups/Everyone`,
+		);
 		const body = await openInfo(canvasElement);
 		await expect(await body.findByText(/isn't restricted/)).toBeInTheDocument();
 	},
@@ -111,9 +117,15 @@ export const UnlimitedEveryoneGroup: Story = {
 		await expect(await canvas.findByTestId(testId)).toHaveTextContent(
 			"$0 / Unlimited USD",
 		);
+		await expect(canvas.getAllByRole("cell")[1]).toHaveTextContent(
+			"Everyone (not allocated)",
+		);
 		await expect(
-			canvas.getByText("Everyone (not allocated)"),
-		).toBeInTheDocument();
+			canvas.getByRole("link", { name: "Everyone" }),
+		).toHaveAttribute(
+			"href",
+			`/organizations/${MockEveryoneGroup.organization_name}/groups/Everyone`,
+		);
 	},
 };
 
@@ -132,7 +144,9 @@ export const EveryoneGroupWithBudget: Story = {
 		const cell = await canvas.findByTestId(testId);
 		await expect(cell).toHaveTextContent("$1,250 USD");
 		await expect(cell).toHaveTextContent("Group limit $7,000");
-		await expect(canvas.getByText("Everyone")).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: "Everyone" }),
+		).toBeInTheDocument();
 		await expect(canvas.queryByText(/not allocated/)).not.toBeInTheDocument();
 	},
 };
@@ -155,7 +169,12 @@ export const EveryoneGroupIndividual: Story = {
 		const canvas = within(canvasElement);
 		const cell = await canvas.findByTestId(testId);
 		await expect(cell).toHaveTextContent("Custom limit $9,000");
-		await expect(canvas.getByText("Everyone (individual)")).toBeInTheDocument();
+		await expect(canvas.getAllByRole("cell")[1]).toHaveTextContent(
+			"Everyone (individual)",
+		);
+		await expect(
+			canvas.getByRole("link", { name: "Everyone" }),
+		).toBeInTheDocument();
 	},
 };
 
@@ -172,7 +191,12 @@ export const ZeroBudget: Story = {
 		const cell = await canvas.findByTestId(testId);
 		await expect(cell).toHaveTextContent("$0 USD");
 		await expect(cell).toHaveTextContent("Group limit $0");
-		await expect(canvas.getByText("Front-End")).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: "Front-End" }),
+		).toHaveAttribute(
+			"href",
+			`/organizations/${group.organization_name}/groups/${group.name}`,
+		);
 	},
 };
 
@@ -202,7 +226,12 @@ export const Regular: Story = {
 		const cell = await canvas.findByTestId(testId);
 		await expect(cell).toHaveTextContent("$3,235 USD");
 		await expect(cell).toHaveTextContent("Group limit $7,000");
-		await expect(canvas.getByText("Front-End")).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: "Front-End" }),
+		).toHaveAttribute(
+			"href",
+			`/organizations/${group.organization_name}/groups/${group.name}`,
+		);
 	},
 };
 
@@ -222,8 +251,11 @@ export const Custom: Story = {
 		const cell = await canvas.findByTestId(testId);
 		await expect(cell).toHaveTextContent("$7,175 USD");
 		await expect(cell).toHaveTextContent("Custom limit $9,000");
+		await expect(canvas.getAllByRole("cell")[1]).toHaveTextContent(
+			"Front-End (individual)",
+		);
 		await expect(
-			canvas.getByText("Front-End (individual)"),
+			canvas.getByRole("link", { name: "Front-End" }),
 		).toBeInTheDocument();
 	},
 };
@@ -256,7 +288,12 @@ export const NotAttributed: Story = {
 		const cell = await canvas.findByTestId(testId);
 		await expect(cell).toHaveTextContent("$456 USD");
 		await expect(cell).toHaveTextContent("Budget managed by another group");
-		await expect(await canvas.findByText("developer")).toBeInTheDocument();
+		await expect(
+			await canvas.findByRole("link", { name: "developer" }),
+		).toHaveAttribute(
+			"href",
+			`/organizations/${MockGroup2.organization_name}/groups/${MockGroup2.name}`,
+		);
 		const body = await openInfo(canvasElement);
 		await expect(
 			await body.findByText(/this user's spend in the/),

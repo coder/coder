@@ -1,5 +1,6 @@
 import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
+import { Link as RouterLink } from "react-router";
 import { groupById } from "#/api/queries/groups";
 import type { Group, GroupMemberAISpend } from "#/api/typesGenerated";
 import { AIBudgetAmount } from "#/components/AIBudgetAmount/AIBudgetAmount";
@@ -39,11 +40,16 @@ export const GroupMemberBudgetCells: FC<{
 	const effectiveGroupName =
 		effectiveGroup?.display_name || effectiveGroup?.name;
 	const groupName = group.display_name || group.name;
-	// A user override shows as "(individual)" on the governing group's badge.
-	const badgeName = (name: string) =>
+	// The members route resolves the :groupName segment by group name (not id),
+	// so links must use the group's name. The Everyone group is always named
+	// "Everyone".
+	const hrefForGroup = (routeName: string) =>
+		`/organizations/${group.organization_name}/groups/${encodeURIComponent(routeName)}`;
+	// A user override shows as "(individual)" next to the governing group's name.
+	const individualSuffix =
 		spend?.group_budget?.limit_source === "user_override"
-			? `${name} (individual)`
-			: name;
+			? " (individual)"
+			: "";
 
 	let budgetGroup: ReactNode;
 	switch (effective.kind) {
@@ -54,22 +60,34 @@ export const GroupMemberBudgetCells: FC<{
 			// A populated budget means the Everyone group's own budget applies,
 			// so it isn't the unallocated fallback.
 			budgetGroup = (
-				<Badge size="sm">
-					{spend?.group_budget
-						? badgeName("Everyone")
-						: "Everyone (not allocated)"}
-				</Badge>
+				<BudgetGroupBadge
+					name="Everyone"
+					href={hrefForGroup("Everyone")}
+					suffix={spend?.group_budget ? individualSuffix : " (not allocated)"}
+				/>
 			);
 			break;
 		case "this":
-			budgetGroup = <Badge size="sm">{badgeName(groupName)}</Badge>;
+			budgetGroup = (
+				<BudgetGroupBadge
+					name={groupName}
+					href={hrefForGroup(group.name)}
+					suffix={individualSuffix}
+				/>
+			);
 			break;
 		case "other": {
 			// Wait for the name to resolve rather than flashing the fallback.
 			if (isResolvingGroupName) {
 				budgetGroup = <Spinner loading size="sm" />;
-			} else if (effectiveGroupName) {
-				budgetGroup = <Badge size="sm">{badgeName(effectiveGroupName)}</Badge>;
+			} else if (effectiveGroup) {
+				budgetGroup = (
+					<BudgetGroupBadge
+						name={effectiveGroupName ?? effectiveGroup.name}
+						href={hrefForGroup(effectiveGroup.name)}
+						suffix={individualSuffix}
+					/>
+				);
 			} else {
 				// The group can't be resolved (another org), so it can't be named.
 				budgetGroup = (
@@ -197,6 +215,34 @@ export function effectiveBudgetGroup(
 	}
 	return { kind: "other" };
 }
+
+/**
+ * A Budget group badge whose group name links to that group's page. Only the
+ * name is a link; any suffix such as "(individual)" stays plain text so it is
+ * excluded from the link target.
+ */
+const BudgetGroupBadge: FC<{
+	name: string;
+	href: string | undefined;
+	suffix?: string;
+}> = ({ name, href, suffix }) => (
+	<Badge size="sm">
+		{/* One inline span keeps the badge's flex gap off the name/suffix pair. */}
+		<span>
+			{href ? (
+				<RouterLink
+					to={href}
+					className="text-inherit no-underline hover:underline"
+				>
+					{name}
+				</RouterLink>
+			) : (
+				name
+			)}
+			{suffix}
+		</span>
+	</Badge>
+);
 
 const LabelWithInfo: FC<{ label: ReactNode; message: ReactNode }> = ({
 	label,
