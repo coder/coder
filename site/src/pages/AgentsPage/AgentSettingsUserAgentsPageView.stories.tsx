@@ -674,16 +674,40 @@ export const NoDefaultOrgModels: Story = {
 		hasNoOrganizationModels: true,
 		modelOptions: [],
 		models: [],
+		overridesData: buildOverridesResponse({
+			root: buildOverride("root", {
+				mode: "model",
+				model_config_id: "model-stale",
+				is_set: true,
+			}),
+		}),
 	}),
-	play: async ({ canvasElement }) => {
+	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
 			canvas.getByText(/selected organization has no available chat models/i),
 		).toBeInTheDocument();
+		// A stale saved model override must remain replaceable with the
+		// model-free default modes even though no model can be selected.
 		const rootSection = await getSection(canvasElement, "Root agent model");
-		expect(
-			within(rootSection).getByRole("button", { name: "Save" }),
-		).toBeDisabled();
+		await userEvent.click(
+			within(rootSection).getByRole("combobox", {
+				name: /^Root agent model behavior/,
+			}),
+		);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			await body.findByRole("option", { name: /Chat default/i }),
+		);
+		const save = within(rootSection).getByRole("button", { name: "Save" });
+		await waitFor(() => expect(save).toBeEnabled());
+		await userEvent.click(save);
+		await waitFor(() => {
+			expect(args.onSaveRootModelOverride).toHaveBeenCalledWith(
+				{ mode: "chat_default", model_config_id: "" },
+				expect.anything(),
+			);
+		});
 	},
 };
 
