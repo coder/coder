@@ -7,10 +7,8 @@ import {
 	type WorkspaceStatus,
 	WorkspaceStatuses,
 } from "#/api/typesGenerated";
-import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "#/components/Filter/storyHelpers";
+import type { UseFilterResult } from "#/components/Filter/Filter";
+import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
 import {
 	MockBuildInfo,
@@ -30,7 +28,6 @@ import {
 	withDashboardProvider,
 	withProxyProvider,
 } from "#/testHelpers/storybook";
-import type { WorkspaceFilterState } from "./filter/WorkspacesFilter";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 const createWorkspace = (
@@ -135,20 +132,14 @@ const allWorkspaces = [
 	...Object.values(additionalWorkspaces),
 ];
 
-const defaultFilterProps = getDefaultFilterProps<WorkspaceFilterState>({
+const defaultFilter = getDefaultFilterProps<{ filter: UseFilterResult }>({
 	query: "owner:me",
-	menus: {
-		user: MockMenu,
-		template: MockMenu,
-		status: MockMenu,
-		organizations: MockMenu,
-	},
 	values: {
 		owner: MockUserOwner.username,
 		template: undefined,
 		status: undefined,
 	},
-});
+}).filter;
 
 const mockTemplates = [
 	MockTemplate,
@@ -168,7 +159,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
 	component: WorkspacesPageView,
 	args: {
 		limit: DEFAULT_RECORDS_PER_PAGE,
-		filterState: defaultFilterProps,
+		filter: defaultFilter,
 		checkedWorkspaces: [],
 		templates: mockTemplates,
 		templatesFetchStatus: "success",
@@ -222,10 +213,7 @@ export const CannotCreateWorkspaceWithFilter: Story = {
 		workspaces: [],
 		count: 0,
 		canCreateWorkspace: false,
-		filterState: {
-			...defaultFilterProps,
-			filter: { ...defaultFilterProps.filter, used: true },
-		},
+		filter: { ...defaultFilter, used: true },
 	},
 	// The filter empty state takes priority: an active filter that matched
 	// nothing shows "no results" regardless of create permission, since the
@@ -333,13 +321,10 @@ export const UserHasNoWorkspacesAndNoTemplates: Story = {
 export const NoSearchResults: Story = {
 	args: {
 		workspaces: [],
-		filterState: {
-			...defaultFilterProps,
-			filter: {
-				...defaultFilterProps.filter,
-				query: "searchwithnoresults",
-				used: true,
-			},
+		filter: {
+			...defaultFilter,
+			query: "searchwithnoresults",
+			used: true,
 		},
 		count: 0,
 	},
@@ -602,5 +587,37 @@ export const WithCheckedWorkspaces: Story = {
 		workspaces: allWorkspaces.slice(0, 5),
 		checkedWorkspaces: allWorkspaces.slice(0, 2),
 		count: 5,
+	},
+};
+
+// An invalid filter query returns an API validation error. The page suppresses
+// its ErrorAlert for validation errors, so the message must surface on the
+// filter itself and the input must be marked invalid.
+export const WithFilterError: Story = {
+	args: {
+		workspaces: [],
+		count: 0,
+		error: mockApiError({
+			message: "Invalid filter query.",
+			validations: [
+				{ field: "q", detail: 'Query param "q" has an invalid value.' },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(/invalid value/i);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter workspaces…",
+		});
+		expect(input).toHaveAttribute("aria-invalid", "true");
+		expect(input).toHaveAttribute(
+			"aria-errormessage",
+			"workspaces-filter-error",
+		);
+		expect(canvas.getByRole("alert")).toHaveAttribute(
+			"id",
+			"workspaces-filter-error",
+		);
 	},
 };

@@ -35,6 +35,41 @@ export const Default: Story = {
 	),
 };
 
+export const Outline: Story = {
+	render: () => (
+		<Badges>
+			<Badge variant="outline" size="xs">
+				<DatabaseIcon />
+				Status
+			</Badge>
+			<Badge variant="outline" size="sm">
+				<DatabaseIcon />
+				Status
+			</Badge>
+			<Badge variant="outline" size="md">
+				<DatabaseIcon />
+				Status
+			</Badge>
+		</Badges>
+	),
+};
+
+export const Dashed: Story = {
+	render: () => (
+		<Badges>
+			<Badge variant="dashed" size="xs">
+				owner:
+			</Badge>
+			<Badge variant="dashed" size="sm">
+				owner:
+			</Badge>
+			<Badge variant="dashed" size="md">
+				owner:
+			</Badge>
+		</Badges>
+	),
+};
+
 export const Warning: Story = {
 	render: () => (
 		<Badges>
