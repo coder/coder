@@ -1,4 +1,6 @@
-# API & Session Tokens
+---
+title: API & Session Tokens
+---
 
 Users can generate tokens to make API requests on behalf of themselves.
 

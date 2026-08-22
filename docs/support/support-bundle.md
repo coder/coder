@@ -1,4 +1,6 @@
-# Generate and upload a Support Bundle to Coder Support
+---
+title: Generate and upload a Support Bundle to Coder Support
+---
 
 When you engage with Coder support to diagnose an issue with your deployment,
 you may be asked to generate and upload a "Support Bundle" for offline analysis.

@@ -1,4 +1,6 @@
-# Write a template from scratch
+---
+title: Write a template from scratch
+---
 
 > [!TIP]
 > If you want to create a template without writing Terraform, use the

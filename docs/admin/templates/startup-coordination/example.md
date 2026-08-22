@@ -1,4 +1,6 @@
-# Workspace Startup Coordination Examples
+---
+title: Workspace Startup Coordination Examples
+---
 
 ## Script Example
 

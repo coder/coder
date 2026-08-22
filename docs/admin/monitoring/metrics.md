@@ -1,4 +1,6 @@
-# Deployment Metrics
+---
+title: Deployment Metrics
+---
 
 Coder exposes many metrics which give insight into the current state of a live
 Coder deployment. Our metrics are designed to be consumed by a

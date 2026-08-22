@@ -1,4 +1,6 @@
-# JFrog Artifactory Integration
+---
+title: JFrog Artifactory Integration
+---
 
 Use Coder and JFrog Artifactory together to secure your development environments
 without disturbing your developers' existing workflows.

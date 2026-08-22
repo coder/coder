@@ -1,4 +1,6 @@
-# Federating a Google Cloud service account to AWS
+---
+title: Federating a Google Cloud service account to AWS
+---
 
 <div>
   <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">

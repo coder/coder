@@ -1,4 +1,6 @@
-# Configure Coder to connect to PostgreSQL using SSL
+---
+title: Configure Coder to connect to PostgreSQL using SSL
+---
 
 <div>
   <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">

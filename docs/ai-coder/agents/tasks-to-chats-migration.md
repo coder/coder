@@ -1,4 +1,6 @@
-# Migrating from the Tasks API to the Chats API
+---
+title: Migrating from the Tasks API to the Chats API
+---
 
 > [!WARNING]
 > Coder Tasks is deprecated as of Coder v2.36 and is no longer available by

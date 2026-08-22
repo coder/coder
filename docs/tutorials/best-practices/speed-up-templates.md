@@ -1,4 +1,6 @@
-# Speed up your Coder templates and workspaces
+---
+title: Speed up your Coder templates and workspaces
+---
 
 October 31, 2024
 

@@ -1,4 +1,6 @@
-# Conversation Auto-Archive
+---
+title: Conversation Auto-Archive
+---
 
 Coder Agents automatically archives long-inactive conversations so they
 drop out of active chat lists without any user intervention. Archived

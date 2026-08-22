@@ -1,4 +1,6 @@
-# Kubernetes event logs
+---
+title: Kubernetes event logs
+---
 
 To stream Kubernetes events into your workspace startup logs, you can use
 Coder's [`coder-logstream-kube`](https://github.com/coder/coder-logstream-kube)

@@ -1,4 +1,6 @@
-# Groups and Roles (Premium)
+---
+title: Groups and Roles (Premium)
+---
 
 Groups and roles can be manually assigned in Coder. For production deployments,
 these can also be [managed and synced by the identity provider](./idp-sync.md).

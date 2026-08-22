@@ -1,4 +1,6 @@
-# Workspace Process Logging
+---
+title: Workspace Process Logging
+---
 
 The workspace process logging feature allows you to log all system-level
 processes executing in the workspace.
