@@ -97,6 +97,24 @@ WHERE
     AND cardinality(@ids::text[]) = cardinality(@failure_messages::text[])
     AND cardinality(@ids::text[]) = cardinality(@set_published_ats::boolean[]);
 
+-- name: GetUsageEventsStats :one
+-- Read-only stats about unpublished usage events, used for Prometheus metrics
+-- in the usage publisher. Events older than 30 days will never be published
+-- (Tallyman would permanently reject them), so they are counted separately as
+-- "expired".
+SELECT
+    -- The parentheses around @now::timestamptz are necessary to avoid sqlc
+    -- from generating an extra argument.
+    (COUNT(*) FILTER (WHERE created_at > (@now::timestamptz) - INTERVAL '30 days'))::bigint AS pending_count,
+    -- COALESCE to the Go zero time value when there are no pending events so
+    -- sqlc generates a non-nullable time.Time.
+    COALESCE(MIN(created_at) FILTER (WHERE created_at > (@now::timestamptz) - INTERVAL '30 days'), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_pending_created_at,
+    (COUNT(*) FILTER (WHERE created_at <= (@now::timestamptz) - INTERVAL '30 days'))::bigint AS expired_count
+FROM
+    usage_events
+WHERE
+    published_at IS NULL;
+
 -- name: GetTotalUsageDCManagedAgentsV1 :one
 -- Gets the total number of managed agents created between two dates. Uses the
 -- aggregate table to avoid large scans or a complex index on the usage_events

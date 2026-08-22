@@ -6013,6 +6013,21 @@ func (mr *MockStoreMockRecorder) GetUnexpiredLicenses(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnexpiredLicenses", reflect.TypeOf((*MockStore)(nil).GetUnexpiredLicenses), ctx)
 }
 
+// GetUsageEventsStats mocks base method.
+func (m *MockStore) GetUsageEventsStats(ctx context.Context, now time.Time) (database.GetUsageEventsStatsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUsageEventsStats", ctx, now)
+	ret0, _ := ret[0].(database.GetUsageEventsStatsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUsageEventsStats indicates an expected call of GetUsageEventsStats.
+func (mr *MockStoreMockRecorder) GetUsageEventsStats(ctx, now any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsageEventsStats", reflect.TypeOf((*MockStore)(nil).GetUsageEventsStats), ctx, now)
+}
+
 // GetUserAIBudgetOverride mocks base method.
 func (m *MockStore) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	m.ctrl.T.Helper()

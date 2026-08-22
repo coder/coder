@@ -18,6 +18,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -87,9 +88,11 @@ func TestIntegration(t *testing.T) {
 	// Wrap the publisher's DB in a dbauthz to ensure that the publisher has
 	// enough permissions.
 	authzDB := dbauthz.New(db, rbac.NewAuthorizer(prometheus.NewRegistry()), log, coderdtest.AccessControlStorePointer())
+	reg := prometheus.NewRegistry()
 	publisher := usage.NewTallymanPublisher(ctx, log, authzDB, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
+		usage.PublisherWithPrometheusRegisterer(reg),
 	)
 	defer publisher.Close()
 
@@ -159,6 +162,27 @@ func TestIntegration(t *testing.T) {
 	// The publisher should have published the events once.
 	require.Equal(t, 1, calls)
 
+	// The result counters should reflect the verdicts from the first publish.
+	resultLabels := func(result string) prometheus.Labels {
+		return prometheus.Labels{
+			"result":     result,
+			"event_type": string(usagetypes.UsageEventTypeDCManagedAgentsV1),
+		}
+	}
+	require.Equal(t, 1, promhelp.CounterValue(t, reg, "coderd_usage_events_publish_results_total", resultLabels("accepted")))
+	require.Equal(t, 1, promhelp.CounterValue(t, reg, "coderd_usage_events_publish_results_total", resultLabels("rejected_temporarily")))
+	require.Equal(t, 1, promhelp.CounterValue(t, reg, "coderd_usage_events_publish_results_total", resultLabels("rejected_permanently")))
+	require.Equal(t, 0, promhelp.CounterValue(t, reg, "coderd_usage_events_publish_send_errors_total", nil))
+	// Only the temporarily rejected event is still pending. The event
+	// inserted 31 days ago will never be published and counts as expired.
+	require.Equal(t, 1, promhelp.GaugeValue(t, reg, "coderd_usage_events_pending", nil))
+	require.Equal(t, 1, promhelp.GaugeValue(t, reg, "coderd_usage_events_expired", nil))
+	// The pending event was inserted 1 second before the final event, which
+	// was inserted right before the ticker started counting down the initial
+	// delay.
+	wantOldestAge := tickerCall.Duration + time.Second
+	require.InDelta(t, wantOldestAge.Seconds(), float64(promhelp.GaugeValue(t, reg, "coderd_usage_events_pending_oldest_age_seconds", nil)), 1)
+
 	// Set the handler for the next publish call. This call should only include
 	// the temporarily rejected event from earlier. This time we'll accept it.
 	handler = func(req usagetypes.TallymanV1IngestRequest) any {
@@ -181,6 +205,13 @@ func TestIntegration(t *testing.T) {
 
 	// The publisher should have published the events again.
 	require.Equal(t, 2, calls)
+
+	// The previously rejected event was accepted this time, so the backlog
+	// gauges should drop to zero. The expired event remains forever.
+	require.Equal(t, 2, promhelp.CounterValue(t, reg, "coderd_usage_events_publish_results_total", resultLabels("accepted")))
+	require.Equal(t, 0, promhelp.GaugeValue(t, reg, "coderd_usage_events_pending", nil))
+	require.Equal(t, 0, promhelp.GaugeValue(t, reg, "coderd_usage_events_pending_oldest_age_seconds", nil))
+	require.Equal(t, 1, promhelp.GaugeValue(t, reg, "coderd_usage_events_expired", nil))
 
 	// There should be no more publish calls after this, so set the handler to
 	// nil.
@@ -208,6 +239,8 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 	// Configure the deployment manually.
 	deploymentID := uuid.New()
 	db.EXPECT().GetDeploymentID(gomock.Any()).Return(deploymentID.String(), nil).Times(1)
+	// The publisher refreshes the backlog gauges after every publish attempt.
+	db.EXPECT().GetUsageEventsStats(gomock.Any(), gomock.Any()).Return(database.GetUsageEventsStatsRow{}, nil).AnyTimes()
 
 	var calls int
 	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), "", func(req usagetypes.TallymanV1IngestRequest) any {
@@ -371,9 +404,11 @@ func TestPublisherMissingEvents(t *testing.T) {
 		}
 	}))
 
+	reg := prometheus.NewRegistry()
 	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
+		usage.PublisherWithPrometheusRegisterer(reg),
 	)
 
 	// Expect the publisher to call SelectUsageEventsForPublishing, followed by
@@ -392,6 +427,12 @@ func TestPublisherMissingEvents(t *testing.T) {
 		},
 	}
 	db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), gomock.Any()).Return(events, nil).Times(1)
+	// The publisher refreshes the backlog gauges after every publish attempt.
+	db.EXPECT().GetUsageEventsStats(gomock.Any(), gomock.Any()).Return(database.GetUsageEventsStatsRow{
+		PendingCount:           1,
+		OldestPendingCreatedAt: now.Add(-2 * time.Hour),
+		ExpiredCount:           3,
+	}, nil).AnyTimes()
 	db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(ctx context.Context, params database.UpdateUsageEventsPostPublishParams) error {
 			assert.Equal(t, []string{events[0].ID}, params.IDs)
@@ -421,6 +462,18 @@ func TestPublisherMissingEvents(t *testing.T) {
 
 	// The publisher should have published the events once.
 	require.Equal(t, 1, calls)
+
+	// The event missing from the response should be counted as temporarily
+	// rejected.
+	require.Equal(t, 1, promhelp.CounterValue(t, reg, "coderd_usage_events_publish_results_total", prometheus.Labels{
+		"result":     "rejected_temporarily",
+		"event_type": string(usagetypes.UsageEventTypeDCManagedAgentsV1),
+	}))
+	// The gauges should match the mocked stats.
+	require.Equal(t, 1, promhelp.GaugeValue(t, reg, "coderd_usage_events_pending", nil))
+	require.Equal(t, 3, promhelp.GaugeValue(t, reg, "coderd_usage_events_expired", nil))
+	wantOldestAge := 2*time.Hour + tickerCall.Duration
+	require.InDelta(t, wantOldestAge.Seconds(), float64(promhelp.GaugeValue(t, reg, "coderd_usage_events_pending_oldest_age_seconds", nil)), 1)
 
 	require.NoError(t, publisher.Close())
 }
@@ -549,6 +602,8 @@ func TestPublisherLicenseSelection(t *testing.T) {
 			return nil
 		},
 	).Times(1)
+	// The publisher refreshes the backlog gauges after every publish attempt.
+	db.EXPECT().GetUsageEventsStats(gomock.Any(), gomock.Any()).Return(database.GetUsageEventsStatsRow{}, nil).AnyTimes()
 
 	// Tick and wait for the reset call.
 	tickerResetTrap := clock.Trap().TickerReset()
@@ -580,9 +635,11 @@ func TestPublisherTallymanError(t *testing.T) {
 		}
 	}))
 
+	reg := prometheus.NewRegistry()
 	publisher := usage.NewTallymanPublisher(ctx, log, db, coderdenttest.Keys,
 		usage.PublisherWithClock(clock),
 		usage.PublisherWithIngestURL(ingestURL),
+		usage.PublisherWithPrometheusRegisterer(reg),
 	)
 	defer publisher.Close()
 
@@ -617,6 +674,8 @@ func TestPublisherTallymanError(t *testing.T) {
 			return nil
 		},
 	).Times(1)
+	// The publisher refreshes the backlog gauges after every publish attempt.
+	db.EXPECT().GetUsageEventsStats(gomock.Any(), gomock.Any()).Return(database.GetUsageEventsStatsRow{}, nil).AnyTimes()
 
 	// Tick and wait for the reset call.
 	tickerResetTrap := clock.Trap().TickerReset()
@@ -626,6 +685,11 @@ func TestPublisherTallymanError(t *testing.T) {
 
 	// The publisher should have published the events once.
 	require.Equal(t, 1, calls)
+
+	// The failed request should count as a send error, and no per-event
+	// results should be counted since Tallyman never returned a verdict.
+	require.Equal(t, 1, promhelp.CounterValue(t, reg, "coderd_usage_events_publish_send_errors_total", nil))
+	require.NoError(t, promhelp.Compare(reg, "", "coderd_usage_events_publish_results_total"))
 }
 
 func jsoninate(t *testing.T, v any) string {
