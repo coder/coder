@@ -2388,13 +2388,12 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Callers are authorized to read this workspace, not necessarily the
-	// users and groups on its ACL. We deliberately use the System context to
-	// look up that data, but only return minimal identity information that is
-	// safe to expose to anyone who can read the ACL: MinimalUser for ACL users
-	// (no email or other PII) and group identity plus a member count for ACL
-	// groups (no member roster). This mirrors the chat ACL and template
-	// available-ACL endpoints.
+	// The caller can read this workspace's ACL but may lack global user-read,
+	// so we resolve ACL entries under the System context. This stays scoped: we
+	// only look up IDs already on the ACL, returning MinimalUser identity
+	// (including email, to disambiguate matching display names) for users, and
+	// group identity plus a member count (no roster) for groups. Mirrors the
+	// chat ACL endpoint, which resolves the same scoped-ID lookup.
 
 	// Fetch all of the users and their organization memberships
 	userIDs := make([]uuid.UUID, 0, len(workspaceACL.Users))
@@ -2406,9 +2405,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		}
 		userIDs = append(userIDs, id)
 	}
-	// ACL users are returned as MinimalUser, which contains no PII, so it is
-	// safe to fetch them under the System context.
-	// nolint:gocritic
+	// nolint:gocritic // Scoped to the user IDs already on this workspace's ACL, per the comment above.
 	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)

@@ -107,6 +107,7 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, acl.Users, 1)
 	require.Equal(t, sharedUser.ID.String(), acl.Users[0].ID.String())
+	require.Equal(t, sharedUser.Email, acl.Users[0].Email)
 	require.Equal(t, map[uuid.UUID]codersdk.ChatRole{
 		sharedUser.ID: codersdk.ChatRoleRead,
 	}, chatUserRoles(acl.Users))

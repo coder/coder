@@ -257,6 +257,7 @@ func MinimalUser(user database.User) codersdk.MinimalUser {
 		ID:        user.ID,
 		Username:  user.Username,
 		Name:      user.Name,
+		Email:     user.Email,
 		AvatarURL: user.AvatarURL,
 	}
 }
@@ -273,7 +274,6 @@ func MinimalUserFromVisibleUser(user database.VisibleUser) codersdk.MinimalUser 
 func ReducedUser(user database.User) codersdk.ReducedUser {
 	return codersdk.ReducedUser{
 		MinimalUser:      MinimalUser(user),
-		Email:            user.Email,
 		CreatedAt:        user.CreatedAt,
 		UpdatedAt:        user.UpdatedAt,
 		LastSeenAt:       user.LastSeenAt,

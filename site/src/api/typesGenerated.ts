@@ -6253,12 +6253,14 @@ export interface MinimalOrganization {
 // From codersdk/users.go
 /**
  * MinimalUser is the minimal information needed to identify a user and show
- * them on the UI.
+ * them on the UI. Email is included so callers can disambiguate users who
+ * share a display name or avatar.
  */
 export interface MinimalUser {
 	readonly id: string;
 	readonly username: string;
 	readonly name?: string;
+	readonly email: string;
 	readonly avatar_url?: string;
 }
 
@@ -7995,7 +7997,6 @@ export interface RateLimitConfig {
  * required by the frontend.
  */
 export interface ReducedUser extends MinimalUser {
-	readonly email: string;
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly last_seen_at?: string;
