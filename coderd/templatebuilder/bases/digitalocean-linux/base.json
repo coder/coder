@@ -2,6 +2,7 @@
 	"id": "digitalocean-linux",
 	"display_name": "DigitalOcean Droplet (Linux)",
 	"os": "linux",
+	"agents": [{ "name": "main", "default": true }],
 	"default_context": {},
 	"variables": [
 		{

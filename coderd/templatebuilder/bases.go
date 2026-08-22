@@ -44,6 +44,22 @@ type BaseManifest struct {
 	OS             string             `json:"os"`
 	DefaultContext BaseDefaultContext `json:"default_context"`
 	Variables      []ModuleVariable   `json:"variables"`
+	// Agents describes the coder_agent resources declared by the base
+	// template. The Name of each entry must match a coder_agent resource
+	// name in main.tf. When a base declares more than one agent, callers
+	// choose which agent a module attaches to.
+	Agents []BaseAgent `json:"agents,omitempty"`
+}
+
+// BaseAgent is the on-disk metadata for one coder_agent resource in a
+// base template. Name must match the Terraform resource name.
+type BaseAgent struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name,omitempty"`
+	// Default marks the agent selected by default when a caller does not
+	// specify one. At most one agent may be default; if none is marked,
+	// the first declared agent is treated as the default.
+	Default bool `json:"default,omitempty"`
 }
 
 // BaseDefaultContext holds default render values stored in base.json.
@@ -162,7 +178,35 @@ func parseManifest(parent fs.FS, dirName string) (BaseManifest, error) {
 		return BaseManifest{}, xerrors.Errorf("base %q has unknown os %q", manifest.ID, manifest.OS)
 	}
 
+	if err := validateBaseAgents(manifest); err != nil {
+		return BaseManifest{}, err
+	}
+
 	return manifest, nil
+}
+
+// validateBaseAgents checks that a base manifest's declared agents have
+// unique, non-empty names and at most one default. Bases with no declared
+// agents are allowed for backward compatibility.
+func validateBaseAgents(manifest BaseManifest) error {
+	seen := make(map[string]bool, len(manifest.Agents))
+	defaults := 0
+	for _, a := range manifest.Agents {
+		if a.Name == "" {
+			return xerrors.Errorf("base %q has an agent with empty name", manifest.ID)
+		}
+		if seen[a.Name] {
+			return xerrors.Errorf("base %q has duplicate agent %q", manifest.ID, a.Name)
+		}
+		seen[a.Name] = true
+		if a.Default {
+			defaults++
+		}
+	}
+	if defaults > 1 {
+		return xerrors.Errorf("base %q declares more than one default agent", manifest.ID)
+	}
+	return nil
 }
 
 // parseTemplatesFromFS walks the filesystem and pre-parses all .tf.tmpl files
@@ -258,6 +302,32 @@ func BaseVariables(exampleID string) []ModuleVariable {
 		return nil
 	}
 	return bases[exampleID].Manifest.Variables
+}
+
+// BaseAgents returns the declared coder_agent resources for a base
+// template. Returns nil if the base is unknown or declares none.
+func BaseAgents(exampleID string) []BaseAgent {
+	bases, err := loadBases()
+	if err != nil || bases[exampleID] == nil {
+		return nil
+	}
+	return bases[exampleID].Manifest.Agents
+}
+
+// BaseDefaultAgent returns the name of the default agent for a base
+// template. When no agent is marked default, the first declared agent is
+// used. Returns an empty string if the base declares no agents.
+func BaseDefaultAgent(exampleID string) string {
+	agents := BaseAgents(exampleID)
+	if len(agents) == 0 {
+		return ""
+	}
+	for _, a := range agents {
+		if a.Default {
+			return a.Name
+		}
+	}
+	return agents[0].Name
 }
 
 // BaseTemplateFS returns a filesystem rooted at the given base template

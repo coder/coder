@@ -2,6 +2,7 @@
 	"id": "gcp-linux",
 	"display_name": "Google Compute Engine (Linux)",
 	"os": "linux",
+	"agents": [{ "name": "main", "default": true }],
 	"default_context": {},
 	"variables": [
 		{

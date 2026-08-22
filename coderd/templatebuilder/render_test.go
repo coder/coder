@@ -216,6 +216,94 @@ func TestRenderModuleTemplate(t *testing.T) {
 	})
 }
 
+func TestExtractAgentResourceNames(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MultipleAgents", func(t *testing.T) {
+		t.Parallel()
+		hcl := []byte(`
+resource "coder_agent" "main" {
+  arch = "amd64"
+}
+resource "coder_agent" "dev" {
+  count = data.coder_workspace.me.start_count
+  arch  = "amd64"
+}
+`)
+		agents, err := templatebuilder.ExtractAgentResourceNames(hcl)
+		require.NoError(t, err)
+		require.Equal(t, []templatebuilder.ExtractedAgent{
+			{Name: "main", Reference: "main"},
+			{Name: "dev", Reference: "dev[0]"},
+		}, agents)
+	})
+
+	t.Run("PerBlockCountDetection", func(t *testing.T) {
+		t.Parallel()
+		// The counted agent must not cause the uncounted agent to gain an
+		// index suffix, and nested blocks must not confuse detection.
+		hcl := []byte(`
+resource "coder_agent" "first" {
+  count = 1
+  metadata {
+    key = "a"
+  }
+}
+resource "coder_agent" "second" {
+  metadata {
+    key = "b"
+  }
+}
+`)
+		agents, err := templatebuilder.ExtractAgentResourceNames(hcl)
+		require.NoError(t, err)
+		require.Equal(t, []templatebuilder.ExtractedAgent{
+			{Name: "first", Reference: "first[0]"},
+			{Name: "second", Reference: "second"},
+		}, agents)
+	})
+
+	t.Run("NoAgent", func(t *testing.T) {
+		t.Parallel()
+		_, err := templatebuilder.ExtractAgentResourceNames([]byte(`resource "docker_container" "workspace" {}`))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "no coder_agent")
+	})
+}
+
+// TestBaseManifestAgentsMatchHCL guards against drift between the agents
+// declared in each base.json and the coder_agent resources actually
+// present in the rendered main.tf.
+func TestBaseManifestAgentsMatchHCL(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range templatebuilder.BaseTemplateIDs() {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+			rendered, err := templatebuilder.RenderBaseTemplate(id, "main.tf.tmpl", testRenderContext(id))
+			require.NoError(t, err)
+
+			extracted, err := templatebuilder.ExtractAgentResourceNames(rendered)
+			require.NoError(t, err)
+
+			hclNames := make(map[string]bool, len(extracted))
+			for _, a := range extracted {
+				hclNames[a.Name] = true
+			}
+
+			manifestNames := make(map[string]bool)
+			for _, a := range templatebuilder.BaseAgents(id) {
+				manifestNames[a.Name] = true
+			}
+
+			require.Equal(t, hclNames, manifestNames,
+				"base %q agents in base.json must match coder_agent resources in main.tf", id)
+			require.NotEmpty(t, templatebuilder.BaseDefaultAgent(id),
+				"base %q must resolve a default agent", id)
+		})
+	}
+}
+
 func TestExtractAgentResourceName(t *testing.T) {
 	t.Parallel()
 

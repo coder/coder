@@ -31,6 +31,10 @@ type ComposeModule struct {
 	// Variables maps variable names to HCL literal values for
 	// non-sensitive, non-computed variables.
 	Variables map[string]string
+	// AgentName is the bare coder_agent resource name the module attaches
+	// to. When empty, the base template's default agent is used. This
+	// preserves behavior for single-agent bases and existing callers.
+	AgentName string
 }
 
 // ComposeResult holds the rendered Terraform files ready for bundling.
@@ -68,9 +72,21 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 		}, nil
 	}
 
-	agentName, err := ExtractAgentResourceName(mainTF)
+	agents, err := ExtractAgentResourceNames(mainTF)
 	if err != nil {
-		return nil, xerrors.Errorf("extract agent name: %w", err)
+		return nil, xerrors.Errorf("extract agents: %w", err)
+	}
+	refByName := make(map[string]string, len(agents))
+	for _, a := range agents {
+		refByName[a.Name] = a.Reference
+	}
+
+	// Resolve the default agent from the base manifest, falling back to
+	// the first agent found in the rendered HCL when the manifest declares
+	// none (e.g. bases without agent metadata).
+	defaultAgent := BaseDefaultAgent(req.BaseTemplateID)
+	if defaultAgent == "" {
+		defaultAgent = agents[0].Name
 	}
 
 	catalog, err := loadCatalogMap()
@@ -83,7 +99,7 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 		return nil, err
 	}
 
-	modulesTF, err := renderModules(req.Modules, catalog, req.RegistryURL, agentName)
+	modulesTF, err := renderModules(req.Modules, catalog, req.RegistryURL, refByName, defaultAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -231,15 +247,28 @@ func validateModules(requested []ComposeModule, catalog map[string]ModuleManifes
 }
 
 // renderModules renders each module template and concatenates the
-// results with newline separators.
+// results with newline separators. Each module attaches to the agent
+// named by its AgentName, falling back to defaultAgent when empty.
+// refByName maps bare agent names to their HCL reference form.
 func renderModules(
 	requested []ComposeModule,
 	catalog map[string]ModuleManifest,
-	registryURL, agentName string,
+	registryURL string,
+	refByName map[string]string,
+	defaultAgent string,
 ) ([]byte, error) {
 	var buf bytes.Buffer
 	for _, cm := range requested {
 		manifest := catalog[cm.ID]
+
+		agentName := cm.AgentName
+		if agentName == "" {
+			agentName = defaultAgent
+		}
+		agentRef, ok := refByName[agentName]
+		if !ok {
+			return nil, xerrors.Errorf("module %q targets unknown agent %q", cm.ID, agentName)
+		}
 
 		modFS, err := ModuleTemplateFS(cm.ID)
 		if err != nil {
@@ -253,7 +282,7 @@ func renderModules(
 		modCtx := ModuleRenderContext{
 			RegistryBase:      registryURL,
 			PinnedVersion:     manifest.PinnedVersion,
-			AgentResourceName: agentName,
+			AgentResourceName: agentRef,
 			Variables:         vars,
 		}
 
