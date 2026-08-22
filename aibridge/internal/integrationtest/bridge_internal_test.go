@@ -1172,13 +1172,13 @@ func TestSessionIDTracking(t *testing.T) {
 	}{
 		// Session in header.
 		{
-			name:            "mux",
+			name:            "xum",
 			fixture:         fixtures.AntSimple,
-			expectedClient:  aibridge.ClientMux,
-			expectSessionID: "mux-workspace-321",
+			expectedClient:  aibridge.ClientXum,
+			expectSessionID: "xum-workspace-321",
 			header: http.Header{
-				"User-Agent":         []string{"mux/1.0.0"},
-				"X-Mux-Workspace-Id": []string{"mux-workspace-321"},
+				"User-Agent":         []string{"xum/1.0.0"},
+				"X-Mux-Workspace-Id": []string{"xum-workspace-321"},
 			},
 		},
 		// Session in body.
