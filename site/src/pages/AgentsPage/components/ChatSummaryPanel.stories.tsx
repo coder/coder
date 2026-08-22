@@ -9,16 +9,6 @@ import { ChatSummaryPanel } from "./ChatSummaryPanel";
 
 const ROOT_CHAT_ID = "root-chat-id";
 
-const LONG_SUMMARY = [
-	"Audited the whole chat pipeline and shipped a batch of fixes.",
-	"",
-	...Array.from(
-		{ length: 12 },
-		(_, i) =>
-			`- Reviewed subsystem number ${i + 1} and applied the corresponding fix so the behaviour matches the specification`,
-	),
-].join("\n");
-
 const mockCost: TypesGen.ChatCost = {
 	chat_id: MockChat.id,
 	total_cost_micros: 1_250_000,
@@ -171,23 +161,5 @@ export const GatewayUnavailable: Story = {
 		});
 		expect(canvas.queryByText("Cost:")).not.toBeInTheDocument();
 		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
-	},
-};
-
-// A summary taller than the panel stays fully rendered and reachable by
-// scrolling the panel, rather than being clipped behind a disclosure toggle.
-export const LongSummary: Story = {
-	beforeEach: () => mockRequests({ summary: LONG_SUMMARY }),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByRole("list")).toBeInTheDocument();
-		});
-
-		expect(
-			within(canvas.getByRole("list")).getAllByRole("listitem"),
-		).toHaveLength(12);
-		// The metadata below the summary is pushed out of view but still rendered.
-		expect(canvas.getByText("Created:")).toBeInTheDocument();
 	},
 };

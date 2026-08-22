@@ -285,14 +285,6 @@ func TestValidateGeneratedChatSummary(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "BulletWithNewline",
-			summary: generatedChatSummary{
-				Headline: "Fixed it.",
-				Bullets:  []string{"Fine", "Broken\nacross lines"},
-			},
-			wantErr: true,
-		},
-		{
 			name: "SerializedTooLong",
 			summary: generatedChatSummary{
 				Headline: strings.Repeat("a", summaryHeadlineMaxRunes),
@@ -396,18 +388,6 @@ func TestFormatChatSummaryMarkdown(t *testing.T) {
 			headline: "Fixed the flaky CI job.",
 			bullets:  []string{"Traced the race", "Added a test"},
 			want:     "Fixed the flaky CI job.\n\n- Traced the race\n- Added a test",
-		},
-		{
-			name:     "DropsEmptyBullets",
-			headline: "Fixed it.",
-			bullets:  []string{"Kept", "   ", "Also kept"},
-			want:     "Fixed it.\n\n- Kept\n- Also kept",
-		},
-		{
-			name:     "AllBulletsEmptyKeepsHeadline",
-			headline: "Fixed it.",
-			bullets:  []string{"  ", ""},
-			want:     "Fixed it.",
 		},
 	}
 

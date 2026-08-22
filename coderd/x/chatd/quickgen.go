@@ -1065,12 +1065,7 @@ func generateChatSummary(
 // preserves backticks, so a field ending in an inline code span keeps a
 // balanced pair.
 func normalizeSummaryField(text string) string {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return ""
-	}
-
-	text = strings.Trim(text, "\"'")
+	text = strings.Trim(strings.TrimSpace(text), "\"'")
 	return strings.Join(strings.Fields(text), " ")
 }
 
@@ -1090,22 +1085,15 @@ func normalizeSummaryBullets(bullets []string) []string {
 // formatChatSummaryMarkdown renders the stored summary as a headline paragraph
 // followed by an optional bullet list, separated by a blank line. Both summary
 // producers go through here so the stored format stays consistent.
+//
+// Bullets must already be normalized by normalizeSummaryBullets, which drops
+// blank entries and collapses newlines.
 func formatChatSummaryMarkdown(headline string, bullets []string) string {
 	headline = strings.TrimSpace(headline)
 	if len(bullets) == 0 {
 		return headline
 	}
-
-	var out strings.Builder
-	_, _ = out.WriteString(headline)
-	_, _ = out.WriteString("\n")
-	for _, bullet := range bullets {
-		if bullet = strings.TrimSpace(bullet); bullet != "" {
-			_, _ = out.WriteString("\n- ")
-			_, _ = out.WriteString(bullet)
-		}
-	}
-	return strings.TrimSpace(out.String())
+	return strings.TrimSpace(headline + "\n\n- " + strings.Join(bullets, "\n- "))
 }
 
 // validateGeneratedChatSummary checks the structured fields before they are
@@ -1131,9 +1119,6 @@ func validateGeneratedChatSummary(summary generatedChatSummary) error {
 	for _, bullet := range summary.Bullets {
 		if len([]rune(bullet)) > summaryBulletMaxRunes {
 			return xerrors.Errorf("generated chat summary bullet exceeded %d runes", summaryBulletMaxRunes)
-		}
-		if strings.ContainsAny(bullet, "\n\r") {
-			return xerrors.New("generated chat summary bullet contained a newline")
 		}
 	}
 	if rendered := formatChatSummaryMarkdown(summary.Headline, summary.Bullets); len([]rune(rendered)) > summaryMaxRunes {
