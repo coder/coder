@@ -5076,8 +5076,23 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 			})
 			return
 		}
+		// Validate with the target member's ACLs so a model visible only to
+		// an administrator caller is rejected instead of persisted; chatd
+		// resolves the override under the member's actor at runtime.
+		validateCtx := ctx
+		if apiKey.UserID != member.UserID {
+			memberSubject, _, err := httpmw.UserRBACSubject(ctx, api.Database, member.UserID, rbac.ScopeAll)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error validating model config override.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			validateCtx = dbauthz.As(ctx, memberSubject)
+		}
 		modelConfig, status, validationResponse := api.validateUserChatModelConfigAvailable(
-			ctx, member.UserID, organization.ID, parsedModelConfigID,
+			validateCtx, member.UserID, organization.ID, parsedModelConfigID,
 		)
 		if validationResponse != nil {
 			httpapi.Write(ctx, rw, status, *validationResponse)

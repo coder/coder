@@ -90,10 +90,11 @@ const DefaultsPageContent: FC = () => {
 		(modelsQuery.data?.models ?? []).filter((model) => model.enabled),
 		providerInfoByID,
 	);
-	const { loadError, refetchError } = splitModelQueryErrors(
-		modelsQuery,
-		overridesQuery,
-	);
+	// Only the overrides request gates the page: when the model catalog
+	// fails, the rows must stay rendered with the error inline so a stale
+	// override can still be cleared without the catalog.
+	const { loadError, refetchError } = splitModelQueryErrors(overridesQuery);
+	const inlineError = refetchError ?? modelsQuery.error;
 	const saveByContext = new Map<ChatModelOverrideContext, SaveModelOverride>();
 	for (const [index, context] of contexts.entries()) {
 		const mutation = mutations[index];
@@ -111,7 +112,7 @@ const DefaultsPageContent: FC = () => {
 				providerInfoByID={providerInfoByID}
 				isLoading={modelsQuery.isLoading || overridesQuery.isLoading}
 				loadError={loadError}
-				refetchError={refetchError}
+				refetchError={inlineError}
 				canEdit={permissions?.editChatModelConfigs ?? false}
 				showAdvisor={experiments.includes("chat-advisor")}
 				saveByContext={saveByContext}
