@@ -125,6 +125,12 @@ export const WithHostnameCollisionWarning: Story = {
 		);
 		await expect(badge).toHaveAttribute("tabIndex", "0");
 
+		// Hover shows the tooltip with the warning text.
+		await userEvent.hover(badge);
+		await expect(
+			await canvas.findByText(/api\.openai\.com/, {}, { timeout: 2000 }),
+		).toBeInTheDocument();
+
 		// Keyboard and mouse activation must not navigate the row.
 		badge.focus();
 		await userEvent.keyboard("{Enter}");

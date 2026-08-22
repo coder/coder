@@ -73,7 +73,7 @@ A `proxy_excluded` status means another enabled provider with the same base URL 
 When alerting on `coder_ai_gateway_proxy_provider_info`, exclude
 `proxy_excluded` from the alert expression unless you want to be
 notified of intended duplicate-hostname configurations:
-`status!="enabled",status!="proxy_excluded"`.
+`status!~"enabled|proxy_excluded"`.
 
 | Metric                                                                   | Type    | Labels                                     | Purpose                                                                                                                           |
 |--------------------------------------------------------------------------|---------|--------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
