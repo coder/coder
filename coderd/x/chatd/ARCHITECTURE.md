@@ -280,6 +280,8 @@ Message revision triggers depend on the transition invariant that `snapshot_vers
 
 A `BEFORE INSERT` trigger assigns the current chat `snapshot_version` to the inserted message row and records the same value as the chat's latest history version:
 
+<!-- TODO(human): this section predates the search_tsv backfill changes. The deployed set_chat_message_revision_before() and update_chat_history_after_message_update() functions exclude search_tsv and (as of migration 000580) search_tsv_config from their change comparisons so the dbpurge search backfill sweep does not advance revisions or history_version. Update the SQL listings and prose to match. -->
+
 ```sql
 CREATE FUNCTION set_chat_message_revision()
 RETURNS trigger AS $$

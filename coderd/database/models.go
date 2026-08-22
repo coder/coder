@@ -5220,6 +5220,8 @@ type ChatMessage struct {
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 	// Used for full text search. NULL initially, populated async via background job.
 	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
+	// Text search config that produced search_tsv. NULL means the vector is stale (produced by an unknown config) and the row is pending re-vectorization. Binaries that predate this column cannot set it, so vectors written by an old replica during a rolling upgrade stay pending and are rewritten by an upgraded replica's sweep.
+	SearchTsvConfig sql.NullString `db:"search_tsv_config" json:"search_tsv_config"`
 }
 
 type ChatModelConfig struct {

@@ -2406,6 +2406,11 @@ const eligibilityPredicate = `deleted = false
 	AND visibility IN ('user', 'both')
 	AND role IN ('user', 'assistant')`
 
+// Pending-queue membership: never vectorized, or vectorized with a
+// stale text search config. Must match the predicate of
+// idx_chat_messages_search_tsv_pending.
+const pendingPredicate = `(search_tsv IS NULL OR search_tsv_config IS DISTINCT FROM 'english')`
+
 func TestMigration000543ChatSearchSchemaIndexes(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2489,7 +2494,7 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	pendingIDs := func(ctx context.Context, limit int) []int64 {
 		rows, err := sqlDB.QueryContext(ctx, `
 			SELECT id FROM chat_messages
-			WHERE search_tsv IS NULL AND `+eligibilityPredicate+`
+			WHERE `+pendingPredicate+` AND `+eligibilityPredicate+`
 			ORDER BY id DESC
 			LIMIT $1`, limit)
 		require.NoError(t, err)
@@ -2527,14 +2532,34 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	require.Equal(t, []int64{eligibleNoText.ID, eligibleText.ID}, pendingIDs(ctx, 10))
 
 	// Sweep-style UPDATE. The '' sentinel (not NULL) marks no-text rows as
-	// swept; NULL means pending, so COALESCE is what drains them from the
-	// queue.
+	// swept; search_tsv_config records the config and is what drains rows
+	// from the queue.
 	_, err = sqlDB.ExecContext(ctx, `
 		UPDATE chat_messages
-		SET search_tsv = COALESCE(to_tsvector('simple', chat_message_search_text(content)), ''::tsvector)
+		SET search_tsv = COALESCE(to_tsvector('english', chat_message_search_text(content)), ''::tsvector),
+		    search_tsv_config = 'english'
 		WHERE id = ANY($1)`, pq.Array([]int64{eligibleText.ID, eligibleNoText.ID}))
 	require.NoError(t, err)
 	require.Empty(t, pendingIDs(ctx, 10), "swept rows must leave the queue, including no-text rows")
+
+	// A non-NULL vector with a stale config stays pending: this is how
+	// rows written by an old binary during a rolling upgrade (which
+	// cannot set search_tsv_config) re-enter the queue and self-heal.
+	_, err = sqlDB.ExecContext(ctx, `
+		UPDATE chat_messages
+		SET search_tsv = to_tsvector('simple', chat_message_search_text(content)),
+		    search_tsv_config = NULL
+		WHERE id = $1`, eligibleText.ID)
+	require.NoError(t, err)
+	require.Equal(t, []int64{eligibleText.ID}, pendingIDs(ctx, 10),
+		"stale-config vectors must re-enter the pending queue")
+	_, err = sqlDB.ExecContext(ctx, `
+		UPDATE chat_messages
+		SET search_tsv = COALESCE(to_tsvector('english', chat_message_search_text(content)), ''::tsvector),
+		    search_tsv_config = 'english'
+		WHERE id = $1`, eligibleText.ID)
+	require.NoError(t, err)
+	require.Empty(t, pendingIDs(ctx, 10))
 
 	// Soft-deleting an unswept row removes it from the queue without a sweep.
 	unswept := newMsg(database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("unswept deploy row"))
@@ -2547,13 +2572,14 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	// ineligible ones) and assert the search-index predicate filters them.
 	_, err = sqlDB.ExecContext(ctx, `
 		UPDATE chat_messages
-		SET search_tsv = COALESCE(to_tsvector('simple', chat_message_search_text(content)), ''::tsvector)
+		SET search_tsv = COALESCE(to_tsvector('english', chat_message_search_text(content)), ''::tsvector),
+		    search_tsv_config = 'english'
 		WHERE chat_id = $1`, chat.ID)
 	require.NoError(t, err)
 
 	rows, err := sqlDB.QueryContext(ctx, `
 		SELECT id FROM chat_messages
-		WHERE search_tsv @@ websearch_to_tsquery('simple', $1)
+		WHERE search_tsv @@ websearch_to_tsquery('english', $1)
 			AND search_tsv IS NOT NULL
 			AND `+eligibilityPredicate+`
 		ORDER BY id`, "deploy")

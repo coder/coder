@@ -70,10 +70,16 @@ type sqlcQuerier interface {
 	// buildDigestData in dbpurge.go for the tradeoff rationale.
 	AutoArchiveInactiveChats(ctx context.Context, arg AutoArchiveInactiveChatsParams) ([]AutoArchiveInactiveChatsRow, error)
 	// Backfills chat_messages.search_tsv for pending rows, newest first.
-	// The WHERE clause must match the predicate of
-	// idx_chat_messages_search_tsv_pending exactly so the partial index
-	// serves this query.
+	// A row is pending when it has never been vectorized (search_tsv IS
+	// NULL) or when its stored vector was produced with a stale text
+	// search config (search_tsv_config IS DISTINCT FROM 'english'), e.g.
+	// rows indexed before the switch to 'english' or rows written by an
+	// old binary during a rolling upgrade. The WHERE clause must match
+	// the predicate of idx_chat_messages_search_tsv_pending exactly so
+	// the partial index serves this query.
 	// NULL means "pending", empty tsvector means "backfilled, no text".
+	// search_tsv_config records the config that produced the vector and
+	// is what drains the row from the pending queue.
 	BackfillChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
 	BackoffChatDiffStatus(ctx context.Context, arg BackoffChatDiffStatusParams) error
 	// Deletes heartbeat rows for the supplied (chat_id, runner_id) pairs.

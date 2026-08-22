@@ -3090,7 +3090,7 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		var count int
 		err := rawDB.QueryRowContext(ctx, `
 			SELECT COUNT(*) FROM chat_messages
-			WHERE search_tsv IS NULL
+			WHERE (search_tsv IS NULL OR search_tsv_config IS DISTINCT FROM 'english')
 			  AND deleted = false
 			  AND visibility IN ('user', 'both')
 			  AND role IN ('user', 'assistant')`).Scan(&count)
@@ -3110,15 +3110,19 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		isNull, _ := searchTsv(ctx, t, rawDB, id)
 		require.False(t, isNull, msg)
 	}
-	// Asserts the row's tsvector matches expectedText, not just non-NULL.
+	// Asserts the row's tsvector matches expectedText and that the sweep
+	// stamped the config that produced it.
 	requireTsvFor := func(ctx context.Context, t *testing.T, rawDB *sql.DB, id int64, expectedText string) {
 		t.Helper()
 		var matches bool
+		var config sql.NullString
 		err := rawDB.QueryRowContext(ctx,
-			"SELECT search_tsv = to_tsvector('simple', $2::text) FROM chat_messages WHERE id = $1", id, expectedText).
-			Scan(&matches)
+			"SELECT search_tsv = to_tsvector('english', $2::text), search_tsv_config FROM chat_messages WHERE id = $1", id, expectedText).
+			Scan(&matches, &config)
 		require.NoError(t, err)
 		require.True(t, matches, "search_tsv should contain the lexemes of %q", expectedText)
+		require.Equal(t, sql.NullString{String: "english", Valid: true}, config,
+			"backfilled rows must record the config that produced the vector")
 	}
 	requireNotBackfilled := func(ctx context.Context, t *testing.T, rawDB *sql.DB, id int64, msg string) {
 		t.Helper()
@@ -3279,6 +3283,42 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		fresh := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("post drain message"))
 		tick()
 		requireBackfilled(ctx, t, rawDB, fresh.ID, "message inserted after drain should be backfilled on the next tick")
+	})
+
+	//nolint:paralleltest // It uses LockIDDBPurge.
+	t.Run("ReindexesStaleConfigVectors", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clk := quartz.NewMock(t)
+		clk.Set(now).MustWait(ctx)
+		db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		deps := setupDeps(t, db)
+
+		msg := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("refactoring the deployment"))
+
+		tick := awaitDoTicks(ctx, t, clk, 2)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+		defer closer.Close()
+
+		tick()
+		requireTsvFor(ctx, t, rawDB, msg.ID, "refactoring the deployment")
+
+		// Simulate a binary that predates search_tsv_config (e.g. an old
+		// replica winning the dbpurge lock mid rolling upgrade): it writes
+		// a 'simple' vector and cannot stamp the config column. The row
+		// must re-enter the pending queue and be rewritten, not stay
+		// wrongly indexed forever.
+		_, err := rawDB.ExecContext(ctx, `
+			UPDATE chat_messages
+			SET search_tsv = to_tsvector('simple', chat_message_search_text(content)),
+			    search_tsv_config = NULL
+			WHERE id = $1`, msg.ID)
+		require.NoError(t, err)
+		require.Equal(t, 1, countPending(ctx, t, rawDB), "stale-config vector should be pending again")
+
+		tick()
+		requireTsvFor(ctx, t, rawDB, msg.ID, "refactoring the deployment")
+		require.Zero(t, countPending(ctx, t, rawDB))
 	})
 
 	//nolint:paralleltest // It uses LockIDDBPurge.
