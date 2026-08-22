@@ -687,14 +687,14 @@ func TestOAuth2ProviderPublicClientTokenExchange(t *testing.T) {
 	// A well-formed verifier that simply doesn't hash to the stored challenge
 	// passes the format check and reaches the PKCE comparison, which rejects
 	// it as invalid_grant. RFC 6749 §10.5 requires codes to be single-use, so
-	// unlike the format failure above, this consumes the code: without
-	// that, a leaked code could be replayed with unlimited further guesses.
+	// unlike the format failure, this consumes the code: without that, a
+	// leaked code could be replayed with unlimited further guesses.
 	wrongVerifier, _ := oauth2providertest.GeneratePKCE(t)
 	_, err = cfgA.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", wrongVerifier))
 	require.Error(t, err)
 	require.ErrorContains(t, err, "The PKCE code verifier is invalid")
 
-	// The code was consumed by the failed PKCE comparison above, so even the
+	// The code was consumed by the failed PKCE comparison, so even the
 	// verifier that would have matched can no longer redeem it.
 	_, err = cfgA.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
 	require.Error(t, err)
@@ -1238,8 +1238,7 @@ func refreshedPublicClientSession(ctx context.Context, t *testing.T) publicClien
 
 	// Public-client tokens carry a NULL app_secret_id, with ownership on
 	// app_id. The row is located by key ID alone, so this says nothing about
-	// whether the token authenticates; the session probe below is what proves
-	// that.
+	// whether the token authenticates; the works closure is what proves that.
 	assertSecretlessToken := func(accessToken string) {
 		t.Helper()
 		keyID, _, err := httpmw.SplitAPIToken(accessToken)
