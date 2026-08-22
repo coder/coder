@@ -8,23 +8,59 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 )
 
-// ActivityBumpReason represents the reason for an activity bump.
+// ActivityBumpReason represents the source of activity that triggered a
+// workspace deadline bump. It is persisted to workspaces.last_activity_source
+// so operators can see why a workspace's autostop deadline keeps extending.
 type ActivityBumpReason string
 
 const (
-	// ActivityBumpReasonWorkspaceStats indicates the bump was triggered
-	// by SSH or terminal activity reported via workspace stats.
-	ActivityBumpReasonWorkspaceStats ActivityBumpReason = "workspace_stats"
+	// ActivityBumpReasonSSH indicates the bump was triggered by an SSH session.
+	ActivityBumpReasonSSH ActivityBumpReason = "ssh"
+	// ActivityBumpReasonVSCode indicates the bump was triggered by a VS Code session.
+	ActivityBumpReasonVSCode ActivityBumpReason = "vscode"
+	// ActivityBumpReasonJetBrains indicates the bump was triggered by a JetBrains session.
+	ActivityBumpReasonJetBrains ActivityBumpReason = "jetbrains"
+	// ActivityBumpReasonReconnectingPTY indicates the bump was triggered by
+	// a web terminal (reconnecting PTY) session.
+	ActivityBumpReasonReconnectingPTY ActivityBumpReason = "reconnecting_pty"
 	// ActivityBumpReasonChatHeartbeat indicates the bump was triggered
 	// by an AI chat heartbeat.
 	ActivityBumpReasonChatHeartbeat ActivityBumpReason = "chat_heartbeat"
-	// ActivityBumpReasonAppActivity indicates the bump was triggered
-	// by app or port-forward activity.
+	// ActivityBumpReasonAppActivity indicates the bump was triggered by
+	// app activity, when the specific app slug is unavailable.
 	ActivityBumpReasonAppActivity ActivityBumpReason = "app_activity"
 )
+
+// ActivityBumpReasonApp returns the source recorded for activity from a
+// specific workspace app, identified by its slug.
+func ActivityBumpReasonApp(slug string) ActivityBumpReason {
+	return ActivityBumpReason("app:" + slug)
+}
+
+// ActivityBumpReasonFromStats derives the source to record when a bump is
+// triggered by agent-reported session stats. Priority order when multiple
+// session types are simultaneously active: SSH > VS Code > JetBrains > web
+// terminal. Only one source is recorded per bump.
+func ActivityBumpReasonFromStats(stats *agentproto.Stats) ActivityBumpReason {
+	switch {
+	case stats.SessionCountSsh > 0:
+		return ActivityBumpReasonSSH
+	case stats.SessionCountVscode > 0:
+		return ActivityBumpReasonVSCode
+	case stats.SessionCountJetbrains > 0:
+		return ActivityBumpReasonJetBrains
+	case stats.SessionCountReconnectingPty > 0:
+		return ActivityBumpReasonReconnectingPTY
+	default:
+		// Legacy stats (ConnectionCount > 0) with no per-session
+		// breakdown available.
+		return ActivityBumpReasonSSH
+	}
+}
 
 // ActivityBumpWorkspace automatically bumps the workspace's auto-off timer
 // if it is set to expire soon. The deadline will be bumped by 1 hour*.
@@ -59,6 +95,7 @@ func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 	err := db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
 		NextAutostart: nextAutostart.UTC(),
 		WorkspaceID:   workspaceID,
+		Source:        string(reason),
 	})
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {

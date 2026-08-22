@@ -59,27 +59,40 @@ WITH latest AS (
 	  	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 	ORDER BY workspace_builds.build_number DESC
 	LIMIT 1
+), bumped AS (
+	UPDATE
+		workspace_builds wb
+	SET
+		updated_at = NOW(),
+		deadline = CASE
+			WHEN l.build_max_deadline = '0001-01-01 00:00:00+00'
+			-- Never reduce the deadline from activity.
+			THEN GREATEST(wb.deadline, NOW() + l.ttl_interval)
+			ELSE LEAST(GREATEST(wb.deadline, NOW() + l.ttl_interval), l.build_max_deadline)
+		END
+	FROM latest l
+	WHERE wb.id = l.build_id
+	AND l.job_completed_at IS NOT NULL
+	-- We only bump if the template has an activity bump duration set.
+	AND l.activity_bump > 0
+	AND l.build_transition = 'start'
+	-- We only bump if the raw interval is positive and non-zero.
+	AND l.ttl_interval > '0 seconds'::interval
+	-- We only bump if workspace shutdown is manual.
+	AND l.build_deadline != '0001-01-01 00:00:00+00'
+	-- We only bump when 5% of the deadline has elapsed.
+	AND l.build_deadline - (l.ttl_interval * 0.95) < NOW()
+	RETURNING wb.workspace_id
 )
-UPDATE
-	workspace_builds wb
+-- Record the source and time of the activity that caused the bump, but
+-- only when the bump above actually happened. This piggybacks on the
+-- guard conditions above instead of writing on every call (which would
+-- happen far more often, since callers invoke this on every stats
+-- report/heartbeat, not only when the deadline is actually extended).
+UPDATE workspaces
 SET
-	updated_at = NOW(),
-	deadline = CASE
-		WHEN l.build_max_deadline = '0001-01-01 00:00:00+00'
-		-- Never reduce the deadline from activity.
-		THEN GREATEST(wb.deadline, NOW() + l.ttl_interval)
-		ELSE LEAST(GREATEST(wb.deadline, NOW() + l.ttl_interval), l.build_max_deadline)
-	END
-FROM latest l
-WHERE wb.id = l.build_id
-AND l.job_completed_at IS NOT NULL
--- We only bump if the template has an activity bump duration set.
-AND l.activity_bump > 0
-AND l.build_transition = 'start'
--- We only bump if the raw interval is positive and non-zero.
-AND l.ttl_interval > '0 seconds'::interval
--- We only bump if workspace shutdown is manual.
-AND l.build_deadline != '0001-01-01 00:00:00+00'
--- We only bump when 5% of the deadline has elapsed.
-AND l.build_deadline - (l.ttl_interval * 0.95) < NOW()
+	last_activity_source = @source :: text,
+	last_activity_at = NOW()
+FROM bumped
+WHERE workspaces.id = bumped.workspace_id
 ;

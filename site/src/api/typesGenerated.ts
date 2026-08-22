@@ -10908,6 +10908,20 @@ export interface Workspace {
 	readonly ttl_ms?: number;
 	readonly last_used_at: string;
 	/**
+	 * LastActivitySource identifies what kind of activity (ssh, vscode,
+	 * jetbrains, reconnecting_pty, an app:<slug>, or chat_heartbeat) most
+	 * recently bumped the workspace's autostop deadline. Nil if the
+	 * workspace has never had its deadline bumped by activity.
+	 */
+	readonly last_activity_source?: string;
+	/**
+	 * LastActivityAt is the time of the last activity that bumped the
+	 * workspace's autostop deadline. Distinct from LastUsedAt, which is
+	 * updated by a broader set of app/port-forward traffic unrelated to
+	 * deadline bumps.
+	 */
+	readonly last_activity_at?: string;
+	/**
 	 * DeletingAt indicates the time at which the workspace will be permanently deleted.
 	 * A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value)
 	 * and a value has been specified for time_til_dormant_autodelete on its template.

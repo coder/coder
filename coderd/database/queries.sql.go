@@ -35,16 +35,16 @@ WITH latest AS (
 				-- Sadly we can't define 'activity_bump_interval' above since
 				-- it won't be available for this CASE statement, so we have to
 				-- copy the cast twice.
-				WHEN NOW() + (templates.activity_bump / 1000 / 1000 / 1000 || ' seconds')::interval > $1 :: timestamptz
+				WHEN NOW() + (templates.activity_bump / 1000 / 1000 / 1000 || ' seconds')::interval > $2 :: timestamptz
 				    -- If the autostart is behind now(), then the
 					-- autostart schedule is either the 0 time and not provided,
 					-- or it was the autostart in the past, which is no longer
 					-- relevant. If autostart is > 0 and in the past, then
 					-- that is a mistake by the caller.
-					AND $1 > NOW()
+					AND $2 > NOW()
 					THEN
 					-- Extend to the autostart, then add the activity bump
-					(($1 :: timestamptz) - NOW()) + CASE
+					(($2 :: timestamptz) - NOW()) + CASE
 						WHEN templates.allow_user_autostop
 					    	THEN (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval
 							ELSE (templates.default_ttl / 1000 / 1000 / 1000 || ' seconds')::interval
@@ -63,34 +63,47 @@ WITH latest AS (
 	JOIN templates
 		ON templates.id = workspaces.template_id
 	WHERE
-		workspace_builds.workspace_id = $2::uuid
+		workspace_builds.workspace_id = $3::uuid
 		-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
 		-- are managed by the reconciliation loop and not subject to activity bumping
 	  	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 	ORDER BY workspace_builds.build_number DESC
 	LIMIT 1
+), bumped AS (
+	UPDATE
+		workspace_builds wb
+	SET
+		updated_at = NOW(),
+		deadline = CASE
+			WHEN l.build_max_deadline = '0001-01-01 00:00:00+00'
+			-- Never reduce the deadline from activity.
+			THEN GREATEST(wb.deadline, NOW() + l.ttl_interval)
+			ELSE LEAST(GREATEST(wb.deadline, NOW() + l.ttl_interval), l.build_max_deadline)
+		END
+	FROM latest l
+	WHERE wb.id = l.build_id
+	AND l.job_completed_at IS NOT NULL
+	-- We only bump if the template has an activity bump duration set.
+	AND l.activity_bump > 0
+	AND l.build_transition = 'start'
+	-- We only bump if the raw interval is positive and non-zero.
+	AND l.ttl_interval > '0 seconds'::interval
+	-- We only bump if workspace shutdown is manual.
+	AND l.build_deadline != '0001-01-01 00:00:00+00'
+	-- We only bump when 5% of the deadline has elapsed.
+	AND l.build_deadline - (l.ttl_interval * 0.95) < NOW()
+	RETURNING wb.workspace_id
 )
-UPDATE
-	workspace_builds wb
+UPDATE workspaces
 SET
-	updated_at = NOW(),
-	deadline = CASE
-		WHEN l.build_max_deadline = '0001-01-01 00:00:00+00'
-		-- Never reduce the deadline from activity.
-		THEN GREATEST(wb.deadline, NOW() + l.ttl_interval)
-		ELSE LEAST(GREATEST(wb.deadline, NOW() + l.ttl_interval), l.build_max_deadline)
-	END
-FROM latest l
-WHERE wb.id = l.build_id
-AND l.job_completed_at IS NOT NULL
-AND l.activity_bump > 0
-AND l.build_transition = 'start'
-AND l.ttl_interval > '0 seconds'::interval
-AND l.build_deadline != '0001-01-01 00:00:00+00'
-AND l.build_deadline - (l.ttl_interval * 0.95) < NOW()
+	last_activity_source = $1 :: text,
+	last_activity_at = NOW()
+FROM bumped
+WHERE workspaces.id = bumped.workspace_id
 `
 
 type ActivityBumpWorkspaceParams struct {
+	Source        string    `db:"source" json:"source"`
 	NextAutostart time.Time `db:"next_autostart" json:"next_autostart"`
 	WorkspaceID   uuid.UUID `db:"workspace_id" json:"workspace_id"`
 }
@@ -102,12 +115,13 @@ type ActivityBumpWorkspaceParams struct {
 //
 // Max deadline is respected, and the deadline will never be bumped past it.
 // The deadline will never decrease.
-// We only bump if the template has an activity bump duration set.
-// We only bump if the raw interval is positive and non-zero.
-// We only bump if workspace shutdown is manual.
-// We only bump when 5% of the deadline has elapsed.
+// Record the source and time of the activity that caused the bump, but
+// only when the bump above actually happened. This piggybacks on the
+// guard conditions above instead of writing on every call (which would
+// happen far more often, since callers invoke this on every stats
+// report/heartbeat, not only when the deadline is actually extended).
 func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error {
-	_, err := q.db.ExecContext(ctx, activityBumpWorkspace, arg.NextAutostart, arg.WorkspaceID)
+	_, err := q.db.ExecContext(ctx, activityBumpWorkspace, arg.Source, arg.NextAutostart, arg.WorkspaceID)
 	return err
 }
 
@@ -33233,7 +33247,7 @@ func (q *sqlQuerier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UU
 
 const getAuthenticatedWorkspaceAgentAndBuildByAuthToken = `-- name: GetAuthenticatedWorkspaceAgentAndBuildByAuthToken :one
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl,
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl, workspaces.last_activity_source, workspaces.last_activity_at,
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted,
 	workspace_build_with_user.id, workspace_build_with_user.created_at, workspace_build_with_user.updated_at, workspace_build_with_user.workspace_id, workspace_build_with_user.template_version_id, workspace_build_with_user.build_number, workspace_build_with_user.transition, workspace_build_with_user.initiator_id, workspace_build_with_user.job_id, workspace_build_with_user.deadline, workspace_build_with_user.reason, workspace_build_with_user.daily_cost, workspace_build_with_user.max_deadline, workspace_build_with_user.template_version_preset_id, workspace_build_with_user.has_ai_task, workspace_build_with_user.has_external_agent, workspace_build_with_user.notified_autostop_deadline, workspace_build_with_user.initiator_by_avatar_url, workspace_build_with_user.initiator_by_username, workspace_build_with_user.initiator_by_name,
 	tasks.id AS task_id
@@ -33331,6 +33345,8 @@ func (q *sqlQuerier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx conte
 		&i.WorkspaceTable.NextStartAt,
 		&i.WorkspaceTable.GroupACL,
 		&i.WorkspaceTable.UserACL,
+		&i.WorkspaceTable.LastActivitySource,
+		&i.WorkspaceTable.LastActivityAt,
 		&i.WorkspaceAgent.ID,
 		&i.WorkspaceAgent.CreatedAt,
 		&i.WorkspaceAgent.UpdatedAt,
@@ -33489,7 +33505,7 @@ func (q *sqlQuerier) GetExternalAgentTokensByTemplateID(ctx context.Context, arg
 const getWorkspaceAgentAndWorkspaceByID = `-- name: GetWorkspaceAgentAndWorkspaceByID :one
 SELECT
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted,
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl,
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl, workspaces.last_activity_source, workspaces.last_activity_at,
 	users.username as owner_username
 FROM
 	workspace_agents
@@ -33574,6 +33590,8 @@ func (q *sqlQuerier) GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id u
 		&i.WorkspaceTable.NextStartAt,
 		&i.WorkspaceTable.GroupACL,
 		&i.WorkspaceTable.UserACL,
+		&i.WorkspaceTable.LastActivitySource,
+		&i.WorkspaceTable.LastActivityAt,
 		&i.OwnerUsername,
 	)
 	return i, err
@@ -34475,7 +34493,7 @@ const getWorkspaceBuildAgentsByInstanceID = `-- name: GetWorkspaceBuildAgentsByI
 SELECT
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted,
 	workspace_builds.id AS workspace_build_id,
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl, workspaces.last_activity_source, workspaces.last_activity_at
 FROM
 	workspace_agents
 JOIN
@@ -34573,6 +34591,8 @@ func (q *sqlQuerier) GetWorkspaceBuildAgentsByInstanceID(ctx context.Context, au
 			&i.WorkspaceTable.NextStartAt,
 			&i.WorkspaceTable.GroupACL,
 			&i.WorkspaceTable.UserACL,
+			&i.WorkspaceTable.LastActivitySource,
+			&i.WorkspaceTable.LastActivityAt,
 		); err != nil {
 			return nil, err
 		}
@@ -37168,7 +37188,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 const getLatestWorkspaceBuildWithStatusByWorkspaceID = `-- name: GetLatestWorkspaceBuildWithStatusByWorkspaceID :one
 SELECT
 	workspace_builds.transition, workspace_builds.build_number, provisioner_jobs.job_status,
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl -- Used for dbauthz fetch() checks
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl, workspaces.last_activity_source, workspaces.last_activity_at -- Used for dbauthz fetch() checks
 FROM
 	workspace_builds
 INNER JOIN
@@ -37216,6 +37236,8 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildWithStatusByWorkspaceID(ctx context.
 		&i.WorkspaceTable.NextStartAt,
 		&i.WorkspaceTable.GroupACL,
 		&i.WorkspaceTable.UserACL,
+		&i.WorkspaceTable.LastActivitySource,
+		&i.WorkspaceTable.LastActivityAt,
 	)
 	return i, err
 }
@@ -38720,7 +38742,7 @@ func (q *sqlQuerier) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (Get
 
 const getWorkspaceByAgentID = `-- name: GetWorkspaceByAgentID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description, task_id, group_acl_display_info, user_acl_display_info
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description, task_id, group_acl_display_info, user_acl_display_info, last_activity_source, last_activity_at
 FROM
 	workspaces_expanded as workspaces
 WHERE
@@ -38784,13 +38806,15 @@ func (q *sqlQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUI
 		&i.TaskID,
 		&i.GroupACLDisplayInfo,
 		&i.UserACLDisplayInfo,
+		&i.LastActivitySource,
+		&i.LastActivityAt,
 	)
 	return i, err
 }
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description, task_id, group_acl_display_info, user_acl_display_info
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description, task_id, group_acl_display_info, user_acl_display_info, last_activity_source, last_activity_at
 FROM
 	workspaces_expanded
 WHERE
@@ -38835,13 +38859,15 @@ func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Worksp
 		&i.TaskID,
 		&i.GroupACLDisplayInfo,
 		&i.UserACLDisplayInfo,
+		&i.LastActivitySource,
+		&i.LastActivityAt,
 	)
 	return i, err
 }
 
 const getWorkspaceByOwnerIDAndName = `-- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description, task_id, group_acl_display_info, user_acl_display_info
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description, task_id, group_acl_display_info, user_acl_display_info, last_activity_source, last_activity_at
 FROM
 	workspaces_expanded as workspaces
 WHERE
@@ -38893,13 +38919,15 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 		&i.TaskID,
 		&i.GroupACLDisplayInfo,
 		&i.UserACLDisplayInfo,
+		&i.LastActivitySource,
+		&i.LastActivityAt,
 	)
 	return i, err
 }
 
 const getWorkspaceByResourceID = `-- name: GetWorkspaceByResourceID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description, task_id, group_acl_display_info, user_acl_display_info
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description, task_id, group_acl_display_info, user_acl_display_info, last_activity_source, last_activity_at
 FROM
 	workspaces_expanded as workspaces
 WHERE
@@ -38958,13 +38986,15 @@ func (q *sqlQuerier) GetWorkspaceByResourceID(ctx context.Context, resourceID uu
 		&i.TaskID,
 		&i.GroupACLDisplayInfo,
 		&i.UserACLDisplayInfo,
+		&i.LastActivitySource,
+		&i.LastActivityAt,
 	)
 	return i, err
 }
 
 const getWorkspaceByWorkspaceAppID = `-- name: GetWorkspaceByWorkspaceAppID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description, task_id, group_acl_display_info, user_acl_display_info
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description, task_id, group_acl_display_info, user_acl_display_info, last_activity_source, last_activity_at
 FROM
 	workspaces_expanded as workspaces
 WHERE
@@ -39035,6 +39065,8 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 		&i.TaskID,
 		&i.GroupACLDisplayInfo,
 		&i.UserACLDisplayInfo,
+		&i.LastActivitySource,
+		&i.LastActivityAt,
 	)
 	return i, err
 }
@@ -39084,7 +39116,7 @@ SELECT
 ),
 filtered_workspaces AS (
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl, workspaces.owner_avatar_url, workspaces.owner_username, workspaces.owner_name, workspaces.organization_name, workspaces.organization_display_name, workspaces.organization_icon, workspaces.organization_description, workspaces.template_name, workspaces.template_display_name, workspaces.template_icon, workspaces.template_description, workspaces.task_id, workspaces.group_acl_display_info, workspaces.user_acl_display_info,
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl, workspaces.owner_avatar_url, workspaces.owner_username, workspaces.owner_name, workspaces.organization_name, workspaces.organization_display_name, workspaces.organization_icon, workspaces.organization_description, workspaces.template_name, workspaces.template_display_name, workspaces.template_icon, workspaces.template_description, workspaces.task_id, workspaces.group_acl_display_info, workspaces.user_acl_display_info, workspaces.last_activity_source, workspaces.last_activity_at,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
 	latest_build.completed_at as latest_build_completed_at,
@@ -39370,7 +39402,7 @@ WHERE
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
 	SELECT
-		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.next_start_at, fw.group_acl, fw.user_acl, fw.owner_avatar_url, fw.owner_username, fw.owner_name, fw.organization_name, fw.organization_display_name, fw.organization_icon, fw.organization_description, fw.template_name, fw.template_display_name, fw.template_icon, fw.template_description, fw.task_id, fw.group_acl_display_info, fw.user_acl_display_info, fw.template_version_id, fw.template_version_name, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition, fw.latest_build_status, fw.latest_build_has_external_agent, fw.latest_build_provisioner_job_id
+		fw.id, fw.created_at, fw.updated_at, fw.owner_id, fw.organization_id, fw.template_id, fw.deleted, fw.name, fw.autostart_schedule, fw.ttl, fw.last_used_at, fw.dormant_at, fw.deleting_at, fw.automatic_updates, fw.favorite, fw.next_start_at, fw.group_acl, fw.user_acl, fw.owner_avatar_url, fw.owner_username, fw.owner_name, fw.organization_name, fw.organization_display_name, fw.organization_icon, fw.organization_description, fw.template_name, fw.template_display_name, fw.template_icon, fw.template_description, fw.task_id, fw.group_acl_display_info, fw.user_acl_display_info, fw.last_activity_source, fw.last_activity_at, fw.template_version_id, fw.template_version_name, fw.latest_build_completed_at, fw.latest_build_canceled_at, fw.latest_build_error, fw.latest_build_transition, fw.latest_build_status, fw.latest_build_has_external_agent, fw.latest_build_provisioner_job_id
 	FROM
 		filtered_workspaces fw
 	ORDER BY
@@ -39391,7 +39423,7 @@ WHERE
 		$26
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
-		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.group_acl, fwo.user_acl, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.task_id, fwo.group_acl_display_info, fwo.user_acl_display_info, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_external_agent, fwo.latest_build_provisioner_job_id
+		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.group_acl, fwo.user_acl, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.task_id, fwo.group_acl_display_info, fwo.user_acl_display_info, fwo.last_activity_source, fwo.last_activity_at, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_external_agent, fwo.latest_build_provisioner_job_id
 	FROM
 		filtered_workspaces_order fwo
 	-- Return a technical summary row with total count of workspaces.
@@ -39430,6 +39462,8 @@ WHERE
 		'00000000-0000-0000-0000-000000000000'::uuid, -- task_id
 		'{}'::jsonb, -- group_acl_display_info
 		'{}'::jsonb, -- user_acl_display_info
+		NULL::text, -- last_activity_source
+		NULL::timestamptz, -- last_activity_at
 		-- Extra columns added to ` + "`" + `filtered_workspaces` + "`" + `
 		'00000000-0000-0000-0000-000000000000'::uuid, -- template_version_id
 		'', -- template_version_name
@@ -39449,7 +39483,7 @@ WHERE
 		filtered_workspaces
 )
 SELECT
-	fwos.id, fwos.created_at, fwos.updated_at, fwos.owner_id, fwos.organization_id, fwos.template_id, fwos.deleted, fwos.name, fwos.autostart_schedule, fwos.ttl, fwos.last_used_at, fwos.dormant_at, fwos.deleting_at, fwos.automatic_updates, fwos.favorite, fwos.next_start_at, fwos.group_acl, fwos.user_acl, fwos.owner_avatar_url, fwos.owner_username, fwos.owner_name, fwos.organization_name, fwos.organization_display_name, fwos.organization_icon, fwos.organization_description, fwos.template_name, fwos.template_display_name, fwos.template_icon, fwos.template_description, fwos.task_id, fwos.group_acl_display_info, fwos.user_acl_display_info, fwos.template_version_id, fwos.template_version_name, fwos.latest_build_completed_at, fwos.latest_build_canceled_at, fwos.latest_build_error, fwos.latest_build_transition, fwos.latest_build_status, fwos.latest_build_has_external_agent, fwos.latest_build_provisioner_job_id,
+	fwos.id, fwos.created_at, fwos.updated_at, fwos.owner_id, fwos.organization_id, fwos.template_id, fwos.deleted, fwos.name, fwos.autostart_schedule, fwos.ttl, fwos.last_used_at, fwos.dormant_at, fwos.deleting_at, fwos.automatic_updates, fwos.favorite, fwos.next_start_at, fwos.group_acl, fwos.user_acl, fwos.owner_avatar_url, fwos.owner_username, fwos.owner_name, fwos.organization_name, fwos.organization_display_name, fwos.organization_icon, fwos.organization_description, fwos.template_name, fwos.template_display_name, fwos.template_icon, fwos.template_description, fwos.task_id, fwos.group_acl_display_info, fwos.user_acl_display_info, fwos.last_activity_source, fwos.last_activity_at, fwos.template_version_id, fwos.template_version_name, fwos.latest_build_completed_at, fwos.latest_build_canceled_at, fwos.latest_build_error, fwos.latest_build_transition, fwos.latest_build_status, fwos.latest_build_has_external_agent, fwos.latest_build_provisioner_job_id,
 	-- agent_metadata expands the response with the requested agent
 	-- metadata keys for the latest build's agents. The CASE keeps the
 	-- subquery unevaluated for every caller that does not opt in, and
@@ -39574,6 +39608,8 @@ type GetWorkspacesRow struct {
 	TaskID                      uuid.NullUUID        `db:"task_id" json:"task_id"`
 	GroupACLDisplayInfo         interface{}          `db:"group_acl_display_info" json:"group_acl_display_info"`
 	UserACLDisplayInfo          interface{}          `db:"user_acl_display_info" json:"user_acl_display_info"`
+	LastActivitySource          sql.NullString       `db:"last_activity_source" json:"last_activity_source"`
+	LastActivityAt              sql.NullTime         `db:"last_activity_at" json:"last_activity_at"`
 	TemplateVersionID           uuid.UUID            `db:"template_version_id" json:"template_version_id"`
 	TemplateVersionName         sql.NullString       `db:"template_version_name" json:"template_version_name"`
 	LatestBuildCompletedAt      sql.NullTime         `db:"latest_build_completed_at" json:"latest_build_completed_at"`
@@ -39661,6 +39697,8 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.TaskID,
 			&i.GroupACLDisplayInfo,
 			&i.UserACLDisplayInfo,
+			&i.LastActivitySource,
+			&i.LastActivityAt,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,
 			&i.LatestBuildCompletedAt,
@@ -39766,7 +39804,7 @@ func (q *sqlQuerier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerI
 }
 
 const getWorkspacesByTemplateID = `-- name: GetWorkspacesByTemplateID :many
-SELECT id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl FROM workspaces WHERE template_id = $1 AND deleted = false
+SELECT id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, last_activity_source, last_activity_at FROM workspaces WHERE template_id = $1 AND deleted = false
 `
 
 func (q *sqlQuerier) GetWorkspacesByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceTable, error) {
@@ -39797,6 +39835,8 @@ func (q *sqlQuerier) GetWorkspacesByTemplateID(ctx context.Context, templateID u
 			&i.NextStartAt,
 			&i.GroupACL,
 			&i.UserACL,
+			&i.LastActivitySource,
+			&i.LastActivityAt,
 		); err != nil {
 			return nil, err
 		}
@@ -40102,7 +40142,7 @@ INSERT INTO
 		next_start_at
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, last_activity_source, last_activity_at
 `
 
 type InsertWorkspaceParams struct {
@@ -40155,6 +40195,8 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		&i.NextStartAt,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.LastActivitySource,
+		&i.LastActivityAt,
 	)
 	return i, err
 }
@@ -40194,7 +40236,7 @@ SET
 WHERE
 	id = $1
 	AND deleted = false
-RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl
+RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, last_activity_source, last_activity_at
 `
 
 type UpdateWorkspaceParams struct {
@@ -40224,6 +40266,8 @@ func (q *sqlQuerier) UpdateWorkspace(ctx context.Context, arg UpdateWorkspacePar
 		&i.NextStartAt,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.LastActivitySource,
+		&i.LastActivityAt,
 	)
 	return i, err
 }
@@ -40341,7 +40385,7 @@ WHERE
 	-- dormant_at and deleting_at
 	AND owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 RETURNING
-    workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl
+    workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.group_acl, workspaces.user_acl, workspaces.last_activity_source, workspaces.last_activity_at
 `
 
 type UpdateWorkspaceDormantDeletingAtParams struct {
@@ -40371,6 +40415,8 @@ func (q *sqlQuerier) UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg U
 		&i.NextStartAt,
 		&i.GroupACL,
 		&i.UserACL,
+		&i.LastActivitySource,
+		&i.LastActivityAt,
 	)
 	return i, err
 }
@@ -40457,7 +40503,7 @@ WHERE
 	-- should not have their dormant or deleting at set, as these are handled by the
     -- prebuilds reconciliation loop.
 	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
-RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl
+RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, last_activity_source, last_activity_at
 `
 
 type UpdateWorkspacesDormantDeletingAtByTemplateIDParams struct {
@@ -40494,6 +40540,8 @@ func (q *sqlQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.C
 			&i.NextStartAt,
 			&i.GroupACL,
 			&i.UserACL,
+			&i.LastActivitySource,
+			&i.LastActivityAt,
 		); err != nil {
 			return nil, err
 		}

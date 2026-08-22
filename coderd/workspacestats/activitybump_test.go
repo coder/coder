@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -268,7 +269,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 
 				// Bump duration is measured from the time of the bump, so we measure from here.
 				start := dbtime.Now()
-				workspacestats.ActivityBumpWorkspace(ctx, log, db, bld.WorkspaceID, nextAutostart(start), workspacestats.ActivityBumpReasonWorkspaceStats)
+				workspacestats.ActivityBumpWorkspace(ctx, log, db, bld.WorkspaceID, nextAutostart(start), workspacestats.ActivityBumpReasonSSH)
 				end := dbtime.Now()
 
 				// Validate our state after bump
@@ -276,12 +277,24 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				require.NoError(t, err, "unexpected error getting latest workspace build")
 				require.Equal(t, bld.MaxDeadline.UTC(), updatedBuild.MaxDeadline.UTC(), "max_deadline should not have changed")
 
+				updatedWorkspace, err := db.GetWorkspaceByID(ctx, bld.WorkspaceID)
+				require.NoError(t, err, "unexpected error getting workspace")
+
 				if tt.expectedBump == 0 {
 					assert.Equal(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should not have bumped updated_at")
 					assert.Equal(t, bld.Deadline.UTC(), updatedBuild.Deadline.UTC(), "should not have bumped deadline")
+					assert.False(t, updatedWorkspace.LastActivitySource.Valid, "last_activity_source should not be set when the deadline was not bumped")
+					assert.False(t, updatedWorkspace.LastActivityAt.Valid, "last_activity_at should not be set when the deadline was not bumped")
 					return
 				}
 				assert.NotEqual(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should have bumped updated_at")
+				assert.Equal(t, sql.NullString{String: string(workspacestats.ActivityBumpReasonSSH), Valid: true}, updatedWorkspace.LastActivitySource, "last_activity_source should be recorded when the deadline was bumped")
+				require.True(t, updatedWorkspace.LastActivityAt.Valid, "last_activity_at should be recorded when the deadline was bumped")
+				// 1min buffer on either side to tolerate clock skew between
+				// the test process and the database server, matching the
+				// deadline assertions below.
+				assert.GreaterOrEqual(t, updatedWorkspace.LastActivityAt.Time, start.Add(-time.Minute), "last_activity_at should be at or after the start of the bump")
+				assert.LessOrEqual(t, updatedWorkspace.LastActivityAt.Time, end.Add(time.Minute), "last_activity_at should be at or before the end of the bump")
 				if tt.maxDeadlineOffset != nil {
 					assert.Equal(t, bld.MaxDeadline.UTC(), updatedBuild.MaxDeadline.UTC(), "new deadline must equal original max deadline")
 					return
@@ -294,6 +307,158 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				require.LessOrEqual(t, updatedBuild.Deadline, expectedDeadlineEnd, "new deadline should be less than or equal to end")
 			})
 		}
+	}
+}
+
+// Test_ActivityBumpWorkspace_SourceOverwrites verifies that
+// last_activity_source/last_activity_at are overwritten in place on each
+// bump rather than accumulating any history, per the feature's design
+// (see coder/coder#17320).
+func Test_ActivityBumpWorkspace_SourceOverwrites(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx   = testutil.Context(t, testutil.WaitLong)
+		log   = testutil.Logger(t)
+		db, _ = dbtestutil.NewDB(t)
+		org   = dbgen.Organization(t, db, database.Organization{})
+		user  = dbgen.User(t, db, database.User{
+			Status: database.UserStatusActive,
+		})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		template = dbgen.Template(t, db, database.Template{
+			OrganizationID:  org.ID,
+			ActiveVersionID: templateVersion.ID,
+			CreatedBy:       user.ID,
+		})
+		ws = dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+			Ttl:            sql.NullInt64{Valid: true, Int64: int64(8 * time.Hour)},
+		})
+		job = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			CompletedAt:    sql.NullTime{Valid: true, Time: dbtime.Now().Add(-30 * time.Minute)},
+		})
+	)
+
+	require.NoError(t, db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+		ID:                template.ID,
+		UpdatedAt:         dbtime.Now(),
+		AllowUserAutostop: true,
+		DefaultTTL:        int64(8 * time.Hour),
+		ActivityBump:      int64(1 * time.Hour),
+	}))
+
+	buildID := uuid.New()
+	require.NoError(t, db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+		ID:                buildID,
+		CreatedAt:         dbtime.Now(),
+		UpdatedAt:         dbtime.Now(),
+		BuildNumber:       1,
+		InitiatorID:       user.ID,
+		Reason:            database.BuildReasonInitiator,
+		WorkspaceID:       ws.ID,
+		JobID:             job.ID,
+		TemplateVersionID: templateVersion.ID,
+		Transition:        database.WorkspaceTransitionStart,
+		// A deadline already in the past satisfies the "5% of the
+		// deadline has elapsed" guard, so the bump fires immediately.
+		Deadline: dbtime.Now().Add(-30 * time.Minute),
+	}))
+
+	workspacestats.ActivityBumpWorkspace(ctx, log, db, ws.ID, time.Time{}, workspacestats.ActivityBumpReasonSSH)
+	afterSSH, err := db.GetWorkspaceByID(ctx, ws.ID)
+	require.NoError(t, err)
+	require.Equal(t, sql.NullString{String: "ssh", Valid: true}, afterSSH.LastActivitySource)
+
+	// Move the deadline back into bump range again and bump with a
+	// different source. It should overwrite, not append.
+	require.NoError(t, db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+		ID:          buildID,
+		UpdatedAt:   dbtime.Now(),
+		Deadline:    dbtime.Now().Add(-30 * time.Minute),
+		MaxDeadline: time.Time{},
+	}))
+	workspacestats.ActivityBumpWorkspace(ctx, log, db, ws.ID, time.Time{}, workspacestats.ActivityBumpReasonVSCode)
+	afterVSCode, err := db.GetWorkspaceByID(ctx, ws.ID)
+	require.NoError(t, err)
+	assert.Equal(t, sql.NullString{String: "vscode", Valid: true}, afterVSCode.LastActivitySource, "source should overwrite to the latest value, not accumulate history")
+}
+
+func TestActivityBumpReasonFromStats(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name     string
+		stats    *agentproto.Stats
+		expected workspacestats.ActivityBumpReason
+	}{
+		{
+			name:     "SSH",
+			stats:    &agentproto.Stats{SessionCountSsh: 1},
+			expected: workspacestats.ActivityBumpReasonSSH,
+		},
+		{
+			name:     "VSCode",
+			stats:    &agentproto.Stats{SessionCountVscode: 1},
+			expected: workspacestats.ActivityBumpReasonVSCode,
+		},
+		{
+			name:     "JetBrains",
+			stats:    &agentproto.Stats{SessionCountJetbrains: 1},
+			expected: workspacestats.ActivityBumpReasonJetBrains,
+		},
+		{
+			name:     "ReconnectingPTY",
+			stats:    &agentproto.Stats{SessionCountReconnectingPty: 1},
+			expected: workspacestats.ActivityBumpReasonReconnectingPTY,
+		},
+		{
+			name: "SSHTakesPriorityOverAll",
+			stats: &agentproto.Stats{
+				SessionCountSsh:             1,
+				SessionCountVscode:          1,
+				SessionCountJetbrains:       1,
+				SessionCountReconnectingPty: 1,
+			},
+			expected: workspacestats.ActivityBumpReasonSSH,
+		},
+		{
+			name: "VSCodeTakesPriorityOverJetBrainsAndPTY",
+			stats: &agentproto.Stats{
+				SessionCountVscode:          1,
+				SessionCountJetbrains:       1,
+				SessionCountReconnectingPty: 1,
+			},
+			expected: workspacestats.ActivityBumpReasonVSCode,
+		},
+		{
+			name: "JetBrainsTakesPriorityOverPTY",
+			stats: &agentproto.Stats{
+				SessionCountJetbrains:       1,
+				SessionCountReconnectingPty: 1,
+			},
+			expected: workspacestats.ActivityBumpReasonJetBrains,
+		},
+		{
+			name:     "NoSessionCountsFallsBackToSSH",
+			stats:    &agentproto.Stats{ConnectionCount: 1},
+			expected: workspacestats.ActivityBumpReasonSSH,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expected, workspacestats.ActivityBumpReasonFromStats(tt.stats))
+		})
 	}
 }
 

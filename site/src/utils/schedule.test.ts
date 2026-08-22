@@ -1,8 +1,11 @@
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
+import { renderToStaticMarkup } from "react-dom/server";
 import type { Workspace } from "#/api/typesGenerated";
 import * as Mocks from "#/testHelpers/entities";
 import {
+	activitySourceLabel,
+	autostopDisplay,
 	deadlineExtensionMax,
 	deadlineExtensionMin,
 	extractTimezone,
@@ -74,6 +77,56 @@ describe("util/schedule", () => {
 			const minDeadline = dayjs();
 			// you can only subtract 2 hours even though the min is 2:40 less
 			expect(getMaxDeadlineChange(deadline, minDeadline)).toEqual(2);
+		});
+	});
+
+	describe("activitySourceLabel", () => {
+		it.each<[string, string]>([
+			["ssh", "SSH"],
+			["vscode", "VS Code"],
+			["jetbrains", "JetBrains"],
+			["reconnecting_pty", "the web terminal"],
+			["chat_heartbeat", "AI chat"],
+			["app:my-custom-app", "the my-custom-app app"],
+			["some_unrecognized_source", "some_unrecognized_source"],
+		])("activitySourceLabel(%p) returns %p", (input, expected) => {
+			expect(activitySourceLabel(input)).toBe(expected);
+		});
+	});
+
+	describe("autostopDisplay", () => {
+		// MockTemplate already has allow_user_autostop and
+		// autostop_requirement set, which is what selects the "Autostop
+		// schedule" tooltip branch that the activity line is appended to.
+		const template = Mocks.MockTemplate;
+
+		const baseWorkspace: Workspace = {
+			...Mocks.MockWorkspace,
+			latest_build: {
+				...Mocks.MockWorkspaceBuild,
+				deadline: dayjs().add(3, "hour").utc().format(),
+				status: "running",
+			},
+		};
+
+		it("includes an activity line when last_activity_source and last_activity_at are present", () => {
+			const workspace: Workspace = {
+				...baseWorkspace,
+				last_activity_source: "ssh",
+				last_activity_at: dayjs().subtract(15, "minute").utc().format(),
+			};
+
+			const { tooltip } = autostopDisplay(workspace, "inactive", template);
+			const html = renderToStaticMarkup(tooltip);
+
+			expect(html).toContain("Activity from SSH extended this deadline");
+		});
+
+		it("omits the activity line when last_activity_source and last_activity_at are absent", () => {
+			const { tooltip } = autostopDisplay(baseWorkspace, "inactive", template);
+			const html = renderToStaticMarkup(tooltip);
+
+			expect(html).not.toContain("extended this deadline");
 		});
 	});
 

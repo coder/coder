@@ -2891,6 +2891,16 @@ func convertWorkspace(
 		nextStartAt = &workspace.NextStartAt.Time
 	}
 
+	var lastActivitySource *string
+	if workspace.LastActivitySource.Valid {
+		lastActivitySource = &workspace.LastActivitySource.String
+	}
+
+	var lastActivityAt *time.Time
+	if workspace.LastActivityAt.Valid {
+		lastActivityAt = &workspace.LastActivityAt.Time
+	}
+
 	failingAgents := []uuid.UUID{}
 	for _, resource := range workspaceBuild.Resources {
 		for _, agent := range resource.Agents {
@@ -2946,6 +2956,8 @@ func convertWorkspace(
 		AutostartSchedule:                    autostartSchedule,
 		TTLMillis:                            ttlMillis,
 		LastUsedAt:                           workspace.LastUsedAt,
+		LastActivitySource:                   lastActivitySource,
+		LastActivityAt:                       lastActivityAt,
 		DeletingAt:                           deletingAt,
 		DormantAt:                            dormantAt,
 		Health: codersdk.WorkspaceHealth{

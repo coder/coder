@@ -500,24 +500,26 @@ type PrebuiltWorkspaceResource interface {
 // written to make sure these match up.
 func (w Workspace) WorkspaceTable() WorkspaceTable {
 	return WorkspaceTable{
-		ID:                w.ID,
-		CreatedAt:         w.CreatedAt,
-		UpdatedAt:         w.UpdatedAt,
-		OwnerID:           w.OwnerID,
-		OrganizationID:    w.OrganizationID,
-		TemplateID:        w.TemplateID,
-		Deleted:           w.Deleted,
-		Name:              w.Name,
-		AutostartSchedule: w.AutostartSchedule,
-		Ttl:               w.Ttl,
-		LastUsedAt:        w.LastUsedAt,
-		DormantAt:         w.DormantAt,
-		DeletingAt:        w.DeletingAt,
-		AutomaticUpdates:  w.AutomaticUpdates,
-		Favorite:          w.Favorite,
-		NextStartAt:       w.NextStartAt,
-		GroupACL:          w.GroupACL,
-		UserACL:           w.UserACL,
+		ID:                 w.ID,
+		CreatedAt:          w.CreatedAt,
+		UpdatedAt:          w.UpdatedAt,
+		OwnerID:            w.OwnerID,
+		OrganizationID:     w.OrganizationID,
+		TemplateID:         w.TemplateID,
+		Deleted:            w.Deleted,
+		Name:               w.Name,
+		AutostartSchedule:  w.AutostartSchedule,
+		Ttl:                w.Ttl,
+		LastUsedAt:         w.LastUsedAt,
+		DormantAt:          w.DormantAt,
+		DeletingAt:         w.DeletingAt,
+		AutomaticUpdates:   w.AutomaticUpdates,
+		Favorite:           w.Favorite,
+		NextStartAt:        w.NextStartAt,
+		GroupACL:           w.GroupACL,
+		UserACL:            w.UserACL,
+		LastActivitySource: w.LastActivitySource,
+		LastActivityAt:     w.LastActivityAt,
 	}
 }
 
@@ -818,6 +820,8 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) ([]Workspace, error) {
 			TemplateDescription:     r.TemplateDescription,
 			NextStartAt:             r.NextStartAt,
 			TaskID:                  r.TaskID,
+			LastActivitySource:      r.LastActivitySource,
+			LastActivityAt:          r.LastActivityAt,
 		}
 
 		var err error

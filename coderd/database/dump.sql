@@ -3172,11 +3172,17 @@ CREATE TABLE workspaces (
     next_start_at timestamp with time zone,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    last_activity_source text,
+    last_activity_at timestamp with time zone,
     CONSTRAINT group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
     CONSTRAINT user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
 COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
+
+COMMENT ON COLUMN workspaces.last_activity_source IS 'Source of the last activity that bumped the workspace deadline (e.g. ssh, vscode, jetbrains, reconnecting_pty, app:<slug>, chat_heartbeat). NULL if the workspace has never had its deadline bumped by activity.';
+
+COMMENT ON COLUMN workspaces.last_activity_at IS 'Timestamp of the last activity that bumped the workspace deadline. Distinct from last_used_at, which is updated by a broader, unrelated app/port-forward-traffic code path.';
 
 CREATE VIEW tasks_with_status AS
  SELECT tasks.id,
@@ -4289,7 +4295,9 @@ CREATE VIEW workspaces_expanded AS
              LEFT JOIN groups g ON ((g.id = (acl.key)::uuid)))), '{}'::jsonb) AS group_acl_display_info,
     COALESCE(( SELECT jsonb_object_agg(acl.key, jsonb_build_object('name', COALESCE(vu.name, ''::text), 'avatar_url', COALESCE(vu.avatar_url, ''::text))) AS jsonb_object_agg
            FROM (jsonb_each(workspaces.user_acl) acl(key, value)
-             LEFT JOIN visible_users vu ON ((vu.id = (acl.key)::uuid)))), '{}'::jsonb) AS user_acl_display_info
+             LEFT JOIN visible_users vu ON ((vu.id = (acl.key)::uuid)))), '{}'::jsonb) AS user_acl_display_info,
+    workspaces.last_activity_source,
+    workspaces.last_activity_at
    FROM ((((workspaces
      JOIN visible_users ON ((workspaces.owner_id = visible_users.id)))
      JOIN organizations ON ((workspaces.organization_id = organizations.id)))

@@ -15024,6 +15024,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_prebuild": true,
+  "last_activity_at": "2019-08-24T14:15:22Z",
+  "last_activity_source": "string",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_app_status": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
@@ -15313,6 +15315,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `health`                                    | [codersdk.WorkspaceHealth](#codersdkworkspacehealth)                    | false    |              | Health shows the health of the workspace and information about what is causing an unhealthy status.                                                                                                                                                                                                                                         |
 | `id`                                        | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `is_prebuild`                               | boolean                                                                 | false    |              | Is prebuild indicates whether the workspace is a prebuilt workspace. Prebuilt workspaces are owned by the prebuilds system user and have specific behavior, such as being managed differently from regular workspaces. Once a prebuilt workspace is claimed by a user, it transitions to a regular workspace, and IsPrebuild returns false. |
+| `last_activity_at`                          | string                                                                  | false    |              | Last activity at is the time of the last activity that bumped the workspace's autostop deadline. Distinct from LastUsedAt, which is updated by a broader set of app/port-forward traffic unrelated to deadline bumps.                                                                                                                       |
+| `last_activity_source`                      | string                                                                  | false    |              | Last activity source identifies what kind of activity (ssh, vscode, jetbrains, reconnecting_pty, an app:<slug>, or chat_heartbeat) most recently bumped the workspace's autostop deadline. Nil if the workspace has never had its deadline bumped by activity.                                                                              |
 | `last_used_at`                              | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `latest_app_status`                         | [codersdk.WorkspaceAppStatus](#codersdkworkspaceappstatus)              | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild)                      | false    |              |                                                                                                                                                                                                                                                                                                                                             |
@@ -17244,6 +17248,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "is_prebuild": true,
+      "last_activity_at": "2019-08-24T14:15:22Z",
+      "last_activity_source": "string",
       "last_used_at": "2019-08-24T14:15:22Z",
       "latest_app_status": {
         "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",

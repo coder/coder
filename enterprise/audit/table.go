@@ -178,24 +178,26 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"chat_spend_limit_micros":      ActionTrack,
 	},
 	&database.WorkspaceTable{}: {
-		"id":                 ActionTrack,
-		"created_at":         ActionIgnore, // Never changes.
-		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"owner_id":           ActionTrack,
-		"organization_id":    ActionIgnore, // Never changes.
-		"template_id":        ActionTrack,
-		"deleted":            ActionIgnore, // Changes, but is implicit when a delete event is fired.
-		"name":               ActionTrack,
-		"autostart_schedule": ActionTrack,
-		"ttl":                ActionTrack,
-		"last_used_at":       ActionIgnore,
-		"dormant_at":         ActionTrack,
-		"deleting_at":        ActionTrack,
-		"automatic_updates":  ActionTrack,
-		"favorite":           ActionTrack,
-		"next_start_at":      ActionTrack,
-		"group_acl":          ActionTrack,
-		"user_acl":           ActionTrack,
+		"id":                   ActionTrack,
+		"created_at":           ActionIgnore, // Never changes.
+		"updated_at":           ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"owner_id":             ActionTrack,
+		"organization_id":      ActionIgnore, // Never changes.
+		"template_id":          ActionTrack,
+		"deleted":              ActionIgnore, // Changes, but is implicit when a delete event is fired.
+		"name":                 ActionTrack,
+		"autostart_schedule":   ActionTrack,
+		"ttl":                  ActionTrack,
+		"last_used_at":         ActionIgnore,
+		"last_activity_source": ActionIgnore,
+		"last_activity_at":     ActionIgnore,
+		"dormant_at":           ActionTrack,
+		"deleting_at":          ActionTrack,
+		"automatic_updates":    ActionTrack,
+		"favorite":             ActionTrack,
+		"next_start_at":        ActionTrack,
+		"group_acl":            ActionTrack,
+		"user_acl":             ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
 		"id":                         ActionIgnore,

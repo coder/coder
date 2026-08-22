@@ -73,6 +73,8 @@ of the template will be used.
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_prebuild": true,
+  "last_activity_at": "2019-08-24T14:15:22Z",
+  "last_activity_source": "string",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_app_status": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
@@ -456,6 +458,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_prebuild": true,
+  "last_activity_at": "2019-08-24T14:15:22Z",
+  "last_activity_source": "string",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_app_status": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
@@ -806,6 +810,8 @@ of the template will be used.
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_prebuild": true,
+  "last_activity_at": "2019-08-24T14:15:22Z",
+  "last_activity_source": "string",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_app_status": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
@@ -1134,6 +1140,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "is_prebuild": true,
+      "last_activity_at": "2019-08-24T14:15:22Z",
+      "last_activity_source": "string",
       "last_used_at": "2019-08-24T14:15:22Z",
       "latest_app_status": {
         "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
@@ -1432,6 +1440,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_prebuild": true,
+  "last_activity_at": "2019-08-24T14:15:22Z",
+  "last_activity_source": "string",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_app_status": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
@@ -2068,6 +2078,8 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_prebuild": true,
+  "last_activity_at": "2019-08-24T14:15:22Z",
+  "last_activity_source": "string",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_app_status": {
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
