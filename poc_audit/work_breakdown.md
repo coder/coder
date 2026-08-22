@@ -280,7 +280,20 @@ still in a shape the corpus has moved past.
 
 ### Status
 
-Not started. Blocked on the credential lifecycle, which is not yet designed.
+Mostly complete. Every schema change this package describes has landed:
+`entity_journal` and `entity_ai_agents` are gone, and each of the three
+entities has its own journal and ledger written to the current patterns. The
+blocker named here, the credential lifecycle, was designed and built in WP4.
+
+**One item remains, and it is the one this package called required
+regardless.** Retiring an AI agent does not lapse its authorizations or
+invalidate its credentials. `entity.RetireAIAgent` writes one entry and posts
+one row.
+
+The reads for the rest are in place. `GetValidCredentialsByHolder` finds what
+to invalidate, and
+`GetAuthorizationLifecycleLedgerRowsByAgent` was added for exactly this and
+still has no production caller. Only the writes are missing.
 
 ### What forces the work
 
@@ -478,3 +491,103 @@ which presentations are journaled will start as a constant rather than as state
 on the ledger row, which defers the ability to order that everything be
 recorded. And the mirror into `api_keys` is one way, so nothing detects the two
 diverging on the paths this package does not replace.
+
+## WP5. Authenticate a holder of either kind
+
+### Summary
+
+An AI agent authenticates with its own credential without being a `users` row.
+The subject the request runs under is built from the agent's ledger row and its
+owner's roles, and the authentication path routes to it on the holder type the
+credential already carries.
+
+### Status
+
+Not started. Depends on WP4, which put the holder pair on `api_keys` and made
+issuance record it, and on the AI agent ledger carrying a state, which landed
+with WP2's schema work. Nothing else blocks it.
+
+### What forces the work
+
+**An AI agent's key authenticates today only because the agent is a `users`
+row.** `coderd/httpmw/apikey.go:480` reads `GetUserByID` on the holder before
+any AI agent specific code runs, so the moment the agent stops being a user that
+call fails first and everything after it is unreachable. This is therefore not
+preparation for rewriting the identity code. It is the thing that has to be true
+before that rewrite can be tested at all.
+
+**The subject needs less than expected, and one thing it needs has no home.**
+`coderd/httpmw/apikey.go:524` builds an AI agent's subject from **the owner's**
+roles and then relabels it with the agent's subject type and username. The
+agent's own users row supplies exactly three things: a username, a status, and a
+deleted flag. Two of those are already `ai_agent_ledger.state`. The username is
+nowhere else: `ai_agents` has no name column and neither does the ledger, so
+removing the users row loses the display name outright.
+
+That asymmetry is why the subject goes first. It carries the only schema
+decision in the package, and the routing that follows is a branch.
+
+### New behavior
+
+- A subject built for an AI agent from its ledger row and its owner's roles,
+  with no users row for the agent involved anywhere in the construction.
+- A display name for an AI agent held somewhere that survives its users row
+  going away.
+- The four holder reads in `coderd/httpmw/apikey.go` branching on holder type
+  rather than assuming a user.
+- `AsUserIDUnchecked` retired on the authentication path, which is the first
+  place the marked cheat is removed rather than counted.
+
+### New data
+
+- Somewhere for an AI agent's display name. Whether that is a column on
+  `ai_agent_ledger`, a line on its creation entry, or something derived is the
+  first milestone's decision and is deliberately not settled here. **A ledger
+  holds current state, so a name that can change belongs there and a name that
+  cannot is a fact of the creation entry.** Which one it is has not been asked.
+
+### Milestones
+
+1. **Build the subject.** An AI agent gets an `rbac.Subject` constructed from
+   its ledger row and its owner, and a display name that does not come from
+   `users`. Verifiable on its own, without the authentication path calling it.
+2. **Route to it.** The four holder reads branch on holder type, and a
+   credential held by an AI agent reaches the subject built in milestone 1.
+
+### What this package does not do
+
+**It does not gate on the grant.** Whether an authorization exists is a
+different question from which subject to build, and the position that an
+unauthorized agent should get no subject at all changes what authentication
+returns rather than how it resolves a holder. Three sites build an agent subject
+and they differ, per that finding in `rewrite_rbac.md`, so the gate wants its
+own package or wants to land with the identity rewrite.
+
+**It touches no table originating in the AI identity code.** The agent it
+authenticates is one this work created, through `entity.CreateAIAgent`, which
+writes a ledger row and issues a credential and never writes `users`. That is
+what makes the acceptance test possible before that code is rewritten.
+
+**It retires `AsUserIDUnchecked` on the authentication path and nowhere else.**
+The remaining sites stay, and the count in `rewrite_rbac.md` stops being a
+single number at that point.
+
+### Acceptance tests
+
+**An AI agent created by this work authenticates against a running server.** No
+users row exists for it. The request reaches a handler, and the subject it runs
+under carries the owner's roles, the AI agent subject type, and the agent's
+display name. This is the whole package in one test, and it fails on either
+milestone being wrong.
+
+**A credential held by a user authenticates exactly as before.** The branch must
+not change the path it did not add. Existing tests cover this, and the point of
+naming it is that no new test is owed.
+
+### PoC cheats
+
+Not yet enumerated. One is already visible: the subject is built from the
+owner's roles, which is what the code does today and is not obviously right. An
+agent inherits everything its owner can do, narrowed only by scope, and nothing
+records that the inheritance happened. Keeping it is deliberate, since changing
+it is a question about authorization rather than about authentication.
