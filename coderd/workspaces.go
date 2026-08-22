@@ -3165,22 +3165,64 @@ func (api *API) workspaceAvailableUsers(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Use system context to list all users. The authorization check above
-	// ensures only users who can create workspaces for others can access this.
-	//nolint:gocritic // System context needed to list users for workspace owner selection.
-	users, _, ok := api.GetUsers(rw, r.WithContext(dbauthz.AsSystemRestricted(ctx)))
+	userFilterParams, filterErrs := searchquery.Users(r.URL.Query().Get("q"))
+	if len(filterErrs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid user search query.",
+			Validations: filterErrs,
+		})
+		return
+	}
+	paginationParams, ok := ParsePagination(rw, r)
 	if !ok {
 		return
 	}
 
-	minimalUsers := make([]codersdk.MinimalUser, 0, len(users))
-	for _, user := range users {
-		minimalUsers = append(minimalUsers, codersdk.MinimalUser{
-			ID:        user.ID,
-			Username:  user.Username,
-			Name:      user.Name,
-			AvatarURL: user.AvatarURL,
-		})
+	// A workspace owner must be a member of the workspace's organization, so the
+	// candidate list is this organization's roster, not every user on the
+	// deployment. We look members up under the caller's own context via
+	// PaginatedOrganizationMembers, which enforces organization_member read, so
+	// the listing is scoped to a single organization in multi-org deployments and
+	// is only returned to callers authorized to read this organization's members.
+	members, err := api.Database.PaginatedOrganizationMembers(ctx, database.PaginatedOrganizationMembersParams{
+		AfterID:          paginationParams.AfterID,
+		OrganizationID:   organization.ID,
+		IncludeSystem:    false,
+		Search:           userFilterParams.Search,
+		Name:             userFilterParams.Name,
+		ExactUsername:    userFilterParams.ExactUsername,
+		ExactEmail:       userFilterParams.ExactEmail,
+		Status:           userFilterParams.Status,
+		IsServiceAccount: userFilterParams.IsServiceAccount,
+		RbacRole:         userFilterParams.RbacRole,
+		LastSeenBefore:   userFilterParams.LastSeenBefore,
+		LastSeenAfter:    userFilterParams.LastSeenAfter,
+		CreatedAfter:     userFilterParams.CreatedAfter,
+		CreatedBefore:    userFilterParams.CreatedBefore,
+		GithubComUserID:  userFilterParams.GithubComUserID,
+		LoginType:        userFilterParams.LoginType,
+		// #nosec G115 - Pagination offsets are small and fit in int32
+		OffsetOpt: int32(paginationParams.Offset),
+		// #nosec G115 - Pagination limits are small and fit in int32
+		LimitOpt: int32(paginationParams.Limit),
+	})
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	minimalUsers := make([]codersdk.MinimalUser, 0, len(members))
+	for _, member := range members {
+		minimalUsers = append(minimalUsers, db2sdk.MinimalUser(database.User{
+			ID:        member.OrganizationMember.UserID,
+			Username:  member.Username,
+			Name:      member.Name,
+			AvatarURL: member.AvatarURL,
+		}))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, minimalUsers)
