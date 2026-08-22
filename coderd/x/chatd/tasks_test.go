@@ -475,6 +475,330 @@ func TestInterruptTask_PartialAssistantWithoutModelInvocationHasNoRuntime(t *tes
 	require.False(t, assistant.RuntimeMs.Valid)
 }
 
+type interruptedBatch struct {
+	chat     database.Chat
+	starter  *taskStarter
+	clock    *quartz.Mock
+	key      messagepartbuffer.Key
+	workerID uuid.UUID
+	runnerID uuid.UUID
+}
+
+func interruptedBatchFixture(
+	t *testing.T,
+	f *taskTestFixture,
+	calls []codersdk.ChatMessagePart,
+) interruptedBatch {
+	t.Helper()
+	chat := f.createRunningChat(t)
+	raw, err := chatprompt.MarshalParts(calls)
+	require.NoError(t, err)
+	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
+	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{{
+			Role:           database.ChatMessageRoleAssistant,
+			Content:        raw,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			ModelConfigID:  uuid.NullUUID{UUID: f.model.ID, Valid: true},
+		}}})
+		return err
+	}))
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	recorder := newTaskSideEffectRecorder()
+	clock := quartz.NewMock(t)
+	starter := newTestTaskStarterWithClock(t, f, recorder, clock)
+	key := messagepartbuffer.Key{
+		ChatID:            chat.ID,
+		HistoryVersion:    acquired.HistoryVersion,
+		GenerationAttempt: acquired.GenerationAttempt,
+	}
+	require.NoError(t, starter.opts.MessagePartBuffer.CreateEpisode(key))
+	return interruptedBatch{
+		chat:     chat,
+		starter:  starter,
+		clock:    clock,
+		key:      key,
+		workerID: workerID,
+		runnerID: runnerID,
+	}
+}
+
+func (b interruptedBatch) interrupt(t *testing.T, f *taskTestFixture) []database.ChatMessage {
+	t.Helper()
+	interrupting := f.interruptChat(t, b.chat.ID)
+	err := b.starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
+		ChatID:            b.chat.ID,
+		WorkerID:          b.workerID,
+		RunnerID:          b.runnerID,
+		HistoryVersion:    interrupting.HistoryVersion,
+		GenerationAttempt: interrupting.GenerationAttempt,
+		Status:            database.ChatStatusInterrupting,
+	})
+	require.NoError(t, err)
+	messages, err := f.db.GetChatMessagesByChatID(testutil.Context(t, testutil.WaitShort), database.GetChatMessagesByChatIDParams{ChatID: b.chat.ID})
+	require.NoError(t, err)
+	return messages
+}
+
+func findToolResultMessage(t *testing.T, messages []database.ChatMessage, toolCallID string) database.ChatMessage {
+	t.Helper()
+	for _, msg := range messages {
+		if msg.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolCallID == toolCallID {
+				return msg
+			}
+		}
+	}
+	t.Fatalf("no tool result message for call %s", toolCallID)
+	return database.ChatMessage{}
+}
+
+func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	execCallID := "call_" + uuid.NewString()
+	waitCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: waitCallID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)},
+	})
+	buffer := batch.starter.opts.MessagePartBuffer
+
+	// Keep advances below the buffer's 15-second cleanup tick.
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, buffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 1, batch.clock.Now()))
+	// Record a live completion without publishing a tool result.
+	batch.clock.Advance(3 * time.Second)
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, batch.clock.Now()))
+	batch.clock.Advance(5 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	execRow := findToolResultMessage(t, messages, execCallID)
+	require.Equal(t, sql.NullInt64{Int64: 3_000, Valid: true}, execRow.RuntimeMs)
+	waitRow := findToolResultMessage(t, messages, waitCallID)
+	require.False(t, waitRow.RuntimeMs.Valid)
+}
+
+func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	execCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+	})
+
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
+	batch.clock.Advance(7 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	execRow := findToolResultMessage(t, messages, execCallID)
+	require.Equal(t, sql.NullInt64{Int64: 7_000, Valid: true}, execRow.RuntimeMs)
+}
+
+func TestInterruptTask_UnbilledOnlyBatchBillsNothingOnInterrupt(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	waitCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: waitCallID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)},
+	})
+
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
+	batch.clock.Advance(10 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	waitRow := findToolResultMessage(t, messages, waitCallID)
+	require.False(t, waitRow.RuntimeMs.Valid)
+}
+
+func TestInterruptTask_UnstartedSerialCallBillsNothingOnInterrupt(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	waitCallID := "call_" + uuid.NewString()
+	serialCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: waitCallID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)},
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: serialCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+	})
+	buffer := batch.starter.opts.MessagePartBuffer
+
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, buffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
+	batch.clock.Advance(10 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	for _, msg := range messages {
+		if msg.Role == database.ChatMessageRoleTool {
+			require.False(t, msg.RuntimeMs.Valid,
+				"no cancellation row may bill: the billed call never began executing")
+		}
+	}
+}
+
+func TestInterruptTask_StartedSerialCallBillsFromItsOwnStart(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	execCallID := "call_" + uuid.NewString()
+	waitCallID := "call_" + uuid.NewString()
+	serialCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: waitCallID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)},
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: serialCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+	})
+	buffer := batch.starter.opts.MessagePartBuffer
+
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, buffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 1, batch.clock.Now()))
+	batch.clock.Advance(3 * time.Second)
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, batch.clock.Now()))
+	batch.clock.Advance(3 * time.Second)
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, 1, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 2, batch.clock.Now()))
+	batch.clock.Advance(2 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	serialRow := findToolResultMessage(t, messages, serialCallID)
+	require.Equal(t, sql.NullInt64{Int64: 5_000, Valid: true}, serialRow.RuntimeMs)
+	execRow := findToolResultMessage(t, messages, execCallID)
+	require.False(t, execRow.RuntimeMs.Valid)
+	waitRow := findToolResultMessage(t, messages, waitCallID)
+	require.False(t, waitRow.RuntimeMs.Valid)
+}
+
+func TestInterruptTask_DuplicateCallIDsKeepOccurrenceStates(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	dupCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: dupCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: dupCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+	})
+	buffer := batch.starter.opts.MessagePartBuffer
+
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, buffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 1, batch.clock.Now()))
+	batch.clock.Advance(3 * time.Second)
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, batch.clock.Now()))
+	batch.clock.Advance(3 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	var billed []int64
+	for _, msg := range messages {
+		if msg.Role == database.ChatMessageRoleTool && msg.RuntimeMs.Valid {
+			billed = append(billed, msg.RuntimeMs.Int64)
+		}
+	}
+	require.Equal(t, []int64{6_000}, billed, "the still-running occurrence bills the full window exactly once")
+}
+
+func TestInterruptTask_DuplicateCallIDCompletionStampsOwnOccurrence(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	dupCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: dupCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: dupCallID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)},
+	})
+	buffer := batch.starter.opts.MessagePartBuffer
+
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, buffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 1, batch.clock.Now()))
+	batch.clock.Advance(3 * time.Second)
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, 1, batch.clock.Now()))
+	batch.clock.Advance(3 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	var billed []int64
+	for _, msg := range messages {
+		if msg.Role == database.ChatMessageRoleTool && msg.RuntimeMs.Valid {
+			billed = append(billed, msg.RuntimeMs.Int64)
+		}
+	}
+	require.Equal(t, []int64{6_000}, billed, "the running execute occurrence bills to the interrupt; wait_agent's early completion must not end it at 3s")
+}
+
+func TestInterruptTask_RejectedDuplicateIDDoesNotStealDispatchedOccurrence(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	dupCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: dupCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: dupCallID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)},
+	})
+
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 1, batch.clock.Now()))
+	batch.clock.Advance(10 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	for _, msg := range messages {
+		if msg.Role == database.ChatMessageRoleTool {
+			require.False(t, msg.RuntimeMs.Valid, "no cancellation row may bill: only the unbilled wait_agent occurrence ran")
+		}
+	}
+}
+
+func TestInterruptTask_RejectedCallBillsNothingOnInterrupt(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	execCallID := "call_" + uuid.NewString()
+	waitCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: waitCallID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)},
+	})
+
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 1, batch.clock.Now()))
+	batch.clock.Advance(10 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	execRow := findToolResultMessage(t, messages, execCallID)
+	require.False(t, execRow.RuntimeMs.Valid)
+	waitRow := findToolResultMessage(t, messages, waitCallID)
+	require.False(t, waitRow.RuntimeMs.Valid)
+}
+
+func TestInterruptTask_ToolCancellationWithoutLiveBatchHasNoRuntime(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	execCallID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
+	})
+
+	batch.clock.Advance(10 * time.Second)
+
+	messages := batch.interrupt(t, f)
+	execRow := findToolResultMessage(t, messages, execCallID)
+	require.False(t, execRow.RuntimeMs.Valid)
+}
+
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {
 	t.Parallel()
 
