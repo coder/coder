@@ -600,6 +600,54 @@ url = "https://get.helm.sh/helm-v3.21.0-windows-amd64.tar.gz"
 checksum = "sha256:5752d1777a9b3f96e3567bb844837904227741ae8c31ec178006f129c3c70936"
 url = "https://get.helm.sh/helm-v3.21.0-windows-amd64.tar.gz"
 
+[[tools.kind]]
+version = "0.32.0"
+backend = "aqua:kubernetes-sigs/kind"
+
+[tools.kind."platforms.linux-arm64"]
+checksum = "sha256:b92cd615e97585de8ddade28ed5cd7feb4248d717c233eea5b03c37298900f5d"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.32.0/kind-linux-arm64"
+
+[tools.kind."platforms.linux-arm64-musl"]
+checksum = "sha256:b92cd615e97585de8ddade28ed5cd7feb4248d717c233eea5b03c37298900f5d"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.32.0/kind-linux-arm64"
+
+[tools.kind."platforms.linux-x64"]
+checksum = "sha256:50030de23cf40a18505f20426f6a8506bedf13c6e509244bd1fa9463721b0f54"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.32.0/kind-linux-amd64"
+
+[tools.kind."platforms.linux-x64-baseline"]
+checksum = "sha256:50030de23cf40a18505f20426f6a8506bedf13c6e509244bd1fa9463721b0f54"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.32.0/kind-linux-amd64"
+
+[tools.kind."platforms.linux-x64-musl"]
+checksum = "sha256:50030de23cf40a18505f20426f6a8506bedf13c6e509244bd1fa9463721b0f54"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.32.0/kind-linux-amd64"
+
+[tools.kind."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:50030de23cf40a18505f20426f6a8506bedf13c6e509244bd1fa9463721b0f54"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.32.0/kind-linux-amd64"
+
+[tools.kind."platforms.macos-arm64"]
+checksum = "sha256:dca67911095a110c2b5c36e26df6cac860c602033e456c0db47be498cdef1ebb"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.32.0/kind-darwin-arm64"
+
+[tools.kind."platforms.macos-x64"]
+checksum = "sha256:295ac6d0d634c9819c9907df45e3017d1f13166bd13c3404c45e79f7faa47498"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.32.0/kind-darwin-amd64"
+
+[tools.kind."platforms.macos-x64-baseline"]
+checksum = "sha256:295ac6d0d634c9819c9907df45e3017d1f13166bd13c3404c45e79f7faa47498"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.32.0/kind-darwin-amd64"
+
+[tools.kind."platforms.windows-x64"]
+checksum = "sha256:0bcb2d1cfedc1912d664014db716937e8a0e843e91c6807b4db2025dbc8989fa"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.32.0/kind-windows-amd64"
+
+[tools.kind."platforms.windows-x64-baseline"]
+checksum = "sha256:0bcb2d1cfedc1912d664014db716937e8a0e843e91c6807b4db2025dbc8989fa"
+url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.32.0/kind-windows-amd64"
+
 [[tools.kubectx]]
 version = "0.9.4"
 backend = "aqua:ahmetb/kubectx"
