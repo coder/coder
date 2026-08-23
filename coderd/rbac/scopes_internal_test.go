@@ -171,9 +171,9 @@ func TestScopesCoverGuards(t *testing.T) {
 // TestScopesCoverWildcardResourceChecksAction pins that a wildcard resource
 // type is not on its own a grant: {*, read} authorizes read on every resource,
 // not every action on every resource. No ScopeName expands to that shape, since
-// the only wildcard resource the catalog spells is coder:all's {*, *}, so
-// permissionCovered could drop its action comparison and every ScopesCover test
-// would stay green.
+// the only wildcard resource the catalog spells is coder:all's {*, *}, so a
+// coverage bug that special-cased a wildcard resource on the granted side would
+// be reachable from no catalog-driven test.
 func TestScopesCoverWildcardResourceChecksAction(t *testing.T) {
 	t.Parallel()
 

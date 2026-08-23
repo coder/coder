@@ -279,8 +279,6 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		resp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeInCatalog+" "+scopeOutOfAllowlist)
 		defer resp.Body.Close()
 		requireInvalidScope(t, resp, reasonScopeNotAllowed)
-		require.NotContains(t, readBody(t, resp), `id="allow-form"`,
-			"the consent page must not render for a scope the app cannot be granted")
 	})
 
 	// The wiring rather than the template: the page a user is actually served
@@ -306,6 +304,53 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		// the user they are approving more than the code will carry.
 		require.NotContains(t, body, scopeInCatalog,
 			"the consent page must state the negotiated scope, not the app's allowlist")
+	})
+
+	// The unrestricted half of the same wiring. The collapse to nil and the
+	// template's full-access branch are each covered alone, so what this pins is
+	// the one thing neither can: that the handler feeds the collapse's result to
+	// the page. Dropping the collapse and always splitting would render
+	// `coder:all` to a real user with every other test still green.
+	t.Run("ConsentPageStatesFullAccessWhenUnrestricted", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{})
+
+		resp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), "")
+		defer resp.Body.Close()
+
+		body := readBody(t, resp)
+		require.Contains(t, body, `id="allow-form"`, "the consent page must render")
+		require.Contains(t, body, "full access")
+		require.NotContains(t, body, string(database.ApiKeyScopeCoderAll),
+			"an unrestricted grant must not be stated to a user as a scope name")
+	})
+
+	// RFC 6749 §4.1.2.1 returns state only if the request carried one. Every
+	// other case here sends state and asserts it comes back, so the guard that
+	// omits the parameter could be deleted with the suite staying green. An
+	// empty state is not the same as no state: a strict client can reject its
+	// own callback over it.
+	t.Run("OmittedStateNotEchoed", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t, sql.NullString{String: scopeInCatalog, Valid: true})
+		query := authorizeQuery(t, app.ID.String(), "not_a_real_scope")
+		query.Del("state")
+
+		resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusFound, resp.StatusCode)
+		location, err := url.Parse(resp.Header.Get("Location"))
+		require.NoError(t, err)
+		// Pinned so the case cannot pass on a redirect that failed for some
+		// other reason before reaching the state guard.
+		require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), location.Query().Get("error"))
+		require.False(t, location.Query().Has("state"),
+			"a client that sent no state must not receive an empty one")
 	})
 
 	// The other half of RFC 6749 §4.1.2.1: a redirect URI that does not match

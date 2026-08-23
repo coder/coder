@@ -214,9 +214,9 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	return strings.Join(granted, " "), nil
 }
 
-// consentScopes lists a negotiated scope for the consent page. The
-// unrestricted grant is returned as nil, since "coder:all" states to a user
-// far less than the page's own full-access wording does.
+// consentScopes returns the scope names the consent page lists, or nil when the
+// grant is unrestricted, since "coder:all" states to a user far less than the
+// page's own full-access wording does.
 //
 // The negotiated value is canonical and deduplicated by the time it arrives
 // here, so this splits rather than rewrites.
@@ -224,8 +224,8 @@ func consentScopes(granted string) []string {
 	names := strings.Fields(granted)
 	// Presence, not sole occupancy: an allowlist registered as
 	// `coder:all coder:workspaces.access` defaults to both names, and listing
-	// them would show the user the entry this function exists to avoid showing
-	// while understating a grant that is in fact unrestricted.
+	// them would show the user `coder:all` while understating a grant that is
+	// in fact unrestricted.
 	if slices.Contains(names, string(database.ApiKeyScopeCoderAll)) {
 		return nil
 	}
