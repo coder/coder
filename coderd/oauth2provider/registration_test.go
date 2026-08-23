@@ -743,6 +743,16 @@ func TestClientConfiguration_ReportedAuthMethod(t *testing.T) {
 			resend:     codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
 			want:       codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
 		},
+		{
+			// The only agreeing pair whose reported method differs from the
+			// type default, so it is what separates reporting the stored
+			// method from switching on the client type alone.
+			name:       "ConfidentialStoringClientSecretPost",
+			clientType: database.OAuth2ProviderAppClientTypeConfidential,
+			stored:     sql.NullString{String: string(codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost), Valid: true},
+			resend:     codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost,
+			want:       codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost,
+		},
 	}
 
 	for _, tt := range tests {
