@@ -571,6 +571,46 @@ that the gap is small does not make it absent: an expiry can fall between the
 two, and a revocation certainly can. Verification reads the row and evaluates
 validity itself, at the moment it decides.
 
+### A ledger constraint that can refuse a posting is the wrong mechanism
+
+A ledger is the fold over its journal. **A constraint that can reject a posting
+makes that fold partial**: there exist journals whose ledger is undefined, and
+the definition stops holding. Whatever the constraint was protecting, it has
+been bought by giving up what a ledger is.
+
+**That is not the same as a posting that fails.** An account refusing to go
+negative fails legitimately, per "They differ in whether posting can fail" in
+`entity_model.md`. The difference is not whether a failure can happen but where
+the rule lives: a modelled operation decides, and the posting code asked.
+
+So enforcing in the database is allowed, under two conditions together.
+
+- **The mechanism fires at posting time**, not on a later read or a periodic
+  check, so the answer is current when it is acted on.
+- **Its consequence is visible to the posting code**, which means the posting
+  code asked the question and can act on the answer.
+
+**A unique index satisfies the first and fails the second.** It fires on the
+write, but the posting code meets it as an unexpected error from the storage
+engine rather than as an answer to a question it asked, and code that handles
+one by parsing a constraint name is code that has lost the thread.
+
+#### The case that produced this
+
+At most one live AI agent per creation site. The identity code enforces it with
+a partial unique index over agents, and copying that onto the ledger would put a
+constraint exactly where this rule forbids one.
+
+**The rule is not about agents.** It is a ceiling on how many occupants a site
+holds, which is a fact about the site, and a count with a ceiling is an account
+whose posting can fail. Then the mechanism is a modelled operation, both
+conditions hold for free, and no constraint sits on the agent ledger at all. See
+"Capacity belongs to the container" in `entity_model.md`.
+
+**The general lesson is worth more than the case.** A constraint that feels
+awkward on a ledger is often a fact about a different entity, stated from the
+wrong side.
+
 ### Sweeps have three triggers, and never run on the read path
 
 **A sweep covers an end of life that is not, or cannot be, reliably reported.**

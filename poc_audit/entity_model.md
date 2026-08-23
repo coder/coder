@@ -295,7 +295,7 @@ reconciliation could act under a service account, or through an AI agent acting
 at the behest of a user charged with the task. Reconciliation adds nothing to
 the set of actor types.
 
-### Sandbox occupancy
+### The sandbox as a container
 
 A sandbox holds an actor. The relationship is not fixed to a kind:
 
@@ -303,10 +303,16 @@ A sandbox holds an actor. The relationship is not fixed to a kind:
 - It may hold a user, such as the workspace owner.
 - It may hold none, transiently, during its own creation.
 
-A sandbox could, as a technical possibility, hold more than one actor, but that
-would defeat the whole point of a sandbox, which is to isolate actors from each
-other. A workspace may hold both a user and a sandbox containing an agent, but
-by contrast a workspace is not an isolation mechanism.
+**It holds one at a time.** A sandbox could as a technical possibility hold
+more, but that would defeat the whole point of a sandbox, which is to isolate
+actors from each other. The limit follows from what a sandbox is for rather than
+from anything about what it holds, which is why it is stated here rather than
+with the occupant.
+
+**A workspace is a container too, and a different one.** It may hold both a
+user and a sandbox containing an agent, being no isolation mechanism. So being a
+container settles nothing on its own about how many: each container's limit
+comes from its own purpose.
 
 ### Identity independence
 
@@ -1353,7 +1359,17 @@ making the grant, and no such actor exists yet.
 
 Reasoning built on the positions above. Offered for challenge.
 
-### Occupancy belongs to the lifecycle of the occupant
+### Residence belongs to the lifecycle of the occupant
+
+**"Occupancy" names two things, and separating them is overdue.** *Residence* is
+where an occupant currently is, seen from the occupant: which site holds it, and
+which held it before. *Capacity* is how many an occupant a site can hold and how
+many it holds now, seen from the site. A landlord with one unit knows its
+capacity without knowing anything about the tenant's history, and a tenant knows
+where they have lived without knowing how many units the building has.
+
+This section is residence. Capacity is the next one, and the two positions
+sound contradictory only while the word is doing both jobs.
 
 If a sandbox can hold different actors over its life, and an AI agent can
 outlive or move between sandboxes, then which sandbox holds which actor cannot
@@ -1366,11 +1382,15 @@ What the position implies instead is a representation of occupancy with its own
 start and end, so that several may exist for one AI agent over time and none may
 exist at a given moment.
 
-**That does not make occupancy an entity.** It is a relationship tracked with
-the lifecycle of the **content**, not of the container and not of itself. A
-container's lifecycle is born empty, at least conceptually, so it has nothing to
-say about what it holds; the occupant is what enters and leaves, and occupancy
-is the relationship the occupant has with whatever contains it.
+**That does not make residence an entity.** It is a relationship tracked with
+the lifecycle of the **content** rather than of itself. A container's lifecycle
+is born empty, at least conceptually, so it has nothing to say about *which*
+occupant it holds; the occupant is what enters and leaves, and residence is the
+relationship the occupant has with whatever contains it.
+
+**The container is not silent about everything**, which is what the next section
+is for. It knows how full it is. That is not a fact about any occupant and
+cannot be assembled from the occupants' records without reading all of them.
 
 This is structurally the same problem as P5 in
 `poc_audit/security_findings.md`, where a one to one column for the
@@ -1382,6 +1402,39 @@ It also pays off for audit. Placement and removal become persistent state
 changes with somewhere to be recorded, and the question of which sandbox held
 which actor at a given time becomes answerable, which is the stronger
 coherence property listed as open in the audit approach.
+
+### Capacity belongs to the container
+
+How many occupants a site holds is a fact about the site. It is not derivable
+from any one occupant, and assembling it from all of them means reading every
+occupant's record to answer a question about one container.
+
+The case that produced this: **at most one live AI agent per creation site**.
+Read as a fact about agents it is a uniqueness rule over agents, which is what
+the identity code makes it. Read as a fact about the site it is an occupancy
+count with a ceiling of one, which is what it is.
+
+**A sandbox is the case already established.** "The sandbox as a container"
+above holds that a sandbox holds one actor at a time, and derives the limit from
+what a sandbox is for. That is a capacity statement, made before the word
+existed, and it is the pattern this section generalises.
+
+**Capacity is an account, not a variable.** The distinction is the one drawn
+under "Entities described by operations that are not transitions": an assignment
+always succeeds and a debit or credit can fail. Occupying a site already at its
+ceiling fails, and that failure is part of the model rather than a constraint
+the posting code meets as a surprise. See "A ledger constraint that can refuse a
+posting is the wrong mechanism" in `implementation_patterns.md`, which is the
+same conclusion reached from the other end.
+
+**One event feeds both models.** An AI agent created at a site is a `create` in
+the agent's journal and an occupation in the site's, which is the shape creation
+already has when it writes three entries to three journals.
+
+**In the interim a site is not an entity here**, so the count has nowhere
+journaled to live and a column on the site's table is what is available. That is
+an interim and should be recorded as one: the eventual form is a site with its
+own ledger, and occupancy posted to it.
 
 ### One actor per entry, not two
 
