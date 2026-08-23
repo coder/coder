@@ -63,7 +63,7 @@ func CreateAppSecret(db database.Store, auditor *audit.Auditor, logger slog.Logg
 		if app.IsPublic() {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot create a client secret for a public OAuth2 app.",
-				Detail:  "Public clients authenticate with PKCE and have no client secret. The client type is fixed at registration.",
+				Detail:  "Public clients authenticate with PKCE and have no client secret. The client type is fixed at registration, so register a new confidential client instead.",
 			})
 			return
 		}

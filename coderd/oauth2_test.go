@@ -167,7 +167,13 @@ func TestOAuth2ProviderAppSecrets(t *testing.T) {
 		// revokes nothing.
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		_, err = client.PostOAuth2ProviderAppSecret(ctx, appID)
-		require.Error(t, err)
+		// Pin the status and the reason. PostOAuth2ProviderAppSecret errors on
+		// any non-201, so a bare require.Error would also pass for a routing or
+		// middleware failure that never reaches the public client guard.
+		var sdkError *codersdk.Error
+		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
+		require.Equal(t, http.StatusBadRequest, sdkError.StatusCode())
+		require.Contains(t, sdkError.Message, "public OAuth2 app")
 
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		secrets, err := client.OAuth2ProviderAppSecrets(ctx, appID)
