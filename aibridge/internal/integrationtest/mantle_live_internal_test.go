@@ -28,7 +28,8 @@ import (
 // endpoint using ambient AWS credentials from the environment (the default
 // SDK credential chain: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY /
 // AWS_SESSION_TOKEN, IRSA, container credentials, or instance profile). They
-// are skipped unless MANTLE_LIVE_REGION is set, so they never run in CI.
+// are opt-in: they run only when CODER_TEST_MANTLE_LIVE=1 is set explicitly,
+// and require MANTLE_LIVE_REGION to be set, so they never run in CI.
 //
 // Rather than pinning specific models, the test discovers the catalog from
 // the Mantle /v1/models endpoint and probes every model on the route its
@@ -50,15 +51,13 @@ func TestMantleLive(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong*4)
 	t.Cleanup(cancel)
 
+	if os.Getenv("CODER_TEST_MANTLE_LIVE") != "1" {
+		t.Skip("CODER_TEST_MANTLE_LIVE=1 not set; skipping live Mantle test")
+	}
+
 	region := os.Getenv("MANTLE_LIVE_REGION")
 	if region == "" {
 		t.Skip("MANTLE_LIVE_REGION not set; skipping live Mantle test")
-	}
-	if os.Getenv("AWS_ACCESS_KEY_ID") == "" &&
-		os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") == "" &&
-		os.Getenv("AWS_CONTAINER_CREDENTIALS_FULL_URI") == "" &&
-		os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE") == "" {
-		t.Skip("no ambient AWS credentials found; skipping live Mantle test")
 	}
 
 	creds := mantleLiveCredentials(ctx, t, region)
@@ -114,9 +113,6 @@ func TestMantleLive(t *testing.T) {
 //   - google.gemma-4-*:   served on /openai/v1/responses, but the non-prefixed
 //     selection sends them to root /v1/chat/completions.
 //   - xai.grok-*:         same as gemma-4.
-//
-// Mantle's catalog does not expose per-model route support, so these cannot
-// be detected up front. Documented as currently unsupported; see
 var mantleLiveUnsupportedFamilies = []string{
 	"openai.gpt-oss",
 	"google.gemma-4",
