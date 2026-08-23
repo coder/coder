@@ -394,6 +394,40 @@ A second and latent source of the same problem is the foreign key from
 soft, so the cascade rarely fires, but a lifecycle whose terminal event is
 performed by the storage engine cannot be journaled at all.
 
+### Creation has two layers of helper and deletion has none
+
+Measured 2026-08-23. Thirteen query methods address `api_keys`, from sixteen
+production files.
+
+**Writes are well indirected.** Seven production sites call `InsertAPIKey`, and
+six of them first call `apikey.Generate`, which owns the token format, the
+digest, scope defaulting, expiry and the allow list default. Nothing else in the
+tree knows what a token looks like. A second layer sits on top of that:
+`aiagentidentity.MintKey` wraps generation and insertion together and has five
+callers, so every AI agent path shares one implementation.
+
+The seventh is this work's own mirror in `coderd/entity/credential.go`, which
+builds the parameters by hand rather than draw `login_type`, `ip_address` and a
+default lifetime into a credential the ledger owns. **It is the only place the
+token format is known twice**, and the acceptance test exists to catch the two
+drifting.
+
+**Deletion has no helper at all.** `DeleteAPIKeyByID` has eleven call sites
+across seven files, and four further queries delete or expire in bulk, each with
+its own caller. Fifteen removals, none of them routed through anything.
+
+**The asymmetry has a mechanical explanation, and it is the one that matters.**
+Getting creation wrong is immediately visible, because the token would not
+authenticate. Getting deletion wrong is invisible: a delete that fires and one
+that does not are indistinguishable until somebody asks a question nobody is
+asking. So creation attracted a helper and deletion did not.
+
+That is the finding above arriving by another road. Credentials are destroyed
+rather than retired not because anybody decided endings do not matter, but
+because **an ending had no natural home and so went wherever it was needed,
+fifteen times.** A journal gives it one, and those fifteen sites are the measure
+of what routing them through it would cost.
+
 ### What depends on api_keys.user_id being a user
 
 Less than expected, which is a finding in its own right. **No query joins the

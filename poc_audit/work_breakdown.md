@@ -33,12 +33,12 @@ test. Subsections are fixed for now and may grow later:
 - **PoC cheats.** Every compromise made for proof of concept scope. All of
   these are in the definitely keep away from production category.
 
-**Candidates are numbered by nothing and scheduled for nothing.** They sit at
-the end under their own heading. A candidate is work that has been analysed far
-enough that redoing the analysis would be waste, and that nobody has decided to
-do. It takes a number when somebody does. The distinction matters because a
-number in this document means a package exists, and a reader counting them
-should not count work nobody has committed to.
+**A number means a package exists. It does not mean anybody has scheduled
+it.** Several here are written and unstarted, and one is written and unlikely to
+be started before a demo. Work analysed far enough that redoing the analysis
+would be waste, but which nobody has decided to do at all, would sit at the end
+under a Candidates heading and take no number until somebody decided. Nothing is
+in that state today.
 
 ## WP1. Create AI agent identity
 
@@ -767,10 +767,14 @@ ledger. The half of a pair whose absence is why the other half is ambiguous.
 
 ### Status
 
-Not started, and deliberately not scheduled. Written now for what it settles
-rather than for what it builds: with this route in play, an agent reaching
-`/users/me` has somewhere else it could have asked, and the meaning of both
-becomes a consequence of having two slots rather than a rule imposed on one.
+Not started, and unscheduled. Written now for what it settles rather than for
+what it builds: with this route in play, an agent reaching `/users/me` has
+somewhere else it could have asked, and the meaning of both becomes a
+consequence of having two slots rather than a rule imposed on one.
+
+**WP8 depends on this package being written rather than built**, for the reason
+given there. So writing it has already done the work it was written to do, and
+building it is a separate question that nothing is waiting on.
 
 ### What it settles
 
@@ -870,22 +874,33 @@ its subject through `subject.AIAgentID`, which is set by `Subject.AsAIAgent` on
 two of the three paths that build an agent subject and not on the third. Until
 that is uniform, the route would work on some credentials and not others.
 
-## Candidates
+## WP8. Resolve "me" from the subject
 
-Analysed but not scheduled. See the note on candidates above.
-
-### Candidate: resolve "me" from the subject
-
-**Held on 2026-08-23**, Eric: probably better after the demo, and the demo may
-need it, so the analysis is kept rather than the conclusion rederived.
-
-#### Summary
+### Summary
 
 The seven places that resolve `me` take it from the credential's holder. They
 should take it from the request's subject, and refuse when that subject is not a
 user.
 
-#### What forces the work
+### Status
+
+Not started, and unscheduled. Eric, 2026-08-23: probably better after the demo,
+and the demo may need it, so the analysis is kept rather than the conclusion
+rederived.
+
+**It depends on WP7, and the dependency is unusual enough to state exactly. It
+depends on WP7 having been written, not on WP7 having been built.** No code here
+calls anything there.
+
+What WP7 supplies is the reason. On its own, resolving `me` to the owner reads
+as a choice to discard the agent's identity, and the obvious objection is that
+an agent can then no longer refer to itself. With `/aiagents/me` written down,
+the answer is that it still can, elsewhere, and the meaning of each route
+follows from there being two slots rather than from a rule imposed on one. The
+rule is the same either way; only its justification is missing without WP7, and
+a rule whose justification is missing is one a reviewer is right to refuse.
+
+### What forces the work
 
 `me` stands where a user is named, alongside a username and a user id, and
 expresses self reference: the user this request is made by. Every site resolves
@@ -893,7 +908,7 @@ that by taking the credential's holder for a user id.
 
 **For an AI agent the word's parts disagree.** The slot demands a user, the self
 reference denotes the agent, and the resolution looks for a row that may not
-exist. Which of those gives way is the question, and this candidate answers it
+exist. Which of those gives way is the question, and this package answers it
 with a principle that already governs elsewhere.
 
 **The principle: an AI agent interacting outward uses its owner's identity.**
@@ -909,7 +924,7 @@ That is the `users` table's overloading surfacing in a public facing word: `me`
 means the row holding the credential, where everything else means the party
 whose roles apply.
 
-#### The sites, and which is already right
+### The sites, and which is already right
 
 | Site                           | Resolves from | Origin    |
 |--------------------------------|---------------|-----------|
@@ -927,7 +942,7 @@ during the attribution work. The other six are older code that had no reason to
 consider a non user holder. `audit.go` therefore contains both meanings of `me`
 three lines apart.
 
-#### What the check found
+### What the check found
 
 `subject.ID` is a users row for every subject that reaches a handler today. The
 workspace agent path sets it to the workspace owner, or to a bound AI agent's
@@ -944,7 +959,7 @@ would otherwise parse cleanly and match nothing, which is the same silent
 failure by another route. This is the `AsUserIDUnchecked` lesson again: an
 identifier does not say what it denotes.
 
-#### A workspace_agent has its own `me`, in a slot that is not user typed
+### A workspace_agent has its own `me`, in a slot that is not user typed
 
 **`me` already denotes two kinds of party in this codebase.** Under
 `/users/{user}` it is the API key's holder. Under `/api/v2/workspaceagents/me`,
@@ -981,7 +996,7 @@ token is an API key held by an AI agent, which is the case above. **So the
 workspace agent is the delivery mechanism for that case rather than a case of
 its own.**
 
-#### The general shape: a keyword in an identifier slot
+### The general shape: a keyword in an identifier slot
 
 A third instance settles what the family is.
 `httpmw/organizationparam.go:78` resolves the literal `default` in the
@@ -1001,12 +1016,12 @@ subject and a credential can, which is why only one of the two has a problem.
 The nil UUID is the same overloading again in a slot typed as an identifier
 rather than as a keyword, which is why it needed a TODO and `default` did not.
 
-**The fix this candidate proposes is the one `/workspaceagents/me` already
+**The fix this package proposes is the one `/workspaceagents/me` already
 demonstrates**: resolve the keyword against the party the route is about. Under
 `/users` that party is a user, so `me` is the user the request acts as, which
 for an AI agent is its owner.
 
-#### Why the failure is worth fixing rather than tolerating
+### Why the failure is worth fixing rather than tolerating
 
 **It is silent.** Only `userparam.go` fetches a row and gives a 404. The rest
 filter, so `owner:me` becomes an id owning nothing, the query succeeds, and the
@@ -1019,14 +1034,14 @@ actions. The CLI names things as the requester's by default: `cli/ssh.go` and
 `cli/configssh.go` set `Owner` to `me`, among forty one `codersdk.Me` sites
 there. An agent running `coder list` writes no filter and sees nothing.
 
-#### What it does not decide
+### What it does not decide
 
 Whether an AI agent owns user scoped resources of its own. It makes that
 question smaller: if `me` always means the owner, agent owned settings could
 never be reached by that word anyway and would need a vocabulary that does not
 exist yet.
 
-#### Scope against the identity code
+### Scope against the identity code
 
 **Five of the six edits are in code predating this branch.** The sixth,
 `audit.go:67`, is not Jon's either; his line sits three lines below it and is
@@ -1037,7 +1052,7 @@ it is separable from the identity rewrite in both directions.
 synthetic user record back from `me`. That is the intended correction and he
 should hear it as a decision rather than meet it as a surprise.
 
-#### Acceptance test
+### Acceptance test
 
 An AI agent asking for its own workspaces receives the owner's, and asking who
 it is receives the owner. The assertions currently recording the opposite in
