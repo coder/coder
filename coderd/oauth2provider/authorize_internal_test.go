@@ -400,9 +400,10 @@ func TestConsentScopes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		granted string
-		want    []string
+		name             string
+		granted          string
+		want             []string
+		wantUnrestricted bool
 	}{
 		{
 			name:    "NarrowGrantListed",
@@ -412,25 +413,39 @@ func TestConsentScopes(t *testing.T) {
 		{
 			// nil, not the name: the page says "full access" instead, which
 			// tells a user more than coder:all does.
-			name:    "UnrestrictedAloneCollapses",
-			granted: string(database.ApiKeyScopeCoderAll),
-			want:    nil,
+			name:             "UnrestrictedAloneCollapses",
+			granted:          string(database.ApiKeyScopeCoderAll),
+			want:             nil,
+			wantUnrestricted: true,
 		},
 		{
 			// An allowlist registered as `coder:all coder:workspaces.access`
 			// defaults to both names. Listing them would show the very entry
 			// this collapse exists to hide, while describing an unrestricted
 			// grant as if it were bounded by the other name.
-			name:    "UnrestrictedAmongOthersCollapses",
-			granted: string(database.ApiKeyScopeCoderAll) + " coder:workspaces.access",
-			want:    nil,
+			name:             "UnrestrictedAmongOthersCollapses",
+			granted:          string(database.ApiKeyScopeCoderAll) + " coder:workspaces.access",
+			want:             nil,
+			wantUnrestricted: true,
+		},
+		{
+			// The empty grant reaches no caller today, since negotiateScope
+			// returns "" only alongside an error. It is asserted because the
+			// two results must disagree here: a grant carrying no permission
+			// is the one thing that must never be reported as unrestricted.
+			name:             "EmptyGrantIsNotUnrestricted",
+			granted:          "",
+			want:             []string{},
+			wantUnrestricted: false,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, test.want, consentScopes(test.granted))
+			names, unrestricted := consentScopes(test.granted)
+			require.Equal(t, test.want, names)
+			require.Equal(t, test.wantUnrestricted, unrestricted)
 		})
 	}
 }
