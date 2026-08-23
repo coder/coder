@@ -155,20 +155,34 @@ those operations are read, plus the reconciliations they generate. How much of
 an entity exists in code is a separate question, answered in
 [Implementation of Entities](implementation_of_entities.md) and nowhere here.
 
-| Entity            | Corpus  |
-|-------------------|---------|
-| Authorization     | settled |
-| Credential        | settled |
-| AI agent          | settled |
-| Sandbox           | named   |
-| Session           | named   |
-| User              | named   |
-| `workspace_agent` | named   |
-| Workspace         | named   |
-| coderd            | named   |
+| Entity              | Corpus  |
+|---------------------|---------|
+| Authorization       | settled |
+| Credential          | settled |
+| AI agent, sandboxed | settled |
+| Sandbox             | named   |
+| Session             | named   |
+| User                | named   |
+| `workspace_agent`   | named   |
+| Chat agent          | named   |
+| Workspace           | named   |
+| coderd              | named   |
 
 A session's lifecycle is not journaled today and should become so. coderd's may
 never need to be; see the Open section.
+
+**The AI agent modelled here is a sandboxed one, and that qualification is part
+of the entity rather than a detail of it.** An AI agent that is not sandboxed is
+a different kind of thing, and the model here should not be read as covering it.
+
+Three policies decide which is which. An AI agent is always sandboxed, a
+`workspace_agent` never is, and a chat agent never is. **All three are
+contingent**, chosen rather than forced by anything in this work, and each could
+be decided the other way without contradicting anything above.
+
+**A chat agent and a `workspace_agent` each want a lifecycle of their own**,
+which nothing here provides. They are listed so that a reader counting entities
+finds them, not because anything is written about them yet.
 
 **coderd is identified by a fixed singleton.** One identifier denotes any
 process running an instance of coderd, and no attempt is made to tell one
@@ -185,9 +199,10 @@ the **custodian** are all system actors. The custodian is the one that runs
 periodically and records what the passage of time has made true, expiries among
 them. It fills the **sweeper** role, and a sweep is a reconciliation.
 
-**Derived, and needing discussion rather than settled.** Only one stands: a
-**run**, the ephemeral execution of an AI agent, distinct from its durable
-identity. It is declined for now and listed as a candidate.
+**Derived, and needing discussion rather than settled.** None stands. What was
+listed here as a **run**, the ephemeral execution of an AI agent distinct from
+its durable identity, turned out to be the **session** already named above, and
+the two entries were the same entity approached from opposite ends.
 
 ### The negative space around entities
 
@@ -314,6 +329,76 @@ user and a sandbox containing an agent, being no isolation mechanism. So being a
 container settles nothing on its own about how many: each container's limit
 comes from its own purpose.
 
+### What the system holds about a sandbox's isolation
+
+A sandbox either isolates as required or it does not. That is a property of the
+sandbox, material and true or false regardless of what anyone records.
+
+**What the system holds is not that property but an attestation of it**, made by
+the template admin who wrote the script that creates the sandbox. In the form it
+takes: *I attest that all sandboxes built with this script will have the
+requisite properties of a sufficiently strong container.* Note the
+quantification. It is made about a template version, which is a type, and covers
+everything that type generates, so it attaches to the accession of the version
+and not to any sandbox.
+
+**An attestation is an institutional fact of the same kind as a grant.** It may
+be made by speech or by a gesture through an interface, and both are equally
+performative. The act has material existence before it is recorded and does not
+survive; only the record does. The institutional fact it creates has no form
+apart from that record, which is what the authorization lifecycle says of a
+grant. The two statements are about different things: the act is material and
+transient, the fact is institutional and durable.
+
+**So the journal records an attestation as an attestation, with its attestor.**
+It never records isolation as though the control plane observed it. The control
+plane observes nothing about how a sandbox is built and is not in a position to.
+
+**Accession is where responsibility is taken.** Archival practice treats taking
+custody as accepting responsibility for what is taken, which is why the
+attestation belongs at accession rather than at use: the attestor is answerable
+from the moment the version is admitted, for everything built from it after.
+
+**The attestation incorporates its meaning by reference.** What counts as
+sufficient is defined in a document the system does not hold. So the record must
+capture which version of that definition was incorporated, or an attestation
+made in one month is read in another as saying something its author did not say.
+
+**The template admin is therefore in the forensic chain and cannot be taken
+out.** Customers choosing their own container technology makes that permanent
+rather than incidental, so a model that omits that party from the reckoning of
+the system is deficient rather than merely incomplete.
+
+**Cheat: no attestation is gathered.** Putting a script into the system counts
+as making one, by operation of policy: do not put it in if it does not work. The
+long term problem is that a policy is not evidence, and nothing detects a script
+whose sandbox lacks the properties claimed for it.
+
+### Nothing inside a sandbox holds a credential
+
+**This is the central enforcement principle of constraining agents.** An agent
+does not hold its own credentials. Containment holds them and presents them on
+the agent's behalf.
+
+Three things follow, and the third is the one that shapes the model.
+
+- Never possessing a credential, an agent cannot exfiltrate one.
+- Not being able to exfiltrate one, it cannot let another agent masquerade as
+  it.
+- **It cannot choose when to present.** At every request, containment decides
+  whether to present externally.
+
+**Containment is not an actor**, and identification is not its testimony. It
+holds an actor and does not act, which is the line already drawn for a sandbox.
+It knows which agent occupies the sandbox from how the sandbox was configured,
+fixed at creation, so there is no mutable record to drift. What makes the
+resulting attribution credible is the attestation above: a mechanism operating
+as attested produces a credible account.
+
+**So one attestation does double duty.** It underwrites the isolation and it
+underwrites the identification, because the attestor is speaking about the thing
+that both confines the agent and speaks for it.
+
 ### Identity independence
 
 **An AI agent has its own identity, independent of any sandbox and independent
@@ -416,6 +501,17 @@ whichever comes first. The two do not compete, and neither defines the session.
 
 That is the rule the authorization machine states for the parties to an agency
 relation and the credential machine for a holder, arriving here a third time.
+
+**An AI agent has exactly one session at present.** Dormancy is not implemented,
+so an agent cannot be reconstituted after its sandbox ends, and its session and
+its own lifespan are coextensive. A session therefore carries nothing today that
+the agent and the sandbox do not carry between them, which is why declining to
+model it separately costs nothing.
+
+**With dormancy it might have several**, in different sandboxes with gaps
+between, which is the case "Residence belongs to the lifecycle of the occupant"
+anticipates and the point at which a session starts carrying information nothing
+else holds. Whether dormancy is built is not settled here.
 
 **What delimits a session is its own transitions.** Constraint is not
 delimitation: two sessions may share participants, so participant existence
@@ -1436,6 +1532,68 @@ journaled to live and a column on the site's table is what is available. That is
 an interim and should be recorded as one: the eventual form is a site with its
 own ledger, and occupancy posted to it.
 
+### An AI agent's lifespan is contained in its sandbox's
+
+While dormancy is not implemented, an AI agent's lifespan lies entirely within
+its sandbox's. The argument is short and worth having written, because code will
+lean on it.
+
+1. An AI agent as a subject-entity is a **material fact**, embodied in a running
+   process.
+2. Every AI agent is sandboxed, **by policy**.
+3. The sandbox is that process's material container.
+4. A process does not survive the destruction of its container. That is material
+   necessity and not a rule of ours.
+5. **Dormancy is the only state in which an agent could persist without a
+   running process**, being precisely identity retained with embodiment
+   suspended.
+6. Dormancy is not implemented.
+7. So no AI agent exists, as a subject-entity, after its sandbox ceases.
+
+**Sandbox existence is therefore an upper bound on agent liveness**, and code
+that needs to know whether an agent is live may rely on it as a bound.
+
+**The converse does not hold.** A sandbox may exist with no occupant, which is
+the case a word like `derelict` is for, so sandbox existence does not imply
+agent liveness.
+
+**Two premises are contingent and the argument expires with either.** Step 2 is
+policy rather than necessity, and an unsandboxed AI agent would void the bound
+entirely, which is one reason an unsandboxed agent is treated as a different
+kind of entity. Step 6 may cease to hold: if dormancy is implemented, a sandbox
+ending will make its occupant either dormant or finished depending on the
+material condition, and the bound weakens to saying an agent does not outlive
+its sandbox **in an active state**.
+
+**The record does not currently reflect any of this**, which is a defect in the
+recording rather than in the argument. See the finding below.
+
+### A confinement report can be corroborated, in a mature system
+
+A report of what happened inside a sandbox is checkable against the sandbox's
+own account of itself. The sandbox's creation entry records what it was created
+to be, and traces back through the accession of a template version to the
+attestation made there.
+
+**The chain has three links**, each a place where a party is trusted and each
+journalable in principle.
+
+| Link               | What it fixes                                  |
+|--------------------|------------------------------------------------|
+| Accession          | What was attested, by whom, incorporating what |
+| Sandbox creation   | What was created, under which template version |
+| Confinement report | What happened inside, and between when         |
+
+**A report is not testimony in any sense that distinguishes it.** By the test
+under commanded, observed and entailed operations, every observed operation is
+somebody's report of what they noticed, so calling this one testimony would
+distinguish nothing. What is worth saying is narrower: the reporter is the party
+that created the sandbox, and so reports at first hand.
+
+**What would make a false report detectable is the chain, not the reporter.** A
+report that disagrees with the creation entry above it is visible as a
+disagreement. Nothing about who reports makes it so.
+
 ### One actor per entry, not two
 
 The attribution position settles a question the audit approach lists as open.
@@ -1455,8 +1613,8 @@ reconstituted implies that the identity persists while the running thing does
 not. That is two entities rather than one, even if the first implementation
 only ever creates one execution per identity.
 
-This is flagged for the same reason as the occupancy point: a schema that
-treats an AI agent and its run as a single row forecloses reconstitution as
+This is flagged for the same reason as the residence point: a schema that
+treats an AI agent and its session as a single row forecloses reconstitution as
 surely as a sandbox reference forecloses movement.
 
 ## Findings
@@ -1515,6 +1673,28 @@ actors their own identity should take this row with it, rather than leaving a
 non-person filed among people and every query about users carrying an exception
 for it.
 
+### An agent outlives its sandbox in the record, on the normal path
+
+The material claim above holds and the recording of it is absent. Two paths, and
+neither is an edge case.
+
+**Deliberate deletion leaves the identity active.** Deleting a sandbox soft
+deletes the confined `workspace_agent`, deletes the session token, and soft
+deletes the sandbox row. It never touches the AI agent identity, so the agent
+remains `active` with its sandbox gone.
+
+**A workspace rebuild destroys the sandbox row without a trace.**
+`ai_sandboxes.parent_agent_id` references `workspace_agents` with
+`ON DELETE CASCADE`, so the row goes when the workspace agent's does. That is
+how "a sandbox does not outlive its workspace" is implemented today: by a
+cascade, which is an ending performed by the storage engine and therefore one
+that cannot be journaled.
+
+**And a confinement report has nothing to be checked against.** Neither the
+sandbox nor the accession of a template version is journaled, so the third link
+of the chain stands alone. That is a gap in the current record rather than a
+limit on what the record can know.
+
 ### valid_credentials is a stub, and is to be replaced by a ledger
 
 `coderd/database/migrations/000575_valid_credentials.up.sql` creates a table
@@ -1564,13 +1744,14 @@ it. That code is not in its final form and is to be brought into conformance.
   system user to a real user while keeping its identifier and build history. If
   a prebuilt workspace can carry sandboxes, their audit trail spans two owners,
   one of which cannot log in.
-- **Run as an entity.** Not modelled at this stage, though it could be. A run
-  would be the ephemeral execution of an AI agent, distinct from its durable
-  identity, and would plausibly be created by the provisioner. Modelling it
-  would move embodiment out of the identity and leave each entity with a single
-  origin, institutional for the identity and material for the run. Listed as a
-  candidate rather than as an open question. `dormant` in the state enum is
-  what holds the door open meanwhile.
+- **Run as an entity. Withdrawn**, being the session under another name. The
+  candidate described the ephemeral execution of an AI agent as distinct from
+  its durable identity, which is what an AI agent's session already is: the
+  relationship between the agent and its sandbox, lasting exactly as long as the
+  execution does. **`run` is not used as a noun for this concept.** What the
+  candidate contributed and the session convention keeps is that modelling it
+  moves embodiment out of the identity, leaving each entity a single origin,
+  institutional for the identity and material for the session.
 - **Naming.** What the AI agent entity is called in the schema and in the audit
   `resource_type` enum, given that `agent` collides with `workspace_agent`.
 - **A journal for coderd.** coderd is an entity, settled below. Whether its
