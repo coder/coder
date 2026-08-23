@@ -45,7 +45,7 @@ Set the Coder URL, gateway key, and listener address, then start the gateway:
 
 ```sh
 export CODER_URL=https://coder.example.com
-export CODER_AI_GATEWAY_KEY='<gateway key>'
+export CODER_AI_GATEWAY_KEY='<gateway_key>'
 export CODER_AI_GATEWAY_HTTP_ADDRESS=0.0.0.0:4001
 coder ai-gateway start
 ```
