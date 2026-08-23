@@ -42,7 +42,7 @@ Copilot CLI is built on Node.js and uses the `NODE_EXTRA_CA_CERTS` environment v
 export NODE_EXTRA_CA_CERTS="/path/to/coder-ai-gateway-proxy-ca.pem"
 ```
 
-See [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#trust-the-ca-certificate) for details on how to obtain the certificate file.
+Refer to [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#trust-the-ca-certificate) for details on how to obtain the certificate file.
 
 When [TLS is enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, combine the MITM CA certificate and the TLS certificate into a single file:
 
