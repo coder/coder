@@ -290,33 +290,12 @@ The last item was the one this package called required regardless: retiring an
 AI agent now lapses every authorization naming it and invalidates every
 credential it holds, in the transaction that retires it.
 
-That forced a question the entity model had left open, recorded below under
-"Who an observed operation is attributed to when nobody noticed".
-
-### Who an observed operation is attributed to when nobody noticed
-
-The model says an observed operation's actor is whoever noticed. For a lapse
-nobody does. The agent's retirement is commanded by some party, and the lapses
-follow from it as consequences that party neither performed nor observed.
-
-Attributing them to that party would be wrong twice over. Somebody who kills an
-AI agent has not revoked its authorization, and `revoke` is a different
-transition with a different meaning. Worse, an agent whose own `finish` lapses
-its authorization would be recording the end of its own authority, which
-entities may not do.
-
-So the entries name a **fixed system actor**, `entity.SystemActor`, in the same
-manner the model already prescribes for `expire`. It travels as a `user`,
-because the type set has no member for a system actor, and it is a bare
-identifier, because there is no table of system actors to point at. Both are
-proof of concept cheats already named in `entity_model.md`, and this is the
-first code to depend on them.
-
-**This differs from creation, and the difference is instructive.** Creation
-writes three entries and all three name the owner, because all three operations
-are commanded and the owner commanded all three. Retirement writes three and
-they do not share an actor, because only the first is commanded. An actor is a
-property of an operation rather than of a transaction.
+That forced a question the entity model had left open, and answering it moved
+the model past what this package built. **The lapse entries name an actor, and
+the model now says an entailed operation has none.** That misalignment is known,
+deliberate, and WP6's to close. It is recorded there rather than by reopening
+this package, whose deliverable stands: the endings happen, in one transaction,
+and stop the credential verifying.
 
 ### What forces the work
 
@@ -614,3 +593,76 @@ owner's roles, which is what the code does today and is not obviously right. An
 agent inherits everything its owner can do, narrowed only by scope, and nothing
 records that the inheritance happened. Keeping it is deliberate, since changing
 it is a question about authorization rather than about authentication.
+
+## WP6. Record entailed operations without an actor
+
+### Summary
+
+The two lapse paths stop naming an actor and start naming the entry that
+entailed them, and `entity.SystemActor` goes away.
+
+### Status
+
+Not started, and deliberately deferred. Eric, 2026-08-23: the naming question
+below is not worth thinking through while the riskier work is outstanding, and
+it does not block that work.
+
+**A known misalignment stands until this package runs.** The code writes an
+actor on lapse entries and the model says an entailed operation has none. The
+constant carries a comment saying so, so that nothing comes to depend on a
+position the corpus has left.
+
+### What forces the work
+
+WP2 built the lapses before the entity model recognised entailment. It
+attributed them to a fixed system actor, the best answer available under a model
+with two kinds of operation and is the wrong answer under one with three. See
+"Commanded, observed and entailed operations" in `entity_model.md`.
+
+Nothing is broken in the running system. What is wrong is what the journal says
+about who acted, which is the one thing a journal exists to be right about.
+
+### New behavior
+
+- Lapse entries carrying no actor.
+- Lapse entries naming the entry that entailed them.
+- `entity.SystemActor` deleted, no caller remaining.
+
+### New data
+
+- Actor and actor type nullable on the credential and authorization journals,
+  with the `NOT NULL` replaced by a check tying nullness to the event, per "The
+  actor column is nullable" in `implementation_patterns.md`. The AI agent
+  journal needs no change, having no entailed transitions.
+- A column on each of those journals holding the entailing entry. On the
+  authorization journal it references the AI agent journal. On the credential
+  journal it references the AI agent journal for `lapse`, and would reference
+  the authorization journal for `discharge`, which nothing can reach yet.
+
+### Milestones
+
+None. The package is one change and is too small to divide.
+
+### What blocks it
+
+**The name `discharge` is unconfirmed.** It was coined rather than borrowed from
+a source Eric has read, and he has not passed on it. The schema does not need it
+until `discharge` is reachable, so this package can run without the answer, but
+running it while the answer is outstanding risks writing a line table that has
+to be renamed.
+
+### Acceptance tests
+
+**Retiring an AI agent writes lapse entries with no actor, each naming the entry
+that retired it.** The existing WP2 tests assert the opposite today and are the
+thing to change, which is the intended signal.
+
+**A commanded entry still cannot be written without an actor.** This is what
+`NOT NULL` was buying, and the check that replaces it has to be shown buying the
+same thing, in both directions.
+
+### PoC cheats
+
+Expected to remove one rather than add any. The fixed system actor filed among
+users was a cheat compounding a cheat, and no entailed operation wants it. The
+need for system actors elsewhere is untouched.

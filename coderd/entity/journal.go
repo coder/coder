@@ -53,8 +53,17 @@ type Ref struct {
 	ID   uuid.UUID
 }
 
-// SystemActor is the party an operation is attributed to when what noticed it
-// is the control plane and nobody else.
+// SystemActor is superseded and is retained only until WP6 replaces it.
+//
+// **The model no longer says what this comment says.** A lapse is an entailed
+// operation, and an entailed operation has no actor at all: see "Commanded,
+// observed and entailed operations" in poc_audit/entity_model.md. Nothing
+// should come to depend on this, and nothing new should use it. The two lapse
+// paths write it because they were built before the model reached that
+// position, and correcting them is deferred rather than forgotten.
+//
+// What follows is the reasoning that put it here, kept because WP6 has to
+// undo it and undoing it is easier with the argument in view.
 //
 // Observed operations take the actor that noticed, and for some of them nobody
 // did: a credential expires because a clock passed, and an authorization lapses
