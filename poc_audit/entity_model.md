@@ -705,6 +705,22 @@ Recording the author of an entry, as distinct from its actor, remains available
 and is not what the actor column is for. `audit_approach.md` keeps the two
 apart under segregation of duties, and nothing here records an author yet.
 
+#### One name, different kinds in different machines
+
+`lapse` is entailed on the authorization and credential machines and observed on
+the AI agent's. The word is the same and the kind differs, which follows from
+the kind being a property of the operation rather than of the name.
+
+**What differs is where the ending happens.** An authorization lapses in the
+institutional world: a party recorded as ended cannot go on standing in a
+relation, and the conclusion follows from the record. An AI agent lapses
+materially: the chat it was made for was purged, that purge is in no journal,
+and something has to go and look. One is derived and the other is perceived.
+
+The lesson generalises past this pair. **A transition's kind cannot be read off
+its name**, and a machine that borrows a name from another machine borrows the
+meaning and not the kind.
+
 #### An actor belongs to an operation, not to a transaction
 
 Bringing an AI agent into being writes three entries that all name the owner,
@@ -748,12 +764,17 @@ supporting reconstitution later costs no migration.
 | `active`  | `transfer` | `active`  | commanded |
 | `active`  | `finish`   | `retired` | observed  |
 | `active`  | `kill`     | `retired` | commanded |
+| `active`  | `lapse`    | `retired` | observed  |
 | `active`  | `suspend`  | `dormant` | commanded |
 | `dormant` | `resume`   | `active`  | commanded |
 | `dormant` | `retire`   | `retired` | commanded |
 
-**The proof of concept machine is the first four rows**, and implements all but
+**The proof of concept machine is the first five rows**, and implements all but
 `transfer`, which nothing performs yet.
+
+`lapse` is the thing the agent was made for ceasing to exist: a chat purged by
+retention, and by the same reasoning a sandbox outlived. The agent has no
+occasion left, so it ends.
 
 Actors are given by way of illustration, the machine not depending on them.
 `create` records the delegating principal. `kill` records the owner who
@@ -1044,6 +1065,7 @@ inventing.
 | From    | Transition  | To        | Kind      |
 |---------|-------------|-----------|-----------|
 | none    | `issue`     | `valid`   | commanded |
+| `valid` | `reissue`   | `valid`   | commanded |
 | `valid` | `revoke`    | `invalid` | commanded |
 | `valid` | `expire`    | `invalid` | entailed  |
 | `valid` | `lapse`     | `invalid` | entailed  |
@@ -1105,6 +1127,14 @@ shape, and is not wanted either.
 `issue` arises when the control plane confers a means of acting on a party that
 already holds the authority to act. It is perfected by the entry, and the secret
 is handed to the holder once and never read back.
+
+`reissue` arises when a credential's validity is pushed forward rather than
+replaced, which the chat gateway does because an in flight generation may
+already hold the current identifier. It is a self transition, and seeing why is
+quicker with a predicate than with a narrative: a credential is valid when it
+has been issued and has not since been revoked, and both remain true across an
+extension. Something happened and nothing changed state, which is what a self
+transition is for.
 
 `revoke` arises when a party withdraws a credential deliberately, whether
 because it is suspected, superseded, or no longer wanted.
