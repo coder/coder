@@ -579,8 +579,8 @@ func RequireRegistrationAccessToken(db database.Store) func(http.Handler) http.H
 // method can disagree, because the method was persisted verbatim while the type
 // was always "confidential": such an app is stored confidential with a method of
 // "none", and reporting "none" tells it to drop a secret its exchange still
-// requires. Reporting the enforced behavior instead also lets the row repair
-// itself, since the client's next PUT sends back a method that matches.
+// requires. Reporting the enforced behavior instead also lets a client that
+// echoes the reported method back on its next PUT heal the row.
 func reportedAuthMethod(app database.OAuth2ProviderApp) codersdk.OAuth2TokenEndpointAuthMethod {
 	stored := codersdk.OAuth2TokenEndpointAuthMethod(app.TokenEndpointAuthMethod.String)
 	if stored.Valid() && (stored == codersdk.OAuth2TokenEndpointAuthMethodNone) == app.IsPublic() {

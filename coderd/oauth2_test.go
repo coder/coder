@@ -161,10 +161,6 @@ func TestOAuth2ProviderAppSecrets(t *testing.T) {
 		appID, err := uuid.Parse(app.ClientID)
 		require.NoError(t, err)
 
-		// A public client authenticates with PKCE alone, so minting a secret
-		// would hand an operator a credential the token endpoint never
-		// checks, and one whose deletion looks like a kill switch but
-		// revokes nothing.
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		_, err = client.PostOAuth2ProviderAppSecret(ctx, appID)
 		// Pin the status and the reason. PostOAuth2ProviderAppSecret errors on
@@ -175,6 +171,7 @@ func TestOAuth2ProviderAppSecrets(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkError.StatusCode())
 		require.Contains(t, sdkError.Message, "public OAuth2 app")
 
+		// The GET after the rejected POST verifies no partial secret was created.
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		secrets, err := client.OAuth2ProviderAppSecrets(ctx, appID)
 		require.NoError(t, err)

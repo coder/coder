@@ -670,22 +670,12 @@ func TestUpdateClientConfiguration_LegacyAuthMethodMismatch(t *testing.T) {
 	}
 }
 
-// TestClientConfiguration_ReportedAuthMethod covers the
-// token_endpoint_auth_method that RFC 7592 client configuration reports for a
-// row whose stored method contradicts its stored client type.
-//
-// The token endpoint enforces on the client type, so echoing the stored method
-// back verbatim would tell the client to authenticate in a way the server
-// refuses: a confidential row storing "none" would tell its client to drop the
-// secret the exchange still requires, and a public row storing a secret-based
-// method would tell its client to send credentials that are rejected. Both
-// directions are asserted from the response body, which is the only place the
-// choice is observable.
-//
-// Registration now derives the client type from the method and can no longer
-// produce these rows, so the fixtures are seeded directly. They stand in for
-// clients registered before that derivation existed and for rows predating the
-// column.
+// TestClientConfiguration_ReportedAuthMethod asserts that GET and PUT on the
+// RFC 7592 client configuration report a token_endpoint_auth_method consistent
+// with client_type when the row's stored method disagrees, and that the row
+// still keeps whatever the client sent. Fixtures are seeded directly because
+// registration now derives client_type from the method and can no longer
+// produce a disagreeing row.
 func TestClientConfiguration_ReportedAuthMethod(t *testing.T) {
 	t.Parallel()
 
