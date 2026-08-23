@@ -33,6 +33,13 @@ test. Subsections are fixed for now and may grow later:
 - **PoC cheats.** Every compromise made for proof of concept scope. All of
   these are in the definitely keep away from production category.
 
+**Candidates are numbered by nothing and scheduled for nothing.** They sit at
+the end under their own heading. A candidate is work that has been analysed far
+enough that redoing the analysis would be waste, and that nobody has decided to
+do. It takes a number when somebody does. The distinction matters because a
+number in this document means a package exists, and a reader counting them
+should not count work nobody has committed to.
+
 ## WP1. Create AI agent identity
 
 ### Summary
@@ -750,3 +757,288 @@ same thing, in both directions.
 Expected to remove one rather than add any. The fixed system actor filed among
 users was a cheat compounding a cheat, and no entailed operation wants it. The
 need for system actors elsewhere is untouched.
+
+## WP7. An AI agent addresses itself
+
+### Summary
+
+`/api/v2/aiagents/me`, answering an AI agent's questions about itself from the
+ledger. The half of a pair whose absence is why the other half is ambiguous.
+
+### Status
+
+Not started, and deliberately not scheduled. Written now for what it settles
+rather than for what it builds: with this route in play, an agent reaching
+`/users/me` has somewhere else it could have asked, and the meaning of both
+becomes a consequence of having two slots rather than a rule imposed on one.
+
+### What it settles
+
+**The ambiguity of `/users/me` is caused by the absence of this route.** With
+one self reference slot, that slot carries two meanings and picks the wrong one
+for an AI agent. With two, neither needs a rule: asking under `/users` says the
+question is about the party acted for, and asking under `/aiagents` says it is
+about the party acting.
+
+**The two routes resolve from the two fields the subject already has.**
+
+| Route          | Resolves from       | Denotes             |
+|----------------|---------------------|---------------------|
+| `/users/me`    | `subject.ID`        | the party acted for |
+| `/aiagents/me` | `subject.AIAgentID` | the party acting    |
+
+Both from the subject, neither from the credential, so one principle produces
+both rather than two decisions producing one each. They are the same pair as the
+`on-behalf-of` and `performed-by` headers discussed for MCP: the headers are
+those fields crossing a wire and these are those fields addressed over HTTP.
+
+**`/api/v2/workspaceagents/me` is the working precedent**, mounted at
+`coderd.go:1871`, where a party that is plainly not a user addresses itself with
+the same word, in a slot that is not user typed. The shape is established rather
+than invented.
+
+### Impersonation is the mechanism, agency is the fact
+
+An AI agent reaching `/users/me` gets the owner because its subject carries the
+owner's identity, and the request is indistinguishable from the owner's own.
+That is impersonation, and it is the right word for the mechanism.
+
+**It is not the right word for the relation.** An agent acting within conferred
+authority is not pretending to be its principal; its acts bind the principal
+because a grant says they may, and impersonation is precisely acting without
+that. The two descriptions sit at the two levels this corpus already separates:
+impersonation is what capability looks like, agency is the institutional fact,
+and the authorization ledger is what makes the first legitimate and the second
+revocable.
+
+**That is practical rather than terminological.** An agent whose grant has
+lapsed is still mechanically impersonating and is no longer institutionally an
+agent. The gap between those two is what a gate on the grant closes, and this
+route is where an agent could find out which side of it that agent is on.
+
+### New behavior
+
+- `/api/v2/aiagents/me` returning what the ledger holds about the requesting
+  agent: its identifier, its owner, its origin, its state, and its computed
+  display name.
+- **A user asking is refused.** A user acts as no agent, and the asymmetry is
+  the direction of the relation showing through rather than an awkwardness.
+  Agents act for users; users do not act for agents.
+
+### New data
+
+None in the database. The ledger already holds every field, and the display
+name is computed.
+
+**An RBAC resource does not exist**, however. Nothing in `rbac/policy/policy.go`
+names an AI agent, so there is no resource type to authorize a read of one
+against. What that resource is, and whether reading one's own record needs a
+permission at all, is the one real design question in this package.
+
+### Use cases that would earn it
+
+- **Am I still authorized?** The state and the grant. An agent checking before
+  a long or irreversible action, and the case most likely to justify the route.
+- **What am I designated to?** The origin, which is what the workspace
+  designation boundary compares against.
+- **Who am I acting for?** The owner, so an agent can say so in its own output
+  rather than inferring it.
+- **What am I called?** The display name, so that logs an agent writes match
+  logs the server writes about it.
+
+### An open question this route raises about itself
+
+If a gate on the grant refuses unauthorized agents everywhere, an agent that has
+lost its grant cannot ask whether it still has one. **This may be the single
+endpoint that should answer anyway**, so that an agent learns why it is being
+refused rather than only that it is. Deciding that is deciding what an
+unauthorized agent may still be told, which is a question about disclosure and
+not about this route.
+
+### Acceptance tests
+
+**An AI agent asking about itself is told its state, its owner and its origin**,
+none of which comes from a users row.
+
+**A user asking is refused**, and refused as a category error rather than as a
+missing record.
+
+### PoC cheats
+
+Not enumerated; nothing is built. One is foreseeable: the route would resolve
+its subject through `subject.AIAgentID`, which is set by `Subject.AsAIAgent` on
+two of the three paths that build an agent subject and not on the third. Until
+that is uniform, the route would work on some credentials and not others.
+
+## Candidates
+
+Analysed but not scheduled. See the note on candidates above.
+
+### Candidate: resolve "me" from the subject
+
+**Held on 2026-08-23**, Eric: probably better after the demo, and the demo may
+need it, so the analysis is kept rather than the conclusion rederived.
+
+#### Summary
+
+The seven places that resolve `me` take it from the credential's holder. They
+should take it from the request's subject, and refuse when that subject is not a
+user.
+
+#### What forces the work
+
+`me` stands where a user is named, alongside a username and a user id, and
+expresses self reference: the user this request is made by. Every site resolves
+that by taking the credential's holder for a user id.
+
+**For an AI agent the word's parts disagree.** The slot demands a user, the self
+reference denotes the agent, and the resolution looks for a row that may not
+exist. Which of those gives way is the question, and this candidate answers it
+with a principle that already governs elsewhere.
+
+**The principle: an AI agent interacting outward uses its owner's identity.**
+Eric's collaboration group holds this, and the code already implements half of
+it. `AIAgentRBACSubject` sets `subject.ID` to the owner, so every authorization
+decision for an agent is already made as the owner. Attribution rides a separate
+channel, `subject.AIAgentID`, which is the inverse of an on behalf of header and
+was discussed as a `performed-by` field for MCP.
+
+**So the current state is incoherent rather than merely incomplete.**
+Authorization says the owner and `me` says the agent, and those are two rows.
+That is the `users` table's overloading surfacing in a public facing word: `me`
+means the row holding the credential, where everything else means the party
+whose roles apply.
+
+#### The sites, and which is already right
+
+| Site                           | Resolves from | Origin    |
+|--------------------------------|---------------|-----------|
+| `httpmw/userparam.go:91`       | holder        | pre tigre |
+| `workspaces.go:171`            | holder        | pre tigre |
+| `searchquery/search.go:126`    | holder        | pre tigre |
+| `searchquery/search.go:131`    | holder        | pre tigre |
+| `audit.go:67`                  | holder        | pre tigre |
+| `httpapi/queryparams.go:198`   | holder        | pre tigre |
+| `audit.go:74` (`on_behalf_of`) | **subject**   | Jon Ayers |
+
+**The last one is the model.** It reads `httpmw.UserAuthorization(ctx).ID`,
+which for an agent is the owner, and it is the newest of the seven, written
+during the attribution work. The other six are older code that had no reason to
+consider a non user holder. `audit.go` therefore contains both meanings of `me`
+three lines apart.
+
+#### What the check found
+
+`subject.ID` is a users row for every subject that reaches a handler today. The
+workspace agent path sets it to the workspace owner, or to a bound AI agent's
+owner, then builds through `UserRBACSubject`.
+
+**It is not a users row for every subject that could.** `UserAuthorization`
+reads the same context slot `dbauthz.As` writes. Most system subjects carry
+`uuid.Nil`, but `SubjectTypeFileReader` carries a well formed UUID that is not a
+user, and `SubjectTypePrebuildsOrchestrator` carries one that is.
+
+So the rule is **resolve from the subject and refuse when the subject is not a
+user**, not merely resolve from the subject. A system subject in a `me` filter
+would otherwise parse cleanly and match nothing, which is the same silent
+failure by another route. This is the `AsUserIDUnchecked` lesson again: an
+identifier does not say what it denotes.
+
+#### A workspace_agent has its own `me`, in a slot that is not user typed
+
+**`me` already denotes two kinds of party in this codebase.** Under
+`/users/{user}` it is the API key's holder. Under `/api/v2/workspaceagents/me`,
+mounted at `coderd.go:1871`, it is the bearer of an agent token, and the whole
+agent API hangs off it: `/me/rpc`, `/me/ai-egress-policy`, the rest.
+
+That one works, for a reason that names the defect in the other. **The segment
+is not in a user typed slot.** It is a literal in a path about workspace agents,
+so nothing has to be widened, synthesized or refused, and a party that is
+plainly not a user addresses itself with the same word every day.
+
+So a workspace_agent is excluded from the *user* `me`, not from `me`. It is
+excluded twice over: `ExtractWorkspaceAgent` puts no API key in the request
+context, so `userparam.go` answers 400, "Cannot use \"me\" without a valid
+session", and the filter sites read the key through `APIKey`, which panics when
+it is absent and is therefore unreachable rather than wrong. And it has no
+reason to want the user slot, having its own.
+
+**The contrast with the AI agent is the whole lesson.** An AI agent fails
+quietly precisely because it does carry an API key, and a plausible looking one,
+and because it was routed through the user slot rather than given one of its
+own. `/aiagents/me/...` would have been unremarkable.
+
+**Something anticipated an agent reaching user scoped resources.**
+`ScopeNoUserData` exists, is `allPermsExcept(ResourceUser)`, and is applied when
+a workspace agent is bound to an AI agent. An unbound agent gets `ScopeAll` and
+is permitted user reads it has no route to make. **The fence is a scope and not
+an identity**: it removes the permission and says nothing about who `me` would
+mean, so it would not have helped had the plumbing allowed the call.
+
+The occasion that does exist is one level down. A workspace agent hands a
+session token to something inside the workspace, which then uses the CLI. That
+token is an API key held by an AI agent, which is the case above. **So the
+workspace agent is the delivery mechanism for that case rather than a case of
+its own.**
+
+#### The general shape: a keyword in an identifier slot
+
+A third instance settles what the family is.
+`httpmw/organizationparam.go:78` resolves the literal `default` in the
+`{organization}` slot, "to make it easier for single org deployments". The same
+block also resolves a nil UUID to the default organization, as a workaround for
+legacy provisioners, under a TODO from March 2024 saying it should have gone by
+now.
+
+**All of these are a slot typed for one kind of thing accepting a keyword that
+means work it out from context.** That is sound while the context can produce
+only one answer of the right type, and it is what fails when a new kind of party
+appears and the slot's type does not move with it.
+
+`default` differs in one respect worth keeping: it is implied by the deployment,
+where `me` is implied by the credential. A deployment cannot disagree with the
+subject and a credential can, which is why only one of the two has a problem.
+The nil UUID is the same overloading again in a slot typed as an identifier
+rather than as a keyword, which is why it needed a TODO and `default` did not.
+
+**The fix this candidate proposes is the one `/workspaceagents/me` already
+demonstrates**: resolve the keyword against the party the route is about. Under
+`/users` that party is a user, so `me` is the user the request acts as, which
+for an AI agent is its owner.
+
+#### Why the failure is worth fixing rather than tolerating
+
+**It is silent.** Only `userparam.go` fetches a row and gives a 404. The rest
+filter, so `owner:me` becomes an id owning nothing, the query succeeds, and the
+answer is an empty list. Demonstrated in `poc_tests/credential_test.go`:
+`owner:me` for an agent returns no error and no workspaces.
+
+**Nothing has to ask for it.** The credential is delivered into the workspace
+for the `coder` CLI, whose comment calls it the key for in workspace CLI
+actions. The CLI names things as the requester's by default: `cli/ssh.go` and
+`cli/configssh.go` set `Owner` to `me`, among forty one `codersdk.Me` sites
+there. An agent running `coder list` writes no filter and sees nothing.
+
+#### What it does not decide
+
+Whether an AI agent owns user scoped resources of its own. It makes that
+question smaller: if `me` always means the owner, agent owned settings could
+never be reached by that word anyway and would need a vocabulary that does not
+exist yet.
+
+#### Scope against the identity code
+
+**Five of the six edits are in code predating this branch.** The sixth,
+`audit.go:67`, is not Jon's either; his line sits three lines below it and is
+the reference. So this is a sweep over old code with his line as the model, and
+it is separable from the identity rewrite in both directions.
+
+**It does change behaviour for his agents**, which stop getting their own
+synthetic user record back from `me`. That is the intended correction and he
+should hear it as a decision rather than meet it as a surprise.
+
+#### Acceptance test
+
+An AI agent asking for its own workspaces receives the owner's, and asking who
+it is receives the owner. The assertions currently recording the opposite in
+`poc_tests/credential_test.go` are what change, which is the intended signal.
