@@ -459,8 +459,12 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 	// A registered callback may carry its own query, including a state= of its
 	// own. Every parameter this server writes onto that URL replaces what is
 	// there rather than appending to it, so the client reads back one value per
-	// parameter. Appending would hand it two states on these two paths and one
-	// on the error path, and a client is entitled to reject that as malformed.
+	// parameter. Appending would hand it two states, and a client is entitled
+	// to reject that as malformed.
+	//
+	// All three writes are covered: the cancel link, the success redirect, and
+	// the error redirect. The three are separate code paths, so covering two
+	// leaves the third free to regress alone.
 	t.Run("CallbackQueryParamsReplacedNotAppended", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -485,6 +489,20 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []string{authorizeState}, location.Query()["state"],
 			"the success redirect must carry exactly one state")
+
+		// The third write, and the one the two arms above cannot reach. Every
+		// other rejection test registers a callback carrying no query of its
+		// own, so flipping the error redirect back to Add leaves them green.
+		errResp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeOutOfAllowlist)
+		defer errResp.Body.Close()
+		require.Equal(t, http.StatusFound, errResp.StatusCode)
+		errLocation, err := url.Parse(errResp.Header.Get("Location"))
+		require.NoError(t, err)
+		// Pinned so the arm cannot pass on a redirect that failed somewhere
+		// ahead of the error helper.
+		require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), errLocation.Query().Get("error"))
+		require.Equal(t, []string{authorizeState}, errLocation.Query()["state"],
+			"the error redirect must carry exactly one state")
 	})
 }
 
