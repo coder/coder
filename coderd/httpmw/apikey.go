@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/promoauth"
@@ -966,6 +967,57 @@ func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
 
 	// Normalize the URI according to RFC 3986 for consistent comparison
 	return normalizeAudienceURI(audience)
+}
+
+// AIAgentRBACSubject builds an AI agent's rbac.Subject from the AI agent
+// ledger, without the agent being a row in users.
+//
+// **An AI agent acts with its owner's roles.** That is what the code it
+// replaces already did, and it is not a simplification: an agent has no roles
+// of its own, and the policy confines it by the acting identity rather than by
+// narrowing what it inherits. The subject's ID therefore stays the owner's, and
+// changing it would break every ownership comparison in the policy. What marks
+// the subject as an agent is its type and its acting identity, per "An AI agent
+// never authorizes as itself" in poc_audit/rewrite_rbac.md.
+//
+// **Only an active AI agent gets a subject.** A retired one has no authority
+// left to exercise, and a dormant one is not running and has no business
+// holding a subject: neither should be able to act, and refusing here is
+// earlier and plainer than confining them afterwards.
+//
+// The returned status is the owner's, the agent having no status of its own
+// beyond its ledger state, which this has already required to be active.
+func AIAgentRBACSubject(ctx context.Context, db database.Store, agentID uuid.UUID, scope rbac.ExpandableScope) (rbac.Subject, database.UserStatus, error) {
+	//nolint:gocritic // Reading the ledger to authenticate is the system's act.
+	agent, err := db.GetAIAgentLedgerRowByID(dbauthz.AsSystemRestricted(ctx), agentID)
+	if err != nil {
+		return rbac.Subject{}, "", xerrors.Errorf("get AI agent: %w", err)
+	}
+	if agent.State != entity.AIAgentStateActive {
+		return rbac.Subject{}, "", xerrors.Errorf("AI agent %s is %s", agentID, agent.State)
+	}
+	// Roles come from a user, so an owner that is not one has none to lend.
+	// The ledger admits any kind of owner because ownership is not a claim
+	// about roles; this is where that generality meets what RBAC can read.
+	if agent.OwnerType != string(entity.TypeUser) {
+		return rbac.Subject{}, "", xerrors.Errorf("AI agent %s is owned by a %s, which has no roles to act with", agentID, agent.OwnerType)
+	}
+
+	subject, status, err := UserRBACSubject(ctx, db, agent.OwnerID, scope)
+	if err != nil {
+		return rbac.Subject{}, "", xerrors.Errorf("build the owner's subject: %w", err)
+	}
+
+	// AsAIAgent rather than assignment to the fields: both are policy inputs,
+	// and the cached AST value has to be rebuilt or the authorizer decides
+	// against the subject as it was before the decoration.
+	//
+	// The acting identity is this work's identifier for the agent. Designation
+	// matching compares it against what a workspace records, so the two have to
+	// name the agent the same way, which is part of rewriting the identity code
+	// rather than something this function can arrange.
+	name := entity.DisplayName(entity.OriginType(agent.OriginType), agent.ID)
+	return subject.AsAIAgent(agent.ID, name), status, nil
 }
 
 // UserRBACSubject fetches a user's rbac.Subject from the database. It pulls all roles from both
