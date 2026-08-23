@@ -79,7 +79,7 @@ Create a namespace and store the gateway key in a Kubernetes Secret:
 kubectl create namespace coder-ai-gateway
 kubectl create secret generic coder-ai-gateway-key \
   --namespace coder-ai-gateway \
-  --from-literal=key='<gateway key>'
+  --from-literal=key='<gateway_key>'
 ```
 
 ### Configure the Helm chart
