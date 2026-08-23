@@ -1057,3 +1057,243 @@ should hear it as a decision rather than meet it as a surprise.
 An AI agent asking for its own workspaces receives the owner's, and asking who
 it is receives the owner. The assertions currently recording the opposite in
 `poc_tests/credential_test.go` are what change, which is the intended signal.
+
+## WP9. The AI agent ledger becomes the identity
+
+### Summary
+
+The ledger holds everything `ai_agents` holds, every column that refers to an AI
+agent refers to the ledger, and the constraint the identity code enforces over
+agents moves to the container it is really about.
+
+### Status
+
+Not started. First of the work replacing the AI identity code, and the largest
+piece of data model change in it.
+
+### What forces the work
+
+`ai_agents` is keyed on `users.id` and duplicates the ledger almost entirely:
+owner and creation site are in both, `deleted` is a coarse `state`, and
+`created_at` is the creation entry's effective date. **Nothing in it is unique
+except a constraint**, and that constraint is stated over the wrong entity.
+
+Until the ledger holds the rest and the referents point at it, the ledger
+describes an AI agent while another table is the one the system believes.
+
+### New behavior
+
+- The ledger answering owner, creation site, creation time and state without
+  `ai_agents` being consulted.
+- **The ledger minting the identifier**, with the users row and `ai_agents` row
+  written under it by `aiagentidentity.MirrorAIAgent`. Today they mint and the
+  ledger has nothing to do with them.
+- Four columns referring to an AI agent referring to the ledger's identifier.
+- A chat tree refusing a second live occupant.
+- **Creating a sandbox occupying it, and soft deleting one vacating it.**
+  Vacating has no representation today, so a sandbox that is gone and a sandbox
+  that is empty are the same row.
+
+### New data
+
+**Rename `origin_type` and `origin_id` to `creation_site_type` and
+`creation_site_id`**, on `ai_agent_ledger` and on
+`ai_agent_lifecycle_journal_create`. Origin is Jon's word for the same thing and
+creation site is ours, per the term list. **Define the term in
+`entity_model.md` before the rename lands**, so the schema does not carry a word
+the model has never defined; this is the failure mode that produced a wrong
+paragraph about sandboxes.
+
+**Add `creation_time` to `ai_agent_ledger`**, folded from the `create` entry's
+effective date. Nothing is added to the journal: the effective date of a
+creation is when the agent came into being, and a second column beside it would
+record one fact twice.
+
+**Add `occupancy_count` to `chats`**, `integer NOT NULL DEFAULT 0`, with
+`CHECK (root_chat_id IS NULL OR occupancy_count = 0)`.
+
+This replaces `idx_ai_agents_origin`, which enforces one live agent per creation
+site as a uniqueness rule over agents. It is a fact about the site, and belongs
+there per "Capacity belongs to the container" in `entity_model.md`.
+
+**The container is the chat tree, not the chat.** `chatd.go`'s
+`chatAIAgentOriginID` resolves a sub-chat to its root, so one agent has always
+served a whole tree. The tree is an entity with no data structure, and the root
+chat's identifier stands in for an identifier it does not have, which is why
+data about the tree lives in the root chat's row. **That goes in the code as a
+comment carrying a note that the comment can migrate to corpus.**
+
+**Enforcement is a conditional update aimed at the root**, not a constraint:
+incrementing where the count is zero, and no rows affected meaning occupied.
+The `CHECK` is a backstop against a caller that failed to resolve to the root,
+which is a bug rather than a legitimate posting, per "A ledger constraint that
+can refuse a posting is the wrong mechanism".
+
+**Add `occupancy_count` to `ai_sandboxes` on the same terms.** A sandbox is a
+container of the same kind and gets the same treatment, with no root and
+non-root split because there is no tree: one row is one sandbox. Enforcement is
+the same conditional update, aimed at the sandbox itself.
+
+**No `CHECK` on the sandbox count.** A ceiling constraint was considered, on
+the ground that a sandbox's ceiling of one follows from what a sandbox is for
+and is therefore Established rather than policy. Eric, 2026-08-23: omit it, the
+table not being one we need to worry about for long. The conditional update is
+the mechanism in both cases and the backstop buys little on a table expected to
+become a ledger within the week.
+
+**Today the sandbox count coincides with `deleted`, and that is a reason to
+record it rather than not.** No query updates `ai_sandboxes.ai_agent_id`: a
+sandbox is created with an occupant and soft deleted, never emptied. So the
+count is one while live and zero after, which `deleted` already tells you.
+
+They are different facts that currently coincide. **A soft deleted sandbox is
+gone; an unoccupied sandbox is empty**, and they coincide only because nothing
+empties a sandbox without deleting it. Recording both says which is which, so
+that the day something does empty one, nobody has to work out which of the two
+`deleted` had been standing for.
+
+It also states the occupancy that `ai_agent_id NOT NULL` currently implies,
+which is what would let that constraint go without losing the fact.
+
+**For a chat tree the count enforces; for a sandbox it records**, and the
+difference is worth knowing before someone reads the two as one mechanism. A
+sandbox's occupant is a single column set at insert, so a second occupant is
+structurally impossible and the ceiling protects nothing. What the count adds
+there is **vacating**, which has no representation at all today: soft deleting a
+sandbox empties it, and nothing says so.
+
+### The ledger mints, and `ai_agents` mirrors
+
+**The package does not work without this**, which was not obvious when it was
+scoped. Repointing a referent at the ledger while `aiagentidentity.Create` still
+writes a users identifier into it fails on the next agent created. The two
+halves, repoint the referents and do not replace `Create`, cannot both hold as
+stated.
+
+**So `entity.CreateAIAgent` mints, and the two legacy rows are written under
+the identifier it returns.** One identity, three tables, one transaction.
+
+**`aiagentidentity.Create` splits rather than being renamed.** After this change
+it no longer creates the identity, so a name saying it does would describe what
+it used to do. What remains of it is writing two rows that mirror what the
+ledger holds, and `MirrorAIAgent` says that. Its callers, `chatd.go` and
+`createWorkspaceOrigin`, then read as two steps:
+
+```go
+created, _ := entity.CreateAIAgent(ctx, tx, params)
+user, agent, _ := aiagentidentity.MirrorAIAgent(ctx, tx, created.ID, params)
+```
+
+Which is worth more than tidiness. **The call site shows which of the two is the
+identity**, and later work deletes a line rather than untangling a function.
+
+Three things follow, and together they are why this is the fix rather than
+dropping either half.
+
+- **The two identifier spaces become one.** A referent pointing at
+  `ai_agents.user_id` points at `ai_agent_ledger.id`, they being the same value.
+- **Backfill stops being a decision.** One ledger row per existing `ai_agents`
+  row, under the same identifier, and every referent is already valid.
+- **It is a step toward the substitution rather than a detour.** Later work
+  deletes the second and third writes; nothing gets rewired.
+
+**This is WP4's mirror with the authority reversed.** There the ledger mirrored
+into `api_keys`; here the legacy tables mirror from the ledger. It carries the
+same known cost, one way and silent about divergence on the paths it does not
+cover, and the same mitigation: it is bounded to one increment and recorded as
+an interim rather than read as the ledger being authoritative.
+
+### The four referents
+
+| Column                            | Today                      |
+|-----------------------------------|----------------------------|
+| `workspaces.ai_agent_id`          | FK to `ai_agents(user_id)` |
+| `workspace_agents.ai_agent_id`    | FK to `ai_agents(user_id)` |
+| `ai_sandboxes.ai_agent_id`        | FK to `ai_agents(user_id)` |
+| `ai_sandbox_sessions.ai_agent_id` | column and index, no FK    |
+
+All four come to hold a ledger identifier. `audit_logs.on_behalf_of_user_id` is
+not among them: it holds the owner, who is a user, and does not move.
+
+**Existing rows are handled by the backfill above** rather than by a decision
+between backfill and discard. That choice existed only while the two identifier
+spaces were separate, and the minting change removes it.
+
+### What this package does not do
+
+**It does not drop `ai_agents`.** Its writers are `aiagentidentity.Create` and
+the orphan sweep, and replacing those is later work. What changes is which of
+them is authoritative: after this package the ledger mints and `ai_agents`
+follows, so dropping it later removes a mirror rather than an identity.
+
+**It does not touch the sandbox `NOT NULL`.** `ai_sandboxes.ai_agent_id` cannot
+be null, which contradicts the Established position that a sandbox may hold
+none transiently. It may never bite, the sandbox row being created where the
+agent is already in hand, and the table is expected to become a ledger shortly.
+The occupancy count above is what makes dropping it cheap when the time comes.
+
+**It does not give `workspaces` an occupancy count.** A workspace is a creation
+site by the recorded type set, so the omission is an asymmetry rather than a
+principle. It is the heaviest table in the schema, nothing in this work needs
+the count there, and adding it can wait for something that does.
+
+### Acceptance tests
+
+**Every question `ai_agents` answers, the ledger answers**, for an agent this
+work created: owner, creation site, creation time, state.
+
+**A chat tree admits one live agent, and so does a sandbox.** A second is
+refused by the posting returning no rows, not by an error from the storage
+engine.
+
+**A non-root chat cannot carry an occupancy count**, which the constraint
+enforces and a test asserts, since the constraint is the only thing keeping the
+column meaningful on the rows it is meaningless for.
+
+**A soft deleted sandbox is distinguishable from a live one by occupancy**, and
+not only by `deleted`. This is the assertion that makes the sandbox count worth
+having rather than a symmetry with chats, and today it fails for want of
+anything to assert against.
+
+**An agent created through the identity code has a ledger row under the same
+identifier**, which is what makes every referent valid and is the assertion the
+mirror exists to satisfy.
+
+**The four referents resolve against the ledger**, which is a schema assertion
+rather than a behavioural one.
+
+### PoC cheats
+
+**A credential is issued that nobody will ever present.**
+`entity.CreateAIAgent` does three things in one transaction: records the
+creation, grants authorization, and issues a password credential. Once the
+identity code mints through it, every AI agent acquires that credential, and
+`MintKey` then issues an `api_key` credential beside it that is the one actually
+used. So each agent carries two, one of them inert.
+
+Eric, 2026-08-23: leave it. **This pass is about the AI agent entity**, and
+pulling the credential apart to avoid one unused row would drag part of a later
+phase into this one.
+
+**The bundling is scaffolding, not a design position**, which matters for how it
+comes apart. Eric: `CreateAIAgent` was built to exercise end to end flow of
+control for WP1, and **there is no design reason to keep credential issuance in
+it long term.** So the eventual split removes something that was never argued
+for, rather than reversing a decision.
+
+**The grant stays, and only for a reason that has an expiry.** Eric: it can stay
+there for now, but only because all grants are universal. A universal grant
+takes no parameters, so creation can imply one without deciding anything. **A
+scoped grant is a decision, and a decision cannot be a side effect of creating
+the thing it is about.** When a scoped grant exists, the grant leaves
+`CreateAIAgent` the same way the credential does.
+
+That conditional is easy to lose, so it goes in the code as well, on
+`CreateAIAgent` itself, which is where somebody introducing a scoped grant will
+be standing.
+
+**A pre-existing gap is made more visible by this package without being caused
+by it.** `MintKey` writes `api_keys` directly and never reaches the credential
+ledger, so the credential an agent actually uses is absent from the ledger while
+the inert one is in it. WP4 moved our own issuance onto the ledger and this path
+was never ours. It is Phase 3's to close.

@@ -144,6 +144,19 @@ type NewAIAgent struct {
 // three different things happening to three different entities. All are written
 // in this transaction, so nothing is left to reconcile between them.
 //
+// **The three are together because WP1 needed to exercise end to end flow of
+// control, not because anything argues they belong together.** Two of them are
+// expected to leave.
+//
+// Issuing a credential has no long term reason to be here at all, and the work
+// package that moves it is not yet written.
+//
+// **The grant may stay only while every grant is universal.** A universal grant
+// takes no parameters, so creating an AI agent can imply one without deciding
+// anything. A scoped grant is a decision, and a decision cannot be a side
+// effect of creating the thing it is about. So whoever introduces a scoped
+// grant has to take the grant out of here in the same pass.
+//
 // store may be a transaction handle. Given one, this joins it and commits
 // nothing itself, so that creation can be made atomic with work that is not
 // creation. Given a plain store, it opens its own.
