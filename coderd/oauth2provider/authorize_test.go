@@ -55,7 +55,7 @@ func TestOAuthConsentFormIncludesCSRFToken(t *testing.T) {
 func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
 	t.Parallel()
 
-	render := func(t *testing.T, scopes []string) string {
+	render := func(t *testing.T, scopes []string, unrestricted bool) string {
 		t.Helper()
 		req := httptest.NewRequest(http.MethodGet, "https://coder.com/oauth2/authorize", nil)
 		rec := httptest.NewRecorder()
@@ -66,6 +66,7 @@ func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
 			CSRFToken:    "csrf-field-value",
 			Username:     "test-user",
 			Scopes:       scopes,
+			Unrestricted: unrestricted,
 		})
 		require.Equal(t, http.StatusOK, rec.Result().StatusCode)
 		return rec.Body.String()
@@ -74,7 +75,7 @@ func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
 	t.Run("NarrowScopeListed", func(t *testing.T) {
 		t.Parallel()
 
-		body := render(t, []string{"workspace:ssh", "template:read"})
+		body := render(t, []string{"workspace:ssh", "template:read"}, false)
 		assert.Contains(t, body, "workspace:ssh")
 		assert.Contains(t, body, "template:read")
 		assert.NotContains(t, body, "full access",
@@ -92,12 +93,24 @@ func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
 	t.Run("UnrestrictedStaysFullAccess", func(t *testing.T) {
 		t.Parallel()
 
-		body := render(t, nil)
+		body := render(t, nil, true)
 		assert.Contains(t, body, "full access")
 		assert.NotContains(t, body, `id="scope-list"`)
 		// The disclaimer qualifies the list, so it has nothing to say on a
 		// page that renders no list.
 		assert.NotContains(t, body, `id="scope-disclaimer"`)
+	})
+
+	// An empty list and an unrestricted grant are opposite facts, and the page
+	// decides between them on Unrestricted alone. Were it to fall back to the
+	// length of Scopes, the grant carrying no permission at all would be the
+	// one described as full access.
+	t.Run("EmptyScopesAreNotFullAccess", func(t *testing.T) {
+		t.Parallel()
+
+		body := render(t, []string{}, false)
+		assert.NotContains(t, body, "full access",
+			"a grant carrying no permission must not be described as full access")
 	})
 }
 

@@ -799,9 +799,17 @@ type RenderOAuthAllowData struct {
 	CSRFToken    string
 	Username     string
 	// Scopes are the permissions the authorization will carry, listed for the
-	// user before they approve it. Nil states unrestricted access instead,
-	// since the name a full grant carries is not one a user would recognize.
+	// user before they approve it.
 	Scopes []string
+	// Unrestricted states that the authorization carries full account access.
+	// The page says so in prose rather than listing Scopes, since the name a
+	// full grant carries is not one a user would recognize.
+	//
+	// It is a field of its own rather than an empty Scopes because those are
+	// two different grants: one carrying every permission and one carrying
+	// none. Deciding between them by list length would announce full access
+	// for the emptier of the two.
+	Unrestricted bool
 }
 
 // RenderOAuthAllowPage renders the static page for a user to "Allow" an create

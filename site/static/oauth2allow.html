@@ -128,7 +128,7 @@ links */}}
         <img class="coder-svg" src="/icon/coder.svg" alt="Coder" />
       </div>
       <h1>Authorize {{ .AppName }}</h1>
-      {{- if .Scopes }}
+      {{- if not .Unrestricted }}
       <p id="description">
         Allow {{ .AppName }} to access your
         <span class="user-name">{{ .Username }}</span> account with these
