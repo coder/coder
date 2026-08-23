@@ -92,7 +92,7 @@ For more details, see [Configuring proxy settings for Copilot](https://docs.gith
 Add the AI Gateway Proxy CA certificate to your operating system's trust store.
 By default, VS Code loads system certificates, controlled by the `http.systemCertificates` setting.
 
-See [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#trust-the-ca-certificate) for details on how to obtain the certificate file.
+Check out [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#trust-the-ca-certificate) for details on how to obtain the certificate file.
 
 When [TLS is enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, add the TLS certificate to the system trust store as well.
 
