@@ -87,6 +87,42 @@ of principal and agent. That sense is the oldest of the three and the origin of
 the others, so it holds the unmodified word. The other two senses are always
 qualified: `workspace_agent` written in full, and "AI agent" written in full.
 
+**Creation site.** What an agent was created in, recorded as a
+`(type, identifier)` pair because the thing is of more than one kind.
+
+There are three kinds of agent, of which two have a creation site.
+
+| Agent               | Creation site |
+|---------------------|---------------|
+| AI agent, sandboxed | yes           |
+| Chat agent          | yes           |
+| `workspace_agent`   | no            |
+
+The first two are both AI agents in the sense given above, and are different
+entities because one is sandboxed and the other is not. A `workspace_agent` is
+not an AI agent at all, and is made by a build rather than created in a site.
+
+Two kinds of site exist today.
+
+| Site        | Kind        |
+|-------------|-------------|
+| A workspace | `workspace` |
+| A chat tree | `chat`      |
+
+A sandboxed AI agent is created in a workspace, and a chat agent is created in a
+chat tree. How many agents a site may hold is a question about the site, and is
+under "Capacity belongs to the container".
+
+**A creation site is a fact of the creation event, and not a statement of where
+the agent now is.** Today the two cannot disagree. An agent is created in a
+site, runs there, and ceases there, so its site is also its whereabouts for the
+whole of its life, and no one reading the pair could tell which of the two it
+meant. The reason to say which it means is that the pair is written once and
+never revised. Were an agent able to cease in one place and be reconstituted in
+another, the pair would go on naming the site it came from, and would be wrong
+about the site it was in. That is a coming distinction and not a present one,
+but the datum is already the kind that survives it.
+
 **Authenticator.** Something a holder possesses and controls, used to
 authenticate it. A password is one. The term is NIST's, from SP 800-63, along
 with the three below.
@@ -1531,6 +1567,25 @@ already has when it writes three entries to three journals.
 journaled to live and a column on the site's table is what is available. That is
 an interim and should be recorded as one: the eventual form is a site with its
 own ledger, and occupancy posted to it.
+
+**At most one live agent per site needs research before code leans on it.**
+Three things about the claim are unsettled.
+
+- **Nothing enforces liveness.** The unique index in the identity code is on the
+  creation site alone, so it bounds agents per site at one over all time rather
+  than one at a time. A site whose agent has been retired can never have
+  another. Whether that is intended, or is an artifact of expressing a capacity
+  as a uniqueness rule over the content, is not known.
+- **Not every site has one**, and a ceiling says nothing about a floor. A
+  workspace gets an agent only when its build opts in, and most never do. A
+  count that starts at zero and may stay there is a different thing from a slot
+  filled at the site's creation, and the two are hard to tell apart in a schema.
+- **A workspace holds many sandboxes and resolves to one agent.** If a sandbox
+  holds one actor at a time, and every sandbox in a workspace shares that
+  workspace's agent, then either one agent is in several sandboxes at once,
+  which "The sandbox as a container" forbids, or the workspace is the wrong site
+  to hold the count. This bears on "An AI agent's lifespan is contained in its
+  sandbox's" below and is not resolved here.
 
 ### An AI agent's lifespan is contained in its sandbox's
 
