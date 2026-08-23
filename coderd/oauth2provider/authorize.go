@@ -27,47 +27,36 @@ import (
 	"github.com/coder/coder/v2/site"
 )
 
-// Rejection reasons from negotiateScope. They are sentinels rather than inline
-// messages so a caller, and the tests, can tell which check failed without
-// matching on message text.
-//
-// Each is wrapped with the offending value ahead of it, because xerrors only
-// wraps without repeating the sentinel's own text when %w is the final verb.
-// These messages are rendered into error_description, so a doubled one is read
-// by a person.
+// Rejection reasons from negotiateScope. These are rendered into
+// error_description, and each is wrapped as `%q: %w` with the offending value
+// ahead of it: xerrors only avoids repeating the sentinel's own text when %w
+// is the final verb.
 var (
-	// errUnknownScope is returned for a scope name outside the external scope
+	// errUnknownScope covers a requested name outside the external scope
 	// catalog, whether unrecognized entirely or recognized but internal-only.
 	errUnknownScope = xerrors.New("unknown or unsupported scope")
-	// errNoGrantableScope is returned when every entry of the app's allowlist
-	// falls outside the catalog, leaving nothing the app can be granted. The
-	// request is not at fault here and may have carried no scope at all, so
-	// the message names the registered list and points at the remedy without
-	// prescribing a route to it: an admin edits the app, and a dynamically
-	// registered client updates itself through RFC 7592.
+	// errNoGrantableScope covers an allowlist whose every entry falls outside
+	// the catalog. The remedy is left unprescribed: an admin edits the app, a
+	// dynamically registered client updates itself through RFC 7592.
 	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; change the app's registered scopes to supported ones")
-	// errScopeNotAllowed is returned for a catalog scope whose permissions the
-	// app's allowlist does not cover. Phrased as coverage rather than list
-	// membership, because a scope absent from the allowlist by name is still
-	// granted when a listed composite already confers it.
+	// errScopeNotAllowed is phrased as coverage rather than list membership,
+	// because a scope the allowlist does not name is still granted when a
+	// listed composite already confers it.
 	errScopeNotAllowed = xerrors.New("scope requests permissions beyond this app's allowed scopes")
-	// errCoverageUndecidable is returned when the allowlist and the request
-	// cannot be compared at all. That is a deployment-side condition, not
-	// something the client can correct by asking differently, and the
-	// comparison's own error names RBAC internals, so it is logged rather
-	// than rendered into error_description.
+	// errCoverageUndecidable covers a comparison that failed outright. The
+	// underlying error names RBAC internals, so it is logged rather than
+	// rendered into error_description.
 	errCoverageUndecidable = xerrors.New("scope coverage against this app's allowed scopes could not be determined")
 )
 
 // canonicalScopes rewrites each name to the spelling the api_key_scope enum
-// stores and drops repeats, preserving the order of first appearance.
+// stores and drops repeats, preserving the order of first appearance. It
+// neither validates nor filters: callers check rbac.IsExternalScope separately.
 //
-// It neither validates nor filters: callers check rbac.IsExternalScope
-// separately. Canonicalization is required because rbac.IsExternalScope
-// accepts the aliases `all` and `application_connect`, which are not enum
-// members, so persisting a validated name verbatim can write a value the
-// column's vocabulary does not contain. Deduplicating here keeps the stored
-// value set-valued, which is what a space-separated scope denotes.
+// Canonicalization matters because rbac.IsExternalScope accepts the aliases
+// `all` and `application_connect`, which are not enum members, so persisting a
+// validated name verbatim can write a value the column's vocabulary does not
+// contain.
 func canonicalScopes(names []string) []string {
 	canonical := make([]string, 0, len(names))
 	for _, name := range names {
@@ -77,12 +66,9 @@ func canonicalScopes(names []string) []string {
 }
 
 // noScopeAllowlist reports whether an app has no scope allowlist configured.
-// NULL and "" are one state, and this is the only place the two are unified:
-// admin-created apps store sql.NullString{} (apps.go), while DCR-registered
-// apps store Valid: true carrying a possibly-empty req.Scope
-// (registration.go). Once the allowlist decides what a token may do, reading
-// it is an authorization decision, so the two encodings route through one
-// predicate rather than each caller flattening via .String.
+// NULL and "" are one state: admin-created apps store sql.NullString{}
+// (apps.go), while DCR-registered apps store Valid: true carrying a
+// possibly-empty req.Scope (registration.go).
 //
 // A whitespace-only allowlist is deliberately not this state. It is a
 // configured value that grants nothing, so it falls through to
@@ -93,9 +79,9 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 }
 
 // negotiateScope decides the scope the authorization code will carry. Every
-// requested name must be in the external scope catalog (RFC 6749 §4.1.2.1
-// invalid_scope), and the request must be covered by the app's configured
-// allowlist.
+// requested name must be in the external scope catalog, and the request must
+// be covered by the app's configured allowlist. A rejection is an RFC 6749
+// §4.1.2.1 invalid_scope.
 //
 // What each branch returns:
 //
@@ -105,28 +91,18 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 //	present    absent   the allowlist, catalog-filtered (RFC 6749 §3.3 default)
 //	present    present  the request, once shown to be within the allowlist
 //
-// An allowlist is absent when NULL or empty, which noScopeAllowlist treats as
-// one state. An allowlist whose every entry falls outside the catalog is
-// rejected rather than read as absent, since falling back there would grant
-// strictly more than the allowlist ever permitted.
+// An allowlist whose every entry falls outside the catalog is rejected rather
+// than read as absent, since falling back there would grant strictly more than
+// the allowlist ever permitted.
 //
-// The return value is written directly to a NOT NULL column whose CHECK
-// constraint also rejects the empty string, so it is a string rather than a
-// []string, and it is never empty alongside a nil error. Its names are
-// canonical api_key_scope spellings and carry no duplicates, so the value can
-// be stored as that enum without further rewriting.
-//
-// The whole app is taken rather than just its scope because a coverage failure
-// is a deployment-side fault, and the log line that records it is only useful
-// if it names the app that provoked it.
+// The result is written directly to a NOT NULL column whose CHECK also rejects
+// the empty string, so it is never empty alongside a nil error, and its names
+// are canonical api_key_scope spellings carrying no duplicates.
 func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, requested []string) (string, error) {
-	// Only names in the external scope catalog (rbac.IsExternalScope) are
-	// user-requestable. That is a curation, not a validity check: RBAC can
-	// expand internal-only names such as debug_info:read just fine, and the
-	// api_key_scope enum would store them, which is exactly why the catalog
-	// exists as a narrower list. Checking here keeps both an unrecognizable
-	// name and an internal-only one out of the granted scope, whether or not
-	// the app has an allowlist to check against.
+	// The catalog is a curation, not a validity check: RBAC can expand
+	// internal-only names such as debug_info:read, and the api_key_scope enum
+	// would store them. Only catalog names are client-requestable, whether or
+	// not the app has an allowlist to check them against.
 	for _, s := range requested {
 		if !rbac.IsExternalScope(rbac.ScopeName(s)) {
 			return "", xerrors.Errorf("%q: %w", s, errUnknownScope)
@@ -140,17 +116,16 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	if noScopeAllowlist(app.Scope) {
 		if len(requested) == 0 {
 			// Unrestricted, the same grant this app got before scope
-			// enforcement existed, but stated explicitly: an empty string
+			// enforcement existed, stated explicitly because an empty string
 			// would violate the column's CHECK.
 			return string(database.ApiKeyScopeCoderAll), nil
 		}
 		return strings.Join(granted, " "), nil
 	}
 
-	// Filter the allowlist through IsExternalScope before it is used for
-	// anything. The allowlist was stored at registration time and may contain
-	// a scope name since removed from the curated catalog, or never in it at
-	// all. Filtering only ever narrows what is granted.
+	// The allowlist was stored at registration time and may name a scope since
+	// removed from the catalog, or never in it. Filtering only ever narrows
+	// what is granted.
 	allowed := strings.Fields(app.Scope.String)
 	filtered := make([]string, 0, len(allowed))
 	for _, a := range allowed {
@@ -159,17 +134,12 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 		}
 	}
 	if len(filtered) == 0 {
-		// The app has an allowlist, but no entry in it is grantable.
-		// Returning the unrestricted sentinel here would grant strictly more
-		// than the allowlist ever permitted, so reject instead. This is the
-		// all-entries-dropped counterpart to the single-stale-entry case the
-		// filter above handles, and it must not share the no-allowlist
-		// branch's fallback.
+		// Falling through to the no-allowlist branch would grant strictly more
+		// than this allowlist ever permitted.
 		//
-		// Named with the stored value verbatim, since that is what was
-		// registered and what the app owner has to change. Rejoining the
-		// filter's input instead would render a whitespace-only allowlist as
-		// "", naming nothing for the one configuration that most needs it.
+		// The message names the stored value verbatim rather than rejoining
+		// the filter's input, which would render a whitespace-only allowlist
+		// as "" for the one configuration that most needs naming.
 		return "", xerrors.Errorf("%q: %w", app.Scope.String, errNoGrantableScope)
 	}
 	// Canonicalized so both sides expand: rbac.ExpandScope knows `coder:all`
@@ -181,12 +151,9 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	}
 
 	// The allowlist is a ceiling on authority, not a menu of spellings, so the
-	// check is permission coverage rather than name membership. An app allowed
+	// check is permission coverage rather than name membership: an app allowed
 	// `coder:workspaces.access` can approve a client asking only for
-	// `workspace:read`, which the composite already grants; under name
-	// matching that client's only route to a token was to request the broader
-	// composite instead. Coverage runs against the filtered allowlist, not the
-	// raw one, so a dropped entry grants nothing.
+	// `workspace:read`, which that composite already grants.
 	allowedNames := make([]rbac.ScopeName, 0, len(filtered))
 	for _, a := range filtered {
 		allowedNames = append(allowedNames, rbac.ScopeName(a))
@@ -194,11 +161,9 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	for _, s := range granted {
 		covered, err := rbac.ScopesCover(allowedNames, rbac.ScopeName(s))
 		if err != nil {
-			// Coverage could not be decided, so the request is refused rather
-			// than granted on an incomplete comparison. The comparison's own
-			// error names RBAC internals the client can do nothing with, so it
-			// goes to the log alongside the app that provoked it, and only the
-			// sentinel reaches error_description.
+			// Refuse rather than grant on an incomplete comparison. The
+			// underlying error names RBAC internals the client can do nothing
+			// with, so it goes to the log alongside the app that provoked it.
 			logger.Warn(ctx, "oauth2 scope coverage could not be determined",
 				slog.Error(err),
 				slog.F("app_id", app.ID.String()),
@@ -346,12 +311,10 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 			return
 		}
 
-		// Reject a scope the app can never be granted before the consent page
-		// renders, rather than after the user clicks Allow. Both handlers run
-		// the check for that reason: this one to decide whether the page
-		// renders at all, the POST side to persist the result. The two
-		// negotiate the same query string, since the consent form posts back
-		// to this URL.
+		// Negotiate here as well as on POST, so a request that cannot succeed
+		// fails before the consent page renders rather than after the user
+		// clicks Allow. The consent form posts back to this URL, so both
+		// handlers see the same query string and reach the same decision.
 		if _, err := negotiateScope(r.Context(), logger, app, params.scope); err != nil {
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusBadRequest,
@@ -489,11 +452,10 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 				CodeChallengeMethod: sql.NullString{String: params.codeChallengeMethod, Valid: params.codeChallengeMethod != ""},
 				StateHash:           hashOAuth2State(params.state),
 				RedirectUri:         sql.NullString{String: params.redirectURL.String(), Valid: params.redirectURIProvided},
-				// The negotiated scope, not the requested one: it has been
-				// checked against the scope catalog and the app's allowlist.
-				// The exchange copies it onto the token row but does not yet
-				// put it on the API key it mints, so what is recorded here is
-				// what was agreed, not yet what is enforced.
+				// The negotiated scope, not the requested one. The exchange
+				// copies it onto the token row but does not yet put it on the
+				// API key it mints, so this records what was agreed, not yet
+				// what is enforced.
 				Scope: grantedScope,
 			})
 			if err != nil {
