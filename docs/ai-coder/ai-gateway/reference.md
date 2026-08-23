@@ -51,7 +51,7 @@ The current AI Gateway API version is defined in [`coderd/aibridged/proto/versio
 AI Gateway API compatibility follows these rules:
 
 - The gateway and `coderd` AI Gateway API major versions must match.
-- The gateway AI Gateway API minor version must be less than or equal to the `coderd` AI Gateway API minor version.
+- The gateway's AI Gateway API minor version must be less than or equal to the `coderd` instance's AI Gateway API minor version.
 - `coderd` rejects a standalone gateway that advertises a newer AI Gateway API minor version.
 
 A rejected replica receives an HTTP 400 response that reports the `client_api_version` and `server_api_version` values.
