@@ -351,6 +351,31 @@ blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`). Update the
 application's callback URL to a valid scheme (see
 [Callback URL schemes](#callback-url-schemes)).
 
+### "invalid_scope" returned to your callback
+
+The authorization endpoint validates the `scope` parameter. When it cannot
+grant what was asked for, it redirects to your registered callback with
+`error=invalid_scope` rather than issuing a code. The `error_description`
+opens with the name that caused the rejection:
+
+- `unknown or unsupported scope`: this deployment does not offer that scope
+  name. Read the current list from `scopes_supported` in
+  `GET /.well-known/oauth-authorization-server`.
+- `scope requests permissions beyond this app's allowed scopes`: the name is
+  supported, but the application was registered with a narrower `scope`.
+  Request less, or re-register the application with a wider one.
+- `none of the scopes registered for this app are supported by this
+  deployment`: the application's own registered `scope` names nothing this
+  deployment offers, so no request against it can succeed, including one
+  that omits `scope`. Re-register the application with supported scopes.
+
+Omitting `scope` requests the application's registered scopes, or full access
+if it was registered without any.
+
+The negotiated scope is recorded on the authorization and shown on the consent
+page. It does not yet restrict what the issued token can do (see
+[Limitations](#limitations)).
+
 ### "PKCE verification failed"
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.
