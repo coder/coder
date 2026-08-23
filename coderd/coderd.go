@@ -1438,12 +1438,12 @@ func New(options *Options) *API {
 
 		r.Route("/organizations/{organization}/chats/models", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.With(httpmw.ExtractChatModelOrganizationParam(options.Database)).Get("/", api.listChatModelConfigsByOrganization)
+			r.With(httpmw.ExtractOrganizationParam(options.Database)).Get("/", api.listChatModelConfigsByOrganization)
 			r.With(httpmw.ExtractOrganizationParam(options.Database)).Post("/", api.createChatModelConfig)
-			r.With(httpmw.ExtractChatModelOrganizationParam(options.Database)).Get("/available", api.listChatModelAvailability)
+			r.With(httpmw.ExtractOrganizationParam(options.Database)).Get("/available", api.listChatModelAvailability)
 			r.Route("/{model}", func(r chi.Router) {
 				r.Use(
-					httpmw.ExtractChatModelOrganizationParam(options.Database),
+					httpmw.ExtractOrganizationParam(options.Database),
 					httpmw.ExtractChatModelConfigParam(options.Database),
 				)
 				r.Get("/", api.getChatModelConfig)

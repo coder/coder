@@ -338,7 +338,7 @@ func TestChatModelACLLockFailure(t *testing.T) {
 }
 
 //nolint:tparallel,paralleltest // Subtests share one model and run sequentially.
-func TestChatModelActionOnlyScopes(t *testing.T) {
+func TestChatModelActionScopesWithOrgRead(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -346,11 +346,11 @@ func TestChatModelActionOnlyScopes(t *testing.T) {
 	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
 	model := createChatModel(t, adminClient)
 
-	newScopedClient := func(t *testing.T, scope database.APIKeyScope) *codersdk.ExperimentalClient {
+	newScopedClient := func(t *testing.T, scopes ...database.APIKeyScope) *codersdk.ExperimentalClient {
 		t.Helper()
 		_, token := dbgen.APIKey(t, db, database.APIKey{
 			UserID: firstUser.UserID,
-			Scopes: database.APIKeyScopes{scope},
+			Scopes: append(database.APIKeyScopes{"organization:read"}, scopes...),
 		})
 		client := codersdk.New(
 			adminClient.URL,
@@ -361,19 +361,19 @@ func TestChatModelActionOnlyScopes(t *testing.T) {
 		return codersdk.NewExperimentalClient(client)
 	}
 
-	t.Run("UpdateWithoutRead", func(t *testing.T) {
+	t.Run("UpdateWithoutModelRead", func(t *testing.T) {
 		updateClient := newScopedClient(t, database.ApiKeyScopeChatModelConfigUpdate)
 		updated, err := updateClient.UpdateChatModel(ctx, firstUser.OrganizationID, model.ID, codersdk.UpdateChatModelRequest{
-			DisplayName: "Updated with update-only scope",
+			DisplayName: "Updated without model read scope",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "Updated with update-only scope", updated.DisplayName)
+		require.Equal(t, "Updated without model read scope", updated.DisplayName)
 
 		_, err = updateClient.ChatModel(ctx, firstUser.OrganizationID, model.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	t.Run("ShareWithoutRead", func(t *testing.T) {
+	t.Run("ShareWithoutModelRead", func(t *testing.T) {
 		shareClient := newScopedClient(t, database.ApiKeyScopeChatModelConfigShare)
 		_, err := shareClient.ChatModelACL(ctx, firstUser.OrganizationID, model.ID)
 		require.NoError(t, err)

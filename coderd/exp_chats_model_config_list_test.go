@@ -75,8 +75,11 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 		wantACLStatus        int
 	}{
 		{
-			name:          "ModelReadOnly",
-			scopes:        []codersdk.APIKeyScope{codersdk.APIKeyScopeChatModelConfigRead},
+			name: "ModelReadWithOrganizationRead",
+			scopes: []codersdk.APIKeyScope{
+				codersdk.APIKeyScopeOrganizationRead,
+				codersdk.APIKeyScopeChatModelConfigRead,
+			},
 			wantACLStatus: http.StatusNotFound,
 		},
 		{
