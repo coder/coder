@@ -3389,6 +3389,39 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/deployment/premium-funnel-events": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Report a premium paywall click",
+                "operationId": "report-a-premium-paywall-click",
+                "parameters": [
+                    {
+                        "description": "Premium funnel event",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PremiumFunnelEventRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/deployment/ssh": {
             "get": {
                 "produces": [
@@ -4549,6 +4582,45 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/licenses/trial": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Request a trial license",
+                "operationId": "request-a-trial-license",
+                "parameters": [
+                    {
+                        "description": "Trial license request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateTrialLicenseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.License"
                         }
                     }
                 },
@@ -14865,7 +14937,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Space-separated scopes to request. Each must be a scope this deployment supports, and the app's scope allowlist, when it has one, must cover the permissions requested rather than list each name. When omitted, defaults to that allowlist, or to coder:all for an app with no allowlist",
+                        "description": "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist",
                         "name": "scope",
                         "in": "query"
                     }
@@ -14921,7 +14993,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Space-separated scopes to request. Each must be a scope this deployment supports, and the app's scope allowlist, when it has one, must cover the permissions requested rather than list each name. When omitted, defaults to that allowlist, or to coder:all for an app with no allowlist",
+                        "description": "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist",
                         "name": "scope",
                         "in": "query"
                     }
@@ -19842,6 +19914,77 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateTrialLicenseRequest": {
+            "type": "object",
+            "required": [
+                "company_name",
+                "country",
+                "developers",
+                "email",
+                "first_name",
+                "job_title",
+                "last_name",
+                "phone_number"
+            ],
+            "properties": {
+                "attribution_id": {
+                    "description": "AttributionID is the ID of the cta_click funnel event that led here, so\nthat a signup can be joined back to the paywall that produced it.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "company_name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "example": "Acme Corp"
+                },
+                "country": {
+                    "type": "string",
+                    "example": "United States"
+                },
+                "developers": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 254,
+                    "example": "jane.doe@example.com"
+                },
+                "first_name": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "minLength": 1,
+                    "example": "Jane"
+                },
+                "job_title": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "example": "Engineering Manager"
+                },
+                "last_name": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "minLength": 1,
+                    "example": "Doe"
+                },
+                "phone_number": {
+                    "type": "string",
+                    "maxLength": 20,
+                    "minLength": 7,
+                    "example": "+14155552671"
+                },
+                "source": {
+                    "description": "Source is the premium paywall the request came from, for telemetry. It\nis not forwarded to the licensor. Omit it to report \"direct\".",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.PremiumFunnelSource"
+                        }
+                    ]
+                }
+            }
+        },
         "codersdk.CreateUserRequestWithOrgs": {
             "type": "object",
             "required": [
@@ -23652,6 +23795,87 @@ const docTemplate = `{
                     "type": "boolean"
                 }
             }
+        },
+        "codersdk.PremiumFunnelEventRequest": {
+            "type": "object",
+            "required": [
+                "id",
+                "source",
+                "variant"
+            ],
+            "properties": {
+                "id": {
+                    "description": "ID identifies this click, and doubles as the attribution token that a\nlater trial signup reports.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.PremiumFunnelSource"
+                },
+                "variant": {
+                    "$ref": "#/definitions/codersdk.PremiumFunnelVariant"
+                }
+            }
+        },
+        "codersdk.PremiumFunnelSource": {
+            "type": "string",
+            "enum": [
+                "aibridge_session_threads",
+                "aibridge_sessions",
+                "ai_gateway_keys",
+                "ai_governance",
+                "appearance",
+                "audit_log",
+                "browser_only",
+                "connection_log",
+                "custom_roles",
+                "external_auth",
+                "groups",
+                "idp_org_sync",
+                "idp_sync",
+                "multiple_organizations",
+                "observability",
+                "provisioner_keys",
+                "provisioners",
+                "template_permissions",
+                "workspace_proxies",
+                "direct"
+            ],
+            "x-enum-varnames": [
+                "PremiumFunnelSourceAIBridgeSessionThreads",
+                "PremiumFunnelSourceAIBridgeSessions",
+                "PremiumFunnelSourceAIGatewayKeys",
+                "PremiumFunnelSourceAIGovernance",
+                "PremiumFunnelSourceAppearance",
+                "PremiumFunnelSourceAuditLog",
+                "PremiumFunnelSourceBrowserOnly",
+                "PremiumFunnelSourceConnectionLog",
+                "PremiumFunnelSourceCustomRoles",
+                "PremiumFunnelSourceExternalAuth",
+                "PremiumFunnelSourceGroups",
+                "PremiumFunnelSourceIdpOrgSync",
+                "PremiumFunnelSourceIdpSync",
+                "PremiumFunnelSourceMultipleOrganizations",
+                "PremiumFunnelSourceObservability",
+                "PremiumFunnelSourceProvisionerKeys",
+                "PremiumFunnelSourceProvisioners",
+                "PremiumFunnelSourceTemplatePermissions",
+                "PremiumFunnelSourceWorkspaceProxies",
+                "PremiumFunnelSourceDirect"
+            ]
+        },
+        "codersdk.PremiumFunnelVariant": {
+            "type": "string",
+            "enum": [
+                "premium",
+                "small",
+                "ai_governance"
+            ],
+            "x-enum-varnames": [
+                "PremiumFunnelVariantPremium",
+                "PremiumFunnelVariantSmall",
+                "PremiumFunnelVariantAIGovernance"
+            ]
         },
         "codersdk.Preset": {
             "type": "object",

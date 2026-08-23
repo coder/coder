@@ -988,8 +988,8 @@ func New(options *Options) *API {
 	}
 	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
 		quartz.NewReal(),
-		api.Options.NetworkTelemetryBatchFrequency,
-		api.Options.NetworkTelemetryBatchMaxSize,
+		api.NetworkTelemetryBatchFrequency,
+		api.NetworkTelemetryBatchMaxSize,
 		api.handleNetworkTelemetry,
 	)
 	if options.CoordinatorResumeTokenProvider == nil {
@@ -998,10 +998,10 @@ func New(options *Options) *API {
 	api.TailnetClientService, err = tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                   api.Logger.Named("tailnetclient"),
 		CoordPtr:                 &api.TailnetCoordinator,
-		DERPMapUpdateFrequency:   api.Options.DERPMapUpdateFrequency,
+		DERPMapUpdateFrequency:   api.DERPMapUpdateFrequency,
 		DERPMapFn:                api.DERPMap,
 		NetworkTelemetryHandler:  api.NetworkTelemetryBatcher.Handler,
-		ResumeTokenProvider:      api.Options.CoordinatorResumeTokenProvider,
+		ResumeTokenProvider:      api.CoordinatorResumeTokenProvider,
 		WorkspaceUpdatesProvider: api.UpdatesProvider,
 	})
 	if err != nil {
@@ -1578,6 +1578,7 @@ func New(options *Options) *API {
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)
+			r.Post("/premium-funnel-events", api.postPremiumFunnelEvent)
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -2742,10 +2743,10 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 func (api *API) DERPMap() *tailcfg.DERPMap {
 	fn := api.DERPMapper.Load()
 	if fn != nil {
-		return (*fn)(api.Options.BaseDERPMap)
+		return (*fn)(api.BaseDERPMap)
 	}
 
-	return api.Options.BaseDERPMap
+	return api.BaseDERPMap
 }
 
 // nolint:revive

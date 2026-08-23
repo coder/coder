@@ -1982,7 +1982,7 @@ type ListChatsOptions struct {
 func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat, error) {
 	var reqOpts []RequestOption
 	if opts != nil {
-		reqOpts = append(reqOpts, opts.Pagination.asRequestOption())
+		reqOpts = append(reqOpts, opts.asRequestOption())
 		query := opts.Query
 		if opts.Source != "" {
 			if query != "" {

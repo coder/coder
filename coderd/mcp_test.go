@@ -1010,7 +1010,7 @@ type mcpServerConfigDeleteRaceStore struct {
 func (s *mcpServerConfigDeleteRaceStore) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
 	config, err := s.Store.GetMCPServerConfigByID(ctx, id)
 	if err == nil && s.armed.CompareAndSwap(true, false) {
-		if err := s.Store.DeleteMCPServerConfigByID(ctx, id); err != nil {
+		if err := s.DeleteMCPServerConfigByID(ctx, id); err != nil {
 			return database.MCPServerConfig{}, err
 		}
 	}

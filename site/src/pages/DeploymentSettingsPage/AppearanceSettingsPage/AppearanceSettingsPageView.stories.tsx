@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { MockPermissions } from "#/testHelpers/entities";
+import { docs } from "#/utils/docs";
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 
 const meta: Meta<typeof AppearanceSettingsPageView> = {
@@ -56,6 +57,9 @@ export const NotEntitled: Story = {
 
 		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+		await expect(
+			canvas.getByRole("link", { name: /Read the docs/ }),
+		).toHaveAttribute("href", docs("/admin/setup/appearance"));
 		await expect(
 			canvas.queryByRole("form", { name: "Appearance settings" }),
 		).not.toBeInTheDocument();

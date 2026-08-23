@@ -659,7 +659,7 @@ func TestPostChats(t *testing.T) {
 			OrganizationID: firstUser.OrganizationID,
 			Enabled:        true,
 		})
-		disabledCfg, err := client.Client.UpdateMCPServerConfig(ctx, enabledCfg.OrganizationID, enabledCfg.ID, codersdk.UpdateMCPServerConfigRequest{
+		disabledCfg, err := client.UpdateMCPServerConfig(ctx, enabledCfg.OrganizationID, enabledCfg.ID, codersdk.UpdateMCPServerConfigRequest{
 			Enabled: ptr.Ref(false),
 		})
 		require.NoError(t, err)
@@ -734,7 +734,7 @@ func TestPostChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = client.Client.UpdateMCPServerConfig(ctx, cfg.OrganizationID, cfg.ID, codersdk.UpdateMCPServerConfigRequest{
+		_, err = client.UpdateMCPServerConfig(ctx, cfg.OrganizationID, cfg.ID, codersdk.UpdateMCPServerConfigRequest{
 			Enabled: ptr.Ref(false),
 		})
 		require.NoError(t, err)
@@ -761,7 +761,7 @@ func TestPostChats(t *testing.T) {
 			OrganizationID: firstUser.OrganizationID,
 			Enabled:        true,
 		})
-		_, err = client.Client.UpdateMCPServerConfig(ctx, secondCfg.OrganizationID, secondCfg.ID, codersdk.UpdateMCPServerConfigRequest{
+		_, err = client.UpdateMCPServerConfig(ctx, secondCfg.OrganizationID, secondCfg.ID, codersdk.UpdateMCPServerConfigRequest{
 			Enabled: ptr.Ref(false),
 		})
 		require.NoError(t, err)
@@ -1385,7 +1385,7 @@ func TestChats_ForceOnMCPServerEnforced(t *testing.T) {
 	_ = createChatModelConfig(t, client)
 
 	// An admin marks an MCP server as Force On.
-	forced, err := client.Client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
+	forced, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:   "Forced Server",
 		Slug:          "forced-server",
 		Transport:     "streamable_http",
@@ -1931,7 +1931,7 @@ func TestListChats(t *testing.T) {
 				Pagination: codersdk.Pagination{Limit: pageSize},
 			}
 			if afterID != uuid.Nil {
-				opts.Pagination.AfterID = afterID
+				opts.AfterID = afterID
 			}
 			page, listErr := client.ListChats(ctx, opts)
 			require.NoError(t, listErr)
@@ -11359,7 +11359,7 @@ This arrived as octet-stream.
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
-		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/octet-stream", "payload.zip", bytes.NewReader([]byte("PK")))
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/octet-stream", "payload.zip", bytes.NewReader([]byte("PK\x03\x04")))
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Contains(t, sdkErr.Message, "Unsupported file type")
 	})
@@ -11370,7 +11370,7 @@ This arrived as octet-stream.
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
-		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/zip", "test.zip", bytes.NewReader([]byte("PK")))
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/zip", "test.zip", bytes.NewReader([]byte("PK\x03\x04")))
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
 
@@ -11912,7 +11912,7 @@ func TestChatFileDownloadURL(t *testing.T) {
 
 		// Suspending the minting user invalidates the URL because
 		// redemption requires the token's user to still be active.
-		_, err = client.Client.UpdateUserStatus(ctx, member.ID.String(), codersdk.UserStatusSuspended)
+		_, err = client.UpdateUserStatus(ctx, member.ID.String(), codersdk.UserStatusSuspended)
 		require.NoError(t, err)
 
 		res := get(t, ctx, download.URL)

@@ -268,7 +268,8 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 			output={output}
 			command={command || undefined}
 			modelIntent={modelIntent}
-			isRunning={status === "running" || processRunning}
+			status={status}
+			processRunning={processRunning}
 			exitCode={exitCode}
 			isError={isError}
 			errorMessage={errorMessage || undefined}
