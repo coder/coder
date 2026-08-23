@@ -139,7 +139,17 @@ const fetchFailedCatalog: TypesGen.OrganizationChatModelsResponse = {
 
 const unsupportedProviderCatalog: TypesGen.OrganizationChatModelsResponse = {
 	models: [],
-	providers: [],
+	providers: [
+		{
+			...MockChatModelProviderDescriptor,
+			id: "provider-copilot",
+			type: "copilot",
+			display_name: "GitHub Copilot",
+			has_api_key: false,
+			has_effective_api_key: false,
+			available: false,
+		},
+	],
 	unsupported_providers: [
 		{ provider: "copilot", display_name: "GitHub Copilot" },
 	],

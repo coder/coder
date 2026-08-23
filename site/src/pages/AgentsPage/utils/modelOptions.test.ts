@@ -1068,13 +1068,27 @@ describe("getUnsupportedProviderNames", () => {
 		];
 
 	it("returns names when no supported provider is configured", () => {
-		const catalog = createCatalog([], unsupportedCopilot);
+		const catalog = createCatalog(
+			[{ provider: "copilot", available: false }],
+			unsupportedCopilot,
+		);
+		expect(getUnsupportedProviderNames(catalog)).toEqual(["GitHub Copilot"]);
+	});
+
+	it("normalizes provider types when identifying unsupported descriptors", () => {
+		const catalog = createCatalog(
+			[{ provider: " COPILOT ", available: false }],
+			unsupportedCopilot,
+		);
 		expect(getUnsupportedProviderNames(catalog)).toEqual(["GitHub Copilot"]);
 	});
 
 	it("returns empty when a supported provider is also configured", () => {
 		const catalog = createCatalog(
-			[{ provider: "anthropic", available: false }],
+			[
+				{ provider: "copilot", available: false },
+				{ provider: "anthropic", available: false },
+			],
 			unsupportedCopilot,
 		);
 		expect(getUnsupportedProviderNames(catalog)).toEqual([]);

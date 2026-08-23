@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { normalizeProvider } from "#/modules/aiModels/helpers";
 import type { ModelSelectorOption } from "../components/ChatElements";
 import {
 	asNumber,
@@ -49,7 +50,15 @@ export const getUnsupportedProviderNames = (
 	catalog: TypesGen.OrganizationChatModelsResponse | null | undefined,
 ): readonly string[] => {
 	const unsupported = catalog?.unsupported_providers ?? [];
-	if (unsupported.length === 0 || (catalog?.providers.length ?? 0) > 0) {
+	const unsupportedProviderTypes = new Set(
+		unsupported.map((provider) => normalizeProvider(provider.provider)),
+	);
+	const hasSupportedProvider =
+		catalog?.providers.some(
+			(provider) =>
+				!unsupportedProviderTypes.has(normalizeProvider(provider.type)),
+		) ?? false;
+	if (unsupported.length === 0 || hasSupportedProvider) {
 		return [];
 	}
 	return unsupported.map(

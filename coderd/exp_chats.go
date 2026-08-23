@@ -6851,7 +6851,7 @@ func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *ht
 		httpapi.Forbidden(rw)
 		return
 	}
-	visible, err := api.canReadChatModelsInOrganization(ctx, r, organization)
+	configs, visible, err := api.readableChatModelsInOrganization(ctx, r, organization)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -6888,32 +6888,30 @@ func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *ht
 		}
 	}
 	resp := codersdk.OrganizationChatModelsResponse{
-		Models:               make([]codersdk.ChatModel, 0, len(availability.enabledModels)),
+		Models:               make([]codersdk.ChatModel, 0, len(configs)),
 		Providers:            providers,
 		UnsupportedProviders: chatprovider.UnsupportedProviders(availability.configuredProviders),
 	}
-	for _, config := range availability.enabledModels {
+	for _, config := range configs {
 		resp.Models = append(resp.Models, convertChatModelConfig(config))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-func (api *API) canReadChatModelsInOrganization(
+func (api *API) readableChatModelsInOrganization(
 	ctx context.Context,
 	r *http.Request,
 	organization database.Organization,
-) (bool, error) {
+) ([]database.ChatModelConfig, bool, error) {
 	configs, err := api.Database.GetChatModelConfigs(ctx, organization.ID)
 	if err != nil {
-		return false, err
+		return nil, false, err
 	}
-	for _, config := range configs {
-		if api.Authorize(r, policy.ActionRead, chatModelConfigRBACObject(config)) {
-			return true, nil
-		}
+	if len(configs) > 0 {
+		return configs, true, nil
 	}
-	return api.Authorize(r, policy.ActionRead, organization.RBACObject()), nil
+	return configs, api.Authorize(r, policy.ActionRead, organization.RBACObject()), nil
 }
 
 func chatModelConfigReadScope(scopes database.APIKeyScopes) bool {

@@ -51,6 +51,18 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 	}, func(params *database.InsertChatModelConfigParams) {
 		params.Enabled = false
 	})
+	disabledProvider := dbgen.AIProvider(t, rawDB, database.AIProvider{
+		Type: database.AIProviderTypeAnthropic,
+	}, func(params *database.InsertAIProviderParams) {
+		params.Enabled = false
+	})
+	providerDisabled := dbgen.ChatModelConfig(t, rawDB, database.ChatModelConfig{
+		AIProviderID:   uuid.NullUUID{UUID: disabledProvider.ID, Valid: true},
+		OrganizationID: defaultOrg.ID,
+		GroupACL: database.ChatACL{
+			defaultOrg.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		},
+	})
 	denied := dbgen.ChatModelConfig(t, rawDB, database.ChatModelConfig{
 		OrganizationID: defaultOrg.ID,
 		GroupACL:       database.ChatACL{},
@@ -64,6 +76,8 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 	})
 	require.True(t, ownEnabled.Enabled)
 	require.False(t, ownDisabled.Enabled)
+	require.False(t, disabledProvider.Enabled)
+	require.True(t, providerDisabled.Enabled)
 	require.True(t, denied.Enabled)
 	require.True(t, otherEnabled.Enabled)
 
@@ -237,9 +251,17 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 			models, err := testCase.client(t, ctx).ChatModels(ctx, defaultOrg.ID)
 			require.NoError(t, err)
 			require.True(t, containsChatModel(models.Models, ownEnabled.ID))
-			require.False(t, containsChatModel(models.Models, ownDisabled.ID))
+			require.True(t, containsChatModel(models.Models, ownDisabled.ID))
+			require.True(t, containsChatModel(models.Models, providerDisabled.ID))
 			require.Equal(t, testCase.seesDenied, containsChatModel(models.Models, denied.ID))
 			require.False(t, containsChatModel(models.Models, otherEnabled.ID))
+
+			disabledProviderIndex := slices.IndexFunc(models.Providers, func(provider codersdk.ChatModelProviderDescriptor) bool {
+				return provider.ID == disabledProvider.ID
+			})
+			require.NotEqual(t, -1, disabledProviderIndex)
+			require.False(t, models.Providers[disabledProviderIndex].Enabled)
+			require.False(t, models.Providers[disabledProviderIndex].Available)
 		})
 	}
 }
