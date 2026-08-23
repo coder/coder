@@ -428,6 +428,37 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 			"POST: a dangerous scheme must never reach a Location header")
 		require.Contains(t, readBody(t, postResp), string(codersdk.OAuth2ErrorCodeServerError))
 	})
+
+	// A registered callback may carry its own query, including a state= of its
+	// own. Every parameter this server writes onto that URL replaces what is
+	// there rather than appending to it, so the client reads back one value per
+	// parameter. Appending would hand it two states on these two paths and one
+	// on the error path, and a client is entitled to reject that as malformed.
+	t.Run("CallbackQueryParamsReplacedNotAppended", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		const presetState = "callback-preset-state"
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:        testutil.GetRandomName(t),
+			CallbackURL: appCallbackURL + "?state=" + presetState,
+			Scope:       sql.NullString{String: scopeInCatalog, Valid: true},
+		})
+
+		getResp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), "")
+		defer getResp.Body.Close()
+		require.Equal(t, http.StatusOK, getResp.StatusCode)
+		require.NotContains(t, readBody(t, getResp), presetState,
+			"the cancel link must carry the request's state, not the registered one as well")
+
+		postResp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "")
+		defer postResp.Body.Close()
+		require.Equal(t, http.StatusFound, postResp.StatusCode)
+		location, err := url.Parse(postResp.Header.Get("Location"))
+		require.NoError(t, err)
+		require.Equal(t, []string{authorizeState}, location.Query()["state"],
+			"the success redirect must carry exactly one state")
+	})
 }
 
 // TestOAuth2AuthorizeDCRScopeCompatibility pins an accepted compatibility

@@ -432,10 +432,13 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 
 		cancel := params.redirectURL
 		cancelQuery := params.redirectURL.Query()
-		cancelQuery.Add("error", "access_denied")
-		cancelQuery.Add("error_description", "The resource owner or authorization server denied the request")
+		// Set, not Add: a registered callback carrying its own state= would
+		// otherwise hand the client two values from here and one from the error
+		// path, and a client is entitled to reject that as malformed.
+		cancelQuery.Set("error", "access_denied")
+		cancelQuery.Set("error_description", "The resource owner or authorization server denied the request")
 		if params.state != "" {
-			cancelQuery.Add("state", params.state)
+			cancelQuery.Set("state", params.state)
 		}
 		cancel.RawQuery = cancelQuery.Encode()
 
@@ -567,9 +570,10 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		}
 
 		newQuery := params.redirectURL.Query()
-		newQuery.Add("code", code.Formatted)
+		// Set, not Add, for the reason the cancel URI uses it.
+		newQuery.Set("code", code.Formatted)
 		if params.state != "" {
-			newQuery.Add("state", params.state)
+			newQuery.Set("state", params.state)
 		}
 		params.redirectURL.RawQuery = newQuery.Encode()
 
