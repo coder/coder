@@ -79,6 +79,9 @@ func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
 		assert.Contains(t, body, "template:read")
 		assert.NotContains(t, body, "full access",
 			"a scoped grant must not be described as full access")
+		// A scope name reads narrower than it grants, so the list is qualified
+		// rather than left to be read as prose.
+		assert.Contains(t, body, `id="scope-disclaimer"`)
 		// The approval controls must survive the added branch, since a page
 		// that states the scope but cannot be submitted is worse than the
 		// fixed sentence it replaced.
@@ -92,6 +95,9 @@ func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
 		body := render(t, nil)
 		assert.Contains(t, body, "full access")
 		assert.NotContains(t, body, `id="scope-list"`)
+		// The disclaimer qualifies the list, so it has nothing to say on a
+		// page that renders no list.
+		assert.NotContains(t, body, `id="scope-disclaimer"`)
 	})
 }
 

@@ -78,6 +78,11 @@ links */}}
         padding-left: 8px;
       }
 
+      #scope-disclaimer {
+        font-size: 13px;
+        margin-top: 12px;
+      }
+
       .button-group {
         display: flex;
         align-items: center;
@@ -137,6 +142,14 @@ links */}}
         <li role="listitem">{{ . }}</li>
         {{- end }}
       </ul>
+      {{- /* The list holds scope identifiers, which read narrower than they
+      grant: template:read reaches every template in the deployment, not the
+      one in play. Until the page can render a description per scope, say that
+      the names are technical rather than let a user read them as prose. */}}
+      <p id="scope-disclaimer">
+        These are technical permission names. Grant them only to an application
+        you trust.
+      </p>
       {{- else }}
       <p id="description">
         Allow {{ .AppName }} to have full access to your
@@ -159,11 +172,15 @@ links */}}
         var allowForm = document.getElementById("allow-form");
         var cancelLink = document.getElementById("cancel-link");
         var scopeList = document.getElementById("scope-list");
+        var scopeDisclaimer = document.getElementById("scope-disclaimer");
 
         function showFeedback(message) {
           buttonGroup.style.display = "none";
           if (scopeList) {
             scopeList.style.display = "none";
+          }
+          if (scopeDisclaimer) {
+            scopeDisclaimer.style.display = "none";
           }
           description.textContent = message;
         }
