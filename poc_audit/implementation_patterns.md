@@ -213,9 +213,10 @@ takes it from line `0`. The single exception is the entry identifier, which
 every line carries, because carrying it is what makes them one entry.
 
 Entry level means the recording date, the effective date, and the actor. Line
-level means the event and the subject. One entry has one actor: no case has
-been found where two actors act at the same instant, and if one is found this
-is where it will have to be revisited.
+level means the event and the subject. One entry has **at most** one actor: no
+case has been found where two actors act at the same instant, and if one is
+found this is where it will have to be revisited. Why at most rather than
+exactly one is the next pattern.
 
 The rule buys one thing: a value written once cannot disagree with itself. A
 value repeated across lines can, and then a reader has to decide which copy to
@@ -223,7 +224,8 @@ believe.
 
 **The write half of the rule is a constraint.** Each entry level column carries
 a row level check tying it to the line number, of the form `CHECK ((line = 0) =
-(recording_date IS NOT NULL))`. One named check per column rather than one
+(recording_date IS NOT NULL))`. The actor pair takes a weaker form, for the
+reason given in the next pattern. One named check per column rather than one
 covering all of them, so that a violation names the column that caused it.
 
 That interacts with `DEFAULT now()`, and the resolution is two insert
@@ -239,6 +241,151 @@ a query take a later line's values from line `0`.
 **Post proof of concept this wants helper functions in Go**, so that no call
 site is left to remember which statement to use. The constraints catch a
 violation where it is made, but they do not make the rule easy to follow.
+
+### The actor column is nullable, and null there means there was no actor
+
+An entailed operation has no actor, per "Commanded, observed and entailed
+operations" in `entity_model.md`. Commanded and observed operations have one.
+A journal holds entries of all three kinds, so its actor column holds a value
+for some entries and nothing for others.
+
+**That is the same denormalization already applied to an optional attribute of
+a ledger row**, and it takes the same reading. In the normalized form the actor
+would be a table whose rows carry a foreign key to the entry, with no row for
+an entailed operation. The denormalized form is a nullable column, and **the
+null stands exactly where the normalized form would have had no row**. See "An
+optional at most one attribute is denormalized onto its ledger row" above,
+whose argument transfers unchanged from a ledger row to an entry.
+
+Combining a mandatory actor with no actor gives an optional actor, and the
+schema change is that and nothing more. There is no new mechanism here, which
+is the point of deriving it this way rather than declaring the column nullable
+and explaining afterwards.
+
+#### A null actor never means the actor is unknown
+
+The reading is fixed by the equivalence and not by convention, which matters
+more here than on a ledger row. Null in SQL carries absent, unknown, and
+inapplicable alike, and **a journal that can quietly say "somebody did this and
+I do not know who" is worse than one that cannot say it at all.** An unknown
+actor is a claim about a fact and belongs in an entry that says so, not in the
+absence of a value.
+
+#### The constraint is replaced rather than dropped
+
+`NOT NULL` was buying an integrity property: an entry naming a commanded
+operation could not be written without the party who commanded it. Removing it
+gives that up, and a defect that failed to write an actor would be
+indistinguishable from an operation that has none.
+
+**What replaces it is a check tying nullness to the event.** The entailed events
+of a journal are a fixed, small set known when the journal is defined, so the
+constraint is of the form `CHECK ((event IN ('lapse', 'expire')) = (actor IS
+NULL))`. That is the text and `CHECK` pattern this corpus already uses for actor
+types and for the credential use journal's event names, and it is stronger than
+what it replaces rather than weaker: it constrains both directions, so an
+entailed entry carrying an actor is refused as well.
+
+**The two cannot be kept together, and it is worth seeing why.** Postgres
+performs no satisfiability analysis, so a table declaring both is created
+without complaint. What happens is that `actor IS NULL` becomes constantly
+false, the check degenerates into "the event must not be one of these", and an
+entailed entry can be written in no way at all: with an actor it fails the
+check, without one it fails `NOT NULL`. The pair is unsatisfiable for exactly
+the rows the change exists to allow, and satisfiable for every other row, which
+is why the schema accepts it and only the data reveals it.
+
+**The two halves of the actor pair are null together**, which is a second check
+and not the same one. It earns its place: an entailed entry carrying an actor
+type but no actor passes the first check and fails this one.
+
+In a denormalized journal the event sits at line level and the actor at entry
+level, so the check is written against line `0` and reads `CHECK (line > 0 OR
+(event IN ('lapse')) = (actor IS NULL))`, beside the existing check confining
+the actor to line zero.
+
+#### A check over a nullable column is written with IS NULL, never a comparison
+
+**A `CHECK` passes when its predicate evaluates to null**, and only a predicate
+evaluating to false rejects a row. Making a column nullable therefore weakens
+every existing check that compares it, silently and at a distance from the
+change: `CHECK (actor <> '00000000-0000-0000-0000-000000000000')` accepts a null
+actor, because the comparison is null rather than false.
+
+The checks above are safe because `IS NULL` and `IS NOT NULL` always yield a
+boolean. That is the form to use, and the trap is worth naming here because
+this corpus is now in the business of making a previously mandatory column
+optional.
+
+### An entailed operation's entry names the entries that entailed it
+
+The model requires it, per "An entailed operation records what entailed it".
+This is where the reference lives.
+
+**It is a reference to entries in some journal, which need not be this one.** An
+authorization lapses because of an entry in the AI agent's journal. So the
+reference is an entry identifier qualified by the journal it belongs to, and the
+qualification is by column, the journal being known when the operation is
+defined rather than at runtime.
+
+**An operation is split until each variant's references have a fixed shape.**
+Where one name covers two entailments reached by different rules from different
+journals, that is two transitions wearing one name, and separating them is the
+least hackish of the available answers. The alternatives are a column per
+journal with exactly one non null, or a pair naming the journal and the entry,
+which would apply this corpus's reference rule to records, and records are not
+entities.
+
+Splitting costs nothing in a normalized journal, where each variant is a line
+table of its own and line tables are per shape already. In a denormalized one it
+would be a reason to normalize.
+
+#### A sibling consequence is not a cause
+
+Where one recorded fact entails two operations, neither of them entails the
+other, and neither references the other. Retiring an AI agent ends the holder
+and lapses its authorization in the same instant. The credential's invalidation
+follows from the retirement, not from the authorization's lapse, though both are
+true at that moment and either would have sufficed.
+
+The rule matters because splitting an operation by what entails it forces a
+choice when two grounds hold together, and without it the choice would be
+arbitrary. **The reference names what the operation follows from, and following
+from the same thing is not following from each other.**
+
+#### The splitting rule bites again when a second journal appears
+
+A variant's reference has a fixed shape only relative to what exists. A
+credential's `lapse` references the entry that ended its holder, and today only
+one kind of holder has a journal, so one column suffices. Give a second holder
+kind a journal and the same variant has two possible sources again, and the rule
+requires splitting once more.
+
+This is a property of the rule rather than a defect in it. The alternative,
+a reference that carries its own journal, is the shape rejected above.
+
+#### Referencing nothing is within the policy
+
+The rule is that an entailed operation references **every** causal journal
+entry. Where there are none, it references none. **The entry still has its one
+line**, and that line has no row in any line table, per "The normalized form"
+above: a line table holds particulars, an operation with none has nothing for a
+row to hold, and the absence of the row is the storage of a line carrying
+nothing rather than the absence of a line.
+
+A credential's expiry is the case. Its cause is the arrival of an hour, and the
+passage of time is not journaled, so there is nothing to point at. This is not
+an exemption from the policy but the policy applied to a count of zero.
+
+**Cardinality is fixed by the operation, not by the entry.** Where one recorded
+fact entails the operation, one column on the entry holds it. Where an
+intersection of two or more does, the references are a line, or a line table,
+and the operation's definition says how many and of what.
+
+**It is not a foreign key**, for the reason a journal subject is not one, and
+because the entailing entry may sit in a journal this one does not otherwise
+touch. Whether it should be is the same open question, recorded under "Whether
+journal subjects carry a foreign key" below.
 
 ### Event constants are qualified by the machine they belong to
 

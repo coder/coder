@@ -414,11 +414,12 @@ relation and the credential machine for a holder, arriving here a third time.
 **What delimits a session is its own transitions.** Constraint is not
 delimitation: two sessions may share participants, so participant existence
 cannot say where one ends and the next begins. A session is therefore opened and
-closed by command, and a participant ceasing to exist forces it closed as an
-observed transition.
+closed by command, and a participant ceasing to exist forces it closed, which by
+the tests above is entailed rather than observed: it follows from the record of
+that party's ending.
 
-So a session machine needs both kinds of transition, which is the shape the
-other three machines already have. A sweep's session is the simple case, opened
+So a session machine needs more than one kind of transition, which is the shape
+the other three machines already have. A sweep's session is the simple case, opened
 and closed by the command that starts and stops the sweep, its participants
 outliving it comfortably.
 
@@ -599,11 +600,11 @@ operation may decline to produce a result. Those two are the formal statement of
 that one distinction, and everything else the word carries elsewhere is unused
 here.
 
-### Commanded and observed operations
+### Commanded, observed and entailed operations
 
-Every operation is of one of two kinds, and the kind settles whose identity the
-entry carries. A transition is the case this was first written for, and nothing
-in it is particular to transitions.
+Every operation is of one of three kinds, and the kind settles whether the entry
+carries an actor and whose identity it is. A transition is the case this was
+first written for, and nothing in it is particular to transitions.
 
 A **commanded** operation happens because some party decided it should. The
 actor is the party who commanded it.
@@ -611,42 +612,106 @@ actor is the party who commanded it.
 An **observed** operation happens of its own accord, and is recorded because
 some party noticed. The actor is the party who noticed.
 
+An **entailed** operation happens by necessity, from something already recorded.
+**It has no actor**, and this is not a gap to be filled later. There was no act.
+
 The kind is a property of the operation and not of the occasion. A process
 returning of its own accord is never something anybody decided, so that
 operation is observed whenever it occurs. Which party fills the role does vary
 with the occasion, and the entry records whichever it was.
 
-Two things follow. An entity can never be the actor of its own observed
-operations, which is the rule against an entity writing about itself arriving
-by another road. And an observed operation may be recorded long after it
-occurred, by whoever eventually noticed, which the audit approach addresses
-under the entry's timestamp.
+Two things follow for the first two kinds. An entity can never be the actor of
+its own observed operations, which is the rule against an entity writing about
+itself arriving by another road. And an observed operation may be recorded long
+after it occurred, by whoever eventually noticed, which the audit approach
+addresses under the entry's timestamp.
 
-**Some observed operations are noticed by nobody.** A credential expires
-because a clock passed. An authorization lapses because a party to it ended.
-Nothing perceives either at the moment it occurs, and the entry recording it is
-written by whatever code derives it, whether that is a sweep running later or
-the same transaction that ended the party.
+#### Recognising an entailed operation
 
-The actor on those entries is a **fixed system identity**, in the manner the
-prebuilds system user already uses. It is neither invented per occasion nor
-generated per process, so that entries written by different processes and by
-one process across restarts name a single party.
+Two tests, and either suffices.
 
-**The temptation to be resisted is naming whoever commanded the cause.** An
-observed operation that follows from a commanded one is not thereby commanded.
-Somebody who kills an AI agent has not revoked its authorization; they ended
-the agent, and the authorization lapsed. Recording them as the lapse's actor
-would assert a different transition than the one that occurred, and where the
-commanded operation is the agent's own it would have the agent record the end of
-its own authority, which the rule above forbids.
+**It happens by operation of law.** The phrase is the law's own, for rights and
+duties arising automatically from a rule rather than from any party's act. An
+agency relation terminates when a party to it ceases to exist, and nobody has to
+do anything for that to be so.
 
-**An actor is a property of an operation and not of the transaction it commits
-in.** Bringing an AI agent into being writes three entries that all name the
-owner, because all three operations are commanded and the owner commanded all
-three. Ending one writes three that do not share an actor, because only the
-first is commanded. The entries are as related as they ever were, and what
-relates them is arising together, not a common actor.
+**It follows by logical necessity from what is already recorded.** Given the
+entry retiring an AI agent, and the rule, the lapse of its authorizations
+follows. Given a credential's recorded expiry and the clock, its expiration
+follows.
+
+The positive form of both is one property: **an entailed operation is derivable
+from the record, given the rule.** No party contributed anything, which is
+exactly why no party can be named. There is nobody to name.
+
+**Ambient facts count as available, and the clock is the one met so far.** An
+expiry needs the hour as well as the record, and the hour is nobody's testimony:
+it is not perceived, reported, or asserted by a party, and two derivations
+performed independently reach the same answer. That is the test an ambient fact
+has to pass. A fact only some party is in a position to know is testimony
+however mechanically it arrives, and an operation depending on one is observed
+rather than entailed, its actor being whoever was in that position.
+
+**The three kinds are exclusive by construction.** If a party decided it, the
+operation is commanded, and whatever follows by necessity is a different
+operation. If a party perceived something the record did not already contain,
+the operation is observed. An operation cannot be both derivable from the record
+and dependent on somebody having been there.
+
+#### An entailed operation records what entailed it
+
+**Every entailed operation is defined to carry a reference to each entry that
+entailed it.** This is part of defining the operation, not an option exercised
+per entry, so its cardinality is fixed when the operation is.
+
+Single cause entailment is what this work has met so far: an authorization
+lapses because one entry retired its agent. It is not the general case. Some
+entailments are the intersection of situations, and hold only when two or more
+recorded facts hold together, so the reference is to entries rather than to an
+entry.
+
+What that reference buys is the question a reader of the entry actually has.
+"Why did this lapse" is answered by naming the entry that retired the holder,
+and the derivation becomes checkable rather than asserted. An actor, had one
+been invented, would have answered a question nobody asked.
+
+**An entailed entry is in principle redundant**, and this should be recognised
+rather than discovered. It could be recomputed from its references and the rule.
+Writing it anyway is a choice and a good one, the ledger being a fold over
+entries and the alternative being a reader who must run the rules to know the
+state. No other class of entry has this property.
+
+#### Two attributions that were considered and rejected
+
+**Not the actor of the entailing operation.** Their act caused it, so the
+reading is tempting, and it is coherent while the entailing operation is
+commanded: somebody who kills an AI agent cannot disclaim what follows. It fails
+where the entailing operation is itself observed. The party who noticed an AI
+agent finish did not cause its authorization to lapse, did not notice the lapse,
+and stands in no relation to it beyond having been looking in the right
+direction. Chaining an actor propagates a noticer into a slot that then reads as
+responsibility.
+
+**Not the custodian, nor any other party responsible for the record.** Something
+did write the entry, and naming the writer is a real option, which is why it
+takes an argument to decline. The argument is that a custodian's acts bear on
+the journal, and a journal is not an entity: it is a record, removed from
+entities by a step, per "Records and the mechanisms holding them" above. An
+entry about a credential naming the custodian as actor says the custodian did
+something to the credential, which it did not. The parallel is "A reconciler is
+a role, not an actor" in the same section.
+
+Recording the author of an entry, as distinct from its actor, remains available
+and is not what the actor column is for. `audit_approach.md` keeps the two
+apart under segregation of duties, and nothing here records an author yet.
+
+#### An actor belongs to an operation, not to a transaction
+
+Bringing an AI agent into being writes three entries that all name the owner,
+because all three operations are commanded and the owner commanded all three.
+Ending one writes three that do not share an actor, and two of which have none,
+because only the first is commanded. The entries are as related as they ever
+were, and what relates them is arising together.
 
 **Operations are named with the bare verb**: `create`, `finish`, `suspend`,
 `assign`. Not `created`, and not `creating`. The imperative reads naturally for
@@ -815,7 +880,7 @@ would add no state here, since incipient authority is authority.
 |----------|--------------|--------------|-----------|
 | none     | `grant`      | `active`     | commanded |
 | `active` | `revoke`     | `terminated` | commanded |
-| `active` | `lapse`      | `terminated` | observed  |
+| `active` | `lapse`      | `terminated` | entailed  |
 | `active` | `disqualify` | `terminated` | observed  |
 
 **The proof of concept implements the first three rows.** `disqualify` is
@@ -878,7 +943,8 @@ confer.
 that yet.
 
 `lapse` arises when a party ceases to exist, which in practice means an AI agent
-reaching `retired`. It is observed, so the actor is whoever noticed.
+reaching `retired`. It is entailed: nobody performs it, and the entry carries no
+actor and names the entry that retired the agent.
 
 `disqualify` is reserved and has no interpretation yet.
 
@@ -975,18 +1041,26 @@ this system may later carry.
 The names are the ones security practice already uses, so nothing here needs
 inventing.
 
-| From    | Transition | To        | Kind      |
-|---------|------------|-----------|-----------|
-| none    | `issue`    | `valid`   | commanded |
-| `valid` | `revoke`   | `invalid` | commanded |
-| `valid` | `expire`   | `invalid` | observed  |
-| `valid` | `lapse`    | `invalid` | observed  |
+| From    | Transition  | To        | Kind      |
+|---------|-------------|-----------|-----------|
+| none    | `issue`     | `valid`   | commanded |
+| `valid` | `revoke`    | `invalid` | commanded |
+| `valid` | `expire`    | `invalid` | entailed  |
+| `valid` | `lapse`     | `invalid` | entailed  |
+| `valid` | `discharge` | `invalid` | entailed  |
 
-**`issue`, `revoke`, and `expire` are all in scope** for the proof of concept.
-Revocation needs something written to demonstrate it. Expiry earns its place by
-costing little on top of what is being built anyway and showing more for that
-cost than most of what was considered beside it, and it brings the sweep and its
-system actor in with it.
+**`issue`, `revoke`, `expire` and `lapse` are all in scope** for the proof of
+concept. Revocation needs something written to demonstrate it. Expiry earns its
+place by costing little on top of what is being built anyway and showing more
+for that cost than most of what was considered beside it, and it brings the
+sweep in with it. `discharge` is reserved: nothing can reach it until a grant
+can be revoked while its holder lives.
+
+**Three entailed transitions on one machine is not redundancy.** They differ in
+what they follow from, which is what the splitting rule in
+`implementation_patterns.md` separates, and each carries the references its own
+rule needs: `lapse` names the entry ending the holder, `discharge` names the
+entry ending the authorization, and `expire` names nothing.
 
 #### An expiry is a maximum time of validity
 
@@ -1036,14 +1110,17 @@ is handed to the holder once and never read back.
 because it is suspected, superseded, or no longer wanted.
 
 `expire` arises when the clock passes the credential's expiry. Nobody decides it
-at that moment, so it is observed, and nobody notices it either: what writes the
-entry is a sweep. The actor is therefore the fixed system identity, per "Some
-observed operations are noticed by nobody" above.
+and nobody notices it: it follows from the expiry the record already holds, so
+it is entailed, and the entry carries no actor.
 
-That identity is a proof of concept cheat and compounds an existing one: the
-finding below holds that a non person should not be filed among users. What it
-wants instead is a table of system actors written on the assumption that they
-multiply, and all questions about that table are held.
+**That both of this machine's non commanded transitions turned out to be
+entailed is what the third kind was worth.** Both were classed observed until
+the kind existed, and both were to be attributed to a fixed system identity
+filed among users because there was nowhere else to put one.
+That was a proof of concept cheat compounding an existing one, and recognising
+entailment retires it here rather than working around it. The need for system
+actors does not go away, since a grant nobody makes still wants a party to have
+made it, but no entailed operation wants one.
 
 Verification never records an expiry itself. A credential presented after its
 expiry is refused, and the entry recording that it expired is left to a sweep.
@@ -1053,9 +1130,31 @@ moment. What would be lost by recording it during verification is a great deal:
 a write on the read path, no read replicas, and two concurrent presentations of
 one expired credential racing to record the same thing.
 
-`lapse` arises when what the credential rests on goes away: the holder ceases to
-exist, or the authorization it serves ends. Nobody decides it, so the actor is
-whoever noticed.
+`lapse` arises when the credential's holder ceases to exist. The credential then
+authenticates nobody: there is no party left for it to speak for. It references
+the entry recording that ending.
+
+`discharge` arises when the authorization the credential serves ends while the
+holder still exists. The credential would still identify its holder correctly;
+what has gone is the authority there was any point in exercising. It references
+the entry ending the authorization.
+
+**The word is borrowed from suretyship**, where a surety is discharged when the
+principal obligation is discharged. The structure is the one wanted: a thing
+accessory to another ends because that other has ended, without anybody acting
+on the accessory thing. A credential is accessory to an authorization in the
+same way, being a means of exercising it.
+
+**Both grounds hold at once when an AI agent is retired, and the transition
+recorded is `lapse`.** The retirement ends the holder and lapses the
+authorization in the same instant, so neither of those endings caused the other.
+They are consequences of a common cause, and **a sibling is not referenced**:
+the reference names what an operation follows from, and following from the same
+thing is not following from each other. `discharge` is therefore reachable only
+where the authorization ends and the holder does not, which is `revoke` or
+`disqualify` of the grant.
+
+**Both are entailed, and neither carries an actor.**
 
 **Lapse ought to coincide with the end of the authorization, and in practice may
 not.** Every valid credential should become invalid at the moment the
