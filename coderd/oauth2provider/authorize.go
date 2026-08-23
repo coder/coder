@@ -380,6 +380,27 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 			return
 		}
 
+		// Everything downstream writes this URL somewhere a scheme matters: the
+		// error redirects into a Location header, the cancel link into an href.
+		// Checking once here, immediately after the URI has been exact-matched
+		// against the app's registered callback, is what makes those writes safe.
+		// Checking at each write instead leaves the next one to remember.
+		if err := codersdk.ValidateRedirectURIScheme(params.redirectURL); err != nil {
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:      http.StatusBadRequest,
+				HideStatus:  false,
+				Title:       "Invalid Callback URL",
+				Description: "The application's registered callback URL has an invalid scheme.",
+				Actions: []site.Action{
+					{
+						URL:  accessURL.String(),
+						Text: "Back to site",
+					},
+				},
+			})
+			return
+		}
+
 		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusBadRequest,
@@ -418,29 +439,12 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		}
 		cancel.RawQuery = cancelQuery.Encode()
 
-		cancelURI := cancel.String()
-		if err := codersdk.ValidateRedirectURIScheme(cancel); err != nil {
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:      http.StatusBadRequest,
-				HideStatus:  false,
-				Title:       "Invalid Callback URL",
-				Description: "The application's registered callback URL has an invalid scheme.",
-				Actions: []site.Action{
-					{
-						URL:  accessURL.String(),
-						Text: "Back to site",
-					},
-				},
-			})
-			return
-		}
-
 		site.RenderOAuthAllowPage(rw, r, site.RenderOAuthAllowData{
 			AppIcon: app.Icon,
 			AppName: app.Name,
 			// #nosec G203 -- The scheme is validated by
-			// codersdk.ValidateRedirectURIScheme above.
-			CancelURI:    htmltemplate.URL(cancelURI),
+			// codersdk.ValidateRedirectURIScheme after extractAuthorizeParams.
+			CancelURI:    htmltemplate.URL(cancel.String()),
 			DashboardURL: accessURL.String(),
 			CSRFToken:    nosurf.Token(r),
 			Username:     ua.FriendlyName,
@@ -466,6 +470,19 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		params, _, err := extractAuthorizeParams(r, callbackURL)
 		if err != nil {
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
+			return
+		}
+
+		// The same guarantee the GET side establishes: the scope rejection below
+		// and the success redirect at the end both write this URL into a
+		// Location header, so the scheme is checked once here rather than at
+		// each write. A registered callback reaching this point with a
+		// dangerous scheme is bad server state, not a bad request, since
+		// registration rejects those schemes.
+		if err := codersdk.ValidateRedirectURIScheme(params.redirectURL); err != nil {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError,
+				codersdk.OAuth2ErrorCodeServerError,
+				"The application's registered callback URL has an invalid scheme")
 			return
 		}
 

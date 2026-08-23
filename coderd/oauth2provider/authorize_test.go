@@ -390,6 +390,44 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, http.StatusOK, okResp.StatusCode)
 		require.Contains(t, readBody(t, okResp), `id="allow-form"`)
 	})
+
+	// A registered callback whose scheme is dangerous in a browser is refused
+	// before anything writes it anywhere: no Location header, and on GET no
+	// cancel link either. Registration rejects these schemes, so reaching this
+	// point means the stored row is bad rather than the request, which is why
+	// POST answers server_error and not invalid_request.
+	//
+	// The request also carries a scope the app cannot be granted, so the
+	// rejection redirect is the write that would otherwise fire. That is what
+	// makes this a test of ordering rather than of the scheme check alone.
+	t.Run("DangerousCallbackSchemeNotRedirected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:        testutil.GetRandomName(t),
+			CallbackURL: "javascript:alert(1)",
+			Scope:       sql.NullString{String: scopeInCatalog, Valid: true},
+		})
+
+		getResp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeOutOfAllowlist)
+		defer getResp.Body.Close()
+		require.Equal(t, http.StatusBadRequest, getResp.StatusCode)
+		require.Empty(t, getResp.Header.Get("Location"),
+			"GET: a dangerous scheme must never reach a Location header")
+		getBody := readBody(t, getResp)
+		require.Contains(t, getBody, "Invalid Callback URL",
+			"GET: the failure must name the callback URL, not the scope")
+		require.NotContains(t, getBody, "javascript:",
+			"GET: the scheme must not reach the page as a link either")
+
+		postResp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), scopeOutOfAllowlist)
+		defer postResp.Body.Close()
+		require.Equal(t, http.StatusInternalServerError, postResp.StatusCode)
+		require.Empty(t, postResp.Header.Get("Location"),
+			"POST: a dangerous scheme must never reach a Location header")
+		require.Contains(t, readBody(t, postResp), string(codersdk.OAuth2ErrorCodeServerError))
+	})
 }
 
 // TestOAuth2AuthorizeDCRScopeCompatibility pins an accepted compatibility
