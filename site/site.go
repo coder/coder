@@ -819,6 +819,30 @@ type RenderOAuthAllowData struct {
 // This has to be done statically because Golang has to handle the full request.
 // It cannot defer to the FE typescript easily.
 func RenderOAuthAllowPage(rw http.ResponseWriter, r *http.Request, data RenderOAuthAllowData) {
+	// A bounded grant carrying no permission is not something to ask a user to
+	// approve. The page would promise "these permissions" above an empty list,
+	// and an approval of nothing is not a consent anyone gave. The template
+	// branches on Unrestricted alone, so it cannot refuse this itself.
+	//
+	// No caller produces this today. The guard is here rather than beside the
+	// one that exists because a future caller computing the grant some other
+	// way is the way it would arrive.
+	if !data.Unrestricted && len(data.Scopes) == 0 {
+		RenderStaticErrorPage(rw, r, ErrorPageData{
+			Status:      http.StatusInternalServerError,
+			HideStatus:  false,
+			Title:       "Internal Server Error",
+			Description: "The authorization request carries no permissions to approve.",
+			Actions: []Action{
+				{
+					URL:  data.DashboardURL,
+					Text: "Back to site",
+				},
+			},
+		})
+		return
+	}
+
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	// Prevent the consent page from being framed to mitigate

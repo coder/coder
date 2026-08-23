@@ -37,6 +37,9 @@ func TestOAuthConsentFormIncludesCSRFToken(t *testing.T) {
 		DashboardURL: "https://coder.com/",
 		CSRFToken:    csrfFieldValue,
 		Username:     "test-user",
+		// A grant has to carry something for the page to render at all, and
+		// the token this test is about lives on the form either way.
+		Scopes: []string{"workspace:ssh"},
 	})
 
 	require.Equal(t, http.StatusOK, rec.Result().StatusCode)
@@ -55,7 +58,7 @@ func TestOAuthConsentFormIncludesCSRFToken(t *testing.T) {
 func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
 	t.Parallel()
 
-	render := func(t *testing.T, scopes []string, unrestricted bool) string {
+	record := func(t *testing.T, scopes []string, unrestricted bool) *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequest(http.MethodGet, "https://coder.com/oauth2/authorize", nil)
 		rec := httptest.NewRecorder()
@@ -68,6 +71,12 @@ func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
 			Scopes:       scopes,
 			Unrestricted: unrestricted,
 		})
+		return rec
+	}
+
+	render := func(t *testing.T, scopes []string, unrestricted bool) string {
+		t.Helper()
+		rec := record(t, scopes, unrestricted)
 		require.Equal(t, http.StatusOK, rec.Result().StatusCode)
 		return rec.Body.String()
 	}
@@ -116,12 +125,35 @@ func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
 	// decides between them on Unrestricted alone. Were it to fall back to the
 	// length of Scopes, the grant carrying no permission at all would be the
 	// one described as full access.
-	t.Run("EmptyScopesAreNotFullAccess", func(t *testing.T) {
+	//
+	// Not describing it as full access is the floor, not the requirement: a
+	// page promising "these permissions" above an empty list is not something
+	// to ask anyone to approve either. So the render is refused outright, and
+	// this pins the refusal rather than the wording of a page that no longer
+	// renders. No caller can reach this today; a future one computing the
+	// grant itself is what the guard is for.
+	t.Run("EmptyScopesAreRefused", func(t *testing.T) {
 		t.Parallel()
 
-		body := render(t, []string{}, false)
+		rec := record(t, []string{}, false)
+		require.Equal(t, http.StatusInternalServerError, rec.Result().StatusCode)
+		body := rec.Body.String()
 		assert.NotContains(t, body, "full access",
 			"a grant carrying no permission must not be described as full access")
+		// The approval controls are the point: a page a user can submit is a
+		// page a user can consent from, whatever it says above the buttons.
+		assert.NotContains(t, body, `id="allow-form"`)
+		assert.NotContains(t, body, `id="scope-list"`)
+	})
+
+	// nil and an empty slice are the same grant, and a guard written against
+	// one spelling would let the other through.
+	t.Run("NilScopesAreRefused", func(t *testing.T) {
+		t.Parallel()
+
+		rec := record(t, nil, false)
+		require.Equal(t, http.StatusInternalServerError, rec.Result().StatusCode)
+		assert.NotContains(t, rec.Body.String(), `id="allow-form"`)
 	})
 }
 
