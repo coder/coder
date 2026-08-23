@@ -432,7 +432,10 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 
 		getResp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeOutOfAllowlist)
 		defer getResp.Body.Close()
-		require.Equal(t, http.StatusBadRequest, getResp.StatusCode)
+		// 500, not 400: the request is well formed, the stored row is not.
+		// Both verbs answer the same way so that a consolidation of the two
+		// guards cannot pick a status and silently regress one of them.
+		require.Equal(t, http.StatusInternalServerError, getResp.StatusCode)
 		require.Empty(t, getResp.Header.Get("Location"),
 			"GET: a dangerous scheme must never reach a Location header")
 		getBody := readBody(t, getResp)

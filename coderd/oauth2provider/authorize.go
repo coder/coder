@@ -304,6 +304,19 @@ func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, redirectURL
 	http.Redirect(rw, r, errorURL.String(), http.StatusFound)
 }
 
+// logCorruptCallback reports a registered callback URL that this server should
+// never have stored: unparsable, or carrying a scheme both registration paths
+// reject. The response says only that the callback is bad, because the client
+// asking is not the party who can fix it. Without this line an operator's only
+// lead is the request timestamp, which has to be correlated back to a client_id
+// and then to the row.
+func logCorruptCallback(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, err error) {
+	logger.Error(ctx, "oauth2 app has an unusable registered callback URL",
+		slog.Error(err),
+		slog.F("app_id", app.ID.String()),
+		slog.F("callback_url", app.CallbackURL))
+}
+
 // ShowAuthorizePage handles GET /oauth2/authorize requests to display the HTML authorization page.
 func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
@@ -312,6 +325,7 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 
 		callbackURL, err := url.Parse(app.CallbackURL)
 		if err != nil {
+			logCorruptCallback(r.Context(), logger, app, err)
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusInternalServerError,
 				HideStatus:  false,
@@ -354,9 +368,14 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// Checking once here, immediately after the URI has been exact-matched
 		// against the app's registered callback, is what makes those writes safe.
 		// Checking at each write instead leaves the next one to remember.
+		//
+		// 500 for the same reason the POST side answers 500: registration
+		// rejects these schemes, so a stored one is bad server state rather than
+		// a bad request, whichever verb happens to surface it.
 		if err := codersdk.ValidateRedirectURIScheme(params.redirectURL); err != nil {
+			logCorruptCallback(r.Context(), logger, app, err)
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:      http.StatusBadRequest,
+				Status:      http.StatusInternalServerError,
 				HideStatus:  false,
 				Title:       "Invalid Callback URL",
 				Description: "The application's registered callback URL has an invalid scheme.",
@@ -436,6 +455,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 
 		callbackURL, err := url.Parse(app.CallbackURL)
 		if err != nil {
+			logCorruptCallback(ctx, logger, app, err)
 			httpapi.WriteOAuth2Error(r.Context(), rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "Failed to validate query parameters")
 			return
 		}
@@ -453,6 +473,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		// dangerous scheme is bad server state, not a bad request, since
 		// registration rejects those schemes.
 		if err := codersdk.ValidateRedirectURIScheme(params.redirectURL); err != nil {
+			logCorruptCallback(ctx, logger, app, err)
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError,
 				codersdk.OAuth2ErrorCodeServerError,
 				"The application's registered callback URL has an invalid scheme")
