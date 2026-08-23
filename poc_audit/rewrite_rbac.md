@@ -765,6 +765,30 @@ detects it. **A ledger complete about beginnings and silent about endings is
 not yet authoritative**, and reading it as though it were is the mistake this
 staging makes available.
 
+### A retry loop for name collisions disappears
+
+Creating an AI agent identity today runs a loop, up to five attempts, generating
+a username of the form `ai-ws-` plus eight hex characters and retrying on unique
+violation. `coderd/aiagentidentity/aiagentidentity.go` carries the loop, the
+attempt count, the unique violation test, and a terminal error for exhausting
+them.
+
+**None of that is about AI agents.** It is there because the name is a `users`
+row's username, which carries a unique index and a case insensitive one beside
+it. An AI agent's name is used for logging and display: `rbac.Subject`'s own
+comment says the friendly name "is entirely optional and is used for logging and
+debugging".
+
+Take the name off `users` and the requirement goes with it. A name computed from
+the agent's identity needs no uniqueness check, no retry, and no failure mode
+for running out of attempts, and the thirty or so lines implementing all three
+go away with the constraint that forced them.
+
+This is the smallest benefit recorded here and it is worth recording because of
+its shape. Nobody would defend that loop on its merits. It exists because a name
+had to be unique, the name had to be unique because it was a username, and it
+was a username because an AI agent had to be a user.
+
 ### Cost: last use has to move off the credential row
 
 **Extra, and smaller than it first appeared.** This entry is amended: it

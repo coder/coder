@@ -518,23 +518,25 @@ call fails first and everything after it is unreachable. This is therefore not
 preparation for rewriting the identity code. It is the thing that has to be true
 before that rewrite can be tested at all.
 
-**The subject needs less than expected, and one thing it needs has no home.**
+**The subject needs less than expected, and the rest is computed.**
 `coderd/httpmw/apikey.go:524` builds an AI agent's subject from **the owner's**
 roles and then relabels it with the agent's subject type and username. The
 agent's own users row supplies exactly three things: a username, a status, and a
-deleted flag. Two of those are already `ai_agent_ledger.state`. The username is
-nowhere else: `ai_agents` has no name column and neither does the ledger, so
-removing the users row loses the display name outright.
+deleted flag. Two of those are already `ai_agent_ledger.state`.
 
-That asymmetry is why the subject goes first. It carries the only schema
-decision in the package, and the routing that follows is a branch.
+The username is nowhere else, `ai_agents` having no name column and the ledger
+none either, and **it is not going to be given one**. Eric's position, stated
+before this package was written: a live function should generate names for AI
+agents rather than a column persisting one. So the subject is assembled from
+the ledger row, the owner's roles, and a computation, and the package adds no
+data at all.
 
 ### New behavior
 
 - A subject built for an AI agent from its ledger row and its owner's roles,
   with no users row for the agent involved anywhere in the construction.
-- A display name for an AI agent held somewhere that survives its users row
-  going away.
+- A display name for an AI agent, computed from its identity rather than stored,
+  so that nothing persists it and nothing has to keep it in step.
 - The four holder reads in `coderd/httpmw/apikey.go` branching on holder type
   rather than assuming a user.
 - `AsUserIDUnchecked` retired on the authentication path, which is the first
@@ -542,17 +544,23 @@ decision in the package, and the routing that follows is a branch.
 
 ### New data
 
-- Somewhere for an AI agent's display name. Whether that is a column on
-  `ai_agent_ledger`, a line on its creation entry, or something derived is the
-  first milestone's decision and is deliberately not settled here. **A ledger
-  holds current state, so a name that can change belongs there and a name that
-  cannot is a fact of the creation entry.** Which one it is has not been asked.
+**None**, which is the finding rather than an omission. The one candidate was a
+display name, and Eric had already settled it: a live function generates the
+name. The question this package originally posed, whether a name belongs on the
+ledger or on the creation entry, does not arise for a name nothing stores.
+
+What the function may read is bounded by what this work owns. The agent's
+identifier and its ledger row are available; the origin, which today decides
+between an `ai-chat-` and an `ai-ws-` prefix, is not, living in a table this
+work does not touch. So the derived name loses that distinction until origin is
+modelled on this side, which is a display regression and is recorded as a cheat
+rather than absorbed.
 
 ### Milestones
 
 1. **Build the subject.** An AI agent gets an `rbac.Subject` constructed from
-   its ledger row and its owner, and a display name that does not come from
-   `users`. Verifiable on its own, without the authentication path calling it.
+   its ledger row, its owner's roles, and a computed display name. Verifiable on
+   its own, without the authentication path calling it.
 2. **Route to it.** The four holder reads branch on holder type, and a
    credential held by an AI agent reaches the subject built in milestone 1.
 
@@ -588,7 +596,12 @@ naming it is that no new test is owed.
 
 ### PoC cheats
 
-Not yet enumerated. One is already visible: the subject is built from the
+**The derived name drops the origin prefix**, for the reason under New data. A
+reader who could tell a chat agent from a workspace agent by its name no longer
+can. It returns when origin is modelled on this side, and until then the
+information is available by joining, just not by looking.
+
+One more is visible: the subject is built from the
 owner's roles, which is what the code does today and is not obviously right. An
 agent inherits everything its owner can do, narrowed only by scope, and nothing
 records that the inheritance happened. Keeping it is deliberate, since changing
