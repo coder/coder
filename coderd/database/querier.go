@@ -312,6 +312,8 @@ type sqlcQuerier interface {
 	// the machine guarantees. Callers pass one more than they will accept, so
 	// receiving it tells them the set was larger.
 	GetAIAgentLifecycleEntriesBySubject(ctx context.Context, arg GetAIAgentLifecycleEntriesBySubjectParams) ([]AIAgentLifecycleJournal, error)
+	// The lines of one creation entry, ordered as they were written.
+	GetAIAgentLifecycleJournalCreateLines(ctx context.Context, entryID int64) ([]AIAgentLifecycleJournalCreate, error)
 	GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]GetAIAgentsByOwnerIDRow, error)
 	// AI Gateway cost for one chat tree: the root chat plus every subagent
 	// beneath it. The spawning chat's ID is recorded as the interception session
@@ -1155,16 +1157,12 @@ type sqlcQuerier interface {
 	IncrementUserAIDailySpend(ctx context.Context, arg IncrementUserAIDailySpendParams) (AIUserDailySpend, error)
 	InsertAIAgent(ctx context.Context, arg InsertAIAgentParams) (AIAgent, error)
 	InsertAIAgentLedgerRow(ctx context.Context, arg InsertAIAgentLedgerRowParams) (AIAgentLedger, error)
-	// Line 0 carries the entry level values. recording_date is absent from this
-	// statement on purpose: the column default supplies it, so no caller can
-	// supply, override, or backdate it.
-	InsertAIAgentLifecycleJournalFirstLine(ctx context.Context, arg InsertAIAgentLifecycleJournalFirstLineParams) (AIAgentLifecycleJournal, error)
-	// NOT LIVE CODE. Nothing calls this. It is here to show what a line after the
-	// first looks like, since the proof of concept writes no multiline entry for an
-	// AI agent. It deserves a unit test of its own and does not have one, so treat
-	// it as documentation rather than as a tested path. In production this would
-	// rot; this is not production.
-	InsertAIAgentLifecycleJournalSubsequentLine(ctx context.Context, arg InsertAIAgentLifecycleJournalSubsequentLineParams) (AIAgentLifecycleJournal, error)
+	// What a creation carried. Line zero, this being the only line, and the only
+	// line table this journal has until `transfer` gives it a second shape.
+	InsertAIAgentLifecycleJournalCreateLine(ctx context.Context, arg InsertAIAgentLifecycleJournalCreateLineParams) (AIAgentLifecycleJournalCreate, error)
+	// recording_date is absent from this statement on purpose: the column default
+	// supplies it, so no caller can supply, override, or backdate it.
+	InsertAIAgentLifecycleJournalEntry(ctx context.Context, arg InsertAIAgentLifecycleJournalEntryParams) (AIAgentLifecycleJournal, error)
 	InsertAIAgentUser(ctx context.Context, arg InsertAIAgentUserParams) (User, error)
 	InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error)
 	InsertAIBridgeModelThought(ctx context.Context, arg InsertAIBridgeModelThoughtParams) (AIBridgeModelThought, error)

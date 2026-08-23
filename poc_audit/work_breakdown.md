@@ -527,9 +527,13 @@ deleted flag. Two of those are already `ai_agent_ledger.state`.
 The username is nowhere else, `ai_agents` having no name column and the ledger
 none either, and **it is not going to be given one**. Eric's position, stated
 before this package was written: a live function should generate names for AI
-agents rather than a column persisting one. So the subject is assembled from
-the ledger row, the owner's roles, and a computation, and the package adds no
-data at all.
+agents rather than a column persisting one.
+
+**What the function reads is the origin the agent was created in**, which the
+ledger now records as a pair. Storing a rendering and storing the fact it
+renders are different things, and only the first was ever objected to. So the
+subject is assembled from the ledger row, the owner's roles, and a computation
+over a fact the ledger holds.
 
 ### New behavior
 
@@ -544,17 +548,36 @@ data at all.
 
 ### New data
 
-**None**, which is the finding rather than an omission. The one candidate was a
-display name, and Eric had already settled it: a live function generates the
-name. The question this package originally posed, whether a name belongs on the
-ledger or on the creation entry, does not arise for a name nothing stores.
+**An origin, as a `(type, identifier)` pair, on the AI agent's creation entry
+and folded onto its ledger row.** It is a fact about the creation event rather
+than a description of where the agent currently runs, so an agent that moved
+would keep the one it was created in. That is what keeps it clear of the `run`
+candidate under Derived in `entity_model.md`, which exists to hold embodiment
+apart from durable identity: if runs become entities, each run has its own
+origin and the identity keeps this one.
 
-What the function may read is bounded by what this work owns. The agent's
-identifier and its ledger row are available; the origin, which today decides
-between an `ai-chat-` and an `ai-ws-` prefix, is not, living in a table this
-work does not touch. So the derived name loses that distinction until origin is
-modelled on this side, which is a display regression and is recorded as a cheat
-rather than absorbed.
+The pair is required by "A reference standing where a foreign key would stand
+is a pair", the thing an agent is embodied in being a workspace or a chat and
+no single table holding both. It is `text` with a `CHECK` rather than the
+`ai_agent_origin` enum that already exists, which is the standing proof of
+concept call, and reusing that enum would couple this schema to a definition
+this work does not own without buying anything.
+
+**The display name is not data.** It is computed from the origin and the
+agent's identifier. The question this package originally posed, whether a name
+belongs on a ledger or on a creation entry, does not arise for a name nothing
+stores.
+
+### What the origin forced
+
+**The AI agent journal takes the normalized form.** Recording an origin makes
+`create` an operation with particulars where the others have none, which is the
+heterogeneity that decides the form. More is coming: `transfer` carries a new
+owner, a different shape again.
+
+This was not foreseen when the package was written and is the largest single
+piece of it. The cost was smaller than it looked, because the multiline
+machinery had exactly one query and no caller.
 
 ### Milestones
 
@@ -596,12 +619,7 @@ naming it is that no new test is owed.
 
 ### PoC cheats
 
-**The derived name drops the origin prefix**, for the reason under New data. A
-reader who could tell a chat agent from a workspace agent by its name no longer
-can. It returns when origin is modelled on this side, and until then the
-information is available by joining, just not by looking.
-
-One more is visible: the subject is built from the
+One is visible: the subject is built from the
 owner's roles, which is what the code does today and is not obviously right. An
 agent inherits everything its owner can do, narrowed only by scope, and nothing
 records that the inheritance happened. Keeping it is deliberate, since changing

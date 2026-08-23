@@ -4816,19 +4816,30 @@ type AIAgentLedger struct {
 	// dormant is reserved for future use and is unreachable in the machine the proof of concept implements, which has active and retired only. It is in the enum now so that supporting reconstitution later costs no migration, which means code switching exhaustively over these values must handle a state that cannot occur.
 	State            string `db:"state" json:"state"`
 	PostingReference int64  `db:"posting_reference" json:"posting_reference"`
+	// What kind of thing this AI agent was first embodied in, folded from its creation entry. Not the current embodiment: an AI agent that moved would keep the origin it was created in, and nothing moves one today.
+	OriginType string    `db:"origin_type" json:"origin_type"`
+	OriginID   uuid.UUID `db:"origin_id" json:"origin_id"`
 }
 
-// Journal of persistent state changes to AI agent identities. One journal per entity: sharing one would assert that two lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.
+// Journal of persistent state changes to AI agents, in the normalized form: this is the entry table. Line tables join to it per shape of operation. One journal per entity: sharing one would assert that two lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.
 type AIAgentLifecycleJournal struct {
-	EntryID       int64        `db:"entry_id" json:"entry_id"`
-	Line          int16        `db:"line" json:"line"`
-	RecordingDate sql.NullTime `db:"recording_date" json:"recording_date"`
+	EntryID       int64     `db:"entry_id" json:"entry_id"`
+	RecordingDate time.Time `db:"recording_date" json:"recording_date"`
 	// When the event occurred, which for an observed transition may be long before it was recorded. A process that finished on a Tuesday and was noticed on a Friday has its finish recorded on the Friday and dated the Tuesday. It is the earlier of the event time and the recording time, which keeps it from ever claiming the journal foresaw something.
-	EffectiveDate sql.NullTime   `db:"effective_date" json:"effective_date"`
-	ActorType     sql.NullString `db:"actor_type" json:"actor_type"`
-	Actor         uuid.NullUUID  `db:"actor" json:"actor"`
-	Event         string         `db:"event" json:"event"`
-	Subject       uuid.UUID      `db:"subject" json:"subject"`
+	EffectiveDate time.Time `db:"effective_date" json:"effective_date"`
+	ActorType     string    `db:"actor_type" json:"actor_type"`
+	Actor         uuid.UUID `db:"actor" json:"actor"`
+	Event         string    `db:"event" json:"event"`
+	Subject       uuid.UUID `db:"subject" json:"subject"`
+}
+
+// What a creation of an AI agent carried. A line table of the AI agent journal, joined by entry identifier.
+type AIAgentLifecycleJournalCreate struct {
+	EntryID int64 `db:"entry_id" json:"entry_id"`
+	Line    int16 `db:"line" json:"line"`
+	// What kind of thing the AI agent was first embodied in. A pair with origin_id, because the thing can be of more than one kind and no single table holds them all.
+	OriginType string    `db:"origin_type" json:"origin_type"`
+	OriginID   uuid.UUID `db:"origin_id" json:"origin_id"`
 }
 
 // Audit log of requests intercepted by AI Bridge

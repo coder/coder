@@ -3,14 +3,12 @@
 SELECT
 	nextval('ai_agent_lifecycle_journal_entry_seq')::bigint;
 
--- name: InsertAIAgentLifecycleJournalFirstLine :one
--- Line 0 carries the entry level values. recording_date is absent from this
--- statement on purpose: the column default supplies it, so no caller can
--- supply, override, or backdate it.
+-- name: InsertAIAgentLifecycleJournalEntry :one
+-- recording_date is absent from this statement on purpose: the column default
+-- supplies it, so no caller can supply, override, or backdate it.
 INSERT INTO
 	ai_agent_lifecycle_journal (
 		entry_id,
-		line,
 		effective_date,
 		actor_type,
 		actor,
@@ -18,27 +16,26 @@ INSERT INTO
 		subject
 	)
 VALUES
-	($1, 0, $2, $3, $4, $5, $6) RETURNING *;
+	($1, $2, $3, $4, $5, $6) RETURNING *;
 
--- name: InsertAIAgentLifecycleJournalSubsequentLine :one
--- NOT LIVE CODE. Nothing calls this. It is here to show what a line after the
--- first looks like, since the proof of concept writes no multiline entry for an
--- AI agent. It deserves a unit test of its own and does not have one, so treat
--- it as documentation rather than as a tested path. In production this would
--- rot; this is not production.
+-- name: InsertAIAgentLifecycleJournalCreateLine :one
+-- What a creation carried. Line zero, this being the only line, and the only
+-- line table this journal has until `transfer` gives it a second shape.
 INSERT INTO
-	ai_agent_lifecycle_journal (
-		entry_id,
-		line,
-		recording_date,
-		effective_date,
-		actor_type,
-		actor,
-		event,
-		subject
-	)
+	ai_agent_lifecycle_journal_create (entry_id, line, origin_type, origin_id)
 VALUES
-	($1, $2, NULL, NULL, NULL, NULL, $3, $4) RETURNING *;
+	($1, $2, $3, $4) RETURNING *;
+
+-- name: GetAIAgentLifecycleJournalCreateLines :many
+-- The lines of one creation entry, ordered as they were written.
+SELECT
+	*
+FROM
+	ai_agent_lifecycle_journal_create
+WHERE
+	entry_id = $1
+ORDER BY
+	line;
 
 -- name: InsertAIAgentLedgerRow :one
 INSERT INTO
@@ -46,11 +43,13 @@ INSERT INTO
 		id,
 		owner_type,
 		owner_id,
+		origin_type,
+		origin_id,
 		state,
 		posting_reference
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 
 -- name: GetAIAgentLedgerRowByID :one
 SELECT
@@ -85,7 +84,6 @@ FROM
 WHERE
 	subject = $1
 ORDER BY
-	entry_id,
-	line
+	entry_id
 LIMIT
 	$2;

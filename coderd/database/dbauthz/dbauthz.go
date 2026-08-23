@@ -2829,6 +2829,13 @@ func (q *querier) GetAIAgentLifecycleEntriesBySubject(ctx context.Context, arg d
 	return q.db.GetAIAgentLifecycleEntriesBySubject(ctx, arg)
 }
 
+func (q *querier) GetAIAgentLifecycleJournalCreateLines(ctx context.Context, entryID int64) ([]database.AIAgentLifecycleJournalCreate, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIAgentLifecycleJournalCreateLines(ctx, entryID)
+}
+
 func (q *querier) GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]database.GetAIAgentsByOwnerIDRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, rbac.ResourceUserObject(ownerUserID)); err != nil {
 		return nil, err
@@ -6093,18 +6100,18 @@ func (q *querier) InsertAIAgentLedgerRow(ctx context.Context, arg database.Inser
 	return q.db.InsertAIAgentLedgerRow(ctx, arg)
 }
 
-func (q *querier) InsertAIAgentLifecycleJournalFirstLine(ctx context.Context, arg database.InsertAIAgentLifecycleJournalFirstLineParams) (database.AIAgentLifecycleJournal, error) {
+func (q *querier) InsertAIAgentLifecycleJournalCreateLine(ctx context.Context, arg database.InsertAIAgentLifecycleJournalCreateLineParams) (database.AIAgentLifecycleJournalCreate, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.AIAgentLifecycleJournal{}, err
+		return database.AIAgentLifecycleJournalCreate{}, err
 	}
-	return q.db.InsertAIAgentLifecycleJournalFirstLine(ctx, arg)
+	return q.db.InsertAIAgentLifecycleJournalCreateLine(ctx, arg)
 }
 
-func (q *querier) InsertAIAgentLifecycleJournalSubsequentLine(ctx context.Context, arg database.InsertAIAgentLifecycleJournalSubsequentLineParams) (database.AIAgentLifecycleJournal, error) {
+func (q *querier) InsertAIAgentLifecycleJournalEntry(ctx context.Context, arg database.InsertAIAgentLifecycleJournalEntryParams) (database.AIAgentLifecycleJournal, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.AIAgentLifecycleJournal{}, err
 	}
-	return q.db.InsertAIAgentLifecycleJournalSubsequentLine(ctx, arg)
+	return q.db.InsertAIAgentLifecycleJournalEntry(ctx, arg)
 }
 
 func (q *querier) InsertAIAgentUser(ctx context.Context, arg database.InsertAIAgentUserParams) (database.User, error) {

@@ -2,7 +2,6 @@ package entity
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,6 +44,77 @@ type CreateAIAgentParams struct {
 	// Ownership is not authorization, though the two coincide here. See
 	// "Ownership is not authorization" in poc_audit/entity_model.md.
 	Owner Ref
+
+	// Origin is what the AI agent is first embodied in, as a pair, the thing
+	// being of more than one kind.
+	//
+	// **It is the origin at creation and is never updated.** An AI agent that
+	// moved between a chat and a workspace would keep the one it was created
+	// in, and nothing moves one today. That makes it a fact about the creation
+	// event rather than a description of where the agent currently runs, which
+	// is why it belongs on the creation entry and folds onto the ledger from
+	// there.
+	Origin Origin
+}
+
+// Origin is where an AI agent was first embodied.
+type Origin struct {
+	Type OriginType
+	ID   uuid.UUID
+}
+
+// OriginType is the kind of thing an AI agent was first embodied in.
+//
+// A closed set, held closed by a CHECK rather than an enum, for the reason
+// given in "An actor type column on a core table is text with a CHECK" in
+// poc_audit/implementation_patterns.md. A database enum of these values exists
+// already, created by the AI identity code, and is deliberately not reused: a
+// type is not a table, so sharing one would couple this schema to a definition
+// this work does not own without buying anything.
+type OriginType string
+
+const (
+	OriginTypeChat      OriginType = "chat"
+	OriginTypeWorkspace OriginType = "workspace"
+)
+
+// Valid reports whether t is a member of the closed set.
+func (t OriginType) Valid() bool {
+	switch t {
+	case OriginTypeChat, OriginTypeWorkspace:
+		return true
+	default:
+		return false
+	}
+}
+
+// abbreviation is what the type contributes to a displayed name. Names are
+// read in log lines and want to be short; the stored value is the model's
+// vocabulary and wants to be plain.
+func (t OriginType) abbreviation() string {
+	switch t {
+	case OriginTypeChat:
+		return "chat"
+	case OriginTypeWorkspace:
+		return "ws"
+	default:
+		return "unknown"
+	}
+}
+
+// DisplayName is what a human reads where an AI agent is named.
+//
+// **Computed, never stored.** A stored name is a rendering that has to be kept
+// in step with what it renders, and nothing here needs one: the name is used
+// for logging and display, and `rbac.Subject` says of its own friendly name
+// that it "is entirely optional". Computing it also removes the uniqueness the
+// name inherited from being a username, and the retry loop that uniqueness
+// forced.
+//
+// The origin makes the name say what kind of agent this is, which is the whole
+// of what the previous generated name said beyond identifying it.
+func DisplayName(origin OriginType, id uuid.UUID) string {
+	return "ai-" + origin.abbreviation() + "-" + id.String()
 }
 
 // NewAIAgent is what creating an AI agent produced.
@@ -84,13 +154,19 @@ func CreateAIAgent(ctx context.Context, store database.Store, params CreateAIAge
 	if params.Owner.ID == uuid.Nil {
 		return NewAIAgent{}, xerrors.New("an AI agent belongs to a principal, so creation needs one")
 	}
+	if !params.Origin.Type.Valid() {
+		return NewAIAgent{}, xerrors.Errorf("origin type %q names no kind of thing", params.Origin.Type)
+	}
+	if params.Origin.ID == uuid.Nil {
+		return NewAIAgent{}, xerrors.New("an AI agent is embodied in something, so creation needs to say what")
+	}
 
 	created := NewAIAgent{ID: uuid.New()}
 	err := store.InTx(func(tx database.Store) error {
 		// The order here is the order of dependency, not of necessity. Inside
 		// one transaction nothing observes it, but source that reads in the
 		// wrong order invites the reader to infer the wrong dependencies.
-		if err := recordAIAgentCreation(ctx, tx, created.ID, params.Owner); err != nil {
+		if err := recordAIAgentCreation(ctx, tx, created.ID, params.Owner, params.Origin); err != nil {
 			return err
 		}
 
@@ -184,11 +260,11 @@ func RetireAIAgent(ctx context.Context, store database.Store, id uuid.UUID, even
 		if err != nil {
 			return xerrors.Errorf("take an entry identifier: %w", err)
 		}
-		_, err = tx.InsertAIAgentLifecycleJournalFirstLine(ctx, database.InsertAIAgentLifecycleJournalFirstLineParams{
+		_, err = tx.InsertAIAgentLifecycleJournalEntry(ctx, database.InsertAIAgentLifecycleJournalEntryParams{
 			EntryID:       entryID,
-			EffectiveDate: sql.NullTime{Time: effective, Valid: true},
-			ActorType:     sql.NullString{String: string(actor.Type), Valid: true},
-			Actor:         uuid.NullUUID{UUID: actor.ID, Valid: true},
+			EffectiveDate: effective,
+			ActorType:     string(actor.Type),
+			Actor:         actor.ID,
 			Event:         string(event),
 			Subject:       id,
 		})
@@ -265,17 +341,17 @@ func lapseCredentialsOf(ctx context.Context, tx database.Store, agentID uuid.UUI
 // journal is the book of original entry and the ledger row is derived from it,
 // which is also why the row carries the identifier of the entry that produced
 // it.
-func recordAIAgentCreation(ctx context.Context, tx database.Store, id uuid.UUID, owner Ref) error {
+func recordAIAgentCreation(ctx context.Context, tx database.Store, id uuid.UUID, owner Ref, origin Origin) error {
 	entryID, err := tx.NextAIAgentLifecycleJournalEntryID(ctx)
 	if err != nil {
 		return xerrors.Errorf("take an entry identifier: %w", err)
 	}
 
-	_, err = tx.InsertAIAgentLifecycleJournalFirstLine(ctx, database.InsertAIAgentLifecycleJournalFirstLineParams{
+	_, err = tx.InsertAIAgentLifecycleJournalEntry(ctx, database.InsertAIAgentLifecycleJournalEntryParams{
 		EntryID:       entryID,
-		EffectiveDate: sql.NullTime{Time: time.Now(), Valid: true},
-		ActorType:     sql.NullString{String: string(owner.Type), Valid: true},
-		Actor:         uuid.NullUUID{UUID: owner.ID, Valid: true},
+		EffectiveDate: time.Now(),
+		ActorType:     string(owner.Type),
+		Actor:         owner.ID,
 		Event:         string(EventAIAgentCreate),
 		Subject:       id,
 	})
@@ -283,10 +359,23 @@ func recordAIAgentCreation(ctx context.Context, tx database.Store, id uuid.UUID,
 		return xerrors.Errorf("append creation entry: %w", err)
 	}
 
+	// The line before the row it posts to, the journal being the book of
+	// original entry. Line zero, this being the only line.
+	if _, err := tx.InsertAIAgentLifecycleJournalCreateLine(ctx, database.InsertAIAgentLifecycleJournalCreateLineParams{
+		EntryID:    entryID,
+		Line:       0,
+		OriginType: string(origin.Type),
+		OriginID:   origin.ID,
+	}); err != nil {
+		return xerrors.Errorf("append the creation line: %w", err)
+	}
+
 	if _, err := tx.InsertAIAgentLedgerRow(ctx, database.InsertAIAgentLedgerRowParams{
 		ID:               id,
 		OwnerType:        string(owner.Type),
 		OwnerID:          owner.ID,
+		OriginType:       string(origin.Type),
+		OriginID:         origin.ID,
 		State:            AIAgentStateActive,
 		PostingReference: entryID,
 	}); err != nil {

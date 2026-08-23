@@ -169,10 +169,10 @@ func TestAIAgentIdentity(t *testing.T) {
 
 		got := entries[0]
 		require.Equal(t, string(entity.EventAIAgentCreate), got.Event)
-		require.Equal(t, string(entity.TypeUser), got.ActorType.String,
+		require.Equal(t, string(entity.TypeUser), got.ActorType,
 			"creation is commanded by the owner, not by the workspace_agent that relayed it")
-		require.Equal(t, user.UserID, got.Actor.UUID)
-		require.True(t, got.RecordingDate.Valid)
+		require.Equal(t, user.UserID, got.Actor)
+		require.False(t, got.RecordingDate.IsZero())
 		require.Equal(t, got.EntryID, aiAgent.PostingReference,
 			"the ledger row should name the entry that posted to it")
 

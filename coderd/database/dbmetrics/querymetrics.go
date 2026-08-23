@@ -1113,6 +1113,14 @@ func (m queryMetricsStore) GetAIAgentLifecycleEntriesBySubject(ctx context.Conte
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIAgentLifecycleJournalCreateLines(ctx context.Context, entryID int64) ([]database.AIAgentLifecycleJournalCreate, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIAgentLifecycleJournalCreateLines(ctx, entryID)
+	m.queryLatencies.WithLabelValues("GetAIAgentLifecycleJournalCreateLines").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIAgentLifecycleJournalCreateLines").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]database.GetAIAgentsByOwnerIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIAgentsByOwnerID(ctx, ownerUserID)
@@ -4177,19 +4185,19 @@ func (m queryMetricsStore) InsertAIAgentLedgerRow(ctx context.Context, arg datab
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertAIAgentLifecycleJournalFirstLine(ctx context.Context, arg database.InsertAIAgentLifecycleJournalFirstLineParams) (database.AIAgentLifecycleJournal, error) {
+func (m queryMetricsStore) InsertAIAgentLifecycleJournalCreateLine(ctx context.Context, arg database.InsertAIAgentLifecycleJournalCreateLineParams) (database.AIAgentLifecycleJournalCreate, error) {
 	start := time.Now()
-	r0, r1 := m.s.InsertAIAgentLifecycleJournalFirstLine(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertAIAgentLifecycleJournalFirstLine").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIAgentLifecycleJournalFirstLine").Inc()
+	r0, r1 := m.s.InsertAIAgentLifecycleJournalCreateLine(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIAgentLifecycleJournalCreateLine").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIAgentLifecycleJournalCreateLine").Inc()
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertAIAgentLifecycleJournalSubsequentLine(ctx context.Context, arg database.InsertAIAgentLifecycleJournalSubsequentLineParams) (database.AIAgentLifecycleJournal, error) {
+func (m queryMetricsStore) InsertAIAgentLifecycleJournalEntry(ctx context.Context, arg database.InsertAIAgentLifecycleJournalEntryParams) (database.AIAgentLifecycleJournal, error) {
 	start := time.Now()
-	r0, r1 := m.s.InsertAIAgentLifecycleJournalSubsequentLine(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertAIAgentLifecycleJournalSubsequentLine").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIAgentLifecycleJournalSubsequentLine").Inc()
+	r0, r1 := m.s.InsertAIAgentLifecycleJournalEntry(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIAgentLifecycleJournalEntry").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIAgentLifecycleJournalEntry").Inc()
 	return r0, r1
 }
 

@@ -30,7 +30,8 @@ func TestCreateAIAgent(t *testing.T) {
 		owner := dbgen.User(t, db, database.User{})
 
 		created, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
-			Owner: entity.Ref{Type: entity.TypeUser, ID: owner.ID},
+			Owner:  entity.Ref{Type: entity.TypeUser, ID: owner.ID},
+			Origin: entity.Origin{Type: entity.OriginTypeWorkspace, ID: uuid.New()},
 		})
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, created.ID, "creation should mint an identity")
@@ -56,14 +57,13 @@ func TestCreateAIAgent(t *testing.T) {
 		require.Len(t, entries, 1, "creation should write exactly one entry")
 
 		got := entries[0]
-		require.EqualValues(t, 0, got.Line, "the only line of an entry is line zero")
 		require.Equal(t, string(entity.EventAIAgentCreate), got.Event)
 		require.Equal(t, id, got.Subject, "the entry should name the agent that was created")
-		require.Equal(t, string(entity.TypeUser), got.ActorType.String,
+		require.Equal(t, string(entity.TypeUser), got.ActorType,
 			"creation is commanded by the owner, not by a relaying workspace_agent")
-		require.Equal(t, owner.ID, got.Actor.UUID)
-		require.True(t, got.RecordingDate.Valid, "line zero carries the recording date")
-		require.True(t, got.EffectiveDate.Valid, "line zero carries the effective date")
+		require.Equal(t, owner.ID, got.Actor)
+		require.False(t, got.RecordingDate.IsZero(), "an entry carries the recording date")
+		require.False(t, got.EffectiveDate.IsZero(), "an entry carries the effective date")
 		require.Equal(t, got.EntryID, row.PostingReference,
 			"the ledger row should name the entry that posted to it")
 	})
@@ -77,7 +77,8 @@ func TestCreateAIAgent(t *testing.T) {
 		owner := dbgen.User(t, db, database.User{})
 
 		created, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
-			Owner: entity.Ref{Type: entity.TypeUser, ID: owner.ID},
+			Owner:  entity.Ref{Type: entity.TypeUser, ID: owner.ID},
+			Origin: entity.Origin{Type: entity.OriginTypeWorkspace, ID: uuid.New()},
 		})
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, created.AuthorizationID, "creation should grant authorization")
@@ -99,7 +100,6 @@ func TestCreateAIAgent(t *testing.T) {
 		require.Len(t, entries, 1, "a grant is one entry of one line")
 
 		got := entries[0]
-		require.EqualValues(t, 0, got.Line, "the only line of an entry is line zero")
 		require.Equal(t, string(entity.EventGrant), got.Event)
 		require.Equal(t, created.AuthorizationID, got.Subject, "the entry names the authorization")
 		require.Equal(t, string(entity.TypeUser), got.ActorType.String,
@@ -115,6 +115,57 @@ func TestCreateAIAgent(t *testing.T) {
 	// transaction when given one, so that creation can be made atomic with
 	// work that is not creation. The observable consequence is that the entry
 	// rolls back with the caller, which is what this checks.
+	t.Run("RecordsTheOriginItWasCreatedIn", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		user := dbgen.User(t, db, database.User{})
+		owner := entity.Ref{Type: entity.TypeUser, ID: user.ID}
+		workspace := uuid.New()
+
+		created, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
+			Owner:  owner,
+			Origin: entity.Origin{Type: entity.OriginTypeWorkspace, ID: workspace},
+		})
+		require.NoError(t, err)
+
+		row, err := db.GetAIAgentLedgerRowByID(ctx, created.ID)
+		require.NoError(t, err)
+		require.Equal(t, string(entity.OriginTypeWorkspace), row.OriginType)
+		require.Equal(t, workspace, row.OriginID)
+
+		// The line says what the creation carried. The ledger says what the
+		// agent is. They agree here because nothing has happened since, and
+		// they are separate statements even so.
+		lines, err := db.GetAIAgentLifecycleJournalCreateLines(ctx, row.PostingReference)
+		require.NoError(t, err)
+		require.Len(t, lines, 1, "one creation carries one line")
+		require.EqualValues(t, 0, lines[0].Line, "the only line of an entry is line zero")
+		require.Equal(t, string(entity.OriginTypeWorkspace), lines[0].OriginType)
+		require.Equal(t, workspace, lines[0].OriginID)
+	})
+
+	t.Run("RejectsCreationWithNoOrigin", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		user := dbgen.User(t, db, database.User{})
+		owner := entity.Ref{Type: entity.TypeUser, ID: user.ID}
+
+		_, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{Owner: owner})
+		require.ErrorContains(t, err, "names no kind of thing")
+
+		_, err = entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
+			Owner:  owner,
+			Origin: entity.Origin{Type: entity.OriginTypeChat},
+		})
+		require.ErrorContains(t, err, "embodied in something")
+	})
+
 	t.Run("JoinsTheCallersTransaction", func(t *testing.T) {
 		t.Parallel()
 
@@ -128,7 +179,8 @@ func TestCreateAIAgent(t *testing.T) {
 		err := db.InTx(func(tx database.Store) error {
 			var err error
 			created, err := entity.CreateAIAgent(ctx, tx, entity.CreateAIAgentParams{
-				Owner: entity.Ref{Type: entity.TypeUser, ID: owner.ID},
+				Owner:  entity.Ref{Type: entity.TypeUser, ID: owner.ID},
+				Origin: entity.Origin{Type: entity.OriginTypeWorkspace, ID: uuid.New()},
 			})
 			if err != nil {
 				return err
@@ -162,7 +214,8 @@ func TestCreateAIAgent(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		_, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
-			Owner: entity.Ref{Type: entity.TypeUser, ID: uuid.Nil},
+			Owner:  entity.Ref{Type: entity.TypeUser, ID: uuid.Nil},
+			Origin: entity.Origin{Type: entity.OriginTypeWorkspace, ID: uuid.New()},
 		})
 		require.ErrorContains(t, err, "belongs to a principal")
 	})
@@ -174,7 +227,8 @@ func TestCreateAIAgent(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		_, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
-			Owner: entity.Ref{Type: "sandbox", ID: uuid.New()},
+			Owner:  entity.Ref{Type: "sandbox", ID: uuid.New()},
+			Origin: entity.Origin{Type: entity.OriginTypeWorkspace, ID: uuid.New()},
 		})
 		require.ErrorContains(t, err, "names no kind of entity")
 	})
@@ -191,7 +245,10 @@ func TestRetireAIAgent(t *testing.T) {
 		t.Helper()
 		user := dbgen.User(t, db, database.User{})
 		owner := entity.Ref{Type: entity.TypeUser, ID: user.ID}
-		created, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{Owner: owner})
+		created, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
+			Owner:  owner,
+			Origin: entity.Origin{Type: entity.OriginTypeWorkspace, ID: uuid.New()},
+		})
 		require.NoError(t, err)
 		return created, owner
 	}
@@ -235,9 +292,9 @@ func TestRetireAIAgent(t *testing.T) {
 			require.Equal(t, string(tc.event), got.Event,
 				"which way it ended is carried by the transition, the state being the same either way")
 			require.Equal(t, after.PostingReference, got.EntryID)
-			require.WithinDuration(t, happened, got.EffectiveDate.Time, time.Second,
+			require.WithinDuration(t, happened, got.EffectiveDate, time.Second,
 				"the effective date is when it happened, not when it was recorded")
-			require.True(t, got.RecordingDate.Time.After(got.EffectiveDate.Time),
+			require.True(t, got.RecordingDate.After(got.EffectiveDate),
 				"a late entry records an earlier event")
 		})
 	}
@@ -426,4 +483,25 @@ func entriesFor(ctx context.Context, t *testing.T, db database.Store, id uuid.UU
 	})
 	require.NoError(t, err)
 	return entries
+}
+
+// A name nothing stores. It has to say which kind of agent this is, that being
+// the whole of what the stored name said beyond identifying it.
+func TestDisplayName(t *testing.T) {
+	t.Parallel()
+
+	id := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+
+	require.Equal(t, "ai-ws-"+id.String(), entity.DisplayName(entity.OriginTypeWorkspace, id))
+	require.Equal(t, "ai-chat-"+id.String(), entity.DisplayName(entity.OriginTypeChat, id))
+
+	require.NotEqual(t,
+		entity.DisplayName(entity.OriginTypeWorkspace, id),
+		entity.DisplayName(entity.OriginTypeChat, id),
+		"a chat agent and a workspace agent must not read alike")
+
+	// Same inputs, same name, every time. That is what lets nothing store it.
+	require.Equal(t,
+		entity.DisplayName(entity.OriginTypeWorkspace, id),
+		entity.DisplayName(entity.OriginTypeWorkspace, id))
 }

@@ -886,7 +886,7 @@ func (q *sqlQuerier) UpdateEncryptedAIProviderSettings(ctx context.Context, arg 
 
 const getAIAgentLedgerRowByID = `-- name: GetAIAgentLedgerRowByID :one
 SELECT
-	id, owner_type, owner_id, state, posting_reference
+	id, owner_type, owner_id, state, posting_reference, origin_type, origin_id
 FROM
 	ai_agent_ledger
 WHERE
@@ -902,20 +902,21 @@ func (q *sqlQuerier) GetAIAgentLedgerRowByID(ctx context.Context, id uuid.UUID) 
 		&i.OwnerID,
 		&i.State,
 		&i.PostingReference,
+		&i.OriginType,
+		&i.OriginID,
 	)
 	return i, err
 }
 
 const getAIAgentLifecycleEntriesBySubject = `-- name: GetAIAgentLifecycleEntriesBySubject :many
 SELECT
-	entry_id, line, recording_date, effective_date, actor_type, actor, event, subject
+	entry_id, recording_date, effective_date, actor_type, actor, event, subject
 FROM
 	ai_agent_lifecycle_journal
 WHERE
 	subject = $1
 ORDER BY
-	entry_id,
-	line
+	entry_id
 LIMIT
 	$2
 `
@@ -941,7 +942,6 @@ func (q *sqlQuerier) GetAIAgentLifecycleEntriesBySubject(ctx context.Context, ar
 		var i AIAgentLifecycleJournal
 		if err := rows.Scan(
 			&i.EntryID,
-			&i.Line,
 			&i.RecordingDate,
 			&i.EffectiveDate,
 			&i.ActorType,
@@ -962,23 +962,67 @@ func (q *sqlQuerier) GetAIAgentLifecycleEntriesBySubject(ctx context.Context, ar
 	return items, nil
 }
 
+const getAIAgentLifecycleJournalCreateLines = `-- name: GetAIAgentLifecycleJournalCreateLines :many
+SELECT
+	entry_id, line, origin_type, origin_id
+FROM
+	ai_agent_lifecycle_journal_create
+WHERE
+	entry_id = $1
+ORDER BY
+	line
+`
+
+// The lines of one creation entry, ordered as they were written.
+func (q *sqlQuerier) GetAIAgentLifecycleJournalCreateLines(ctx context.Context, entryID int64) ([]AIAgentLifecycleJournalCreate, error) {
+	rows, err := q.db.QueryContext(ctx, getAIAgentLifecycleJournalCreateLines, entryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIAgentLifecycleJournalCreate
+	for rows.Next() {
+		var i AIAgentLifecycleJournalCreate
+		if err := rows.Scan(
+			&i.EntryID,
+			&i.Line,
+			&i.OriginType,
+			&i.OriginID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertAIAgentLedgerRow = `-- name: InsertAIAgentLedgerRow :one
 INSERT INTO
 	ai_agent_ledger (
 		id,
 		owner_type,
 		owner_id,
+		origin_type,
+		origin_id,
 		state,
 		posting_reference
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING id, owner_type, owner_id, state, posting_reference
+	($1, $2, $3, $4, $5, $6, $7) RETURNING id, owner_type, owner_id, state, posting_reference, origin_type, origin_id
 `
 
 type InsertAIAgentLedgerRowParams struct {
 	ID               uuid.UUID `db:"id" json:"id"`
 	OwnerType        string    `db:"owner_type" json:"owner_type"`
 	OwnerID          uuid.UUID `db:"owner_id" json:"owner_id"`
+	OriginType       string    `db:"origin_type" json:"origin_type"`
+	OriginID         uuid.UUID `db:"origin_id" json:"origin_id"`
 	State            string    `db:"state" json:"state"`
 	PostingReference int64     `db:"posting_reference" json:"posting_reference"`
 }
@@ -988,6 +1032,8 @@ func (q *sqlQuerier) InsertAIAgentLedgerRow(ctx context.Context, arg InsertAIAge
 		arg.ID,
 		arg.OwnerType,
 		arg.OwnerID,
+		arg.OriginType,
+		arg.OriginID,
 		arg.State,
 		arg.PostingReference,
 	)
@@ -998,15 +1044,49 @@ func (q *sqlQuerier) InsertAIAgentLedgerRow(ctx context.Context, arg InsertAIAge
 		&i.OwnerID,
 		&i.State,
 		&i.PostingReference,
+		&i.OriginType,
+		&i.OriginID,
 	)
 	return i, err
 }
 
-const insertAIAgentLifecycleJournalFirstLine = `-- name: InsertAIAgentLifecycleJournalFirstLine :one
+const insertAIAgentLifecycleJournalCreateLine = `-- name: InsertAIAgentLifecycleJournalCreateLine :one
+INSERT INTO
+	ai_agent_lifecycle_journal_create (entry_id, line, origin_type, origin_id)
+VALUES
+	($1, $2, $3, $4) RETURNING entry_id, line, origin_type, origin_id
+`
+
+type InsertAIAgentLifecycleJournalCreateLineParams struct {
+	EntryID    int64     `db:"entry_id" json:"entry_id"`
+	Line       int16     `db:"line" json:"line"`
+	OriginType string    `db:"origin_type" json:"origin_type"`
+	OriginID   uuid.UUID `db:"origin_id" json:"origin_id"`
+}
+
+// What a creation carried. Line zero, this being the only line, and the only
+// line table this journal has until `transfer` gives it a second shape.
+func (q *sqlQuerier) InsertAIAgentLifecycleJournalCreateLine(ctx context.Context, arg InsertAIAgentLifecycleJournalCreateLineParams) (AIAgentLifecycleJournalCreate, error) {
+	row := q.db.QueryRowContext(ctx, insertAIAgentLifecycleJournalCreateLine,
+		arg.EntryID,
+		arg.Line,
+		arg.OriginType,
+		arg.OriginID,
+	)
+	var i AIAgentLifecycleJournalCreate
+	err := row.Scan(
+		&i.EntryID,
+		&i.Line,
+		&i.OriginType,
+		&i.OriginID,
+	)
+	return i, err
+}
+
+const insertAIAgentLifecycleJournalEntry = `-- name: InsertAIAgentLifecycleJournalEntry :one
 INSERT INTO
 	ai_agent_lifecycle_journal (
 		entry_id,
-		line,
 		effective_date,
 		actor_type,
 		actor,
@@ -1014,23 +1094,22 @@ INSERT INTO
 		subject
 	)
 VALUES
-	($1, 0, $2, $3, $4, $5, $6) RETURNING entry_id, line, recording_date, effective_date, actor_type, actor, event, subject
+	($1, $2, $3, $4, $5, $6) RETURNING entry_id, recording_date, effective_date, actor_type, actor, event, subject
 `
 
-type InsertAIAgentLifecycleJournalFirstLineParams struct {
-	EntryID       int64          `db:"entry_id" json:"entry_id"`
-	EffectiveDate sql.NullTime   `db:"effective_date" json:"effective_date"`
-	ActorType     sql.NullString `db:"actor_type" json:"actor_type"`
-	Actor         uuid.NullUUID  `db:"actor" json:"actor"`
-	Event         string         `db:"event" json:"event"`
-	Subject       uuid.UUID      `db:"subject" json:"subject"`
+type InsertAIAgentLifecycleJournalEntryParams struct {
+	EntryID       int64     `db:"entry_id" json:"entry_id"`
+	EffectiveDate time.Time `db:"effective_date" json:"effective_date"`
+	ActorType     string    `db:"actor_type" json:"actor_type"`
+	Actor         uuid.UUID `db:"actor" json:"actor"`
+	Event         string    `db:"event" json:"event"`
+	Subject       uuid.UUID `db:"subject" json:"subject"`
 }
 
-// Line 0 carries the entry level values. recording_date is absent from this
-// statement on purpose: the column default supplies it, so no caller can
-// supply, override, or backdate it.
-func (q *sqlQuerier) InsertAIAgentLifecycleJournalFirstLine(ctx context.Context, arg InsertAIAgentLifecycleJournalFirstLineParams) (AIAgentLifecycleJournal, error) {
-	row := q.db.QueryRowContext(ctx, insertAIAgentLifecycleJournalFirstLine,
+// recording_date is absent from this statement on purpose: the column default
+// supplies it, so no caller can supply, override, or backdate it.
+func (q *sqlQuerier) InsertAIAgentLifecycleJournalEntry(ctx context.Context, arg InsertAIAgentLifecycleJournalEntryParams) (AIAgentLifecycleJournal, error) {
+	row := q.db.QueryRowContext(ctx, insertAIAgentLifecycleJournalEntry,
 		arg.EntryID,
 		arg.EffectiveDate,
 		arg.ActorType,
@@ -1041,56 +1120,6 @@ func (q *sqlQuerier) InsertAIAgentLifecycleJournalFirstLine(ctx context.Context,
 	var i AIAgentLifecycleJournal
 	err := row.Scan(
 		&i.EntryID,
-		&i.Line,
-		&i.RecordingDate,
-		&i.EffectiveDate,
-		&i.ActorType,
-		&i.Actor,
-		&i.Event,
-		&i.Subject,
-	)
-	return i, err
-}
-
-const insertAIAgentLifecycleJournalSubsequentLine = `-- name: InsertAIAgentLifecycleJournalSubsequentLine :one
-INSERT INTO
-	ai_agent_lifecycle_journal (
-		entry_id,
-		line,
-		recording_date,
-		effective_date,
-		actor_type,
-		actor,
-		event,
-		subject
-	)
-VALUES
-	($1, $2, NULL, NULL, NULL, NULL, $3, $4) RETURNING entry_id, line, recording_date, effective_date, actor_type, actor, event, subject
-`
-
-type InsertAIAgentLifecycleJournalSubsequentLineParams struct {
-	EntryID int64     `db:"entry_id" json:"entry_id"`
-	Line    int16     `db:"line" json:"line"`
-	Event   string    `db:"event" json:"event"`
-	Subject uuid.UUID `db:"subject" json:"subject"`
-}
-
-// NOT LIVE CODE. Nothing calls this. It is here to show what a line after the
-// first looks like, since the proof of concept writes no multiline entry for an
-// AI agent. It deserves a unit test of its own and does not have one, so treat
-// it as documentation rather than as a tested path. In production this would
-// rot; this is not production.
-func (q *sqlQuerier) InsertAIAgentLifecycleJournalSubsequentLine(ctx context.Context, arg InsertAIAgentLifecycleJournalSubsequentLineParams) (AIAgentLifecycleJournal, error) {
-	row := q.db.QueryRowContext(ctx, insertAIAgentLifecycleJournalSubsequentLine,
-		arg.EntryID,
-		arg.Line,
-		arg.Event,
-		arg.Subject,
-	)
-	var i AIAgentLifecycleJournal
-	err := row.Scan(
-		&i.EntryID,
-		&i.Line,
 		&i.RecordingDate,
 		&i.EffectiveDate,
 		&i.ActorType,
@@ -1122,7 +1151,7 @@ SET
 	posting_reference = $2
 WHERE
 	id = $1
-	AND posting_reference = $3 RETURNING id, owner_type, owner_id, state, posting_reference
+	AND posting_reference = $3 RETURNING id, owner_type, owner_id, state, posting_reference, origin_type, origin_id
 `
 
 type RetireAIAgentParams struct {
@@ -1142,6 +1171,8 @@ func (q *sqlQuerier) RetireAIAgent(ctx context.Context, arg RetireAIAgentParams)
 		&i.OwnerID,
 		&i.State,
 		&i.PostingReference,
+		&i.OriginType,
+		&i.OriginID,
 	)
 	return i, err
 }

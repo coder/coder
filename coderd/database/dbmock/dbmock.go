@@ -1920,6 +1920,21 @@ func (mr *MockStoreMockRecorder) GetAIAgentLifecycleEntriesBySubject(ctx, arg an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentLifecycleEntriesBySubject", reflect.TypeOf((*MockStore)(nil).GetAIAgentLifecycleEntriesBySubject), ctx, arg)
 }
 
+// GetAIAgentLifecycleJournalCreateLines mocks base method.
+func (m *MockStore) GetAIAgentLifecycleJournalCreateLines(ctx context.Context, entryID int64) ([]database.AIAgentLifecycleJournalCreate, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIAgentLifecycleJournalCreateLines", ctx, entryID)
+	ret0, _ := ret[0].([]database.AIAgentLifecycleJournalCreate)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIAgentLifecycleJournalCreateLines indicates an expected call of GetAIAgentLifecycleJournalCreateLines.
+func (mr *MockStoreMockRecorder) GetAIAgentLifecycleJournalCreateLines(ctx, entryID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentLifecycleJournalCreateLines", reflect.TypeOf((*MockStore)(nil).GetAIAgentLifecycleJournalCreateLines), ctx, entryID)
+}
+
 // GetAIAgentsByOwnerID mocks base method.
 func (m *MockStore) GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]database.GetAIAgentsByOwnerIDRow, error) {
 	m.ctrl.T.Helper()
@@ -7829,34 +7844,34 @@ func (mr *MockStoreMockRecorder) InsertAIAgentLedgerRow(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIAgentLedgerRow", reflect.TypeOf((*MockStore)(nil).InsertAIAgentLedgerRow), ctx, arg)
 }
 
-// InsertAIAgentLifecycleJournalFirstLine mocks base method.
-func (m *MockStore) InsertAIAgentLifecycleJournalFirstLine(ctx context.Context, arg database.InsertAIAgentLifecycleJournalFirstLineParams) (database.AIAgentLifecycleJournal, error) {
+// InsertAIAgentLifecycleJournalCreateLine mocks base method.
+func (m *MockStore) InsertAIAgentLifecycleJournalCreateLine(ctx context.Context, arg database.InsertAIAgentLifecycleJournalCreateLineParams) (database.AIAgentLifecycleJournalCreate, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertAIAgentLifecycleJournalFirstLine", ctx, arg)
+	ret := m.ctrl.Call(m, "InsertAIAgentLifecycleJournalCreateLine", ctx, arg)
+	ret0, _ := ret[0].(database.AIAgentLifecycleJournalCreate)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAIAgentLifecycleJournalCreateLine indicates an expected call of InsertAIAgentLifecycleJournalCreateLine.
+func (mr *MockStoreMockRecorder) InsertAIAgentLifecycleJournalCreateLine(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIAgentLifecycleJournalCreateLine", reflect.TypeOf((*MockStore)(nil).InsertAIAgentLifecycleJournalCreateLine), ctx, arg)
+}
+
+// InsertAIAgentLifecycleJournalEntry mocks base method.
+func (m *MockStore) InsertAIAgentLifecycleJournalEntry(ctx context.Context, arg database.InsertAIAgentLifecycleJournalEntryParams) (database.AIAgentLifecycleJournal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAIAgentLifecycleJournalEntry", ctx, arg)
 	ret0, _ := ret[0].(database.AIAgentLifecycleJournal)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// InsertAIAgentLifecycleJournalFirstLine indicates an expected call of InsertAIAgentLifecycleJournalFirstLine.
-func (mr *MockStoreMockRecorder) InsertAIAgentLifecycleJournalFirstLine(ctx, arg any) *gomock.Call {
+// InsertAIAgentLifecycleJournalEntry indicates an expected call of InsertAIAgentLifecycleJournalEntry.
+func (mr *MockStoreMockRecorder) InsertAIAgentLifecycleJournalEntry(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIAgentLifecycleJournalFirstLine", reflect.TypeOf((*MockStore)(nil).InsertAIAgentLifecycleJournalFirstLine), ctx, arg)
-}
-
-// InsertAIAgentLifecycleJournalSubsequentLine mocks base method.
-func (m *MockStore) InsertAIAgentLifecycleJournalSubsequentLine(ctx context.Context, arg database.InsertAIAgentLifecycleJournalSubsequentLineParams) (database.AIAgentLifecycleJournal, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertAIAgentLifecycleJournalSubsequentLine", ctx, arg)
-	ret0, _ := ret[0].(database.AIAgentLifecycleJournal)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertAIAgentLifecycleJournalSubsequentLine indicates an expected call of InsertAIAgentLifecycleJournalSubsequentLine.
-func (mr *MockStoreMockRecorder) InsertAIAgentLifecycleJournalSubsequentLine(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIAgentLifecycleJournalSubsequentLine", reflect.TypeOf((*MockStore)(nil).InsertAIAgentLifecycleJournalSubsequentLine), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIAgentLifecycleJournalEntry", reflect.TypeOf((*MockStore)(nil).InsertAIAgentLifecycleJournalEntry), ctx, arg)
 }
 
 // InsertAIAgentUser mocks base method.

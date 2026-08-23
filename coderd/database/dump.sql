@@ -1501,6 +1501,9 @@ CREATE TABLE ai_agent_ledger (
     owner_id uuid NOT NULL,
     state text NOT NULL,
     posting_reference bigint NOT NULL,
+    origin_type text NOT NULL,
+    origin_id uuid NOT NULL,
+    CONSTRAINT ai_agent_ledger_origin_type CHECK ((origin_type = ANY (ARRAY['chat'::text, 'workspace'::text]))),
     CONSTRAINT ai_agent_ledger_state CHECK ((state = ANY (ARRAY['active'::text, 'dormant'::text, 'retired'::text])))
 );
 
@@ -1508,25 +1511,34 @@ COMMENT ON TABLE ai_agent_ledger IS 'Current state of each AI agent identity. Th
 
 COMMENT ON COLUMN ai_agent_ledger.state IS 'dormant is reserved for future use and is unreachable in the machine the proof of concept implements, which has active and retired only. It is in the enum now so that supporting reconstitution later costs no migration, which means code switching exhaustively over these values must handle a state that cannot occur.';
 
+COMMENT ON COLUMN ai_agent_ledger.origin_type IS 'What kind of thing this AI agent was first embodied in, folded from its creation entry. Not the current embodiment: an AI agent that moved would keep the origin it was created in, and nothing moves one today.';
+
 CREATE TABLE ai_agent_lifecycle_journal (
     entry_id bigint NOT NULL,
-    line smallint NOT NULL,
-    recording_date timestamp with time zone DEFAULT now(),
-    effective_date timestamp with time zone DEFAULT now(),
-    actor_type text,
-    actor uuid,
+    recording_date timestamp with time zone DEFAULT now() NOT NULL,
+    effective_date timestamp with time zone DEFAULT now() NOT NULL,
+    actor_type text NOT NULL,
+    actor uuid NOT NULL,
     event text NOT NULL,
-    subject uuid NOT NULL,
-    CONSTRAINT ai_agent_lifecycle_journal_actor_on_first_line CHECK (((line = 0) = (actor IS NOT NULL))),
-    CONSTRAINT ai_agent_lifecycle_journal_actor_type_on_first_line CHECK (((line = 0) = (actor_type IS NOT NULL))),
-    CONSTRAINT ai_agent_lifecycle_journal_effective_date_on_first_line CHECK (((line = 0) = (effective_date IS NOT NULL))),
-    CONSTRAINT ai_agent_lifecycle_journal_line_non_negative CHECK ((line >= 0)),
-    CONSTRAINT ai_agent_lifecycle_journal_recording_date_on_first_line CHECK (((line = 0) = (recording_date IS NOT NULL)))
+    subject uuid NOT NULL
 );
 
-COMMENT ON TABLE ai_agent_lifecycle_journal IS 'Journal of persistent state changes to AI agent identities. One journal per entity: sharing one would assert that two lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.';
+COMMENT ON TABLE ai_agent_lifecycle_journal IS 'Journal of persistent state changes to AI agents, in the normalized form: this is the entry table. Line tables join to it per shape of operation. One journal per entity: sharing one would assert that two lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.';
 
 COMMENT ON COLUMN ai_agent_lifecycle_journal.effective_date IS 'When the event occurred, which for an observed transition may be long before it was recorded. A process that finished on a Tuesday and was noticed on a Friday has its finish recorded on the Friday and dated the Tuesday. It is the earlier of the event time and the recording time, which keeps it from ever claiming the journal foresaw something.';
+
+CREATE TABLE ai_agent_lifecycle_journal_create (
+    entry_id bigint NOT NULL,
+    line smallint NOT NULL,
+    origin_type text NOT NULL,
+    origin_id uuid NOT NULL,
+    CONSTRAINT ai_agent_lifecycle_journal_create_line_non_negative CHECK ((line >= 0)),
+    CONSTRAINT ai_agent_lifecycle_journal_create_origin_type CHECK ((origin_type = ANY (ARRAY['chat'::text, 'workspace'::text])))
+);
+
+COMMENT ON TABLE ai_agent_lifecycle_journal_create IS 'What a creation of an AI agent carried. A line table of the AI agent journal, joined by entry identifier.';
+
+COMMENT ON COLUMN ai_agent_lifecycle_journal_create.origin_type IS 'What kind of thing the AI agent was first embodied in. A pair with origin_id, because the thing can be of more than one kind and no single table holds them all.';
 
 CREATE SEQUENCE ai_agent_lifecycle_journal_entry_seq
     START WITH 1
@@ -4572,8 +4584,11 @@ ALTER TABLE ONLY workspace_agent_stats
 ALTER TABLE ONLY ai_agent_ledger
     ADD CONSTRAINT ai_agent_ledger_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_agent_lifecycle_journal_create
+    ADD CONSTRAINT ai_agent_lifecycle_journal_create_pkey PRIMARY KEY (entry_id, line);
+
 ALTER TABLE ONLY ai_agent_lifecycle_journal
-    ADD CONSTRAINT ai_agent_lifecycle_journal_pkey PRIMARY KEY (entry_id, line);
+    ADD CONSTRAINT ai_agent_lifecycle_journal_pkey PRIMARY KEY (entry_id);
 
 ALTER TABLE ONLY ai_agents
     ADD CONSTRAINT ai_agents_pkey PRIMARY KEY (user_id);
@@ -5030,6 +5045,10 @@ ALTER TABLE ONLY workspace_resources
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
+
+CREATE INDEX ai_agent_ledger_origin_idx ON ai_agent_ledger USING btree (origin_type, origin_id);
+
+COMMENT ON INDEX ai_agent_ledger_origin_idx IS 'For asking which AI agents were created in a given workspace or chat, which is a forensic question rather than one live operation asks.';
 
 CREATE INDEX ai_agent_ledger_owner_idx ON ai_agent_ledger USING btree (owner_type, owner_id);
 
@@ -5526,6 +5545,9 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY ai_agent_lifecycle_journal_create
+    ADD CONSTRAINT ai_agent_lifecycle_journal_create_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES ai_agent_lifecycle_journal(entry_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY ai_agents
     ADD CONSTRAINT ai_agents_owner_user_id_fkey FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE;
