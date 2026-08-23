@@ -120,9 +120,10 @@ func TestOAuth2NoStoreHeaders(t *testing.T) {
 		app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
 		_, challenge := oauth2providertest.GeneratePKCE(t)
 
-		// An unsupported response_type renders a static error page rather
+		// A response_type that does not parse fails inside
+		// extractAuthorizeParams, which renders a static error page rather
 		// than going through httpapi.
-		uri := strings.Replace(authorizeURL(baseURL, app.ID.String(), challenge), "response_type=code", "response_type=token", 1)
+		uri := strings.Replace(authorizeURL(baseURL, app.ID.String(), challenge), "response_type=code", "response_type=not_a_response_type", 1)
 		resp := doRequest(ctx, t, http.MethodGet, uri, nil, sessionToken(client))
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)

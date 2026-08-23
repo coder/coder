@@ -3,11 +3,13 @@ package oauth2provider_test
 import (
 	"context"
 	"database/sql"
+	"html"
 	htmltemplate "html/template"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -526,6 +528,144 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 	})
 }
 
+// TestOAuth2AuthorizeErrorsReachTheClient covers the errors that RFC 6749
+// §4.1.2.1 delivers to the client's registered callback rather than to the
+// user's screen. Each fires only on a malformed request, which is exactly when
+// the client's own error handling is the thing that needs to run: answering on
+// Coder leaves the integrator staring at a page their code never sees, without
+// the state that would tell them which request failed.
+//
+// The sites that must keep answering on Coder are the ones where the callback
+// is not yet trustworthy, and their guards live in
+// TestOAuth2AuthorizeScopeNegotiation: MismatchedRedirectURINotRedirected for
+// both extraction failures, DangerousCallbackSchemeNotRedirected for the
+// invalid registered scheme.
+func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	seedApp := func(t *testing.T) database.OAuth2ProviderApp {
+		t.Helper()
+		return dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:        testutil.GetRandomName(t),
+			CallbackURL: appCallbackURL,
+			Scope:       sql.NullString{String: scopeInCatalog, Valid: true},
+		})
+	}
+
+	// response_type=token is the implicit grant OAuth 2.1 removes. It is a
+	// value the enum accepts, so it reaches the handler's own check rather
+	// than failing in the query parser, which is what makes it the reachable
+	// path for this error code.
+	t.Run("UnsupportedResponseTypeRedirected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t)
+
+		for _, method := range []string{http.MethodGet, http.MethodPost} {
+			query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+			query.Set("response_type", "token")
+
+			resp := sendAuthorizeRequest(ctx, t, client, method, query)
+			defer resp.Body.Close()
+
+			requireAuthorizeErrorRedirect(t, resp,
+				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
+				"Only response_type=code is supported")
+		}
+	})
+
+	// The neighboring path, kept adjacent because the two are one character
+	// apart in the request and worlds apart in where the answer goes: a
+	// response_type the enum does not accept fails inside
+	// extractAuthorizeParams, before the callback has been matched, so it must
+	// still answer on Coder.
+	t.Run("UnparseableResponseTypeNotRedirected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t)
+
+		for _, method := range []string{http.MethodGet, http.MethodPost} {
+			query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+			query.Set("response_type", "not_a_response_type")
+
+			resp := sendAuthorizeRequest(ctx, t, client, method, query)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode,
+				"%s: a response_type the parser rejects fails before the callback is trusted", method)
+			require.Empty(t, resp.Header.Get("Location"),
+				"%s: nothing may be redirected from inside extractAuthorizeParams", method)
+		}
+	})
+
+	// PKCE 'plain' is refused by OAuth 2.1, and the refusal is the client's to
+	// act on: it is the client that chose the method.
+	t.Run("InvalidPKCEMethodRedirected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t)
+		query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+		query.Set("code_challenge_method", "plain")
+
+		resp := sendAuthorizeRequest(ctx, t, client, http.MethodPost, query)
+		defer resp.Body.Close()
+
+		requireAuthorizeErrorRedirect(t, resp,
+			codersdk.OAuth2ErrorCodeInvalidRequest, "use 'S256'")
+	})
+
+	// The cancel link is built by the same builder as the redirects above, so
+	// this pins that declining still reaches the client as access_denied with
+	// its state, rather than the builder change quietly repointing it.
+	t.Run("CancelLinkCarriesAccessDenied", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedApp(t)
+		resp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeInCatalog)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		body := readBody(t, resp)
+
+		cancel := cancelLinkFromConsentPage(t, body)
+		require.Equal(t, appCallbackURL, cancel.Scheme+"://"+cancel.Host+cancel.Path,
+			"canceling must return the user to the app's registered callback")
+		query := cancel.Query()
+		require.Equal(t, string(codersdk.OAuth2ErrorCodeAccessDenied), query.Get("error"))
+		require.Equal(t, authorizeState, query.Get("state"))
+		require.Empty(t, query.Get("code"), "declining must not issue a code")
+	})
+}
+
+// cancelLinkFromConsentPage extracts the consent page's cancel href. The page
+// is a Go template rather than a component with a test seam, so the href is
+// read back out of the rendered HTML.
+func cancelLinkFromConsentPage(t *testing.T, body string) *url.URL {
+	t.Helper()
+
+	const marker = `id="cancel-link" href="`
+	start := strings.Index(body, marker)
+	require.GreaterOrEqual(t, start, 0, "consent page has no cancel link")
+	rest := body[start+len(marker):]
+	end := strings.Index(rest, `"`)
+	require.GreaterOrEqual(t, end, 0, "cancel link href is unterminated")
+
+	cancel, err := url.Parse(html.UnescapeString(rest[:end]))
+	require.NoError(t, err)
+	return cancel
+}
+
 // authorizeQuery builds a well-formed /oauth2/authorize query. Callers that
 // need to vary a parameter the happy path does not, such as redirect_uri,
 // mutate the result and pass it to sendAuthorizeRequest.
@@ -607,11 +747,11 @@ var (
 	reasonScopeNotAllowed  = oauth2provider.ReasonScopeNotAllowed
 )
 
-// requireInvalidScope asserts the RFC 6749 §4.1.2.1 rejection: the client
-// learns of the failure by a redirect to its own registered callback, carrying
-// the error code, a description from the branch the caller named, and the
-// state it sent, and carrying no authorization code.
-func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) {
+// requireAuthorizeErrorRedirect asserts the RFC 6749 §4.1.2.1 rejection shape:
+// the client learns of the failure by a redirect to its own registered
+// callback, carrying the error code, a description from the branch the caller
+// named, and the state it sent, and carrying no authorization code.
+func requireAuthorizeErrorRedirect(t *testing.T, resp *http.Response, wantCode codersdk.OAuth2ErrorCode, wantDescription string) {
 	t.Helper()
 
 	require.Equal(t, http.StatusFound, resp.StatusCode)
@@ -622,12 +762,20 @@ func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) {
 		"the error must go to the app's registered callback and nowhere else")
 
 	query := location.Query()
-	require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), query.Get("error"))
-	require.Contains(t, query.Get("error_description"), wantReason,
+	require.Equal(t, string(wantCode), query.Get("error"))
+	require.Contains(t, query.Get("error_description"), wantDescription,
 		"the rejection must come from the branch this case covers")
 	require.Equal(t, authorizeState, query.Get("state"),
 		"the client cannot correlate the failure with its request without its state")
 	require.Empty(t, query.Get("code"), "a rejected request must not issue a code")
+}
+
+// requireInvalidScope is requireAuthorizeErrorRedirect fixed to the scope
+// rejection, whose reasons are the sentinels below rather than free text.
+func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) {
+	t.Helper()
+
+	requireAuthorizeErrorRedirect(t, resp, codersdk.OAuth2ErrorCodeInvalidScope, wantReason)
 }
 
 func readBody(t *testing.T, resp *http.Response) string {
