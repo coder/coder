@@ -71,6 +71,11 @@ links */}}
       #scope-list {
         list-style: none;
         margin-top: 12px;
+        /* The container centres its text, which would land permissions of
+           differing lengths on differing left edges and make the one thing on
+           the page that must be read carefully the least scannable. */
+        text-align: left;
+        padding-left: 8px;
       }
 
       .button-group {
