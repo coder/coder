@@ -922,6 +922,7 @@ inserted AS (
         reasoning_effort,
         role,
         content,
+        environment_variables,
         content_version,
         visibility,
         input_tokens,
@@ -942,6 +943,7 @@ inserted AS (
         NULLIF((@reasoning_effort::text[])[allocated.ord], '')::chat_reasoning_effort,
         (@role::chat_message_role[])[allocated.ord],
         (@content::text[])[allocated.ord]::jsonb,
+        NULLIF((@environment_variables::text[])[allocated.ord], '')::jsonb,
         (@content_version::smallint[])[allocated.ord],
         (@visibility::chat_message_visibility[])[allocated.ord],
         NULLIF((@input_tokens::bigint[])[allocated.ord], 0),
@@ -1915,10 +1917,11 @@ RETURNING
 -- Legacy queue insertion path. When no caller-supplied creator exists,
 -- preserve the created_by invariant by attributing the queued row to the
 -- chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, environment_variables, model_config_id, reasoning_effort, created_by)
 SELECT
     @chat_id::uuid,
     @content::jsonb,
+    sqlc.narg('environment_variables')::jsonb,
     sqlc.narg('model_config_id')::uuid,
     sqlc.narg('reasoning_effort')::chat_reasoning_effort,
     chats.owner_id
@@ -2650,10 +2653,11 @@ SELECT NOW()::timestamptz AS now;
 -- Inserts a queued message that carries a position (from the default
 -- sequence) and an explicit created_by reference. Use this when the
 -- queued-message creator differs from the chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, environment_variables, model_config_id, reasoning_effort, created_by)
 VALUES (
     @chat_id::uuid,
     @content::jsonb,
+    sqlc.narg('environment_variables')::jsonb,
     sqlc.narg('model_config_id')::uuid,
     sqlc.narg('reasoning_effort')::chat_reasoning_effort,
     @created_by::uuid

@@ -2045,12 +2045,15 @@ CREATE TABLE chat_messages (
     provider_response_id text,
     revision bigint NOT NULL,
     reasoning_effort chat_reasoning_effort,
-    search_tsv tsvector
+    search_tsv tsvector,
+    environment_variables jsonb
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
 
 COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';
+
+COMMENT ON COLUMN chat_messages.environment_variables IS 'Turn-scoped environment variables for workspace command execution. Not included in model prompts or API responses.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
@@ -2097,10 +2100,13 @@ CREATE TABLE chat_queued_messages (
     model_config_id uuid,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
     created_by uuid NOT NULL,
-    reasoning_effort chat_reasoning_effort
+    reasoning_effort chat_reasoning_effort,
+    environment_variables jsonb
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
+
+COMMENT ON COLUMN chat_queued_messages.environment_variables IS 'Turn-scoped environment variables retained until the queued message is promoted.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1

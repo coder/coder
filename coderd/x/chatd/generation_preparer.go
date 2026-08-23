@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
 	"strings"
 	"sync"
@@ -97,6 +98,10 @@ func (server *Server) prepareGeneration(
 		return err
 	})
 	if err := g.Wait(); err != nil {
+		return generationPrepared{}, err
+	}
+	turnEnvironmentVariables, err := currentTurnEnvironmentVariables(chat, input.Messages)
+	if err != nil {
 		return generationPrepared{}, err
 	}
 
@@ -437,8 +442,9 @@ func (server *Server) prepareGeneration(
 			StoreFile:        storeChatAttachment,
 		}),
 		chattool.Execute(chattool.ExecuteOptions{
-			GetWorkspaceConn:    workspaceCtx.getWorkspaceConn,
-			AgentBrowserSession: chat.ID.String(),
+			GetWorkspaceConn:     workspaceCtx.getWorkspaceConn,
+			AgentBrowserSession:  chat.ID.String(),
+			EnvironmentVariables: turnEnvironmentVariables,
 		}),
 		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
@@ -736,6 +742,24 @@ func (server *Server) prepareGeneration(
 		Cleanup: cleanup,
 		Debug:   debug,
 	}, nil
+}
+
+func currentTurnEnvironmentVariables(chat database.Chat, messages []database.ChatMessage) (map[string]string, error) {
+	if chat.CompactionRequestedAt.Valid {
+		return map[string]string{}, nil
+	}
+	index := lastUserPromptIndex(messages)
+	if index < 0 || !messages[index].EnvironmentVariables.Valid {
+		return map[string]string{}, nil
+	}
+	var environmentVariables map[string]string
+	if err := json.Unmarshal(messages[index].EnvironmentVariables.RawMessage, &environmentVariables); err != nil {
+		return nil, xerrors.Errorf("parse turn environment variables: %w", err)
+	}
+	if environmentVariables == nil {
+		return map[string]string{}, nil
+	}
+	return environmentVariables, nil
 }
 
 func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {

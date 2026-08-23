@@ -122,26 +122,31 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 	if seed.Content.Valid {
 		content = string(seed.Content.RawMessage)
 	}
+	environmentVariables := ""
+	if seed.EnvironmentVariables.Valid {
+		environmentVariables = string(seed.EnvironmentVariables.RawMessage)
+	}
 	role := takeFirst(seed.Role, database.ChatMessageRoleUser)
 
 	msgs, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
-		ChatID:              seed.ChatID,
-		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
-		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
-		ReasoningEffort:     []string{string(seed.ReasoningEffort.ChatReasoningEffort)},
-		Role:                []database.ChatMessageRole{role},
-		Content:             []string{content},
-		ContentVersion:      []int16{takeFirst(seed.ContentVersion, chatprompt.CurrentContentVersion)},
-		Visibility:          []database.ChatMessageVisibility{takeFirst(seed.Visibility, database.ChatMessageVisibilityBoth)},
-		InputTokens:         []int64{seed.InputTokens.Int64},
-		OutputTokens:        []int64{seed.OutputTokens.Int64},
-		TotalTokens:         []int64{seed.TotalTokens.Int64},
-		ReasoningTokens:     []int64{seed.ReasoningTokens.Int64},
-		CacheCreationTokens: []int64{seed.CacheCreationTokens.Int64},
-		CacheReadTokens:     []int64{seed.CacheReadTokens.Int64},
-		ContextLimit:        []int64{seed.ContextLimit.Int64},
-		Compressed:          []bool{seed.Compressed},
-		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
+		ChatID:               seed.ChatID,
+		CreatedBy:            []uuid.UUID{seed.CreatedBy.UUID},
+		ModelConfigID:        []uuid.UUID{seed.ModelConfigID.UUID},
+		ReasoningEffort:      []string{string(seed.ReasoningEffort.ChatReasoningEffort)},
+		Role:                 []database.ChatMessageRole{role},
+		Content:              []string{content},
+		EnvironmentVariables: []string{environmentVariables},
+		ContentVersion:       []int16{takeFirst(seed.ContentVersion, chatprompt.CurrentContentVersion)},
+		Visibility:           []database.ChatMessageVisibility{takeFirst(seed.Visibility, database.ChatMessageVisibilityBoth)},
+		InputTokens:          []int64{seed.InputTokens.Int64},
+		OutputTokens:         []int64{seed.OutputTokens.Int64},
+		TotalTokens:          []int64{seed.TotalTokens.Int64},
+		ReasoningTokens:      []int64{seed.ReasoningTokens.Int64},
+		CacheCreationTokens:  []int64{seed.CacheCreationTokens.Int64},
+		CacheReadTokens:      []int64{seed.CacheReadTokens.Int64},
+		ContextLimit:         []int64{seed.ContextLimit.Int64},
+		Compressed:           []bool{seed.Compressed},
+		RuntimeMs:            []int64{seed.RuntimeMs.Int64},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)

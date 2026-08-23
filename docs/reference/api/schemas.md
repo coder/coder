@@ -4649,6 +4649,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "type": "text"
     }
   ],
+  "environment_variables": {
+    "property1": "string",
+    "property2": "string"
+  },
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
@@ -4660,14 +4664,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name               | Type                                                      | Required | Restrictions | Description                                                                                                  |
-|--------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
-| `busy_behavior`    | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)    | false    |              |                                                                                                              |
-| `content`          | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                              |
-| `mcp_server_ids`   | array of string                                           | false    |              |                                                                                                              |
-| `model_config_id`  | string                                                    | false    |              |                                                                                                              |
-| `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
-| `reasoning_effort` | string                                                    | false    |              |                                                                                                              |
+| Name                    | Type                                                      | Required | Restrictions | Description                                                                                                                                                                        |
+|-------------------------|-----------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`         | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)    | false    |              |                                                                                                                                                                                    |
+| `content`               | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                                    |
+| `environment_variables` | object                                                    | false    |              | Environment variables apply only to the turn started by this message. Values are not included in model prompts or API responses, but are stored unencrypted in the Coder database. |
+| » `[any property]`      | string                                                    | false    |              |                                                                                                                                                                                    |
+| `mcp_server_ids`        | array of string                                           | false    |              |                                                                                                                                                                                    |
+| `model_config_id`       | string                                                    | false    |              |                                                                                                                                                                                    |
+| `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                       |
+| `reasoning_effort`      | string                                                    | false    |              |                                                                                                                                                                                    |
 
 #### Enumerated Values
 
@@ -4946,6 +4952,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "type": "text"
     }
   ],
+  "environment_variables": {
+    "property1": "string",
+    "property2": "string"
+  },
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -4973,20 +4983,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                |
-|------------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                            |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                            |
-| `labels`               | object                                                    | false    |              |                                                                                                                                            |
-| » `[any property]`     | string                                                    | false    |              |                                                                                                                                            |
-| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                            |
-| `model_config_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `organization_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                            |
-| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                            |
-| `system_prompt`        | string                                                    | false    |              |                                                                                                                                            |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change. |
-| `workspace_id`         | string                                                    | false    |              |                                                                                                                                            |
+| Name                    | Type                                                      | Required | Restrictions | Description                                                                                                                                                                                                                   |
+|-------------------------|-----------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`           | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                                                                                                               |
+| `content`               | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                                                                               |
+| `environment_variables` | object                                                    | false    |              | Environment variables are persisted with the initial user turn and provided only to workspace command execution. Values are not included in model prompts or API responses, but are stored unencrypted in the Coder database. |
+| » `[any property]`      | string                                                    | false    |              |                                                                                                                                                                                                                               |
+| `labels`                | object                                                    | false    |              |                                                                                                                                                                                                                               |
+| » `[any property]`      | string                                                    | false    |              |                                                                                                                                                                                                                               |
+| `mcp_server_ids`        | array of string                                           | false    |              |                                                                                                                                                                                                                               |
+| `model_config_id`       | string                                                    | false    |              |                                                                                                                                                                                                                               |
+| `organization_id`       | string                                                    | false    |              |                                                                                                                                                                                                                               |
+| `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                                                                                                               |
+| `reasoning_effort`      | string                                                    | false    |              |                                                                                                                                                                                                                               |
+| `system_prompt`         | string                                                    | false    |              |                                                                                                                                                                                                                               |
+| `unsafe_dynamic_tools`  | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                                                                    |
+| `workspace_id`          | string                                                    | false    |              |                                                                                                                                                                                                                               |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 

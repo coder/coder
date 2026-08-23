@@ -1091,6 +1091,7 @@ type CreateOptions struct {
 	TitleDerivedFromContent bool
 	ModelConfigID           uuid.UUID
 	ReasoningEffort         *string
+	EnvironmentVariables    map[string]string
 	ChatMode                database.NullChatMode
 	PlanMode                database.NullChatPlanMode
 	ClientType              database.ChatClientType
@@ -1116,14 +1117,15 @@ const (
 
 // SendMessageOptions controls user message insertion with busy-state behavior.
 type SendMessageOptions struct {
-	ChatID          uuid.UUID
-	CreatedBy       uuid.UUID
-	Content         []codersdk.ChatMessagePart
-	ModelConfigID   uuid.UUID
-	ReasoningEffort *string
-	BusyBehavior    SendMessageBusyBehavior
-	PlanMode        *database.NullChatPlanMode
-	MCPServerIDs    *[]uuid.UUID
+	ChatID               uuid.UUID
+	CreatedBy            uuid.UUID
+	Content              []codersdk.ChatMessagePart
+	ModelConfigID        uuid.UUID
+	ReasoningEffort      *string
+	EnvironmentVariables map[string]string
+	BusyBehavior         SendMessageBusyBehavior
+	PlanMode             *database.NullChatPlanMode
+	MCPServerIDs         *[]uuid.UUID
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1340,7 +1342,12 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		initialMessages = append(initialMessages, systemMessage(userPromptContent, opts.ModelConfigID))
 	}
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
-	initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, opts.OwnerID, opts.ReasoningEffort))
+	initialUserMessage := userMessage(userContent, opts.ModelConfigID, opts.OwnerID, opts.ReasoningEffort)
+	initialUserMessage.EnvironmentVariables, err = marshalEnvironmentVariables(opts.EnvironmentVariables)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("marshal environment variables: %w", err)
+	}
+	initialMessages = append(initialMessages, initialUserMessage)
 
 	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
@@ -1454,6 +1461,10 @@ func (p *Server) SendMessage(
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
+	environmentVariables, err := marshalEnvironmentVariables(opts.EnvironmentVariables)
+	if err != nil {
+		return SendMessageResult{}, xerrors.Errorf("marshal environment variables: %w", err)
+	}
 
 	requestedPlanMode := opts.PlanMode
 	requestedMCPServerIDs := opts.MCPServerIDs
@@ -1524,6 +1535,7 @@ func (p *Server) SendMessage(
 		// Queue capacity is enforced inside tx.SendMessage; this
 		// wrapper only propagates the typed error.
 		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
+		message.EnvironmentVariables = environmentVariables
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      message,
 			BusyBehavior: busyBehaviorToChatState(busyBehavior),
