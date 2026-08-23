@@ -80,6 +80,17 @@ func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
 		assert.Contains(t, body, "template:read")
 		assert.NotContains(t, body, "full access",
 			"a scoped grant must not be described as full access")
+		// Both attributes are load-bearing and both read as redundant markup to
+		// anyone who has not read the template's comment. WebKit drops the
+		// implicit list semantics under `list-style: none`, so without the
+		// roles VoiceOver announces the permissions as loose prose.
+		assert.Contains(t, body, `role="list"`)
+		assert.Contains(t, body, `role="listitem"`)
+		// The id is the handle the submit and cancel handlers hide the list by,
+		// so a rename leaves the permissions on screen under "is now
+		// authorized". Only the unrestricted case asserts the id, and it
+		// asserts the absence.
+		assert.Contains(t, body, `id="scope-list"`)
 		// A scope name reads narrower than it grants, so the list is qualified
 		// rather than left to be read as prose.
 		assert.Contains(t, body, `id="scope-disclaimer"`)
@@ -435,7 +446,14 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, http.StatusInternalServerError, postResp.StatusCode)
 		require.Empty(t, postResp.Header.Get("Location"),
 			"POST: a dangerous scheme must never reach a Location header")
-		require.Contains(t, readBody(t, postResp), string(codersdk.OAuth2ErrorCodeServerError))
+		postBody := readBody(t, postResp)
+		require.Contains(t, postBody, string(codersdk.OAuth2ErrorCodeServerError))
+		// server_error is also what the callback-parse branch above answers, so
+		// the code alone does not say which guard fired. Pinning the
+		// description keeps a consolidation of the two from quietly dropping
+		// the string an operator triages by.
+		require.Contains(t, postBody, "invalid scheme",
+			"POST: the failure must name the scheme, not just the error class")
 	})
 
 	// A registered callback may carry its own query, including a state= of its
