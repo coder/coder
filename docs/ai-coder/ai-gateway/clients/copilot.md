@@ -62,7 +62,7 @@ For installation instructions, see [Installing the GitHub Copilot extension in V
 ### Proxy configuration
 
 You can configure the proxy using environment variables or VS Code settings.
-For environment variables, see [AI Gateway Proxy client configuration](../ai-gateway-proxy/setup.md#configure-the-proxy).
+For environment variables, visit [AI Gateway Proxy client configuration](../ai-gateway-proxy/setup.md#configure-the-proxy).
 
 Alternatively, you can configure the proxy directly in VS Code settings:
 
