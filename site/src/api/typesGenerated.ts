@@ -3895,8 +3895,10 @@ export interface CreateChatMessageResponse {
 /**
  * CreateChatModelRequest is the request body for an organization-scoped
  * ChatModel. AIProviderID, Model, and a positive ContextLimit are required.
- * Enabled defaults to true. IsDefault defaults to false. CompressionThreshold
- * defaults to 70. An omitted ModelConfig uses the provider defaults.
+ * Enabled defaults to true. IsDefault defaults to false when the organization
+ * already has a default model. The first model created in an organization is
+ * automatically promoted to default. CompressionThreshold defaults to 70. An
+ * omitted ModelConfig uses the provider defaults.
  */
 export interface CreateChatModelRequest {
 	readonly ai_provider_id?: string;
