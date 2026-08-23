@@ -45,7 +45,7 @@ func TestAIAgentRBACSubject(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		agent, owner := newAgent(t, db)
 
-		subject, status, err := httpmw.AIAgentRBACSubject(ctx, db, agent.ID, rbac.ScopeAll)
+		subject, status, attribution, err := httpmw.AIAgentRBACSubject(ctx, db, agent.ID, rbac.ScopeAll)
 		require.NoError(t, err)
 
 		require.Equal(t, rbac.SubjectTypeAIAgent, subject.Type)
@@ -54,6 +54,12 @@ func TestAIAgentRBACSubject(t *testing.T) {
 		require.Equal(t, owner.ID.String(), subject.ID,
 			"the subject's own identity stays the owner's, an agent acting with the owner's roles")
 		require.Equal(t, database.UserStatusActive, status)
+
+		// The attribution channel, assembled from the same row. Capability and
+		// attribution are used apart and there is no reason to read twice.
+		require.Equal(t, agent.ID, attribution.AgentUserID)
+		require.Equal(t, owner.ID, attribution.OwnerUserID)
+		require.Equal(t, database.AIAgentOriginWorkspace, attribution.OriginType)
 
 		// The name is computed, so it must match what the function computes
 		// rather than anything stored.
@@ -85,7 +91,7 @@ func TestAIAgentRBACSubject(t *testing.T) {
 		// nothing anyway. The human control proves that.
 		agent, owner := newAgent(t, db, rbac.RoleOwner().Name)
 
-		subject, _, err := httpmw.AIAgentRBACSubject(ctx, db, agent.ID, rbac.ScopeAll)
+		subject, _, _, err := httpmw.AIAgentRBACSubject(ctx, db, agent.ID, rbac.ScopeAll)
 		require.NoError(t, err)
 		human, _, err := httpmw.UserRBACSubject(ctx, db, owner.ID, rbac.ScopeAll)
 		require.NoError(t, err)
@@ -129,7 +135,7 @@ func TestAIAgentRBACSubject(t *testing.T) {
 				require.NoError(t, entity.RetireAIAgent(ctx, db, agent.ID, tc.event,
 					entity.Ref{Type: entity.TypeUser, ID: owner.ID}, time.Time{}))
 
-				_, _, err := httpmw.AIAgentRBACSubject(ctx, db, agent.ID, rbac.ScopeAll)
+				_, _, _, err := httpmw.AIAgentRBACSubject(ctx, db, agent.ID, rbac.ScopeAll)
 				require.ErrorContains(t, err, "is retired")
 			})
 		}
@@ -141,7 +147,7 @@ func TestAIAgentRBACSubject(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		_, _, err := httpmw.AIAgentRBACSubject(ctx, db, uuid.New(), rbac.ScopeAll)
+		_, _, _, err := httpmw.AIAgentRBACSubject(ctx, db, uuid.New(), rbac.ScopeAll)
 		require.Error(t, err, "no ledger row is no subject")
 	})
 }

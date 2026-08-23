@@ -1107,6 +1107,27 @@ func (h HolderID) AsUserIDUnchecked() uuid.UUID { return uuid.UUID(h) }
 
 func (h HolderID) String() string { return uuid.UUID(h).String() }
 
+// UserID and AIAgentID return the holder's identifier when the holder is of
+// that kind, and false when it is not.
+//
+// These are the checked counterparts of AsUserIDUnchecked. A caller that
+// branches on the answer has established what the identifier denotes, which is
+// exactly what the unchecked accessor cannot do and is marked for not doing.
+// Prefer these wherever the call site can take both kinds.
+func (k APIKey) UserID() (uuid.UUID, bool) {
+	if k.HolderType != HolderTypeUser {
+		return uuid.Nil, false
+	}
+	return uuid.UUID(k.HolderID), true
+}
+
+func (k APIKey) AIAgentID() (uuid.UUID, bool) {
+	if k.HolderType != HolderTypeAIAgent {
+		return uuid.Nil, false
+	}
+	return uuid.UUID(k.HolderID), true
+}
+
 // Value and Scan are required because a defined type does not inherit the
 // methods of its underlying type, so HolderID does not get uuid.UUID's
 // driver.Valuer and sql.Scanner for free.

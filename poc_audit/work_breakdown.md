@@ -505,9 +505,19 @@ credential already carries.
 
 ### Status
 
-Not started. Depends on WP4, which put the holder pair on `api_keys` and made
-issuance record it, and on the AI agent ledger carrying a state, which landed
-with WP2's schema work. Nothing else blocks it.
+Complete as of 2026-08-23. An AI agent created by this work, with no row in
+`users` anywhere, authenticates against a running server and has a subject built
+for it from the ledger.
+
+**Two agent paths now coexist, and that was not foreseen.** The identity code's
+agents are still `users` rows, and their keys carry `holder_type = 'user'`, so
+routing on the holder alone bypassed them and broke three of their tests. Both
+branches therefore stand: a key whose holder is an AI agent reaches the ledger,
+and a key whose holder is a user whose kind is `ai_agent` reaches the path that
+was already there, unchanged. The second goes when the identity code does.
+
+**"me" cannot name an AI agent**, which the acceptance test found and which is
+larger than one route. See the finding below.
 
 ### What forces the work
 
@@ -605,13 +615,53 @@ what makes the acceptance test possible before that code is rewritten.
 The remaining sites stay, and the count in `rewrite_rbac.md` stops being a
 single number at that point.
 
+### What the acceptance test found: "me" cannot name an AI agent
+
+`me` is a path or filter value standing where a user is named, alongside a
+username and a user id. It expresses self reference: the user this request is
+made by. **Seven places in coderd resolve it**, each independently taking the
+credential's holder for a user id, in `httpmw/userparam.go`, `workspaces.go`,
+`searchquery/search.go` twice, `audit.go` twice, and `httpapi/queryparams.go`.
+
+For an AI agent the three things that word carries disagree. The slot demands a
+user, the self reference denotes the agent, and the resolution looks for a row
+that does not exist. **So the question is not what to return. It is that `me`
+sits in a user typed slot and the requester is not a user.**
+
+**The characteristic failure is silence, not an error.** Only the route that
+fetches a row gives a 404. The rest filter: `owner:me` becomes an id that owns
+nothing, the query succeeds, and the answer is an empty list. An agent asking
+for its own workspaces is told it has none, which is indistinguishable from
+having none. Both are asserted in the acceptance test, the silent one because it
+is the one that misleads.
+
+**Nothing has to ask for this.** The credential is delivered into the workspace
+for the `coder` CLI to use, whose own comment calls it the key for in workspace
+CLI actions. The CLI names things as the requester's by default: `cli/ssh.go`
+and `cli/configssh.go` set `Owner` to `me`, and forty one `codersdk.Me` sites
+stand in that package. An agent running `coder list` writes no filter and sees
+nothing.
+
+**One candidate can be ruled out now.** Resolving `me` to the owner would make
+the word denote somebody other than the requester, and it would do so on a
+filter the agent never wrote: `coder list` inside an agent's workspace would
+print the owner's entire inventory. Substituting the sponsor is worse when the
+word arrives from a tool rather than from a caller.
+
+**What is not ripe** is the choice between rendering an agent into the user
+shaped answer and refusing the slot to it. That turns on whether an AI agent
+owns user scoped resources of its own, settings and keys and preferences among
+them, which the entity model has not reached. Deciding it here would decide it
+by side effect on one route.
+
 ### Acceptance tests
 
 **An AI agent created by this work authenticates against a running server.** No
-users row exists for it. The request reaches a handler, and the subject it runs
-under carries the owner's roles, the AI agent subject type, and the agent's
-display name. This is the whole package in one test, and it fails on either
-milestone being wrong.
+users row exists for it, which the test asserts before proceeding rather than
+assuming. It then reaches an endpoint authorized by the subject and asking for
+no user by name, and finally retires the agent and requires the same token to
+stop working, which puts ledger state and an HTTP response at two ends of one
+assertion.
 
 **A credential held by a user authenticates exactly as before.** The branch must
 not change the path it did not add. Existing tests cover this, and the point of
@@ -619,7 +669,10 @@ naming it is that no new test is owed.
 
 ### PoC cheats
 
-One is visible: the subject is built from the
+**Two agent paths coexist**, and nothing prevents an agent existing in both
+senses at once. Nothing creates one that way, and nothing checks.
+
+One more: the subject is built from the
 owner's roles, which is what the code does today and is not obviously right. An
 agent inherits everything its owner can do, narrowed only by scope, and nothing
 records that the inheritance happened. Keeping it is deliberate, since changing

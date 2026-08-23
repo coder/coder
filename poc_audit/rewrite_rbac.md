@@ -811,6 +811,32 @@ as the predicate selecting which presentations the journal records. At the
 default the cost is what it is today. A customer ordering that everything be
 recorded raises it, and that is their decision to make.
 
+### The authentication path is the first site cleared, and it cost three
+
+`AsUserIDUnchecked` is gone from `coderd/httpmw/apikey.go`. Three call sites
+went, replaced by checked accessors on the key: `UserID()` and `AIAgentID()`,
+each returning the identifier and whether the holder is of that kind. Where a
+branch establishes the kind, the assumption the marker exists to flag has been
+discharged, and the accessor says so.
+
+**The count is a poor measure of the work, which the split now shows.** Two of
+the three were mechanical, one line each. The third was the subject
+construction, which needed a ledger, an origin, a computed name, and a
+normalized journal to stand behind it. A remaining site is somewhere on that
+range and the number alone does not say where.
+
+**A fourth site produced a question rather than an edit, and then produced six
+more sites.** `me` is resolved in seven places, each taking the holder for a
+user id, and for an AI agent most of them answer with an empty list rather than
+an error. What `me` can mean for a requester that is not a user is undecided,
+per WP5 in `work_breakdown.md`.
+
+That is the shape to expect from the rest: a majority mechanical, a minority
+that turn out to be design questions nobody has asked, and among those a few
+that are one question wearing several call sites. **Counting sites measures the
+edits and not the questions**, and the questions are what the schedule will
+actually turn on.
+
 ### Cost: deciding the hundred and eighty five sites
 
 **Unknown, and it is the largest line in the account.** Part is extra and part

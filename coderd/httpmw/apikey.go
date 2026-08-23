@@ -274,11 +274,15 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 		}
 	}
 
-	// Refresh OIDC/GitHub tokens if applicable.
-	if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
+	// Refresh OIDC/GitHub tokens if applicable. A user link belongs to a user,
+	// and only a user logs in through a provider, so the holder check is
+	// structural rather than an extra condition: an AI agent's key is minted
+	// and carries LoginTypeToken.
+	userID, holderIsUser := key.UserID()
+	if holderIsUser && (key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC) {
 		//nolint:gocritic // System needs to fetch UserLink to check if it's valid.
 		link, err := cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
-			UserID:    key.HolderID.AsUserIDUnchecked(),
+			UserID:    userID,
 			LoginType: key.LoginType,
 		})
 		if errors.Is(err, sql.ErrNoRows) {
@@ -457,89 +461,117 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 			}
 		}
 
-		//nolint:gocritic // system needs to update user last seen at
-		_, err = cfg.DB.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
-			ID:         key.HolderID.AsUserIDUnchecked(),
-			LastSeenAt: dbtime.Now(),
-			UpdatedAt:  dbtime.Now(),
-		})
-		if err != nil {
-			return nil, &ValidateAPIKeyError{
-				Code: http.StatusInternalServerError,
-				Response: codersdk.Response{
-					Message: internalErrorMessage,
-					Detail:  fmt.Sprintf("update user last_seen_at: %s", err.Error()),
-				},
-				Hard: true,
+		// Last seen belongs to a user. An AI agent has no users row to carry
+		// one, and when it wants the equivalent that is the credential use
+		// model's business rather than this column's.
+		if userID, isUser := key.UserID(); isUser {
+			//nolint:gocritic // system needs to update user last seen at
+			_, err = cfg.DB.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
+				ID:         userID,
+				LastSeenAt: dbtime.Now(),
+				UpdatedAt:  dbtime.Now(),
+			})
+			if err != nil {
+				return nil, &ValidateAPIKeyError{
+					Code: http.StatusInternalServerError,
+					Response: codersdk.Response{
+						Message: internalErrorMessage,
+						Detail:  fmt.Sprintf("update user last_seen_at: %s", err.Error()),
+					},
+					Hard: true,
+				}
 			}
 		}
 	}
 
-	// The key user determines whether authorization is direct or delegated.
-	// Authentication runs before a request actor exists, so this lookup uses the
-	// restricted system subject.
-	user, err := cfg.DB.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.HolderID.AsUserIDUnchecked()) //nolint:gocritic
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, invalidAIAgentError("API key user does not exist.")
-		}
-		return nil, &ValidateAPIKeyError{
-			Code: http.StatusInternalServerError,
-			Response: codersdk.Response{
-				Message: internalErrorMessage,
-				Detail:  fmt.Sprintf("Internal error fetching API key user. %s", err.Error()),
-			},
-			Hard: true,
-		}
-	}
-
+	// **The credential says what kind of party holds it**, so the subject is
+	// chosen from the key rather than discovered by fetching a user and reading
+	// its kind. That is the change: an AI agent is no longer a row in users, so
+	// there is nothing to fetch and no kind to read.
 	var (
 		actor      rbac.Subject
 		userStatus database.UserStatus
 		agentActor *aiagentidentity.AIAgentActor
 	)
-	if user.Kind == database.UserKindAIAgent {
-		identity, resolveErr := aiagentidentity.Resolve(ctx, cfg.DB, user.ID)
-		if resolveErr != nil {
-			if errors.Is(resolveErr, aiagentidentity.ErrNotAIAgent) ||
-				errors.Is(resolveErr, aiagentidentity.ErrAIAgentDeleted) ||
-				errors.Is(resolveErr, sql.ErrNoRows) {
-				return nil, invalidAIAgentError("AI agent identity is invalid or has been revoked.")
+	if agentID, ok := key.AIAgentID(); ok {
+		subject, status, attribution, agentErr := AIAgentRBACSubject(ctx, cfg.DB, agentID, key.ScopeSet())
+		if agentErr != nil {
+			// Every refusal here is the same answer to the caller: this
+			// credential authenticates nobody who may act. Which of the
+			// conditions failed is the server's business and is not disclosed,
+			// the caller having presented a credential either way.
+			return nil, invalidAIAgentError("AI agent identity is invalid or has been revoked.")
+		}
+		actor, userStatus = subject, status
+		agentActor = &attribution
+	} else {
+		userID, _ := key.UserID()
+		//nolint:gocritic // Authentication runs before a request actor exists.
+		user, userErr := cfg.DB.GetUserByID(dbauthz.AsSystemRestricted(ctx), userID)
+		if userErr != nil {
+			if errors.Is(userErr, sql.ErrNoRows) {
+				return nil, invalidAIAgentError("API key user does not exist.")
 			}
 			return nil, &ValidateAPIKeyError{
 				Code: http.StatusInternalServerError,
 				Response: codersdk.Response{
 					Message: internalErrorMessage,
-					Detail:  fmt.Sprintf("Internal error resolving AI agent identity. %s", resolveErr.Error()),
+					Detail:  fmt.Sprintf("Internal error fetching API key user. %s", userErr.Error()),
 				},
 				Hard: true,
 			}
 		}
-		if identity.AgentUser.Deleted || identity.AgentUser.Status != database.UserStatusActive {
-			return nil, invalidAIAgentError("AI agent user is not active.")
-		}
-		if identity.OwnerUser.Kind != database.UserKindHuman || identity.OwnerUser.Deleted || identity.OwnerUser.Status != database.UserStatusActive {
-			return nil, invalidAIAgentError("AI agent owner is not active.")
-		}
 
-		actor, userStatus, err = UserRBACSubject(ctx, cfg.DB, identity.OwnerUser.ID, key.ScopeSet())
-		if err == nil {
-			actor.Type = rbac.SubjectTypeAIAgent
-			actor.FriendlyName = identity.AgentUser.Username
-			resolvedActor := identity.Actor
-			agentActor = &resolvedActor
+		var subjectErr error
+		if user.Kind == database.UserKindAIAgent {
+			// **The identity code's AI agent, which is a users row.** This is
+			// the path above's predecessor and is left exactly as it was. The
+			// two coexist because the two kinds of agent do: one is a row in
+			// this work's ledger and reaches the branch above, the other is a
+			// row in users and reaches here. This goes when the identity code
+			// is rewritten and there is only one kind left.
+			identity, resolveErr := aiagentidentity.Resolve(ctx, cfg.DB, user.ID)
+			if resolveErr != nil {
+				if errors.Is(resolveErr, aiagentidentity.ErrNotAIAgent) ||
+					errors.Is(resolveErr, aiagentidentity.ErrAIAgentDeleted) ||
+					errors.Is(resolveErr, sql.ErrNoRows) {
+					return nil, invalidAIAgentError("AI agent identity is invalid or has been revoked.")
+				}
+				return nil, &ValidateAPIKeyError{
+					Code: http.StatusInternalServerError,
+					Response: codersdk.Response{
+						Message: internalErrorMessage,
+						Detail:  fmt.Sprintf("Internal error resolving AI agent identity. %s", resolveErr.Error()),
+					},
+					Hard: true,
+				}
+			}
+			if identity.AgentUser.Deleted || identity.AgentUser.Status != database.UserStatusActive {
+				return nil, invalidAIAgentError("AI agent user is not active.")
+			}
+			if identity.OwnerUser.Kind != database.UserKindHuman || identity.OwnerUser.Deleted || identity.OwnerUser.Status != database.UserStatusActive {
+				return nil, invalidAIAgentError("AI agent owner is not active.")
+			}
+
+			actor, userStatus, subjectErr = UserRBACSubject(ctx, cfg.DB, identity.OwnerUser.ID, key.ScopeSet())
+			if subjectErr == nil {
+				actor.Type = rbac.SubjectTypeAIAgent
+				actor.FriendlyName = identity.AgentUser.Username
+				resolvedActor := identity.Actor
+				agentActor = &resolvedActor
+			}
+		} else {
+			actor, userStatus, subjectErr = UserRBACSubject(ctx, cfg.DB, userID, key.ScopeSet())
 		}
-	} else {
-		actor, userStatus, err = UserRBACSubject(ctx, cfg.DB, key.HolderID.AsUserIDUnchecked(), key.ScopeSet())
-	}
-	if err != nil {
-		return nil, &ValidateAPIKeyError{
-			Code: http.StatusInternalServerError,
-			Response: codersdk.Response{
-				Message: internalErrorMessage,
-				Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", err.Error()),
-			},
-			Hard: true,
+		if subjectErr != nil {
+			return nil, &ValidateAPIKeyError{
+				Code: http.StatusInternalServerError,
+				Response: codersdk.Response{
+					Message: internalErrorMessage,
+					Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", subjectErr.Error()),
+				},
+				Hard: true,
+			}
 		}
 	}
 
@@ -985,27 +1017,47 @@ func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
 // holding a subject: neither should be able to act, and refusing here is
 // earlier and plainer than confining them afterwards.
 //
+// **An agent whose owner is not a live human gets no subject either.** The
+// roles it would act with are the owner's, so an owner who has been deleted or
+// suspended leaves nothing to act with, and this refuses rather than building a
+// subject from the roles of somebody who is gone.
+//
 // The returned status is the owner's, the agent having no status of its own
 // beyond its ledger state, which this has already required to be active.
-func AIAgentRBACSubject(ctx context.Context, db database.Store, agentID uuid.UUID, scope rbac.ExpandableScope) (rbac.Subject, database.UserStatus, error) {
+//
+// The attribution actor is returned beside the subject because both come from
+// the same ledger row and reading it twice would buy nothing. Capability and
+// attribution still travel on separate channels, per that finding in
+// poc_audit/rewrite_rbac.md; they are assembled together and used apart.
+func AIAgentRBACSubject(ctx context.Context, db database.Store, agentID uuid.UUID, scope rbac.ExpandableScope) (rbac.Subject, database.UserStatus, aiagentidentity.AIAgentActor, error) {
 	//nolint:gocritic // Reading the ledger to authenticate is the system's act.
-	agent, err := db.GetAIAgentLedgerRowByID(dbauthz.AsSystemRestricted(ctx), agentID)
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+
+	agent, err := db.GetAIAgentLedgerRowByID(systemCtx, agentID)
 	if err != nil {
-		return rbac.Subject{}, "", xerrors.Errorf("get AI agent: %w", err)
+		return rbac.Subject{}, "", aiagentidentity.AIAgentActor{}, xerrors.Errorf("get AI agent: %w", err)
 	}
 	if agent.State != entity.AIAgentStateActive {
-		return rbac.Subject{}, "", xerrors.Errorf("AI agent %s is %s", agentID, agent.State)
+		return rbac.Subject{}, "", aiagentidentity.AIAgentActor{}, xerrors.Errorf("AI agent %s is %s", agentID, agent.State)
 	}
 	// Roles come from a user, so an owner that is not one has none to lend.
 	// The ledger admits any kind of owner because ownership is not a claim
 	// about roles; this is where that generality meets what RBAC can read.
 	if agent.OwnerType != string(entity.TypeUser) {
-		return rbac.Subject{}, "", xerrors.Errorf("AI agent %s is owned by a %s, which has no roles to act with", agentID, agent.OwnerType)
+		return rbac.Subject{}, "", aiagentidentity.AIAgentActor{}, xerrors.Errorf("AI agent %s is owned by a %s, which has no roles to act with", agentID, agent.OwnerType)
+	}
+
+	owner, err := db.GetUserByID(systemCtx, agent.OwnerID)
+	if err != nil {
+		return rbac.Subject{}, "", aiagentidentity.AIAgentActor{}, xerrors.Errorf("get the AI agent's owner: %w", err)
+	}
+	if owner.Kind != database.UserKindHuman || owner.Deleted || owner.Status != database.UserStatusActive {
+		return rbac.Subject{}, "", aiagentidentity.AIAgentActor{}, xerrors.Errorf("AI agent %s has no live human owner to act for", agentID)
 	}
 
 	subject, status, err := UserRBACSubject(ctx, db, agent.OwnerID, scope)
 	if err != nil {
-		return rbac.Subject{}, "", xerrors.Errorf("build the owner's subject: %w", err)
+		return rbac.Subject{}, "", aiagentidentity.AIAgentActor{}, xerrors.Errorf("build the owner's subject: %w", err)
 	}
 
 	// AsAIAgent rather than assignment to the fields: both are policy inputs,
@@ -1017,7 +1069,13 @@ func AIAgentRBACSubject(ctx context.Context, db database.Store, agentID uuid.UUI
 	// name the agent the same way, which is part of rewriting the identity code
 	// rather than something this function can arrange.
 	name := entity.DisplayName(entity.OriginType(agent.OriginType), agent.ID)
-	return subject.AsAIAgent(agent.ID, name), status, nil
+	attribution := aiagentidentity.AIAgentActor{
+		AgentUserID: agent.ID,
+		OwnerUserID: agent.OwnerID,
+		OriginType:  database.AIAgentOrigin(agent.OriginType),
+		OriginID:    agent.OriginID,
+	}
+	return subject.AsAIAgent(agent.ID, name), status, attribution, nil
 }
 
 // UserRBACSubject fetches a user's rbac.Subject from the database. It pulls all roles from both
