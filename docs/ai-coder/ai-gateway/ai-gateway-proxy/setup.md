@@ -418,7 +418,7 @@ x509: certificate signed by unknown authority
 ```
 
 it has not been configured to trust the proxy's
-MITM CA certificate. See [Trust the CA certificate](#trust-the-ca-certificate). If
+MITM CA certificate. Visit [Trust the CA certificate](#trust-the-ca-certificate). If
 [TLS is enabled on the listener](#proxy-tls-configuration), the tool must trust that certificate as well.
 
 ### Requests are not being intercepted
