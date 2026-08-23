@@ -54,7 +54,7 @@ Use `CODER_AI_GATEWAY_KEY_FILE` instead of `CODER_AI_GATEWAY_KEY` to read the ke
 The standalone process does not require a user login or `CODER_SESSION_TOKEN` after you provide the gateway key.
 
 The listener defaults to `127.0.0.1:4001`, which accepts connections only from the local host.
-Set `CODER_AI_GATEWAY_HTTP_ADDRESS` to a routable address, as shown above, before other hosts or pods can reach the gateway.
+Set `CODER_AI_GATEWAY_HTTP_ADDRESS` to a routable address, as shown previously, before other hosts or pods can reach the gateway.
 
 The standalone gateway fetches provider configuration from `coderd`.
 Configure at least one [AI provider](./providers.md) in Coder before sending provider traffic through the gateway.
