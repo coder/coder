@@ -34,6 +34,10 @@ const (
 	routeBedrockResponses       = "/v1/responses"
 )
 
+var bedrockOpenErrorResponse = func() []byte {
+	return []byte(`{"type":"error","error":{"type":"api_error","message":"circuit breaker is open","code":"service_unavailable"}}`)
+}
+
 var _ Provider = &Bedrock{}
 
 // Bedrock implements the Provider interface for AWS Bedrock. It serves the
@@ -58,7 +62,7 @@ func NewBedrock(ctx context.Context, cfg config.Anthropic, bedrockCfg config.AWS
 	}
 	if cfg.CircuitBreaker != nil {
 		cfg.CircuitBreaker.IsFailure = anthropicIsFailure
-		cfg.CircuitBreaker.OpenErrorResponse = anthropicOpenErrorResponse
+		cfg.CircuitBreaker.OpenErrorResponse = bedrockOpenErrorResponse
 	}
 
 	creds, resolvedRegion, err := buildBedrockCredentials(ctx, bedrockCfg)
@@ -250,8 +254,9 @@ func (p *Bedrock) mantleConfig() *bedrocksig.MantleConfig {
 
 // bedrockInterceptConfig builds the per-request intercept.Config for Bedrock
 // mantle OpenAI routes. The effective upstream base URL is resolved per-model
-// inside the interceptor via bedrocksig.BaseURLForModel, so cfg.BaseURL is the
-// provider's base (unused for signing but kept for recording/dump).
+// inside the interceptor via bedrocksig.BaseURLForModel. cfg.BaseURL remains
+// the Bedrock runtime base URL so provider-specific request transforms inspect
+// the actual upstream.
 func (p *Bedrock) bedrockInterceptConfig() intercept.Config {
 	return intercept.Config{
 		ProviderName:     p.Name(),

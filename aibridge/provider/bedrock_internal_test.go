@@ -3,11 +3,14 @@ package provider
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 
+	anthropicshared "github.com/anthropics/anthropic-sdk-go/shared"
+	openai "github.com/openai/openai-go/v3/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -449,6 +452,36 @@ func newTestBedrock(t testing.TB, cfg config.Anthropic, bedrockCfg config.AWSBed
 	p, err := NewBedrock(context.Background(), cfg, bedrockCfg)
 	require.NoError(t, err)
 	return p
+}
+
+func TestBedrock_CircuitBreakerOpenErrorResponse(t *testing.T) {
+	t.Parallel()
+
+	circuitBreaker := config.DefaultCircuitBreaker()
+	p := newTestBedrock(t, config.Anthropic{CircuitBreaker: &circuitBreaker}, config.AWSBedrock{
+		Region:          "us-west-2",
+		AccessKey:       "test-key",
+		AccessKeySecret: "test-secret",
+		Model:           "m",
+		SmallFastModel:  "s",
+	})
+	require.NotNil(t, p.cfg.CircuitBreaker.OpenErrorResponse)
+	body := p.cfg.CircuitBreaker.OpenErrorResponse()
+
+	var anthropicErr anthropicshared.ErrorResponse
+	require.NoError(t, json.Unmarshal(body, &anthropicErr))
+	assert.Equal(t, "error", string(anthropicErr.Type))
+	assert.Equal(t, "api_error", anthropicErr.Error.Type)
+	assert.Equal(t, "circuit breaker is open", anthropicErr.Error.Message)
+
+	var openAIEnvelope struct {
+		Error *openai.ErrorObject `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal(body, &openAIEnvelope))
+	require.NotNil(t, openAIEnvelope.Error)
+	assert.Equal(t, "api_error", openAIEnvelope.Error.Type)
+	assert.Equal(t, "circuit breaker is open", openAIEnvelope.Error.Message)
+	assert.Equal(t, "service_unavailable", openAIEnvelope.Error.Code)
 }
 
 func TestBedrock_TypeAndName(t *testing.T) {
