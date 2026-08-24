@@ -65,6 +65,12 @@ export type AvatarProps = AvatarPrimitive.AvatarProps &
 		ref?: React.Ref<React.ComponentRef<typeof AvatarPrimitive.Root>>;
 	};
 
+const emojiPaddingBySize: Record<NonNullable<AvatarProps["size"]>, string> = {
+	lg: "p-2",
+	md: "p-[6px]",
+	sm: "p-1",
+};
+
 export const Avatar: React.FC<AvatarProps> = ({
 	className,
 	size,
@@ -77,15 +83,18 @@ export const Avatar: React.FC<AvatarProps> = ({
 }) => {
 	const { externalImages } = useAppearance();
 
-	// Built-in emoji avatars are glyphs rather than photos, so they need the
-	// same inset padding as icons to avoid rendering edge to edge.
-	const resolvedVariant =
-		variant ?? (src?.startsWith("/emojis/") ? "icon" : undefined);
+	// Built-in emoji avatars are glyphs rather than photos, so they need an
+	// inset to avoid rendering edge to edge. The icon variant's padding is too
+	// tight at smaller sizes for emojis, so they get a proportional inset of
+	// roughly 20% per side instead.
+	const isBuiltInEmoji = !variant && src?.startsWith("/emojis/");
 
 	return (
 		<AvatarPrimitive.Root
 			className={cn(
-				avatarVariants({ size, variant: resolvedVariant, className }),
+				avatarVariants({ size, variant }),
+				isBuiltInEmoji && emojiPaddingBySize[size ?? "md"],
+				className,
 			)}
 			{...props}
 		>
