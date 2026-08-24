@@ -1,35 +1,145 @@
 package mcpclient
 
 import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
+	"io"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"golang.org/x/xerrors"
 )
 
-func httpClientWithHeaders(headers map[string]string) *http.Client {
+const (
+	// HeaderCoderSignatureTimestamp contains the Unix timestamp used to sign
+	// the request.
+	HeaderCoderSignatureTimestamp = "X-Coder-Signature-Timestamp"
+	// HeaderCoderSignature contains the versioned HMAC-SHA256 request
+	// signature.
+	HeaderCoderSignature = "X-Coder-Signature"
+
+	headerCoderOwnerID     = "X-Coder-Owner-Id"
+	headerCoderChatID      = "X-Coder-Chat-Id"
+	headerCoderSubchatID   = "X-Coder-Subchat-Id"
+	headerCoderWorkspaceID = "X-Coder-Workspace-Id"
+)
+
+func httpClientWithHeaders(headers map[string]string, signingSecret string) *http.Client {
 	base := http.DefaultTransport
 	if isolated := mcpHTTPClient(); isolated != nil {
 		base = isolated.Transport
 	}
-	if len(headers) == 0 {
+	if len(headers) == 0 && signingSecret == "" {
 		return &http.Client{Transport: base}
 	}
-	return &http.Client{Transport: &headerRoundTripper{
-		base:    base,
-		headers: headers,
+	return &http.Client{Transport: &signingRoundTripper{
+		base:          base,
+		headers:       headers,
+		signingSecret: signingSecret,
+		now:           time.Now,
 	}}
 }
 
-type headerRoundTripper struct {
-	base    http.RoundTripper
-	headers map[string]string
+type signingRoundTripper struct {
+	base          http.RoundTripper
+	headers       map[string]string
+	signingSecret string
+	now           func() time.Time
 }
 
-func (h *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+func (s *signingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	clone := req.Clone(req.Context())
-	for k, v := range h.headers {
+	for k, v := range s.headers {
 		clone.Header.Set(k, v)
 	}
-	return h.base.RoundTrip(clone)
+	if s.signingSecret != "" {
+		body, err := bufferRequestBody(req, clone)
+		if err != nil {
+			return nil, xerrors.Errorf("buffer MCP request body: %w", err)
+		}
+		timestamp := strconv.FormatInt(s.now().Unix(), 10)
+		clone.Header.Set(HeaderCoderSignatureTimestamp, timestamp)
+		clone.Header.Set(HeaderCoderSignature, signMCPRequest(
+			s.signingSecret,
+			mcpSignatureCanonical(clone, timestamp, body),
+		))
+	}
+	return s.base.RoundTrip(clone)
+}
+
+func bufferRequestBody(req, clone *http.Request) ([]byte, error) {
+	if req.Body == nil || req.Body == http.NoBody {
+		return nil, nil
+	}
+
+	if req.GetBody != nil {
+		bodyReader, err := req.GetBody()
+		if err != nil {
+			return nil, err
+		}
+		defer bodyReader.Close()
+		body, err := io.ReadAll(bodyReader)
+		if err != nil {
+			return nil, err
+		}
+		getBody := func() (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader(body)), nil
+		}
+		clone.Body, err = getBody()
+		if err != nil {
+			return nil, err
+		}
+		clone.GetBody = getBody
+		return body, nil
+	}
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	_ = req.Body.Close()
+	getBody := func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(body)), nil
+	}
+	req.Body = io.NopCloser(bytes.NewReader(body))
+	req.GetBody = getBody
+	cloneBody, err := getBody()
+	if err != nil {
+		return nil, err
+	}
+	clone.Body = cloneBody
+	clone.GetBody = getBody
+	return body, nil
+}
+
+func mcpSignatureCanonical(req *http.Request, timestamp string, body []byte) string {
+	bodyHash := sha256.Sum256(body)
+	method := req.Method
+	if method == "" {
+		method = http.MethodGet
+	}
+	return strings.Join([]string{
+		"v1",
+		timestamp,
+		strings.ToUpper(method),
+		req.URL.RequestURI(),
+		hex.EncodeToString(bodyHash[:]),
+		"owner=" + req.Header.Get(headerCoderOwnerID),
+		"chat=" + req.Header.Get(headerCoderChatID),
+		"subchat=" + req.Header.Get(headerCoderSubchatID),
+		"workspace=" + req.Header.Get(headerCoderWorkspaceID),
+	}, "\n")
+}
+
+func signMCPRequest(signingSecret, canonical string) string {
+	mac := hmac.New(sha256.New, []byte(signingSecret))
+	_, _ = mac.Write([]byte(canonical))
+	return "v1=" + hex.EncodeToString(mac.Sum(nil))
 }
 
 // mcpHTTPClient returns an isolated *http.Client when running

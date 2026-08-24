@@ -297,7 +297,11 @@ func createTransport(
 	cfg database.MCPServerConfig,
 	headers map[string]string,
 ) (mcp.Transport, error) {
-	httpClient := httpClientWithHeaders(headers)
+	signingSecret := ""
+	if cfg.ForwardCoderHeaders {
+		signingSecret = cfg.SigningSecret
+	}
+	httpClient := httpClientWithHeaders(headers, signingSecret)
 
 	switch cfg.Transport {
 	case "sse":

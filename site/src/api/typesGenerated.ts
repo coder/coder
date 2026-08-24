@@ -6032,6 +6032,11 @@ export interface MCPServerConfig {
 	 * chat identity to third-party servers.
 	 */
 	readonly forward_coder_headers: boolean;
+	/**
+	 * SigningSecret is returned only by the mutation that generated it.
+	 */
+	readonly signing_secret?: string;
+	readonly has_signing_secret: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**

@@ -522,6 +522,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"api_key_value_key_id":        ActionIgnore, // dbcrypt bookkeeping.
 		"custom_headers":              ActionSecret, // May contain credentials
 		"custom_headers_key_id":       ActionIgnore, // dbcrypt bookkeeping.
+		"signing_secret":              ActionSecret,
+		"signing_secret_key_id":       ActionIgnore, // dbcrypt bookkeeping.
 		"tool_allow_list":             ActionTrack,
 		"tool_deny_list":              ActionTrack,
 		"availability":                ActionTrack,
