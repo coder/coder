@@ -8651,22 +8651,22 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 }
 
 const getChatModelConfigsForTelemetry = `-- name: GetChatModelConfigsForTelemetry :many
-SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default
+SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default, cmc.organization_id
 FROM chat_model_configs cmc
 JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE cmc.deleted = false
 `
 
 type GetChatModelConfigsForTelemetryRow struct {
-	ID           uuid.UUID `db:"id" json:"id"`
-	Provider     string    `db:"provider" json:"provider"`
-	Model        string    `db:"model" json:"model"`
-	ContextLimit int64     `db:"context_limit" json:"context_limit"`
-	Enabled      bool      `db:"enabled" json:"enabled"`
-	IsDefault    bool      `db:"is_default" json:"is_default"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	Provider       string    `db:"provider" json:"provider"`
+	Model          string    `db:"model" json:"model"`
+	ContextLimit   int64     `db:"context_limit" json:"context_limit"`
+	Enabled        bool      `db:"enabled" json:"enabled"`
+	IsDefault      bool      `db:"is_default" json:"is_default"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
-// Returns all model configurations for telemetry snapshot collection.
 // deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
 func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]GetChatModelConfigsForTelemetryRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatModelConfigsForTelemetry)
@@ -8684,6 +8684,7 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 			&i.ContextLimit,
 			&i.Enabled,
 			&i.IsDefault,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -9672,7 +9673,7 @@ func (q *sqlQuerier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID
 
 const getChatsUpdatedAfter = `-- name: GetChatsUpdatedAfter :many
 SELECT
-    c.id, c.owner_id, c.created_at, c.updated_at, c.status,
+    c.id, c.owner_id, c.organization_id, c.created_at, c.updated_at, c.status,
     (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
     c.root_chat_id, c.workspace_id,
     c.mode, c.archived, c.last_model_config_id, c.client_type,
@@ -9685,6 +9686,7 @@ WHERE c.updated_at > $1
 type GetChatsUpdatedAfterRow struct {
 	ID                uuid.UUID      `db:"id" json:"id"`
 	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
+	OrganizationID    uuid.UUID      `db:"organization_id" json:"organization_id"`
 	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
 	Status            ChatStatus     `db:"status" json:"status"`
@@ -9713,6 +9715,7 @@ func (q *sqlQuerier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
+			&i.OrganizationID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Status,
