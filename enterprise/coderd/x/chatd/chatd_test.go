@@ -90,7 +90,7 @@ func TestStreamPartsDialerDialsPartsEndpoint(t *testing.T) {
 	received := make(chan http.Header, 1)
 
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/api/v2/chats/"+chatID.String()+"/stream/parts", r.URL.Path)
+		require.Equal(t, "/api/experimental/chats/"+chatID.String()+"/stream/parts", r.URL.Path)
 		require.Empty(t, r.URL.RawQuery)
 		received <- r.Header.Clone()
 		conn, err := websocket.Accept(rw, r, nil)

@@ -123,7 +123,11 @@ func buildRelayURL(address string, chatID uuid.UUID) (string, error) {
 	default:
 		return "", xerrors.Errorf("unsupported relay address scheme %q", u.Scheme)
 	}
-	u.Path = "/api/v2/chats/" + chatID.String() + "/stream/parts"
+	// Peer replicas may still run a pre-promotion release during a
+	// rolling upgrade, so the internal relay dial stays on the
+	// experimental path for the compatibility window.
+	// TODO(CODAGT-922): switch to /api/v2 with the experimental removal.
+	u.Path = "/api/experimental/chats/" + chatID.String() + "/stream/parts"
 	u.RawQuery = ""
 	return u.String(), nil
 }
