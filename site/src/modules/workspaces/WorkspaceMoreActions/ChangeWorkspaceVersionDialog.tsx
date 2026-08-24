@@ -105,13 +105,16 @@ export const ChangeWorkspaceVersionDialog: FC<
 										/>
 									</ComboboxTrigger>
 									{/*
-									 * z-[1400] keeps this portalled popover above the
-									 * MUI Dialog (z-index: 1300) that still backs this
-									 * dialog on release/2.36. Without it the options
-									 * paint behind the dialog surface (DEVEX-780).
+									 * disablePortal renders the popover in place instead
+									 * of portalling to document.body. The dialog is still
+									 * an MUI Dialog (z-index: 1300) on release/2.36, so a
+									 * body portal lands behind it. Keeping the popover
+									 * inside the dialog also keeps it in the focus trap
+									 * (DEVEX-780).
 									 */}
 									<ComboboxContent
-										className="z-[1400] max-w-none min-w-[min(100%,320px)]"
+										disablePortal
+										className="max-w-none min-w-[min(100%,320px)]"
 										align="start"
 									>
 										<ComboboxInput placeholder="Search versions…" />
