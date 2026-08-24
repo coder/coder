@@ -28,7 +28,7 @@ type ChatModelAvailability = Omit<
 export const deriveProviderStates = (
 	modelConfigs: readonly TypesGen.ChatModel[],
 	providerDescriptors: readonly TypesGen.ChatModelProviderDescriptor[],
-	availability: ChatModelAvailability | null | undefined,
+	availability?: ChatModelAvailability | null,
 ): readonly ProviderState[] => {
 	const availableProvidersByType = new Map<string, AvailableProvider>();
 	for (const availableProvider of availability?.providers ?? []) {

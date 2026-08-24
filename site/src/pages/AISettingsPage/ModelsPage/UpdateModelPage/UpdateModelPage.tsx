@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	chatModel,
-	chatModelAvailability,
 	chatModels,
 	deleteChatModel,
 	updateChatModel,
@@ -31,23 +30,16 @@ const UpdateModelPage: FC = () => {
 
 	const modelQuery = useQuery(chatModel(organization.id, modelId ?? ""));
 	const organizationModelsQuery = useQuery(chatModels(organization.id));
-	const availableModelsQuery = useQuery(chatModelAvailability(organization.id));
 	const updateMutation = useMutation(updateChatModel(queryClient));
 	const deleteMutation = useMutation(deleteChatModel(queryClient));
 	const models = organizationModelsQuery.data?.models ?? [];
 	const providerStates = deriveProviderStates(
 		models,
 		organizationModelsQuery.data?.providers ?? [],
-		availableModelsQuery.data,
 	);
-	const isLoading =
-		modelQuery.isLoading ||
-		organizationModelsQuery.isLoading ||
-		availableModelsQuery.isLoading;
 	const { loadError, refetchError } = splitModelQueryErrors(
 		modelQuery,
 		organizationModelsQuery,
-		availableModelsQuery,
 	);
 	const model = modelQuery.data;
 	const currentDefaultModel = models.find((model) => model.is_default);
@@ -66,7 +58,7 @@ const UpdateModelPage: FC = () => {
 		return <Navigate to={modelsPath} replace />;
 	}
 
-	if (isLoading) {
+	if (modelQuery.isLoading || organizationModelsQuery.isLoading) {
 		return (
 			<>
 				<title>{pageTitle("Loading...", "AI Settings")}</title>
