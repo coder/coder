@@ -311,9 +311,8 @@ func TestHealthSettings(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		// given: a stubbed healthcheck, for the same reason as in
-		// "DismissSection" above.
 		adminClient := coderdtest.New(t, &coderdtest.Options{
+			// Mocked to avoid depending on DERP probe timing.
 			HealthcheckFunc: func(context.Context, string, *healthcheck.Progress) *healthsdk.HealthcheckReport {
 				return &healthsdk.HealthcheckReport{Time: time.Now()}
 			},
