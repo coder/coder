@@ -41,16 +41,13 @@ the convention for `PATH`-style variables on Unix systems.
 
 ### Merges and the host environment
 
-`merge_strategy` only combines values across `coder_env` resources in the
-same template. It does not know about the value already set by the
-workspace's image or host, such as the base `PATH`. An `append` or `prepend`
-builds its value from `coder_env` resources alone, and that value replaces
-whatever the host had set for that variable.
+`merge_strategy` only combines values across `coder_env` resources in the same template.
+It does not know about the value already set by the workspace's image or host, such as the base `PATH`.
+An `append` or `prepend` builds its value from `coder_env` resources alone, and that value replaces whatever the host had set for that variable.
 
-To extend a variable that the host already sets, reference it directly in
-one of the values (for example, `$PATH`), so the agent expands it against
-the real environment at startup. Only one resource in the chain needs the
-reference; the rest can use plain values. See the next example.
+To extend a variable that the host already sets, reference it directly in one of the values (for example, `$PATH`), so the agent expands it against the real environment at startup.
+Only one resource in the chain needs the reference; the rest can use plain values.
+The next example covers this.
 
 ### Example: Appending to PATH
 
