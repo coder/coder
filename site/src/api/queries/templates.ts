@@ -227,10 +227,18 @@ export const updateActiveTemplateVersion = (
 				id: versionId,
 			}),
 		onSuccess: async () => {
-			// invalidated because of `active_version_id`
-			await queryClient.invalidateQueries({
-				queryKey: templateByNameKey(template.organization_id, template.name),
-			});
+			await Promise.all([
+				// invalidated because of `active_version_id`
+				queryClient.invalidateQueries({
+					queryKey: templateByNameKey(
+						template.organization_name,
+						template.name,
+					),
+				}),
+				queryClient.invalidateQueries({
+					queryKey: templateVersionsQueryKey(template.id),
+				}),
+			]);
 		},
 	};
 };
