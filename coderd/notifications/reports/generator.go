@@ -345,9 +345,9 @@ func findTemplateAdmins(ctx context.Context, db database.Store, stats database.G
 const (
 	unpricedAIModelsReportFrequency      = 7 * 24 * time.Hour
 	unpricedAIModelsReportFrequencyLabel = "week"
-	// unpricedAIModelsLimit caps how many models a single report lists. A
-	// deployment can accumulate far more unpriced models than an admin can
-	// act on at once, and the remainder is reported as a count.
+	// unpricedAIModelsLimit caps how many models a single report lists.
+	// A deployment can accumulate more unpriced models than we want to display
+	// in a single notification, so the remaining models are reported as a count.
 	unpricedAIModelsLimit = 100
 )
 
@@ -356,9 +356,7 @@ const (
 // spend, so it is neither reported nor enforced against a budget.
 //
 // The set of unpriced models is derived at report time from interceptions and
-// the price table rather than tracked as it happens, so a price set by any
-// means, including the price book shipped with an upgrade, silently removes a
-// model from the next report.
+// the price table, so setting a price removes the model from the next report.
 func reportUnpricedAIModels(ctx context.Context, logger slog.Logger, db database.Store, enqueuer notifications.Enqueuer, clk quartz.Clock) error {
 	now := clk.Now()
 	since := now.Add(-unpricedAIModelsReportFrequency)
@@ -416,8 +414,7 @@ func reportUnpricedAIModels(ctx context.Context, logger slog.Logger, db database
 
 // buildDataForReportUnpricedAIModels renders the models most used first, so
 // the models dropped by the limit are the ones with the least unreported
-// usage. Interception counts order the list but are not reported: they are a
-// count of requests rather than of spend, and would invite reading them as one.
+// usage.
 func buildDataForReportUnpricedAIModels(unpriced []database.GetUnpricedAIModelsSinceRow) map[string]any {
 	models := make([]map[string]any, 0, min(len(unpriced), unpricedAIModelsLimit))
 	for _, row := range unpriced[:min(len(unpriced), unpricedAIModelsLimit)] {
