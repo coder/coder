@@ -1228,7 +1228,7 @@
 										{
 											"title": "Xum",
 											"description": "Configure Xum, the parallel coding agent tool, to route requests through AI Gateway.",
-											"path": "./ai-coder/ai-gateway/clients/mux.md",
+											"path": "./ai-coder/ai-gateway/clients/xum.md",
 											"state": ["premium"]
 										},
 										{
