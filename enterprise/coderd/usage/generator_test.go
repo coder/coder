@@ -54,6 +54,7 @@ type generatorHarness struct {
 	modelConfig database.ChatModelConfig
 	chat        database.Chat
 	chat2       database.Chat
+	nextAttempt int64
 }
 
 func newGeneratorHarness(t *testing.T) *generatorHarness {
@@ -96,14 +97,26 @@ func newGeneratorHarness(t *testing.T) *generatorHarness {
 
 func (h *generatorHarness) insertRuntimeMessage(ctx context.Context, t *testing.T, chatID uuid.UUID, runtimeMs int64, createdAt time.Time, deleted bool) {
 	t.Helper()
-	msg := dbgen.ChatMessage(t, h.db, database.ChatMessage{
-		ChatID:        chatID,
-		CreatedBy:     uuid.NullUUID{UUID: h.user.ID, Valid: true},
-		ModelConfigID: uuid.NullUUID{UUID: h.modelConfig.ID, Valid: true},
-		Role:          database.ChatMessageRoleAssistant,
-		RuntimeMs:     sql.NullInt64{Int64: runtimeMs, Valid: true},
+	h.nextAttempt++
+	step, err := h.db.InsertChatExecutionStep(ctx, database.InsertChatExecutionStepParams{
+		ChatID:            chatID,
+		HistoryVersion:    1,
+		GenerationAttempt: h.nextAttempt,
+		Operation:         database.ChatExecutionStepOperationModel,
+		Outcome:           database.ChatExecutionStepOutcomeCompleted,
+		RuntimeMs:         runtimeMs,
 	})
-	_, err := h.rawDB.ExecContext(ctx, "UPDATE chat_messages SET created_at = $1, deleted = $2 WHERE id = $3", createdAt, deleted, msg.ID)
+	require.NoError(t, err)
+	msg := dbgen.ChatMessage(t, h.db, database.ChatMessage{
+		ChatID:          chatID,
+		CreatedBy:       uuid.NullUUID{UUID: h.user.ID, Valid: true},
+		ModelConfigID:   uuid.NullUUID{UUID: h.modelConfig.ID, Valid: true},
+		Role:            database.ChatMessageRoleAssistant,
+		ExecutionStepID: uuid.NullUUID{UUID: step.ID, Valid: true},
+	})
+	_, err = h.rawDB.ExecContext(ctx, "UPDATE chat_execution_steps SET recorded_at = $1 WHERE id = $2", createdAt, step.ID)
+	require.NoError(t, err)
+	_, err = h.rawDB.ExecContext(ctx, "UPDATE chat_messages SET created_at = $1, deleted = $2 WHERE id = $3", createdAt, deleted, msg.ID)
 	require.NoError(t, err)
 }
 
@@ -449,8 +462,10 @@ func TestGeneratorPoisonBucket(t *testing.T) {
 		poisonBucket = time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC)
 		laterBucket  = time.Date(2025, 3, 10, 11, 0, 0, 0, time.UTC)
 	)
-	// Nothing prevents a negative runtime_ms row in the database, and a
-	// negative sum fails event validation on every tick.
+	// Simulate a corrupted row by removing the schema guard in this isolated
+	// test database. A negative sum fails event validation on every tick.
+	_, err := h.rawDB.ExecContext(ctx, "ALTER TABLE chat_execution_steps DROP CONSTRAINT chat_execution_steps_runtime_ms_nonnegative")
+	require.NoError(t, err)
 	h.insertRuntimeMessage(ctx, t, h.chat.ID, -5, poisonBucket.Add(10*time.Minute), false)
 	h.insertRuntimeMessage(ctx, t, h.chat.ID, 1000, laterBucket.Add(10*time.Minute), false)
 

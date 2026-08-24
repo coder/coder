@@ -83,8 +83,6 @@ func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T
 	require.NoError(t, err)
 	require.Len(t, got.Messages, 2)
 	require.Equal(t, []int{0, 1}, got.VisibleIndexes)
-	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got.Messages[0].RuntimeMs)
-	require.False(t, got.Messages[1].RuntimeMs.Valid)
 
 	assistantParts := parseMessageParts(t, got.Messages[0].Role, got.Messages[0].Content)
 	require.Len(t, assistantParts, 1)
@@ -100,7 +98,7 @@ func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T
 	require.JSONEq(t, `{"stdout":"/tmp"}`, string(toolParts[0].Result))
 }
 
-func TestBuildCommitStepMessages_BatchRuntimeLandsOnFirstToolRow(t *testing.T) {
+func TestBuildCommitStepMessages_BatchRuntimeDoesNotAffectMessages(t *testing.T) {
 	t.Parallel()
 
 	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
@@ -125,11 +123,11 @@ func TestBuildCommitStepMessages_BatchRuntimeLandsOnFirstToolRow(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, got.Messages, 2)
-	require.Equal(t, sql.NullInt64{Int64: 10000, Valid: true}, got.Messages[0].RuntimeMs)
-	require.False(t, got.Messages[1].RuntimeMs.Valid)
+	require.Equal(t, database.ChatMessageRoleTool, got.Messages[0].Role)
+	require.Equal(t, database.ChatMessageRoleTool, got.Messages[1].Role)
 }
 
-func TestBuildCommitStepMessages_BatchAttachmentAssistantRowStaysNull(t *testing.T) {
+func TestBuildCommitStepMessages_BatchAttachmentCreatesAssistantAndToolRows(t *testing.T) {
 	t.Parallel()
 
 	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
@@ -151,12 +149,10 @@ func TestBuildCommitStepMessages_BatchAttachmentAssistantRowStaysNull(t *testing
 	require.NoError(t, err)
 	require.Len(t, got.Messages, 2)
 	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[0].Role)
-	require.False(t, got.Messages[0].RuntimeMs.Valid)
 	require.Equal(t, database.ChatMessageRoleTool, got.Messages[1].Role)
-	require.Equal(t, sql.NullInt64{Int64: 3000, Valid: true}, got.Messages[1].RuntimeMs)
 }
 
-func TestBuildCommitStepMessages_ZeroBatchRuntimeLeavesRuntimeNull(t *testing.T) {
+func TestBuildCommitStepMessages_ZeroBatchRuntimeStillBuildsContent(t *testing.T) {
 	t.Parallel()
 
 	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
@@ -178,8 +174,7 @@ func TestBuildCommitStepMessages_ZeroBatchRuntimeLeavesRuntimeNull(t *testing.T)
 	require.NoError(t, err)
 	require.Len(t, got.Messages, 2)
 	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[0].Role)
-	require.False(t, got.Messages[0].RuntimeMs.Valid)
-	require.False(t, got.Messages[1].RuntimeMs.Valid)
+	require.Equal(t, database.ChatMessageRoleTool, got.Messages[1].Role)
 }
 
 func TestBuildCommitStepMessages_ProviderExecutedResultsStayAssistantContent(t *testing.T) {
@@ -213,7 +208,7 @@ func TestBuildCommitStepMessages_ProviderExecutedResultsStayAssistantContent(t *
 	require.True(t, parts[1].ProviderExecuted)
 }
 
-func TestBuildCommitStepMessages_UsageRuntime(t *testing.T) {
+func TestBuildCommitStepMessages_Usage(t *testing.T) {
 	t.Parallel()
 
 	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
@@ -237,7 +232,6 @@ func TestBuildCommitStepMessages_UsageRuntime(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 4, Valid: true}, msg.CacheCreationTokens)
 	require.Equal(t, sql.NullInt64{Int64: 5, Valid: true}, msg.CacheReadTokens)
 	require.Equal(t, sql.NullInt64{Int64: 4096, Valid: true}, msg.ContextLimit)
-	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, msg.RuntimeMs)
 }
 
 func TestBuildCommitStepMessages_ToolTimestampsAndMCPConfigIDs(t *testing.T) {
@@ -300,12 +294,10 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	require.True(t, got.Messages[0].Compressed)
 	require.Equal(t, uuid.NullUUID{UUID: modelConfigID, Valid: true}, got.Messages[0].ModelConfigID)
 	require.Equal(t, "system summary", parseMessageParts(t, got.Messages[0].Role, got.Messages[0].Content)[0].Text)
-	require.False(t, got.Messages[0].RuntimeMs.Valid)
 
 	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[1].Role)
 	require.Equal(t, database.ChatMessageVisibilityUser, got.Messages[1].Visibility)
 	require.True(t, got.Messages[1].Compressed)
-	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got.Messages[1].RuntimeMs)
 	callPart := parseMessageParts(t, got.Messages[1].Role, got.Messages[1].Content)[0]
 	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, callPart.Type)
 	require.Equal(t, "summary-1", callPart.ToolCallID)
@@ -314,16 +306,13 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	require.Equal(t, database.ChatMessageRoleTool, got.Messages[2].Role)
 	require.Equal(t, database.ChatMessageVisibilityBoth, got.Messages[2].Visibility)
 	require.True(t, got.Messages[2].Compressed)
-	require.False(t, got.Messages[2].RuntimeMs.Valid)
 	resultPart := parseMessageParts(t, got.Messages[2].Role, got.Messages[2].Content)[0]
 	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, resultPart.Type)
 	require.Equal(t, "summary-1", resultPart.ToolCallID)
 	require.JSONEq(t, `{"summary":"user report","source":"automatic","threshold_percent":70,"usage_percent":81.5,"context_tokens":815,"context_limit_tokens":1000}`, string(resultPart.Result))
 }
 
-// A compaction that never reached the summary model call carries no
-// runtime, so its assistant row must persist runtime_ms NULL.
-func TestBuildCompactionMessages_ZeroRuntimeLeavesRuntimeNull(t *testing.T) {
+func TestBuildCompactionMessages_ZeroRuntimeStillBuildsContent(t *testing.T) {
 	t.Parallel()
 
 	got, err := buildCompactionMessages(buildCompactionMessagesInput{
@@ -344,9 +333,6 @@ func TestBuildCompactionMessages_ZeroRuntimeLeavesRuntimeNull(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got.Messages, 3)
 	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[1].Role)
-	for i := range got.Messages {
-		require.False(t, got.Messages[i].RuntimeMs.Valid)
-	}
 }
 
 func TestCurrentTurnStepCount_ExcludesCompressedCompactionMessages(t *testing.T) {
@@ -743,57 +729,74 @@ func TestBufferedPartsToPartialMessages_NormalizesToolCallDeltasBeforeFinal(t *t
 	require.Equal(t, "call-1", syntheticParts[0].ToolCallID)
 }
 
-func TestBufferedPartsToPartialMessages_AttachesAttemptRuntime(t *testing.T) {
+func TestBufferedPartsToPartialMessages_ReturnsModelDurabilityGate(t *testing.T) {
 	t.Parallel()
 
 	parts := []messagepartbuffer.Part{
 		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("partial ")},
 		{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageToolCall("call-1", "execute", json.RawMessage(`{"cmd":"pwd"}`))},
 	}
-	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+	got, err := bufferedPartsToPartialMessagesWithMetadata(bufferedPartsToPartialMessagesInput{
 		parts:          parts,
 		modelConfigID:  uuid.New(),
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         slog.Make(),
-		attemptRuntime: 1500 * time.Millisecond,
 	})
 	require.NoError(t, err)
-	require.Len(t, got, 2)
-	require.Equal(t, database.ChatMessageRoleAssistant, got[0].Role)
-	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got[0].RuntimeMs)
-	require.Equal(t, database.ChatMessageRoleTool, got[1].Role)
-	require.False(t, got[1].RuntimeMs.Valid)
+	require.True(t, got.ModelAssistantDurable)
+	require.Len(t, got.Messages, 2)
+	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[0].Role)
+	require.Equal(t, database.ChatMessageRoleTool, got.Messages[1].Role)
 }
 
-func TestBufferedPartsToPartialMessages_DropsRuntimeWithoutAssistantContent(t *testing.T) {
+func TestBufferedPartsToPartialMessages_ModelDurabilityGateRequiresModelContent(t *testing.T) {
 	t.Parallel()
 
-	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+	got, err := bufferedPartsToPartialMessagesWithMetadata(bufferedPartsToPartialMessagesInput{
 		parts:          nil,
 		modelConfigID:  uuid.New(),
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         slog.Make(),
-		attemptRuntime: 1500 * time.Millisecond,
 	})
 	require.NoError(t, err)
-	require.Empty(t, got)
+	require.Empty(t, got.Messages)
+	require.False(t, got.ModelAssistantDurable)
 
 	// Tool execution publishes assistant-role file parts for
 	// attachments. A suffix containing only those is a tool batch,
 	// not model generation, so its span is not billed.
-	got, err = bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+	got, err = bufferedPartsToPartialMessagesWithMetadata(bufferedPartsToPartialMessagesInput{
 		parts: []messagepartbuffer.Part{
 			{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageFile(uuid.New(), "image/png", "screenshot.png")},
 		},
 		modelConfigID:  uuid.New(),
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         slog.Make(),
-		attemptRuntime: 1500 * time.Millisecond,
 	})
 	require.NoError(t, err)
-	require.Len(t, got, 1)
-	require.Equal(t, database.ChatMessageRoleAssistant, got[0].Role)
-	require.False(t, got[0].RuntimeMs.Valid)
+	require.Len(t, got.Messages, 1)
+	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[0].Role)
+	require.False(t, got.ModelAssistantDurable)
+
+	// A malformed streamed model part that is discarded does not make the
+	// otherwise attachment-only durable message billable.
+	got, err = bufferedPartsToPartialMessagesWithMetadata(bufferedPartsToPartialMessagesInput{
+		parts: []messagepartbuffer.Part{
+			{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageFile(uuid.New(), "image/png", "screenshot.png")},
+			{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID: "call-1",
+				ToolName:   "execute",
+				ArgsDelta:  `{"incomplete":`,
+			}},
+		},
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 1)
+	require.False(t, got.ModelAssistantDurable)
 }
 
 func TestBufferedPartsToPartialMessages_MergesToolCallDeltasWithoutFinal(t *testing.T) {

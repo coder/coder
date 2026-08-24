@@ -1552,6 +1552,14 @@ func (m queryMetricsStore) GetChatDiffStatusesByChatIDs(ctx context.Context, cha
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatExecutionStepByID(ctx context.Context, id uuid.UUID) (database.ChatExecutionStep, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatExecutionStepByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatExecutionStepByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatExecutionStepByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatExploreModelOverride(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatExploreModelOverride(ctx)
@@ -1669,6 +1677,14 @@ func (m queryMetricsStore) GetChatMessagesByChatIDDescPaginated(ctx context.Cont
 	r0, r1 := m.s.GetChatMessagesByChatIDDescPaginated(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetChatMessagesByChatIDDescPaginated").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessagesByChatIDDescPaginated").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatMessagesByExecutionStepID(ctx context.Context, executionStepID uuid.UUID) ([]database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatMessagesByExecutionStepID(ctx, executionStepID)
+	m.queryLatencies.WithLabelValues("GetChatMessagesByExecutionStepID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessagesByExecutionStepID").Inc()
 	return r0, r1
 }
 
@@ -3168,11 +3184,11 @@ func (m queryMetricsStore) GetTemplatesWithFilter(ctx context.Context, arg datab
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg database.GetTotalChatMessageRuntimeMsInRangeParams) (int64, error) {
+func (m queryMetricsStore) GetTotalChatExecutionRuntimeMsInRange(ctx context.Context, arg database.GetTotalChatExecutionRuntimeMsInRangeParams) (int64, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetTotalChatMessageRuntimeMsInRange(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetTotalChatMessageRuntimeMsInRange").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTotalChatMessageRuntimeMsInRange").Inc()
+	r0, r1 := m.s.GetTotalChatExecutionRuntimeMsInRange(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTotalChatExecutionRuntimeMsInRange").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTotalChatExecutionRuntimeMsInRange").Inc()
 	return r0, r1
 }
 
@@ -4149,6 +4165,14 @@ func (m queryMetricsStore) InsertChatDebugStep(ctx context.Context, arg database
 	r0, r1 := m.s.InsertChatDebugStep(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertChatDebugStep").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatDebugStep").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertChatExecutionStep(ctx context.Context, arg database.InsertChatExecutionStepParams) (database.ChatExecutionStep, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatExecutionStep(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatExecutionStep").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatExecutionStep").Inc()
 	return r0, r1
 }
 

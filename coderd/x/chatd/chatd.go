@@ -2943,7 +2943,6 @@ type chatMessage struct {
 	cacheCreationTokens int64
 	cacheReadTokens     int64
 	contextLimit        int64
-	runtimeMs           int64
 }
 
 func newChatMessage(
@@ -2986,7 +2985,7 @@ func appendMessageFields(
 	params.CacheReadTokens = append(params.CacheReadTokens, msg.cacheReadTokens)
 	params.ContextLimit = append(params.ContextLimit, msg.contextLimit)
 	params.Compressed = append(params.Compressed, msg.compressed)
-	params.RuntimeMs = append(params.RuntimeMs, msg.runtimeMs)
+	params.ExecutionStepID = append(params.ExecutionStepID, uuid.Nil)
 }
 
 // BuildSingleChatMessageInsertParams builds insert parameters for one chat message.

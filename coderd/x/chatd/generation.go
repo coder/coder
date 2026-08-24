@@ -718,7 +718,7 @@ func (s *taskStarter) generateAssistant(
 	input chatWorkerTaskStartInput,
 	prepared generationPrepared,
 ) error {
-	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
+	attempt, err := s.beginGenerationAttempt(ctx, machine, input, database.ChatExecutionStepOperationModel)
 	if err != nil {
 		return xerrors.Errorf("begin generation attempt: %w", err)
 	}
@@ -743,7 +743,7 @@ func (s *taskStarter) generateAssistant(
 		return xerrors.Errorf("generate assistant: %w", err)
 	}
 	if len(outcome.Step.Content) == 0 {
-		return s.finishGenerationTurn(ctx, machine, input, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, requireGenerationAttempt(attempt.number))
+		return s.finishGenerationTurn(ctx, machine, input, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, requireGenerationAttempt(attempt.key.GenerationAttempt))
 	}
 	preflight, err := s.admitStepToolCalls(ctx, input, prepared, outcome.Step.Content)
 	if err != nil {
@@ -759,13 +759,23 @@ func (s *taskStarter) generateAssistant(
 		hookRewrittenToolCalls: preflight.Overrides,
 	})
 	if err != nil {
-		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.key.GenerationAttempt))
 	}
 	messages, err = appendHookResultMessages(messages, preflight.Results, prepared.ModelConfigID)
 	if err != nil {
-		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.key.GenerationAttempt))
 	}
-	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages, generationCommitHooks{})
+	return s.commitGenerationStep(
+		ctx,
+		machine,
+		input,
+		attempt.key,
+		generationActionGenerateAssistant,
+		database.ChatExecutionStepOperationModel,
+		outcome.Step.Runtime,
+		messages,
+		generationCommitHooks{},
+	)
 }
 
 func (s *taskStarter) admitStepToolCalls(
@@ -873,7 +883,7 @@ func (s *taskStarter) executeLocalTools(
 			}
 		}
 	}
-	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
+	attempt, err := s.beginGenerationAttempt(ctx, machine, input, database.ChatExecutionStepOperationLocalToolBatch)
 	if err != nil {
 		return xerrors.Errorf("beginGenerationAttempt: %w", err)
 	}
@@ -940,11 +950,11 @@ func (s *taskStarter) executeLocalTools(
 		contentVersion:     chatprompt.CurrentContentVersion,
 	})
 	if err != nil {
-		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.key.GenerationAttempt))
 	}
 	messages, err = appendHookResultMessages(messages, postResults, prepared.ModelConfigID)
 	if err != nil {
-		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.key.GenerationAttempt))
 	}
 	var postCommitErr error
 	switch {
@@ -962,9 +972,17 @@ func (s *taskStarter) executeLocalTools(
 	case postDispatchErr != nil:
 		postCommitErr = chathooks.GenerationDispatchError(agenthooks.EventPostToolUse, postDispatchErr)
 	}
-	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
-		PostCommitError: postCommitErr,
-	})
+	return s.commitGenerationStep(
+		ctx,
+		machine,
+		input,
+		attempt.key,
+		generationActionExecuteLocalTools,
+		database.ChatExecutionStepOperationLocalToolBatch,
+		outcome.BatchRuntime,
+		messages,
+		generationCommitHooks{PostCommitError: postCommitErr},
+	)
 }
 
 // compactionSourceForDecision maps a compact decision to the
@@ -984,13 +1002,13 @@ func (s *taskStarter) generateCompaction(
 	prepared generationPrepared,
 	source chatloop.CompactionSource,
 ) error {
-	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
+	attempt, err := s.beginGenerationAttempt(ctx, machine, input, database.ChatExecutionStepOperationCompaction)
 	if err != nil {
 		return xerrors.Errorf("beginGenerationAttempt: %w", err)
 	}
 	defer attempt.closeEpisode()
 	if prepared.Compaction == nil {
-		return s.finishGenerationError(ctx, machine, input, xerrors.New("compaction action missing options"), requireGenerationAttempt(attempt.number))
+		return s.finishGenerationError(ctx, machine, input, xerrors.New("compaction action missing options"), requireGenerationAttempt(attempt.key.GenerationAttempt))
 	}
 	compactionOpts := prepared.Compaction.Options
 	metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
@@ -1047,7 +1065,7 @@ func (s *taskStarter) generateCompaction(
 	if strings.TrimSpace(outcome.SystemSummary) == "" || strings.TrimSpace(outcome.SummaryReport) == "" {
 		err := xerrors.New("compaction produced no summary")
 		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
-		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.key.GenerationAttempt))
 	}
 	messages, err := buildCompactionMessages(buildCompactionMessagesInput{
 		modelConfigID:  prepared.ModelConfigID,
@@ -1058,7 +1076,7 @@ func (s *taskStarter) generateCompaction(
 	})
 	if err != nil {
 		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
-		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.key.GenerationAttempt))
 	}
 	// The summary hint already consumed the pre_compact model context.
 	persistedPreResult := &chathooks.Result{UserMessage: preResult.GetUserMessage()}
@@ -1069,7 +1087,7 @@ func (s *taskStarter) generateCompaction(
 	}, []*chathooks.Result{persistedPreResult}, prepared.ModelConfigID)
 	if err != nil {
 		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
-		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.key.GenerationAttempt))
 	}
 	// Hook effects and fail-closed errors must commit atomically with
 	// compaction; a separate commit races the runner and can be dropped
@@ -1082,12 +1100,20 @@ func (s *taskStarter) generateCompaction(
 		commitMessages, err = appendHookResultMessages(commitMessages, []*chathooks.Result{postResult}, prepared.ModelConfigID)
 		if err != nil {
 			s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
-			return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+			return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.key.GenerationAttempt))
 		}
 	}
-	err = s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionCompact, commitMessages, generationCommitHooks{
-		PostCommitError: postCommitErr,
-	})
+	err = s.commitGenerationStep(
+		ctx,
+		machine,
+		input,
+		attempt.key,
+		generationActionCompact,
+		database.ChatExecutionStepOperationCompaction,
+		outcome.Runtime,
+		commitMessages,
+		generationCommitHooks{PostCommitError: postCommitErr},
+	)
 	s.server.metrics.RecordCompaction(metricProvider, metricModel, err == nil, err)
 	if err != nil {
 		return xerrors.Errorf("commit compaction step: %w", err)
@@ -1123,7 +1149,7 @@ func compactionModel(opts chatloop.GenerateCompactionOptions) string {
 // generationAttempt groups the state a generation action needs after
 // recording a new attempt.
 type generationAttempt struct {
-	number int64
+	key messagepartbuffer.Key
 	// publish streams a message part into the attempt's buffer episode.
 	publish func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	// startModelInvocation marks the start of the attempt's billable
@@ -1146,6 +1172,7 @@ func (s *taskStarter) beginGenerationAttempt(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
+	operation database.ChatExecutionStepOperation,
 ) (generationAttempt, error) {
 	var attempt int64
 	var committed database.Chat
@@ -1175,8 +1202,12 @@ func (s *taskStarter) beginGenerationAttempt(
 	if err := s.opts.MessagePartBuffer.CreateEpisode(key); err != nil && ctx.Err() == nil {
 		return generationAttempt{}, taskRetryableError{err: xerrors.Errorf("create message part episode: %w", err)}
 	}
+	if err := s.opts.MessagePartBuffer.SetOperation(key, operation); err != nil && ctx.Err() == nil {
+		_ = s.opts.MessagePartBuffer.CloseEpisode(key)
+		return generationAttempt{}, taskRetryableError{err: xerrors.Errorf("set message part episode operation: %w", err)}
+	}
 	return generationAttempt{
-		number: attempt,
+		key: key,
 		publish: func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 			_ = s.opts.MessagePartBuffer.AddPart(key, role, part)
 		},
@@ -1203,16 +1234,18 @@ func (s *taskStarter) commitGenerationStep(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
-	attempt int64,
+	attemptKey messagepartbuffer.Key,
 	kind generationActionKind,
+	operation database.ChatExecutionStepOperation,
+	runtime time.Duration,
 	messages stepMessagesForCommit,
 	commitHooks generationCommitHooks,
 ) error {
 	if len(messages.Messages) == 0 {
 		if commitHooks.PostCommitError != nil {
-			return s.finishGenerationError(ctx, machine, input, commitHooks.PostCommitError, requireGenerationAttempt(attempt))
+			return s.finishGenerationError(ctx, machine, input, commitHooks.PostCommitError, requireGenerationAttempt(attemptKey.GenerationAttempt))
 		}
-		return s.finishGenerationTurn(ctx, machine, input, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, requireGenerationAttempt(attempt))
+		return s.finishGenerationTurn(ctx, machine, input, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, requireGenerationAttempt(attemptKey.GenerationAttempt))
 	}
 	failClosed := commitHooks.PostCommitError != nil
 	var postCommitLastError pqtype.NullRawMessage
@@ -1234,11 +1267,18 @@ func (s *taskStarter) commitGenerationStep(
 	var committed database.Chat
 	insertedMessages := []runnerActionMessage{}
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attempt)); err != nil {
+		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attemptKey.GenerationAttempt)); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
 		commitResult, err := tx.CommitStep(chatstate.CommitStepInput{
-			Messages:                 messages.Messages,
+			Messages: messages.Messages,
+			ExecutionStep: &chatstate.ExecutionStepInput{
+				HistoryVersion:    attemptKey.HistoryVersion,
+				GenerationAttempt: attemptKey.GenerationAttempt,
+				Operation:         operation,
+				Outcome:           database.ChatExecutionStepOutcomeCompleted,
+				Runtime:           runtime,
+			},
 			ConsumeCompactionRequest: messages.ConsumeCompactionRequest,
 		})
 		if err != nil {

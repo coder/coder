@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -103,6 +104,9 @@ type episodeState struct {
 	// that never invoke a model, such as local tool execution
 	// batches.
 	modelStartedAt time.Time
+	// operation identifies the execution kind without inferring it from
+	// buffered or committed message content.
+	operation database.ChatExecutionStepOperation
 	// toolCompletions stores started occurrences by unresolved-call position.
 	toolCompletions map[int]ToolCompletion
 	closed          bool
@@ -218,6 +222,27 @@ func (b *Buffer) StartModelInvocation(key Key) error {
 		return ErrEpisodeClosed
 	}
 	episode.modelStartedAt = b.opts.Clock.Now("message-part-buffer", "model-invocation-start")
+	return nil
+}
+
+// SetOperation records the execution kind for interruption persistence.
+func (b *Buffer) SetOperation(key Key, operation database.ChatExecutionStepOperation) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return ErrMessagePartBufferClosed
+	}
+	episode, err := b.getEpisodeLocked(key)
+	if err != nil {
+		return err
+	}
+	if episode.closed {
+		return ErrEpisodeClosed
+	}
+	if !operation.Valid() {
+		return xerrors.Errorf("invalid execution operation %q", operation)
+	}
+	episode.operation = operation
 	return nil
 }
 
@@ -363,6 +388,18 @@ func (b *Buffer) ModelInvokedAt(key Key) time.Time {
 		return time.Time{}
 	}
 	return episode.modelStartedAt
+}
+
+// Operation returns the recorded execution kind, or the zero value if the
+// episode does not exist or has no operation stamp.
+func (b *Buffer) Operation(key Key) database.ChatExecutionStepOperation {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	episode := b.episodes[key]
+	if episode == nil {
+		return ""
+	}
+	return episode.operation
 }
 
 // ToolCompletions returns copied started-occurrence state. A zero completion

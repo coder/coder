@@ -1727,6 +1727,22 @@ func TestChatsTelemetry(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	generationAttempts := map[uuid.UUID]int64{}
+	executionStepID := func(chatID uuid.UUID, operation database.ChatExecutionStepOperation, runtimeMs int64) uuid.NullUUID {
+		t.Helper()
+		generationAttempts[chatID]++
+		step, err := db.InsertChatExecutionStep(ctx, database.InsertChatExecutionStepParams{
+			ChatID:            chatID,
+			HistoryVersion:    1,
+			GenerationAttempt: generationAttempts[chatID],
+			Operation:         operation,
+			Outcome:           database.ChatExecutionStepOutcomeCompleted,
+			RuntimeMs:         runtimeMs,
+		})
+		require.NoError(t, err)
+		return uuid.NullUUID{UUID: step.ID, Valid: true}
+	}
+
 	// Insert messages for root chat: 2 user, 2 assistant, 1 tool.
 	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:              rootChat.ID,
@@ -1750,7 +1766,7 @@ func TestChatsTelemetry(t *testing.T) {
 		ReasoningTokens:    sql.NullInt64{Int64: 10, Valid: true},
 		CacheReadTokens:    sql.NullInt64{Int64: 25, Valid: true},
 		ContextLimit:       sql.NullInt64{Int64: 200000, Valid: true},
-		RuntimeMs:          sql.NullInt64{Int64: 500, Valid: true},
+		ExecutionStepID:    executionStepID(rootChat.ID, database.ChatExecutionStepOperationModel, 500),
 		ProviderResponseID: sql.NullString{String: "resp-1", Valid: true},
 	})
 	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
@@ -1775,16 +1791,16 @@ func TestChatsTelemetry(t *testing.T) {
 		ReasoningTokens:    sql.NullInt64{Int64: 20, Valid: true},
 		CacheReadTokens:    sql.NullInt64{Int64: 40, Valid: true},
 		ContextLimit:       sql.NullInt64{Int64: 200000, Valid: true},
-		RuntimeMs:          sql.NullInt64{Int64: 800, Valid: true},
+		ExecutionStepID:    executionStepID(rootChat.ID, database.ChatExecutionStepOperationModel, 800),
 		ProviderResponseID: sql.NullString{String: "resp-2", Valid: true},
 	})
 	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        rootChat.ID,
-		ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-		Role:          database.ChatMessageRoleTool,
-		Content:       pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"result"}]`), Valid: true},
-		ContextLimit:  sql.NullInt64{Int64: 200000, Valid: true},
-		RuntimeMs:     sql.NullInt64{Int64: 100, Valid: true},
+		ChatID:          rootChat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Role:            database.ChatMessageRoleTool,
+		Content:         pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"result"}]`), Valid: true},
+		ContextLimit:    sql.NullInt64{Int64: 200000, Valid: true},
+		ExecutionStepID: executionStepID(rootChat.ID, database.ChatExecutionStepOperationLocalToolBatch, 100),
 	})
 
 	// Insert messages for child chat: 1 user, 1 assistant (compressed).
@@ -1811,7 +1827,7 @@ func TestChatsTelemetry(t *testing.T) {
 		CacheReadTokens:    sql.NullInt64{Int64: 75, Valid: true},
 		ContextLimit:       sql.NullInt64{Int64: 128000, Valid: true},
 		Compressed:         true,
-		RuntimeMs:          sql.NullInt64{Int64: 1200, Valid: true},
+		ExecutionStepID:    executionStepID(childChat.ID, database.ChatExecutionStepOperationCompaction, 1200),
 		ProviderResponseID: sql.NullString{String: "resp-3", Valid: true},
 	})
 
@@ -1828,7 +1844,7 @@ func TestChatsTelemetry(t *testing.T) {
 		CacheCreationTokens: sql.NullInt64{Int64: 999999, Valid: true},
 		CacheReadTokens:     sql.NullInt64{Int64: 999999, Valid: true},
 		ContextLimit:        sql.NullInt64{Int64: 200000, Valid: true},
-		RuntimeMs:           sql.NullInt64{Int64: 999999, Valid: true},
+		ExecutionStepID:     executionStepID(rootChat.ID, database.ChatExecutionStepOperationModel, 999999),
 	})
 	err = db.SoftDeleteChatMessageByID(ctx, poisonMsg.ID)
 	require.NoError(t, err)

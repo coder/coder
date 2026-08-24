@@ -2910,6 +2910,21 @@ func (mr *MockStoreMockRecorder) GetChatDiffStatusesByChatIDs(ctx, chatIds any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatDiffStatusesByChatIDs", reflect.TypeOf((*MockStore)(nil).GetChatDiffStatusesByChatIDs), ctx, chatIds)
 }
 
+// GetChatExecutionStepByID mocks base method.
+func (m *MockStore) GetChatExecutionStepByID(ctx context.Context, id uuid.UUID) (database.ChatExecutionStep, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatExecutionStepByID", ctx, id)
+	ret0, _ := ret[0].(database.ChatExecutionStep)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatExecutionStepByID indicates an expected call of GetChatExecutionStepByID.
+func (mr *MockStoreMockRecorder) GetChatExecutionStepByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatExecutionStepByID", reflect.TypeOf((*MockStore)(nil).GetChatExecutionStepByID), ctx, id)
+}
+
 // GetChatExploreModelOverride mocks base method.
 func (m *MockStore) GetChatExploreModelOverride(ctx context.Context) (string, error) {
 	m.ctrl.T.Helper()
@@ -3133,6 +3148,21 @@ func (m *MockStore) GetChatMessagesByChatIDDescPaginated(ctx context.Context, ar
 func (mr *MockStoreMockRecorder) GetChatMessagesByChatIDDescPaginated(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesByChatIDDescPaginated", reflect.TypeOf((*MockStore)(nil).GetChatMessagesByChatIDDescPaginated), ctx, arg)
+}
+
+// GetChatMessagesByExecutionStepID mocks base method.
+func (m *MockStore) GetChatMessagesByExecutionStepID(ctx context.Context, executionStepID uuid.UUID) ([]database.ChatMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMessagesByExecutionStepID", ctx, executionStepID)
+	ret0, _ := ret[0].([]database.ChatMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMessagesByExecutionStepID indicates an expected call of GetChatMessagesByExecutionStepID.
+func (mr *MockStoreMockRecorder) GetChatMessagesByExecutionStepID(ctx, executionStepID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesByExecutionStepID", reflect.TypeOf((*MockStore)(nil).GetChatMessagesByExecutionStepID), ctx, executionStepID)
 }
 
 // GetChatMessagesByRevisionForStream mocks base method.
@@ -5985,19 +6015,19 @@ func (mr *MockStoreMockRecorder) GetTemplatesWithFilter(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplatesWithFilter", reflect.TypeOf((*MockStore)(nil).GetTemplatesWithFilter), ctx, arg)
 }
 
-// GetTotalChatMessageRuntimeMsInRange mocks base method.
-func (m *MockStore) GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg database.GetTotalChatMessageRuntimeMsInRangeParams) (int64, error) {
+// GetTotalChatExecutionRuntimeMsInRange mocks base method.
+func (m *MockStore) GetTotalChatExecutionRuntimeMsInRange(ctx context.Context, arg database.GetTotalChatExecutionRuntimeMsInRangeParams) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTotalChatMessageRuntimeMsInRange", ctx, arg)
+	ret := m.ctrl.Call(m, "GetTotalChatExecutionRuntimeMsInRange", ctx, arg)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetTotalChatMessageRuntimeMsInRange indicates an expected call of GetTotalChatMessageRuntimeMsInRange.
-func (mr *MockStoreMockRecorder) GetTotalChatMessageRuntimeMsInRange(ctx, arg any) *gomock.Call {
+// GetTotalChatExecutionRuntimeMsInRange indicates an expected call of GetTotalChatExecutionRuntimeMsInRange.
+func (mr *MockStoreMockRecorder) GetTotalChatExecutionRuntimeMsInRange(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTotalChatMessageRuntimeMsInRange", reflect.TypeOf((*MockStore)(nil).GetTotalChatMessageRuntimeMsInRange), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTotalChatExecutionRuntimeMsInRange", reflect.TypeOf((*MockStore)(nil).GetTotalChatExecutionRuntimeMsInRange), ctx, arg)
 }
 
 // GetTotalUsageDCManagedAgentsV1 mocks base method.
@@ -7841,6 +7871,21 @@ func (m *MockStore) InsertChatDebugStep(ctx context.Context, arg database.Insert
 func (mr *MockStoreMockRecorder) InsertChatDebugStep(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatDebugStep", reflect.TypeOf((*MockStore)(nil).InsertChatDebugStep), ctx, arg)
+}
+
+// InsertChatExecutionStep mocks base method.
+func (m *MockStore) InsertChatExecutionStep(ctx context.Context, arg database.InsertChatExecutionStepParams) (database.ChatExecutionStep, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatExecutionStep", ctx, arg)
+	ret0, _ := ret[0].(database.ChatExecutionStep)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatExecutionStep indicates an expected call of InsertChatExecutionStep.
+func (mr *MockStoreMockRecorder) InsertChatExecutionStep(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatExecutionStep", reflect.TypeOf((*MockStore)(nil).InsertChatExecutionStep), ctx, arg)
 }
 
 // InsertChatFile mocks base method.

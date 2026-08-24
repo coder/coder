@@ -209,14 +209,62 @@ func (tx *Tx) applyExecutionState(u executionStateUpdate) (database.Chat, error)
 // insertMessages inserts the given Message batch under the current
 // chat.
 func (tx *Tx) insertMessages(messages []Message) ([]database.ChatMessage, error) {
+	return tx.insertMessagesWithExecutionStep(messages, uuid.Nil)
+}
+
+func (tx *Tx) insertMessagesWithExecutionStep(messages []Message, executionStepID uuid.UUID) ([]database.ChatMessage, error) {
 	if len(messages) == 0 {
 		return nil, nil
 	}
-	inserted, err := tx.store.InsertChatMessages(tx.ctx, toInsertParams(tx.chatID, messages))
+	inserted, err := tx.store.InsertChatMessages(tx.ctx, toInsertParamsWithExecutionStep(tx.chatID, messages, executionStepID))
 	if err != nil {
 		return nil, xerrors.Errorf("insert messages: %w", err)
 	}
 	return fromInsertedRows(inserted), nil
+}
+
+// ExecutionStepInput describes the measured execution that produced a durable
+// generated message batch.
+type ExecutionStepInput struct {
+	HistoryVersion    int64
+	GenerationAttempt int64
+	Operation         database.ChatExecutionStepOperation
+	Outcome           database.ChatExecutionStepOutcome
+	Runtime           time.Duration
+}
+
+func (tx *Tx) insertExecutionStep(chat database.Chat, input ExecutionStepInput) (database.ChatExecutionStep, error) {
+	if input.HistoryVersion != chat.HistoryVersion ||
+		input.GenerationAttempt != chat.GenerationAttempt {
+		return database.ChatExecutionStep{}, xerrors.Errorf(
+			"execution step episode (%d, %d) does not match current episode (%d, %d)",
+			input.HistoryVersion,
+			input.GenerationAttempt,
+			chat.HistoryVersion,
+			chat.GenerationAttempt,
+		)
+	}
+	if !input.Operation.Valid() {
+		return database.ChatExecutionStep{}, xerrors.Errorf("invalid execution step operation %q", input.Operation)
+	}
+	if !input.Outcome.Valid() {
+		return database.ChatExecutionStep{}, xerrors.Errorf("invalid execution step outcome %q", input.Outcome)
+	}
+	if input.Runtime < 0 {
+		return database.ChatExecutionStep{}, xerrors.Errorf("execution step runtime must not be negative")
+	}
+	step, err := tx.store.InsertChatExecutionStep(tx.ctx, database.InsertChatExecutionStepParams{
+		ChatID:            tx.chatID,
+		HistoryVersion:    input.HistoryVersion,
+		GenerationAttempt: input.GenerationAttempt,
+		Operation:         input.Operation,
+		Outcome:           input.Outcome,
+		RuntimeMs:         input.Runtime.Milliseconds(),
+	})
+	if err != nil {
+		return database.ChatExecutionStep{}, xerrors.Errorf("insert execution step: %w", err)
+	}
+	return step, nil
 }
 
 // clearQueue deletes all queued messages on the chat and returns the
@@ -1207,6 +1255,9 @@ func (tx *Tx) RecordRetryState(input RecordRetryStateInput) (RecordRetryStateRes
 // CommitStepInput configures [Tx.CommitStep].
 type CommitStepInput struct {
 	Messages []Message
+	// ExecutionStep is present when Messages were produced by a measured model,
+	// local-tool, or compaction execution.
+	ExecutionStep *ExecutionStepInput
 	// ConsumeCompactionRequest clears the one-shot manual compaction
 	// marker atomically with the committed step. Compaction commits
 	// set this so a request is consumed exactly once and never
@@ -1232,7 +1283,15 @@ func (tx *Tx) CommitStep(input CommitStepInput) (CommitStepResult, error) {
 			"CommitStep requires at least one message",
 		)
 	}
-	inserted, err := tx.insertMessages(input.Messages)
+	executionStepID := uuid.Nil
+	if input.ExecutionStep != nil {
+		step, err := tx.insertExecutionStep(chat, *input.ExecutionStep)
+		if err != nil {
+			return CommitStepResult{}, err
+		}
+		executionStepID = step.ID
+	}
+	inserted, err := tx.insertMessagesWithExecutionStep(input.Messages, executionStepID)
 	if err != nil {
 		return CommitStepResult{}, xerrors.Errorf("insert commit step messages: %w", err)
 	}
@@ -1307,6 +1366,9 @@ func (tx *Tx) EnterRequiresAction(_ EnterRequiresActionInput) (EnterRequiresActi
 // FinishInterruptionInput configures [Tx.FinishInterruption].
 type FinishInterruptionInput struct {
 	PartialMessages []Message
+	// ExecutionStep is present when PartialMessages make an interrupted
+	// execution attempt durable.
+	ExecutionStep *ExecutionStepInput
 }
 
 // FinishInterruptionResult is returned by [Tx.FinishInterruption].
@@ -1323,7 +1385,21 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, err
 	}
-	insertedPartial, err := tx.insertMessages(input.PartialMessages)
+	if input.ExecutionStep != nil && len(input.PartialMessages) == 0 {
+		return FinishInterruptionResult{}, newTransitionError(
+			TransitionFinishInterruption, from,
+			"FinishInterruption execution step requires at least one partial message",
+		)
+	}
+	executionStepID := uuid.Nil
+	if input.ExecutionStep != nil {
+		step, err := tx.insertExecutionStep(chat, *input.ExecutionStep)
+		if err != nil {
+			return FinishInterruptionResult{}, err
+		}
+		executionStepID = step.ID
+	}
+	insertedPartial, err := tx.insertMessagesWithExecutionStep(input.PartialMessages, executionStepID)
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert interruption partial messages: %w", err)
 	}

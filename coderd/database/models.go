@@ -1504,6 +1504,125 @@ func AllChatClientTypeValues() []ChatClientType {
 	}
 }
 
+type ChatExecutionStepOperation string
+
+const (
+	ChatExecutionStepOperationModel          ChatExecutionStepOperation = "model"
+	ChatExecutionStepOperationLocalToolBatch ChatExecutionStepOperation = "local_tool_batch"
+	ChatExecutionStepOperationCompaction     ChatExecutionStepOperation = "compaction"
+)
+
+func (e *ChatExecutionStepOperation) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatExecutionStepOperation(s)
+	case string:
+		*e = ChatExecutionStepOperation(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatExecutionStepOperation: %T", src)
+	}
+	return nil
+}
+
+type NullChatExecutionStepOperation struct {
+	ChatExecutionStepOperation ChatExecutionStepOperation `json:"chat_execution_step_operation"`
+	Valid                      bool                       `json:"valid"` // Valid is true if ChatExecutionStepOperation is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatExecutionStepOperation) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatExecutionStepOperation, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatExecutionStepOperation.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatExecutionStepOperation) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatExecutionStepOperation), nil
+}
+
+func (e ChatExecutionStepOperation) Valid() bool {
+	switch e {
+	case ChatExecutionStepOperationModel,
+		ChatExecutionStepOperationLocalToolBatch,
+		ChatExecutionStepOperationCompaction:
+		return true
+	}
+	return false
+}
+
+func AllChatExecutionStepOperationValues() []ChatExecutionStepOperation {
+	return []ChatExecutionStepOperation{
+		ChatExecutionStepOperationModel,
+		ChatExecutionStepOperationLocalToolBatch,
+		ChatExecutionStepOperationCompaction,
+	}
+}
+
+type ChatExecutionStepOutcome string
+
+const (
+	ChatExecutionStepOutcomeCompleted   ChatExecutionStepOutcome = "completed"
+	ChatExecutionStepOutcomeInterrupted ChatExecutionStepOutcome = "interrupted"
+)
+
+func (e *ChatExecutionStepOutcome) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatExecutionStepOutcome(s)
+	case string:
+		*e = ChatExecutionStepOutcome(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatExecutionStepOutcome: %T", src)
+	}
+	return nil
+}
+
+type NullChatExecutionStepOutcome struct {
+	ChatExecutionStepOutcome ChatExecutionStepOutcome `json:"chat_execution_step_outcome"`
+	Valid                    bool                     `json:"valid"` // Valid is true if ChatExecutionStepOutcome is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatExecutionStepOutcome) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatExecutionStepOutcome, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatExecutionStepOutcome.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatExecutionStepOutcome) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatExecutionStepOutcome), nil
+}
+
+func (e ChatExecutionStepOutcome) Valid() bool {
+	switch e {
+	case ChatExecutionStepOutcomeCompleted,
+		ChatExecutionStepOutcomeInterrupted:
+		return true
+	}
+	return false
+}
+
+func AllChatExecutionStepOutcomeValues() []ChatExecutionStepOutcome {
+	return []ChatExecutionStepOutcome{
+		ChatExecutionStepOutcomeCompleted,
+		ChatExecutionStepOutcomeInterrupted,
+	}
+}
+
 type ChatMessageRole string
 
 const (
@@ -5192,6 +5311,18 @@ type ChatDiffStatus struct {
 	HeadBranch       sql.NullString `db:"head_branch" json:"head_branch"`
 }
 
+// De-identified billable execution runtime. chat_id is cleared when its chat is hard-deleted.
+type ChatExecutionStep struct {
+	ID                uuid.UUID                  `db:"id" json:"id"`
+	ChatID            uuid.NullUUID              `db:"chat_id" json:"chat_id"`
+	HistoryVersion    int64                      `db:"history_version" json:"history_version"`
+	GenerationAttempt int64                      `db:"generation_attempt" json:"generation_attempt"`
+	Operation         ChatExecutionStepOperation `db:"operation" json:"operation"`
+	Outcome           ChatExecutionStepOutcome   `db:"outcome" json:"outcome"`
+	RuntimeMs         int64                      `db:"runtime_ms" json:"runtime_ms"`
+	RecordedAt        time.Time                  `db:"recorded_at" json:"recorded_at"`
+}
+
 type ChatFile struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
@@ -5233,14 +5364,17 @@ type ChatMessage struct {
 	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
 	ContentVersion      int16                 `db:"content_version" json:"content_version"`
 	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
-	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
-	Deleted             bool                  `db:"deleted" json:"deleted"`
-	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
-	Revision            int64                 `db:"revision" json:"revision"`
+	// Deprecated rolling-upgrade compatibility column. New runtime is stored on chat_execution_steps.
+	RuntimeMs          sql.NullInt64  `db:"runtime_ms" json:"runtime_ms"`
+	Deleted            bool           `db:"deleted" json:"deleted"`
+	ProviderResponseID sql.NullString `db:"provider_response_id" json:"provider_response_id"`
+	Revision           int64          `db:"revision" json:"revision"`
 	// Stores the selected effort for the turn triggered by this message.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 	// Used for full text search. NULL initially, populated async via background job.
 	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
+	// Associates a generated message batch with the execution step that produced it.
+	ExecutionStepID uuid.NullUUID `db:"execution_step_id" json:"execution_step_id"`
 }
 
 type ChatModelConfig struct {

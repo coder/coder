@@ -932,7 +932,7 @@ inserted AS (
         cache_read_tokens,
         context_limit,
         compressed,
-        runtime_ms
+        execution_step_id
     )
     SELECT
         allocated.id,
@@ -952,7 +952,7 @@ inserted AS (
         NULLIF((@cache_read_tokens::bigint[])[allocated.ord], 0),
         NULLIF((@context_limit::bigint[])[allocated.ord], 0),
         (@compressed::boolean[])[allocated.ord],
-        NULLIF((@runtime_ms::bigint[])[allocated.ord], 0)
+        NULLIF((@execution_step_id::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid)
     FROM allocated
     RETURNING *
 )
@@ -2200,15 +2200,6 @@ SELECT
     COUNT(*) FILTER (WHERE pull_request_state = 'closed')::bigint AS closed
 FROM deduped;
 
--- name: GetTotalChatMessageRuntimeMsInRange :one
--- Computes hb_agent_runtime_v1 usage event payloads. Deliberately includes
--- soft-deleted messages and messages from all chats.
-SELECT COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
-FROM chat_messages cm
-WHERE cm.created_at >= @start_time::timestamptz
-  AND cm.created_at < @end_time::timestamptz
-  AND cm.runtime_ms IS NOT NULL;
-
 -- name: GetChatsByWorkspaceIDs :many
 SELECT *
 FROM chats_expanded
@@ -2256,28 +2247,61 @@ LEFT JOIN chat_diff_statuses cds ON cds.chat_id = c.id
 WHERE c.updated_at > @updated_after;
 
 -- name: GetChatMessageSummariesPerChat :many
--- Aggregates message-level metrics per chat for messages created
--- after the given timestamp. Uses message created_at so that
--- ongoing activity in long-running chats is captured each window.
+-- Aggregates message metrics by message created_at and execution runtime by
+-- step recorded_at. A step contributes once while any associated message
+-- remains non-deleted, even when that surviving message predates the window.
+WITH message_summaries AS (
+    SELECT
+        cm.chat_id,
+        COUNT(*)::bigint AS message_count,
+        COUNT(*) FILTER (WHERE cm.role = 'user')::bigint AS user_message_count,
+        COUNT(*) FILTER (WHERE cm.role = 'assistant')::bigint AS assistant_message_count,
+        COUNT(*) FILTER (WHERE cm.role = 'tool')::bigint AS tool_message_count,
+        COUNT(*) FILTER (WHERE cm.role = 'system')::bigint AS system_message_count,
+        COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
+        COALESCE(SUM(cm.reasoning_tokens), 0)::bigint AS total_reasoning_tokens,
+        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+        COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+        COUNT(DISTINCT cm.model_config_id)::bigint AS distinct_model_count,
+        COUNT(*) FILTER (WHERE cm.compressed)::bigint AS compressed_message_count
+    FROM chat_messages cm
+    WHERE cm.created_at > @created_after
+      AND cm.deleted = false
+    GROUP BY cm.chat_id
+),
+runtime_summaries AS (
+    SELECT
+        ces.chat_id,
+        COALESCE(SUM(ces.runtime_ms), 0)::bigint AS total_runtime_ms
+    FROM chat_execution_steps ces
+    WHERE ces.chat_id IS NOT NULL
+      AND ces.recorded_at > @created_after
+      AND EXISTS (
+          SELECT 1
+          FROM chat_messages cm
+          WHERE cm.execution_step_id = ces.id
+            AND cm.deleted = false
+      )
+    GROUP BY ces.chat_id
+)
 SELECT
-    cm.chat_id,
-    COUNT(*)::bigint AS message_count,
-    COUNT(*) FILTER (WHERE cm.role = 'user')::bigint AS user_message_count,
-    COUNT(*) FILTER (WHERE cm.role = 'assistant')::bigint AS assistant_message_count,
-    COUNT(*) FILTER (WHERE cm.role = 'tool')::bigint AS tool_message_count,
-    COUNT(*) FILTER (WHERE cm.role = 'system')::bigint AS system_message_count,
-    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-    COALESCE(SUM(cm.reasoning_tokens), 0)::bigint AS total_reasoning_tokens,
-    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
-    COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms,
-    COUNT(DISTINCT cm.model_config_id)::bigint AS distinct_model_count,
-    COUNT(*) FILTER (WHERE cm.compressed)::bigint AS compressed_message_count
-FROM chat_messages cm
-WHERE cm.created_at > @created_after
-  AND cm.deleted = false
-GROUP BY cm.chat_id;
+    ms.chat_id,
+    ms.message_count,
+    ms.user_message_count,
+    ms.assistant_message_count,
+    ms.tool_message_count,
+    ms.system_message_count,
+    ms.total_input_tokens,
+    ms.total_output_tokens,
+    ms.total_reasoning_tokens,
+    ms.total_cache_creation_tokens,
+    ms.total_cache_read_tokens,
+    COALESCE(rs.total_runtime_ms, 0)::bigint AS total_runtime_ms,
+    ms.distinct_model_count,
+    ms.compressed_message_count
+FROM message_summaries ms
+LEFT JOIN runtime_summaries rs ON rs.chat_id = ms.chat_id;
 
 -- name: GetChatModelConfigsForTelemetry :many
 -- deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
