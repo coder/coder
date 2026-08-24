@@ -85,8 +85,7 @@ resource "coder_env" "path_rust_cargo" {
 }
 ```
 
-This produces `PATH` with the host's original value, followed by
-`/usr/local/cuda/bin:/usr/local/go/bin:/usr/local/cargo/bin`.
+This produces `PATH` with the host's original value, followed by `/usr/local/cuda/bin:/usr/local/go/bin:/usr/local/cargo/bin`.
 
 ### Example: Preventing duplicates
 
