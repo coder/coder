@@ -4087,6 +4087,58 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `reasoning`           | [codersdk.ChatModelReasoningOptions](#codersdkchatmodelreasoningoptions)     | false    |              |             |
 | `user`                | string                                                                       | false    |              |             |
 
+## codersdk.ChatModelOverrideContext
+
+```json
+"general"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                          |
+|-------------------------------------------------------------------|
+| `advisor`, `compaction`, `explore`, `general`, `title_generation` |
+
+## codersdk.ChatModelOverrideResponse
+
+```json
+{
+  "context": "general",
+  "model_config_id": "string",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                                   | Required | Restrictions | Description |
+|--------------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `context`          | [codersdk.ChatModelOverrideContext](#codersdkchatmodeloverridecontext) | false    |              |             |
+| `model_config_id`  | string                                                                 | false    |              |             |
+| `reasoning_effort` | string                                                                 | false    |              |             |
+
+## codersdk.ChatModelOverridesResponse
+
+```json
+{
+  "overrides": [
+    {
+      "context": "general",
+      "model_config_id": "string",
+      "reasoning_effort": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name        | Type                                                                              | Required | Restrictions | Description |
+|-------------|-----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `overrides` | array of [codersdk.ChatModelOverrideResponse](#codersdkchatmodeloverrideresponse) | false    |              |             |
+
 ## codersdk.ChatModelProviderDescriptor
 
 ```json
@@ -4389,6 +4441,80 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `reasoning`           | [codersdk.ChatModelReasoningOptions](#codersdkchatmodelreasoningoptions)                         | false    |              |             |
 | `top_logprobs`        | integer                                                                                          | false    |              |             |
 | `user`                | string                                                                                           | false    |              |             |
+
+## codersdk.ChatPersonalModelOverride
+
+```json
+{
+  "context": "root",
+  "is_set": true,
+  "mode": "deployment_default",
+  "model_config_id": "string",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                   | Required | Restrictions | Description |
+|--------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `context`          | [codersdk.ChatPersonalModelOverrideContext](#codersdkchatpersonalmodeloverridecontext) | false    |              |             |
+| `is_set`           | boolean                                                                                | false    |              |             |
+| `mode`             | [codersdk.ChatPersonalModelOverrideMode](#codersdkchatpersonalmodeloverridemode)       | false    |              |             |
+| `model_config_id`  | string                                                                                 | false    |              |             |
+| `reasoning_effort` | string                                                                                 | false    |              |             |
+
+## codersdk.ChatPersonalModelOverrideContext
+
+```json
+"root"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                     |
+|------------------------------|
+| `explore`, `general`, `root` |
+
+## codersdk.ChatPersonalModelOverrideDeploymentDefaults
+
+```json
+{
+  "explore": {
+    "context": "general",
+    "model_config_id": "string",
+    "reasoning_effort": "string"
+  },
+  "general": {
+    "context": "general",
+    "model_config_id": "string",
+    "reasoning_effort": "string"
+  }
+}
+```
+
+### Properties
+
+| Name      | Type                                                                     | Required | Restrictions | Description |
+|-----------|--------------------------------------------------------------------------|----------|--------------|-------------|
+| `explore` | [codersdk.ChatModelOverrideResponse](#codersdkchatmodeloverrideresponse) | false    |              |             |
+| `general` | [codersdk.ChatModelOverrideResponse](#codersdkchatmodeloverrideresponse) | false    |              |             |
+
+## codersdk.ChatPersonalModelOverrideMode
+
+```json
+"deployment_default"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                      |
+|-----------------------------------------------|
+| `chat_default`, `deployment_default`, `model` |
 
 ## codersdk.ChatPlanMode
 
@@ -14982,6 +15108,22 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `user_roles`       | object                                 | false    |              |             |
 | » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
 
+## codersdk.UpdateChatModelOverrideRequest
+
+```json
+{
+  "model_config_id": "string",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `model_config_id`  | string | false    |              |             |
+| `reasoning_effort` | string | false    |              |             |
+
 ## codersdk.UpdateChatModelRequest
 
 ```json
@@ -15484,6 +15626,24 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `theme_dark`  | `dark`, `dark-protan-deuter`, `dark-tritan`, `light`, `light-protan-deuter`, `light-tritan` |
 | `theme_light` | `dark`, `dark-protan-deuter`, `dark-tritan`, `light`, `light-protan-deuter`, `light-tritan` |
 | `theme_mode`  | `single`, `sync`                                                                            |
+
+## codersdk.UpdateUserChatPersonalModelOverrideRequest
+
+```json
+{
+  "mode": "deployment_default",
+  "model_config_id": "string",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                                             | Required | Restrictions | Description |
+|--------------------|----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `mode`             | [codersdk.ChatPersonalModelOverrideMode](#codersdkchatpersonalmodeloverridemode) | false    |              |             |
+| `model_config_id`  | string                                                                           | false    |              |             |
+| `reasoning_effort` | string                                                                           | false    |              |             |
 
 ## codersdk.UpdateUserNotificationPreferences
 
@@ -16110,6 +16270,57 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `theme_light`      | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
 | `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                                                                                                                                                           |
 | `theme_preference` | string                                                 | false    |              | Theme preference is the legacy single-field appearance setting. In "single" mode it mirrors the active theme. In "sync" mode modern clients normally mirror the active OS slot, but older clients can update only this field, so it may diverge from ThemeLight or ThemeDark until a modern client saves the full appearance state again. |
+
+## codersdk.UserChatPersonalModelOverridesResponse
+
+```json
+{
+  "deployment_defaults": {
+    "explore": {
+      "context": "general",
+      "model_config_id": "string",
+      "reasoning_effort": "string"
+    },
+    "general": {
+      "context": "general",
+      "model_config_id": "string",
+      "reasoning_effort": "string"
+    }
+  },
+  "enabled": true,
+  "explore": {
+    "context": "root",
+    "is_set": true,
+    "mode": "deployment_default",
+    "model_config_id": "string",
+    "reasoning_effort": "string"
+  },
+  "general": {
+    "context": "root",
+    "is_set": true,
+    "mode": "deployment_default",
+    "model_config_id": "string",
+    "reasoning_effort": "string"
+  },
+  "root": {
+    "context": "root",
+    "is_set": true,
+    "mode": "deployment_default",
+    "model_config_id": "string",
+    "reasoning_effort": "string"
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                                                         | Required | Restrictions | Description |
+|-----------------------|--------------------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `deployment_defaults` | [codersdk.ChatPersonalModelOverrideDeploymentDefaults](#codersdkchatpersonalmodeloverridedeploymentdefaults) | false    |              |             |
+| `enabled`             | boolean                                                                                                      | false    |              |             |
+| `explore`             | [codersdk.ChatPersonalModelOverride](#codersdkchatpersonalmodeloverride)                                     | false    |              |             |
+| `general`             | [codersdk.ChatPersonalModelOverride](#codersdkchatpersonalmodeloverride)                                     | false    |              |             |
+| `root`                | [codersdk.ChatPersonalModelOverride](#codersdkchatpersonalmodeloverride)                                     | false    |              |             |
 
 ## codersdk.UserLatency
 

@@ -3,6 +3,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import {
+	getOrganizationLabel,
+	OrganizationAutocomplete,
+} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import {
 	PersonalModelOverrideRow,
@@ -20,8 +24,11 @@ export interface AgentSettingsUserAgentsPageViewProps {
 	models: readonly TypesGen.ChatModel[];
 	modelsError: unknown;
 	isLoadingModels: boolean;
-	isDefaultOrganizationUnresolved: boolean;
-	hasNoAvailableDefaultOrgModels: boolean;
+	organizations: readonly TypesGen.Organization[];
+	selectedOrganization: TypesGen.Organization | undefined;
+	onSelectOrganization: (organization: TypesGen.Organization) => void;
+	isOrganizationUnresolved: boolean;
+	hasNoOrganizationModels: boolean;
 	onSaveRootModelOverride: SavePersonalOverride;
 	isSavingRootModelOverride: boolean;
 	isSaveRootModelOverrideError: boolean;
@@ -45,8 +52,11 @@ export const AgentSettingsUserAgentsPageView: FC<
 	models,
 	modelsError,
 	isLoadingModels,
-	isDefaultOrganizationUnresolved,
-	hasNoAvailableDefaultOrgModels,
+	organizations,
+	selectedOrganization,
+	onSelectOrganization,
+	isOrganizationUnresolved,
+	hasNoOrganizationModels,
 	onSaveRootModelOverride,
 	isSavingRootModelOverride,
 	isSaveRootModelOverrideError,
@@ -59,11 +69,11 @@ export const AgentSettingsUserAgentsPageView: FC<
 }) => {
 	const personalOverridesEnabled = overridesData?.enabled ?? true;
 	const isLoading = isLoadingOverrides || isLoadingModels;
+	// Rows stay enabled when the organization has no models so the model-free
+	// default modes can still replace a stale saved model override; mode
+	// "model" cannot be saved without a valid model anyway.
 	const isDisabled =
-		isLoading ||
-		!personalOverridesEnabled ||
-		isDefaultOrganizationUnresolved ||
-		hasNoAvailableDefaultOrgModels;
+		isLoading || !personalOverridesEnabled || isOrganizationUnresolved;
 
 	return (
 		<div className="flex flex-col gap-8">
@@ -71,6 +81,18 @@ export const AgentSettingsUserAgentsPageView: FC<
 				label="Agents"
 				description="Choose personal model defaults for root agents and delegated agents."
 			/>
+			{organizations.length > 1 && selectedOrganization && (
+				<OrganizationAutocomplete
+					value={selectedOrganization}
+					options={organizations}
+					ariaLabel={`Organization ${getOrganizationLabel(selectedOrganization, organizations)}`}
+					triggerClassName="w-60"
+					optionsTabbable
+					onChange={(organization) => {
+						if (organization) onSelectOrganization(organization);
+					}}
+				/>
+			)}
 			{overridesError ? (
 				<div className="flex flex-col gap-2">
 					<ErrorAlert error={overridesError} />
@@ -95,20 +117,20 @@ export const AgentSettingsUserAgentsPageView: FC<
 					</AlertDescription>
 				</Alert>
 			)}
-			{isDefaultOrganizationUnresolved && (
+			{isOrganizationUnresolved && (
 				<Alert severity="info">
 					<AlertDescription>
-						Your default organization is not available. Personal model overrides
-						cannot be changed.
+						An organization is not available. Personal model overrides cannot be
+						changed.
 					</AlertDescription>
 				</Alert>
 			)}
-			{hasNoAvailableDefaultOrgModels && (
+			{hasNoOrganizationModels && (
 				<Alert severity="info">
 					<AlertDescription>
-						Your default organization has no available chat models. Ask an
-						organization administrator to add and enable a model before you set
-						personal overrides.
+						The selected organization has no available chat models. Default
+						options can still be saved. Ask an organization administrator to add
+						and enable a model before you choose a specific model.
 					</AlertDescription>
 				</Alert>
 			)}

@@ -111,6 +111,46 @@ export const SwitchOrganizationPreservesAuxiliaryParameters: Story = {
 	},
 };
 
+export const DefaultsTabNavigatesToOrganizationDefaults: Story = {
+	beforeEach: () => {
+		// Mock at the API layer so a background refetch cannot replace the
+		// seeded permissions.
+		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+			Object.fromEntries(Object.keys(checks).map((id) => [id, true])),
+		);
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/ai/settings/models",
+				searchParams: { org: MockOrganization2.name },
+			},
+			routing: [{ path: "*", useStoryElement: true }],
+		}),
+	},
+	render: () => (
+		<>
+			<OrganizationModelsLayout />
+			<LocationProbe />
+		</>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const defaultsTab = await canvas.findByRole("link", {
+			name: "Defaults & overrides",
+		});
+		await userEvent.click(defaultsTab);
+		await waitFor(() => {
+			expect(screen.getByTestId("location-probe")).toHaveTextContent(
+				`/ai/settings/models/defaults?org=${MockOrganization2.name}`,
+			);
+			expect(
+				canvas.getByRole("link", { name: "Defaults & overrides" }),
+			).toHaveAttribute("aria-current", "page");
+		});
+	},
+};
+
 export const InvalidRequestedOrganizationFallsBackToDefault: Story = {
 	parameters: {
 		reactRouter: reactRouterParameters({

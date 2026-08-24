@@ -15,7 +15,6 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
@@ -33,8 +32,14 @@ type cachedProviders struct {
 	expiresAt time.Time
 }
 
+type advisorRuntimeConfig struct {
+	Enabled         bool  `json:"enabled"`
+	MaxUsesPerRun   int   `json:"max_uses_per_run"`
+	MaxOutputTokens int64 `json:"max_output_tokens"`
+}
+
 type cachedAdvisorConfig struct {
-	config    codersdk.AdvisorConfig
+	config    advisorRuntimeConfig
 	expiresAt time.Time
 }
 
@@ -66,7 +71,7 @@ type chatConfigCache struct {
 	// Advisor configuration (singleton).
 	advisorConfig           *cachedAdvisorConfig
 	advisorConfigGeneration uint64
-	advisorConfigFetches    singleflight.Group[string, codersdk.AdvisorConfig]
+	advisorConfigFetches    singleflight.Group[string, advisorRuntimeConfig]
 }
 
 func newChatConfigCache(ctx context.Context, db database.Store, clock quartz.Clock) *chatConfigCache {
@@ -262,7 +267,7 @@ func (c *chatConfigCache) InvalidateAdvisorConfig() {
 // this cache saves a per-turn DB round trip on chats that reference the
 // advisor. Parse errors and lookup errors are surfaced to the caller;
 // callers that prefer silent fallback handle that at the call site.
-func (c *chatConfigCache) AdvisorConfig(ctx context.Context) (codersdk.AdvisorConfig, error) {
+func (c *chatConfigCache) AdvisorConfig(ctx context.Context) (advisorRuntimeConfig, error) {
 	if config, ok := c.cachedAdvisorConfig(); ok {
 		return config, nil
 	}
@@ -272,35 +277,35 @@ func (c *chatConfigCache) AdvisorConfig(ctx context.Context) (codersdk.AdvisorCo
 		ctx,
 		&c.advisorConfigFetches,
 		fmt.Sprintf("%d:advisor", generation),
-		func() (codersdk.AdvisorConfig, error) {
+		func() (advisorRuntimeConfig, error) {
 			if cached, ok := c.cachedAdvisorConfig(); ok {
 				return cached, nil
 			}
 
 			raw, err := c.db.GetChatAdvisorConfig(c.ctx)
 			if err != nil {
-				return codersdk.AdvisorConfig{}, err
+				return advisorRuntimeConfig{}, err
 			}
-			var cfg codersdk.AdvisorConfig
+			var cfg advisorRuntimeConfig
 			if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
-				return codersdk.AdvisorConfig{}, err
+				return advisorRuntimeConfig{}, err
 			}
 			c.storeAdvisorConfig(generation, cfg)
 			return cfg, nil
 		},
 	)
 	if err != nil {
-		return codersdk.AdvisorConfig{}, err
+		return advisorRuntimeConfig{}, err
 	}
 	return config, nil
 }
 
-func (c *chatConfigCache) cachedAdvisorConfig() (codersdk.AdvisorConfig, bool) {
+func (c *chatConfigCache) cachedAdvisorConfig() (advisorRuntimeConfig, bool) {
 	c.mu.RLock()
 	entry := c.advisorConfig
 	c.mu.RUnlock()
 	if entry == nil {
-		return codersdk.AdvisorConfig{}, false
+		return advisorRuntimeConfig{}, false
 	}
 	if c.clock.Now().Before(entry.expiresAt) {
 		return entry.config, true
@@ -312,7 +317,7 @@ func (c *chatConfigCache) cachedAdvisorConfig() (codersdk.AdvisorConfig, bool) {
 	}
 	c.mu.Unlock()
 
-	return codersdk.AdvisorConfig{}, false
+	return advisorRuntimeConfig{}, false
 }
 
 func (c *chatConfigCache) advisorConfigGenerationSnapshot() uint64 {
@@ -322,7 +327,7 @@ func (c *chatConfigCache) advisorConfigGenerationSnapshot() uint64 {
 	return generation
 }
 
-func (c *chatConfigCache) storeAdvisorConfig(generation uint64, config codersdk.AdvisorConfig) {
+func (c *chatConfigCache) storeAdvisorConfig(generation uint64, config advisorRuntimeConfig) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

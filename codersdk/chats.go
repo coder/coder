@@ -757,8 +757,8 @@ type UpdateChatPlanModeInstructionsRequest struct {
 	PlanModeInstructions string `json:"plan_mode_instructions"`
 }
 
-// ChatModelOverrideContext identifies which chat model override context a
-// deployment override applies to.
+// ChatModelOverrideContext identifies which chat model override context an
+// organization override applies to.
 type ChatModelOverrideContext string
 
 const (
@@ -766,6 +766,7 @@ const (
 	ChatModelOverrideContextExplore         ChatModelOverrideContext = "explore"
 	ChatModelOverrideContextTitleGeneration ChatModelOverrideContext = "title_generation"
 	ChatModelOverrideContextCompaction      ChatModelOverrideContext = "compaction"
+	ChatModelOverrideContextAdvisor         ChatModelOverrideContext = "advisor"
 )
 
 // Valid reports whether the override context is one of the supported values.
@@ -774,7 +775,8 @@ func (c ChatModelOverrideContext) Valid() bool {
 	case ChatModelOverrideContextGeneral,
 		ChatModelOverrideContextExplore,
 		ChatModelOverrideContextTitleGeneration,
-		ChatModelOverrideContextCompaction:
+		ChatModelOverrideContextCompaction,
+		ChatModelOverrideContextAdvisor:
 		return true
 	default:
 		return false
@@ -788,16 +790,20 @@ func AllChatModelOverrideContexts() []ChatModelOverrideContext {
 		ChatModelOverrideContextExplore,
 		ChatModelOverrideContextTitleGeneration,
 		ChatModelOverrideContextCompaction,
+		ChatModelOverrideContextAdvisor,
 	}
 }
 
-// ChatModelOverrideResponse is the response body for the chat model override
-// configuration endpoint.
+// ChatModelOverrideResponse is the response body for one chat model override.
 type ChatModelOverrideResponse struct {
 	Context         ChatModelOverrideContext `json:"context"`
 	ModelConfigID   string                   `json:"model_config_id"`
 	ReasoningEffort *string                  `json:"reasoning_effort,omitempty"`
-	IsMalformed     bool                     `json:"is_malformed"`
+}
+
+// ChatModelOverridesResponse is the response body for organization chat model overrides.
+type ChatModelOverridesResponse struct {
+	Overrides []ChatModelOverrideResponse `json:"overrides"`
 }
 
 // UpdateChatModelOverrideRequest is the request body for updating the chat
@@ -834,7 +840,6 @@ type ChatPersonalModelOverride struct {
 	ModelConfigID   string                           `json:"model_config_id"`
 	ReasoningEffort *string                          `json:"reasoning_effort,omitempty"`
 	IsSet           bool                             `json:"is_set"`
-	IsMalformed     bool                             `json:"is_malformed"`
 }
 
 // ChatPersonalModelOverrideDeploymentDefaults describes the deployment-level
@@ -914,21 +919,17 @@ type AdvisorConfig struct {
 	// MaxOutputTokens caps the advisor model response tokens. 0 means
 	// use the runtime default.
 	MaxOutputTokens int64 `json:"max_output_tokens"`
-	// ModelConfigID selects a specific admin-managed ChatModel to power the
-	// advisor. uuid.Nil means reuse the outer chat model. The runtime
-	// must fall back to the outer chat model when this ID cannot be
-	// resolved, such as when the referenced ChatModel was soft-deleted or
-	// its provider was disabled after the admin saved this configuration.
-	ModelConfigID uuid.UUID `json:"model_config_id" format:"uuid"`
-	// ReasoningEffort overrides the selected advisor model's configured default.
-	// It requires a non-zero ModelConfigID.
-	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
-// UpdateAdvisorConfigRequest is the request body for updating advisor
-// runtime configuration. It is a type alias for AdvisorConfig because
-// the request and response shapes are currently identical.
-type UpdateAdvisorConfigRequest = AdvisorConfig
+// UpdateAdvisorConfigRequest is the request body for updating advisor runtime configuration.
+type UpdateAdvisorConfigRequest struct {
+	MaxUsesPerRun   int   `json:"max_uses_per_run"`
+	MaxOutputTokens int64 `json:"max_output_tokens"`
+	// Deprecated: moved to the organization model override endpoint.
+	DeprecatedModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
+	// Deprecated: moved to the organization model override endpoint.
+	DeprecatedReasoningEffort *string `json:"reasoning_effort,omitempty"`
+}
 
 // ChatComputerUseProvider identifies the provider that backs computer use for
 // the virtual desktop.
@@ -2364,14 +2365,29 @@ func (c *ExperimentalClient) UpdateChatPlanModeInstructions(ctx context.Context,
 	return nil
 }
 
-// GetChatModelOverride returns the deployment-wide chat model override for
-// the requested context.
-func (c *ExperimentalClient) GetChatModelOverride(ctx context.Context, override ChatModelOverrideContext) (ChatModelOverrideResponse, error) {
+// OrganizationChatModelOverrides returns the configured chat model overrides for an organization.
+func (c *ExperimentalClient) OrganizationChatModelOverrides(ctx context.Context, organizationID uuid.UUID) (ChatModelOverridesResponse, error) {
+	path := fmt.Sprintf("/api/experimental/organizations/%s/chats/model-overrides", organizationID)
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return ChatModelOverridesResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatModelOverridesResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatModelOverridesResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UpdateOrganizationChatModelOverride updates or clears a chat model override for an organization.
+func (c *ExperimentalClient) UpdateOrganizationChatModelOverride(ctx context.Context, organizationID uuid.UUID, override ChatModelOverrideContext, req UpdateChatModelOverrideRequest) (ChatModelOverrideResponse, error) {
 	path := fmt.Sprintf(
-		"/api/experimental/chats/config/model-override/%s",
+		"/api/experimental/organizations/%s/chats/model-overrides/%s",
+		organizationID,
 		url.PathEscape(string(override)),
 	)
-	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	res, err := c.Request(ctx, http.MethodPut, path, req)
 	if err != nil {
 		return ChatModelOverrideResponse{}, err
 	}
@@ -2381,24 +2397,6 @@ func (c *ExperimentalClient) GetChatModelOverride(ctx context.Context, override 
 	}
 	var resp ChatModelOverrideResponse
 	return resp, ReadBodyAsJSON(res, &resp)
-}
-
-// UpdateChatModelOverride updates the deployment-wide chat model override for
-// the requested context.
-func (c *ExperimentalClient) UpdateChatModelOverride(ctx context.Context, override ChatModelOverrideContext, req UpdateChatModelOverrideRequest) error {
-	path := fmt.Sprintf(
-		"/api/experimental/chats/config/model-override/%s",
-		url.PathEscape(string(override)),
-	)
-	res, err := c.Request(ctx, http.MethodPut, path, req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
 }
 
 // GetChatPersonalModelOverridesAdminSettings returns the deployment-wide
@@ -2430,10 +2428,14 @@ func (c *ExperimentalClient) UpdateChatPersonalModelOverridesAdminSettings(ctx c
 	return nil
 }
 
-// GetUserChatPersonalModelOverrides fetches the user's personal model
-// override settings.
-func (c *ExperimentalClient) GetUserChatPersonalModelOverrides(ctx context.Context) (UserChatPersonalModelOverridesResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-personal-model-overrides", nil)
+// UserChatPersonalModelOverrides returns a user's personal model overrides in an organization.
+func (c *ExperimentalClient) UserChatPersonalModelOverrides(ctx context.Context, organizationID uuid.UUID, user string) (UserChatPersonalModelOverridesResponse, error) {
+	path := fmt.Sprintf(
+		"/api/experimental/organizations/%s/members/%s/chats/model-overrides",
+		organizationID,
+		url.PathEscape(user),
+	)
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return UserChatPersonalModelOverridesResponse{}, err
 	}
@@ -2445,11 +2447,12 @@ func (c *ExperimentalClient) GetUserChatPersonalModelOverrides(ctx context.Conte
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
-// UpdateUserChatPersonalModelOverride updates the user's personal model
-// override for the requested context.
-func (c *ExperimentalClient) UpdateUserChatPersonalModelOverride(ctx context.Context, override ChatPersonalModelOverrideContext, req UpdateUserChatPersonalModelOverrideRequest) error {
+// UpdateUserChatPersonalModelOverride updates a user's personal model override in an organization.
+func (c *ExperimentalClient) UpdateUserChatPersonalModelOverride(ctx context.Context, organizationID uuid.UUID, user string, override ChatPersonalModelOverrideContext, req UpdateUserChatPersonalModelOverrideRequest) error {
 	path := fmt.Sprintf(
-		"/api/experimental/chats/config/user-personal-model-overrides/%s",
+		"/api/experimental/organizations/%s/members/%s/chats/model-overrides/%s",
+		organizationID,
+		url.PathEscape(user),
 		url.PathEscape(string(override)),
 	)
 	res, err := c.Request(ctx, http.MethodPut, path, req)

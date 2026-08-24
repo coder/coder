@@ -1213,19 +1213,6 @@ export interface AdvisorConfig {
 	 * use the runtime default.
 	 */
 	readonly max_output_tokens: number;
-	/**
-	 * ModelConfigID selects a specific admin-managed ChatModel to power the
-	 * advisor. uuid.Nil means reuse the outer chat model. The runtime
-	 * must fall back to the outer chat model when this ID cannot be
-	 * resolved, such as when the referenced ChatModel was soft-deleted or
-	 * its provider was disabled after the admin saved this configuration.
-	 */
-	readonly model_config_id: string;
-	/**
-	 * ReasoningEffort overrides the selected advisor model's configured default.
-	 * It requires a non-zero ModelConfigID.
-	 */
-	readonly reasoning_effort?: string;
 }
 
 // From codersdk/users.go
@@ -3013,12 +3000,14 @@ export interface ChatModelOpenRouterProviderOptions {
 
 // From codersdk/chats.go
 export type ChatModelOverrideContext =
+	| "advisor"
 	| "compaction"
 	| "explore"
 	| "general"
 	| "title_generation";
 
 export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
+	"advisor",
 	"compaction",
 	"explore",
 	"general",
@@ -3027,14 +3016,20 @@ export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
 
 // From codersdk/chats.go
 /**
- * ChatModelOverrideResponse is the response body for the chat model override
- * configuration endpoint.
+ * ChatModelOverrideResponse is the response body for one chat model override.
  */
 export interface ChatModelOverrideResponse {
 	readonly context: ChatModelOverrideContext;
 	readonly model_config_id: string;
 	readonly reasoning_effort?: string;
-	readonly is_malformed: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelOverridesResponse is the response body for organization chat model overrides.
+ */
+export interface ChatModelOverridesResponse {
+	readonly overrides: readonly ChatModelOverrideResponse[];
 }
 
 // From codersdk/chats.go
@@ -3183,7 +3178,6 @@ export interface ChatPersonalModelOverride {
 	readonly model_config_id: string;
 	readonly reasoning_effort?: string;
 	readonly is_set: boolean;
-	readonly is_malformed: boolean;
 }
 
 // From codersdk/chats.go
@@ -9697,38 +9691,17 @@ export interface UpdateActiveTemplateVersion {
 
 // From codersdk/chats.go
 /**
- * UpdateAdvisorConfigRequest is the request body for updating advisor
- * runtime configuration. It is a type alias for AdvisorConfig because
- * the request and response shapes are currently identical.
+ * UpdateAdvisorConfigRequest is the request body for updating advisor runtime configuration.
  */
 export interface UpdateAdvisorConfigRequest {
-	/**
-	 * Enabled reflects whether the chat-advisor experiment is active.
-	 * The experiment flag is the sole gate; this field is read-only and
-	 * always matches the experiment state regardless of the stored DB value.
-	 */
-	readonly enabled: boolean;
-	/**
-	 * MaxUsesPerRun caps how many times the advisor can be invoked per
-	 * chat run. 0 means unlimited.
-	 */
 	readonly max_uses_per_run: number;
-	/**
-	 * MaxOutputTokens caps the advisor model response tokens. 0 means
-	 * use the runtime default.
-	 */
 	readonly max_output_tokens: number;
 	/**
-	 * ModelConfigID selects a specific admin-managed ChatModel to power the
-	 * advisor. uuid.Nil means reuse the outer chat model. The runtime
-	 * must fall back to the outer chat model when this ID cannot be
-	 * resolved, such as when the referenced ChatModel was soft-deleted or
-	 * its provider was disabled after the admin saved this configuration.
+	 * @deprecated moved to the organization model override endpoint.
 	 */
-	readonly model_config_id: string;
+	readonly model_config_id?: string;
 	/**
-	 * ReasoningEffort overrides the selected advisor model's configured default.
-	 * It requires a non-zero ModelConfigID.
+	 * @deprecated moved to the organization model override endpoint.
 	 */
 	readonly reasoning_effort?: string;
 }

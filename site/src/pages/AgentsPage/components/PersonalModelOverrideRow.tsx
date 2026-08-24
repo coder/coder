@@ -57,7 +57,7 @@ const toFormValues = (
 	overrideData: PersonalOverride | undefined,
 	context: PersonalOverrideContext,
 ): PersonalOverrideFormValues => {
-	if (!overrideData || overrideData.is_malformed) {
+	if (!overrideData) {
 		return {
 			mode: getDefaultMode(context),
 			model_config_id: "",
@@ -139,10 +139,7 @@ const getDeploymentDefaultDescription = (
 	models: readonly TypesGen.ChatModel[],
 ): string => {
 	if (!deploymentDefault) {
-		return "Loading deployment default";
-	}
-	if (deploymentDefault.is_malformed) {
-		return "Invalid deployment default";
+		return "Loading organization default";
 	}
 	const modelID = deploymentDefault.model_config_id.trim();
 	if (modelID === "") {
@@ -174,7 +171,6 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 	disabled,
 }) => {
 	const hasLoadedOverride = overrideData !== undefined;
-	const isMalformedOverride = overrideData?.is_malformed ?? false;
 	const form = useFormik<PersonalOverrideFormValues>({
 		enableReinitialize: true,
 		initialValues: toFormValues(overrideData, context),
@@ -186,11 +182,10 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 	});
 	const isFormDisabled =
 		disabled || isSaving || isLoading || !hasLoadedOverride;
-	const canSave =
-		hasLoadedOverride && !disabled && (form.dirty || isMalformedOverride);
+	const canSave = hasLoadedOverride && !disabled && form.dirty;
 	const defaultModeOptions = getDefaultModeOptions(context).map((mode) => {
 		const label =
-			mode === "deployment_default" ? "Deployment default" : "Chat default";
+			mode === "deployment_default" ? "Organization default" : "Chat default";
 		const modeDescription =
 			mode === "deployment_default"
 				? getDeploymentDefaultDescription(deploymentDefault, models)
@@ -270,7 +265,7 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 					disabled={isFormDisabled}
 					placeholder={
 						isInvalidRootDeploymentDefault
-							? "Invalid deployment default"
+							? "Invalid organization default"
 							: isUnavailableSelectedModel
 								? getUnavailableModelLabel(form.values.model_config_id, models)
 								: "Select..."
@@ -293,14 +288,12 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 				<ModelOverrideAlerts
 					isUnavailableSavedModel={isUnavailableSavedModel}
 					unavailableMessage="The saved model is unavailable and will be ignored until you choose a valid model override."
-					isMalformedOverride={isMalformedOverride}
-					malformedMessage="The saved override is malformed. Choose a valid value and save to replace it."
 					modelsError={modelsError}
 				>
 					{isInvalidRootDeploymentDefault && (
 						<Alert severity="warning">
 							<AlertDescription>
-								The saved root override uses the deployment default, which is
+								The saved root override uses the organization default, which is
 								not supported for root agents. Choose a valid value and save to
 								replace it.
 							</AlertDescription>

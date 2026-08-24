@@ -87,7 +87,6 @@ import {
 	toChatListParams,
 	unarchiveChat,
 	unpinChat,
-	updateChatAdvisorConfig,
 	updateChatModel,
 	updateChatModelACL,
 	updateChatPlanMode,
@@ -344,7 +343,6 @@ describe("advisor config query factories", () => {
 			enabled: true,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
-			model_config_id: "00000000-0000-0000-0000-000000000000",
 		};
 		vi.mocked(API.experimental.getChatAdvisorConfig).mockResolvedValue(
 			advisorConfig,
@@ -355,33 +353,6 @@ describe("advisor config query factories", () => {
 		expect(query.queryKey).toEqual(chatAdvisorConfigKey);
 		await expect(query.queryFn()).resolves.toEqual(advisorConfig);
 		expect(API.experimental.getChatAdvisorConfig).toHaveBeenCalled();
-	});
-
-	it("sends the update request and invalidates the advisor config cache", async () => {
-		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(chatAdvisorConfigKey, {
-			enabled: false,
-			max_uses_per_run: 0,
-			max_output_tokens: 0,
-			model_config_id: "",
-		} as TypesGen.AdvisorConfig);
-
-		const req: TypesGen.UpdateAdvisorConfigRequest = {
-			enabled: true,
-			max_uses_per_run: 5,
-			max_output_tokens: 2048,
-			model_config_id: "00000000-0000-0000-0000-000000000000",
-		};
-		vi.mocked(API.experimental.updateChatAdvisorConfig).mockResolvedValue();
-
-		const mutation = updateChatAdvisorConfig(queryClient);
-		await mutation.mutationFn(req);
-		expect(API.experimental.updateChatAdvisorConfig).toHaveBeenCalledWith(req);
-
-		await mutation.onSuccess?.();
-		expect(queryClient.getQueryState(chatAdvisorConfigKey)?.isInvalidated).toBe(
-			true,
-		);
 	});
 });
 
