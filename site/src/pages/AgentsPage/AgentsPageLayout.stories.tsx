@@ -108,6 +108,8 @@ const AgentsRouteElement = () => (
 	<CoderAgentsPageView
 		isAgentRuntimeUsageLoading={false}
 		isAgentRuntimeUsageUnavailable
+		onRetryAgentRuntimeUsage={fn()}
+		isRetryingAgentRuntimeUsage={false}
 		adminOverridesData={{ allow_users: false }}
 		onSaveAdminOverrides={fn()}
 		isSavingAdminOverrides={false}

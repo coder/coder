@@ -57,8 +57,7 @@ const CoderAgentsPage: FC = () => {
 			LicenseAgentRuntimeUsageUnavailableErrorText,
 		) === true ||
 		(entitlementDetailsQuery.data !== undefined &&
-			agentRuntimeHoursFeature?.actual_ms === undefined) ||
-		(entitlementDetailsQuery.isError && !entitlementDetailsQuery.data);
+			agentRuntimeHoursFeature?.actual_ms === undefined);
 
 	return (
 		<RequirePermission isFeatureVisible={canEditDeploymentConfig}>
@@ -68,6 +67,9 @@ const CoderAgentsPage: FC = () => {
 				agentRuntimeHoursFeature={agentRuntimeHoursFeature}
 				isAgentRuntimeUsageLoading={entitlementDetailsQuery.isLoading}
 				isAgentRuntimeUsageUnavailable={isAgentRuntimeUsageUnavailable}
+				agentRuntimeUsageError={entitlementDetailsQuery.error}
+				onRetryAgentRuntimeUsage={() => void entitlementDetailsQuery.refetch()}
+				isRetryingAgentRuntimeUsage={entitlementDetailsQuery.isFetching}
 				adminOverridesData={personalOverridesQuery.data}
 				adminOverridesError={personalOverridesQuery.error}
 				onRetryAdminOverrides={() => void personalOverridesQuery.refetch()}

@@ -3,6 +3,8 @@ import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import { Link as RouterLink } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
@@ -29,6 +31,9 @@ export interface CoderAgentsPageViewProps {
 	agentRuntimeHoursFeature?: TypesGen.Feature;
 	isAgentRuntimeUsageLoading: boolean;
 	isAgentRuntimeUsageUnavailable: boolean;
+	agentRuntimeUsageError?: unknown;
+	onRetryAgentRuntimeUsage: () => void;
+	isRetryingAgentRuntimeUsage: boolean;
 	adminOverridesData?: TypesGen.ChatPersonalModelOverridesAdminSettings;
 	adminOverridesError?: unknown;
 	onRetryAdminOverrides?: () => void;
@@ -82,6 +87,9 @@ type CoderAgentsUsageProps = {
 	feature?: TypesGen.Feature;
 	isLoading: boolean;
 	isUnavailable: boolean;
+	error?: unknown;
+	onRetry: () => void;
+	isRetrying: boolean;
 };
 
 const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
@@ -89,6 +97,9 @@ const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
 	feature,
 	isLoading,
 	isUnavailable,
+	error,
+	onRetry,
+	isRetrying,
 }) => {
 	const usedHours = formatAgentHours(feature?.actual_ms);
 	const hardLimitReached =
@@ -106,6 +117,8 @@ const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
 			: Number.isFinite(feature.limit)
 				? feature.limit.toLocaleString("en-US")
 				: "N/A";
+	const hasUsageData = hasAgentRuntimeLicense !== undefined;
+	const hasLoadError = error != null;
 
 	return (
 		<section
@@ -131,12 +144,27 @@ const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
 				</div>
 			</div>
 
-			{isLoading ? (
+			{hasLoadError && (
+				<div className="mt-5 flex flex-col gap-2">
+					<ErrorAlert error={error} />
+					<Button
+						disabled={isRetrying}
+						onClick={onRetry}
+						size="sm"
+						type="button"
+						variant="outline"
+						className="w-fit"
+					>
+						Retry
+					</Button>
+				</div>
+			)}
+			{hasLoadError && !hasUsageData ? null : isLoading ? (
 				<div className="mt-5 flex items-center gap-2 text-sm text-content-secondary">
 					<Spinner size="sm" loading label="Loading Agent Time usage" />
 					<span>Loading Agent Time usage...</span>
 				</div>
-			) : isUnavailable || hasAgentRuntimeLicense === undefined ? (
+			) : isUnavailable || !hasUsageData ? (
 				<p role="status" className="m-0 mt-5 text-sm text-content-secondary">
 					Agent Time usage is unavailable.
 				</p>
@@ -194,6 +222,9 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	agentRuntimeHoursFeature,
 	isAgentRuntimeUsageLoading,
 	isAgentRuntimeUsageUnavailable,
+	agentRuntimeUsageError,
+	onRetryAgentRuntimeUsage,
+	isRetryingAgentRuntimeUsage,
 	adminOverridesData,
 	adminOverridesError,
 	onRetryAdminOverrides,
@@ -234,6 +265,9 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 			feature={agentRuntimeHoursFeature}
 			isLoading={isAgentRuntimeUsageLoading}
 			isUnavailable={isAgentRuntimeUsageUnavailable}
+			error={agentRuntimeUsageError}
+			onRetry={onRetryAgentRuntimeUsage}
+			isRetrying={isRetryingAgentRuntimeUsage}
 		/>
 		<div className="flex flex-col gap-6 rounded-lg border border-solid border-border px-6 py-7">
 			<AdminPersonalModelOverridesSettings

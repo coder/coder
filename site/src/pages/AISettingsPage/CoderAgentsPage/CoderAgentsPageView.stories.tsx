@@ -35,12 +35,20 @@ const licensedUnlimitedRuntimeFeature = {
 	actual: 10,
 	actual_ms: actualMs,
 } satisfies CoderAgentsPageViewProps["agentRuntimeHoursFeature"];
+const licensedHardLimitRuntimeFeature = {
+	...licensedFiniteRuntimeFeature,
+	actual: 120,
+	actual_ms: 120 * 3_600_000,
+} satisfies CoderAgentsPageViewProps["agentRuntimeHoursFeature"];
 
 const defaultArgs: CoderAgentsPageViewProps = {
 	hasAgentRuntimeLicense: false,
 	agentRuntimeHoursFeature: communityRuntimeFeature,
 	isAgentRuntimeUsageLoading: false,
 	isAgentRuntimeUsageUnavailable: false,
+	agentRuntimeUsageError: undefined,
+	onRetryAgentRuntimeUsage: fn(),
+	isRetryingAgentRuntimeUsage: false,
 	adminOverridesData: { allow_users: true },
 	onSaveAdminOverrides: fn(),
 	isSavingAdminOverrides: false,
@@ -145,6 +153,29 @@ export const UsageLoading: Story = {
 	},
 };
 
+export const UsageLoadError: Story = {
+	args: {
+		hasAgentRuntimeLicense: undefined,
+		agentRuntimeHoursFeature: undefined,
+		agentRuntimeUsageError: new Error("Failed to load Agent Time usage."),
+		onRetryAgentRuntimeUsage: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("alert")).toHaveTextContent(
+			"Failed to load Agent Time usage.",
+		);
+		await expect(
+			canvas.queryByText("Agent Time usage is unavailable."),
+		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+		await expect(args.onRetryAgentRuntimeUsage).toHaveBeenCalled();
+		await expect(
+			canvas.getByRole("switch", { name: "Allow personal model overrides" }),
+		).toBeVisible();
+	},
+};
+
 export const UsageUnavailable: Story = {
 	args: {
 		hasAgentRuntimeLicense: undefined,
@@ -173,6 +204,31 @@ export const LicensedFiniteAllocation: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "View license" }),
 		).toHaveAttribute("href", "/deployment/licenses");
+	},
+};
+
+export const LicensedHardLimitReached: Story = {
+	args: {
+		hasAgentRuntimeLicense: true,
+		agentRuntimeHoursFeature: licensedHardLimitRuntimeFeature,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const usage = within(
+			canvas.getByRole("region", { name: "Coder Agents usage" }),
+		);
+		await expect(usage.getByText("120.0 / 100 hours")).toBeVisible();
+		await expect(usage.getByText("5")).toBeVisible();
+		await userEvent.hover(
+			usage.getByRole("button", {
+				name: "Max concurrent agents information",
+			}),
+		);
+		await waitFor(async () => {
+			await expect(screen.getByRole("tooltip")).toHaveTextContent(
+				"You've reached your limit: concurrent chats are now capped at 5 (down from unlimited).",
+			);
+		});
 	},
 };
 
