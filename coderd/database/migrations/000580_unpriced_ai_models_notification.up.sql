@@ -11,8 +11,8 @@ INSERT INTO notification_templates (
 )
 VALUES (
     '1b7d9fa7-f5a8-4e46-8078-5cf53abfed94',
-    'Report: Unpriced AI Models',
-    E'Missing prices for AI models',
+    'Missing AI Model Prices',
+    E'Missing AI Model Prices',
     $$These models were used in the last {{.Data.report_frequency}}, but they have no price, so their usage is missing from AI spend and does not count toward any AI budget. Reported spend is lower than actual, and a user who calls only these models has no effective limit.
 
 {{range $model := .Data.models}}

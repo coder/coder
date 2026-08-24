@@ -234,7 +234,7 @@ value means spend is under-counted. Because the price book ships with the
 release, a newly launched model is unpriced until you upgrade Coder or set a
 price for it yourself.
 
-Owners also receive a weekly notification, **Missing prices for AI models**,
+Owners also receive a weekly notification, **Missing AI Model Prices**,
 listing the models used with no price in the past week, so unpriced usage does
 not depend on watching metrics. A model that is priced by any means, including
 the price book shipped with an upgrade, stops appearing. A model that stops
