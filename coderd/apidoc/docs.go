@@ -21986,6 +21986,14 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
                 },
+                "mcp_server_ids": {
+                    "description": "MCPServerIDs, when set, replaces the chat's MCP server selection\nbefore the replacement turn runs. When nil the current selection\nis preserved.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
                 "model_config_id": {
                     "description": "ModelConfigID, when set, overrides the model used for the\nreplacement user message and the assistant turn that follows.\nWhen nil the original message's model is preserved.",
                     "type": "string",

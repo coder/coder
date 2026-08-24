@@ -4984,6 +4984,12 @@ export interface EditChatMessageRequest {
 	 */
 	readonly model_config_id?: string;
 	readonly reasoning_effort?: string;
+	/**
+	 * MCPServerIDs, when set, replaces the chat's MCP server selection
+	 * before the replacement turn runs. When nil the current selection
+	 * is preserved.
+	 */
+	readonly mcp_server_ids?: string[];
 }
 
 // From codersdk/chats.go
