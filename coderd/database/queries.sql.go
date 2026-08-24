@@ -9573,22 +9573,23 @@ WHERE
         )
         ELSE true
     END
-    -- websearch_to_tsquery accepts quoted phrases, OR, and -negation;
-    -- the 'english' config folds case and stems words, so inflected
-    -- forms match (e.g. "refactor" matches "refactoring"). The config
-    -- must match the one baked into the tsvectors and expression
-    -- indexes (idx_chats_title_fts, idx_chat_diff_statuses_pr_title_fts,
-    -- and the backfilled chat_messages.search_tsv).
+    -- Titles and pull request titles use case-insensitive substring
+    -- matching, same as the dedicated title:/pr_title: filters, so
+    -- partial words match (e.g. "refactor" matches "Refactoring the
+    -- parser"). Message bodies use full text search:
+    -- websearch_to_tsquery accepts quoted phrases, OR, and -negation,
+    -- and the 'english' config folds case and stems words so inflected
+    -- forms match (e.g. "refactor" matches "refactoring"). The tsquery
+    -- config must match the one baked into each stored
+    -- chat_messages.search_tsv vector.
     AND CASE
         WHEN $16::text != '' THEN (
-            -- Served by idx_chats_title_fts.
-            to_tsvector('english', chats_expanded.title) @@ websearch_to_tsquery('english', $16)
-            -- Served by idx_chat_diff_statuses_pr_title_fts.
+            chats_expanded.title ILIKE '%' || $16 || '%'
             OR EXISTS (
                 SELECT 1
                 FROM chat_diff_statuses cds
                 WHERE cds.chat_id = chats_expanded.id
-                    AND to_tsvector('english', cds.pull_request_title) @@ websearch_to_tsquery('english', $16)
+                    AND cds.pull_request_title ILIKE '%' || $16 || '%'
             )
             -- The WHERE clause must repeat the predicate of the partial index
             -- idx_chat_messages_search_tsv so the planner can use it. Additional

@@ -1,29 +1,18 @@
--- Switch chat full-text search from the 'simple' to the 'english' text
--- search config so queries match inflected forms (e.g. searching
--- "refactor" matches "refactoring"). The config baked into a tsvector
--- must match the config used by the tsquery at search time.
+-- Switch chat message full-text search from the 'simple' to the
+-- 'english' text search config so queries match inflected forms
+-- (e.g. searching "refactor" matches "refactoring"). The config baked
+-- into a tsvector must match the config used by the tsquery at search
+-- time.
 --
--- The title expression indexes are rebuilt here; chats and
--- chat_diff_statuses hold one row per chat, so the rebuild is cheap.
--- chat_messages gets no index or data changes at all: a full-table
--- UPDATE of search_tsv or a non-concurrent index rebuild would block
--- message writes for the duration on large tables. Instead the new
--- search_tsv_config column records which config produced each stored
--- vector, and the bounded dbpurge sweep finds rows whose config is not
--- 'english' with a self-terminating scan and rewrites them
--- incrementally, newest first (see ReindexStaleChatMessagesSearchTsv).
-
-DROP INDEX idx_chats_title_fts;
-
-CREATE INDEX idx_chats_title_fts ON chats USING GIN (to_tsvector('english', title));
-
-COMMENT ON INDEX idx_chats_title_fts IS 'Used for full text search. Defined over all rows of the chats table.';
-
-DROP INDEX idx_chat_diff_statuses_pr_title_fts;
-
-CREATE INDEX idx_chat_diff_statuses_pr_title_fts ON chat_diff_statuses USING GIN (to_tsvector('english', pull_request_title));
-
-COMMENT ON INDEX idx_chat_diff_statuses_pr_title_fts IS 'Used for full text search. Defined over all rows of the chat_diff_statuses table.';
+-- Only chat_messages.search_tsv is affected; title and pull request
+-- title matching uses ILIKE and no index changes. chat_messages gets
+-- no index or data changes at all: a full-table UPDATE of search_tsv
+-- or a non-concurrent index rebuild would block message writes for
+-- the duration on large tables. Instead the new search_tsv_config
+-- column records which config produced each stored vector, and the
+-- bounded dbpurge sweep finds rows whose config is not 'english' with
+-- a self-terminating scan and rewrites them incrementally, newest
+-- first (see ReindexStaleChatMessagesSearchTsv).
 
 ALTER TABLE chat_messages ADD COLUMN search_tsv_config text;
 

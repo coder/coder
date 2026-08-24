@@ -18368,14 +18368,18 @@ func TestGetChatsSearch(t *testing.T) {
 		want   []uuid.UUID
 	}{
 		{"Title/Match", database.GetChatsParams{Search: "pipeline alpha"}, []uuid.UUID{titleChat.ID}},
-		{"Title/CaseInsensitiveMultiWord", database.GetChatsParams{Search: "ALPHA DEPLOY"}, []uuid.UUID{titleChat.ID}},
-		{"Title/AndSemantics", database.GetChatsParams{Search: "deploy nonexistent"}, nil},
+		{"Title/CaseInsensitiveSubstring", database.GetChatsParams{Search: "PIPELINE ALPHA"}, []uuid.UUID{titleChat.ID}},
+		// Titles match by substring, so reordered words and non-substrings
+		// do not match.
+		{"Title/ReorderedWordsNoMatch", database.GetChatsParams{Search: "alpha deploy"}, nil},
+		{"Title/NonSubstringNoMatch", database.GetChatsParams{Search: "deploy nonexistent"}, nil},
+		// Substring matching covers partial words without any stemming.
+		{"Title/PartialWordMatch", database.GetChatsParams{Search: "pipel"}, []uuid.UUID{titleChat.ID, archivedChat.ID}},
+		{"PRTitle/Match", database.GetChatsParams{Search: "authentication"}, []uuid.UUID{prTitleChat.ID, mergedChat.ID}},
+		{"PRTitle/PartialWordMatch", database.GetChatsParams{Search: "authenticat"}, []uuid.UUID{prTitleChat.ID, mergedChat.ID}},
+		{"Message/Match", database.GetChatsParams{Search: "kubernetes restart"}, []uuid.UUID{msgChat.ID}},
 		// The 'english' config stems both sides, so inflected query forms
 		// match the stored words.
-		{"Title/StemmedMatch", database.GetChatsParams{Search: "deploying pipelines"}, []uuid.UUID{titleChat.ID, archivedChat.ID}},
-		{"PRTitle/Match", database.GetChatsParams{Search: "authentication"}, []uuid.UUID{prTitleChat.ID, mergedChat.ID}},
-		{"PRTitle/StemmedMatch", database.GetChatsParams{Search: "authenticating"}, []uuid.UUID{prTitleChat.ID, mergedChat.ID}},
-		{"Message/Match", database.GetChatsParams{Search: "kubernetes restart"}, []uuid.UUID{msgChat.ID}},
 		{"Message/StemmedMatch", database.GetChatsParams{Search: "restarting clusters"}, []uuid.UUID{msgChat.ID}},
 		// Stale 'simple' vectors are queried with their own config: the
 		// exact form matches like before the migration, the stemmed form

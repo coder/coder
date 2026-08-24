@@ -3029,11 +3029,14 @@ func TestListChats_Search(t *testing.T) {
 		t.Parallel()
 		ctx, client, db, firstUser, modelConfig := setup(t)
 
-		// The 'english' config drops stopwords, so search:"or" tokenizes
-		// to no lexemes and matches nothing, just like search:"!!!". The
-		// control query proves the empty results come from tokenization,
-		// not missing data.
-		control := createChat(t, db, firstUser, modelConfig.ID, "fix this or that")
+		// Message search uses the 'english' config, which drops
+		// stopwords: search:"or" tokenizes to no lexemes and matches
+		// nothing, just like search:"!!!". The title must not contain the
+		// searched substrings because titles match by ILIKE, not
+		// tokenization. The control query proves the empty results come
+		// from tokenization, not missing data.
+		control := createChat(t, db, firstUser, modelConfig.ID, "plain title")
+		insertMessage(t, db, firstUser, modelConfig.ID, control.ID, "fix this or that")
 		backfillSearchTsv(ctx, t, db)
 
 		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
