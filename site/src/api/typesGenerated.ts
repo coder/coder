@@ -4326,9 +4326,9 @@ export interface CreateUserRequestWithOrgs {
 /**
  * CreateUserSecretRequest is the payload for creating a new user
  * secret. Name and Value are required. An enabled secret must have at
- * least one of EnvName or FilePath non-empty so it has an injection
- * target; to keep a secret without injecting it, set Enabled to false.
- * All other fields are optional and default to empty string. Enabled
+ * least one effective target. Deployment policy can reject FilePath and
+ * require EnvName. To keep a secret without injecting it, set Enabled to
+ * false. All other fields are optional and default to empty string. Enabled
  * defaults to true when omitted.
  */
 export interface CreateUserSecretRequest {
@@ -10249,9 +10249,10 @@ export interface UpdateUserQuietHoursScheduleRequest {
  * UpdateUserSecretRequest is the payload for partially updating a
  * user secret. At least one field must be non-nil. Pointer fields
  * distinguish "not sent" (nil) from "set to empty string" (pointer
- * to empty string). If the post-update row is enabled it must still
- * have at least one of EnvName or FilePath non-empty; clearing both
- * targets is only allowed when the secret is (or becomes) disabled.
+ * to empty string). An enabled post-update row must have at least one
+ * effective target. Deployment policy can block FilePath and require
+ * EnvName. Clearing every effective target is allowed only when the secret
+ * is or becomes disabled.
  */
 export interface UpdateUserSecretRequest {
 	readonly value?: string;
@@ -10756,10 +10757,10 @@ export interface UserSecret {
 	readonly env_name: string;
 	readonly file_path: string;
 	/**
-	 * Enabled controls whether the secret is injected into workspaces.
-	 * Disabled secrets remain visible and editable, but are not added
-	 * to the agent manifest, so they are not exposed as environment
-	 * variables or written to secret files.
+	 * Enabled records whether the user intends the secret to be injected into
+	 * workspaces. Deployment policy can block a stored target, so Enabled alone
+	 * does not guarantee effective delivery. Disabled secrets remain visible and
+	 * editable but are omitted from agent manifests.
 	 */
 	readonly enabled: boolean;
 	readonly created_at: string;

@@ -35,6 +35,129 @@ const (
 // codersdk.ValidateCreateUserSecretRequest.
 var errUserSecretInjectionTargetRequired = xerrors.New("enabled user secret must have at least one of env_name or file_path set")
 
+// Sentinel errors for the deployment-level file-path policy
+// (DisableUserSecretFilePath). They are returned from the patchUserSecret
+// transaction so the handler can map them to field-level 400s.
+var (
+	errUserSecretFilePathDisabled  = xerrors.New("file-based user secrets are disabled for this deployment")
+	errUserSecretEnvTargetRequired = xerrors.New("enabled user secret must have env_name set when file-based user secrets are disabled")
+)
+
+// Detail strings for the file-path policy. These are user-facing validation
+// messages, not credentials.
+const (
+	//nolint:gosec // G101: message text, not a hardcoded credential.
+	userSecretFilePathDisabledDetail = "File path delivery for user secrets is disabled by the deployment administrator. Clear file_path or use env_name instead."
+	//nolint:gosec // G101: message text, not a hardcoded credential.
+	userSecretEnvTargetRequiredDetail = "File path delivery for user secrets is disabled by the deployment administrator, so an enabled secret must have an env_name. Add env_name, or disable the secret."
+)
+
+type userSecretFilePathPolicy int
+
+const (
+	userSecretFilePathAllowed userSecretFilePathPolicy = iota
+	userSecretFilePathBlocked
+)
+
+// userSecretFilePathPolicy returns the deployment policy for user-secret file
+// path delivery.
+func (api *API) userSecretFilePathPolicy() userSecretFilePathPolicy {
+	if api.DeploymentValues != nil && api.DeploymentValues.DisableUserSecretFilePath.Value() {
+		return userSecretFilePathBlocked
+	}
+	return userSecretFilePathAllowed
+}
+
+// userSecretCreatePolicyValidationErrors rejects creates that conflict with
+// the deployment file-path policy. There is no pre-existing row to preserve
+// on a create, so any file path is refused, including on a secret that is
+// created disabled.
+func userSecretCreatePolicyValidationErrors(req codersdk.CreateUserSecretRequest, policy userSecretFilePathPolicy) []codersdk.ValidationError {
+	if policy != userSecretFilePathBlocked || req.FilePath == "" {
+		return nil
+	}
+	return []codersdk.ValidationError{{
+		Field:  codersdk.UserSecretFilePathField,
+		Detail: userSecretFilePathDisabledDetail,
+	}}
+}
+
+func userSecretCreateValidationErrors(req codersdk.CreateUserSecretRequest, policy userSecretFilePathPolicy) []codersdk.ValidationError {
+	validations := codersdk.ValidateCreateUserSecretRequest(req)
+	if policy != userSecretFilePathBlocked {
+		return validations
+	}
+
+	validations = append(validations, userSecretCreatePolicyValidationErrors(req, policy)...)
+	if req.Enabled != nil && !*req.Enabled || req.EnvName != "" {
+		return validations
+	}
+
+	for i := range validations {
+		if validations[i].Field == codersdk.UserSecretEnvNameField && validations[i].Detail == codersdk.UserSecretInjectionTargetRequiredDetail {
+			validations[i].Detail = userSecretEnvTargetRequiredDetail
+		}
+	}
+	return validations
+}
+
+// prefixUserSecretValidationErrors attributes per-entry validation errors to
+// their position in an imported secrets file, e.g. "secrets[2].file_path".
+func prefixUserSecretValidationErrors(index int, validations []codersdk.ValidationError) []codersdk.ValidationError {
+	if index < 0 {
+		return validations
+	}
+	prefixed := make([]codersdk.ValidationError, 0, len(validations))
+	for _, v := range validations {
+		prefixed = append(prefixed, codersdk.ValidationError{
+			Field:  fmt.Sprintf("secrets[%d].%s", index, v.Field),
+			Detail: v.Detail,
+		})
+	}
+	return prefixed
+}
+
+// userSecretFilePathPolicyError applies the deployment file-path policy to a
+// PATCH, evaluated against the row that was just locked for update.
+//
+// Turning the policy on must not strand secrets created while it was off, so
+// the rules are scoped to the state a PATCH creates rather than the state it
+// merely preserves:
+//
+//   - Adding a file path, or changing an existing one, is rejected.
+//     Re-sending the current path is neither, and clearing it is the
+//     supported cleanup. Disabling a secret never clears its stored
+//     path: the path stays on the row until the user clears it
+//     explicitly, and becomes effective again if the policy is
+//     turned off.
+//   - A post-update row that is enabled without an env name is rejected
+//     when the PATCH removes an effective env target or enables a row.
+//     An unrelated edit can preserve a legacy enabled file-only row so
+//     the policy never blocks value, description, disable, or cleanup
+//     operations.
+func userSecretFilePathPolicyError(old database.UserSecret, req codersdk.UpdateUserSecretRequest) error {
+	if req.FilePath != nil && *req.FilePath != "" && *req.FilePath != old.FilePath {
+		return errUserSecretFilePathDisabled
+	}
+
+	postEnvName := old.EnvName
+	if req.EnvName != nil {
+		postEnvName = *req.EnvName
+	}
+	postEnabled := old.Enabled
+	if req.Enabled != nil {
+		postEnabled = *req.Enabled
+	}
+
+	// Rows that predate the policy are already enabled without an env
+	// name. Preserving that state is allowed; re-entering it is not.
+	predatesPolicy := old.Enabled && old.EnvName == ""
+	if postEnabled && postEnvName == "" && !predatesPolicy {
+		return errUserSecretEnvTargetRequired
+	}
+	return nil
+}
+
 // @Summary Create a new user secret
 // @ID create-a-new-user-secret
 // @Security CoderSessionToken
@@ -44,6 +167,8 @@ var errUserSecretInjectionTargetRequired = xerrors.New("enabled user secret must
 // @Param user path string true "User ID, username, or me"
 // @Param request body codersdk.CreateUserSecretRequest true "Create secret request"
 // @Success 201 {object} codersdk.UserSecret
+// @Failure 400 {object} codersdk.Response
+// @Failure 409 {object} codersdk.Response
 // @Router /api/v2/users/{user}/secrets [post]
 func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -64,7 +189,7 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if validations := codersdk.ValidateCreateUserSecretRequest(req); len(validations) > 0 {
+	if validations := userSecretCreateValidationErrors(req, api.userSecretFilePathPolicy()); len(validations) > 0 {
 		writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
 		return
 	}
@@ -151,14 +276,11 @@ func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 	// Validate every entry and accumulate all errors so the caller can
 	// fix the whole file in one round-trip. Each field is prefixed with
 	// the entry index, e.g. "secrets[2].env_name".
+	filePathPolicy := api.userSecretFilePathPolicy()
 	var validations []codersdk.ValidationError
 	for i, sreq := range reqs {
-		for _, v := range codersdk.ValidateCreateUserSecretRequest(sreq) {
-			validations = append(validations, codersdk.ValidationError{
-				Field:  fmt.Sprintf("secrets[%d].%s", i, v.Field),
-				Detail: v.Detail,
-			})
-		}
+		entryValidations := userSecretCreateValidationErrors(sreq, filePathPolicy)
+		validations = append(validations, prefixUserSecretValidationErrors(i, entryValidations)...)
 	}
 	if len(validations) > 0 {
 		writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
@@ -200,21 +322,11 @@ func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 		index := failedIndex
 
 		if conflicts := userSecretConflictValidationErrors(err); len(conflicts) > 0 {
-			if index >= 0 {
-				for i := range conflicts {
-					conflicts[i].Field = fmt.Sprintf("secrets[%d].%s", index, conflicts[i].Field)
-				}
-			}
-			writeUserSecretValidationErrors(ctx, rw, http.StatusConflict, conflicts)
+			writeUserSecretValidationErrors(ctx, rw, http.StatusConflict, prefixUserSecretValidationErrors(index, conflicts))
 			return
 		}
 		if validations := userSecretInjectionTargetValidationErrors(err); len(validations) > 0 {
-			if index >= 0 {
-				for i := range validations {
-					validations[i].Field = fmt.Sprintf("secrets[%d].%s", index, validations[i].Field)
-				}
-			}
-			writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
+			writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, prefixUserSecretValidationErrors(index, validations))
 			return
 		}
 		if resp, ok := userSecretLimitResponse(err); ok {
@@ -330,6 +442,8 @@ func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolin
 // @Param name path string true "Secret name"
 // @Param request body codersdk.UpdateUserSecretRequest true "Update secret request"
 // @Success 200 {object} codersdk.UserSecret
+// @Failure 400 {object} codersdk.Response
+// @Failure 409 {object} codersdk.Response
 // @Router /api/v2/users/{user}/secrets/{name} [patch]
 func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -396,14 +510,19 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 	// Pre-read the secret inside a transaction so the audit diff has both an
 	// "old" and "new" snapshot.
 	//
-	// Under read committed isolation, a concurrent writer between our SELECT
-	// and our UPDATE can cause the audit diff to attribute changes to us that
-	// we did not make. We accept this race to match other audit log diffs
-	// (templates, workspaces, chats, etc). In practice this should be unlikely
-	// to hit since a user can only modify their own secrets.
+	// The read takes a row lock so the post-update checks below are evaluated
+	// against the row that is actually about to be updated. Concurrent
+	// PATCHes therefore serialize instead of each validating against the same
+	// pre-update state.
+	//
+	// The lock does not extend to the audit diff of a caller that reads the
+	// row outside this transaction, but a user can only modify their own
+	// secrets, so that window matches other audit log diffs (templates,
+	// workspaces, chats, etc).
 	var secret database.UserSecret
+	filePathPolicy := api.userSecretFilePathPolicy()
 	err := api.Database.InTx(func(tx database.Store) error {
-		old, err := tx.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+		old, err := tx.GetUserSecretByUserIDAndNameForUpdate(ctx, database.GetUserSecretByUserIDAndNameForUpdateParams{
 			UserID: user.ID,
 			Name:   name,
 		})
@@ -428,6 +547,12 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 		if req.Enabled != nil {
 			postEnabled = *req.Enabled
 		}
+		if filePathPolicy == userSecretFilePathBlocked {
+			if err := userSecretFilePathPolicyError(old, req); err != nil {
+				return err
+			}
+		}
+
 		if postEnabled && postEnvName == "" && postFilePath == "" {
 			return errUserSecretInjectionTargetRequired
 		}
@@ -452,6 +577,20 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 			}})
 			return
 		}
+		if errors.Is(err, errUserSecretFilePathDisabled) {
+			writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, []codersdk.ValidationError{{
+				Field:  codersdk.UserSecretFilePathField,
+				Detail: userSecretFilePathDisabledDetail,
+			}})
+			return
+		}
+		if errors.Is(err, errUserSecretEnvTargetRequired) {
+			writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, []codersdk.ValidationError{{
+				Field:  codersdk.UserSecretEnvNameField,
+				Detail: userSecretEnvTargetRequiredDetail,
+			}})
+			return
+		}
 		if validations := userSecretInjectionTargetValidationErrors(err); len(validations) > 0 {
 			writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
 			return
@@ -462,6 +601,10 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 		}
 		if resp, ok := userSecretLimitResponse(err); ok {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, resp)
+			return
+		}
+		if httpapi.IsUnauthorizedError(err) {
+			httpapi.Forbidden(rw)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -578,7 +721,7 @@ func userSecretLimitResponse(err error) (codersdk.Response, bool) {
 			Detail: fmt.Sprintf(
 				"Stored bytes of env-injected secret values exceed the "+
 					"per-user budget (%d bytes after encryption, if applicable). "+
-					"Clear env_name on large secrets or use file_path instead.",
+					"Reduce the size or number of env-injected secrets. If your deployment permits file path delivery, clear env_name and use file_path instead.",
 				codersdk.MaxUserSecretValueBytes,
 			),
 		}, true
