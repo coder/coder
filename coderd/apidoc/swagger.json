@@ -1089,13 +1089,13 @@
 				}
 			}
 		},
-		"/api/experimental/chats/{chat}/title/regenerate": {
+		"/api/experimental/chats/{chat}/title/propose": {
 			"post": {
 				"description": "Experimental: this endpoint is subject to change.",
 				"produces": ["application/json"],
 				"tags": ["Chats"],
-				"summary": "Regenerate chat title",
-				"operationId": "regenerate-chat-title",
+				"summary": "Propose chat title",
+				"operationId": "propose-chat-title",
 				"parameters": [
 					{
 						"type": "string",
@@ -1110,7 +1110,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/codersdk.Chat"
+							"$ref": "#/definitions/codersdk.ProposeChatTitleResponse"
 						}
 					}
 				},
@@ -23113,6 +23113,14 @@
 				},
 				"enable": {
 					"type": "boolean"
+				}
+			}
+		},
+		"codersdk.ProposeChatTitleResponse": {
+			"type": "object",
+			"properties": {
+				"title": {
+					"type": "string"
 				}
 			}
 		},

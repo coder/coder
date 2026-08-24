@@ -3419,66 +3419,16 @@ func (api *API) reconcileInvalidChatState(rw http.ResponseWriter, r *http.Reques
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
-// @Summary Regenerate chat title
-// @ID regenerate-chat-title
+// @Summary Propose chat title
+// @ID propose-chat-title
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.Chat
-// @Router /api/experimental/chats/{chat}/title/regenerate [post]
+// @Success 200 {object} codersdk.ProposeChatTitleResponse
+// @Router /api/experimental/chats/{chat}/title/propose [post]
 // @Description Experimental: this endpoint is subject to change.
 //
-//nolint:revive // HTTP handler writes to ResponseWriter.
-func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
-	chat := httpmw.ChatParam(r)
-
-	if !api.requireChatDaemon(ctx, rw) {
-		return
-	}
-
-	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	// Only the chat owner may regenerate titles. See
-	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the chat owner may regenerate the title.",
-		})
-		return
-	}
-
-	updatedChat, err := api.chatDaemon.RegenerateChatTitle(ctx, chat)
-	if err != nil {
-		if errors.Is(err, chatd.ErrNoDefaultChatModelConfig) {
-			writeNoLocalChatModelResponse(ctx, rw)
-			return
-		}
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		if maybeWriteChatUsageLimitError(ctx, rw, err) {
-			return
-		}
-		if maybeWriteManualTitleTimeoutErr(ctx, rw, err) {
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to regenerate chat title.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil, nil))
-}
-
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
