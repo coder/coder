@@ -4861,7 +4861,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 			client.Client,
 			nonDefaultOrg.ID,
 		)
-		_, err = client.Client.UpdateOrganizationMemberRoles(
+		_, err = client.UpdateOrganizationMemberRoles(
 			ctx,
 			nonDefaultOrg.ID,
 			adminUser.ID.String(),
