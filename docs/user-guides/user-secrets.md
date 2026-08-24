@@ -13,14 +13,11 @@ Each user secret has:
 - A value, which contains the sensitive content.
 - An optional description.
 - An optional environment variable target, file target, or both.
-- An enabled flag that controls whether Coder injects the secret into your
-  workspaces.
+- An enabled setting that records whether the secret should be injected.
 
-An enabled secret must have at least one of an environment variable target or a
-file target. To keep a secret stored without injecting it, disable it
-(`enabled = false`) instead of clearing both targets. A create or update that
-would leave an enabled secret with no target is rejected with a 400 and
-directs you to disable the secret instead.
+An enabled secret needs at least one effective target.
+Your deployment administrator can turn off file path delivery, which blocks stored file paths but preserves environment variable delivery and the stored path.
+A file-only secret then has no effective target, even when its enabled setting is `true`.
 
 Disabled secrets stay visible and editable in the CLI, REST API, and dashboard,
 but are not injected into workspaces. Secrets that predate the enabled flag and
@@ -33,9 +30,8 @@ Secret values are omitted from CLI output and REST API responses after you
 create or update them.
 
 > [!WARNING]
-> Anyone with shell or file access to a workspace can read secrets injected into
-> that workspace. Do not share a workspace that has injected secrets with users
-> who should not access those values.
+> Anyone with shell or file access to a workspace can read injected secrets.
+> Turning off Coder-managed file path delivery is not a filesystem boundary because users can write environment variables to disk.
 
 ### Storage and encryption
 
@@ -46,20 +42,12 @@ in the database.
 
 ## How your secrets reach a workspace
 
-Coder applies your secrets when your workspace starts. The same applies any
-time the workspace agent reconnects to Coder, for example after the workspace
-or the agent restarts. To pick up a change to a secret while a workspace is
-running, restart the workspace.
+Coder applies secrets when the workspace agent fetches its manifest during connection or reconnection.
+Restart the workspace or agent to force a fetch; Coder does not immediately refresh a connected agent.
+Existing processes keep environment values they already received, and existing files remain on disk.
 
-Disabling a secret (`coder secret disable`) stops it from being injected from
-the next workspace start onward. Running sessions keep values that were already
-injected until the agent manifest is refetched, which happens on workspace
-restart. Disabling does not remove a file that was already written; the same
-"Coder never deletes secret files" rule below applies.
-
-Coder controls where a secret is delivered, not whether it is still valid.
-Changing or deleting a secret in Coder does not revoke a credential that a workspace has already received.
-If a credential is exposed, rotate or revoke it in the system that issued it.
+Coder controls delivery, not credential validity.
+Remove stale copies and rotate or revoke credentials in the issuing system.
 
 ### Environment variable secrets
 
@@ -81,10 +69,11 @@ restart that shell or app.
 
 ### File secrets
 
-Coder writes file secrets to your workspace filesystem when the workspace
-starts, before any startup scripts run. New parent directories are created as
-needed. If the file already exists, Coder overwrites the contents and leaves
-the existing permissions alone.
+When file path delivery is available, Coder writes file secrets before startup scripts run.
+If an administrator turns it off, Coder rejects new or changed paths, preserves existing paths, continues environment delivery for dual-target secrets, and omits file-only secret values from agent manifests.
+Use `coder secret update <name> --file "" --enabled=false` to remove the only preserved target, or omit `--enabled=false` when an environment target remains.
+
+If delivery is turned on again, a preserved path becomes effective after the next manifest fetch and Coder may overwrite a file changed while delivery was off.
 
 | If you...                                   | ...then in your workspace                                                                                                                                                                             |
 |---------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -95,11 +84,8 @@ the existing permissions alone.
 | Delete the secret                           | **The previously-written file stays on disk with its last value.**                                                                                                                                    |
 
 > [!IMPORTANT]
-> Coder never deletes secret files it has written for you. If you remove a
-> secret, change its file path, or clear the file target, the previous file
-> stays in your workspace until you delete it. To remove a stale file, open
-> a terminal in your workspace and run `rm <path>`. Rebuilding the workspace
-> may clear stale files when your template recreates the filesystem.
+> Coder never deletes secret files.
+> Remove stale files from affected workspaces with `rm <path>` or an organization-managed cleanup process.
 
 Coder rejects a second secret that uses a file path you already use. Two
 different paths can still resolve to the same absolute path (for example
@@ -121,16 +107,9 @@ you exceed one. Delete or shrink an existing secret to make room.
 | Per-secret value bytes                   | 24 KiB    |
 | Env var name length                      | 256 bytes |
 
-Only secrets created with `--env` count against the env-injected budget. Coder
-injects these into the workspace agent's process environment, which on Windows
-has a ~32 KiB total budget. The 24 KiB ceiling leaves room for Coder's own
-variables (`CODER_*`, `PATH`, `HOME`, ...) plus any template-defined env. To
-inject a value larger than this budget, use `--file` instead; file secrets do
-not count against the env budget.
-
-The per-secret cap matches the env aggregate cap because a value larger than
-the env aggregate could never be injected successfully as an environment
-variable.
+Only environment-targeted secrets count against the environment budget, which protects the Windows process environment limit.
+When file delivery is available, clear `env_name` and use `file_path` for suitable large values.
+Otherwise, reduce the environment secrets or use an external secrets manager.
 
 These caps measure stored bytes, which is what Coder writes to the database.
 In deployments with
@@ -145,12 +124,8 @@ You can create, edit, and delete user secrets from the Coder dashboard:
 1. Select **Account**.
 1. Select **Secrets**.
 
-From this page you can add a new secret, update an existing secret's value,
-description, or environment variable and file targets, and delete secrets you
-no longer need. Each row has an enable/disable toggle that controls whether
-Coder injects the secret. A secret with no environment variable or file target
-cannot be enabled from the dashboard; the toggle is disabled with a tooltip,
-mirroring the API invariant that an enabled secret must have a target.
+When file delivery is off, the dashboard hides new file targets, marks preserved paths as blocked, shows file-only secrets as not injected, and prevents enabling them until you add an environment target.
+You can remove a path, add an environment target, disable the secret, or delete it.
 
 The rest of this guide shows the equivalent CLI commands. The same behaviors,
 limits, and injection rules apply whether you manage secrets from the
@@ -177,8 +152,7 @@ echo -n "$API_KEY" | coder secret create api-key \
 
 ### Create a file secret
 
-Use `--file` to inject a secret as a file in your workspaces. File paths must
-start with `~/` or `/`.
+If your deployment permits file delivery, use `--file` with a path starting with `~/` or `/`.
 
 ```sh
 coder secret create tool-config \
@@ -193,7 +167,8 @@ to the root of the workspace's current drive, which is template dependent.
 
 ### Create a secret with environment variable and file targets
 
-You can inject the same secret as both an environment variable and a file:
+You can use both targets when file delivery is available.
+If it is later turned off, the environment target remains effective and the path stays preserved.
 
 ```sh
 echo -n "$TOKEN" | coder secret create service-token \
@@ -243,9 +218,8 @@ keys are imported without an environment variable target. For details, see
 
 ### Create a disabled secret
 
-An enabled secret must set `--env`, `--file`, or both. To store a secret
-without injecting it, pass `--enabled=false`. You can add a target and enable
-it later with `coder secret enable`.
+Pass `--enabled=false` to store a secret without injecting it.
+While file delivery is off, an enabled secret needs an environment target.
 
 ```sh
 echo -n "$API_KEY" | coder secret create api-key --enabled=false
@@ -253,9 +227,8 @@ echo -n "$API_KEY" | coder secret create api-key --enabled=false
 
 ## Update a secret
 
-Use `coder secret update` to update a secret value, description, environment
-variable target, or file target. At least one of `--value`, `--description`,
-`--env`, `--file`, or `--enabled` must be specified.
+Use `coder secret update` to change fields.
+When file delivery is off, the server rejects new or changed paths but permits `--file ""` cleanup and leaves paths untouched during unrelated edits.
 
 ```sh
 # Update a secret value.
@@ -305,9 +278,8 @@ coder secret list api-key
 coder secret delete api-key
 ```
 
-The list and show commands return secret metadata only. They never return the
-secret value. The `coder secret list` table includes an `enabled` column so you
-can see which secrets are currently injected.
+The list and show commands omit secret values.
+The `enabled` column is stored intent, not proof of effective delivery.
 
 See [How your secrets reach a workspace](#how-your-secrets-reach-a-workspace)
 for what happens to running workspaces when you delete a secret.
@@ -348,5 +320,14 @@ variable or file target.
 To import secrets programmatically, use the
 [Secrets API](../reference/api/secrets.md#import-user-secrets-from-a-file).
 
-For full command details, see [`coder secret`](../reference/cli/secret.md) and
-the [Secrets API reference](../reference/api/secrets.md).
+## Migrate blocked file targets
+
+1. Confirm environment delivery for dual-target secrets.
+2. Add environment targets to file-only secrets when possible.
+3. Clear paths that are not needed for rollback.
+4. Disable or delete file-only secrets that cannot use environment variables.
+5. Remove stale files and rotate or revoke credentials when needed.
+
+Coordinate rollback with secret owners because preserved paths can overwrite workspace files after delivery is turned on again.
+
+For full command details, refer to [`coder secret`](../reference/cli/secret.md) and the [Secrets API](../reference/api/secrets.md).
