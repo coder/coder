@@ -506,7 +506,7 @@ func TestChatTools(t *testing.T) {
 		getSeen := make(chan struct{})
 		getRelease := make(chan struct{})
 		transport := &signalPathTransport{
-			path:    "/api/experimental/chats/" + running.ID.String(),
+			path:    "/api/v2/chats/" + running.ID.String(),
 			seen:    getSeen,
 			release: getRelease,
 		}
@@ -592,7 +592,7 @@ func TestChatTools(t *testing.T) {
 		sharedAwaitClient := codersdk.New(sharedClient.URL)
 		sharedAwaitClient.SetSessionToken(sharedClient.SessionToken())
 		sharedAwaitClient.HTTPClient = &http.Client{Transport: &signalPathTransport{
-			path:    "/api/experimental/chats/" + sharedRunning.ID.String(),
+			path:    "/api/v2/chats/" + sharedRunning.ID.String(),
 			seen:    sharedGetSeen,
 			release: sharedGetRelease,
 		}}

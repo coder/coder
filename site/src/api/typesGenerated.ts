@@ -2575,7 +2575,7 @@ export interface ChatGitChange {
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -2591,7 +2591,7 @@ export const ChatGitWatchAgentStatePrefix = "Agent state is ";
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -2604,7 +2604,7 @@ export const ChatGitWatchNoEligibleAgentMessage =
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -2616,7 +2616,7 @@ export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -3050,7 +3050,7 @@ export interface ChatModelOverridesResponse {
  * ChatModelProviderDescriptor is the redacted view of an AI provider carried
  * on the org model collection response. It carries only the capability
  * metadata the Models UI needs; key material, base URLs, and headers are
- * never exposed. The fields mirror what /api/experimental/chats/models
+ * never exposed. The fields mirror what /api/v2/chats/models
  * already discloses to any authenticated caller.
  */
 export interface ChatModelProviderDescriptor {
@@ -3247,7 +3247,7 @@ export const ChatPlanModes: ChatPlanMode[] = ["plan"];
 // From codersdk/chats.go
 /**
  * ChatPrompt is a single user-authored prompt in a chat, returned by
- * GET /api/experimental/chats/{chat}/prompts. The text field contains
+ * GET /api/v2/chats/{chat}/prompts. The text field contains
  * the concatenated text payload of the underlying chat message; non-text
  * parts (tool calls, files, attachments) are omitted by the server.
  */
@@ -3272,7 +3272,7 @@ export interface ChatPromptsOptions {
 // From codersdk/chats.go
 /**
  * ChatPromptsResponse is the payload of
- * GET /api/experimental/chats/{chat}/prompts. Prompts are returned
+ * GET /api/v2/chats/{chat}/prompts. Prompts are returned
  * newest first so the client can index directly into the slice for
  * up/down arrow history cycling.
  */
