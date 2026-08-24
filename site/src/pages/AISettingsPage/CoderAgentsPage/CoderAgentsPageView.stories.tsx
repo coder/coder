@@ -1,12 +1,23 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import {
+	MockDefaultOrganization,
+	MockOrganization2,
+} from "#/testHelpers/entities";
 import {
 	CoderAgentsPageView,
 	type CoderAgentsPageViewProps,
 } from "./CoderAgentsPageView";
 
 const defaultArgs: CoderAgentsPageViewProps = {
+	organization: MockDefaultOrganization,
+	organizations: [MockDefaultOrganization, MockOrganization2],
+	onSelectOrganization: fn(),
+	requestedOrganizationDenied: false,
+	isOrganizationAccessLoading: false,
+	organizationSettings: <div>Organization override controls</div>,
+	canEditDeploymentConfig: true,
 	adminOverridesData: { allow_users: true },
 	onSaveAdminOverrides: fn(),
 	isSavingAdminOverrides: false,
@@ -51,7 +62,10 @@ export const Default: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getAllByRole("link", { name: "Defaults & overrides" })[0],
+			canvas.getByRole("heading", { name: "Organization settings" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("heading", { name: "Deployment settings" }),
 		).toBeVisible();
 		await expect(canvas.getByText("Advisor")).toBeVisible();
 		const maxUses = canvas.getByRole("spinbutton", { name: "Uses / turn" });
@@ -74,5 +88,112 @@ export const WithoutAdvisor: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.queryByText("Advisor")).not.toBeInTheDocument();
+	},
+};
+
+export const SelectOrganization: Story = {
+	args: { onSelectOrganization: fn() },
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: new RegExp(MockDefaultOrganization.display_name, "i"),
+			}),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: new RegExp(MockOrganization2.display_name, "i"),
+			}),
+		);
+		await expect(args.onSelectOrganization).toHaveBeenCalledWith(
+			MockOrganization2,
+		);
+	},
+};
+
+export const OrganizationOnly: Story = {
+	args: { canEditDeploymentConfig: false },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("heading", { name: "Organization settings" }),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("heading", { name: "Deployment settings" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const DeploymentOnly: Story = {
+	args: {
+		organization: undefined,
+		organizations: [],
+		organizationSettings: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.queryByRole("heading", { name: "Organization settings" }),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.getByRole("heading", { name: "Deployment settings" }),
+		).toBeVisible();
+	},
+};
+
+export const SingleOrganization: Story = {
+	args: { organizations: [MockDefaultOrganization] },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.queryByRole("button", {
+				name: new RegExp(MockDefaultOrganization.display_name, "i"),
+			}),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const InaccessibleRequestedOrganization: Story = {
+	args: { requestedOrganizationDenied: true },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("alert")).toHaveTextContent(
+			"requested organization is not available",
+		);
+		await expect(
+			canvas.getByText("Organization override controls"),
+		).toBeVisible();
+	},
+};
+
+export const IndependentErrors: Story = {
+	args: {
+		organizationAccessError: new Error("Failed to load another organization"),
+		adminOverridesError: new Error("Failed to load deployment setting"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText("Failed to load another organization"),
+		).toBeVisible();
+		await expect(
+			canvas.getByText("Failed to load deployment setting"),
+		).toBeVisible();
+		await expect(
+			canvas.getByText("Organization override controls"),
+		).toBeVisible();
+	},
+};
+
+export const Mobile: Story = {
+	parameters: { viewport: { defaultViewport: "mobile1" } },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("heading", { name: "Organization settings" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("heading", { name: "Deployment settings" }),
+		).toBeVisible();
 	},
 };
