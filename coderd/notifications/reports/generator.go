@@ -401,11 +401,6 @@ func reportUnpricedAIModels(ctx context.Context, logger slog.Logger, db database
 		}
 	}
 
-	if xerrors.Is(ctx.Err(), context.Canceled) {
-		logger.Error(ctx, "report generator job is canceled")
-		return ctx.Err()
-	}
-
 	// Update the timestamp in the generator log. This happens even
 	// when nothing was reported, so the next report covers one week rather
 	// than every week since usage was last seen.
