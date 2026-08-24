@@ -1427,3 +1427,157 @@ by the authorizer. Removing it means collapsing the two agent paths in
 identity rather than from the owner's roles and decoration. **That is a change
 to what an AI agent is authorized to do**, and is held pending a security
 finding Eric has not yet released.
+
+## WP11. The credential ledger issues
+
+### Summary
+
+The credential an AI agent actually presents is minted through the ledger, and
+then the key it is carried on names its holder.
+
+### Status
+
+Not started.
+
+### What forces the work
+
+**The ledger records a credential nobody presents, and does not record the one
+everybody does.** `entity.CreateAIAgent` issues a password credential, and
+`aiagentidentity.MintKey` writes `api_keys` directly, so every agent carries two
+credentials: an inert one in the ledger and the `api_key` that authenticates
+every request, absent from it.
+
+**The mirror that would fix this is already written and has never run.**
+`IssueCredential` takes `CredentialTypeAPIKey` and writes both the ledger and
+`api_keys` in one transaction, which is WP4's work. `CredentialTypeAPIKey`
+appears in two test files and nowhere else, so that path is exercised by tests
+alone.
+
+### Three milestones, and why
+
+Each lands on its own and each is separately revertible. The third is the only
+one that changes an authorization decision, and it stands alone so that when it
+goes wrong nothing else is in the same change.
+
+### Milestone 1: issuance moves
+
+`MintKey` calls `apikey.Generate` and `InsertAPIKey` itself. It calls
+`IssueCredential` with `Type: CredentialTypeAPIKey` instead, and the mirror
+keeps `api_keys` correct behind it.
+
+**Authentication is untouched.** It reads `api_keys`, splits a token and
+compares a digest, and knows nothing of any ledger. See "Issuance can move to
+the journal before authentication moves" in `rewrite_rbac.md`, which is the
+position this milestone exists to realise.
+
+**This is the first time the mirror runs.** Whether it is right is currently
+attested by tests alone.
+
+### Milestone 2: endings move
+
+**Between milestone 1 and this one the ledger is complete about beginnings and
+silent about deaths**, which `rewrite_rbac.md` names as the mistake the staging
+makes available. Splitting them takes that state deliberately rather than by
+oversight, and this milestone is what bounds how long it lasts. **Nothing should
+read the ledger as authoritative in between.**
+
+Eleven direct deletions of `api_keys` rows exist across eight files. Five are on
+AI agent paths and are in scope: `aiagentidentity`, `aisandboxes`, `dbpurge`,
+and two in `provisionerdserver`. The other six are human keys and are not, which
+keeps this package to the one holder kind the proof of concept scopes.
+
+### Milestone 3: the key names its holder
+
+`MintKey` mints with `holder_type = 'ai_agent'`. The key then routes to the
+branch WP5 added, `AIAgentRBACSubject`, and the older branch in
+`httpmw/apikey.go` becomes unreachable and goes.
+
+**This changes what an AI agent is authorized to do, not only how it is looked
+up.** The surviving branch builds the subject from the ledger identity; the
+dying one builds it from the owner's roles and decorates the result. The two do
+not produce the same subject, and the difference is the point rather than a
+detail to be preserved.
+
+**It is also where the finding recorded in `security_findings.md` about the API
+key subject's cached AST surfaces**, those being the lines that carry it.
+
+### Acceptance tests
+
+**Every credential an AI agent presents has a ledger row**, asserted for a
+workspace agent's session token and a chat agent's key.
+
+**An ending on an AI agent path reaches the ledger**, for each of the five
+sites, so that the ledger is not merely complete about issuance.
+
+**One authentication path for AI agents, not two.** Asserted by the older branch
+being gone rather than by behaviour, since behaviour is what changes.
+
+### What this package does not do
+
+**It does not move human credentials.** The six deletion sites outside AI agent
+paths keep writing `api_keys` directly, and `api_keys` remains what
+authenticates a request. This package makes the ledger authoritative for one
+holder kind, which is what the proof of concept scope asks for.
+
+## WP12. An AI agent stops being a users row
+
+### Summary
+
+The agent's `users` row goes, and with it the last thing the `ai_agents` table
+left behind.
+
+### Status
+
+Not started. **Depends on WP11 milestone 2**: six sites route on
+`users.kind = 'ai_agent'`, and the one that matters, `httpmw/apikey.go`, decides
+by loading the key's holder as a user. That read stops being necessary only once
+the key carries the holder type.
+
+### What forces the work
+
+The ledger is authoritative for what an AI agent is, and a `users` row still
+decides *that* it is one, supplies its name, and carries a status three sites
+check. Three facts about one agent live in a table the corpus holds should not
+file it. See "A system actor is stored as a user because there was nowhere else
+to put it" in `entity_model.md`, which is the same shape.
+
+### What moves
+
+| What the row supplies                                     | Where it goes           |
+|-----------------------------------------------------------|-------------------------|
+| `kind`, routing six sites                                 | the key's `holder_type` |
+| the username, read by the endpoint and as a friendly name | `entity.DisplayName`    |
+| `Deleted` and `Status`, checked at three sites            | the ledger's `state`    |
+
+The username needs no conversion. It is already `entity.DisplayName` of the
+same identifier, one derivation shared with the authorizer, so removing the
+column changes no displayed value.
+
+### New data
+
+None, and nothing structural holds the row in place: `ai_agent_ledger.id` has no
+foreign key to `users`.
+
+### What this frees
+
+**Six `kind = 'human'` filters in `users.sql`** become no-ops.
+
+**The `kind` column and the `user_kind` type go entirely, not just the
+`ai_agent` value.** The type is declared on this branch, has exactly two values,
+and with one of them gone the column is a constant. Removing an enum value is
+ordinarily expensive; this one is not, there being no deployment that has it.
+
+**Read `GetAuthorizationUserRoles` before deleting its filter.** That filter is
+what currently enforces "an AI agent has no roles of its own" in SQL, so the
+design's convention is load bearing there and is worth understanding before it
+goes.
+
+### Acceptance tests
+
+**No AI agent has a `users` row.**
+
+**Authentication, the AI agents endpoint and the chat tool subject all work
+without one**, which are the three consumers that read it today.
+
+**An agent's displayed name is unchanged**, which is what makes the username
+column's removal invisible rather than merely tolerable.
