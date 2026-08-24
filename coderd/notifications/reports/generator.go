@@ -352,7 +352,7 @@ const (
 )
 
 // reportUnpricedAIModels notifies owners about models used without a price
-// since the last report. Unpriced usage is recorded but contributes nothing to
+// in the preceding week. Unpriced usage is recorded but contributes nothing to
 // spend, so it is neither reported nor enforced against a budget.
 //
 // The set of unpriced models is derived at report time from interceptions and
@@ -363,33 +363,19 @@ func reportUnpricedAIModels(ctx context.Context, logger slog.Logger, db database
 	now := clk.Now()
 	since := now.Add(-unpricedAIModelsReportFrequency)
 
-	// Firstly, check if this is the first run of the job ever.
 	reportLog, err := db.GetNotificationReportGeneratorLogByTemplate(ctx, notifications.TemplateAIModelsUnpricedReport)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("unable to read report generator log: %w", err)
 	}
-	if xerrors.Is(err, sql.ErrNoRows) {
-		// First run? Check-in the job, and get back after one week.
-		logger.Info(ctx, "report generator is executing the job for the first time", slog.F("notification_template_id", notifications.TemplateAIModelsUnpricedReport))
 
-		err = db.UpsertNotificationReportGeneratorLog(ctx, database.UpsertNotificationReportGeneratorLogParams{
-			NotificationTemplateID: notifications.TemplateAIModelsUnpricedReport,
-			LastGeneratedAt:        dbtime.Time(now).UTC(),
-		})
-		if err != nil {
-			return xerrors.Errorf("unable to update report generator logs (first time execution): %w", err)
-		}
-		return nil
-	}
-
-	// Secondly, check if the job has not been running recently. The ticker
-	// alone cannot enforce the frequency: it restarts with the process and
-	// each replica runs on its own phase.
+	// Check if the job has not been running recently. The ticker alone cannot
+	// enforce the frequency: it restarts with the process and each replica
+	// runs on its own phase.
 	if !reportLog.LastGeneratedAt.IsZero() && reportLog.LastGeneratedAt.Add(unpricedAIModelsReportFrequency).After(now) {
 		return nil // reports sent recently, no need to send them now
 	}
 
-	// Thirdly, fetch the models used without a price.
+	// Fetch the models used without a price.
 	unpriced, err := db.GetUnpricedAIModelsSince(ctx, dbtime.Time(since).UTC())
 	if err != nil {
 		return xerrors.Errorf("unable to fetch unpriced AI models: %w", err)
@@ -420,7 +406,7 @@ func reportUnpricedAIModels(ctx context.Context, logger slog.Logger, db database
 		return ctx.Err()
 	}
 
-	// Lastly, update the timestamp in the generator log. This happens even
+	// Update the timestamp in the generator log. This happens even
 	// when nothing was reported, so the next report covers one week rather
 	// than every week since usage was last seen.
 	err = db.UpsertNotificationReportGeneratorLog(ctx, database.UpsertNotificationReportGeneratorLogParams{

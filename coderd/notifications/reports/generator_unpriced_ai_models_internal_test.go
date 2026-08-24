@@ -11,34 +11,31 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/quartz"
 )
 
 func TestReportUnpricedAIModels(t *testing.T) {
 	t.Parallel()
 
-	t.Run("FirstRun_ChecksInWithoutReporting", func(t *testing.T) {
+	t.Run("FirstRun_ReportsPrecedingWeek", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, logger, db, _, notifEnq, clk := setup(t)
 		owner := seedOwner(t, db)
 		notifEnq.Clear()
 
-		// When: the job has never run, it checks in rather than reporting a
-		// window it has no history for.
-		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
-		require.Empty(t, notifEnq.Sent())
-
-		// Then: the report arrives one week later.
-		clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
+		// Given: a model used without a price before the job ever ran.
 		seedUnpricedUsage(t, db, "anthropic", database.AIProviderTypeAnthropic, "claude-opus-4-8", clk.Now())
+
+		// When
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
+
+		// Then: the report covers the preceding week rather than waiting for
+		// another one to pass.
 		sent := notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport))
 		require.Len(t, sent, 1)
 		require.Equal(t, owner.ID, sent[0].UserID)
@@ -52,10 +49,8 @@ func TestReportUnpricedAIModels(t *testing.T) {
 
 		ctx, logger, db, _, notifEnq, clk := setup(t)
 		seedOwner(t, db)
-
-		checkIn(ctx, t, logger, db, notifEnq, clk)
-		clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
 		seedUnpricedUsage(t, db, "anthropic", database.AIProviderTypeAnthropic, "claude-opus-4-8", clk.Now())
+
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 		require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
 
@@ -77,8 +72,6 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		initiator := dbgen.User(t, db, database.User{})
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
 
-		checkIn(ctx, t, logger, db, notifEnq, clk)
-		clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
 		seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 		require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
@@ -104,7 +97,9 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
 		seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
 
-		checkIn(ctx, t, logger, db, notifEnq, clk)
+		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
+		require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
+		notifEnq.Clear()
 
 		// Given: two report windows pass with no further use of the model.
 		clk.Advance(2*unpricedAIModelsReportFrequency + time.Minute)
@@ -123,9 +118,6 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		seedOwner(t, db)
 		initiator := dbgen.User(t, db, database.User{})
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
-
-		checkIn(ctx, t, logger, db, notifEnq, clk)
-		clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
 		seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
 
 		// Given: a price arrives by any route. The report derives the unpriced
@@ -146,9 +138,6 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		seedOwner(t, db)
 		initiator := dbgen.User(t, db, database.User{})
 		provider := seedProvider(t, db, "self-hosted", database.AIProviderTypeOpenaiCompat)
-
-		checkIn(ctx, t, logger, db, notifEnq, clk)
-		clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
 		seedInterception(t, db, initiator, provider, "llama-4", clk.Now())
 
 		// When
@@ -168,9 +157,6 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		member := dbgen.User(t, db, database.User{})
 		initiator := dbgen.User(t, db, database.User{})
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
-
-		checkIn(ctx, t, logger, db, notifEnq, clk)
-		clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
 		seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
 
 		// When
@@ -192,9 +178,6 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		seedOwner(t, db)
 		initiator := dbgen.User(t, db, database.User{})
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
-
-		checkIn(ctx, t, logger, db, notifEnq, clk)
-		clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
 
 		// Given: more unpriced models than a single report lists. The most used
 		// model is seeded twice so its position in the report is deterministic.
@@ -225,10 +208,7 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		initiator := dbgen.User(t, db, database.User{})
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
 
-		checkIn(ctx, t, logger, db, notifEnq, clk)
-
 		// Given: a quiet week, then a week in which one model is used.
-		clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 		require.Empty(t, notifEnq.Sent())
 
@@ -242,15 +222,6 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		// one week rather than every week since usage was last seen.
 		require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
 	})
-}
-
-// checkIn runs the first execution of the job, which records the timestamp
-// without reporting.
-func checkIn(ctx context.Context, t *testing.T, logger slog.Logger, db database.Store, notifEnq *notificationstest.FakeEnqueuer, clk quartz.Clock) {
-	t.Helper()
-	require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
-	require.Empty(t, notifEnq.Sent())
-	notifEnq.Clear()
 }
 
 func seedOwner(t *testing.T, db database.Store) database.User {
@@ -316,9 +287,6 @@ func TestReportUnpricedAIModels_ConcurrentReplicas(t *testing.T) {
 	seedOwner(t, db)
 	initiator := dbgen.User(t, db, database.User{})
 	provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
-
-	checkIn(ctx, t, logger, db, notifEnq, clk)
-	clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
 	seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
 
 	// When: two replicas tick at the same time. Each report holds its own
