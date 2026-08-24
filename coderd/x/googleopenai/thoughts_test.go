@@ -81,9 +81,6 @@ func TestRewriteThoughtResponse_StreamWithoutThoughts(t *testing.T) {
 	require.Equal(t, body, string(rewritten))
 }
 
-// Live capture shape from chat 0a3368b0: Gemini streams thought deltas, the
-// closing marker arrives as the only answer delta, and the final chunk
-// reports the server-side filter through a nonstandard finish_reason.
 func TestRewriteThoughtResponse_StreamFunctionCallFilter(t *testing.T) {
 	t.Parallel()
 

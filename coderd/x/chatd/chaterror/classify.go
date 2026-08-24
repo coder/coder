@@ -385,12 +385,8 @@ func streamIncompleteMessage(provider string) string {
 	return providerSubject(provider) + " stream closed unexpectedly before the response completed."
 }
 
-// functionCallFilterClassification matches the stream error injected by
-// coderd/x/googleopenai when Gemini's server-side function-call filter drops
-// a generated call (finish_reason "function_call_filter: ..."). Retrying
-// re-samples the call, which usually produces a well-formed one. The match
-// requires the injected message prefix so provider errors that merely
-// mention function_call_filter keep their own classification.
+// Match only the adapter's exact error prefix so unrelated provider errors
+// mentioning function_call_filter retain their normal classification.
 func functionCallFilterClassification(
 	lowerMessage string,
 	provider string,

@@ -37,8 +37,6 @@ func TestGenerateAssistant_SilentNoOutputFinish(t *testing.T) {
 		return outcome, metrics, err
 	}
 
-	// Reasoning that never receives ReasoningEnd mirrors the observed
-	// Gemini failure: deltas streamed but no content accumulated.
 	unterminatedReasoning := func(finish fantasy.FinishReason) []fantasy.StreamPart {
 		return []fantasy.StreamPart{
 			{Type: fantasy.StreamPartTypeReasoningStart, ID: "reasoning-1"},

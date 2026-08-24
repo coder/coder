@@ -201,18 +201,12 @@ func assembleDataLine(payload, suffix []byte) []byte {
 	return rewritten
 }
 
-// functionCallFilterFinishReasonPrefix marks Gemini's server-side
-// function-call filter on the OpenAI-compatible endpoint, observed as
-// finish_reason "function_call_filter: MALFORMED_FUNCTION_CALL": the
-// rejected call is dropped and the stream ends cleanly with no answer
-// output, so clients would otherwise treat the empty step as a normal
-// completion.
+// Gemini uses this nonstandard finish-reason prefix when it discards a
+// malformed generated function call.
 const functionCallFilterFinishReasonPrefix = "function_call_filter"
 
-// MalformedFunctionCallMessagePrefix opens the message of the injected SSE
-// error event. chaterror matches this exact prefix to classify the failure,
-// so unrelated provider errors that merely mention function_call_filter are
-// not misclassified.
+// MalformedFunctionCallMessagePrefix distinguishes adapter-generated errors
+// from unrelated provider errors.
 const MalformedFunctionCallMessagePrefix = "gemini dropped the model's generated function call"
 
 type streamErrorEvent struct {
@@ -225,9 +219,8 @@ type streamErrorDetail struct {
 	Code    string `json:"code"`
 }
 
-// functionCallFilterErrorPayload converts a chunk carrying a
-// function-call-filter finish reason into an OpenAI-style SSE error
-// event so the stream fails loudly and the step can be retried.
+// functionCallFilterErrorPayload turns the nonstandard finish reason into an
+// SSE error so consumers do not accept the empty stream as successful.
 func functionCallFilterErrorPayload(choices gjson.Result) []byte {
 	for _, choice := range choices.Array() {
 		reason := choice.Get("finish_reason")

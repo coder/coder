@@ -80,9 +80,6 @@ func TestClassify(t *testing.T) {
 			},
 		},
 		{
-			// A provider error that merely mentions function_call_filter
-			// must keep its own classification (here: strong auth signal),
-			// not the injected malformed-call classification.
 			name: "FunctionCallFilterMentionKeepsOwnClassification",
 			err:  xerrors.New(`status 401: function_call_filter is not supported for this endpoint`),
 			want: chaterror.ClassifiedError{
@@ -94,8 +91,6 @@ func TestClassify(t *testing.T) {
 			},
 		},
 		{
-			// The error event injected by coderd/x/googleopenai when
-			// Gemini's server-side filter drops a generated function call.
 			name: "GeminiFunctionCallFilter",
 			err: xerrors.New(
 				`stream response: received error while streaming: ` +

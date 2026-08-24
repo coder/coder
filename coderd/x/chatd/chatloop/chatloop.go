@@ -51,9 +51,8 @@ var (
 	// classifiers blocked the response and the model produced no
 	// content, e.g. Anthropic's stop_reason "refusal".
 	ErrContentFiltered = xerrors.New("response blocked by provider content filter")
-	// ErrNoModelOutput is returned when the stream finished without
-	// user-visible content or tool calls under a finish reason that
-	// cannot legitimately end a response (see silentNoOutputFinish).
+	// ErrNoModelOutput is returned when a stream ends without visible content or
+	// tool calls and its finish reason indicates an incomplete response.
 	ErrNoModelOutput = xerrors.New("model stream finished without output")
 
 	errStreamSilenceTimeout = xerrors.New(
@@ -466,12 +465,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	if result.finishReason == fantasy.FinishReasonContentFilter && !hasUserVisibleContent(result.content) {
 		return AssistantOutcome{}, contentFilterError(errorProvider, result.providerMetadata)
 	}
-	// Providers can end a stream cleanly after dropping the whole response
-	// (for example Gemini's server-side function-call filter), leaving
-	// neither text nor tool calls behind. Persisting nothing here would
-	// end the turn silently, so surface a retryable error instead. Stop
-	// and length finishes keep their semantics: reasoning-only output is
-	// legitimate for them.
+	// Treat discarded responses as retryable so an empty turn is not persisted.
 	if silentNoOutputFinish(result.finishReason) && !hasUserVisibleContent(result.content) && len(result.toolCalls) == 0 {
 		noOutputErr := noModelOutputError(errorProvider, result.finishReason)
 		opts.Metrics.RecordStreamRetry(provider, modelName, chaterror.Classify(noOutputErr))
@@ -511,11 +505,8 @@ func wrapProviderStreamError(provider string, err error) error {
 	return xerrors.Errorf("stream response: %w", chaterror.WithClassification(err, classified))
 }
 
-// hasUserVisibleContent reports whether any content part carries output the
-// user can see. Reasoning parts do not count: they stream transiently and are
-// not a substitute for a response. Text parts count only when non-blank:
-// providers can emit empty text blocks (TextStart/TextEnd with no payload),
-// which would otherwise dodge the no-output guards.
+// hasUserVisibleContent ignores reasoning and blank text because neither can
+// complete a user-facing response.
 func hasUserVisibleContent(content []fantasy.Content) bool {
 	for _, part := range content {
 		switch value := part.(type) {
@@ -535,10 +526,6 @@ func hasUserVisibleContent(content []fantasy.Content) bool {
 	return false
 }
 
-// silentNoOutputFinish reports whether reason cannot legitimately end a
-// response that produced no user-visible content and no tool calls. A
-// tool-calls finish that delivered zero tool calls belongs here: the
-// provider claimed calls that never arrived.
 func silentNoOutputFinish(reason fantasy.FinishReason) bool {
 	switch reason {
 	case fantasy.FinishReasonUnknown, fantasy.FinishReasonError,
