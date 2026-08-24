@@ -29,7 +29,7 @@ export const useAccessibleModelOrganizations = (
 	);
 	const accessibleOrganizations = organizations.filter(
 		(organization, index) =>
-			(queries[index]?.data?.models.length ?? 0) > 0 ||
+			(queries[index]?.data?.models?.length ?? 0) > 0 ||
 			canAccessOrganizationChatModelConfig(
 				permissionsQuery.data?.[organization.id],
 			),
