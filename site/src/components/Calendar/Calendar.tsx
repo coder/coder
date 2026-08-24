@@ -60,7 +60,7 @@ function Calendar({
 					"inline-flex items-center justify-center rounded-md",
 					"bg-transparent border-0 cursor-pointer",
 					"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
-					"aria-disabled:opacity-50",
+					"aria-disabled:opacity-50 aria-disabled:pointer-events-none",
 					defaultClassNames.button_previous,
 				),
 				button_next: cn(
@@ -68,7 +68,7 @@ function Calendar({
 					"inline-flex items-center justify-center rounded-md",
 					"bg-transparent border-0 cursor-pointer",
 					"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
-					"aria-disabled:opacity-50",
+					"aria-disabled:opacity-50 aria-disabled:pointer-events-none",
 					defaultClassNames.button_next,
 				),
 				month_caption: cn(

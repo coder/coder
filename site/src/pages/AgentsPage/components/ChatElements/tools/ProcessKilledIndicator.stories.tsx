@@ -27,6 +27,7 @@ export const ExecuteKilled: Story = {
 			exit_code: -1,
 			wall_duration_ms: 45000,
 			background_process_id: PROCESS_ID,
+			backgrounded: true,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -47,6 +48,7 @@ export const ExecuteTerminated: Story = {
 			exit_code: 0,
 			wall_duration_ms: 2000,
 			background_process_id: PROCESS_ID,
+			backgrounded: true,
 		},
 	},
 	play: async ({ canvasElement }) => {

@@ -3,9 +3,13 @@ import { expect, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type { TasksFilter } from "#/api/typesGenerated";
 import { AuthProvider } from "#/contexts/auth/AuthProvider";
-import { AISettingsIndexRedirect } from "#/router";
+import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
+import { AISettingsIndexRedirect } from "#/pages/AISettingsPage/AISettingsIndexRedirect";
 import {
+	MockAppearanceConfig,
 	MockBuildInfo,
+	MockDefaultOrganization,
+	MockEntitlements,
 	MockNoPermissions,
 	MockTasks,
 	MockUserMember,
@@ -25,6 +29,24 @@ const tasksFilter: TasksFilter = {
 const memberTasksFilter: TasksFilter = {
 	owner: MockUserMember.username,
 };
+
+const AISettingsIndexRedirectWithProviders = () => (
+	<AuthProvider>
+		<DashboardContext.Provider
+			value={{
+				entitlements: MockEntitlements,
+				experiments: [],
+				appearance: MockAppearanceConfig,
+				buildInfo: MockBuildInfo,
+				organizations: [MockDefaultOrganization],
+				showOrganizations: false,
+				canViewOrganizationSettings: false,
+			}}
+		>
+			<AISettingsIndexRedirect />
+		</DashboardContext.Provider>
+	</AuthProvider>
+);
 
 const meta: Meta<typeof NavbarView> = {
 	title: "modules/dashboard/NavbarView",
@@ -50,6 +72,7 @@ const meta: Meta<typeof NavbarView> = {
 			canViewAIBridge: true,
 			canViewHealth: true,
 		},
+		canViewModels: false,
 		canCreateChat: true,
 		supportLinks: [],
 	},
@@ -118,14 +141,7 @@ export const ForMCPUpdateOnlyAdmin: Story = {
 				{ path: "/", useStoryElement: true },
 				{
 					path: "/ai/settings",
-					// Route elements render outside story decorators, so the
-					// redirect needs its own AuthProvider; it reads the query
-					// data seeded by withAuthProvider.
-					element: (
-						<AuthProvider>
-							<AISettingsIndexRedirect />
-						</AuthProvider>
-					),
+					element: <AISettingsIndexRedirectWithProviders />,
 				},
 				{
 					path: "/ai/settings/mcp-servers",
@@ -158,6 +174,7 @@ export const ForMCPUpdateOnlyAdmin: Story = {
 export const ForMCPDeleteOnlyAdmin: Story = {
 	decorators: [withAuthProvider],
 	parameters: {
+		pixel: { matrix: pixelWithDesktop },
 		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
 		user: MockUserMember,
 		permissions: {
@@ -170,11 +187,7 @@ export const ForMCPDeleteOnlyAdmin: Story = {
 				{ path: "/", useStoryElement: true },
 				{
 					path: "/ai/settings",
-					element: (
-						<AuthProvider>
-							<AISettingsIndexRedirect />
-						</AuthProvider>
-					),
+					element: <AISettingsIndexRedirectWithProviders />,
 				},
 				{
 					path: "/ai/settings/mcp-servers",
@@ -205,6 +218,7 @@ export const ForMCPDeleteOnlyAdmin: Story = {
 export const ForMCPCreateOnlyAdmin: Story = {
 	decorators: [withAuthProvider],
 	parameters: {
+		pixel: { matrix: pixelWithDesktop },
 		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
 		user: MockUserMember,
 		permissions: {
@@ -217,14 +231,7 @@ export const ForMCPCreateOnlyAdmin: Story = {
 				{ path: "/", useStoryElement: true },
 				{
 					path: "/ai/settings",
-					// Route elements render outside story decorators, so the
-					// redirect needs its own AuthProvider; it reads the query
-					// data seeded by withAuthProvider.
-					element: (
-						<AuthProvider>
-							<AISettingsIndexRedirect />
-						</AuthProvider>
-					),
+					element: <AISettingsIndexRedirectWithProviders />,
 				},
 				{
 					path: "/ai/settings/mcp-servers/add",
@@ -272,6 +279,38 @@ export const ForMember: Story = {
 		user: MockUserMember,
 		adminPermissions: {},
 		canCreateChat: false,
+	},
+};
+
+export const ForMemberWithModelAccess: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/" },
+			routing: [
+				{ path: "/", useStoryElement: true },
+				{
+					path: "/ai/settings/models",
+					element: <h1>Organization models</h1>,
+				},
+			],
+		}),
+	},
+	args: {
+		user: MockUserMember,
+		adminPermissions: {},
+		canViewModels: true,
+		canCreateChat: false,
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.queryByRole("button", { name: "Admin settings" }),
+		).not.toBeInTheDocument();
+		await user.click(canvas.getByRole("link", { name: "Models" }));
+		await expect(
+			await canvas.findByRole("heading", { name: "Organization models" }),
+		).toBeInTheDocument();
 	},
 };
 

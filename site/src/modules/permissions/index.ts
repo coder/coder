@@ -15,6 +15,19 @@ export const permissionChecks =
 	permissionChecksData as typeof permissionChecksData &
 		Record<string, AuthorizationCheck>;
 
+export const canAccessAnyChatModelConfig = (
+	permissions: Permissions | undefined,
+): boolean => {
+	return (
+		permissions !== undefined &&
+		(permissions.viewAnyChatModelConfig ||
+			permissions.createAnyChatModelConfig ||
+			permissions.editAnyChatModelConfig ||
+			permissions.deleteAnyChatModelConfig ||
+			permissions.shareAnyChatModelConfig)
+	);
+};
+
 export const canViewDeploymentSettings = (
 	permissions: Permissions | undefined,
 ): permissions is Permissions => {
@@ -27,7 +40,8 @@ export const canViewDeploymentSettings = (
 			permissions.viewNotificationTemplate ||
 			permissions.viewOrganizationIDPSyncSettings ||
 			permissions.viewAnyAIProvider ||
-			permissions.viewAIGatewayKeys)
+			permissions.viewAIGatewayKeys ||
+			canAccessAnyChatModelConfig(permissions))
 	);
 };
 

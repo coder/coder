@@ -333,7 +333,7 @@ jobs:
         uses: ./.github/actions/pnpm-install
 
       - name: Install Go mise tools
-        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx go:github.com/rhysd/actionlint/cmd/actionlint
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/v2/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx go:github.com/rhysd/actionlint/cmd/actionlint
 
       - name: Get golangci-lint cache dir
         run: |
@@ -1004,7 +1004,7 @@ jobs:
       - run: make site/e2e/bin/coder
         name: make coder
 
-      - run: pnpm playwright:install
+      - run: pnpm exec playwright install chromium
         working-directory: site
 
       # Cache the Coder release binaries downloaded by the outdatedCLI /
@@ -1100,7 +1100,7 @@ jobs:
         working-directory: site/
         name: Build Storybook
 
-      - run: pnpm playwright:install
+      - run: pnpm exec playwright install chromium
         working-directory: site/
         name: Install Chromium
 

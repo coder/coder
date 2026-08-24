@@ -32,8 +32,8 @@ func (r *RootCmd) aiModelPricesCommand() *serpent.Command {
 	}
 }
 
-const modelPricesUpdateDescriptionLong = `Sets prices for models that Coder's price book does not cover. Models the
-price book covers cannot be changed.
+const modelPricesUpdateDescriptionLong = `Sets model prices for this deployment. A price set here takes effect over
+Coder's price book.
 
 The JSON document is an array of model prices, in the same shape as
 Coder's price book:
@@ -47,6 +47,8 @@ Coder's price book:
       "cache_write_price": null
     }
   ]
+  * A price is keyed by provider type and model, so every configured
+    provider of that type shares it.
   * Prices are micro-units per million tokens, so 3000000 is $3.00 per
     million tokens.
   * A 'null' price is unknown and adds no cost. An explicit 0 declares the
@@ -69,6 +71,7 @@ type aiModelPriceRow struct {
 	OutputPrice     string `json:"-" table:"output price"`
 	CacheReadPrice  string `json:"-" table:"cache read price"`
 	CacheWritePrice string `json:"-" table:"cache write price"`
+	Source          string `json:"-" table:"source"`
 	CreatedAt       string `json:"-" table:"created at"`
 	UpdatedAt       string `json:"-" table:"updated at"`
 }
@@ -77,9 +80,10 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 	var (
 		provider  string
 		model     string
+		source    string
 		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat([]aiModelPriceRow{}, []string{
-				"provider", "model", "input price", "output price", "cache read price", "cache write price",
+				"provider", "model", "input price", "output price", "cache read price", "cache write price", "source",
 			}),
 			cliui.JSONFormat(),
 		)
@@ -88,19 +92,31 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "list",
 		Short: "List AI Governance model prices",
-		Long: "Lists every model priced for this deployment. Prices are shown in " +
-			"dollars per million tokens. Narrow the output with --provider or --model.",
+		Long: "Lists the price in effect for each model on this deployment, in " +
+			"dollars per million tokens. Narrow the output with --provider, --model " +
+			"or --source.",
 		Middleware: serpent.Chain(serpent.RequireNArgs(0)),
 		Options: serpent.OptionSet{
 			{
 				Flag:        "provider",
-				Description: "Only show models for this provider.",
+				Description: "Only show models for this provider type.",
 				Value:       serpent.StringOf(&provider),
 			},
 			{
 				Flag:        "model",
 				Description: "Only show this model.",
 				Value:       serpent.StringOf(&model),
+			},
+			{
+				Flag: "source",
+				Description: "Only show prices from this source, or \"all\" to show every " +
+					"price a model holds. A model carrying both a price book price and a " +
+					"custom one appears under either source, and twice under \"all\".",
+				Value: serpent.EnumOf(&source,
+					string(codersdk.AIModelPriceSourceFilterDefault),
+					string(codersdk.AIModelPriceSourceFilterCustom),
+					string(codersdk.AIModelPriceSourceFilterAll),
+				),
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
@@ -113,6 +129,7 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 			prices, err := codersdk.NewExperimentalClient(client).ListAIModelPrices(ctx, codersdk.AIModelPricesFilter{
 				Provider: provider,
 				Model:    model,
+				Source:   codersdk.AIModelPriceSourceFilter(source),
 			})
 			if err != nil {
 				return xerrors.Errorf("list model prices: %w", err)
@@ -128,6 +145,7 @@ func (r *RootCmd) aiModelPricesList() *serpent.Command {
 					OutputPrice:     formatMicros(price.OutputPrice),
 					CacheReadPrice:  formatMicros(price.CacheReadPrice),
 					CacheWritePrice: formatMicros(price.CacheWritePrice),
+					Source:          string(price.Source),
 					CreatedAt:       humanize.Time(price.CreatedAt),
 					UpdatedAt:       humanize.Time(price.UpdatedAt),
 				})
@@ -186,9 +204,10 @@ func (r *RootCmd) aiModelPricesUpdate() *serpent.Command {
 		Middleware: serpent.Chain(serpent.RequireRangeArgs(0, 1)),
 		Options: serpent.OptionSet{
 			{
-				Flag:        "provider",
-				Description: "Provider of the model to price.",
-				Value:       serpent.StringOf(&provider),
+				Flag: "provider",
+				Description: "Provider type of the model to price. Every configured " +
+					"provider of that type shares the price.",
+				Value: serpent.StringOf(&provider),
 			},
 			{
 				Flag:        "model",
