@@ -1,20 +1,18 @@
 {
 	"compilerOptions": {
-		"target": "esnext",
-		"lib": ["dom", "esnext"],
-		"allowJs": true,
-		"skipLibCheck": true,
+		"target": "ESNext",
+		"lib": ["ESNext"],
+		"module": "esnext",
+		"moduleResolution": "bundler",
 		"strict": true,
-		"forceConsistentCasingInFileNames": true,
 		"noEmit": true,
 		"esModuleInterop": true,
-		"module": "preserve",
-		"moduleResolution": "bundler",
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
 		"resolveJsonModule": true,
 		"isolatedModules": true,
-		"jsx": "preserve",
-		"incremental": true
+		"types": ["node"]
 	},
-	"include": ["next-env.d.ts", "**/*"],
-	"exclude": ["node_modules/"]
+	"include": ["src/**/*.ts"],
+	"exclude": ["node_modules"]
 }
