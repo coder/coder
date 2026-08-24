@@ -881,6 +881,14 @@ func generateManualTitle(
 		userInput,
 	)
 	if err != nil {
+		// Tag genuine attempt-deadline expiry so the handler can map it to a
+		// friendly 504. A provider failure can wrap an unrelated transport
+		// deadline while titleCtx is still live; leave that untagged so it
+		// keeps its provider-failure surface.
+		if errors.Is(err, context.DeadlineExceeded) &&
+			errors.Is(titleCtx.Err(), context.DeadlineExceeded) {
+			return "", markManualTitleTimeout(err)
+		}
 		return "", err
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -586,14 +588,28 @@ func TestMaybeWriteManualTitleTimeoutErr(t *testing.T) {
 		wantMessage string
 	}{
 		{
-			// The deadline error is wrapped several layers deep by the
-			// title pipeline, so the handler must match with errors.Is.
-			name:        "DeadlineExceededMapsTo504",
-			ctx:         context.Background(),
-			err:         xerrors.Errorf("generate manual title: %w", context.DeadlineExceeded),
+			// A genuine title timeout is tagged with the chatd sentinel
+			// and wrapped several layers deep, so the handler must match
+			// with errors.Is.
+			name: "TitleTimeoutSentinelMapsTo504",
+			ctx:  context.Background(),
+			err: xerrors.Errorf(
+				"generate manual title: %w",
+				errors.Join(chatd.ErrManualTitleTimedOut, context.DeadlineExceeded),
+			),
 			wantWrote:   true,
 			wantStatus:  http.StatusGatewayTimeout,
 			wantMessage: "Title generation timed out. Try again or rename manually.",
+		},
+		{
+			// A provider failure can wrap an unrelated transport deadline
+			// while the title deadline never expired. Without the chatd
+			// sentinel this must keep the 500 path instead of a
+			// misleading 504.
+			name:      "BareDeadlineWithoutSentinelFallsThrough",
+			ctx:       context.Background(),
+			err:       xerrors.Errorf("provider call failed: %w", context.DeadlineExceeded),
+			wantWrote: false,
 		},
 		{
 			// The caller disconnected, so ctx.Err() confirms the cancel

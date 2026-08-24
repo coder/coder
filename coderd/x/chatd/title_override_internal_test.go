@@ -342,12 +342,16 @@ func TestResolveManualTitleCandidates_TitleGenerationOverrideUnset(t *testing.T)
 		Model:        preferredTitleModels[1].model,
 		Enabled:      true,
 	}
+	// Point the chat's own model at the preferred config so the appended
+	// chat-model fallback exercises its dedupe path.
+	chat.LastModelConfigID = preferredConfig.ID
 
 	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
 	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), chat.OrganizationID).Return([]database.GetEnabledChatModelConfigsByOrganizationRow{
 		{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1", Enabled: true}, Provider: "openai"},
 		{ChatModelConfig: preferredConfig, Provider: preferredTitleModels[1].provider},
 	}, nil)
+	db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), preferredConfig.ID).Return(preferredConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
@@ -358,11 +362,18 @@ func TestResolveManualTitleCandidates_TitleGenerationOverrideUnset(t *testing.T)
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
-	require.NotEmpty(t, candidates)
+	// One preferred short-text candidate plus the chat-model final fallback.
+	require.Len(t, candidates, 2)
 	resolved, err := candidates[0].resolve(ctx)
 	require.NoError(t, err)
 	require.True(t, resolved.model.Valid())
 	require.Equal(t, preferredConfig, resolved.dbConfig)
+
+	// The chat's own model resolves to the preferred config that was already
+	// attempted, so the fallback candidate skips itself instead of retrying
+	// the same model.
+	_, err = candidates[1].resolve(ctx)
+	require.ErrorIs(t, err, errManualTitleCandidateSkip)
 }
 
 func TestResolveManualTitleCandidates_NonDefaultOrgDoesNotUseDefaultOrgConfigs(t *testing.T) {

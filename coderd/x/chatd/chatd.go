@@ -2903,8 +2903,14 @@ func (p *Server) resolveManualTitleCandidates(
 		if fallbackErr != nil {
 			return nil, fallbackErr
 		}
-		candidates = append(candidates, newResolvedManualTitleCandidate(fallbackResolved))
+		return []manualTitleCandidate{newResolvedManualTitleCandidate(fallbackResolved)}, nil
 	}
+
+	// Keep the chat's own model as the final candidate so the walk can still
+	// succeed when every preferred model fails to resolve or is unavailable.
+	// Resolved lazily, and skipped when it duplicates a preferred candidate
+	// that was already attempted.
+	candidates = append(candidates, p.newChatModelFallbackManualTitleCandidate(chat, modelOpts, seen))
 	return candidates, nil
 }
 

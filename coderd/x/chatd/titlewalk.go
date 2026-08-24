@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -23,6 +24,28 @@ const (
 	// deadlines fit within it.
 	titleOverallTimeout = 90 * time.Second
 )
+
+// ErrManualTitleTimedOut marks a manual title failure caused by an expired
+// title deadline (the per-attempt timeout or the overall walk budget), as
+// opposed to a provider error whose chain merely contains an unrelated
+// transport deadline. The API handler maps this sentinel to a friendly 504.
+var ErrManualTitleTimedOut = xerrors.New("manual title generation timed out")
+
+// errManualTitleCandidateSkip marks a candidate that turned out to be
+// redundant at resolve time, for example the chat-model fallback resolving to
+// a preferred config that was already attempted. The walker skips it without
+// replacing an earlier attempt's more meaningful error.
+var errManualTitleCandidateSkip = xerrors.New("manual title candidate skipped")
+
+// markManualTitleTimeout tags err with ErrManualTitleTimedOut when it stems
+// from an expired context deadline, so the handler can distinguish a real
+// title timeout from a provider failure that wraps one.
+func markManualTitleTimeout(err error) error {
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	return errors.Join(ErrManualTitleTimedOut, err)
+}
 
 // manualTitleCandidate is one model the manual title walk can try. resolve
 // builds the runnable model lazily so the common case (the first candidate
@@ -65,7 +88,7 @@ func (p *Server) walkManualTitleCandidates(
 	for _, cand := range candidates {
 		// Overall budget exhausted or caller canceled between attempts.
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return "", lastConfig, ctxErr
+			return "", lastConfig, markManualTitleTimeout(ctxErr)
 		}
 
 		resolved, err := cand.resolve(ctx)
@@ -77,6 +100,11 @@ func (p *Server) walkManualTitleCandidates(
 				slog.F("model", cand.config.Model),
 				slog.Error(err),
 			)
+			if errors.Is(err, errManualTitleCandidateSkip) {
+				// Redundant candidate; keep the earlier, more
+				// meaningful error.
+				continue
+			}
 			lastErr = err
 			lastConfig = cand.config
 			continue
@@ -94,7 +122,7 @@ func (p *Server) walkManualTitleCandidates(
 		// stale provider 500. Checked here (not only at the top of the loop)
 		// to cover cancellation in the window after this attempt failed.
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return "", lastConfig, ctxErr
+			return "", lastConfig, markManualTitleTimeout(ctxErr)
 		}
 		if !manualTitleFallThrough(err) {
 			return "", lastConfig, lastErr
@@ -112,6 +140,49 @@ func newResolvedManualTitleCandidate(resolved resolvedModelCall) manualTitleCand
 	return manualTitleCandidate{
 		config: resolved.dbConfig,
 		resolve: func(context.Context) (resolvedModelCall, error) {
+			return resolved, nil
+		},
+	}
+}
+
+// newChatModelFallbackManualTitleCandidate returns the chat's own model as a
+// final walk candidate so the request can still succeed when every preferred
+// short-text model fails to resolve or is unavailable. Resolution is lazy and
+// skips itself (errManualTitleCandidateSkip) when the chat's model resolves to
+// a config that was already attempted as a preferred candidate.
+func (p *Server) newChatModelFallbackManualTitleCandidate(
+	chat database.Chat,
+	modelOpts modelBuildOptions,
+	attempted map[uuid.UUID]bool,
+) manualTitleCandidate {
+	return manualTitleCandidate{
+		resolve: func(ctx context.Context) (resolvedModelCall, error) {
+			config, err := p.resolveModelConfig(ctx, chat)
+			if err != nil {
+				return resolvedModelCall{}, xerrors.Errorf(
+					"resolve fallback manual title model config: %w",
+					err,
+				)
+			}
+			if config.ID != uuid.Nil && attempted[config.ID] {
+				return resolvedModelCall{}, xerrors.Errorf(
+					"%w: chat model %q already attempted as a preferred candidate",
+					errManualTitleCandidateSkip,
+					config.Model,
+				)
+			}
+			resolved, err := p.resolveModelCall(ctx, modelCallSpec{
+				purpose:        "title",
+				chat:           chat,
+				explicitConfig: &config,
+				buildOptions:   modelOpts,
+			})
+			if err != nil {
+				return resolvedModelCall{}, xerrors.Errorf(
+					"create fallback manual title model: %w",
+					err,
+				)
+			}
 			return resolved, nil
 		},
 	}

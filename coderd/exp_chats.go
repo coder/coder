@@ -152,18 +152,22 @@ func maybeWriteChatUsageLimitError(ctx context.Context, rw http.ResponseWriter, 
 const statusClientClosedRequest = 499
 
 // maybeWriteManualTitleTimeoutErr translates context-cancel or
-// context-deadline errors from the manual title pipeline into friendly
+// title-timeout errors from the manual title pipeline into friendly
 // 499/504 responses instead of a raw 500 that leaks the wrapped error
-// chain. Manual title generation runs a model call under an internal
-// deadline; when it expires (or the caller disconnects) the error
-// bubbles up wrapped, so match with errors.Is. Returns true when a
-// response was written.
+// chain. The errors bubble up wrapped, so match with errors.Is. Returns
+// true when a response was written.
 //
 // The 499 branch additionally requires the request context itself to be
 // canceled. A provider error can wrap context.Canceled (for example an
 // upstream 401) while the caller context is still active; without the
 // ctx.Err() guard such a provider failure would be misreported as a
 // client-closed request instead of surfacing through the 500 path.
+//
+// The 504 branch keys off chatd.ErrManualTitleTimedOut, which chatd
+// attaches only when a title deadline (per-attempt or overall walk
+// budget) actually expired. A provider failure whose chain merely
+// contains an unrelated transport deadline is not tagged and keeps its
+// provider-failure surface.
 func maybeWriteManualTitleTimeoutErr(ctx context.Context, rw http.ResponseWriter, err error) bool {
 	switch {
 	case errors.Is(err, context.Canceled) && errors.Is(ctx.Err(), context.Canceled):
@@ -171,7 +175,7 @@ func maybeWriteManualTitleTimeoutErr(ctx context.Context, rw http.ResponseWriter
 			Message: "Title generation was canceled.",
 		})
 		return true
-	case errors.Is(err, context.DeadlineExceeded):
+	case errors.Is(err, chatd.ErrManualTitleTimedOut):
 		httpapi.Write(ctx, rw, http.StatusGatewayTimeout, codersdk.Response{
 			Message: "Title generation timed out. Try again or rename manually.",
 		})

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -180,6 +181,60 @@ func TestWalkManualTitleCandidates(t *testing.T) {
 		)
 		require.ErrorIs(t, err, context.Canceled)
 		require.Zero(t, calls, "a pre-canceled context must not run any attempt")
+	})
+
+	// The overall walk budget expiring is a genuine title timeout, so the
+	// walker must tag it with ErrManualTitleTimedOut for the handler's 504
+	// mapping.
+	t.Run("OverallDeadlineMarksTimeout", func(t *testing.T) {
+		t.Parallel()
+		p := walkTestServer(t)
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		defer cancel()
+		var calls int
+		_, _, err := p.walkManualTitleCandidates(
+			ctx,
+			database.Chat{},
+			[]manualTitleCandidate{resolvedCandidate("a")},
+			func(context.Context, manualTitleCandidate, resolvedModelCall) (string, error) {
+				calls++
+				return "Title", nil
+			},
+		)
+		require.ErrorIs(t, err, ErrManualTitleTimedOut)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.Zero(t, calls, "an expired overall budget must not run any attempt")
+	})
+
+	// A candidate that skips itself at resolve time (e.g. the chat-model
+	// fallback duplicating an already-attempted preferred candidate) must not
+	// replace the earlier attempt's more meaningful error.
+	t.Run("SkipCandidateKeepsEarlierError", func(t *testing.T) {
+		t.Parallel()
+		p := walkTestServer(t)
+		candidates := []manualTitleCandidate{
+			resolvedCandidate("preferred"),
+			{
+				resolve: func(context.Context) (resolvedModelCall, error) {
+					return resolvedModelCall{}, xerrors.Errorf(
+						"%w: duplicate of preferred",
+						errManualTitleCandidateSkip,
+					)
+				},
+			},
+		}
+		_, config, err := p.walkManualTitleCandidates(
+			context.Background(),
+			database.Chat{},
+			candidates,
+			func(context.Context, manualTitleCandidate, resolvedModelCall) (string, error) {
+				return "", xerrors.Errorf("generate manual title: %w", context.DeadlineExceeded)
+			},
+		)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.False(t, errors.Is(err, errManualTitleCandidateSkip),
+			"skip sentinel must not replace the attempt error")
+		require.Equal(t, "preferred", config.Model)
 	})
 
 	t.Run("NoCandidates", func(t *testing.T) {
