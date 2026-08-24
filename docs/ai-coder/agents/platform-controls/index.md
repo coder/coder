@@ -19,7 +19,8 @@ This means:
   optionally supply their own key, but this is an opt-in policy decision, not
   a requirement.
 - **Enforcement, not defaults.** Settings configured by administrators are enforced server-side.
-  Developers cannot override them, except through the personal model overrides that an administrator turns on.
+  Developers cannot override them.
+  The one exception is personal model overrides, which an administrator must first enable.
   A setting that a user can change is a preference, not a policy.
 
 This is an architectural decision, not just a product choice. Because the agent
