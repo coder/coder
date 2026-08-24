@@ -1453,13 +1453,33 @@ every request, absent from it.
 appears in two test files and nowhere else, so that path is exercised by tests
 alone.
 
-### Three milestones, and why
+### Four milestones, and why
 
-Each lands on its own and each is separately revertible. The third is the only
+Each lands on its own and each is separately revertible. The last is the only
 one that changes an authorization decision, and it stands alone so that when it
 goes wrong nothing else is in the same change.
 
-### Milestone 1: issuance moves
+**The first is about where new work lands, not about the ledger.** An AI agent's
+credential is minted in one place and ended in five, so issuance is already
+protected against a new call site going somewhere wrong and revocation is not.
+Until that is fixed, work on the identity code entrenches `api_keys` further
+every time something new has to end a credential, there being nowhere else for
+it to go.
+
+### Milestone 1: revocation gains a single door
+
+The five sites that delete an AI agent's keys call one function in
+`aiagentidentity` instead, doing exactly what they do now.
+
+**No ledger write, no behaviour change, nothing moved.** This is a refactor, and
+it is first because it is the cheapest thing that stops the surface widening:
+new code that ends an agent's credential acquires an obvious right place, and
+milestone 3 becomes a change to one function rather than to five.
+
+The five are `aiagentidentity/workspace.go`, `aisandboxes.go`, `dbpurge.go`, and
+two in `provisionerdserver.go`.
+
+### Milestone 2: issuance moves
 
 `MintKey` calls `apikey.Generate` and `InsertAPIKey` itself. It calls
 `IssueCredential` with `Type: CredentialTypeAPIKey` instead, and the mirror
@@ -1473,20 +1493,23 @@ position this milestone exists to realise.
 **This is the first time the mirror runs.** Whether it is right is currently
 attested by tests alone.
 
-### Milestone 2: endings move
+### Milestone 3: endings move
 
-**Between milestone 1 and this one the ledger is complete about beginnings and
+The function milestone 1 introduced posts the ending to the ledger as well as
+deleting the key. One function, because of the order these are taken in.
+
+**Between milestone 2 and this one the ledger is complete about beginnings and
 silent about deaths**, which `rewrite_rbac.md` names as the mistake the staging
 makes available. Splitting them takes that state deliberately rather than by
 oversight, and this milestone is what bounds how long it lasts. **Nothing should
 read the ledger as authoritative in between.**
 
-Eleven direct deletions of `api_keys` rows exist across eight files. Five are on
-AI agent paths and are in scope: `aiagentidentity`, `aisandboxes`, `dbpurge`,
-and two in `provisionerdserver`. The other six are human keys and are not, which
-keeps this package to the one holder kind the proof of concept scopes.
+**The scope is AI agent credentials only.** Eleven direct deletions of
+`api_keys` rows exist across eight files, and the six on human paths stay as
+they are. That keeps this package to the one holder kind the proof of concept
+scopes.
 
-### Milestone 3: the key names its holder
+### Milestone 4: the key names its holder
 
 `MintKey` mints with `holder_type = 'ai_agent'`. The key then routes to the
 branch WP5 added, `AIAgentRBACSubject`, and the older branch in
@@ -1502,6 +1525,9 @@ detail to be preserved.
 key subject's cached AST surfaces**, those being the lines that carry it.
 
 ### Acceptance tests
+
+**An AI agent's credential is ended in one place**, which is a structural
+assertion rather than a behavioural one and is what the first milestone buys.
 
 **Every credential an AI agent presents has a ledger row**, asserted for a
 workspace agent's session token and a chat agent's key.
@@ -1528,7 +1554,7 @@ left behind.
 
 ### Status
 
-Not started. **Depends on WP11 milestone 2**: six sites route on
+Not started. **Depends on WP11 milestone 4**: six sites route on
 `users.kind = 'ai_agent'`, and the one that matters, `httpmw/apikey.go`, decides
 by loading the key's holder as a user. That read stops being necessary only once
 the key carries the holder type.
