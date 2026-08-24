@@ -16,9 +16,12 @@ import (
 )
 
 const (
-	FindToolsName          = "find_tools"
-	findToolsMaxMatches    = 20
-	findToolsCatalogTokens = 4000
+	FindToolsName = "find_tools"
+	// findToolsDefaultMatches keeps broad queries from flooding results;
+	// callers raise the per-call limit argument up to findToolsMaxMatches.
+	findToolsDefaultMatches = 10
+	findToolsMaxMatches     = 20
+	findToolsCatalogTokens  = 4000
 	// findToolsMaxQueries and findToolsMaxQueryTokens bound scoring
 	// work: queries are model output, so one call could otherwise
 	// carry arbitrarily many tokens scored against every entry.
@@ -85,6 +88,7 @@ type FindToolsOptions struct {
 type FindToolsArgs struct {
 	Queries []string `json:"queries,omitempty"`
 	Names   []string `json:"names,omitempty"`
+	Limit   int      `json:"limit,omitempty" description:"Maximum keyword matches to return and activate (default 10, max 20)."`
 }
 
 type FindToolsMatch struct {
@@ -339,14 +343,17 @@ type SearchBudget struct {
 }
 
 // SearchTools includes exact name activations first, then fills the
-// remaining match slots with the top-scored keyword matches. The shared
-// cap and summary-length descriptions keep the persisted result small
-// enough that generic tool-result truncation can never corrupt the
-// activation JSON that later steps re-derive activations from. A
-// positive budget additionally skips matches whose schema weight would
-// push the aggregate past it, admitting later matches that still fit.
-// The second result counts matches skipped for budget, so callers can
-// tell an exhausted budget from no matches.
+// remaining match slots with the top-scored keyword matches. Keyword
+// fill stops at the per-call limit argument (default
+// findToolsDefaultMatches, clamped to findToolsMaxMatches), while exact
+// names are explicit activation requests and bypass the limit up to the
+// hard cap. The hard cap and summary-length descriptions keep the
+// persisted result small enough that generic tool-result truncation can
+// never corrupt the activation JSON that later steps re-derive
+// activations from. A positive budget additionally skips matches whose
+// schema weight would push the aggregate past it, admitting later
+// matches that still fit. The second result counts matches skipped for
+// budget, so callers can tell an exhausted budget from no matches.
 func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget SearchBudget) (FindToolsResult, int) {
 	byName := make(map[string]FindToolCatalogEntry, len(entries))
 	for _, entry := range entries {
@@ -394,15 +401,22 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget Sear
 		}
 		return strings.Compare(a.entry.Name, b.entry.Name)
 	})
+	matchLimit := args.Limit
+	if matchLimit <= 0 {
+		matchLimit = findToolsDefaultMatches
+	}
+	if matchLimit > findToolsMaxMatches {
+		matchLimit = findToolsMaxMatches
+	}
 	matches := make([]FindToolsMatch, 0, findToolsMaxMatches)
 	activatedSet := make(map[string]struct{}, findToolsMaxMatches)
 	usedSchemaTokens := 0.0
 	budgetSkipped := 0
-	appendMatch := func(entry FindToolCatalogEntry) {
+	appendMatch := func(entry FindToolCatalogEntry, limit int) {
 		if _, exists := activatedSet[entry.Name]; exists {
 			return
 		}
-		if len(matches) >= findToolsMaxMatches {
+		if len(matches) >= limit {
 			return
 		}
 		overBudget := budget.SchemaTokens > 0 && usedSchemaTokens+entry.SchemaTokens > budget.SchemaTokens
@@ -423,11 +437,11 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget Sear
 	}
 	for _, name := range nameArgs {
 		if entry, ok := byName[name]; ok {
-			appendMatch(entry)
+			appendMatch(entry, findToolsMaxMatches)
 		}
 	}
 	for _, item := range scored {
-		appendMatch(item.entry)
+		appendMatch(item.entry, matchLimit)
 	}
 	activated := make([]string, 0, len(activatedSet))
 	for name := range activatedSet {
@@ -616,7 +630,7 @@ func (t findToolsEntryTokens) score(token string) int {
 }
 
 func buildFindToolsDescription(entries []FindToolCatalogEntry, catalogTokenBudget float64) string {
-	const usage = "Search deferred MCP tools by keyword, activate exact tool names, or scope a query to one server with a \"server: terms\" prefix. Calling a cataloged tool directly by name is allowed and auto-loads its schema, but search first for unfamiliar tools. At most 20 tools are returned and activated per call; call again for more.\n\n"
+	const usage = "Search deferred MCP tools by keyword, activate exact tool names, or scope a query to one server with a \"server: terms\" prefix. Calling a cataloged tool directly by name is allowed and auto-loads its schema, but search first for unfamiliar tools. At most limit tools are returned and activated per call (default 10, max 20); exact names always activate, up to 20 per call. Narrow the query or raise limit for more.\n\n"
 	budget := float64(findToolsCatalogTokens)
 	if catalogTokenBudget > 0 && catalogTokenBudget < budget {
 		budget = catalogTokenBudget

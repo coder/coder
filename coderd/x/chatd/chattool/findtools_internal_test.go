@@ -50,8 +50,20 @@ func TestSearchTools(t *testing.T) {
 			many[i] = FindToolCatalogEntry{Name: fmt.Sprintf("server__tool_%02d", i), Description: "common"}
 		}
 		result, _ := SearchTools(many, FindToolsArgs{Queries: []string{"common"}}, SearchBudget{})
-		require.Len(t, result.Matches, findToolsMaxMatches)
+		require.Len(t, result.Matches, findToolsDefaultMatches,
+			"an omitted limit returns the default match count")
 		require.Equal(t, "server__tool_00", result.Matches[0].Name)
+
+		raised, _ := SearchTools(many, FindToolsArgs{Queries: []string{"common"}, Limit: 15}, SearchBudget{})
+		require.Len(t, raised.Matches, 15)
+
+		clamped, _ := SearchTools(many, FindToolsArgs{Queries: []string{"common"}, Limit: 25}, SearchBudget{})
+		require.Len(t, clamped.Matches, findToolsMaxMatches,
+			"a limit above the hard cap clamps to it")
+
+		invalid, _ := SearchTools(many, FindToolsArgs{Queries: []string{"common"}, Limit: -1}, SearchBudget{})
+		require.Len(t, invalid.Matches, findToolsDefaultMatches,
+			"a non-positive limit falls back to the default")
 	})
 	t.Run("names capped and prioritized over queries", func(t *testing.T) {
 		t.Parallel()
@@ -62,13 +74,21 @@ func TestSearchTools(t *testing.T) {
 			names = append(names, many[i].Name)
 		}
 		result, _ := SearchTools(many, FindToolsArgs{Queries: []string{"common"}, Names: []string{"server__tool_24"}}, SearchBudget{})
-		require.Len(t, result.Matches, findToolsMaxMatches)
+		require.Len(t, result.Matches, findToolsDefaultMatches)
 		require.Equal(t, "server__tool_24", result.Matches[0].Name)
 		require.Contains(t, result.Activated, "server__tool_24")
 
 		capped, _ := SearchTools(many, FindToolsArgs{Names: names}, SearchBudget{})
-		require.Len(t, capped.Matches, findToolsMaxMatches)
+		require.Len(t, capped.Matches, findToolsMaxMatches,
+			"exact names bypass the default limit up to the hard cap")
 		require.Len(t, capped.Activated, findToolsMaxMatches)
+
+		bypassed, _ := SearchTools(many, FindToolsArgs{Queries: []string{"common"}, Names: names[:12], Limit: 5}, SearchBudget{})
+		require.Len(t, bypassed.Matches, 12,
+			"exact names bypass an explicit lower limit and leave no keyword slots")
+		for i, name := range names[:12] {
+			require.Equal(t, name, bypassed.Matches[i].Name)
+		}
 	})
 	t.Run("names list is bounded", func(t *testing.T) {
 		t.Parallel()
