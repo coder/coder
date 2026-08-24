@@ -367,60 +367,36 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget Sear
 	for i, entry := range entries {
 		entryTokens[i] = tokenizeFindToolsEntry(entry)
 	}
-	scoreEntries := func(queries []scopedFindToolsQuery) ([]scoredEntry, []bool) {
-		scored := make([]scoredEntry, 0, len(entries))
-		contributed := make([]bool, len(queries))
-		for i, entry := range entries {
-			tokens := entryTokens[i]
-			score := 0
-			matched := make(map[string]struct{})
-			for queryIndex, query := range queries {
-				if query.server != "" {
-					if query.exact && entry.Server != query.server {
-						continue
-					}
-					if !query.exact && !strings.EqualFold(entry.Server, query.server) {
-						continue
-					}
-				}
-				if query.server != "" && len(query.tokens) == 0 {
-					score++
-					// A scope-only hit counts as one covered term; ":" cannot occur in tokens.
-					matched[":"+query.server] = struct{}{}
-					contributed[queryIndex] = true
+	scored := make([]scoredEntry, 0, len(entries))
+	for i, entry := range entries {
+		tokens := entryTokens[i]
+		score := 0
+		matched := make(map[string]struct{})
+		for _, query := range queries {
+			if query.server != "" {
+				if query.exact && entry.Server != query.server {
 					continue
 				}
-				for _, token := range query.tokens {
-					if tokenScore := tokens.score(token); tokenScore > 0 {
-						score += tokenScore
-						matched[token] = struct{}{}
-						contributed[queryIndex] = true
-					}
+				if !query.exact && !strings.EqualFold(entry.Server, query.server) {
+					continue
 				}
 			}
-			if score > 0 {
-				scored = append(scored, scoredEntry{entry: entry, coverage: len(matched), score: score})
+			if query.server != "" && len(query.tokens) == 0 {
+				score++
+				// A scope-only hit counts as one covered term; ":" cannot occur in tokens.
+				matched[":"+query.server] = struct{}{}
+				continue
+			}
+			for _, token := range query.tokens {
+				if tokenScore := tokens.score(token); tokenScore > 0 {
+					score += tokenScore
+					matched[token] = struct{}{}
+				}
 			}
 		}
-		return scored, contributed
-	}
-	scored, contributed := scoreEntries(queries)
-	// Inferred scopes are best-effort: each auto-scoped query that
-	// matched nothing retries unscoped, independently of its siblings,
-	// so a server named after a capability word cannot hide matches on
-	// other servers. Explicit "server:" scopes are honored even when
-	// they match nothing.
-	fallback := make([]scopedFindToolsQuery, len(queries))
-	downgraded := false
-	for i, query := range queries {
-		fallback[i] = query
-		if query.autoScoped && !contributed[i] {
-			fallback[i] = scopedFindToolsQuery{tokens: query.fallbackTokens}
-			downgraded = true
+		if score > 0 {
+			scored = append(scored, scoredEntry{entry: entry, coverage: len(matched), score: score})
 		}
-	}
-	if downgraded {
-		scored, _ = scoreEntries(fallback)
 	}
 	slices.SortFunc(scored, func(a, b scoredEntry) int {
 		if a.coverage != b.coverage {
@@ -488,11 +464,6 @@ type scopedFindToolsQuery struct {
 	// servers.
 	exact  bool
 	tokens []string
-	// autoScoped marks scopes inferred from server-name query words;
-	// fallbackTokens carries the full query so an inferred scope that
-	// matches nothing is retried unscoped.
-	autoScoped     bool
-	fallbackTokens []string
 }
 
 // parseFindToolsQueries treats "server: terms" as a scope only when the
@@ -563,81 +534,10 @@ func parseFindToolsQueries(entries []FindToolCatalogEntry, queries []string) []s
 			}
 		}
 		if !scoped {
-			parsed = append(parsed, autoScopeFindToolsQuery(servers, query))
+			parsed = append(parsed, scopedFindToolsQuery{tokens: tokenizeFindToolsQuery(query)})
 		}
 	}
 	return parsed
-}
-
-// autoScopeFindToolsQuery scopes an unprefixed query whose words name
-// exactly one cataloged server, so "linear issues" ranks like
-// "linear: issues" rather than the server name inflating every tool on
-// it. Words in one fold family merge: an exact-case word refines a
-// folded match, and two distinct exact-case siblings span the family
-// like a folded prefix scope. Words naming unrelated servers stay
-// unscoped as ambiguous.
-func autoScopeFindToolsQuery(servers []string, query string) scopedFindToolsQuery {
-	unscoped := func() scopedFindToolsQuery {
-		return scopedFindToolsQuery{tokens: tokenizeFindToolsQuery(query)}
-	}
-	words := strings.Fields(query)
-	// Bound model-generated words before scanning every server. Unscoped
-	// fallback tokenization applies its own cap.
-	if len(words) > findToolsMaxQueryTokens {
-		words = words[:findToolsMaxQueryTokens]
-	}
-	scopeServer := ""
-	scopeExact := false
-	// spanned pins the scope to the whole fold family once distinct
-	// exact-case siblings are named; later repeats cannot re-narrow it.
-	spanned := false
-	rest := make([]string, 0, len(words))
-	for _, word := range words {
-		server, exact, ok := matchFindToolsServerWord(servers, word)
-		switch {
-		case !ok:
-			rest = append(rest, word)
-		case scopeServer == "":
-			scopeServer, scopeExact = server, exact
-		case !strings.EqualFold(server, scopeServer):
-			return unscoped()
-		case exact && scopeExact && server != scopeServer:
-			// Distinct exact-case siblings: span the fold family.
-			scopeExact = false
-			spanned = true
-		case exact && !spanned:
-			scopeServer, scopeExact = server, true
-		}
-	}
-	if scopeServer == "" {
-		return unscoped()
-	}
-	return scopedFindToolsQuery{
-		server:         scopeServer,
-		exact:          scopeExact,
-		tokens:         tokenizeFindToolsQuery(strings.Join(rest, " ")),
-		autoScoped:     true,
-		fallbackTokens: tokenizeFindToolsQuery(query),
-	}
-}
-
-// matchFindToolsServerWord resolves one query word to a cataloged
-// server name, exact-case first. Folded matches report exact=false so
-// scoring spans case-colliding servers, like a folded prefix scope.
-func matchFindToolsServerWord(servers []string, word string) (server string, exact bool, ok bool) {
-	folded := ""
-	for _, candidate := range servers {
-		if word == candidate {
-			return candidate, true, true
-		}
-		if folded == "" && strings.EqualFold(word, candidate) {
-			folded = candidate
-		}
-	}
-	if folded != "" {
-		return folded, false, true
-	}
-	return "", false, false
 }
 
 // cutPrefixFold is a case-insensitive strings.CutPrefix. It compares

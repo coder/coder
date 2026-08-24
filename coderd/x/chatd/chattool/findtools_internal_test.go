@@ -132,59 +132,6 @@ func TestSearchTools(t *testing.T) {
 		require.Equal(t, "tracker__update", result.Matches[0].Name,
 			"an entry matching more distinct query terms outranks a higher single-term score")
 	})
-	t.Run("server-name query words scope automatically", func(t *testing.T) {
-		t.Parallel()
-		autoEntries := []FindToolCatalogEntry{
-			{Name: "linear__create_issue", Description: "Create an issue", Server: "linear"},
-			{Name: "linear__list_teams", Description: "List teams", Server: "linear"},
-			{Name: "github__create_issue", Description: "Create an issue imported from linear", Server: "github"},
-		}
-		result, _ := SearchTools(autoEntries, FindToolsArgs{Queries: []string{"linear issue"}}, SearchBudget{})
-		require.Equal(t, []string{"linear__create_issue"}, result.Activated,
-			"a query word naming a server scopes the query to that server")
-
-		result, _ = SearchTools(autoEntries, FindToolsArgs{Queries: []string{"Linear issue"}}, SearchBudget{})
-		require.Equal(t, []string{"linear__create_issue"}, result.Activated,
-			"a case-variant server word still scopes")
-
-		result, _ = SearchTools(autoEntries, FindToolsArgs{Queries: []string{"linear"}}, SearchBudget{})
-		require.Equal(t, []string{"linear__create_issue", "linear__list_teams"}, result.Activated,
-			"a bare server-name query lists that server's tools without cross-server description hits")
-
-		result, _ = SearchTools(autoEntries, FindToolsArgs{Queries: []string{"linear github issue"}}, SearchBudget{})
-		require.Len(t, result.Activated, 3,
-			"words naming two servers leave the query unscoped")
-
-		result, _ = SearchTools(autoEntries, FindToolsArgs{Queries: []string{"linear linear issue"}}, SearchBudget{})
-		require.Equal(t, []string{"linear__create_issue"}, result.Activated,
-			"repeated words naming the same server keep the scope")
-
-		overflowScope := strings.Repeat("issue ", findToolsMaxQueryTokens) + "linear"
-		result, _ = SearchTools(autoEntries, FindToolsArgs{Queries: []string{overflowScope}}, SearchBudget{})
-		require.Len(t, result.Activated, 2,
-			"a server word beyond the word-inspection cap does not scope")
-	})
-	t.Run("empty auto-scope falls back to unscoped", func(t *testing.T) {
-		t.Parallel()
-		fallbackEntries := []FindToolCatalogEntry{
-			{Name: "search__web", Description: "Query the web", Server: "search"},
-			{Name: "tracker__find_issues", Description: "Search issues", Server: "tracker"},
-			{Name: "calendar__list_events", Description: "List events", Server: "calendar"},
-		}
-		result, _ := SearchTools(fallbackEntries, FindToolsArgs{Queries: []string{"search issues"}}, SearchBudget{})
-		require.Len(t, result.Matches, 2,
-			"a server-name word that scopes to nothing relevant retries unscoped")
-		require.Equal(t, "tracker__find_issues", result.Matches[0].Name)
-
-		explicit, _ := SearchTools(fallbackEntries, FindToolsArgs{Queries: []string{"search: issues"}}, SearchBudget{})
-		require.Empty(t, explicit.Matches,
-			"an explicit scope that matches nothing does not fall back")
-
-		multi, _ := SearchTools(fallbackEntries, FindToolsArgs{Queries: []string{"search issues", "calendar events"}}, SearchBudget{})
-		require.Contains(t, multi.Activated, "calendar__list_events")
-		require.Contains(t, multi.Activated, "tracker__find_issues",
-			"an empty inferred scope falls back even when a sibling query matched")
-	})
 	t.Run("server prefix scope", func(t *testing.T) {
 		t.Parallel()
 		scopedEntries := []FindToolCatalogEntry{
@@ -224,28 +171,6 @@ func TestSearchTools(t *testing.T) {
 		result, _ = SearchTools(caseEntries, FindToolsArgs{Queries: []string{"GITHUB: status"}}, SearchBudget{})
 		require.Len(t, result.Activated, 2,
 			"a prefix matching no exact-case name falls back to spanning the case-colliding servers")
-
-		result, _ = SearchTools(caseEntries, FindToolsArgs{Queries: []string{"GitHub status"}}, SearchBudget{})
-		require.Equal(t, []string{"GitHub__enterprise_status"}, result.Activated,
-			"an exact-case server word auto-scopes only to its own server")
-
-		result, _ = SearchTools(caseEntries, FindToolsArgs{Queries: []string{"GITHUB status"}}, SearchBudget{})
-		require.Len(t, result.Activated, 2,
-			"a server word matching no exact-case name spans the case-colliding servers")
-
-		result, _ = SearchTools(caseEntries, FindToolsArgs{Queries: []string{"GITHUB github status"}}, SearchBudget{})
-		require.Equal(t, []string{"github__get_commit"}, result.Activated,
-			"an exact-case word refines a folded word from the same fold family")
-
-		spanEntries := append(slices.Clone(caseEntries),
-			FindToolCatalogEntry{Name: "ci__status", Description: "Pipeline status", Server: "ci"})
-		result, _ = SearchTools(spanEntries, FindToolsArgs{Queries: []string{"GitHub github status"}}, SearchBudget{})
-		require.Len(t, result.Activated, 2,
-			"distinct exact-case sibling words span their fold family, not the whole catalog")
-
-		result, _ = SearchTools(caseEntries, FindToolsArgs{Queries: []string{"GitHub github GitHub status"}}, SearchBudget{})
-		require.Len(t, result.Activated, 2,
-			"a repeated exact sibling cannot re-narrow a spanned fold family")
 	})
 	t.Run("folded scopes with different byte lengths", func(t *testing.T) {
 		t.Parallel()
