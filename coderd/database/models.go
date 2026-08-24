@@ -3632,6 +3632,7 @@ const (
 	ResourceTypeChatInstructionSettings     ResourceType = "chat_instruction_settings"
 	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
 	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
+	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3709,7 +3710,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeOauth2ProviderSettings,
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
-		ResourceTypeChatModelConfig:
+		ResourceTypeChatModelConfig,
+		ResourceTypeChatOperationalSettings:
 		return true
 	}
 	return false
@@ -3756,6 +3758,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
+		ResourceTypeChatOperationalSettings,
 	}
 }
 

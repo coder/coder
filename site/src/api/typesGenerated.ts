@@ -8117,6 +8117,7 @@ export type ResourceType =
 	| "chat"
 	| "chat_instruction_settings"
 	| "chat_model_config"
+	| "chat_operational_settings"
 	| "convert_login"
 	| "custom_role"
 	| "git_ssh_key"
@@ -8158,6 +8159,7 @@ export const ResourceTypes: ResourceType[] = [
 	"chat",
 	"chat_instruction_settings",
 	"chat_model_config",
+	"chat_operational_settings",
 	"convert_login",
 	"custom_role",
 	"git_ssh_key",

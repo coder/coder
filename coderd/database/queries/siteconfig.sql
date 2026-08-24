@@ -378,3 +378,20 @@ INSERT INTO site_configs (key, value)
 VALUES ('agents_chat_auto_archive_days', CAST(@auto_archive_days AS integer)::text)
 ON CONFLICT (key) DO UPDATE SET value = CAST(@auto_archive_days AS integer)::text
 WHERE site_configs.key = 'agents_chat_auto_archive_days';
+
+-- GetChatSiteConfigValue returns raw text and row presence for an audited chat site configuration.
+-- name: GetChatSiteConfigValue :one
+SELECT
+    COALESCE(MAX(site_configs.value), '')::text AS value,
+    COUNT(*) > 0 AS exists
+FROM site_configs
+WHERE site_configs.key = sqlc.arg(config_key)
+    AND site_configs.key IN (
+        'agents_chat_retention_days',
+        'agents_chat_debug_retention_days',
+        'agents_chat_auto_archive_days',
+        'agents_workspace_ttl',
+        'agents_computer_use_provider',
+        'agents_chat_debug_logging_allow_users',
+        'agents_chat_personal_model_overrides_enabled'
+    );

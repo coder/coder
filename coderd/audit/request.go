@@ -167,6 +167,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.ChatInstructionSettings:
 		return typed.Name
+	case database.ChatOperationalSettings:
+		return ""
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
@@ -275,6 +277,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.ChatInstructionSettings:
 		// Fixed ID per setting; see ChatInstructionSettings IDs.
 		return typed.ID
+	case database.ChatOperationalSettings:
+		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
 	}
@@ -356,6 +360,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeUserSkill
 	case database.ChatInstructionSettings:
 		return database.ResourceTypeChatInstructionSettings
+	case database.ChatOperationalSettings:
+		return database.ResourceTypeChatOperationalSettings
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -453,6 +459,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return false
 	case database.ChatInstructionSettings:
 		// Deployment settings, not scoped to any organization.
+		return false
+	case database.ChatOperationalSettings:
 		return false
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))
