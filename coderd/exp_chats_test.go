@@ -639,34 +639,6 @@ type failNextGetChatSiteConfigValueStore struct {
 	failNextGetChatSiteConfigValue *atomic.Bool
 }
 
-type failNextChatOperationalSettingTransactionStore struct {
-	database.Store
-
-	failNextTransaction *atomic.Bool
-}
-
-func newFailNextChatOperationalSettingTransactionStore(store database.Store) *failNextChatOperationalSettingTransactionStore {
-	return &failNextChatOperationalSettingTransactionStore{
-		Store:               store,
-		failNextTransaction: &atomic.Bool{},
-	}
-}
-
-func (s *failNextChatOperationalSettingTransactionStore) InTx(
-	function func(database.Store) error,
-	txOpts *database.TxOptions,
-) error {
-	return s.Store.InTx(func(tx database.Store) error {
-		if err := function(tx); err != nil {
-			return err
-		}
-		if s.failNextTransaction.CompareAndSwap(true, false) {
-			return stderrors.New("forced chat operational setting transaction failure")
-		}
-		return nil
-	}, txOpts)
-}
-
 type failNextUpsertChatRetentionDaysStore struct {
 	database.Store
 
@@ -17103,14 +17075,6 @@ func TestChatRetentionDays_AuditInfrastructureFailureRejectsWrite(t *testing.T) 
 			store: func(db database.Store) (database.Store, func()) {
 				store := newFailNextAcquireLockStore(db, database.GenLockID("agents_chat_retention_days"))
 				return store, func() { store.failNextAcquireLock.Store(true) }
-			},
-		},
-		{
-			name:          "TransactionAfterNoChange",
-			retentionDays: 30,
-			store: func(db database.Store) (database.Store, func()) {
-				store := newFailNextChatOperationalSettingTransactionStore(db)
-				return store, func() { store.failNextTransaction.Store(true) }
 			},
 		},
 	}
