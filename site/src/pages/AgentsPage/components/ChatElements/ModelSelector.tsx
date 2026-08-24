@@ -163,12 +163,16 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					type="button"
 					variant="subtle"
 					className={cn(
-						"h-7 min-w-0 shrink justify-start gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:!size-3.5 [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition [&>svg]:hover:text-content-primary [&>img]:!size-3 [&>img]:!p-0",
+						"h-7 shrink justify-start gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:!size-3.5 [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition [&>svg]:hover:text-content-primary [&>img]:!size-3 [&>img]:!p-0",
 						className,
 					)}
 					onTouchStart={onTriggerTouchStart}
 				>
-					<span className="flex min-w-0 items-center gap-1">
+					{/* No min-w-0 here or on the button: the label's min-w-[8ch]
+					 * floor below must propagate up so the trigger never shrinks
+					 * past roughly 8 characters of the model name. Siblings (the
+					 * badge row's +N overflow pill) absorb the remaining pressure. */}
+					<span className="flex items-center gap-1">
 						{selectedModel && (
 							<span
 								className="flex shrink-0 items-center"
@@ -181,7 +185,10 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 								/>
 							</span>
 						)}
-						<span className="truncate">{triggerLabel}</span>
+						{/* Keep at least 8 characters visible before truncating.
+						 * truncate clips inside this span, so the chevron's gap to
+						 * the ellipsis stays constant. */}
+						<span className="min-w-[8ch] truncate">{triggerLabel}</span>
 					</span>
 					<ChevronDownIcon open={open} />
 				</Button>
