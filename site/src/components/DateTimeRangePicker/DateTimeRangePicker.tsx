@@ -211,21 +211,21 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
-				{/* The icon sizes are marked important because the Button's
-				    `[&>svg]` sizing/padding rules would otherwise win on
-				    specificity and inflate the icons at larger button sizes.
-				    The calendar matches the search field icon (size-icon-sm),
-				    and its mr-1 plus the button's gap-1 matches the search
-				    field's 8px icon-to-text spacing. The calendar glyph is
-				    denser than the magnifier, so its stroke is slightly
-				    thinner to read as the same optical weight. */}
+				{/* The calendar icon sizing is marked important because the
+				    Button's `[&>svg]` sizing/padding rules would otherwise win
+				    on specificity and inflate it at larger button sizes. It
+				    matches the search field icon (size-icon-sm), and its mr-1
+				    plus the button's gap-1 matches the search field's 8px
+				    icon-to-text spacing. The calendar glyph is denser than the
+				    magnifier, so its stroke is slightly thinner to read as the
+				    same optical weight. */}
 				<Button variant="outline" size={size} className="group">
 					<CalendarIcon
 						strokeWidth={1.75}
 						className="!size-icon-sm !p-0 mr-1 text-content-secondary"
 					/>
 					<span>{triggerLabel}</span>
-					<ChevronDownIcon className="!size-3.5 !p-0 text-content-secondary" />
+					<ChevronDownIcon className="size-3.5 text-content-secondary" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
